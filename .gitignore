@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+.runtime/
+dist/
+*.xlsm
+*.xlsx
+node_modules/
+.coverage

@@ -1,0 +1,2 @@
+# PDF generation; estimating calculations and storage remain standard-library Python.
+reportlab==4.4.9

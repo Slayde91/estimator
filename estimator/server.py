@@ -4,6 +4,7 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -21,17 +22,26 @@ def create_server(port=8765, database=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "CeasefireEstimator"
 
-        def send_payload(self, status, payload, content_type="application/json; charset=utf-8"):
+        def send_payload(self, status, payload, content_type="application/json; charset=utf-8", headers=None):
             body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8") if content_type.startswith("application/json") else payload
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
             self.end_headers()
             self.wfile.write(body)
+
+        def send_report(self, quote, report_kind):
+            from .report import render_quote_pdf
+            # Restrict the filename to safe ASCII; the full title is inside the PDF.
+            name = re.sub(r"[^a-zA-Z0-9]+", "-", quote["title"]).strip("-")[:80] or "ceasefire-quote"
+            report = render_quote_pdf({**quote, "report_kind": report_kind})
+            self.send_payload(200, report, "application/pdf", {"Content-Disposition": f'attachment; filename="{name}.pdf"'})
 
         def read_json(self):
             if self.headers.get_content_type() != "application/json":
@@ -75,18 +85,27 @@ def create_server(port=8765, database=None):
                     self.send_payload(200, store.configuration())
                 elif route == "/api/quotes":
                     self.send_payload(200, {"quotes": store.list_quotes()})
+                elif route.startswith("/api/quotes/") and route.endswith("/report.pdf"):
+                    self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_payload(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/styles.css"}:
+                elif route in {"/", "/index.html", "/app.js", "/styles.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
-                    kind = {".js": "text/javascript", ".css": "text/css", ".html": "text/html"}[path.suffix]
-                    self.send_payload(200, path.read_bytes(), kind + "; charset=utf-8")
+                    kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png"}[path.suffix]
+                    self.send_payload(200, path.read_bytes(), kind)
                 else:
                     self.send_payload(404, {"error": "Not found."})
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
-                if route == "/api/calculate" and self.command == "POST":
+                if route == "/api/quote-report" and self.command == "POST":
+                    source_quote_id = body.pop("source_quote_id", None)
+                    if source_quote_id is not None and (not isinstance(source_quote_id, str) or not 0 < len(source_quote_id) <= 200):
+                        raise ValidationError("Source quote reference must contain 1 to 200 characters.")
+                    quote = store.prepare_quote(body, source_quote_id)
+                    quote["id"] = None
+                    self.send_report(quote, "Current estimate")
+                elif route == "/api/calculate" and self.command == "POST":
                     if set(body) - {"inputs", "configuration"}:
                         raise ValidationError("Unknown calculation request fields.")
                     self.send_payload(200, calculate(body.get("inputs", {}), body.get("configuration", store.configuration())))

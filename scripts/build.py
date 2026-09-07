@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main():
     paths = sorted(path for folder in ("estimator", "static", "data") for path in (ROOT / folder).rglob("*") if path.is_file() and "__pycache__" not in path.parts)
-    paths.append(ROOT / "README.md")
+    paths.extend([ROOT / "README.md", ROOT / "requirements.txt"])
     for path in paths:
         if path.suffix == ".py":
             py_compile.compile(str(path), doraise=True)

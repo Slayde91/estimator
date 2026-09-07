@@ -68,6 +68,39 @@ def normalize_inputs(inputs, catalog=None):
     return result
 
 
+def masking_breakdown(result):
+    """Expose the masking terms already used by F2/F3, also for older snapshots.
+
+    Uses stored cells only: it never consults current pricing or recalculates a
+    quote. B56 remains the original locked blank and contributes zero.
+    """
+    def read(cell):
+        if cell in result["errors"]:
+            raise ExcelError(result["errors"][cell])
+        value = result["cells"][cell]
+        if value is None:
+            return 0
+        if not isinstance(value, (int, float)):
+            raise ExcelError("#VALUE!")
+        return value
+
+    expressions = {
+        "labour_total": lambda: read("B51") * read("B53") + read("B56"),
+        "material_base_total": lambda: read("B52") * read("B53"),
+        "material_adjustment": lambda: read("B57"),
+        "material_total": lambda: read("B52") * read("B53") + read("B57"),
+        "total": lambda: read("B58"),
+    }
+    breakdown = {}
+    for name, expression in expressions.items():
+        try:
+            value = expression()
+            breakdown[name] = value if math.isfinite(value) else "#NUM!"
+        except ExcelError as exc:
+            breakdown[name] = exc.code
+    return breakdown
+
+
 def calculate(inputs=None, configuration=None):
     catalog = effective_catalog(configuration)
     inputs = normalize_inputs({} if inputs is None else inputs, catalog)
@@ -197,4 +230,5 @@ def calculate(inputs=None, configuration=None):
         "materials": [{"name": inputs[f"D{r}"], "quantity": cells[f"D{q}"], "price": cells[f"A{p}"], "total": cells[f"F{p}"], "days": cells[f"B{q}"], "source": f"Calculator!D{q}/F{p}"} for r,p,q,_,_ in LINES],
         "notes": cells["B30"],
     }
+    result["masking"] = masking_breakdown(result)
     return result

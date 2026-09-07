@@ -61,7 +61,8 @@ class Store:
             raise KeyError(quote_id)
         return json.loads(row[0])
 
-    def save_quote(self, data, quote_id=None):
+    def prepare_quote(self, data, quote_id=None):
+        """Validate and calculate a pricing snapshot without writing a quote."""
         if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements"}:
             raise ValidationError("Quote contains unknown fields.")
         previous = self.quote(quote_id) if quote_id else None
@@ -91,6 +92,10 @@ class Store:
                  "measurements": measurements, "inputs": result["inputs"],
                  "configuration": configuration, "result": result,
                  "source_hashes": baseline()["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
+        return quote
+
+    def save_quote(self, data, quote_id=None):
+        quote = self.prepare_quote(data, quote_id)
         with self.connect() as db:
             db.execute("INSERT INTO quotes VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at, data=excluded.data",
                        (quote["id"], quote["title"], quote["updated_at"], json.dumps(quote, ensure_ascii=False, allow_nan=False)))

@@ -6,9 +6,17 @@ GitHub `Slayde91/estimator` contained only README.md at `18d5058` (Initial commi
 
 ## Implementation decision
 
-Current architecture: no executable application. Proposed change: a small local Python application with explicit calculation functions, JSON baseline data, SQLite persistence and a browser interface. Reason: reproduce the workbook without Excel at runtime while keeping business rules independently testable and avoiding unnecessary dependencies.
+The initial architecture decision introduced a small local Python application with explicit calculation functions, JSON baseline data, SQLite persistence and a browser interface. The reason was to reproduce the workbook without Excel at runtime while keeping business rules independently testable and avoiding unnecessary dependencies.
 
-Consequences: Python 3.11+ is required; there is no frontend bundler, server framework, package installation, remote service or runtime workbook parser. The built-in HTTP server is intentionally restricted to a single local computer. Multi-user hosting would require a separate reviewed authentication/deployment design. Migration impact: initial application creation only; no user database existed. SQLite schema version is 1.
+Consequences: Python 3.11+ is required; there is no frontend bundler, server framework, remote service or runtime workbook parser. The built-in HTTP server is intentionally restricted to a single local computer. Multi-user hosting would require a separate reviewed authentication/deployment design. Migration impact: initial application creation only; no user database existed. SQLite schema version is 1.
+
+## PDF reporting extension
+
+Current architecture: Calculator results and pricing snapshots already exist in the local application, with a browser print view. The extension adds server-generated PDF reports using ReportLab 4.4.9 and the user-supplied Ceasefire logo. The reason is to provide a downloadable branded document that retains the quote's calculation evidence and can be generated without a print dialog.
+
+Consequences: install `requirements.txt` before running PDF generation; `requirements-dev.txt` adds pypdf for report inspection in tests. Report generation consumes existing calculated or stored results and does not change Calculator formulas. The original logo bitmap is packaged unchanged and scaled proportionally for presentation. Migration impact: no database schema change or quote rewrite is required.
+
+`POST /api/quote-report` builds a report from captured current inputs and pricing without saving a quote. Edited saved quotes include their source quote ID so the server can preserve the original source hashes when pricing is unchanged. `GET /api/quotes/<id>/report.pdf` renders the stored quote's result and source lineage directly, so an unchanged saved report remains available after catalogue changes. The UI selects the saved endpoint only when a saved quote has no unsaved edits. It captures its request before awaiting the response, validates the PDF response and starts a file download through a temporary blob URL.
 
 ## Components
 
@@ -20,12 +28,13 @@ Consequences: Python 3.11+ is required; there is no frontend bundler, server fra
 | `estimator/catalog.py` | Immutable baseline, validated overrides, supplier/markup propagation and explicit rate precedence |
 | `estimator/calculator.py` | Explicit cell-addressed formula evaluation, dependency/error propagation and unrounded binary floating-point results |
 | `estimator/storage.py` | Settings, saved full input sets, effective lookup snapshots, result evidence and source hashes |
+| `estimator/report.py` | Branded PDF presentation of existing quote results, inputs and source evidence |
 | `estimator/server.py` | Loopback-only allowlisted HTTP/JSON interface and request validation |
-| `static/` | Accessible input controls, pricing editor, quote persistence, current calculations and print presentation |
+| `static/` | Accessible input controls, pricing editor, quote persistence, current calculations, original logo, PDF download and print presentation |
 
 ## Calculation and state boundaries
 
-The UI sends values only. All prices, calculations and totals are recomputed on the server. No expression strings are executed or evaluated. Numeric empty inputs use Excel's blank arithmetic; missing lookup text and empty-text yields retain Excel error propagation. API text selections can produce `#N/A` for imported/invalid values; the UI offers the workbook's dropdown choices and blank affordance. Calculated cells cannot be supplied as inputs.
+The UI sends values only. New or edited estimates recompute prices, calculations and totals on the server; saved PDF reports use their stored results. No expression strings are executed or evaluated. Numeric empty inputs use Excel's blank arithmetic; missing lookup text and empty-text yields retain Excel error propagation. API text selections can produce `#N/A` for imported/invalid values; the UI offers the workbook's dropdown choices and blank affordance. Calculated cells cannot be supplied as inputs.
 
 Imported data never changes at runtime. User configuration stores overrides separately. Changes to an inventory price propagate to every linked rate unless that rate has an explicit override. Changing product display text does not change the source selection key. Quote saves freeze all effective rate prices/yields, not only changed values, so a future default-price refresh does not silently reprice saved work. Removing or renaming source identities requires a deliberate data migration; no runtime import is exposed.
 

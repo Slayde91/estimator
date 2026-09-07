@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 import unittest
 
-from estimator.calculator import calculate, fields, specification
+from estimator.calculator import calculate, fields, masking_breakdown, specification
 from estimator.catalog import baseline, ValidationError
 
 
@@ -51,6 +51,15 @@ class CalculatorTests(unittest.TestCase):
             self.assertEqual(result["errors"], {})
             self.assertTrue(result["notes"].startswith(notes + "\n\n---Materials---"))
 
+    def test_masking_breakdown_preserves_excel_errors_and_old_snapshots(self):
+        result = calculate({"B15": 1, "C15": 1e-307})
+        self.assertEqual(result["masking"]["labour_total"], "#NUM!")
+        self.assertEqual(result["masking"]["material_base_total"], "#NUM!")
+        json.dumps(result, allow_nan=False)
+        original = calculate({"B15": 35.75, "B26": 0.12, "B27": 0.25})
+        expected = original.pop("masking")
+        self.assertEqual(masking_breakdown(original), expected)
+
 
 class ExcelOracleTests(unittest.TestCase):
     def test_independently_recalculated_excel_scenarios(self):
@@ -73,6 +82,17 @@ class ExcelOracleTests(unittest.TestCase):
                     rate_id, field = source_index[source.replace("Lists!", "")]
                     configuration["rates"].setdefault(rate_id, {})[field] = expected
                 actual = calculate(scenario["inputs"], configuration)
+                # Reconcile the report's non-overlapping cost components to Excel,
+                # using the independently captured workbook totals as the oracle.
+                expected_cells = scenario["expected"]
+                if isinstance(expected_cells["F7"], (int, float)):
+                    c, masking = actual["cells"], actual["masking"]
+                    labour = sum(c[f"F{row}"] for row in (65, 70, 79, 84, 89, 94, 99, 104)) + masking["labour_total"] + sum(c[f"D{row}"] for row in (112, 113, 119))
+                    materials = sum(c[f"F{row}"] for row in (63, 68, 73, 77, 82, 87, 92, 97, 102)) + masking["material_base_total"] + masking["material_adjustment"] + c["D114"]
+                    access = c["D115"] + c["D116"]
+                    travel = c["D117"] + c["D118"]
+                    for cell, amount in (("F2", labour), ("F3", materials), ("F4", access), ("F5", travel), ("F7", labour + materials + access + travel + c["D27"])):
+                        self.assertTrue(math.isclose(amount, expected_cells[cell], rel_tol=1e-12, abs_tol=1e-8), (scenario["id"], cell, amount, expected_cells[cell]))
                 for cell, expected in scenario["expected"].items():
                     with self.subTest(cell=cell):
                         result = actual["cells"].get(cell)

@@ -6,9 +6,10 @@
 - Extract 417 inventory records, 166 dropdown values, all 64 Calculator inputs and 151 formulas with source traceability.
 - Translate all Calculator numeric and notes formulas, including blank/error behavior and unrounded pricing.
 - Expose the Calculator controls, pricing configuration, calculated breakdown and print view.
+- Use the supplied Ceasefire logo and provide downloadable PDF quote reports with saved-result/source-lineage preservation.
 - Save/reopen quotes with input, lookup-price/yield and result snapshots.
 - Protect calculations with independently captured Excel scenarios and test import, persistence and HTTP behavior.
-- Build a standalone distribution without Excel, workbooks or third-party runtime dependencies.
+- Build a distribution without Excel or source workbooks, with declared PDF dependencies and the original logo included.
 
 ## Outside the rules supplied by these workbooks
 

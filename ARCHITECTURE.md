@@ -20,6 +20,8 @@ Consequences: install `requirements.txt` before running PDF generation; `require
 
 ## Components
 
+On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It reuses a healthy local app or starts the existing server as a hidden, detached process, waits for readiness, and opens the browser. Runtime discovery checks Python 3.11+ and the ReportLab version pinned in `requirements.txt`; it can use an already-installed Codex runtime as a fallback. Startup logs remain in `.runtime`. There is no Windows service, login task, database migration or automatic package installation. After restarting Windows, the user runs the launcher again.
+
 | Component | Responsibility |
 | --- | --- |
 | `scripts/import_workbooks.py` | Developer-only OOXML extraction, shared formulas, original lookup-filter reconciliation and source hashes |

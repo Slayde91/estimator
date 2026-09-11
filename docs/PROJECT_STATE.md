@@ -1,6 +1,6 @@
 # Project state
 
-Date: 2026-09-07. Code and checked results take precedence over this document.
+Date: 2026-09-12. Code and checked results take precedence over this document.
 
 The initial repository was README-only at `18d5058`. The application now implements the supplied Calculator in a local browser interface, backed by explicit Python calculations and SQLite. It uses permanently imported JSON inventory and has no workbook/Excel runtime dependency.
 
@@ -13,3 +13,5 @@ Validation evidence: source cached outputs and 216 independent Microsoft Excel s
 Workflows use the same user-entered product quantities and coverage as Excel. They do not derive quantities from dimensions/FRL. No automatic geometry/technical-rule implementation is claimed because the source templates contain no such calculations.
 
 Publication and final check results are recorded in `SESSION_HANDOFF.md` and GitHub Checks. The local application is not a production-hosted or multi-user deployment.
+
+Windows startup now includes a double-click launcher in the checkout and distribution. It runs the app independently of the launching terminal, reuses an existing healthy server, checks the pinned PDF dependency, and reports occupied ports or missing dependencies. This addresses the local link becoming unavailable when the previous server process stops; it does not make localhost a permanently hosted URL.

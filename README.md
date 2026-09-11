@@ -6,6 +6,10 @@ A local estimating application reproducing `Quote.xlsm`'s Calculator with perman
 
 Requires Python 3.11 or newer and the dependencies in `requirements.txt`. ReportLab 4.4.9 generates quote PDFs; estimating calculations and storage use Python's standard library. Neither Excel nor the workbooks are required to run the app.
 
+On Windows, double-click **[Start-Estimator.cmd](Start-Estimator.cmd)**. It starts ESTIMATOR in the background and opens your browser, or reopens the existing app if it is already running. The app keeps running after the launcher or chat closes; double-click the launcher again after restarting Windows. Saved quotes and pricing continue to use `.runtime/estimator.sqlite3`. The launcher prefers an installed Python with ReportLab and can also use the existing Codex Python runtime when available. It does not install software or register automatic startup. If startup fails, the launcher displays the problem; server startup logs are kept in `.runtime`. To select another port, run `Start-Estimator.cmd -Port 8766`; `-NoBrowser` starts or checks the app without opening a browser.
+
+For manual installation and startup:
+
 ```powershell
 cd C:\ESTIMATOR\app
 python -m pip install -r requirements.txt

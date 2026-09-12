@@ -14,6 +14,7 @@ from pypdf import PdfReader
 from estimator.calculator import calculate
 from estimator.catalog import ROOT
 from estimator.report import render_quote_pdf
+from estimator.presentation import calculation_error_details
 from estimator.storage import Store
 
 
@@ -47,7 +48,7 @@ class ReportTests(unittest.TestCase):
                 self.assertIn("$" + f"{amount:,.8f}".rstrip("0").rstrip("."), compact)
         for cell in ("F2", "F3", "F4", "F5", "F6", "F7", "F8", "D27"):
             self.assertIn(f"${expected[cell]:,.2f}", compact, cell)
-        for label in ("Material breakdown", "Labour and masking", "Pins / clips", "Masking labour", "Masking materials", "Masking material adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Notes and traceability"):
+        for label in ("Material breakdown", "Labour and masking", "Pins / clips", "Masking labour", "Masking materials", "Masking material adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Quote notes"):
             self.assertIn(label, self.text)
         for token in ("1.66458333", "1.91427083", "27.58802083"):
             self.assertIn(token, self.text, "Do not split a priced quantity across lines")
@@ -77,7 +78,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("<img src='https://example.invalid/tracker'>", text)
         self.assertIn("Inspection note 179", text)
         self.assertIn("FINAL MEASUREMENT", text)
-        self.assertIn(quote["source_hashes"]["quote"]["sha256"], "".join(text.split()))
+        self.assertNotIn(quote["source_hashes"]["quote"]["sha256"], "".join(text.split()))
         self.assertEqual(quote, before)
 
     def test_errors_are_explicit_and_valid_totals_remain_visible(self):
@@ -88,12 +89,21 @@ class ReportTests(unittest.TestCase):
                 quote["inputs"] = quote["result"]["inputs"]
                 text = pdf_text(render_quote_pdf(quote))
                 self.assertIn("CALCULATION INCOMPLETE", text)
-                for cell, error in quote["result"]["errors"].items():
-                    self.assertIn("Calculator!" + cell, text)
-                    self.assertIn(error, text)
+                for error in calculation_error_details(quote["result"]):
+                    self.assertIn("".join(error["label"].split()), "".join(text.split()))
+                    self.assertIn(error["code"], text)
+                self.assertNotIn("Calculator!", text)
                 if inputs == {"B8": 0}:
                     self.assertIn("$1,260.00", text)
                     self.assertIn("Unavailable: #DIV/0!", text)
+
+    def test_customer_report_uses_business_labels_without_source_audit_clutter(self):
+        self.assertNotRegex(self.text, r"\b[A-F]\d{1,3}\b")
+        for technical_label in ("Calculator!", "SHA-256", "Catalogue structure signature", "Reconciliation checks", "Second subtotal", "Affected source cell", "row 15"):
+            self.assertNotIn(technical_label, self.text)
+        self.assertEqual(self.text.count("Grand total"), 1)
+        self.assertIn("Total project days", self.text)
+        self.assertIn("Rate per project area / item", self.text)
 
     def test_older_saved_snapshot_never_reads_current_pricing_or_recalculates(self):
         quote = deepcopy(self.quote)

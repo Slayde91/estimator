@@ -7,9 +7,18 @@
 - Translate all Calculator numeric and notes formulas, including blank/error behavior and unrounded pricing.
 - Expose the Calculator controls, pricing configuration, calculated breakdown and print view.
 - Use the supplied Ceasefire logo and provide downloadable PDF quote reports with saved-result/source-lineage preservation.
-- Save/reopen quotes with input, lookup-price/yield and result snapshots.
+- Export the complete pricing library to an Excel workbook with Inventory, Rates and Instructions sheets.
+- Import added/removed inventory products, dropdown choices and prices as a reviewed draft; apply them only with Save pricing.
+- Distinguish linked inventory prices from explicit rate overrides and preserve supported yield semantics.
+- Save/reopen quotes with full catalog, input, lookup-price/yield and result snapshots; keep older quote records compatible after library replacements.
+- Present named business inputs and cost breakdowns in the estimator and PDF, retaining original cell mappings internally for formula verification.
 - Protect calculations with independently captured Excel scenarios and test import, persistence and HTTP behavior.
-- Build a distribution without Excel or source workbooks, with declared PDF dependencies and the original logo included.
+- Build a distribution without Microsoft Excel or original source workbooks, with declared PDF/XLSX dependencies and the original logo included.
+- Start the local application with a Windows double-click launcher that checks all pinned runtime dependencies.
+
+## Current verification and publication
+
+The pricing exchange and presentation changes on `feat/pricing-workbook-library` passed all 77 Python tests with the original workbooks available, plus eight UI transition checks and JavaScript syntax validation. Workbook rendering, browser import/review/Save/calculation, five PDF pages, Windows startup and the extracted distribution were checked. All 216 independent Excel scenarios also pass after pricing export/import. Publication and merge status are recorded separately in the pull request; local checks do not imply GitHub CI success.
 
 ## Outside the rules supplied by these workbooks
 

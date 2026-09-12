@@ -8,12 +8,12 @@ param(
 $ErrorActionPreference = 'Stop'
 $applicationRoot = $PSScriptRoot
 $applicationUrl = "http://127.0.0.1:$Port"
-$reportLabPin = @(Get-Content -LiteralPath (Join-Path $applicationRoot 'requirements.txt') | Select-String -Pattern '^reportlab==([0-9][A-Za-z0-9.+-]*)\s*$')
-if ($reportLabPin.Count -ne 1) {
-    [Console]::Error.WriteLine('Cannot determine the required ReportLab version from requirements.txt.')
+$packagePins = @(Get-Content -LiteralPath (Join-Path $applicationRoot 'requirements.txt') | Select-String -Pattern '^([A-Za-z0-9_.-]+)==([0-9][A-Za-z0-9.+-]*)\s*$')
+if ($packagePins.Count -eq 0) {
+    [Console]::Error.WriteLine('Cannot determine the required packages from requirements.txt.')
     exit 1
 }
-$requiredReportLab = $reportLabPin[0].Matches[0].Groups[1].Value
+$requiredPackages = ($packagePins | ForEach-Object { $_.Matches[0].Value.Trim() }) -join ','
 
 function Get-EndpointState {
     # Check TCP first so a different service cannot be mistaken for a free port.
@@ -50,8 +50,8 @@ function Test-PythonRuntime {
     if (-not $Executable -or $Executable -match '[\\/]WindowsApps[\\/]') { return $null }
     if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { return $null }
     try {
-        $probe = 'import sys; import reportlab; assert sys.version_info >= (3, 11); assert reportlab.Version == sys.argv[1]; print(sys.executable)'
-        $arguments = @($PrefixArguments) + @('-c', $probe, $requiredReportLab)
+        $probe = 'import sys; from importlib.metadata import version; import reportlab, openpyxl; assert sys.version_info >= (3, 11); assert all(version(name)==pin for name,pin in (entry.split(''=='') for entry in sys.argv[1].split('',''))); print(sys.executable)'
+        $arguments = @($PrefixArguments) + @('-c', $probe, $requiredPackages)
         $output = @(& $Executable @arguments 2>$null)
         if ($LASTEXITCODE -eq 0 -and $output.Count -gt 0) {
             $resolved = [string]$output[-1]
@@ -87,7 +87,7 @@ function Find-PythonRuntime {
         $runtime = Test-PythonRuntime -Executable $bundled
         if ($runtime) { return $runtime }
     }
-    throw "Python 3.11 or newer with ReportLab $requiredReportLab is required. Install Python, then run this command in '$applicationRoot': python -m pip install -r requirements.txt"
+    throw "Python 3.11 or newer with the packages in requirements.txt is required. Install Python, then run this command in '$applicationRoot': python -m pip install -r requirements.txt"
 }
 
 try {

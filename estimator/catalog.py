@@ -1,4 +1,4 @@
-"""Immutable workbook baseline and separately validated user pricing overrides."""
+"""Immutable defaults, replaceable pricing libraries, and validated overrides."""
 
 from copy import deepcopy
 import json
@@ -7,6 +7,8 @@ import math
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+MAX_INVENTORY_ITEMS = 5000
+MAX_RATE_ITEMS = 10000
 
 
 class ValidationError(ValueError):
@@ -33,11 +35,181 @@ def catalog_signature(data=None):
     return hashlib.sha256(json.dumps(identities, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+def has_yield(rate):
+    """Imported records have an explicit flag; older snapshots retain provenance."""
+    return rate.get("uses_yield", bool(rate.get("source", {}).get("yield")))
+
+
+def _text(value, label, maximum=1000, empty=False):
+    if not isinstance(value, str) or len(value) > maximum or (not empty and not value.strip()):
+        raise ValidationError(f"{label} must be {'text' if empty else 'nonempty text'} of at most {maximum} characters.")
+    if any(ord(char) < 32 and char not in "\n\r\t" for char in value):
+        raise ValidationError(f"{label} contains unsupported control characters.")
+    return value
+
+
+def _amount(value, label, blank=False, minimum=0):
+    if blank and (value is None or value == ""):
+        return value
+    finite_number(value, label)
+    if value < minimum:
+        raise ValidationError(f"{label} cannot be below {minimum}.")
+    return value
+
+
+def validate_catalog(value):
+    """Validate a complete replacement without changing the workbook defaults.
+
+    Groups are the estimator's existing calculation categories. A replacement
+    may add/remove their choices, but cannot redefine what a category means.
+    Source metadata is retained for audit only, never interpreted as formulas.
+    """
+    allowed = {"schema_version", "sources", "markup", "inventory", "rate_groups", "rate_group_rules", "provenance_notes"}
+    if not isinstance(value, dict) or set(value) - allowed:
+        raise ValidationError("Pricing library must contain inventory and rate groups with supported metadata only.")
+    data = deepcopy(value)
+    reference = baseline()
+    if data.get("schema_version", 1) != 1 or isinstance(data.get("schema_version"), bool):
+        raise ValidationError("Unsupported pricing library schema version.")
+    data["schema_version"] = 1
+    notes = data.setdefault("provenance_notes", [])
+    if not isinstance(notes, list) or len(notes) > 50:
+        raise ValidationError("Library provenance notes must be a list with at most 50 entries.")
+    for note in notes:
+        _text(note, "Library provenance note", 2000)
+    data["markup"] = _amount(data.get("markup", reference["markup"]), "Library markup", minimum=-1)
+    sources = data.setdefault("sources", {})
+    if not isinstance(sources, dict) or len(sources) > 20:
+        raise ValidationError("Library sources must be an object with at most 20 entries.")
+    for key, source in sources.items():
+        _text(key, "Source name", 200)
+        if not isinstance(source, dict) or set(source) - {"filename", "sha256"}:
+            raise ValidationError(f"Source {key} must contain a filename and SHA-256 hash only.")
+        for field in ("filename", "sha256"):
+            _text(source.get(field), f"Source {key} {field}", 1000)
+    if not isinstance(data.get("inventory"), list) or len(data["inventory"]) > MAX_INVENTORY_ITEMS:
+        raise ValidationError(f"Library inventory must be a list of at most {MAX_INVENTORY_ITEMS} products.")
+    groups = data.get("rate_groups")
+    if not isinstance(groups, dict) or groups.keys() != reference["rate_groups"].keys():
+        raise ValidationError("Library must include exactly the 14 supported rate groups.")
+    supplied_rules = data.get("rate_group_rules", reference["rate_group_rules"])
+    if not isinstance(supplied_rules, dict) or supplied_rules.keys() != reference["rate_group_rules"].keys():
+        raise ValidationError("Library rate group rules do not match the supported categories.")
+    for group, rule in supplied_rules.items():
+        if not isinstance(rule, dict) or any(rule.get(field) != reference["rate_group_rules"][group][field]
+                                             for field in ("name_column", "yield_column")):
+            raise ValidationError(f"Library cannot change the calculation rules for {group}.")
+    data["rate_group_rules"] = deepcopy(reference["rate_group_rules"])
+    inventory_ids = set()
+    inventory_fields = {"id", "item_code", "name", "sales_description", "supplier_price", "supplier_price_raw",
+                        "sales_price", "calculated_sell_price", "pricing_mode", "markup", "status", "inventory_type", "properties", "source"}
+    for item in data["inventory"]:
+        if not isinstance(item, dict) or set(item) - inventory_fields:
+            raise ValidationError("Inventory products contain unsupported fields.")
+        key = _text(item.get("id"), "Inventory ID", 200)
+        if key in inventory_ids:
+            raise ValidationError(f"Duplicate inventory ID: {key}.")
+        inventory_ids.add(key)
+        for field in ("name", "sales_description"):
+            _text(item.get(field), f"Inventory {key} {field}", empty=field == "sales_description")
+        if not isinstance(item.get("pricing_mode"), str) or item["pricing_mode"] not in {"supplier_markup", "manual"}:
+            raise ValidationError(f"Inventory {key} has an unsupported pricing mode.")
+        _amount(item.get("sales_price"), f"Inventory {key} sales price")
+        _amount(item.get("markup"), f"Inventory {key} markup", minimum=-1)
+        if item.get("supplier_price") is not None or item["pricing_mode"] == "supplier_markup":
+            _amount(item.get("supplier_price"), f"Inventory {key} supplier price")
+        else:
+            item["supplier_price"] = None
+        item.setdefault("item_code", key)
+        if isinstance(item["item_code"], str):
+            _text(item["item_code"], f"Inventory {key} item code", 200, empty=True)
+        else:
+            finite_number(item["item_code"], f"Inventory {key} item code")
+        for field in ("status", "inventory_type"):
+            item.setdefault(field, "")
+            _text(item[field], f"Inventory {key} {field}", empty=True)
+        item.setdefault("calculated_sell_price", item["sales_price"])
+        _amount(item["calculated_sell_price"], f"Inventory {key} calculated sell price", blank=True)
+        properties = item.setdefault("properties", {})
+        if not isinstance(properties, dict) or len(properties) > 30:
+            raise ValidationError(f"Inventory {key} properties must be an object with at most 30 values.")
+        for name, number in properties.items():
+            _text(name, f"Inventory {key} property name", 100)
+            if isinstance(number, str):
+                # The original inventory includes dimension ranges, e.g. 40-65.
+                # These descriptive properties do not drive rate yield lookups.
+                _text(number, f"Inventory {key} {name}", 1000, empty=True)
+            else:
+                _amount(number, f"Inventory {key} {name}", blank=True)
+        if not isinstance(item.setdefault("source", {}), dict):
+            raise ValidationError(f"Inventory {key} source must be an object.")
+    rate_ids = set()
+    rate_fields = {"id", "name", "display_name", "price", "yield", "inventory_id", "source", "uses_yield", "price_mode"}
+    for group, rows in groups.items():
+        if not isinstance(rows, list):
+            raise ValidationError(f"Rate group {group} must be a list.")
+        names = set()
+        uses_yield = bool(data["rate_group_rules"][group]["yield_column"])
+        for rate in rows:
+            if not isinstance(rate, dict) or set(rate) - rate_fields:
+                raise ValidationError(f"Rate group {group} contains unsupported fields.")
+            key = _text(rate.get("id"), "Rate ID", 200)
+            if key in rate_ids:
+                raise ValidationError(f"Duplicate rate ID: {key}.")
+            rate_ids.add(key)
+            if len(rate_ids) > MAX_RATE_ITEMS:
+                raise ValidationError(f"Library must contain at most {MAX_RATE_ITEMS} rates.")
+            name = _text(rate.get("name"), f"Rate {key} name")
+            if name.casefold() in names:
+                raise ValidationError(f"Duplicate choice name in {group}: {name}.")
+            names.add(name.casefold())
+            if "display_name" in rate:
+                _text(rate["display_name"], f"Rate {key} display name")
+            linked = rate.get("inventory_id")
+            if linked is not None and (not isinstance(linked, str) or linked not in inventory_ids):
+                raise ValidationError(f"Rate {key} refers to an unknown inventory product.")
+            rate["inventory_id"] = linked
+            mode = rate.setdefault("price_mode", "inventory" if linked is not None else "override")
+            if not isinstance(mode, str) or mode not in {"inventory", "override"} or (mode == "inventory" and linked is None):
+                raise ValidationError(f"Rate {key} has an unsupported pricing mode or is missing its linked product.")
+            _amount(rate.get("price"), f"Rate {key} price")
+            if "uses_yield" in rate and (type(rate["uses_yield"]) is not bool or rate["uses_yield"] != uses_yield):
+                raise ValidationError(f"Rate {key} cannot change whether its category uses a yield.")
+            rate["uses_yield"] = uses_yield
+            if uses_yield:
+                _amount(rate.get("yield"), f"Rate {key} yield", blank=True)
+            elif rate.get("yield") is not None:
+                raise ValidationError(f"Rate {key} does not use a yield.")
+            rate.setdefault("yield", None)
+            if not isinstance(rate.setdefault("source", {}), dict):
+                raise ValidationError(f"Rate {key} source must be an object.")
+    try:
+        serialized = json.dumps(data, allow_nan=False)
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise ValidationError("Library metadata must contain valid finite JSON values.") from exc
+    if len(serialized.encode("utf-8")) > 12_000_000:
+        raise ValidationError("Pricing library exceeds the 12 MB data limit.")
+    return data
+
+
+def configuration_catalog(configuration=None, data=None):
+    """Choose a configuration's own library, never the current global settings.
+
+    Old quote configurations without an embedded library still use the original
+    workbook baseline. The caller passes global settings explicitly for new work.
+    """
+    if configuration is not None and isinstance(configuration, dict) and "catalog" in configuration:
+        return validate_catalog(configuration["catalog"])
+    return baseline() if data is None else deepcopy(data)
+
+
 def validate_configuration(value, data=None):
-    data = baseline() if data is None else data
-    if not isinstance(value, dict) or set(value) - {"inventory", "rates", "catalog_signature"}:
-        raise ValidationError("Configuration must contain inventory and rates overrides only.")
+    if not isinstance(value, dict) or set(value) - {"inventory", "rates", "catalog_signature", "catalog"}:
+        raise ValidationError("Configuration must contain inventory and rates overrides and an optional pricing library only.")
+    data = configuration_catalog(value, data)
     result = {"inventory": {}, "rates": {}}
+    if "catalog" in value:
+        result["catalog"] = data
     if "catalog_signature" in value:
         if value["catalog_signature"] != catalog_signature(data):
             raise ValidationError("This quote uses a different catalogue structure. Its saved results remain available; explicitly use current pricing to recalculate it.")
@@ -56,6 +228,8 @@ def validate_configuration(value, data=None):
                 raise ValidationError(f"Unknown {category} item or field: {key}.")
             record = records[category][key]
             for field, field_value in changes.items():
+                if field == "yield" and not has_yield(record):
+                    raise ValidationError(f"{key} does not use a material yield.")
                 if field in {"name", "sales_description"}:
                     if not isinstance(field_value, str) or not field_value.strip() or len(field_value) > 1000:
                         raise ValidationError(f"{key}.{field} must be nonempty text of at most 1000 characters.")
@@ -78,8 +252,9 @@ def validate_configuration(value, data=None):
 
 
 def effective_catalog(configuration=None, data=None):
-    data = baseline() if data is None else deepcopy(data)
-    edits = validate_configuration({} if configuration is None else configuration, data)
+    configuration = {} if configuration is None else configuration
+    edits = validate_configuration(configuration, data)
+    data = edits["catalog"] if "catalog" in edits else configuration_catalog(data=data)
     inventory = {}
     for item in data["inventory"]:
         patch = edits["inventory"].get(item["id"], {})
@@ -95,7 +270,7 @@ def effective_catalog(configuration=None, data=None):
             linked = inventory.get(rate.get("inventory_id"))
             if linked:
                 patch = edits["inventory"].get(linked["id"], {})
-                if {"supplier_price", "markup", "sales_price"} & patch.keys():
+                if rate.get("price_mode", "inventory") == "inventory" and {"supplier_price", "markup", "sales_price"} & patch.keys():
                     rate["price"] = linked["sales_price"]
                 # Selection keys remain stable when the catalog display text is edited.
                 name_field = "sales_description" if data["rate_group_rules"][group]["name_column"] == "G" else "name"

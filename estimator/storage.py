@@ -8,7 +8,7 @@ import sqlite3
 import uuid
 
 from .calculator import calculate
-from .catalog import baseline, catalog_signature, effective_catalog, validate_configuration, ValidationError
+from .catalog import catalog_signature, configuration_catalog, effective_catalog, has_yield, validate_catalog, validate_configuration, ValidationError
 
 WORKFLOWS = (
     "Intumescent spray to ductwork", "Intumescent spray to structural steel",
@@ -81,8 +81,12 @@ class Store:
         # Storing only user overrides would let a future baseline price refresh
         # silently change an old quote when it is reopened and recalculated.
         catalog = effective_catalog(configuration)
+        # A quote owns its product identities as well as its prices. Replacing
+        # the live library may remove or rename products without rewriting it.
+        if "catalog" not in configuration:
+            configuration["catalog"] = validate_catalog(configuration_catalog(configuration))
         configuration["rates"] = {
-            rate["id"]: {"price": rate["price"], **({"yield": rate["yield"]} if rate["source"].get("yield") else {})}
+            rate["id"]: {"price": rate["price"], **({"yield": rate["yield"]} if has_yield(rate) else {})}
             for rates in catalog["rate_groups"].values() for rate in rates
         }
         configuration["catalog_signature"] = catalog_signature(catalog)
@@ -91,7 +95,7 @@ class Store:
                  "updated_at": datetime.now(timezone.utc).isoformat(), "workflow": workflow,
                  "measurements": measurements, "inputs": result["inputs"],
                  "configuration": configuration, "result": result,
-                 "source_hashes": baseline()["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
+                 "source_hashes": catalog["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
         return quote
 
     def save_quote(self, data, quote_id=None):

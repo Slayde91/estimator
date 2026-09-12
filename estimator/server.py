@@ -1,6 +1,8 @@
 """Loopback-only HTTP application. No hosted accounts or Excel runtime required."""
 
 import argparse
+import base64
+import binascii
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
@@ -8,11 +10,13 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .calculator import calculate, fields, specification
-from .catalog import ROOT, baseline, effective_catalog, ValidationError
+from .calculator import calculate, fields
+from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, ValidationError
+from .presentation import calculation_error_details
 from .storage import Store, WORKFLOWS
 
-MAX_BODY = 1_048_576
+MAX_BODY = 24 * 1_048_576
+MAX_PRICING_FILE = 5 * 1_048_576
 LOGGER = logging.getLogger(__name__)
 
 
@@ -43,6 +47,10 @@ def create_server(port=8765, database=None):
             report = render_quote_pdf({**quote, "report_kind": report_kind})
             self.send_payload(200, report, "application/pdf", {"Content-Disposition": f'attachment; filename="{name}.pdf"'})
 
+        def send_quote(self, status, quote):
+            # Dropdown metadata belongs to the quote's own pricing snapshot.
+            self.send_payload(status, {**quote, "fields": fields(effective_catalog(quote["configuration"]))})
+
         def read_json(self):
             if self.headers.get_content_type() != "application/json":
                 raise ValidationError("Use Content-Type: application/json.")
@@ -53,7 +61,7 @@ def create_server(port=8765, database=None):
             except ValueError as exc:
                 raise ValidationError("Invalid request size.") from exc
             if not 0 < size <= MAX_BODY:
-                raise ValidationError("Request must contain JSON of at most 1 MB.")
+                raise ValidationError("Request must contain JSON of at most 24 MB.")
             def reject_constant(value):
                 raise ValidationError(f"Invalid JSON number: {value}.")
             try:
@@ -80,7 +88,7 @@ def create_server(port=8765, database=None):
                     config = store.configuration()
                     catalog = effective_catalog(config)
                     self.send_payload(200, {"fields": fields(catalog), "baseline": baseline(), "configuration": config,
-                                            "catalog": catalog, "workflows": WORKFLOWS, "formulas": specification()["formulas"]})
+                                            "catalog": configuration_catalog(config), "workflows": WORKFLOWS})
                 elif route == "/api/configuration":
                     self.send_payload(200, store.configuration())
                 elif route == "/api/quotes":
@@ -88,7 +96,7 @@ def create_server(port=8765, database=None):
                 elif route.startswith("/api/quotes/") and route.endswith("/report.pdf"):
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
-                    self.send_payload(200, store.quote(route.removeprefix("/api/quotes/")))
+                    self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
                 elif route in {"/", "/index.html", "/app.js", "/styles.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
@@ -98,7 +106,33 @@ def create_server(port=8765, database=None):
                     self.send_payload(404, {"error": "Not found."})
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
-                if route == "/api/quote-report" and self.command == "POST":
+                if route == "/api/pricing/export" and self.command == "POST":
+                    from .pricing_workbook import export_pricing_workbook
+                    if set(body) - {"configuration"}:
+                        raise ValidationError("Unknown pricing export fields.")
+                    workbook = export_pricing_workbook(body.get("configuration", store.configuration()))
+                    self.send_payload(200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                      {"Content-Disposition": 'attachment; filename="ceasefire-pricing.xlsx"'})
+                elif route == "/api/pricing/import" and self.command == "POST":
+                    from .pricing_workbook import import_pricing_workbook
+                    if set(body) - {"filename", "content_base64", "configuration"}:
+                        raise ValidationError("Unknown pricing import fields.")
+                    filename, content = body.get("filename"), body.get("content_base64")
+                    if not isinstance(filename, str) or not filename.lower().endswith(".xlsx") or len(filename) > 255:
+                        raise ValidationError("Choose an Excel .xlsx pricing workbook.")
+                    if not isinstance(content, str) or len(content) > ((MAX_PRICING_FILE + 2) // 3) * 4:
+                        raise ValidationError("The Excel file must be at most 5 MB.")
+                    try:
+                        payload = base64.b64decode(content, validate=True)
+                    except (ValueError, binascii.Error) as exc:
+                        raise ValidationError("The Excel file upload is invalid.") from exc
+                    if not payload or len(payload) > MAX_PRICING_FILE:
+                        raise ValidationError("Choose a nonempty Excel file of at most 5 MB.")
+                    proposed = import_pricing_workbook(payload, filename, body.get("configuration", store.configuration()))
+                    config = proposed["configuration"]
+                    self.send_payload(200, {**proposed, "catalog": configuration_catalog(config),
+                                            "fields": fields(effective_catalog(config))})
+                elif route == "/api/quote-report" and self.command == "POST":
                     source_quote_id = body.pop("source_quote_id", None)
                     if source_quote_id is not None and (not isinstance(source_quote_id, str) or not 0 < len(source_quote_id) <= 200):
                         raise ValidationError("Source quote reference must contain 1 to 200 characters.")
@@ -108,13 +142,14 @@ def create_server(port=8765, database=None):
                 elif route == "/api/calculate" and self.command == "POST":
                     if set(body) - {"inputs", "configuration"}:
                         raise ValidationError("Unknown calculation request fields.")
-                    self.send_payload(200, calculate(body.get("inputs", {}), body.get("configuration", store.configuration())))
+                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()))
+                    self.send_payload(200, {**result, "error_details": calculation_error_details(result)})
                 elif route == "/api/configuration" and self.command == "PUT":
                     self.send_payload(200, store.save_configuration(body))
                 elif route == "/api/quotes" and self.command == "POST":
-                    self.send_payload(201, store.save_quote(body))
+                    self.send_quote(201, store.save_quote(body))
                 elif route.startswith("/api/quotes/") and self.command == "PUT":
-                    self.send_payload(200, store.save_quote(body, route.removeprefix("/api/quotes/")))
+                    self.send_quote(200, store.save_quote(body, route.removeprefix("/api/quotes/")))
                 else:
                     self.send_payload(404, {"error": "Not found."})
             else:
@@ -128,7 +163,7 @@ def create_server(port=8765, database=None):
                 self.send_payload(400, {"error": str(exc)})
             except KeyError:
                 self.send_payload(404, {"error": "Quote not found."})
-            except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
                 pass
             except Exception:
                 LOGGER.exception("Request failed")

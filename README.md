@@ -4,9 +4,9 @@ A local estimating application reproducing `Quote.xlsm`'s Calculator with perman
 
 ## Run
 
-Requires Python 3.11 or newer and the dependencies in `requirements.txt`. ReportLab 4.4.9 generates quote PDFs; estimating calculations and storage use Python's standard library. Neither Excel nor the workbooks are required to run the app.
+Requires Python 3.11 or newer and the dependencies in `requirements.txt`: ReportLab 4.4.9 generates quote PDFs and openpyxl 3.1.5 reads/writes pricing workbooks. Estimating calculations and storage use Python's standard library. Microsoft Excel and the original source workbooks are not required to run the app.
 
-On Windows, double-click **[Start-Estimator.cmd](Start-Estimator.cmd)**. It starts ESTIMATOR in the background and opens your browser, or reopens the existing app if it is already running. The app keeps running after the launcher or chat closes; double-click the launcher again after restarting Windows. Saved quotes and pricing continue to use `.runtime/estimator.sqlite3`. The launcher prefers an installed Python with ReportLab and can also use the existing Codex Python runtime when available. It does not install software or register automatic startup. If startup fails, the launcher displays the problem; server startup logs are kept in `.runtime`. To select another port, run `Start-Estimator.cmd -Port 8766`; `-NoBrowser` starts or checks the app without opening a browser.
+On Windows, double-click **[Start-Estimator.cmd](Start-Estimator.cmd)**. It starts ESTIMATOR in the background and opens your browser, or reopens the existing app if it is already running. The app keeps running after the launcher or chat closes; double-click the launcher again after restarting Windows. Saved quotes and pricing continue to use `.runtime/estimator.sqlite3`. The launcher checks every pinned package in `requirements.txt`, prefers an installed compatible Python, and can also use the existing Codex Python runtime when available. It does not install software or register automatic startup. If startup fails, the launcher displays the problem; server startup logs are kept in `.runtime`. To select another port, run `Start-Estimator.cmd -Port 8766`; `-NoBrowser` starts or checks the app without opening a browser.
 
 For manual installation and startup:
 
@@ -20,12 +20,14 @@ Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` i
 
 1. Name the estimate and select its workflow label.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
-3. Review the live total, material quantities and source-cell calculation breakdown.
+3. Review the live total, material quantities and named cost breakdown.
 4. Save the quote. Reopening preserves its input values and pricing snapshot. Use **Use current pricing** to explicitly apply current settings.
-5. In **Pricing library**, edit supplier prices, markup, manual service prices or Calculator lookup rates/yields. **Reset row** restores imported defaults.
-6. Use **Download PDF** for a branded quote report. An unchanged saved quote uses its stored results and source evidence. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. **Print** remains available for the browser's worksheet view.
+5. In **Pricing library**, edit supplier prices, markup, manual service prices or lookup rates/yields. **Reset row** restores that row's imported values. Use **Save pricing** to apply your changes.
+6. Use **Download PDF** for a branded quote report. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. **Print** remains available for the browser's estimate view.
 
 The PDF contains the complete material and labour breakdown: products, coverage, yield, wastage, priced quantities, sell rates, labour teams and days, masking, freight, access, travel, accommodation, fees, adjustments and totals. Notes continue onto extra pages when needed. Calculation errors are identified explicitly and valid remaining amounts stay visible. The report uses the official logo supplied by Ceasefire, unchanged.
+
+The estimator and PDF present business labels instead of raw worksheet cell addresses. Internal formula mappings and saved calculation evidence remain available in the code and developer documentation; the calculation engine is unchanged.
 
 The Calculator does not derive quantities from geometry, fire rating or coating thickness. The source Steel/Duct sheets are collection templates without formulas. Workflow labels record context; the estimator supplies the required coverage/product quantities, as in Excel. No suitability rules or automatic dimension conversions have been invented.
 
@@ -35,9 +37,18 @@ The Calculator does not derive quantities from geometry, fire rating or coating 
 - `data/calculator.json`: 64 unlocked inputs, 151 formulas and saved Excel results.
 - `.runtime/estimator.sqlite3`: local settings and saved quotes; excluded from Git. Back this file up while the app is stopped.
 
-The original Calculator reads stored inventory selling prices. Those imported values remain exact until a pricing input is edited. Supplier/markup edits calculate `supplier × (1 + markup)`; explicit lookup-rate overrides take priority. Quote snapshots materialize all effective lookup prices and yields, including unchanged defaults.
+The original Calculator reads stored inventory selling prices. Those imported values remain exact until a pricing input is edited. Supplier/markup edits calculate `supplier × (1 + markup)`; explicit lookup-rate overrides take priority. The original baseline stays immutable. The active library, its separate overrides and each saved quote's complete catalog/pricing snapshot live in SQLite. Existing saved quotes keep their products and prices after library replacements; **Use current pricing** explicitly adopts the new library and flags removed selections for review.
 
-The app retains Excel's unusual quantity adjustments, masking calculations, weekly access charging, unrounded intermediate prices and error results. It rounds money only for display; B30 purchasing notes round positive quantities upward. See [Calculator specification](docs/CALCULATOR_SPEC.md) and [source mapping](docs/WORKBOOK_MAPPING.md).
+### Export or replace the pricing library
+
+1. Click **Export Excel** in **Pricing library**. The `.xlsx` includes the entire effective library, including unsaved edits, with **Inventory**, **Rates** and **Instructions** sheets.
+2. Edit values, add rows or delete products and choices. Preserve existing IDs. Blank IDs receive new IDs; to link a new product and rate in the same file, enter your own matching unique Inventory ID in both sheets. Remove or unlink any rates pointing to a deleted product. Keep the provided headers and supported group keys.
+3. For linked rates, **Price source = Inventory** follows the inventory sell price. Editing a unit sell rate makes it an **Override**; choose **Inventory** to restore the link. Supplier markup items calculate their sell price when supplier price or markup changes. Manual items accept a sell price directly.
+4. Click **Import Excel**, select the complete workbook, and review the added, removed and updated rows. Apply it to the draft, then click **Save pricing** to update the active library and dropdown choices. Import alone does not save. **Discard changes** keeps the previously saved library.
+
+Each workbook replaces both lists in full, including hidden or filtered rows. The Instructions sheet explains markup, supported rate groups and the separate Number/Blank/Empty text/Not used yield types. Blank and empty-text yields have different estimating behavior and are preserved. Exported strings are literal text; import accepts values-only `.xlsx`, with no formulas, macros, external links or extra data sheets. The limit is 5 MB and 5,000 rows per list, with bounded ZIP contents and validated finite numbers. Use the exported template; arbitrary supplier spreadsheet layouts are not mapped automatically. The original `Inventory_list.xlsm` remains the immutable initial source, not the runtime import template.
+
+The app retains Excel's unusual quantity adjustments, masking calculations, weekly access charging, unrounded intermediate prices and error results. It rounds money only for display; purchasing notes round positive quantities upward. See [Calculator specification](docs/CALCULATOR_SPEC.md) and [source mapping](docs/WORKBOOK_MAPPING.md).
 
 ## Verification
 
@@ -45,6 +56,7 @@ The app retains Excel's unusual quantity adjustments, masking calculations, week
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 node --check static/app.js
+node tests/test_ui.cjs
 python scripts/build.py
 ```
 
@@ -59,7 +71,7 @@ $env:ESTIMATOR_WORKBOOK_DIR = 'C:\ESTIMATOR'
 python -m unittest discover -s tests -v
 ```
 
-Without the files, two source-reconstruction tests skip; all committed Excel fixtures still run. Oracle regeneration is optional developer tooling and needs Microsoft Excel, PowerShell 7, and openpyxl; see `docs/CALCULATOR_SPEC.md`.
+Without the files, two source-reconstruction tests skip; all committed Excel fixtures still run. Tests also cover pricing workbook round trips, complete replacements, invalid imports, pricing links and saved-quote isolation. Oracle regeneration is optional developer tooling and needs Microsoft Excel, PowerShell 7, and openpyxl; see `docs/CALCULATOR_SPEC.md`.
 
 ## Operating boundary
 

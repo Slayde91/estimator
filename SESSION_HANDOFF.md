@@ -2,7 +2,7 @@
 
 ## Current estimate-details work — 2026-09-13
 
-Working checkout: `C:\ESTIMATOR\app`. Current branch: `feat/estimate-details-and-polish`, starting from `ffba327` (pricing-library implementation) above main `615997c`. At this task's reconciliation, the pricing-library changes remained in open PR #4 with GitHub Actions blocked by the account billing/spending limit. Local validation and application refresh are complete below. These results were recorded before publication; no new feature commit, push, CI success or merge is implied. Record exact Git publication results separately after those operations complete.
+Working checkout: `C:\ESTIMATOR\app`. Feature commit `75c16ee0308a9e1dfba584e1525171ecaebbe497` (Add project details, automatic work summaries and polished quote presentation) was committed and pushed on `feat/estimate-details-and-polish`, tracking the matching origin branch. [PR #5](https://github.com/Slayde91/estimator/pull/5) targets main and includes the prior launcher and pricing-library changes from #3 and #4. Both fresh Checks runs (`34757647608`, `34757674356`) failed before any job step executed: GitHub reports failed account payments or a spending-limit issue. The PR is open, has no reviews and has not merged. Local validation passes; CI success is not claimed. Resolve GitHub billing, rerun Checks on the current PR head, then merge after successful checks.
 
 Current scope adds Project No., Client and Site Address; automatic quote names; a generated work summary; two-decimal display; removal of the Print button in favour of PDF download; and interface refinement using the official logo/brand colours. Pricing exchange remains a whole-library draft/review/Save replacement, and the original pricing baseline stays immutable.
 
@@ -74,3 +74,6 @@ PDF reporting retains all 29 non-overlapping cost components and the supplied lo
 Workbook behaviors retained include double masking material adjustment, quantity-driven global adjustments, weekly access charging, no separate pinning labour and distinct blank/empty-text yields. Workflow labels use manually assessed coverage and quantities. No new geometry, thickness, FRL or technical suitability rules are supported without further authoritative business evidence.
 
 Runtime databases, QA exports, bytecode and distribution archives remain ignored. Original XLSM and lock files are not committed. No public deployment, Windows login task or branch deletion is part of this feature.
+
+
+Current local classification: the tracked implementation and documentation belong to this feature. Synthetic QA databases, PDF/XLSX renders, test logs, the local restart snapshot and generated packages remain ignored under `.runtime` and `dist`. The original XLSM sources remain outside the checkout. No unrelated user changes were staged; no branches were deleted. Temporary QA browser/server sessions were closed, and the normal local server remains available at port 8765.

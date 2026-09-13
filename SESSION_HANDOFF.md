@@ -44,7 +44,9 @@ Desktop browser checks confirmed numeric replacement, exact focus values, save/r
 
 The main app was refreshed through the Windows PowerShell launcher and is running on port 8765 (verified process 31908). A recovery backup was created before the additive version-2 migration. Both saved quote rows and the empty pricing settings table stayed identical; their before/after content SHA-256 is c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4. New calculator_states is empty in the main database; synthetic test saves were confined to isolated databases.
 
-Local validation is complete. Git publication results are recorded after the implementation commit; no CI success or merge is inferred from these local checks.
+Implementation commit 1bd8f9019ae2821111222b4b76bd173d812c16bb (Add native-validated ductwork and structural steel calculators) was committed and pushed to origin/feat/workbook-calculators. PR #6 targets main: https://github.com/Slayde91/estimator/pull/6. It includes the prior unmerged work from #3, #4 and #5. Those branches/PRs were preserved.
+
+Both implementation-head Checks runs failed before executing any job step: push run 34762251562 and pull-request run 34762265325. GitHub's annotation says recent account payments failed or the spending limit needs to be increased. This is an external CI account blocker, not a failed application test, and is not CI success. PR #6 is open with no reviews and has not merged. Resolve GitHub Billing & plans, rerun Checks on the current PR head, then merge only after successful checks. The documentation-only publication record does not change the validated runtime files.
 
 ## Operation and local classification
 

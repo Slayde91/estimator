@@ -27,3 +27,5 @@ Publish the current feature PR and merge only when current CI/review state suppo
 Future calculator-to-priced-quote transfer needs an explicit material, purchasing, product and labour mapping. The workbooks do not define it, so tools remain separate. Source revisions require fresh import, native comparison and intentional saved-state migration; hashes prevent silent changes today.
 
 An installer, authenticated shared hosting, concurrent multi-user editing and managed backups require an operating-environment decision. No public deployment has occurred.
+
+Implementation commit 1bd8f90 is pushed to origin/feat/workbook-calculators. [PR #6](https://github.com/Slayde91/estimator/pull/6) is open and unmerged, with no reviews. Both fresh implementation-head Checks runs failed before job steps because GitHub reported account payment/spending-limit problems. All 155 Python tests and 46 UI checks passed locally; the distribution and refreshed local app were verified. Resolve the account blocker and require successful current-head CI before merging.

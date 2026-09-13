@@ -27,3 +27,5 @@ All 419,905 new native Excel comparisons passed: 161,566 original formula output
 The original Quote fixture remains 216 scenarios × 151 outputs, captured with verbatim Calculator formulas and saved lookups in a macro-free harness. That earlier evidence does not prove live XLSM external-link refresh.
 
 Current branch: feat/workbook-calculators, based on 01e3494 and preserving prior PR #5 work. Main was fetched at 615997c; no user changes were discarded. Complete-suite/build/runtime/publication outcomes are recorded in SESSION_HANDOFF.md. Prior PR #5 CI was blocked by GitHub billing before job steps; current PR CI must be checked independently.
+
+Implementation commit 1bd8f90 is pushed to origin/feat/workbook-calculators. [PR #6](https://github.com/Slayde91/estimator/pull/6) is open and unmerged, with no reviews. Both fresh implementation-head Checks runs failed before job steps because GitHub reported account payment/spending-limit problems. All 155 Python tests and 46 UI checks passed locally; the distribution and refreshed local app were verified. Resolve the account blocker and require successful current-head CI before merging.

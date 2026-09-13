@@ -6,7 +6,9 @@
   <meta name="color-scheme" content="light">
   <title>Ceasefire Estimator</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/calculators.css">
   <script src="/app.js" defer></script>
+  <script src="/calculators.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -14,6 +16,7 @@
     <a class="brand" href="/" aria-label="Ceasefire Estimator home"><img class="brand-logo" src="/ceasefire-logo.png" alt="Ceasefire" width="5375" height="1790"></a>
     <nav aria-label="Main navigation">
       <button type="button" class="nav-button active" data-view="estimate" aria-current="page">Estimator</button>
+      <button type="button" class="nav-button" data-view="calculators">Calculators</button>
       <button type="button" class="nav-button" data-view="pricing">Pricing library</button>
       <button type="button" class="nav-button" data-view="quotes">Saved quotes</button>
     </nav>
@@ -36,6 +39,21 @@
         <aside class="summary-card" aria-labelledby="summary-heading"><div class="section-heading"><h2 id="summary-heading">Quote summary</h2><span id="calculation-status" class="status-label" role="status">Calculating</span></div><dl class="cost-list"><div><dt>Labour</dt><dd id="sum-labour">—</dd></div><div><dt>Materials</dt><dd id="sum-material">—</dd></div><div><dt>Access</dt><dd id="sum-access">—</dd></div><div><dt>Travel</dt><dd id="sum-travel">—</dd></div><div class="subtotal"><dt>Subtotal</dt><dd id="sum-subtotal">—</dd></div><div><dt>Global adjustment</dt><dd id="sum-adjustment">—</dd></div></dl><div class="grand-total"><span>Grand total</span><strong id="sum-total">—</strong><span class="currency-note">AUD · Material &amp; labour estimate</span></div><dl class="metrics"><div><dt>Rate per SQM / item</dt><dd id="sum-rate">—</dd></div><div><dt>Total days</dt><dd id="sum-days">—</dd></div></dl><div id="calculation-errors" class="calculation-errors" role="alert" hidden></div><p class="helper">Enter assessed quantities and suitable products. A quote total does not assess product suitability or fire ratings.</p></aside>
       </div>
     </section>
+    <section id="view-calculators" class="view" aria-labelledby="calculators-heading" hidden>
+      <div class="page-heading"><div><p class="eyebrow">CALCULATORS</p><h1 id="calculators-heading">Project calculators</h1><p class="subtitle">Prepare a schedule, adjust settings and review the calculated material requirements.</p></div></div>
+      <div id="calculator-message" class="message" role="status" hidden></div>
+      <div id="calculator-list" class="calculator-list" role="group" aria-label="Choose a calculator"></div>
+      <section id="calculator-workspace" class="card calculator-workspace" aria-labelledby="calculator-title" hidden>
+        <div class="calculator-workspace-heading"><div><p class="eyebrow">WORKBOOK CALCULATOR</p><h2 id="calculator-title"></h2><p id="calculator-save-status" class="helper" role="status">Workbook defaults</p></div><div class="actions"><button id="calculator-reset" type="button" class="button secondary">Reset to workbook defaults</button><button id="calculator-save" type="button" class="button primary">Save calculator</button></div></div>
+        <div class="calculator-tools"><div class="actions"><button id="calculator-import" type="button" class="button secondary">Import schedule</button><input id="calculator-import-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><button id="calculator-template" type="button" class="button secondary">Export template</button><button id="calculator-recalculate" type="button" class="button secondary">Recalculate</button></div><p class="helper">Imports stay in this draft until you save. Numbers retain full precision; select a number to see its exact value.</p></div>
+        <div id="calculator-pages" class="calculator-pages" role="group" aria-label="Calculator pages"></div>
+        <div class="calculator-sheet-heading"><div><h3 id="calculator-sheet-title"></h3><p id="calculator-calculation-status" class="helper" role="status">Ready</p></div><label id="calculator-advanced-label" class="calculator-toggle" hidden><input id="calculator-advanced" type="checkbox">Show advanced columns</label></div>
+        <div id="calculator-warnings" class="calculator-warnings" role="status" hidden></div>
+        <div id="calculator-grid" class="calculator-grid" tabindex="0" role="region" aria-label="Calculator worksheet" aria-busy="false"></div>
+        <div class="calculator-pagination"><span id="calculator-page-status" class="helper"></span><div class="actions"><label class="calculator-row-page-label">Go to rows<select id="calculator-row-page" aria-label="Choose worksheet row range"></select></label><button id="calculator-previous" type="button" class="button secondary">Previous rows</button><button id="calculator-next" type="button" class="button secondary">Next rows</button></div></div>
+        <details id="calculator-documents" class="calculator-documents" hidden><summary>Technical documents and source information</summary><div id="calculator-document-list"></div></details>
+      </section>
+    </section>
     <section id="view-pricing" class="view" aria-labelledby="pricing-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">PRICING LIBRARY</p><h1 id="pricing-heading">Inventory and rates</h1><p class="subtitle">Manage products, dropdown choices and prices in one library.</p></div><div class="actions"><button id="export-pricing" type="button" class="button secondary">Export Excel</button><button id="import-pricing" type="button" class="button secondary">Import Excel</button><input id="pricing-import-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><button id="discard-pricing" type="button" class="button secondary">Discard changes</button><button id="save-pricing" type="button" class="button primary">Save pricing</button></div></div>
       <div class="message info">Changes apply to new estimates and the current unsaved estimate. Saved quotes retain the products and pricing captured when they were saved.</div><p class="import-guide">Export Excel includes all inventory and rate groups, with any unsaved edits. Edit the Inventory and Rates sheets to change prices, add rows or remove products and choices. Keep IDs for existing rows and leave IDs blank for new rows. Import the complete workbook, review the changes, then click Save pricing.</p>
@@ -45,6 +63,7 @@
   </main>
   <footer>CEASEFIRE ESTIMATOR <span>Quote calculations · Editable pricing library · Local quote storage</span></footer>
   <dialog id="discard-dialog"><form method="dialog"><h2>Start a new estimate?</h2><p>Your current unsaved changes will be replaced with the default estimate inputs.</p><div class="actions"><button value="cancel" class="button secondary">Keep editing</button><button value="confirm" class="button primary">Start new estimate</button></div></form></dialog>
+  <dialog id="calculator-confirm-dialog"><form method="dialog"><h2 id="calculator-confirm-title">Replace calculator inputs?</h2><p id="calculator-confirm-detail"></p><div class="actions"><button value="cancel" class="button secondary">Keep editing</button><button id="calculator-confirm-button" value="confirm" class="button primary">Replace draft</button></div></form></dialog>
   <noscript><p class="message error">JavaScript is required to calculate estimates in this application.</p></noscript>
 </body>
 </html>

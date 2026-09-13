@@ -1,6 +1,6 @@
 # Ceasefire ESTIMATOR
 
-A local estimating application reproducing `Quote.xlsm`'s Calculator with permanently imported pricing from `Inventory_list.xlsm`.
+A local estimating application reproducing `Quote.xlsm`'s Calculator with permanently imported pricing from `Inventory_list.xlsm`, plus the three supplied ductwork and structural-steel workbooks.
 
 ## Run
 
@@ -33,12 +33,26 @@ The quote name is read-only: for example, project `CF-1042`, client `Example Cli
 
 Amounts and quantities display two decimal places in the app, PDF and exported Excel formats. Existing raw values and unrounded calculation results are retained when you merely view or save them. Deliberately editing a numeric app control records its value to two displayed decimal places; percentage controls still convert percentages to their stored fractional values. Excel number formatting does not round the underlying exported values. Product names, item codes and free-text notes keep their original text.
 
-The Calculator does not derive quantities from geometry, fire rating or coating thickness. The source Steel/Duct sheets are collection templates without formulas. Workflow labels record context; the estimator supplies the required coverage/product quantities, as in Excel. No suitability rules or automatic dimension conversions have been invented.
+The original Quote estimator uses assessed coverage/product quantities, as its Excel Calculator does. The separate Calculators section now derives the geometry, thickness and material quantities specified in the three new workbooks. These remain separate workflows; there is no automatic, unspecified transfer into a priced quote.
+
+## Calculators
+
+Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. Select a row range to move through large schedules, or show advanced columns for additional inputs.
+
+Enter inputs directly, or click **Export template**, fill its schedule in Excel and use **Import schedule**. Import replaces the complete schedule, including clearing unused old rows, and preserves other calculator settings. It stays a draft until **Save calculator**. Each calculator keeps its own saved inputs and settings. **Reset to workbook defaults** restores the original example schedule and settings as a draft.
+
+The templates contain only expected input columns and reference instructions: eight duct fields, 24 board fields and 12 vermiculite fields. Schedule capacities match Excel: 300 duct rows, 200 board rows and 1,000 vermiculite rows. Import accepts the exported values-only `.xlsx` layout, up to 5 MB; it does not map an arbitrary schedule layout or execute uploaded formulas.
+
+Calculator numbers display two decimals at rest. Selecting a numeric input reveals its exact value, and editing retains full precision so small yields and tolerances cannot be rounded into different results. The source databases and calculated cells are read-only. All intended workbook settings remain adjustable, including formula-backed yields. Source exclusions, review flags, errors and withheld quantities remain visible.
+
+Each section has Australian technical-document links with clearly identified manuals, product data, safety data and report availability. The copied duct fixing-guide text uses the user-approved first-row correction; quantity formulas are unchanged. See [calculator mapping and validation](docs/WORKBOOK_CALCULATORS.md) and [approved exception](docs/CALCULATOR_EXCEPTIONS.md).
 
 ## Data and pricing
 
 - `data/baseline.json`: immutable import of 417 inventory records and 166 dropdown choices across 14 lookup groups, with original cells and workbook hashes.
 - `data/calculator.json`: 64 unlocked inputs, 151 formulas and saved Excel results.
+- `data/calculators/`: permanently packaged literals, databases, metadata and all 161,566 formulas from the three new workbooks. Runtime recalculates formulas; it never uses their cached answers.
+- `data/calculator_documents.json`: Australian technical-document links and availability descriptions.
 - `.runtime/estimator.sqlite3`: local settings and saved quotes; excluded from Git. Back this file up while the app is stopped.
 
 The original Calculator reads stored inventory selling prices. Those imported values remain exact until a pricing input is edited. Supplier/markup edits calculate `supplier × (1 + markup)`; explicit lookup-rate overrides take priority. The original baseline stays immutable. The active library, its separate overrides and each saved quote's complete catalog/pricing snapshot live in SQLite. Existing saved quotes keep their products and prices after library replacements; **Use current pricing** explicitly adopts the new library and flags removed selections for review.
@@ -60,13 +74,17 @@ The app retains Excel's unusual quantity adjustments, masking calculations, week
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 node --check static/app.js
+node --check static/calculators.js
 node tests/test_ui.cjs
+node tests/test_calculators_ui.cjs
 python scripts/build.py
 ```
 
 Node is only needed for JavaScript syntax and UI regression checks. Development requirements include pypdf for inspecting generated reports in tests. The build creates `dist/ceasefire-estimator.zip`, containing the application, imported data, original Ceasefire logo, README and `requirements.txt`. Extract it, install `python -m pip install -r requirements.txt`, then run `python -m estimator` in that directory. The archive does not bundle Python or installed packages.
 
 The regression fixture contains **216 scenarios and 32,616 outputs independently recalculated by Microsoft Excel**. All 151 default results also match the source workbook's cached outputs. Excel refused to open the original XLSM copies through automation, so scenario capture used the original Calculator formulas in a fresh macro-free workbook with the original saved lookup values. This verifies formula and fixed-lookup parity; it does not prove execution of the original workbook's external-link refresh. Source filters and inventory links are independently checked by the importer.
+
+The three new XLSX calculators have separate native Microsoft Excel fixtures: every source formula, 300 corrected duct text outputs, and 258,039 varied outputs over 3,471 schedule cases. Those captures recalculate disposable copies of the actual original XLSX workbooks. Their committed fixtures run without Excel or OneDrive. See the mapping document for coverage, numeric tolerances and regeneration instructions.
 
 To verify the import against the original files:
 

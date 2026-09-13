@@ -8,7 +8,7 @@ GitHub `Slayde91/estimator` contained only README.md at `18d5058` (Initial commi
 
 The initial architecture decision introduced a small local Python application with explicit calculation functions, JSON baseline data, SQLite persistence and a browser interface. The reason was to reproduce the workbook without Excel at runtime while keeping business rules independently testable and avoiding unnecessary dependencies.
 
-Consequences: Python 3.11+ is required; there is no frontend bundler, server framework or remote service. The original Excel files are permanently imported rather than required at runtime. Later PDF and pricing-workbook extensions add the dependencies described below. The built-in HTTP server is intentionally restricted to a single local computer. Multi-user hosting would require a separate reviewed authentication/deployment design. Migration impact: initial application creation only; no user database existed. SQLite schema version is 1.
+Consequences: Python 3.11+ is required; there is no frontend bundler, server framework or remote service. The original Excel files are permanently imported rather than required at runtime. Later PDF and pricing-workbook extensions add the dependencies described below. The built-in HTTP server is intentionally restricted to a single local computer. Multi-user hosting would require a separate reviewed authentication/deployment design. Migration impact: initial application creation only; no user database existed. The initial SQLite schema was version 1; the workbook calculator extension below adds version 2.
 
 ## PDF reporting extension
 
@@ -20,7 +20,7 @@ Consequences: install `requirements.txt` before running PDF generation; `require
 
 ## Components
 
-On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It reuses a healthy local app or starts the existing server as a hidden, detached process, waits for readiness, and opens the browser. Runtime discovery checks Python 3.11+ and every package pin in `requirements.txt`, currently ReportLab 4.4.9 and openpyxl 3.1.5; it can use an already-installed Codex runtime as a fallback. Startup logs remain in `.runtime`. There is no Windows service, login task, database migration or automatic package installation. After restarting Windows, the user runs the launcher again.
+On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It reuses a healthy local app or starts the existing server as a hidden, detached process, waits for readiness, and opens the browser. Runtime discovery checks Python 3.11+ and every package pin in `requirements.txt`, currently ReportLab 4.4.9 and openpyxl 3.1.5; it can use an already-installed Codex runtime as a fallback. Startup logs remain in `.runtime`. There is no Windows service, login task or automatic package installation. After restarting Windows, the user runs the launcher again.
 
 | Component | Responsibility |
 | --- | --- |
@@ -60,6 +60,54 @@ Metadata is trimmed and bounded to 100 characters for project number, 200 for cl
 Display formatting uses two decimal places for numeric app controls, generated numeric descriptions, PDF values and XLSX numeric formats. Untouched original values stay in raw client/server state and exported cells; all calculation arithmetic remains unrounded. An intentional edit in a numeric app control records two displayed decimal places, including conversion from a displayed percentage to its stored fraction. This distinction prevents merely opening or saving an old quote from changing its totals. Literal product labels, IDs and notes are preserved.
 
 Consequences: metadata, naming and summaries use the existing quote JSON in SQLite; current library configuration JSON remains unchanged. No database schema or schema-version change, bulk rewrite or quote migration is needed. The official logo remains unchanged, and the interface update uses its red/orange brand colours with clearer estimate-detail grouping. Final UI/PDF visual verification belongs to the current feature checks rather than earlier screenshots.
+
+## Workbook calculators extension
+
+Previous architecture: an explicit 151-formula Quote calculator, immutable JSON
+pricing baseline, SQLite, local HTTP server and plain JavaScript. The three new
+sources add 161,566 formulas with large interdependent technical tables. The
+implemented extension packages their complete source graphs in compressed JSON
+and adds a bounded, allowlisted scalar Excel interpreter. This avoids manually
+duplicating thousands of lookup rules while retaining source-cell traceability.
+The existing Quote calculation engine, pricing semantics and PDF path are reused
+unchanged; there is no new server, database, framework or runtime dependency.
+
+`workbook_catalog.py` loads immutable source packages and input allowlists;
+`excel_engine.py` evaluates their original formulas without eval/exec or cached
+answers. `workbook_calculators.py` validates typed overlays, resolves dependent
+dropdowns and serves exact worksheet pages. `schedule_workbook.py` extends the
+existing openpyxl/OOXML validation boundary for schedule-only template exchange.
+`static/calculators.js` owns separate calculator drafts, race-safe recalculation,
+precision-preserving controls, page ranges and explicit saving.
+
+Consequences: a bounded engine now implements only the Excel functions present
+in the supplied files. Any future formula feature requires explicit support and
+new independent native Excel evidence. Calculation sessions are cached for six
+exact input states; each has a lock and private dependency/lookup caches. Source
+models remain immutable, and public catalog loading returns independent copies.
+Original raw string text is retained when Excel's verified OOXML whitespace
+semantics require a different literal value. Unsupported formula features fail
+visibly, and source error/status behavior is preserved.
+
+Migration impact: SQLite schema version 2 adds `calculator_states` to the existing
+database, with one separate state per calculator. Quotes and global pricing rows
+are not rewritten. Saved calculator state contains exact inputs and the source
+hash; a mismatched source refuses silent reinterpretation. GET/calculate/import
+remain read-only; PUT state is the explicit save. Database/calculated cells are
+never editable through the API. The existing loopback Host/Origin checks, request
+limits and safe values-only XLSX reader remain in force.
+
+Every visible tab is a page; hidden board SETTINGS and EXTRA BOARDS are also
+exposed as required input features. Source-hidden/zero-width columns are initially
+hidden. Source display notes can replace redundant addresses with exact business
+labels without changing the returned formula value. Numeric input focus reveals
+the exact value; intentional calculator edits keep full precision, unlike the
+earlier Quote UI's two-decimal edit policy. No calculator quantity is automatically
+mapped into pricing because the new workbooks do not specify that integration.
+
+The approved duct fixing-text correction is isolated from the immutable source
+and quantity formulas. See [mapping and native evidence](docs/WORKBOOK_CALCULATORS.md)
+and [exception record](docs/CALCULATOR_EXCEPTIONS.md).
 
 ## Calculation and state boundaries
 

@@ -28,7 +28,10 @@ class Store:
                 CREATE TABLE IF NOT EXISTS quotes (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at TEXT NOT NULL, data TEXT NOT NULL
                 );
-                PRAGMA user_version=1;
+                CREATE TABLE IF NOT EXISTS calculator_states (
+                    id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                PRAGMA user_version=2;
             """)
 
     @contextmanager
@@ -44,6 +47,31 @@ class Store:
         with self.connect() as db:
             row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
         return json.loads(row[0]) if row else {"inventory": {}, "rates": {}}
+
+    def calculator_state(self, calculator_id):
+        from .workbook_calculators import source_model
+        model = source_model(calculator_id)
+        with self.connect() as db:
+            row = db.execute('SELECT data FROM calculator_states WHERE id=?', (calculator_id,)).fetchone()
+        if row is None:
+            return {'inputs': {}, 'source_sha256': model['source']['sha256']}
+        state = json.loads(row[0])
+        if state.get('source_sha256') != model['source']['sha256']:
+            raise ValidationError('The saved calculator uses a different source workbook version. Its saved inputs have been retained; an explicit version migration is required.')
+        return state
+
+    def save_calculator_state(self, calculator_id, inputs):
+        from .workbook_calculators import normalize_calculator_inputs, source_model
+        if not isinstance(inputs, dict):
+            raise ValidationError('Include a worksheet input object to save the calculator.')
+        self.calculator_state(calculator_id)  # Never overwrite a different source version silently.
+        state = {'inputs': normalize_calculator_inputs(calculator_id, inputs),
+                 'source_sha256': source_model(calculator_id)['source']['sha256'],
+                 'updated_at': datetime.now(timezone.utc).isoformat()}
+        with self.connect() as db:
+            db.execute('INSERT INTO calculator_states VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at',
+                       (calculator_id, json.dumps(state, allow_nan=False), state['updated_at']))
+        return state
 
     def save_configuration(self, value):
         value = validate_configuration(value)

@@ -87,7 +87,14 @@ def create_server(port=8765, database=None):
                 return
             route = urlsplit(self.path).path
             if self.command == "GET":
-                if route == "/api/bootstrap":
+                if route == '/api/calculators':
+                    from .workbook_calculators import calculator_list
+                    self.send_payload(200, calculator_list())
+                elif re.fullmatch(r'/api/calculators/[a-z_]+', route):
+                    from .workbook_calculators import calculator_definition
+                    calculator_id = route.rsplit('/', 1)[1]
+                    self.send_payload(200, calculator_definition(calculator_id, store.calculator_state(calculator_id)['inputs']))
+                elif route == "/api/bootstrap":
                     config = store.configuration()
                     catalog = effective_catalog(config)
                     self.send_payload(200, {"fields": fields(catalog), "baseline": baseline(), "configuration": config,
@@ -100,7 +107,7 @@ def create_server(port=8765, database=None):
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/styles.css", "/ceasefire-logo.png"}:
+                elif route in {"/", "/index.html", "/app.js", "/styles.css", "/calculators.js", "/calculators.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png"}[path.suffix]
@@ -109,7 +116,48 @@ def create_server(port=8765, database=None):
                     self.send_payload(404, {"error": "Not found."})
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
-                if route == "/api/pricing/export" and self.command == "POST":
+                calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|state|template|import)', route)
+                if calculator_route:
+                    from .workbook_calculators import calculate_page, normalize_calculator_inputs
+                    calculator_id, action = calculator_route.groups()
+                    expected_method = 'PUT' if action == 'state' else 'POST'
+                    if self.command != expected_method:
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs'},
+                               'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
+                    if set(body) - allowed:
+                        raise ValidationError('Unknown calculator request fields.')
+                    if action == 'calculate':
+                        inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
+                        self.send_payload(200, calculate_page(calculator_id, inputs, body.get('sheet'), body.get('start_row', 1), body.get('row_count', 25)))
+                    elif action == 'state':
+                        if 'inputs' not in body:
+                            raise ValidationError('Include the calculator inputs to save.')
+                        self.send_payload(200, store.save_calculator_state(calculator_id, body['inputs']))
+                    elif action == 'template':
+                        from .schedule_workbook import export_schedule_template
+                        workbook = export_schedule_template(calculator_id)
+                        self.send_payload(200, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                          {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-schedule.xlsx"'})
+                    elif action == 'import':
+                        from .schedule_workbook import import_schedule_workbook
+                        filename, content = body.get('filename'), body.get('content_base64')
+                        if not isinstance(filename, str) or not filename.lower().endswith('.xlsx') or len(filename) > 255:
+                            raise ValidationError('Choose an Excel .xlsx schedule using the exported template.')
+                        if not isinstance(content, str) or len(content) > ((MAX_PRICING_FILE + 2) // 3) * 4:
+                            raise ValidationError('The schedule file must be at most 5 MB.')
+                        try:
+                            payload = base64.b64decode(content, validate=True)
+                        except (ValueError, binascii.Error) as error:
+                            raise ValidationError('The Excel schedule upload is invalid.') from error
+                        if not payload or len(payload) > MAX_PRICING_FILE:
+                            raise ValidationError('Choose a nonempty schedule file of at most 5 MB.')
+                        current = normalize_calculator_inputs(calculator_id, body.get('inputs', store.calculator_state(calculator_id)['inputs']))
+                        proposed = import_schedule_workbook(calculator_id, payload, filename, current)
+                        proposed['inputs'] = normalize_calculator_inputs(calculator_id, proposed['inputs'])
+                        self.send_payload(200, proposed)
+                elif route == "/api/pricing/export" and self.command == "POST":
                     from .pricing_workbook import export_pricing_workbook
                     if set(body) - {"configuration"}:
                         raise ValidationError("Unknown pricing export fields.")

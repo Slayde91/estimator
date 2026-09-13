@@ -1,0 +1,580 @@
+"use strict";
+
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false };
+  const descriptions = {
+    steel_vermiculite: "Steel schedules, coating thicknesses and material quantities",
+    ductwork: "Ductwork dimensions, protection systems and quantities",
+    steel_board: "Steel member schedules, board stacks and whole-sheet takeoff",
+  };
+  // Display-only wording for identified workbook directions. These are scoped
+  // to their original cells; a general A1 replacement would corrupt product,
+  // fastener, exposure and report identifiers such as P250, M12 and R3.
+  const boardStatusDirections = [
+    ["Family (K)", "Family (ESA input)"], ["Clear K to use", "Clear Family (ESA input) to use"],
+    ["Thickness lookup (P)", "Thickness lookup"],
+    ["An exposed depth is entered in N.", "An exposed depth is entered in Partial depth."],
+    ["Exposure layout (M)", "Exposure layout"], ["or clear N.", "or clear Partial depth."],
+    ["inside-box girth in V", "inside-box girth in Box girth override"],
+    ["board product in C", "board product in Product"], ["Steel ID (D) or ESA/M (E)", "Steel ID or ESA/M input"],
+    ["exposed sides in G", "exposed sides in Sides"],
+    ["period in H, in minutes", "period in FRL required, in minutes"],
+    ["Beam or Column in I", "Beam or Column in the member-type input"],
+    ["temperature in J", "temperature in Critical temp"],
+    ["Check E and R:V", "Check ESA/M input and the dimension, area, mass and box-girth overrides"],
+    ["Layer preference (O)", "Layer preference"], ["Exposure layout in M", "Exposure layout"],
+    ["a depth in N", "a Partial depth"], ["ESA/M in E", "ESA/M input"],
+    ["Installation detail in Q", "Installation detail"], ["steel depth in R", "steel depth in Depth or OD"],
+    ["Auto or Double in O", "Auto or Double in Layer preference"], ["Added girth (W)", "Added girth"],
+    ["a total length greater than zero in F, in metres", "Lineal metres greater than zero"],
+    ["depth/width (R/S) or inside-box girth (V)", "depth/width or Box girth override"],
+    ["depth/width in R/S", "Depth or OD and Width B"],
+    ["Check L, or the default on SETTINGS when L is blank.", "Check Waste (%), or Default wastage on SETTINGS when Waste (%) is blank."],
+  ];
+  const sourceDirections = {
+    ductwork: {
+      CALCULATOR: { A3: [["Enter the schedule in blue cells.", "Enter the schedule in the highlighted inputs."], ["choose the duct use in column H", "choose the FyreWrap duct use"]] },
+      "PRODUCT SETTINGS": {
+        E25: [["B35 selects the yield.", "Yield basis selects the yield."]],
+        B43: [["Choose B35.", "Choose the CAFCO Yield basis."]],
+        E65: [["separately from B73", "separately from Yield basis"], ["by B67/B66", "by the injected-to-uninjected chart-yield ratio"]],
+        E67: [["The B67/B66 multiplier", "The injected-to-uninjected chart-yield multiplier"]],
+        E69: [["B73 selects the base yield. B65 applies", "Yield basis selects the base yield. Injection applies"]],
+        E73: [["B65 then applies", "Injection then applies"]],
+        B89: [["the base at B73 and injection at B65", "Yield basis and Injection"]],
+        A142: [["B30 / D30 audit", "Maximum duct-size rule audit"]],
+        B146: [["S:U show report lengths.", "Wall layer 2, Floor layer 2 and Floor layer 3 show report lengths."]],
+      },
+    },
+    steel_vermiculite: {
+      CALCULATOR: { A20: [["Edit the blue cells.", "Edit the highlighted inputs."]] },
+      SCHEDULE: { A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the highlighted schedule inputs, or use Import schedule."]] },
+      BAGS: { A27: [["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
+      SETTINGS: {
+        A3: [["blue cells are editable", "highlighted inputs are editable"]],
+        G43: [["the global lookup policy in D14", "the global Factor lookup policy"]],
+        BD7: [["Exact row sources are in SECTIONS AB:AC", "Exact row sources are retained in the steel-section source records"]],
+        BD27: [["SECTIONS!A571:AV970 retains", "The retained steel-section reference data includes"]],
+        D79: [["Source links: T330 and V330.", "See the Mandolite yield-source links on SETTINGS."]],
+        D111: [["Source links: T331 and V331.", "See the Fendolite yield-source links on SETTINGS."]],
+        D188: [["Source links: T332 and V332.", "See the Perlifoc yield-source links on SETTINGS."]],
+        D244: [["Source links: T333 and V333.", "See the Monokote yield-source links on SETTINGS."]],
+        A301: [["Sources: P330:V333.", "See the product yield-source records on SETTINGS."]],
+      },
+    },
+    steel_board: {
+      START: {
+        A10: [["NORMAL INPUTS A:L", "NORMAL INPUTS"]], A11: [["MAIN RESULTS Y:AI", "MAIN RESULTS"]],
+        D9: [["200 prepared rows: 9–208.", "200 prepared schedule items."]],
+        D11: [["Row status (AI)", "Row status"], ["AD is reference box area only; AE/AF are actual board quantities.", "Box reference area is for reference only; Board required - net and Board incl waste are actual board quantities."]],
+        D13: [["This hidden input sheet", "The EXTRA BOARDS page"], ["Right-click a sheet tab and choose Unhide to enter them.", "Open EXTRA BOARDS to enter them."]],
+        A16: [["AD is a reference area", "Box reference area is a reference area"]],
+        A17: [["AE adds the layer areas.", "Board required - net adds the layer areas."]],
+        A19: [["V is an INSIDE BOX GIRTH", "Box girth override is an INSIDE BOX GIRTH"], ["W is an extra inside-girth allowance", "Added girth is an extra inside-girth allowance"]],
+        A26: [["Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.", "Select Show advanced columns for exposure layout, partial depth, layer preference, thickness lookup, installation detail, depth/width, steel area/mass, inside box-girth override, added girth and design reference. Row status gives the required action. Detailed calculation outputs and notes remain part of the workbook rules."]],
+        A27: [["Only START, CALCULATOR and BOARD SUMMARY are visible. Supporting data sheets remain embedded and hidden. Do not delete them.", "Use START, CALCULATOR, BOARD SUMMARY, EXTRA BOARDS and SETTINGS. Supporting reference data is retained by the application."]],
+        A28: [["For a larger job, extend inside the table, copy ALL formula columns Y:CI and check dropdowns and purchasing ranges. Do not assume typing below row 208 automatically extends every summary formula.", "Larger schedules require extending the supported calculation range and checking every dropdown and purchasing total. Items beyond this capacity are not included automatically."]],
+        A31: [["on the hidden EXTRA BOARDS sheet", "on the EXTRA BOARDS page"]],
+      },
+      CALCULATOR: {
+        A5: [["Paste into A:L only.", "Enter the normal schedule inputs."]],
+        A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, Show advanced columns for optional inputs, EXTRA BOARDS for additional allowances, and SETTINGS for configuration."]],
+        Y6: [["their notes in AI", "their Row status notes"]],
+      },
+      SETTINGS: { A3: [["Blue wastage", "The highlighted wastage setting"]] },
+      "BOARD SUMMARY": {
+        A8: [["CALCULATOR column AI", "CALCULATOR Row status"], ["on hidden EXTRA BOARDS", "on EXTRA BOARDS"]],
+        A35: [["CALCULATOR column AD", "the CALCULATOR Box reference area"]],
+      },
+    },
+  };
+  const current = () => state.entries.get(state.current);
+  const endpoint = (id, action = "") => `/api/calculators/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
+  const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
+  const dirty = (entry) => JSON.stringify(entry.inputs) !== entry.saved;
+
+  function node(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = String(text);
+    return element;
+  }
+
+  function message(text = "", error = false) {
+    const box = $("calculator-message");
+    box.textContent = text; box.hidden = !text;
+    box.className = `message${error ? " error" : ""}`;
+    box.setAttribute("role", error ? "alert" : "status");
+  }
+
+  async function request(path, options = {}) {
+    const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...options.headers } });
+    let data;
+    try { data = await response.json(); }
+    catch { throw new Error(`The server returned an unreadable response (${response.status}).`); }
+    if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
+    return data;
+  }
+
+  function columnName(value) {
+    let name = "";
+    for (let n = value; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + (n - 1) % 26) + name;
+    return name;
+  }
+
+  function parseAddress(value) {
+    const match = String(value).match(/^\$?([A-Z]+)\$?(\d+)$/i);
+    if (!match) return null;
+    return { column: [...match[1].toUpperCase()].reduce((n, char) => n * 26 + char.charCodeAt(0) - 64, 0), row: Number(match[2]) };
+  }
+
+  function columnNumber(value) {
+    return typeof value === "number" || /^\d+$/.test(value) ? Number(value) : parseAddress(`${value}1`)?.column;
+  }
+
+  function decimalShift(value, places) {
+    const parts = String(value).toLowerCase().split("e");
+    return Number(`${parts[0]}e${Number(parts[1] || 0) + places}`);
+  }
+
+  function percent(cell) { return String(cell.number_format || "").includes("%"); }
+  function displayValue(value, cell = {}, editing = false) {
+    if (value === null || value === undefined || value === "") return "";
+    if (!isNumber(value)) return String(value);
+    const visible = percent(cell) ? decimalShift(value, 2) : value;
+    if (editing) return String(visible);
+    return `${number.format(visible)}${percent(cell) ? "%" : ""}`;
+  }
+
+  function numericInputValue(value, cell, editing = false) {
+    if (!isNumber(value)) return value ?? "";
+    const visible = percent(cell) ? decimalShift(value, 2) : value;
+    return editing ? String(visible) : controlNumber.format(visible);
+  }
+
+  function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
+  function hiddenColumns(metadata) {
+    const hidden = new Set(metadata.hidden_columns || []);
+    for (const [column, width] of Object.entries(metadata.column_widths || {})) if (Number.isFinite(Number(width)) && Number(width) <= 0) hidden.add(columnNumber(column));
+    return hidden;
+  }
+
+  function sourceDisplayText(value, entry, address) {
+    if (typeof value !== "string" || !entry) return value;
+    const id = entry.definition.id;
+    let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
+    const position = parseAddress(address);
+    if (id === "steel_board" && position && ((entry.sheet === "CALCULATOR" && position.column === 35 && position.row >= 9 && position.row <= 208) || (entry.sheet === "SETTINGS" && position.column === 17 && position.row >= 6 && position.row <= 51))) replacements = boardStatusDirections;
+    return replacements.reduce((text, [from, to]) => text.split(from).join(to), value);
+  }
+  function updateStatus(entry = current()) {
+    if (!entry || entry !== current()) return;
+    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes" : "Saved calculator inputs · workbook defaults where unchanged";
+    const hasErrors = entry.invalid.size > 0;
+    $("calculator-save").disabled = state.action || hasErrors;
+    $("calculator-recalculate").disabled = hasErrors;
+    $("calculator-row-page").disabled = hasErrors;
+    if (hasErrors) $("calculator-calculation-status").textContent = "Enter a valid number to recalculate.";
+    $("calculator-reset").disabled = state.action;
+    $("calculator-import").disabled = state.action;
+    $("calculator-template").disabled = state.action;
+  }
+
+  function setInput(entry, sheet, address, value) {
+    entry.inputs[sheet] ||= {};
+    entry.inputs[sheet][address] = value;
+    entry.pendingResult = null;
+    entry.revision++;
+    updateStatus(entry);
+    clearTimeout(state.timer);
+    state.timer = setTimeout(() => { if (entry === current()) calculate(); }, 300);
+  }
+
+  function makeControl(cell, row, entry, label) {
+    const address = cell.address || `${columnName(cell.column)}${row}`;
+    const key = `${entry.sheet}!${address}`;
+    const value = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+    const options = Array.isArray(cell.options) ? cell.options : [];
+    const allowOther = cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle);
+    // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
+    // selection cannot determine the type of every other available option.
+    const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
+    const numericOptions = options.some(isNumber);
+    const select = cell.type === "select" && !allowOther;
+    const control = node(select ? "select" : "input", numeric ? "calculator-number" : "");
+    const selectOptions = [];
+    control.dataset.calculatorCell = address;
+    control.dataset.calculatorSheet = entry.sheet;
+    control.setAttribute("aria-label", `${label}${percent(cell) ? " in percent" : ""}`);
+    if (select) {
+      const values = [...options];
+      if (!values.some((option) => String(option) === "")) values.unshift("");
+      if (value !== null && value !== undefined && !values.some((option) => String(option) === String(value))) values.unshift(value);
+      for (const item of values) {
+        const option = node("option", "", item === "" ? "(blank)" : displayValue(item, cell));
+        option.value = String(item); control.append(option); selectOptions.push({ option, value: item });
+        if (isNumber(item)) option.title = `Exact value: ${numericInputValue(item, cell, true)}${percent(cell) ? "%" : ""}`;
+      }
+      control.value = String(value ?? "");
+    } else {
+      control.type = "text";
+      control.value = numeric || isNumber(value) ? numericInputValue(value, cell) : value ?? "";
+      if (numeric) control.inputMode = "decimal";
+      control.autocomplete = "off";
+    }
+    if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
+    if (entry.invalid.has(key)) { control.value = entry.invalid.get(key); control.setAttribute("aria-invalid", "true"); }
+    let focusedValue;
+    control.addEventListener("focus", () => {
+      for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = `${numericInputValue(item.value, cell, true)}${percent(cell) ? "%" : ""}`;
+      if (!select && !entry.invalid.has(key)) {
+        const raw = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+        if (numeric || isNumber(raw)) {
+          control.value = numericInputValue(raw, cell, true);
+          // Replacing a rounded display changes the browser's selection. Keep
+          // the whole exact value selected so the next edit replaces it.
+          control.select();
+        }
+      }
+      focusedValue = control.value;
+    });
+    control.addEventListener(select ? "change" : "input", () => {
+      let next = control.value;
+      const optionText = (option) => String(!select && isNumber(option) && percent(cell) ? decimalShift(option, 2) : option);
+      const optionIndex = options.findIndex((option) => optionText(option) === next);
+      const validSyntax = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(next.trim());
+      if (optionIndex >= 0) next = options[optionIndex];
+      else if ((numeric || (numericOptions && validSyntax)) && next !== "") {
+        next = validSyntax ? Number(next) : NaN;
+        if (!Number.isFinite(next)) {
+          entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
+          entry.revision++; entry.pendingResult = null; clearTimeout(state.timer); updateStatus(entry);
+          $("calculator-calculation-status").textContent = "Enter a valid number to recalculate."; return;
+        }
+        if (percent(cell)) next = decimalShift(next, -2);
+      }
+      entry.invalid.delete(key); control.removeAttribute("aria-invalid");
+      if (isNumber(next)) control.title = `Exact value: ${numericInputValue(next, cell, true)}${percent(cell) ? "%" : ""}`;
+      else control.removeAttribute("title");
+      setInput(entry, entry.sheet, address, next);
+    });
+    control.addEventListener("blur", () => {
+      for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = displayValue(item.value, cell);
+      if (!select && !entry.invalid.has(key)) {
+        const raw = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+        if (numeric || isNumber(raw)) control.value = numericInputValue(raw, cell);
+      }
+      // Formatting alone never writes a rounded value back to the workbook.
+      if (focusedValue !== undefined && entry.pendingResult && !entry.invalid.size) {
+        entry.result = entry.pendingResult; entry.pendingResult = null; renderGrid(entry);
+      }
+    });
+    if (!select && options.length) {
+      const list = node("datalist");
+      list.id = `calculator-options-${entry.definition.id}-${address}`;
+      for (const item of options) { const option = node("option"); option.value = isNumber(item) ? numericInputValue(item, cell, true) : String(item); list.append(option); }
+      control.setAttribute("list", list.id);
+      const wrapper = node("div"); wrapper.append(control, list); return wrapper;
+    }
+    return control;
+  }
+
+  function headerLabels(entry, result) {
+    const metadata = sheetMetadata(entry);
+    const labels = { ...(metadata.column_labels || {}), ...(entry.labels[entry.sheet] || {}) };
+    const headerRows = new Set(metadata.header_rows || []);
+    if (entry.definition.schedule?.sheet === entry.sheet) headerRows.add(entry.definition.schedule.header_row);
+    for (const column of Array.isArray(metadata.columns) ? metadata.columns : []) if (column.label) labels[columnNumber(column.column)] = column.label;
+    for (const column of entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule.columns || [] : []) if (column.label) labels[columnNumber(column.column)] = column.label;
+    for (const row of result.rows || []) if (headerRows.has(row.row)) {
+      for (const cell of row.cells) if (cell.value !== null && cell.value !== "" && !cell.editable) labels[cell.column] = String(cell.value);
+    }
+    entry.labels[entry.sheet] = labels;
+    return labels;
+  }
+
+  function updateOutputCell(element, cell) {
+    element.textContent = displayValue(sourceDisplayText(cell.value, current(), cell.address || element.dataset.calculatorOutput), cell);
+    element.classList.toggle("calculator-number", isNumber(cell.value));
+    element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
+  }
+
+  function refreshOutputs(result) {
+    const cells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
+    for (const element of $("calculator-grid").querySelectorAll("[data-calculator-output]")) {
+      const cell = cells.get(element.dataset.calculatorOutput);
+      if (cell) updateOutputCell(element, cell);
+    }
+  }
+
+  function renderGrid(entry = current()) {
+    if (!entry?.result || entry !== current()) return;
+    const grid = $("calculator-grid"), result = entry.result, metadata = sheetMetadata(entry);
+    const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
+    const hidden = hiddenColumns(metadata);
+    const columns = Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column));
+    const labels = headerLabels(entry, result);
+    const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : null;
+    const merges = (metadata.merges || []).map((range) => {
+      const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
+    }).filter(Boolean);
+    const table = node("table"), colgroup = node("colgroup"), head = node("thead"), body = node("tbody");
+    const rowCol = node("col"); rowCol.style.width = "52px"; colgroup.append(rowCol);
+    const headRow = node("tr"); headRow.append(node("th", "calculator-row-label", "Item"));
+    let tableWidth = 52;
+    for (const column of columns) {
+      const width = Math.max(schedule ? 125 : 24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
+      const col = node("col"); col.style.width = `${width}px`; tableWidth += width; colgroup.append(col);
+      const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
+    }
+    table.style.width = `${tableWidth}px`;
+    head.append(headRow);
+    for (const row of result.rows || []) {
+      const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
+      const item = schedule && row.row >= schedule.first_row && row.row <= schedule.last_row ? row.row - schedule.first_row + 1 : "";
+      const rowLabel = node("th", "calculator-row-label", item); rowLabel.scope = "row"; tr.append(rowLabel);
+      for (const column of columns) {
+        const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
+        if (merge && (column !== columns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== Math.max(merge.start.row, result.start_row))) continue;
+        const cell = values.get(column) || { column, value: null };
+        const td = node("td");
+        if (merge) {
+          td.colSpan = columns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
+          td.rowSpan = Math.min(merge.end.row, result.end_row) - row.row + 1;
+          td.classList.add("calculator-note");
+        }
+        if (cell.editable) {
+          td.classList.add("calculator-editable");
+          const preceding = row.cells.filter((candidate) => candidate.column < column && typeof candidate.value === "string" && candidate.value.trim()).at(-1)?.value;
+          const label = cell.label || labels[column] || preceding || "Calculator input";
+          td.append(makeControl(cell, row.row, entry, `${label}${item ? `, item ${item}` : ""}`));
+        } else {
+          td.dataset.calculatorOutput = cell.address || `${columnName(column)}${row.row}`;
+          updateOutputCell(td, cell);
+          if ((metadata.header_rows || []).includes(row.row)) td.classList.add("calculator-source-heading");
+        }
+        tr.append(td);
+      }
+      body.append(tr);
+    }
+    table.append(colgroup, head, body); grid.replaceChildren(table);
+    grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
+    $("calculator-page-status").textContent = `Rows ${result.start_row}–${result.end_row} of ${result.max_row}`;
+    $("calculator-previous").disabled = result.start_row <= 1;
+    $("calculator-next").disabled = result.end_row >= result.max_row;
+    const pages = [];
+    for (let row = 1; row <= result.max_row; row += 25) {
+      const option = node("option", "", `${row}–${Math.min(row + 24, result.max_row)}`); option.value = String(row); pages.push(option);
+    }
+    $("calculator-row-page").replaceChildren(...pages); $("calculator-row-page").value = String(result.start_row);
+  }
+
+  async function calculate() {
+    const entry = current(); if (!entry || entry.invalid.size) return;
+    clearTimeout(state.timer);
+    const revision = entry.revision, sheet = entry.sheet, startRow = entry.startRow, serial = ++state.requestRevision;
+    $("calculator-calculation-status").textContent = "Calculating…";
+    $("calculator-grid").setAttribute("aria-busy", "true");
+    try {
+      const result = await request(endpoint(entry.definition.id, "calculate"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, start_row: startRow, row_count: 25 }) });
+      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || startRow !== entry.startRow) return;
+      if (result.inputs) entry.inputs = clone(result.inputs);
+      const active = document.activeElement;
+      if (active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.result = result; entry.pendingResult = result; refreshOutputs(result); }
+      else { entry.result = result; entry.pendingResult = null; renderGrid(entry); }
+      const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter(Boolean);
+      $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
+      $("calculator-calculation-status").textContent = warnings.length ? "Calculated · review the notes below" : "Calculated from the workbook rules";
+      updateStatus(entry);
+    } catch (error) {
+      if (current() === entry && serial === state.requestRevision && revision === entry.revision) { message(`Could not calculate. ${error.message}`, true); $("calculator-calculation-status").textContent = "Calculation needs attention"; }
+    } finally { if (serial === state.requestRevision) $("calculator-grid").setAttribute("aria-busy", "false"); }
+  }
+
+  async function selectPage(sheet) {
+    const entry = current(); if (!entry || !entry.definition.pages.includes(sheet)) return;
+    if (entry.invalid.size) { message("Correct the invalid number before changing pages.", true); return; }
+    entry.sheet = sheet; entry.startRow = 1; entry.pendingResult = null; entry.result = null;
+    entry.advanced = false; $("calculator-advanced").checked = false;
+    $("calculator-sheet-title").textContent = sheet;
+    $("calculator-advanced-label").hidden = !hiddenColumns(sheetMetadata(entry)).size;
+    $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
+    renderPages(entry); message(); await calculate();
+  }
+
+  function renderPages(entry) {
+    const buttons = entry.definition.pages.map((sheet) => {
+      const button = node("button", "calculator-page", sheet); button.type = "button";
+      button.setAttribute("aria-pressed", String(sheet === entry.sheet)); button.addEventListener("click", () => selectPage(sheet)); return button;
+    });
+    $("calculator-pages").replaceChildren(...buttons);
+  }
+
+  function safeDocumentUrl(value) {
+    try { const url = new URL(value, window.location.origin); return ["https:", "http:"].includes(url.protocol) ? url.href : null; }
+    catch { return null; }
+  }
+
+  function renderDocuments(entry) {
+    const groups = new Map();
+    for (const document of entry.definition.documents || []) {
+      const url = safeDocumentUrl(document.url); if (!url) continue;
+      const product = Array.isArray(document.products) && document.products.length ? document.products.join(" / ") : "Source information";
+      if (!groups.has(product)) groups.set(product, []);
+      const card = node("article", "calculator-document-card");
+      if (/request/i.test(`${document.kind || ""} ${document.availability || ""}`)) card.classList.add("calculator-document-request");
+      const metadata = [document.kind, document.availability].filter(Boolean).join(" · ");
+      if (metadata) card.append(node("p", "calculator-document-meta", metadata));
+      const link = node("a", "calculator-document-link", document.title || "Technical document");
+      link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; card.append(link);
+      if (document.reference_coverage) card.append(node("p", "calculator-document-coverage", document.reference_coverage));
+      if (document.notes && document.notes !== document.reference_coverage) card.append(node("p", "calculator-document-notes", document.notes));
+      groups.get(product).push(card);
+    }
+    const sections = [];
+    for (const [product, cards] of groups) {
+      const section = node("section", "calculator-document-group"), grid = node("div", "calculator-document-cards");
+      section.append(node("h4", "", product)); grid.append(...cards); section.append(grid); sections.push(section);
+    }
+    $("calculator-document-list").replaceChildren(...sections); $("calculator-documents").hidden = !sections.length;
+  }
+
+  function renderChoices() {
+    $("calculator-list").replaceChildren(...(state.list || []).map((definition) => {
+      const button = node("button", "calculator-choice"); button.type = "button";
+      button.setAttribute("aria-pressed", String(definition.id === state.current));
+      button.append(node("strong", "", definition.title), node("span", "", descriptions[definition.id] || "Workbook schedule and settings"));
+      button.addEventListener("click", () => selectCalculator(definition.id)); return button;
+    }));
+  }
+
+  async function selectCalculator(id) {
+    const serial = ++state.loadRevision;
+    try {
+      let entry = state.entries.get(id);
+      if (!entry) {
+        const definition = await request(endpoint(id));
+        if (serial !== state.loadRevision) return;
+        const inputs = clone(definition.inputs || {});
+        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, sheet: definition.pages[0], startRow: 1, result: null, pendingResult: null, labels: {}, advanced: false, invalid: new Map() };
+        state.entries.set(id, entry);
+      }
+      if (serial !== state.loadRevision) return;
+      state.current = id; ++state.requestRevision; clearTimeout(state.timer);
+      $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
+      $("calculator-sheet-title").textContent = entry.sheet;
+      $("calculator-advanced").checked = entry.advanced;
+      $("calculator-advanced-label").hidden = !hiddenColumns(sheetMetadata(entry)).size;
+      renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
+      if (entry.result) renderGrid(entry); else $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
+      await calculate();
+    } catch (error) { if (serial === state.loadRevision) message(`Could not open the calculator. ${error.message}`, true); }
+  }
+
+  async function open() {
+    try {
+      if (!state.list) { const data = await request("/api/calculators"); state.list = data.calculators; renderChoices(); }
+      if (!state.current && state.list.length) await selectCalculator(state.list[0].id);
+    } catch (error) { message(`Could not load the calculators. ${error.message}`, true); }
+  }
+
+  function confirmReplace(title, detail, buttonText) {
+    const dialog = $("calculator-confirm-dialog");
+    $("calculator-confirm-title").textContent = title; $("calculator-confirm-detail").textContent = detail; $("calculator-confirm-button").textContent = buttonText;
+    return new Promise((resolve) => { dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true }); dialog.showModal(); });
+  }
+
+  async function save() {
+    const entry = current(); if (!entry || entry.invalid.size || state.action) return;
+    state.action = true; updateStatus();
+    const snapshot = clone(entry.inputs), revision = entry.revision;
+    try {
+      const response = await request(endpoint(entry.definition.id, "state"), { method: "PUT", body: JSON.stringify({ inputs: snapshot }) });
+      const saved = clone(response.inputs || snapshot); entry.saved = JSON.stringify(saved);
+      if (entry.revision === revision) entry.inputs = saved;
+      message(entry.revision === revision ? `${entry.definition.title} saved.` : "Calculator saved. Your later edits are still unsaved.");
+    } catch (error) { message(`Could not save the calculator. ${error.message}`, true); }
+    finally { state.action = false; updateStatus(); }
+  }
+
+  async function reset() {
+    const entry = current(); if (!entry || state.action) return;
+    state.action = true; updateStatus(); const revision = entry.revision;
+    try {
+      if (!await confirmReplace("Reset to workbook defaults?", "This replaces this calculator's draft schedule and settings with the supplied workbook defaults, including its example rows. Click Save calculator to keep the reset.", "Reset draft")) return;
+      if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
+      entry.inputs = {}; entry.invalid.clear(); entry.revision++; entry.pendingResult = null;
+      message("Workbook defaults restored in this draft. Save calculator to keep them."); await calculate();
+    } finally { state.action = false; updateStatus(); }
+  }
+
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",", 2)[1]); reader.onerror = () => reject(new Error("The selected file could not be read.")); reader.readAsDataURL(file);
+    });
+  }
+
+  async function importSchedule() {
+    const input = $("calculator-import-file"), file = input.files?.[0]; input.value = "";
+    const entry = current(); if (!file || !entry || state.action) return;
+    if (file.size > 5 * 1024 * 1024) { message("Choose an Excel workbook smaller than 5 MB.", true); return; }
+    if (!file.name.toLowerCase().endsWith(".xlsx")) { message("Choose an .xlsx schedule workbook.", true); return; }
+    state.action = true; updateStatus(); const revision = entry.revision, snapshot = clone(entry.inputs);
+    try {
+      const content = await readFile(file);
+      const result = await request(endpoint(entry.definition.id, "import"), { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, inputs: snapshot }) });
+      if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
+      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save calculator.`, "Apply to draft")) return;
+      if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
+      entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null;
+      message(`Imported ${result.imported_rows} schedule rows into the draft. Save calculator to keep them.`); await calculate();
+    } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
+    finally { state.action = false; updateStatus(); }
+  }
+
+  async function exportTemplate() {
+    const entry = current(); if (!entry || state.action) return;
+    state.action = true; updateStatus();
+    try {
+      const response = await fetch(endpoint(entry.definition.id, "template"), { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (!response.ok) { const error = await response.json(); throw new Error(error.error || "Template export failed."); }
+      const blob = await response.blob();
+      if (!String(response.headers.get("Content-Type") || "").includes("spreadsheetml.sheet")) throw new Error("The server did not return an Excel workbook.");
+      const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `ceasefire-${entry.definition.id}-schedule.xlsx`;
+      document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      message("Schedule template exported. Complete its input columns, then use Import schedule.");
+    } catch (error) { message(`Could not export the template. ${error.message}`, true); }
+    finally { state.action = false; updateStatus(); }
+  }
+
+  function changeRows(direction) {
+    const entry = current(); if (!entry?.result || entry.invalid.size) return;
+    const next = Math.max(1, entry.startRow + direction * 25);
+    if (next > entry.result.max_row) return;
+    entry.startRow = next; entry.pendingResult = null; $("calculator-grid").scrollTop = 0; calculate();
+  }
+
+  function jumpRows() {
+    const entry = current(); if (!entry?.result || entry.invalid.size) return;
+    const next = Number($("calculator-row-page").value);
+    if (!Number.isInteger(next) || next < 1 || next > entry.result.max_row || (next - 1) % 25 !== 0) return;
+    entry.startRow = next; entry.pendingResult = null; $("calculator-grid").scrollTop = 0; calculate();
+  }
+
+  $("calculator-save").addEventListener("click", save);
+  $("calculator-reset").addEventListener("click", reset);
+  $("calculator-recalculate").addEventListener("click", calculate);
+  $("calculator-template").addEventListener("click", exportTemplate);
+  $("calculator-import").addEventListener("click", () => $("calculator-import-file").click());
+  $("calculator-import-file").addEventListener("change", importSchedule);
+  $("calculator-previous").addEventListener("click", () => changeRows(-1));
+  $("calculator-next").addEventListener("click", () => changeRows(1));
+  $("calculator-row-page").addEventListener("change", jumpRows);
+  $("calculator-advanced").addEventListener("change", () => { const entry = current(); if (entry) { entry.advanced = $("calculator-advanced").checked; renderGrid(entry); } });
+  window.addEventListener("beforeunload", (event) => { if ([...state.entries.values()].some((entry) => dirty(entry) || entry.invalid.size)) { event.preventDefault(); event.returnValue = ""; } });
+  window.CeasefireCalculators = { open };
+})();

@@ -419,6 +419,7 @@
     }
     if (view === "quotes") loadQuotes();
     if (view === "pricing") renderPricing();
+    if (view === "calculators") window.CeasefireCalculators?.open();
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });

@@ -6,10 +6,11 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, controller: null, pricingView: "inventory",
+    result: null, revision: 0, timer: null, controller: null, pricingView: "inventory", legacyTitle: "",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
-  const quantity = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 8 });
+  const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const percentCells = new Set(["B9", "B26", "B27", ...Array.from({ length: 9 }, (_, i) => `E${i + 15}`)]);
   const materialNames = [
     ["Spraying", "Bags / drums"], ["Meshing", "m²"], ["Pins / clips", "m²"],
@@ -32,6 +33,31 @@
   const formatNumber = (value) => isNumber(value) ? quantity.format(value) : value == null || value === "" ? "—" : String(value);
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
+
+  function quoteDetails() {
+    return { project_no: $("project-no").value.trim(), client: $("client").value.trim(), site_address: $("site-address").value.trim() };
+  }
+
+  function updateQuoteTitle() {
+    const details = quoteDetails();
+    $("quote-title").value = [details.project_no, details.client, details.site_address].filter(Boolean).join("- ") || state.legacyTitle || "Untitled quote";
+  }
+
+  function controlValue(value, percent = false) {
+    return isNumber(value) ? controlNumber.format(Number(percent ? shiftDecimal(value, 2) : value)) : value ?? "";
+  }
+
+  function editedNumber(control, percent = false) {
+    if (control.validity.badInput) return "Invalid number";
+    if (control.value === "") return "";
+    const numeric = Number(control.value);
+    if (!Number.isFinite(numeric)) return "Invalid number";
+    const displayed = controlNumber.format(numeric);
+    // Untouched imported values remain full precision in state. An intentional
+    // edit is limited to the two decimal places the estimator can see.
+    if (Number(displayed) !== numeric) control.value = displayed;
+    return Number(percent ? shiftDecimal(displayed, -2) : displayed);
+  }
 
   // Move the decimal point in its text representation, retaining all entered digits.
   function shiftDecimal(value, places) {
@@ -104,9 +130,9 @@
       control = node("input");
       control.type = field.type === "number" ? "number" : "text";
       const value = state.inputs[field.cell] ?? "";
-      control.value = isPercent(field) && isNumber(value) ? shiftDecimal(value, 2) : value;
+      control.value = controlValue(value, isPercent(field));
       if (control.type === "number") {
-        control.step = "any";
+        control.step = "0.01";
         control.inputMode = "decimal";
       }
     }
@@ -115,14 +141,13 @@
     control.setAttribute("aria-label", `${field.label || "Estimate input"}${isPercent(field) ? " in percent" : ""}`);
     control.addEventListener("input", () => {
       let value = control.value;
-      if (field.type === "number" && control.validity.badInput) value = "Invalid number";
-      if (field.type === "number" && value !== "") {
-        const numeric = Number(isPercent(field) ? shiftDecimal(value, -2) : value);
-        value = Number.isFinite(numeric) ? numeric : "Invalid number";
-      }
+      if (field.type === "number") value = editedNumber(control, isPercent(field));
       state.inputs[field.cell] = value;
       updateDirty();
       scheduleCalculation();
+    });
+    if (field.type === "number") control.addEventListener("blur", () => {
+      if (isNumber(state.inputs[field.cell]) || state.inputs[field.cell] === "") control.value = controlValue(state.inputs[field.cell], isPercent(field));
     });
     if (compact) return control;
     const label = node("label", "field");
@@ -195,6 +220,7 @@
     for (const key of ["labour", "material", "access", "travel", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
     $("calculated-notes").textContent = "—";
+    $("work-summary").textContent = status === "Calculating…" ? "Updating work summary…" : "Work summary is unavailable until the estimate can be calculated.";
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
     $("calculation-errors").hidden = true;
@@ -219,7 +245,7 @@
     try {
       const result = await request("/api/calculate", {
         method: "POST", signal: state.controller.signal,
-        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration }),
+        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: $("workflow").value }),
       });
       if (revision !== state.revision) return null;
       state.result = result;
@@ -245,6 +271,7 @@
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
     $("calculated-notes").textContent = result.notes ?? cells.B30 ?? "";
+    $("work-summary").textContent = result.work_summary || "Choose a workflow and enter the required work quantities.";
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
@@ -296,7 +323,9 @@
     state.quote = null; state.quoteConfiguration = null;
     state.fields = clone(state.currentFields);
     state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""]));
-    $("quote-title").value = "";
+    state.legacyTitle = "";
+    for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
+    updateQuoteTitle();
     $("workflow").selectedIndex = 0;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
@@ -304,8 +333,8 @@
   }
 
   async function saveQuote() {
+    updateQuoteTitle();
     const title = $("quote-title").value.trim();
-    if (!title) { message("Give this quote a name before saving.", true); $("quote-title").focus(); return; }
     const button = $("save-quote"); button.disabled = true;
     try {
       const inputs = clone(state.inputs);
@@ -313,16 +342,19 @@
       const measurements = $("measurements").value;
       const configuration = clone(state.quoteConfiguration || state.configuration);
       const quoteContext = state.quoteContext;
-      const payload = { title, inputs, workflow, measurements, configuration };
+      const details = quoteDetails();
+      const payload = { title, inputs, workflow, measurements, configuration, ...details };
       const saved = await request(state.quote ? `/api/quotes/${encodeURIComponent(state.quote.id)}` : "/api/quotes", { method: state.quote ? "PUT" : "POST", body: JSON.stringify(payload) });
       if (quoteContext !== state.quoteContext) { message(`Saved “${title}”. Your currently open estimate has been kept.`); return; }
       const pricingChangedDuringSave = JSON.stringify(state.quoteConfiguration || state.configuration) !== JSON.stringify(configuration);
       state.quote = saved;
+      if ([saved.project_no, saved.client, saved.site_address].some((value) => typeof value === "string" && value.trim())) state.legacyTitle = "";
+      updateQuoteTitle();
       if (!pricingChangedDuringSave) state.quoteConfiguration = clone(saved.configuration || configuration);
       if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
       if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || $("quote-title").value.trim() !== title || $("workflow").value !== workflow || $("measurements").value !== measurements;
+      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || $("workflow").value !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
       message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
     } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
@@ -361,7 +393,11 @@
       state.quoteConfiguration = clone(quote.configuration || state.configuration);
       state.fields = clone(quote.fields || state.currentFields);
       state.inputs = { ...Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""])), ...quote.inputs };
-      $("quote-title").value = quote.title || "";
+      state.legacyTitle = [quote.project_no, quote.client, quote.site_address].some((value) => typeof value === "string" && value.trim()) ? "" : quote.title || "";
+      $("client").value = quote.client || "";
+      $("site-address").value = quote.site_address || "";
+      $("project-no").value = quote.project_no || "";
+      updateQuoteTitle();
       if (quote.workflow && !Array.from($("workflow").options).some((option) => option.value === quote.workflow)) {
         const option = node("option", "", quote.workflow); option.value = quote.workflow; $("workflow").append(option);
       }
@@ -383,6 +419,9 @@
     }
     if (view === "quotes") loadQuotes();
     if (view === "pricing") renderPricing();
+    // Each section starts with its heading and actions visible below the sticky
+    // header, even when the previous estimate was scrolled far down the page.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
   function getOverride(kind, id) { return state.draft[kind]?.[id] || {}; }
@@ -405,23 +444,23 @@
   function priceInput(kind, item, key, options = {}) {
     const input = node("input", options.text ? "item-name" : "");
     input.type = options.text ? "text" : "number";
-    input.step = "any";
+    input.step = "0.01";
     input.dataset.priceField = key;
     const current = getOverride(kind, item.id)[key] ?? options.defaultValue ?? item[key] ?? "";
-    input.value = options.percent && isNumber(current) ? shiftDecimal(current, 2) : current;
+    input.value = options.text ? current : controlValue(current, options.percent);
     input.setAttribute("aria-label", `${item.name}: ${options.label || key}${options.percent ? " in percent" : ""}`);
     input.addEventListener("input", () => {
       let value = input.value;
-      if (!options.text && input.validity.badInput) value = "Invalid number";
-      if (!options.text && value !== "") {
-        const numeric = Number(options.percent ? shiftDecimal(value, -2) : value);
-        value = Number.isFinite(numeric) ? numeric : "Invalid number";
-      }
+      if (!options.text) value = editedNumber(input, options.percent);
       setOverride(kind, item, key, value);
       const row = input.closest("tr");
       row.classList.toggle("edited", !!state.draft[kind][item.id]);
       const output = row.querySelector("[data-sell-preview]");
       if (output) output.textContent = formatMoney(inventorySellPrice(item));
+    });
+    if (!options.text) input.addEventListener("blur", () => {
+      // Formatting the visible input does not add an override or round a rate.
+      if (input.value !== "" && !input.validity.badInput && Number.isFinite(Number(input.value))) input.value = controlValue(Number(input.value));
     });
     return input;
   }
@@ -641,19 +680,11 @@
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
   }
 
-  async function printQuote() {
-    const button = $("print-quote"); button.disabled = true;
-    try {
-      const result = await calculate();
-      if (!result) { message("The estimate changed or could not be calculated. Check the inputs and print again.", true); return; }
-      showView("estimate");
-      window.print();
-    } finally { button.disabled = false; }
-  }
-
   function reportPayload() {
+    updateQuoteTitle();
     return {
       title: $("quote-title").value.trim(),
+      ...quoteDetails(),
       inputs: clone(state.inputs),
       configuration: clone(state.quoteConfiguration || state.configuration),
       workflow: $("workflow").value,
@@ -673,7 +704,6 @@
     const button = $("download-quote-pdf");
     if (button.disabled) return;
     const payload = reportPayload();
-    if (!payload.title) { message("Give this quote a name before downloading its PDF.", true); $("quote-title").focus(); return; }
     const quoteContext = state.quoteContext;
     const capturedPayload = JSON.stringify(payload);
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
@@ -724,10 +754,11 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
-  for (const id of ["quote-title", "workflow", "measurements"]) $(id).addEventListener("input", () => updateDirty());
+  for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
+  $("measurements").addEventListener("input", () => updateDirty());
+  $("workflow").addEventListener("change", () => { updateDirty(); scheduleCalculation(); });
   $("new-quote").addEventListener("click", newQuote);
   $("save-quote").addEventListener("click", saveQuote);
-  $("print-quote").addEventListener("click", printQuote);
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
   $("refresh-quotes").addEventListener("click", loadQuotes);
   $("use-current-pricing").addEventListener("click", () => { state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields); renderInputs(); $("snapshot-message").querySelector("span").textContent = "Current pricing applied. Save to replace this quote's pricing snapshot."; updateDirty(); scheduleCalculation(); message("Current pricing applied to this estimate. Check any removed product selections, then save the quote to retain its new pricing snapshot."); });

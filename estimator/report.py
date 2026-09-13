@@ -6,6 +6,7 @@ the report uses business labels and formatting never changes saved results.
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
 from html import unescape
 import math
@@ -23,12 +24,13 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
-    LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
+    KeepTogether, LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
     Table, TableStyle,
 )
 
 from .calculator import masking_breakdown
 from .presentation import calculation_error_details
+from .quote_details import compile_work_summary
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -102,22 +104,22 @@ def _numeric(value):
         return False
 
 
-def _number(value, *, money=False, cents=False, percent=False, blank="Unavailable"):
+def _number(value, *, money=False, percent=False, blank="Unavailable"):
     if not _numeric(value):
         if isinstance(value, str) and value.startswith("#"):
             return "Unavailable: " + value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return "Unavailable: non-finite value"
         return blank if value is None or value == "" else _text(value)
-    displayed = value * 100 if percent else value
-    if not _numeric(displayed):
-        return "Unavailable: display range exceeded"
-    if cents:
-        formatted = format(displayed, ",.2f")
-    elif displayed != 0 and abs(displayed) < 0.00000001:
-        formatted = format(displayed, ".10g")
-    else:
-        formatted = format(displayed, ",.8f").rstrip("0").rstrip(".")
-        if formatted in ("-0", ""):
-            formatted = "0"
+    decimal = Decimal(str(value))
+    with localcontext() as context:
+        context.prec = max(28, decimal.adjusted() + 5)
+        if percent:
+            decimal *= 100
+        rounded = decimal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # Avoid negative zero while preserving real negative adjustments. This is
+    # presentation only: cells, totals and saved quote values are not changed.
+    formatted = format(abs(rounded) if rounded == 0 else rounded, ",.2f")
     return ("$" if money else "") + formatted + ("%" if percent else "")
 
 
@@ -139,6 +141,8 @@ def _styles():
     return {
         "title": ParagraphStyle("QuoteTitle", fontName="CeasefireVeraBold", fontSize=21,
                                 leading=27, spaceAfter=8, textColor=_INK, splitLongWords=1),
+        "long_title": ParagraphStyle("LongQuoteTitle", fontName="CeasefireVeraBold", fontSize=14,
+                                     leading=18, spaceAfter=8, textColor=_INK, splitLongWords=1),
         "section": ParagraphStyle("QuoteSection", fontName="CeasefireVeraBold", fontSize=15,
                                   leading=19, spaceBefore=6, spaceAfter=10, textColor=_INK),
         "subheading": ParagraphStyle("QuoteSubheading", fontName="CeasefireVeraBold", fontSize=10,
@@ -181,7 +185,7 @@ class _Report:
 
     def input(self, cell, **formatting):
         value = self.inputs.get(cell)
-        if formatting:
+        if formatting or _numeric(value):
             return _number(value, blank="Blank", **formatting)
         return "Blank" if value is None or value == "" else _text(value)
 
@@ -235,9 +239,11 @@ class _Report:
             if numeric_pattern.fullmatch(token) and pdfmetrics.stringWidth(token, "CeasefireVera", 6.8) > available_width:
                 prefix = "$" if "$" in token else ""
                 suffix = "%" if token.endswith("%") else ""
-                value = float(token.replace("$", "").replace(",", "").replace("%", ""))
-                mantissa, exponent = format(value, ".8e").split("e")
-                rendered.append(_escaped(prefix + mantissa.rstrip("0").rstrip(".")) +
+                value = Decimal(token.replace("$", "").replace(",", "").replace("%", ""))
+                with localcontext() as context:
+                    context.rounding = ROUND_HALF_UP
+                    mantissa, exponent = format(value, ".2e").split("e")
+                rendered.append(_escaped(prefix + mantissa) +
                                 "<br/>x 10<super>" + str(int(exponent)) + "</super>" + suffix)
             else:
                 rendered.append(line)
@@ -263,9 +269,15 @@ class _Report:
 
     def summary(self):
         self.story.append(self.p(self.quote.get("report_kind", "Saved quote"), "small"))
-        self.story.append(self.p(self.quote.get("title", "Untitled quote"), "title"))
+        title = self.quote.get("title", "Untitled quote")
+        # A composed project/client/site title can reach 704 characters. Keep
+        # every character, using a readable smaller heading for long details.
+        self.story.append(self.p(title, "long_title" if len(_text(title)) > 180 else "title"))
         self.story.append(self.p(self.quote.get("workflow", "Workflow not recorded")))
         identity = [
+            [self.p("Client", "cell"), self.p(self.quote.get("client") or "Not recorded", "cell")],
+            [self.p("Site address", "cell"), self.p(self.quote.get("site_address") or "Not recorded", "cell")],
+            [self.p("Project number", "cell"), self.p(self.quote.get("project_no") or "Not recorded", "cell")],
             [self.p("Quote reference", "cell"), self.p(self.quote.get("id") or "Current unsaved estimate", "cell")],
             [self.p("Snapshot updated", "cell"), self.p(_date(self.quote.get("updated_at")), "cell")],
         ]
@@ -291,26 +303,31 @@ class _Report:
             ("Travel / accommodation", "F5"), ("Subtotal", "F6"),
             ("Fixed adjustment", "D27"), ("Grand total", "F7"),
         ]
-        rows = [[self.detail(label), self.p(self.value(cell, money=True, cents=True), "numeric")]
+        rows = [[self.detail(label), self.p(self.value(cell, money=True), "numeric")]
                 for label, cell in totals]
         total_table = self.table(["Quote amount", "Amount ($)"], rows, [_WIDTH * .68, _WIDTH * .32])
         total_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 7), (-1, 7), colors.HexColor("#E8EEF0")),
             ("LINEABOVE", (0, 7), (-1, 7), 1, _RED),
         ]))
-        self.story.append(total_table)
+        # This is a fixed-size financial summary, so its grand total stays on
+        # the same page as its component amounts even with long quote details.
+        self.story.append(KeepTogether([total_table]))
         self.story.append(self.p("Project measures", "subheading"))
         checks = [
             [self.p("Total project days", "cell"), self.p(self.value("F10"), "numeric")],
-            [self.p("Rate per project area / item", "cell"), self.p(self.value("F8", money=True, cents=True), "numeric")],
+            [self.p("Rate per project area / item", "cell"), self.p(self.value("F8", money=True), "numeric")],
         ]
         self.story.append(self.table(["Calculated output", "Recorded value"], checks, [_WIDTH * .68, _WIDTH * .32], compact=True))
         self.story.extend([
             Spacer(1, 9),
-            self.p("Amounts on this summary display cents. Detail pages retain up to eight decimal places. "
+            self.p("Amounts, rates, quantities, days and percentages display no more than two decimal places. "
                    "Very large detail values use scientific notation. The quote total uses the original unrounded results; adding individually rounded line amounts "
                    "can differ by a few cents. No rounding adjustment has been added.", "small"),
         ])
+        self.story.extend([PageBreak(), self.p("Work summary", "section")])
+        summary = self.quote.get("work_summary") or compile_work_summary(self.quote.get("workflow", ""), self.result)
+        self.note_block(summary)
 
     def materials(self):
         self.story.extend([PageBreak(), self.p("Material breakdown", "section")])
@@ -325,7 +342,7 @@ class _Report:
             material = self.detail(label, self.input(f"D{row}") + "\n" + yield_text)
             rows.append([
                 material,
-                self.p(self.input(f"B{row}", cents=False) + "\n" + unit, "numeric"),
+                self.p(self.input(f"B{row}") + "\n" + unit, "numeric"),
                 self.p(self.value(f"B{price_row}"), "numeric"),
                 self.p(self.input(f"E{row}", percent=True) + "\n" + self.value(f"C{price_row}") + " units", "numeric"),
                 self.p(self.value(f"D{price_row}"), "numeric"),
@@ -342,7 +359,7 @@ class _Report:
             "shown in the labour and additions sections. Rounded purchasing counts appear only in the generated material notes; "
             "they do not replace the fractional quantities priced here.", "small"))
         self.story.append(self.p(
-            "Project area / items: " + self.input("B8", cents=False) +
+            "Project area / items: " + self.input("B8") +
             ". Global material adjustment: " + self.input("B26", percent=True) +
             ". Global labour adjustment: " + self.input("B27", percent=True) + ".", "small"))
         self.story.append(self.p(
@@ -358,7 +375,7 @@ class _Report:
             rows.append([
                 self.detail(label),
                 self.p(self.input(team), "cell"),
-                self.p(self.input(f"C{row}", cents=False), "numeric"),
+                self.p(self.input(f"C{row}"), "numeric"),
                 self.p(self.value(f"B{req_row}"), "numeric"),
                 self.p(self.value(f"A{labour_row}", money=True), "numeric"),
                 self.p(self.value(f"F{labour_row}", money=True), "numeric"),
@@ -406,10 +423,10 @@ class _Report:
         self.story.append(self.table(["Item / selection", "Category", "Adjusted qty", "Unit sell rate", "Amount"], rows,
                                      [187, 57, 83, 92, _WIDTH - 419], compact=True))
         self.story.append(self.p(
-            "Entered additions: extra days = " + self.input("F26", cents=False) +
-            "; mobilisation quantity = " + self.input("F27", cents=False) +
-            "; administration quantity = " + self.input("F28", cents=False) +
-            "; access quantity = " + self.input("B4", cents=False) +
+            "Entered additions: extra days = " + self.input("F26") +
+            "; mobilisation quantity = " + self.input("F27") +
+            "; administration quantity = " + self.input("F28") +
+            "; access quantity = " + self.input("B4") +
             ". Access hire uses weekly rates. Fixed adjustment: " + self.value("D27", money=True) +
             ". All additions and the fixed adjustment are included in the quote summary.", "small"))
 

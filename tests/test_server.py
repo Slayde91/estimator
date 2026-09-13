@@ -180,6 +180,44 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(self.request("GET", "/api/configuration")[2], before)
         self.assertEqual(self.request("POST", "/api/pricing/export", {}, {"Origin": "https://attacker.example"})[0], 403)
 
+    def test_estimate_details_name_summary_and_pdf_round_trip(self):
+        data = {"title": "Name is generated", "project_no": " CF-123 ", "client": " Example Client ",
+                "site_address": " 42 Test Street ", "workflow": "Fire wrap to ductwork",
+                "inputs": {"D15": "Trafalgar FyreWRAP 610", "B15": 12.34567}}
+        status, _, payload = self.request("POST", "/api/quotes", data)
+        self.assertEqual(status, 201, payload)
+        quote = json.loads(payload)
+        self.assertEqual(quote["title"], "CF-123- Example Client- 42 Test Street")
+        self.assertEqual(quote["client"], "Example Client")
+        self.assertEqual(quote["inputs"]["B15"], 12.34567)
+        self.assertIn("Fire wrap to ductwork", quote["work_summary"])
+        self.assertIn("Trafalgar FyreWRAP 610", quote["work_summary"])
+        self.assertNotIn("12.34567", quote["work_summary"])
+        self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], payload)
+        status, _, pdf = self.request("GET", f'/api/quotes/{quote["id"]}/report.pdf')
+        self.assertEqual(status, 200)
+        content = pdf_text(pdf)
+        for text in ("CF-123", "Example Client", "42 Test Street", "Work summary", "Trafalgar FyreWRAP 610"):
+            self.assertIn(text, content)
+        status, _, edited = self.request("PUT", f'/api/quotes/{quote["id"]}', {
+            "client": "Updated Client", "inputs": quote["inputs"], "workflow": quote["workflow"],
+        })
+        self.assertEqual(status, 200, edited)
+        self.assertEqual(json.loads(edited)["title"], "CF-123- Updated Client- 42 Test Street")
+
+    def test_work_summary_reacts_to_workflow_and_products_without_changing_calculation(self):
+        inputs = {"D15": "Promat Cafco 300", "B15": 2.34567}
+        status, _, first = self.request("POST", "/api/calculate", {"inputs": inputs, "workflow": "Intumescent spray to slabs"})
+        self.assertEqual(status, 200)
+        status, _, second = self.request("POST", "/api/calculate", {"inputs": inputs, "workflow": "Intumescent spray to walls"})
+        self.assertEqual(status, 200)
+        first, second = json.loads(first), json.loads(second)
+        self.assertEqual(first["cells"], second["cells"])
+        self.assertIn("Intumescent spray to slabs", first["work_summary"])
+        self.assertIn("Intumescent spray to walls", second["work_summary"])
+        for invalid in ({"workflow": {}}, {"workflow": "x" * 201}, {"work_summary": "Invented work"}):
+            self.assertEqual(self.request("POST", "/api/calculate", invalid)[0], 400)
+
     def test_pdf_requests_validate_inputs_and_respect_origin_boundary(self):
         for data in ({"title": ""}, {"title": "Invalid", "inputs": {"F7": 99}}, {"title": "Invalid", "source_quote_id": 123}):
             self.assertEqual(self.request("POST", "/api/quote-report", data)[0], 400)

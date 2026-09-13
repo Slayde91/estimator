@@ -9,6 +9,7 @@ import uuid
 
 from .calculator import calculate
 from .catalog import catalog_signature, configuration_catalog, effective_catalog, has_yield, validate_catalog, validate_configuration, ValidationError
+from .quote_details import QUOTE_DETAIL_LIMITS, compile_work_summary, compose_quote_title, validate_quote_details
 
 WORKFLOWS = (
     "Intumescent spray to ductwork", "Intumescent spray to structural steel",
@@ -63,16 +64,20 @@ class Store:
 
     def prepare_quote(self, data, quote_id=None):
         """Validate and calculate a pricing snapshot without writing a quote."""
-        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements"}:
+        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements", *QUOTE_DETAIL_LIMITS}:
             raise ValidationError("Quote contains unknown fields.")
         previous = self.quote(quote_id) if quote_id else None
-        title = data.get("title", "Untitled quote")
-        if not isinstance(title, str) or not title.strip() or len(title) > 200:
+        details = validate_quote_details(data, previous)
+        prior = previous or {}
+        legacy_title = prior.get("title", "Untitled quote") if not any(prior.get(key) for key in QUOTE_DETAIL_LIMITS) else "Untitled quote"
+        fallback = data.get("title", legacy_title)
+        if not any(details.values()) and (not isinstance(fallback, str) or not fallback.strip() or len(fallback) > 200):
             raise ValidationError("Quote title must contain 1 to 200 characters.")
-        workflow = data.get("workflow", WORKFLOWS[0])
+        title = compose_quote_title(**details, fallback=fallback)
+        workflow = data.get("workflow", prior.get("workflow", WORKFLOWS[0]))
         if not isinstance(workflow, str) or len(workflow) > 200:
             raise ValidationError("Workflow must be text of at most 200 characters.")
-        measurements = data.get("measurements", "")
+        measurements = data.get("measurements", prior.get("measurements", ""))
         if not isinstance(measurements, str) or len(measurements) > 20000:
             raise ValidationError("Measurement notes must be text of at most 20000 characters.")
         configuration = validate_configuration(data.get("configuration", previous["configuration"] if previous else self.configuration()))
@@ -90,8 +95,9 @@ class Store:
             for rates in catalog["rate_groups"].values() for rate in rates
         }
         configuration["catalog_signature"] = catalog_signature(catalog)
-        result = calculate(data.get("inputs", {}), configuration)
+        result = calculate(data.get("inputs", prior.get("inputs", {})), configuration)
         quote = {"id": quote_id or str(uuid.uuid4()), "title": title.strip(),
+                 **details, "work_summary": compile_work_summary(workflow, result),
                  "updated_at": datetime.now(timezone.utc).isoformat(), "workflow": workflow,
                  "measurements": measurements, "inputs": result["inputs"],
                  "configuration": configuration, "result": result,

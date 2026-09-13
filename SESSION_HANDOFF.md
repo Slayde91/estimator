@@ -1,6 +1,32 @@
 # Session handoff
 
-## Current work — 2026-09-13
+## Current estimate-details work — 2026-09-13
+
+Working checkout: `C:\ESTIMATOR\app`. Current branch: `feat/estimate-details-and-polish`, starting from `ffba327` (pricing-library implementation) above main `615997c`. At this task's reconciliation, the pricing-library changes remained in open PR #4 with GitHub Actions blocked by the account billing/spending limit. Local validation and application refresh are complete below. These results were recorded before publication; no new feature commit, push, CI success or merge is implied. Record exact Git publication results separately after those operations complete.
+
+Current scope adds Project No., Client and Site Address; automatic quote names; a generated work summary; two-decimal display; removal of the Print button in favour of PDF download; and interface refinement using the official logo/brand colours. Pricing exchange remains a whole-library draft/review/Save replacement, and the original pricing baseline stays immutable.
+
+Quote details are bounded optional strings: project number 100 characters, client 200 and site address 400, with control characters rejected. The title joins populated values in project/client/site order with the exact separator `- `, yielding `Project No.- Client- Site Address`; omitted parts do not add separators. The combined title can be 704 characters. Legacy titles remain for older records without metadata; a new empty estimate is `Untitled quote`. Metadata-only updates preserve saved inputs, workflow, measurements and pricing. Explicit empty metadata clears it, and clearing all details on a metadata-based quote falls back to `Untitled quote` unless an explicit legacy title is supplied.
+
+`estimator/quote_details.py` provides validation, deterministic naming and `compile_work_summary(workflow, result)`. It reads existing inputs and calculated values, reuses the material/addition mappings, and describes active products/quantities/yields/wastage, labour teams/days, masking, selected services, extra labour and adjustments. Server calculations supply the summary to the UI, and quote saves store it. Older PDFs derive a display-only summary from their stored result if needed. It is local formatting over existing facts, with no external AI, technical-suitability inference, geometry calculation or duplicate pricing formulas.
+
+Amounts and quantities use two decimal places in app controls, generated numeric text, PDF presentation and XLSX number formats. Viewing or saving untouched data preserves its raw values and unrounded calculation results. Deliberately editing an app numeric input stores two displayed decimal places; percentages are then converted to fractions. Excel number formatting leaves the exported underlying numeric values intact. Literal product names, IDs and free-text notes are preserved. PDF download is now the report action; no separate Print UI button remains.
+
+The new fields and summary extend existing quote JSON. Existing configuration JSON, SQLite schema/version, original workbook inputs/formulas and oracle fixtures remain unchanged. No old quote is rewritten merely by reading or reporting it. Current UI, PDF and spreadsheet visual verification is recorded below; it used fresh outputs rather than prior screenshots.
+
+Fresh source review: `Quote.xlsm` SHA-256 remains `97fd43c4e55d3744e4348bf3596a3ab2a67357f12891524bfdb115f43b45c1a0`; `Inventory_list.xlsm` remains `1da308509611a8c099c62d29acc310d3d39ec6a84176e895f39e8711eba720e1`. All 26 catalog checks including both original-source reconstructions and all eight calculator checks including the 216 × 151 independent Excel oracle passed. No source workbook, immutable baseline, calculator formula or oracle fixture changed.
+
+### Current feature verification
+
+All 96 Python tests passed in 318.045 seconds with the original source checks enabled. All 17 UI tests, JavaScript syntax and diff checks passed. Independent review found no actionable issues in server/storage/quote-details/report semantics, preservation of raw numeric precision or legacy snapshot compatibility.
+
+All 20 pages of three newly generated PDFs were rendered and visually checked: normal estimate (six pages), calculation errors (six), and long metadata (eight). The exported Inventory and Rates sheets were independently rendered, confirming two-decimal presentation while their underlying raw numeric values remained unchanged.
+
+The packaged distribution contains 20 runtime files. Its smoke checks passed for metadata, automatic naming, persistence, generated work summaries and PDF reporting. Pricing export/import retained exact calculator cells. Desktop and 390 px phone browser checks passed for metadata and naming, workflow/product changes, two-decimal presentation, saving/reopening, and navigation scroll behavior.
+
+The main local app at port 8765 was refreshed using the Windows PowerShell 5.1 launcher. Its two saved quote rows and zero settings rows were preserved exactly. The SQLite file bytes changed only at header counters (bytes 27 and 95), so a whole-file hash change was not interpreted as changed quote data. The stored-content SHA-256 remained `9acf16b5c3276ceb95ff8e8e361ab22185cdfaf5aa99a92fd8bdc66d42a8139c`. Local runtime/QA/build artifacts remain ignored. These verified local results do not establish GitHub CI, push or merge outcomes.
+
+## Prior pricing-library delivery — 2026-09-13
 
 Working checkout: `C:\ESTIMATOR\app`. Implementation branch: `feat/pricing-workbook-library`, based on `fix/windows-launcher` (`3b02f99`) above main (`615997c`). Local verification is complete below. GitHub PR/CI/merge results must be read from the publication record; the previous launcher PR #3 had an Actions billing failure, which is not an application test result.
 
@@ -16,7 +42,7 @@ Presentation change: visible worksheet addresses are replaced by named inputs, c
 
 Dependencies: `requirements.txt` pins ReportLab 4.4.9 and openpyxl 3.1.5. Windows startup checks every pinned package, not only ReportLab. Import accepts the exported values-only `.xlsx` layout, at most 5 MB and 5,000 rows per list, and bounds archive contents. It rejects formulas, macros, external links, invalid headers, unsupported groups, duplicate choices and missing inventory links. Both data sheets participate in full, including hidden/filtered rows. Arbitrary supplier layouts are not automatically interpreted.
 
-## Verification at this update
+## Prior pricing-library verification
 
 All 77 Python tests passed in 110.876 seconds, including both original-workbook reconstruction checks and all 216 independent Excel scenarios before and after export/import. Eight JavaScript UI transition checks pass and now run in CI. They protect concurrent edits, separate confirmation dialogs, saved-quote dropdown isolation, import cancellation and draft-only application. JavaScript syntax and diff checks pass.
 
@@ -43,7 +69,7 @@ Run by double-clicking `Start-Estimator.cmd`, or install `python -m pip install 
 
 Prior independent evidence established default source results and 216 Excel scenarios × 151 outputs. The original XLSM would not open through Excel automation; scenario capture used verbatim Calculator formulas in a fresh macro-free harness with frozen Lists values. This demonstrates formula/fixed-lookup parity, not the original workbook's live external-link refresh. Keep the committed fixture independent of the application engine.
 
-PDF reporting retains all 29 non-overlapping cost components and the supplied logo unchanged. Logo SHA-256: `b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7`. Saved report generation uses stored results without the original workbooks, OneDrive assets or current-pricing requests. Current visual checks are recorded above.
+PDF reporting retains all 29 non-overlapping cost components and the supplied logo unchanged. Logo SHA-256: `b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7`. Saved report generation uses stored results without the original workbooks, OneDrive assets or current-pricing requests. Both historical pricing-library checks and fresh current estimate-details/report checks are recorded above with their separate scopes.
 
 Workbook behaviors retained include double masking material adjustment, quantity-driven global adjustments, weekly access charging, no separate pinning labour and distinct blank/empty-text yields. Workflow labels use manually assessed coverage and quantities. No new geometry, thickness, FRL or technical suitability rules are supported without further authoritative business evidence.
 

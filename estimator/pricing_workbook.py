@@ -124,7 +124,7 @@ def _format_sheet(sheet, headers, widths, numeric_columns=(), percent_columns=()
             cell.alignment = Alignment(vertical="center", wrap_text=True)
             cell.fill = PatternFill("solid", fgColor="F0F5FA" if cell.row % 2 == 0 else "FFFFFF")
             if cell.column in numeric_columns:
-                cell.number_format = '#,##0.00######;[Red](#,##0.00######);0.00'
+                cell.number_format = '#,##0.00;[Red](#,##0.00);0.00'
             if cell.column in percent_columns:
                 cell.number_format = '0.00%;[Red](0.00%);0.00%'
     sheet.sheet_properties.pageSetUpPr.fitToPage = True

@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from .calculator import calculate, fields
 from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, ValidationError
 from .presentation import calculation_error_details
+from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 
 MAX_BODY = 24 * 1_048_576
@@ -49,7 +50,9 @@ def create_server(port=8765, database=None):
 
         def send_quote(self, status, quote):
             # Dropdown metadata belongs to the quote's own pricing snapshot.
-            self.send_payload(status, {**quote, "fields": fields(effective_catalog(quote["configuration"]))})
+            self.send_payload(status, {**quote,
+                                       "work_summary": quote.get("work_summary", compile_work_summary(quote.get("workflow", WORKFLOWS[0]), quote["result"])),
+                                       "fields": fields(effective_catalog(quote["configuration"]))})
 
         def read_json(self):
             if self.headers.get_content_type() != "application/json":
@@ -140,10 +143,14 @@ def create_server(port=8765, database=None):
                     quote["id"] = None
                     self.send_report(quote, "Current estimate")
                 elif route == "/api/calculate" and self.command == "POST":
-                    if set(body) - {"inputs", "configuration"}:
+                    if set(body) - {"inputs", "configuration", "workflow"}:
                         raise ValidationError("Unknown calculation request fields.")
+                    workflow = body.get("workflow", WORKFLOWS[0])
+                    if not isinstance(workflow, str) or len(workflow) > 200:
+                        raise ValidationError("Workflow must be text of at most 200 characters.")
                     result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()))
-                    self.send_payload(200, {**result, "error_details": calculation_error_details(result)})
+                    self.send_payload(200, {**result, "error_details": calculation_error_details(result),
+                                            "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":
                     self.send_payload(200, store.save_configuration(body))
                 elif route == "/api/quotes" and self.command == "POST":

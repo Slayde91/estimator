@@ -67,6 +67,8 @@ class PricingWorkbookTests(unittest.TestCase):
         self.assertEqual(rates.auto_filter.ref, "A1:H167")
         self.assertEqual(inventory["G3"].value, 0.3)
         self.assertIn("%", inventory["G3"].number_format)
+        self.assertEqual(inventory["H3"].number_format, '#,##0.00;[Red](#,##0.00);0.00')
+        self.assertEqual(rates["F3"].number_format, '#,##0.00;[Red](#,##0.00);0.00')
         self.assertTrue(inventory.data_validations.dataValidation)
         self.assertFalse(any(cell.data_type == "f" for sheet in workbook for row in sheet for cell in row))
         self.assertEqual(inventory.cell(find(inventory, "239"), 8).value,

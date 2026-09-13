@@ -12,7 +12,7 @@ Consequences: Python 3.11+ is required; there is no frontend bundler, server fra
 
 ## PDF reporting extension
 
-Current architecture: Calculator results and pricing snapshots already exist in the local application, with a browser print view. The extension adds server-generated PDF reports using ReportLab 4.4.9 and the user-supplied Ceasefire logo. The reason is to provide a downloadable branded document that retains the quote's calculation evidence and can be generated without a print dialog.
+Previous architecture: Calculator results and pricing snapshots existed in the local application, with a browser print view. The reporting extension adds server-generated PDF reports using ReportLab 4.4.9 and the user-supplied Ceasefire logo. The reason is to provide a downloadable branded document that retains the quote's calculation evidence and can be generated without a print dialog. PDF download is now the application report action; the separate Print UI action has been removed.
 
 Consequences: install `requirements.txt` before running PDF generation; `requirements-dev.txt` adds pypdf for report inspection in tests. Report generation consumes existing calculated or stored results and does not change Calculator formulas. The original logo bitmap is packaged unchanged and scaled proportionally for presentation. Migration impact: no database schema change or quote rewrite is required.
 
@@ -31,10 +31,11 @@ On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It r
 | `estimator/pricing_workbook.py` | Values-only XLSX export/import, complete-list validation, stable IDs and replacement preview; no persistence |
 | `estimator/calculator.py` | Explicit cell-addressed formula evaluation, dependency/error propagation and unrounded binary floating-point results |
 | `estimator/presentation.py` | Named business labels and error descriptions shared by the UI API and PDF presentation |
-| `estimator/storage.py` | Current library/settings, saved full input sets, complete catalog/rate/yield snapshots, result evidence and source hashes |
-| `estimator/report.py` | Branded PDF presentation of existing quote results and inputs using business labels |
+| `estimator/quote_details.py` | Bounded project/client/site metadata, deterministic quote naming and work-summary formatting over existing calculated values |
+| `estimator/storage.py` | Current library/settings, quote metadata/work summaries, saved full inputs, complete catalog/rate/yield snapshots, result evidence and source hashes |
+| `estimator/report.py` | Branded PDF presentation of quote details, generated work summaries, existing results and inputs using business labels |
 | `estimator/server.py` | Loopback-only allowlisted HTTP/JSON interface and request validation |
-| `static/` | Accessible input controls, draft pricing editor/import review, Excel export, quote persistence, named cost breakdown, original logo, PDF download and print presentation |
+| `static/` | Accessible estimate-details controls, automatic name/work summary, draft pricing editor/import review, Excel export, quote persistence, named cost breakdown, original logo and PDF download |
 
 ## Pricing library extension
 
@@ -47,6 +48,18 @@ Existing IDs retain identity; new rows with blank IDs receive IDs. A user can su
 Consequences: `.xlsx` is a values-only exchange format with exact headers, a 5 MB file limit, 5,000 rows per list and bounded archive contents. Formula cells, macro-bearing files, external links and unexpected data sheets are rejected; filtered/hidden rows still participate. Export preserves numeric values and literal strings. Import reconciles unchanged Excel-precision values with the existing catalog to avoid incidental price drift. Inventory dimensions may include descriptive ranges, while calculation yields retain their numeric/blank/empty-text semantics.
 
 Migration impact: no SQL schema change or eager quote rewrite. New and revised quotes embed the base catalog and freeze all effective prices/yields. Older configurations without `catalog` continue to resolve against the immutable original baseline, not the new global library. Their signature guard remains. Source hashes identify the catalog used and the imported pricing file; an unchanged saved quote retains its original lineage. Stored reports continue to use stored results directly.
+
+## Estimate details and formatting extension
+
+Previous architecture: quote JSON stored a manual title, workflow, notes, calculation result and pricing snapshot. The current change adds optional `project_no`, `client` and `site_address` fields and a server-generated `work_summary`. A small `quote_details.py` module extends the existing domain/presentation boundary. It does not add a service, AI dependency, business-rule engine or alternate calculation path.
+
+Metadata is trimmed and bounded to 100 characters for project number, 200 for client and 400 for site address; control characters are rejected. The quote name joins nonempty project/client/site values with the exact separator `- `, giving `Project No.- Client- Site Address` and a maximum of 704 characters. The server derives the name rather than trusting a manually supplied title when metadata is present. Omitted metadata retains previous values during updates; explicit empty strings clear them. Legacy manual names remain available for records without metadata, and a new empty record uses `Untitled quote`.
+
+`compile_work_summary(workflow, result)` reads only the given workflow, inputs and calculated cells. It describes active products and coverage, quantities/yields/wastage, labour teams and days, masking, selected services, extra labour and adjustments. It shares existing material and addition labels and reads calculated values without reimplementing their formulas. New calculations expose the summary to the UI and new quote saves store it. Older reports can derive a display summary from their saved snapshot without changing the stored record or consulting current prices. A summary is a description of entered estimating facts, not technical product approval or geometry inference.
+
+Display formatting uses two decimal places for numeric app controls, generated numeric descriptions, PDF values and XLSX numeric formats. Untouched original values stay in raw client/server state and exported cells; all calculation arithmetic remains unrounded. An intentional edit in a numeric app control records two displayed decimal places, including conversion from a displayed percentage to its stored fraction. This distinction prevents merely opening or saving an old quote from changing its totals. Literal product labels, IDs and notes are preserved.
+
+Consequences: metadata, naming and summaries use the existing quote JSON in SQLite; current library configuration JSON remains unchanged. No database schema or schema-version change, bulk rewrite or quote migration is needed. The official logo remains unchanged, and the interface update uses its red/orange brand colours with clearer estimate-detail grouping. Final UI/PDF visual verification belongs to the current feature checks rather than earlier screenshots.
 
 ## Calculation and state boundaries
 
@@ -62,4 +75,4 @@ Workbook H contains stored selling prices; P is the supplier-plus-markup formula
 
 Quote configurations carry a fingerprint of lookup IDs, names and inventory links. New snapshots validate it against their own embedded catalog, so global replacements do not affect recalculation. Older snapshots without a catalog retain the original identity guard; they cannot silently reinterpret old positional rate IDs if the original baseline itself is changed. The original saved result remains in SQLite, and original source hashes remain attached until current pricing is explicitly adopted.
 
-The committed fixture was captured by Microsoft Excel 16.0 build 20326 from verbatim Calculator formulas and saved Lists values. It covers 216 scenarios × 151 outputs. The app engine is never used to generate expected values. Source import tests independently reconcile source filters, exact strings, prices, yields and workbook hashes. Pricing exchange tests cover values-only round trips, replacements, links, invalid data and pricing precision. HTTP tests exercise real local requests; persistence tests verify restart and complete snapshot isolation, including old records. Build checks compile Python and package only allowlisted runtime files.
+The committed fixture was captured by Microsoft Excel 16.0 build 20326 from verbatim Calculator formulas and saved Lists values. It covers 216 scenarios × 151 outputs. The app engine is never used to generate expected values. Source import tests independently reconcile source filters, exact strings, prices, yields and workbook hashes. Pricing exchange tests cover values-only round trips, replacements, links, invalid data and pricing precision. Quote-detail tests cover complete/partial/cleared metadata, legacy names, deterministic summaries, error handling and unchanged calculation snapshots. HTTP tests exercise real local requests; persistence tests verify restart and complete snapshot isolation, including old records. Build checks compile Python and package only allowlisted runtime files.

@@ -18,16 +18,20 @@ python -m estimator
 
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
 
-1. Name the estimate and select its workflow label.
+1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts. Select the estimating workflow.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
-3. Review the live total, material quantities and named cost breakdown.
+3. Review the automatically generated **Work summary**, live total, material quantities and named cost breakdown. The summary updates from the selected workflow, products, quantities, labour and allowances.
 4. Save the quote. Reopening preserves its input values and pricing snapshot. Use **Use current pricing** to explicitly apply current settings.
 5. In **Pricing library**, edit supplier prices, markup, manual service prices or lookup rates/yields. **Reset row** restores that row's imported values. Use **Save pricing** to apply your changes.
-6. Use **Download PDF** for a branded quote report. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. **Print** remains available for the browser's estimate view.
+6. Use **Download PDF** for a branded quote report containing the estimate details and work summary. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. PDF download is the report action; the separate Print button has been removed.
 
 The PDF contains the complete material and labour breakdown: products, coverage, yield, wastage, priced quantities, sell rates, labour teams and days, masking, freight, access, travel, accommodation, fees, adjustments and totals. Notes continue onto extra pages when needed. Calculation errors are identified explicitly and valid remaining amounts stay visible. The report uses the official logo supplied by Ceasefire, unchanged.
 
 The estimator and PDF present business labels instead of raw worksheet cell addresses. Internal formula mappings and saved calculation evidence remain available in the code and developer documentation; the calculation engine is unchanged.
+
+The quote name is read-only: for example, project `CF-1042`, client `Example Client` and site `10 High Street` produce `CF-1042- Example Client- 10 High Street`. Partial details use only the populated parts. Older quotes retain their manual names until details are entered; a new estimate without details is called `Untitled quote`. Details and the generated work summary are saved with the quote. The summary describes recorded work only; it is produced locally from the existing calculation, with no external AI or inferred technical rules.
+
+Amounts and quantities display two decimal places in the app, PDF and exported Excel formats. Existing raw values and unrounded calculation results are retained when you merely view or save them. Deliberately editing a numeric app control records its value to two displayed decimal places; percentage controls still convert percentages to their stored fractional values. Excel number formatting does not round the underlying exported values. Product names, item codes and free-text notes keep their original text.
 
 The Calculator does not derive quantities from geometry, fire rating or coating thickness. The source Steel/Duct sheets are collection templates without formulas. Workflow labels record context; the estimator supplies the required coverage/product quantities, as in Excel. No suitability rules or automatic dimension conversions have been invented.
 
@@ -60,7 +64,7 @@ node tests/test_ui.cjs
 python scripts/build.py
 ```
 
-Node is only needed for the JavaScript syntax check. Development requirements include pypdf for inspecting generated reports in tests. The build creates `dist/ceasefire-estimator.zip`, containing the application, imported data, original Ceasefire logo, README and `requirements.txt`. Extract it, install `python -m pip install -r requirements.txt`, then run `python -m estimator` in that directory. The archive does not bundle Python or installed packages.
+Node is only needed for JavaScript syntax and UI regression checks. Development requirements include pypdf for inspecting generated reports in tests. The build creates `dist/ceasefire-estimator.zip`, containing the application, imported data, original Ceasefire logo, README and `requirements.txt`. Extract it, install `python -m pip install -r requirements.txt`, then run `python -m estimator` in that directory. The archive does not bundle Python or installed packages.
 
 The regression fixture contains **216 scenarios and 32,616 outputs independently recalculated by Microsoft Excel**. All 151 default results also match the source workbook's cached outputs. Excel refused to open the original XLSM copies through automation, so scenario capture used the original Calculator formulas in a fresh macro-free workbook with the original saved lookup values. This verifies formula and fixed-lookup parity; it does not prove execution of the original workbook's external-link refresh. Source filters and inventory links are independently checked by the importer.
 
@@ -71,7 +75,7 @@ $env:ESTIMATOR_WORKBOOK_DIR = 'C:\ESTIMATOR'
 python -m unittest discover -s tests -v
 ```
 
-Without the files, two source-reconstruction tests skip; all committed Excel fixtures still run. Tests also cover pricing workbook round trips, complete replacements, invalid imports, pricing links and saved-quote isolation. Oracle regeneration is optional developer tooling and needs Microsoft Excel, PowerShell 7, and openpyxl; see `docs/CALCULATOR_SPEC.md`.
+Without the files, two source-reconstruction tests skip; all committed Excel fixtures still run. Tests also cover pricing workbook round trips, complete replacements, invalid imports, pricing links, quote metadata/names, deterministic work summaries, display precision and saved-quote isolation. Oracle regeneration is optional developer tooling and needs Microsoft Excel, PowerShell 7, and openpyxl; see `docs/CALCULATOR_SPEC.md`.
 
 ## Operating boundary
 

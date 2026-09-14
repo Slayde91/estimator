@@ -7,19 +7,54 @@ Date: 2026-09-14. Executable code and checked results take precedence over this 
 The calculator pages now expose every prepared row on one continuous page:
 1,000 vermiculite items, 300 duct items, 200 board items and 40 extra-board items.
 Forms and tables use the official colours, clearer source headings, labelled
-summary values and shared section dropdowns. The source calculation graphs and
-editable settings are unchanged.
+summary values and shared section dropdowns. Main sections have distinct colour
+themes and linked contents. Vermiculite SETTINGS replaces its old static product
+banner with eleven section links; material-basis references are multiline inputs.
+The single-member period matrix has independent column widths, including the
+120-minute column. Forms fit a phone while comparison tables scroll separately.
+
+Vermiculite SCHEDULE shows three top metrics and running net/whole-bag totals for
+each product. The removed thickness/scope-block card remains an underlying
+calculated value. Product totals come directly from BAGS, including pooled
+rounding and withheld values; the browser does not sum rounded schedule rows.
 
 Every calculator has a draft PDF download containing the populated full
 schedule, thicknesses, relevant surface/material areas, applicable bags/sheets/
-wrap quantities, complete notes, settings and final product/quantity totals.
-Incomplete items remain visible; manual helpers, reference box area and pooled
-purchasing quantities remain distinct. Downloading does not save the calculator.
+wrap quantities, main row statuses, additional boards and final product/quantity
+totals. The duplicate item-detail appendix, separate single-member/manual-bag
+sections and settings appendix have been removed at the user's request.
+Incomplete items remain visible in the main schedule. The manual helpers remain
+available in the application and are not added to schedule totals. Downloading
+uses a captured draft and does not save the calculator.
 See [presentation and report mapping](CALCULATOR_PRESENTATION_MAPPING.md).
 
-This work continues the clean fetched branch at 4f60526. Current validation and
-publication outcomes are recorded at the top of SESSION_HANDOFF.md; the older
-implementation evidence below remains historical, not proof of new CI success.
+Current validation and publication outcomes belong at the top of
+SESSION_HANDOFF.md. The older implementation evidence below is historical, not
+proof of current tests, CI or publication success.
+
+## Reviewed vermiculite estimating defaults
+
+The five reviewed product profiles are explicit input overlays in
+`data/vermiculite_yield_defaults.json`, separate from the immutable workbook
+graph. Each profile supplies bag mass, direct yield, inferred dry-material
+consumption and an editable reference: twenty SETTINGS inputs in total.
+See [yield evidence and qualifications](VERMICULITE_YIELD_REVIEW.md) and the
+[authorized exception](CALCULATOR_EXCEPTIONS.md).
+
+When no saved calculator state exists, Store returns these starting inputs
+without writing a database row. Existing saves, including an explicit empty
+overlay, retain their exact stored inputs. Reset calculator defaults restores
+the reviewed profile and source example rows in the draft. Use reviewed yield
+defaults replaces only those twenty settings, preserving the schedule and other
+settings. Both actions require Save calculator to persist; no migration occurs.
+
+Direct yield retains the workbook's existing precedence. Estimating density is
+coverage-derived dry-material consumption, not installed coating density. Batch,
+theoretical and uninjected yield assumptions remain adjustable and qualified.
+No thickness, exposure, suitability, wastage or lookup rule is changed. Calling
+the calculation engine with an explicit empty overlay still reproduces original
+workbook defaults. The review table displays litres per bag for readability;
+calculations, controls on focus, saved inputs and exports retain full precision.
 
 ESTIMATOR is a local Python/browser application in C:\ESTIMATOR\app with SQLite storage and permanently imported workbook data. The original Quote estimator contains 64 inputs, 151 formulas, 417 inventory records and 166 choices across 14 rate groups. It retains project/client/site details, automatic quote names and work summaries, pricing import/export, the official logo and complete material/labour PDF reports. Saved quotes freeze their inputs, catalog, prices, yields and results. Pricing replacements remain drafts until Save pricing.
 
@@ -27,11 +62,11 @@ ESTIMATOR is a local Python/browser application in C:\ESTIMATOR\app with SQLite 
 
 Calculators adds Structural Steel (vermiculite), Structural Steel (board) and Ductwork. Every visible source tab has a page with its original name; board SETTINGS and EXTRA BOARDS are additionally exposed. Original formulas, hidden databases, names, table references, validation choices, styles and source hashes are permanently packaged. Excel and OneDrive are unnecessary at runtime. These new workbooks supply geometry, thickness and quantity rules absent from the original Quote workbook.
 
-Settings remain adjustable, including source formula-backed yields. Reference databases and calculated fields are read-only. Each calculator has separate draft and saved inputs. Export template and Import schedule use exact values-only XLSX fields. Import replaces the schedule, clearing remaining previous rows while preserving other inputs/settings; only Save calculator persists. Capacities match Excel: 1,000 vermiculite, 200 board and 300 duct rows. Import rejects formulas, macros, external links and malformed data.
+Settings remain adjustable, including source formula-backed yields. Reference databases and calculated fields outside the declared editable settings are read-only. Each calculator has separate draft and saved inputs. Export template and Import schedule use exact values-only XLSX fields. Import replaces the schedule, clearing remaining previous rows while preserving other inputs/settings; only Save calculator persists. Capacities match Excel: 1,000 vermiculite, 200 board and 300 duct rows. Import rejects formulas, macros, external links and malformed data.
 
 Values display two decimals at rest; focused controls reveal exact values. New calculator edits retain full precision, including small yields and tolerances. Numeric choices reveal exact values when choosing between options that round to the same display. This intentionally differs from the older Quote UI's two-decimal edit policy. Raw calculated values stay unrounded in both paths; product, fastener and report identifiers remain literal.
 
-The only approved source exception fixes duct copied instruction text using the first row's fixed technical references, including M6 and AS4254. Original formulas remain packaged and quantity formulas are unchanged. See [exception record](CALCULATOR_EXCEPTIONS.md).
+The approved formula-text exception fixes duct copied instruction text using the first row's fixed technical references, including M6 and AS4254. The separately authorized vermiculite commercial defaults change explicit starting inputs, not source formulas or passive-fire thickness rules. See [exception record](CALCULATOR_EXCEPTIONS.md).
 
 Australian document links identify manuals, PDS, SDS and report availability. An unavailable exact report is labelled as a manufacturer request. Links never silently replace workbook calibration. Source exclusions, review flags, errors and withheld quantities remain part of the output.
 
@@ -41,10 +76,14 @@ The extension reuses the HTTP server, SQLite database, browser UI and openpyxl d
 
 Calculator quantities remain separate from priced quotes: the files do not specify an automatic mapping into pricing. Existing PDFs still report the original Quote estimate and complete breakdown.
 
-All 419,905 new native Excel comparisons passed: 161,566 original formula outputs, 300 approved text outputs, and 258,039 varied outputs over 3,471 schedule cases. Expected values came from Microsoft Excel 16.0 build 20326 recalculating disposable copies of the original XLSX workbooks. Coverage includes every steel selection and editable setting. Text, booleans and errors compare exactly; numeric tolerance is relative 1e-12 and absolute 1e-10. See [mapping and evidence limits](WORKBOOK_CALCULATORS.md).
+The prior source-parity checkpoint passed 419,905 native Excel comparisons: 161,566 original formula outputs, 300 approved text outputs, and 258,039 varied outputs over 3,471 schedule cases. Expected values came from Microsoft Excel 16.0 build 20326 recalculating disposable copies of the original XLSX workbooks. Coverage includes every steel selection and editable setting. Text, booleans and errors compare exactly; numeric tolerance is relative 1e-12 and absolute 1e-10. Reviewed defaults need separate overlay/precedence and save-isolation checks; they do not replace those original fixtures. See [mapping and evidence limits](WORKBOOK_CALCULATORS.md).
 
 The original Quote fixture remains 216 scenarios × 151 outputs, captured with verbatim Calculator formulas and saved lookups in a macro-free harness. That earlier evidence does not prove live XLSM external-link refresh.
 
-Current branch: feat/workbook-calculators, based on 01e3494 and preserving prior PR #5 work. Main was fetched at 615997c; no user changes were discarded. Complete-suite/build/runtime/publication outcomes are recorded in SESSION_HANDOFF.md. Prior PR #5 CI was blocked by GitHub billing before job steps; current PR CI must be checked independently.
-
-Latest implementation commit 946f2c1 is pushed to origin/feat/workbook-calculators. [PR #6](https://github.com/Slayde91/estimator/pull/6) is updated, open and unmerged, with no reviews. Both new implementation-head Checks runs (34833934393 and 34833938884) failed before job steps because GitHub reported account payment/spending-limit problems. All 176 Python tests and 56 UI checks passed locally, followed by 21 final report/HTTP checks; the distribution, PDF layouts and refreshed local app were verified. Resolve the account blocker and require successful current-head CI before merging.
+Work continues on `feat/workbook-calculators`, preserving earlier implementation
+and saved data. The prior publication checkpoint recorded pushed implementation
+946f2c1 and [PR #6](https://github.com/Slayde91/estimator/pull/6), with CI blocked
+before job steps by GitHub account payment/spending limits. That checkpoint's
+176 Python tests, 56 UI checks and subsequent 21 report/HTTP checks are historical.
+Current complete-suite, build, runtime, commit, push, CI and merge evidence belongs
+in SESSION_HANDOFF.md and must be checked independently for this change.

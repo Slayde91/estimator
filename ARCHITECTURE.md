@@ -93,8 +93,9 @@ Migration impact: SQLite schema version 2 adds `calculator_states` to the existi
 database, with one separate state per calculator. Quotes and global pricing rows
 are not rewritten. Saved calculator state contains exact inputs and the source
 hash; a mismatched source refuses silent reinterpretation. GET/calculate/import
-remain read-only; PUT state is the explicit save. Database/calculated cells are
-never editable through the API. The existing loopback Host/Origin checks, request
+remain read-only; PUT state is the explicit save. Reference databases and
+calculated cells outside declared editable settings cannot be supplied through
+the API. The existing loopback Host/Origin checks, request
 limits and safe values-only XLSX reader remain in force.
 
 Every visible tab is a page; hidden board SETTINGS and EXTRA BOARDS are also
@@ -116,22 +117,70 @@ returns the complete bounded source page with shared typed dropdown option sets,
 visible columns and source-derived presentation roles. The browser renders every
 prepared schedule row, retaining hidden/advanced choices and omitting decorative
 spacing only. Shared datalists avoid repeating large section libraries for every
-row. Neither presentation roles nor display rounding change calculated values.
+row. Main-section metadata supplies stable contents anchors and colour themes.
+Non-schedule occupancy is part of the render signature, so a newly populated
+formula note is not lost during an in-place output refresh. The single-member
+period matrix has its own equal-width period columns rather than inheriting the
+form's narrow spacer. Neither presentation roles nor display rounding change
+calculated values.
+
+Vermiculite SCHEDULE receives `product_totals` from the existing BAGS product
+formulas, with net bags, pooled whole bags and order status. Its browser table
+refreshes from these server results without rebuilding schedule controls. The
+removed thickness/scope-block summary card remains in the source result graph.
 
 `calculator_report.py` projects a normalized input snapshot through the same
 workbook engine and approved exception. `POST /api/calculators/<id>/report.pdf`
 uses the existing ReportLab/fonts/logo pipeline and never writes saved state.
-Documents include every populated row (including unresolved rows), full details,
-settings, additional board allowances and original pooled product totals. Bag,
-sheet, roll, surface-area and reference-box semantics remain distinct. Small
-nonzero report settings can use scientific notation with two decimal places in
-the mantissa rather than becoming a misleading zero.
+Documents retain the main full schedule, including unresolved rows, additional
+board allowances, product/ancillary tables and closing totals. At the user's
+request, the duplicate detailed-item appendix, separate single-member and manual
+bag sections, and settings appendix are omitted. Settings still affect the
+snapshot's calculation; removing an appendix does not change its values. Bag,
+sheet, roll, surface-area and reference-box semantics remain distinct.
 
 Consequences: larger complete-page responses replace repeated 25-row requests;
 source extents and input limits still bound the workload. No new dependencies,
 storage schema, business formulas or source packages are introduced. Existing
 saved states and quote/pricing snapshots require no migration. See the
 [per-page presentation and output mapping](docs/CALCULATOR_PRESENTATION_MAPPING.md).
+
+### Reviewed commercial input defaults
+
+Previous architecture: an absent saved calculator state produced an empty input
+overlay and therefore the source workbook's original defaults. The implemented
+change adds `calculator_defaults.py` and a separately reviewed JSON profile for
+five vermiculite products. It supplies twenty existing SETTINGS inputs: bag mass,
+direct yield, inferred dry-material consumption and editable basis/reference.
+The reason is the user's authorized manufacturer-evidence review of commercial
+estimating assumptions. Source graphs, hashes, thickness tables and original
+native Excel fixtures remain unchanged; this is not a second formula engine.
+
+`Store.calculator_state` returns the profile only when no saved row exists and
+does not persist during that read. Existing saved rows are returned exactly,
+including an explicit empty overlay. Calculator definitions expose `defaults`
+and `yield_review` separately from current `inputs`. Reset copies the default
+overlay into the draft and restores source example rows. Use reviewed yield
+defaults merges only its twenty SETTINGS fields into the current draft; schedule
+inputs and other settings are retained. The existing PUT state is the only save.
+
+The normalizer, engine/session factory and report projection do not inject the
+profile. Explicit `{}` inputs still evaluate original workbook defaults, and
+caller-supplied values remain authoritative. A saved numeric direct yield is an
+explicit override, so later bag-mass edits do not rescale it implicitly. The
+source direct-yield precedence, blank/zero/error behavior and separate waste
+application are unchanged. The five already-editable basis fields accept bounded
+multiline text; other input text retains its existing control-character rules.
+
+Consequences: a new unsaved vermiculite calculator starts with reviewed commercial
+assumptions; existing work changes only through deliberate input actions. The
+review table shows litres per bag and linked basis evidence while retaining raw
+numeric precision. Density means inferred dry-material consumption rather than
+installed coating density. Migration impact: no schema/version change, saved-row
+rewrite, package replacement or data migration. Source-default reconstruction
+and commercial-overlay validation remain separate checks. See the
+[yield review](docs/VERMICULITE_YIELD_REVIEW.md) and
+[authorized exception](docs/CALCULATOR_EXCEPTIONS.md).
 
 ## Calculation and state boundaries
 

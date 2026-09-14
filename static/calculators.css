@@ -95,6 +95,52 @@
 .calculator-inline-link{color:var(--accent);font-size:11px;font-weight:700;text-underline-offset:3px}
 #calculator-sheet-title{scroll-margin-top:180px}
 .calculator-grid .calculator-comparison-table th{background:#f3e6e9;color:#5c2638;font-weight:750;border-block:1px solid #dfc5ce}
+.calculator-comparison-note{padding:16px 24px;margin:0;background:#fffaf1;color:#6b5147;font-size:12px;line-height:1.75;border-bottom:1px solid #ebddc9}
+.calculator-grid textarea{display:block;width:100%;min-width:0;resize:vertical;font:inherit;font-size:12px;line-height:1.65;padding:12px;min-height:110px;box-sizing:border-box;border:1px solid #cfb574;border-radius:6px;background:#fff}
+.calculator-grid textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px #b90a1514}
+.calculator-summary-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.calculator-product-totals{width:100%;min-width:0;margin:0 0 12px}
+.calculator-product-totals h4{font-size:15px;color:#7f1724;margin:4px 0 7px}
+.calculator-product-totals>p{font-size:11px;margin-bottom:12px}
+.calculator-product-totals-scroll{overflow-x:auto;border:1px solid #e7d7ca;border-radius:8px}
+.calculator-grid .calculator-product-totals table{width:100%;min-width:650px;table-layout:auto;font-size:12px}
+.calculator-grid .calculator-product-totals th,.calculator-grid .calculator-product-totals td{padding:10px 14px;vertical-align:middle}
+.calculator-grid .calculator-product-totals tbody th{background:#fffaf2;color:#65423c;text-align:left;font-size:11px;font-weight:700}
+.calculator-grid .calculator-product-totals tbody td{background:#fff;font-size:12px}
+.calculator-grid .calculator-product-totals .calculator-number{color:#7c1724;font-weight:750;white-space:nowrap}
+.calculator-grid .calculator-product-totals .calculator-product-order-status{font-size:10px;color:#69505a}
+.calculator-section-theme-0{--section-ink:#751622;--section-bg:#fdebef;--section-edge:#d15465}
+.calculator-section-theme-1{--section-ink:#653b05;--section-bg:#fff2cd;--section-edge:#d4a43b}
+.calculator-section-theme-2{--section-ink:#773111;--section-bg:#ffeadb;--section-edge:#d47b42}
+.calculator-section-theme-3{--section-ink:#6a2342;--section-bg:#f8e4ee;--section-edge:#ba6589}
+.calculator-section-theme-4{--section-ink:#4d345f;--section-bg:#eee7f5;--section-edge:#9c7bb7}
+.calculator-section-theme-5{--section-ink:#245d58;--section-bg:#e2f1ed;--section-edge:#6a9f92}
+.calculator-section-theme-6{--section-ink:#354b62;--section-bg:#e8eef5;--section-edge:#7d96b3}
+.calculator-section-theme-7{--section-ink:#53551f;--section-bg:#f0f1dc;--section-edge:#9eaa63}
+.calculator-section-theme-8{--section-ink:#624331;--section-bg:#f4e9df;--section-edge:#b98d69}
+.calculator-section-theme-9{--section-ink:#633644;--section-bg:#f5e7e5;--section-edge:#b18087}
+.calculator-section-theme-10{--section-ink:#4d4740;--section-bg:#eeeae1;--section-edge:#9b8f72}
+.calculator-grid td.calculator-section-anchor{color:var(--section-ink);background:var(--section-bg);border-top:3px solid var(--section-edge);border-bottom:1px solid var(--section-edge);scroll-margin-block-start:175px;font-weight:750}
+.calculator-section-anchor:target{box-shadow:inset 5px 0 var(--section-edge)}
+.calculator-contents{padding:19px 24px;background:#fdfaf7;border-top:1px solid #eadfd5;border-bottom:1px solid #e7d8cf}
+.calculator-contents-title{margin:0 0 11px;color:#705347;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:1px}
+.calculator-contents-links{display:flex;flex-wrap:wrap;gap:8px}
+.calculator-contents a{display:block;padding:8px 11px;border:1px solid var(--section-edge);border-left-width:3px;border-radius:6px;color:var(--section-ink);background:var(--section-bg);font-size:10px;line-height:1.45;font-weight:700;text-decoration:none}
+.calculator-contents a:hover{text-decoration:underline;text-underline-offset:3px}
+.calculator-contents a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.calculator-reviewed-defaults{display:flex;align-items:center;gap:18px;padding:15px 24px;border-bottom:1px solid #e9d9c9;background:#fff8eb}
+.calculator-reviewed-defaults button{flex-shrink:0;background:#fff;border-color:#bb7948;color:#763310;font-size:11px;font-weight:700;padding:10px 14px}
+.calculator-reviewed-defaults p{margin:0;color:#765a49;font-size:11px;line-height:1.7;max-width:650px}
+.calculator-yield-review{padding:15px 24px;border-bottom:1px solid #e8d9d0;background:#fffcf7}
+.calculator-yield-review summary{cursor:pointer;color:#753610;font-size:12px;font-weight:700;line-height:1.6}
+.calculator-yield-review>p{font-size:11px;color:#71574b;line-height:1.75;margin:13px 0}
+.calculator-yield-review-scroll{overflow:auto;border:1px solid #e6d9cd;border-radius:7px;margin-top:12px}
+.calculator-grid .calculator-yield-review table{min-width:950px;width:100%;table-layout:auto;font-size:11px}
+.calculator-grid .calculator-yield-review th,.calculator-grid .calculator-yield-review td{padding:12px;line-height:1.65}
+.calculator-grid .calculator-yield-review tbody th{background:#fff6e7;color:#684534;font-size:11px;text-align:left}
+.calculator-grid .calculator-yield-review .calculator-number{white-space:nowrap;vertical-align:top;color:#7c1724;font-weight:700}
+.calculator-yield-basis p{margin:0 0 7px;color:#69524a;font-size:11px}
+.calculator-yield-basis a{display:block;color:#832637;font-size:10px;line-height:1.8;text-underline-offset:3px}
 .calculator-table-scroll:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 @media(max-width:760px){.calculator-overview{padding:18px 20px}.calculator-grid{max-height:none}.calculator-table-scroll{max-height:74vh}.calculator-grid .calculator-form-table td.calculator-role-title{font-size:17px}.calculator-grid .calculator-form-table td{padding:10px 12px}.calculator-workspace{min-width:0}.calculator-sheet-footer{padding:14px 20px}}
 @media(max-width:760px){
@@ -109,4 +155,9 @@
   .calculator-grid .calculator-responsive-form td.calculator-role-label{padding-bottom:4px;background:transparent}
   .calculator-grid .calculator-responsive-form td.calculator-number{font-size:17px;padding-top:4px}
   .calculator-grid .calculator-responsive-form input,.calculator-grid .calculator-responsive-form select{width:100%;min-width:0;font-size:14px;min-height:44px}
+  .calculator-contents{padding:16px 18px}
+  .calculator-contents-links{gap:7px}
+  .calculator-summary-three{grid-template-columns:1fr}
+  .calculator-reviewed-defaults{align-items:flex-start;flex-direction:column;gap:10px;padding:15px 18px}
+  .calculator-yield-review{padding:15px 18px}
 }

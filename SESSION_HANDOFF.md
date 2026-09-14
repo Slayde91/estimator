@@ -1,6 +1,82 @@
 # Session handoff
 
-## Calculator presentation and full schedule PDFs — 2026-09-14
+## Australian yield review and calculator refinements — 2026-09-14
+
+Starting state: clean `feat/workbook-calculators` at `e39f28d`, matching fetched
+`origin/feat/workbook-calculators`; main remains `615997c`. This increment follows
+the user's specific yield, settings, navigation, schedule-summary and PDF requests.
+No unrelated local changes or user work were discarded.
+
+The reviewed profile in `data/vermiculite_yield_defaults.json` supplies twenty
+explicit SETTINGS inputs: bag mass, direct yield, equivalent dry-material
+consumption and editable material reference for each of five products. CAFCO
+uses Australian published coverage (65.10 L/bag); MONOKOTE uses the current
+Australian 21.80 kg pack with the retained uninjected yield. MANDOLITE's conflicting
+coverage, PERLIFOC's batch/continuous distinction and theoretical/site-loss limits
+are documented in `docs/VERMICULITE_YIELD_REVIEW.md`. Consumption density is inferred,
+not installed coating density. This authorized estimating-default exception does
+not alter thickness rules, source graphs or original native fixtures.
+
+Absent saved states receive the reviewed inputs without a database write. Existing
+saves remain exact. Use reviewed yield defaults merges only those twenty fields
+into the draft; Reset calculator defaults also restores source example rows. Both
+require Save calculator to persist. Explicit empty calculation inputs still use
+original workbook defaults. All five material references accept multiline text.
+
+Vermiculite SCHEDULE has three top metrics and a live per-product net/whole-bag
+table sourced from BAGS, preserving pooled rounding and incomplete status.
+SETTINGS has eleven coloured section anchors and linked contents instead of the
+old product banner. The single-member comparison uses equal independent period
+columns, including 120 minutes. All source input rows remain available.
+
+PDFs retain overview, full schedule, EXTRA BOARDS, product/ancillary summaries and
+closing totals. The four requested detail/helper/settings sections are removed.
+Default reports are 4 duct pages, 3 vermiculite pages and 8 board pages. All fifteen
+pages were rendered and visually inspected with no text-boundary violations.
+
+Current verification:
+- Independent native Excel 16.0/build 20326 captured 6,565 selected outputs across
+  five scenarios; all match. A further 863 numeric/status checks use the actual
+  installed profile against those independently captured expectations.
+- All 38 defaults/native/worksheet/API boundary tests passed after updating two
+  original-default expectations to distinguish source inputs from app defaults.
+  Both original Quote/inventory reconstruction tests passed with the actual files.
+- JavaScript syntax and 48 calculator plus 17 existing UI checks passed. Independent
+  review found a disabled-button state after reset; the fix is covered by reset,
+  invalid-input and corrected-input regressions.
+- Browser review covered all twelve pages, equal 120-minute widths, all five
+  editable references, precision-preserving save/reopen, live bag totals, linked
+  sections and phone containment. A real schedule PDF download confirmed the
+  captured draft and retained unsaved status. No browser errors were recorded.
+- The final 34-file source distribution is 5,338,548 bytes, SHA-256
+  `957a64737a94fab6bda4b821b614d21e0c95b761d9af661247ae0e6116c08ef7`.
+  An extracted copy served all twelve complete pages and three PDFs with original
+  workbook filesystem access blocked; there were zero attempted source reads.
+- The final complete suite passed all 189 tests in 508.802 seconds, with no skips.
+  It includes original workbook reconstruction, all 419,905 original native
+  calculator comparisons and 216 × 151 Quote comparisons, plus the new yield cases.
+
+The main server was refreshed through Start-Estimator.ps1 and verified at
+`http://127.0.0.1:8765/`, PID 11852. Served JS/CSS match the tested files. Its new
+vermiculite state returns the reviewed profile and the original schedule gives
+172.03 net bags / 173.00 pooled whole bags. A recovery backup preceded refresh;
+the two saved quotes, zero pricing-setting rows and zero calculator-state rows
+are identical afterward. Quote/settings content SHA-256 remains
+`c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+The user's browser tab was preserved; refresh after retaining any unsaved draft.
+
+All current scratch logs, source-download receipts, disposable Excel copies,
+test databases, rendered PDFs and package checks are under ignored
+`.runtime/yield-review`. `dist/` and caches are also ignored. New committed fixtures
+are intentional native regression evidence; no source XLSX/XLSM or external PDF
+is added to the runtime or repository.
+
+Publication checkpoint: validation and changes are ready for the existing PR #6.
+The preceding head's CI was blocked before steps by GitHub account payment/spending
+limits. Current-head results must be checked after push; do not infer CI success
+or merge permission from local checks.
+
+## Historical: calculator presentation and full schedule PDFs — 2026-09-14
 
 Starting state: clean feat/workbook-calculators at 4f60526, matching its fetched
 upstream. PR #6 remains the existing feature PR; no user work or branches were

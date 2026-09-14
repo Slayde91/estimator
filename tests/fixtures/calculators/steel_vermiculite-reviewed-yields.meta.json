@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "filename": "steel_vermiculite-reviewed-yields.json.gz",
+  "note": "Exact unmodified native Microsoft Excel capture bytes, deterministically compressed. Explicit reviewed SETTINGS inputs are separate from unchanged original-default fixtures.",
+  "capture_sha256": "05ffe631a2c20fa54e44dd110afb3ebe59f9f6394fc69441fa9f3799623e120b",
+  "gzip_sha256": "6d6e9e575def81a8b0a5bcc292549500ca6bb213db1b58f53781fadf14ede13b",
+  "source_sha256": "1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad",
+  "source_after_capture_sha256": "1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad",
+  "copy_after_capture_sha256": "1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad",
+  "capture_bytes": 407920,
+  "gzip_bytes": 41172,
+  "scenarios": 5,
+  "outputs": 6565,
+  "oracle": {
+    "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved",
+    "version": "16.0",
+    "captured_utc": "2026-09-14T12:11:37.5207146Z",
+    "application": "Microsoft Excel",
+    "build": 20326.0
+  },
+  "reproduction": {
+    "prepare_script": "scripts/prepare_yield_scenarios.py",
+    "capture_script": "scripts/capture_calculator_oracle.ps1",
+    "basis": "docs/VERMICULITE_YIELD_REVIEW.md",
+    "input_examples": "tests/fixtures/calculators/steel_vermiculite-variations.json.gz:all_active_section_choices"
+  }
+}

@@ -17,6 +17,7 @@ import unittest
 from openpyxl import load_workbook
 
 from estimator.catalog import ROOT
+from estimator.calculator_defaults import default_calculator_inputs
 from estimator.pricing_workbook import _serialize_exact
 from estimator.server import create_server, MAX_BODY
 from estimator.storage import Store
@@ -110,7 +111,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
                 definition = self.definition(identity)
                 self.assertEqual(definition["pages"], pages)
                 self.assertEqual([sheet["name"] for sheet in definition["sheets"]], pages)
-                self.assertEqual(definition["inputs"], {})
+                self.assertEqual(definition["inputs"], default_calculator_inputs(identity))
                 self.assertEqual(len(definition["source"]["sha256"]), 64)
                 self.assertTrue(definition["documents"])
                 self.assertTrue(all(item["url"].startswith("https://") for item in definition["documents"]))

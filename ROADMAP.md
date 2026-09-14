@@ -9,8 +9,10 @@
 - Three workbook Calculators, every visible tab, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Permanent technical databases, original formulas and dependent dropdowns.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
-- Continuous full-row calculator pages with branded forms, headings and labelled totals.
-- Full schedule PDF downloads with thicknesses, areas, applicable material quantities, settings and pooled product summaries.
+- Continuous full-row calculator pages with branded forms, distinct section colours, linked contents and labelled totals.
+- Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix and editable multiline material references.
+- Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; explicit apply/reset actions remain drafts until Save calculator.
+- Schedule PDF downloads with thicknesses, areas, applicable quantities, additional boards, product/ancillary tables and closing totals. Duplicate detail, standalone helper and settings appendices are removed.
 - Original exclusions/withheld quantities and the approved duct text correction.
 - Australian manuals, PDS/SDS and clearly labelled report/request links.
 - Independent native Microsoft Excel fixtures, HTTP/persistence and UI regressions.
@@ -18,16 +20,31 @@
 
 ## Verification and publication
 
-feat/workbook-calculators extends 01e3494; fetched main is 615997c. Current final validation and Git results belong in SESSION_HANDOFF.md. Do not infer CI success from local checks. Prior PR #5 CI was blocked by account billing before any job step.
+Work continues on `feat/workbook-calculators`. Current final validation and Git
+results belong in SESSION_HANDOFF.md. Do not infer CI success from local checks
+or treat a previous implementation checkpoint as verification of this change.
 
-All 419,905 new native Excel comparisons pass, covering all 161,566 source formulas, 300 approved text outputs and 258,039 varied outputs across 3,471 schedule cases. The original Quote fixture remains 216 × 151. Complete reconstruction tests protect database extraction, not just representative records.
+The previous source-parity checkpoint passed 419,905 native Excel comparisons,
+covering 161,566 source formulas, 300 approved text outputs and 258,039 varied
+outputs across 3,471 schedule cases. The original Quote fixture remains
+216 × 151. Complete reconstruction tests protect database extraction. Reviewed
+commercial defaults require additional input-profile, precedence, save-isolation
+and display checks; source expectations stay unchanged. See
+[yield evidence and qualifications](docs/VERMICULITE_YIELD_REVIEW.md).
 
 ## Meaningful remaining work
 
-PR #6 is updated and pushed. Resolve the verified GitHub account billing/spending-limit blocker, rerun current-head CI, and merge only when CI/review state supports it. Never bypass or relabel a failed check.
+Finish and record the current regression, runtime, PDF and distribution checks,
+then commit/publish the verified change. Recheck the previously observed GitHub
+account billing/spending-limit blocker and current-head CI/review state before
+merging [PR #6](https://github.com/Slayde91/estimator/pull/6). Never bypass or
+relabel a failed check.
 
 Future calculator-to-priced-quote transfer needs an explicit material, purchasing, product and labour mapping. The workbooks do not define it, so tools remain separate. Source revisions require fresh import, native comparison and intentional saved-state migration; hashes prevent silent changes today.
 
 An installer, authenticated shared hosting, concurrent multi-user editing and managed backups require an operating-environment decision. No public deployment has occurred.
 
-Latest implementation commit 946f2c1 is pushed to origin/feat/workbook-calculators. [PR #6](https://github.com/Slayde91/estimator/pull/6) is open and unmerged, with no reviews. Both new implementation-head Checks runs failed before job steps because GitHub reported account payment/spending-limit problems. All 176 Python tests and 56 UI checks passed locally, followed by 21 final report/HTTP checks. The 32-file distribution, all 523 rendered PDF pages and refreshed local app were verified.
+The historical 946f2c1 checkpoint recorded 176 Python tests, 56 UI checks and
+subsequent report/HTTP/distribution checks, with CI blocked before job steps.
+Those counts and renders predate the current PDF reductions and reviewed-default
+profile; current results belong in SESSION_HANDOFF.md.

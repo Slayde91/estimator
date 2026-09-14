@@ -12,6 +12,7 @@ from openpyxl.formula.translate import Translator
 from .catalog import ROOT, ValidationError
 from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula
 from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, editable_cells
+from .calculator_defaults import default_calculator_inputs, yield_review
 
 
 # Source table headings outside the main schedules. See the per-page evidence
@@ -83,6 +84,8 @@ def input_field(calculator_id, sheet, address):
     model = source_model(calculator_id)
     found = _field_maps(calculator_id).get((sheet['name'], address))
     if found:
+        if calculator_id == 'steel_vermiculite' and sheet['name'] == 'SETTINGS' and address in {'D42', 'D75', 'D107', 'D184', 'D240'}:
+            return {**found, 'multiline': True}
         return found
     row, column = coordinates(address)
     schedule = model['schedule']
@@ -124,7 +127,8 @@ def normalize_calculator_inputs(calculator_id, inputs=None):
                 raise ValidationError(f"{field['label']}: enter text or a finite number.")
             if isinstance(value, (int, float)) and (abs(value) > 1e100 or not math.isfinite(value)):
                 raise ValidationError(f"{field['label']}: enter a finite number within the supported range.")
-            if isinstance(value, str) and (len(value) > 2000 or any(ord(character) < 32 for character in value)):
+            permitted_controls = '\r\n' if field.get('multiline') else ''
+            if isinstance(value, str) and (len(value) > 2000 or any(ord(character) < 32 and character not in permitted_controls for character in value)):
                 raise ValidationError(f"{field['label']}: text must be at most 2,000 characters without control characters.")
             if field['type'] == 'number' and not isinstance(value, (int, float)):
                 raise ValidationError(f"{field['label']}: enter a number or leave the input blank.")
@@ -194,7 +198,8 @@ def calculator_definition(calculator_id, inputs=None):
     return {'id': calculator_id, 'title': model['title'], 'pages': model['pages'],
             'source': model['source'], 'schedule': deepcopy(model['schedule']),
             'sheets': [_sheet_metadata(model, sheet) for sheet in model['sheets'] if sheet['name'] in model['pages']],
-            'inputs': normalize_calculator_inputs(calculator_id, inputs), 'documents': documents}
+            'inputs': normalize_calculator_inputs(calculator_id, inputs), 'documents': documents,
+            'defaults': default_calculator_inputs(calculator_id), 'yield_review': yield_review(calculator_id)}
 
 
 def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_count=25):
@@ -290,6 +295,8 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                     cell['presentation'] = _presentation(style, original, value, row, column, metadata, address in allowed)
                 if field:
                     cell['label'] = field.get('label', 'Input')
+                    if field.get('multiline'):
+                        cell['multiline'] = True
                     validation = _validation(source, address)
                     if validation:
                         cell['validation'] = {key: validation[key] for key in ('type', 'operator', 'formula1', 'formula2', 'errorStyle', 'allowBlank') if key in validation}
@@ -312,6 +319,16 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                     cell['error'] = value
                 cells.append(cell)
             rows.append({'row': row, 'cells': cells})
+        # Read the workbook's existing pooled product totals, including its
+        # blocked/invalid status and whole-bag rounding. Never sum rounded rows.
+        product_totals = [
+            {'product': engine.value('BAGS', f'A{row}'),
+             'net_bags': engine.value('BAGS', f'E{row}'),
+             'whole_bags': engine.value('BAGS', f'G{row}'),
+             'status': engine.value('BAGS', f'I{row}')}
+            for row in range(20, 25)
+        ] if shared_options and calculator_id == 'steel_vermiculite' and sheet == 'SCHEDULE' else None
     return {**metadata, 'sheet': sheet, 'start_row': start_row, 'end_row': end_row,
             'rows': rows, 'inputs': normalized, 'warnings': warnings,
+            **({'product_totals': product_totals} if product_totals is not None else {}),
             **({'visible_columns': columns, 'option_sets': option_sets} if shared_options else {})}

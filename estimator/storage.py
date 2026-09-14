@@ -50,11 +50,12 @@ class Store:
 
     def calculator_state(self, calculator_id):
         from .workbook_calculators import source_model
+        from .calculator_defaults import default_calculator_inputs
         model = source_model(calculator_id)
         with self.connect() as db:
             row = db.execute('SELECT data FROM calculator_states WHERE id=?', (calculator_id,)).fetchone()
         if row is None:
-            return {'inputs': {}, 'source_sha256': model['source']['sha256']}
+            return {'inputs': default_calculator_inputs(calculator_id), 'source_sha256': model['source']['sha256']}
         state = json.loads(row[0])
         if state.get('source_sha256') != model['source']['sha256']:
             raise ValidationError('The saved calculator uses a different source workbook version. Its saved inputs have been retained; an explicit version migration is required.')

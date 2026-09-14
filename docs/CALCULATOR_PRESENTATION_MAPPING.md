@@ -1,6 +1,6 @@
 # Calculator presentation mapping
 
-Date: 2026-09-14. This is a source-backed presentation and reporting map, not a new calculation specification. Source cell addresses below are developer traceability keys; user labels should use the workbook's meaningful headings. The formula engine, editable allowlists, source packages and original workbooks are unchanged by this document.
+Date: 2026-09-14. This is a source-backed presentation and reporting map, not a new calculation specification. Source cell addresses below are developer traceability keys; user labels use the workbook's meaningful headings. Source packages, formulas and original workbooks remain unchanged. The separately authorized reviewed material defaults populate existing editable inputs; their boundary is recorded below and in [CALCULATOR_EXCEPTIONS.md](CALCULATOR_EXCEPTIONS.md).
 
 ## Evidence and implementation boundary
 
@@ -9,6 +9,14 @@ The audit read the three immutable `data/calculators/*.json.gz` models, includin
 The existing architecture is a shared workbook evaluator, HTTP projection and browser worksheet renderer. The proposed change is a presentation projection of those same evaluated cells into labelled forms, compact note blocks and complete tables. It removes the 25-row paging interaction and spreadsheet spacing without introducing business arithmetic, databases or a second estimator. Saved inputs keep their existing worksheet/cell keys and source hash. No data migration is needed.
 
 The new `POST /api/calculators/<id>/worksheet` projection returns every source-page row, `visible_columns`, shared `option_sets`, cell `options_ref` and semantic `presentation` hints. The older bounded `calculate` endpoint remains compatible. UI grouping should consume these evaluated values and current validation choices; it should not recalculate them or derive technical status from colours.
+
+Source `section_cells` metadata supplies stable contents links and distinct
+colour themes in source order. Vermiculite SETTINGS has eleven targets: its
+eight numbered sections and three factor-helper sections. The old static row-5
+product banner is omitted from presentation. A form's populated-cell structure
+participates in its refresh signature so newly available output/source notes
+appear without switching pages. Schedule controls remain in place for ordinary
+value updates.
 
 ## Shared presentation rules
 
@@ -76,13 +84,30 @@ Use two adjacent cards rather than a fourteen-column spreadsheet: “Inputs” f
 
 The output card contains published thickness H6, lookup status H9, ESA/M K12, Hp/A K13, usable estimating thickness K14, girth K15, spray area K16, coating volume K17, net bags K18, quantity status H20 and source H23. Long result notes below the cards remain visible. Preserve the distinction between published and usable estimating thickness.
 
-The “All published periods for this input” section starts at A26. Render B28:I30 as one compact period/thickness/status matrix, with period headers from row 28. Place the merged J28:N30 explanation beside or below it. Notes anchored at A33, A35, A38 and A40 should be compact paragraphs, not blank table rows.
+The “All published periods for this input” section starts at A26. A28:A30 supplies
+the row labels and B28:I30 supplies eight period/thickness/status columns. The
+implemented matrix gives those eight period columns equal independent widths;
+G28:G30 is the 120-minute column, not a merge. Inheriting the narrow form spacer G
+caused its malformed appearance. The merged J28:N30 explanation appears once
+below the table. Notes anchored at A33, A35, A38 and A40 remain visible without
+decorative blank rows. On phones the form stacks while this matrix retains
+aligned columns in its own horizontal scroller.
 
 Source widths: labels occupy merged A:C; inputs D:F; G is a 3-unit spacer. Results H:N use merged label/value regions. These merged groups support cards directly; multiplying each source column into a minimum-width web column creates excessive empty width.
 
 ### SCHEDULE
 
-Render intro rows 1–8 once, including live summary values and warnings. The only table header is row 9. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y outputs; hidden Z is the stable line ID and remains readonly/internal.
+Render intro rows 1–8 once. The top cards retain spray area A4/A5, coating volume
+G4/G5 and not-quantified count S4/S5. The user removed the thickness/scope-block
+card M4/M5 from display; its engine value remains unchanged. The only schedule
+header is row 9. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y outputs;
+hidden Z is the stable line ID and remains readonly/internal.
+
+Below the cards, Running material totals lists each BAGS A20:A24 product, E20:E24
+net bags, G20:G24 pooled whole bags and I20:I24 order status. The worksheet API
+supplies these as `product_totals`; the UI never derives them by summing rounded
+line quantities. Blank/withheld whole-bag values remain blank beside their
+status. Updating these totals does not rebuild the schedule controls.
 
 Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags; V:Y status/source/notes. Keep Y notes wide and wrapped. Source width emphasis is B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64.
 
@@ -93,6 +118,10 @@ All prepared rows remain present even though 999 original example slots return b
 Create a “Manual material quantity” form from D6:D8, with live results D9:D14. Keep the source limitations H6 and H11 adjacent. This manual calculation is independent of the SCHEDULE order summary.
 
 Below it, render the “Product order summary” heading A17, row 19 headers and five product rows A20:I24. Do not turn it into another 29-row spreadsheet. Keep order status I and incomplete count H visible even when whole bags G are blank. Notes A27 follow the table.
+
+The implemented phone view stacks manual inputs/results in one form and leaves
+the product-order matrix in a separate real table with its own horizontal scroll.
+Each editable source field is rendered once.
 
 Source table widths indicate product A29, normal numerical columns 12–16 units, whole bags G21 and order status I35. Use a readable sticky product column with wrapped order-status text.
 
@@ -113,6 +142,25 @@ Use a short section index that scrolls within the single page. Group source rows
 | Factor helper | A341; rows 343–353 | D346:D348 | Hp/A D350 and ESA/M D351; evidence limitation 353 |
 | Idealised hollow helper | A356; rows 358–367 | D358:D362 | Calculated area/perimeter/factors D364:D367 |
 | Castellated helper | A370; rows 372–373 | D372 | Special factor D373 |
+
+The five Material basis / reference inputs D42, D75, D107, D184 and D240 are
+multiline text controls. They retain the existing allowlist, support bounded
+line breaks and keep exact saved text. Definitions expose the reviewed profile
+as `defaults` and its evidence as `yield_review`, separately from current inputs.
+The optional review panel shows direct yield in L/bag for readability and links
+to each selected source. This display conversion does not round the stored
+m³/bag value.
+
+The reviewed profile changes twenty existing settings: bag mass, direct yield,
+inferred consumption and reference for each product. Store supplies it only when
+no saved row exists. Existing saves, including an empty input overlay, remain
+exact. Use reviewed yield defaults merges those twenty settings into the current
+draft; Reset calculator defaults also restores source example rows. Neither
+action writes storage until Save calculator. Source graphs and explicit empty
+engine calls retain original workbook defaults, with no migration. Direct yield
+continues to take precedence over inferred dry-material consumption; the latter
+is not installed coating density. See the qualified product choices in
+[VERMICULITE_YIELD_REVIEW.md](VERMICULITE_YIELD_REVIEW.md).
 
 Parameter-table headers are rows 35/68/100/177/233. Preserve product-specific units and explanation columns beside the editable values. D70, D102, D179 and D235 are deliberately editable formula-backed direct yields. An unchanged field must continue using its original formula; reading/rendering the Settings page must not create scalar overrides.
 
@@ -185,18 +233,33 @@ Keep readonly dropdown reference tables G5:N12 and the diagnostic-message table 
 
 Reports must evaluate the current draft inputs, including settings, and present existing calculated values. Selecting a different page must not switch or reset the report's calculation state. No report projection should silently price these geometry workbooks; they contain no authoritative automatic transfer into Quote pricing.
 
+The current PDF retains the main Full schedule, EXTRA BOARDS where applicable,
+product and ancillary summary tables, and closing totals. Every populated
+schedule row remains, including incomplete rows and the final prepared row when
+entered. At the user's request, these four sections are removed:
+
+- Schedule inputs, calculations and complete notes (the duplicate per-item
+  detail appendix).
+- Single-member calculator - separate from the schedule.
+- Manual bag calculation - separate from the schedule.
+- Settings used for this report.
+
+The single-member and manual-bag calculators and full editable settings remain
+available in the app. Settings still affect report quantities through the
+captured input overlay; removing their appendix does not alter calculation.
+The table below describes retained printed quantities and their source mapping,
+not a promise that every intermediate worksheet cell is printed.
+
 | Calculator | Exact report source | Meaning / limitation |
 | --- | --- | --- |
-| Vermiculite single member | CALCULATOR D6:D17; H6/H9/K12:K18/H20/H23 and notes | Separate published thickness, usable estimating thickness, protection area, volume and net bags |
-| Vermiculite schedule | SCHEDULE A:L and M:Y, rows 10–1009 | M/N lookup factors; O published thickness; P usable thickness; Q girth; R spray area; S volume; T net bags; U per-line whole bags; V:Y qualifications/source |
+| Vermiculite schedule | SCHEDULE A/B/F/I/J/O/P/R/T/U/V/W, rows 10–1009 | Item/product/section, quantity and length, published and usable thickness, spray area, net/per-line whole bags and main status |
 | Vermiculite pooled ordering | BAGS A20:I24 | B line count, C area, D volume, E net bags, F waste, G whole bags by product, H incomplete count, I status |
-| Vermiculite manual bag check | BAGS D6:D14 | Independent manually entered product/area/thickness and quantity calculation; never add it to schedule totals automatically |
-| Ductwork row detail | CALCULATOR B:I and J:AQ, rows 11–310 | K duct area; L spray DFT; M net bags; N wrap area; O roll equivalents; P Maxilite area; AD:AJ angle profiles/lengths; AN volume; AO yield; AP/AQ qualifications/source |
+| Ductwork schedule | CALCULATOR B/C/D/E/J/K/L/M/N/O, rows 11–310; PRODUCT SETTINGS B96 for wrap-layer thickness | Product/duct size, length, FRL, thickness, duct area, net spray bags, wrap area, roll equivalents and main status |
 | Ductwork product totals | SUMMARY A9:L11 | C area; D bags; E wrap; F rolls; G board; H steel length; I/J withheld counts; K/L basis |
 | Ductwork ancillary totals | SUMMARY A19:F26, A31:F32, A40:I41 | Angle sizes/locations, working yields and board-strip quantities with original limitations |
-| Board schedule | CALCULATOR A:X and Y:AI, rows 9–208 | AE actual multilayer board area and AF with waste; AD is reference box area only; AG/AH are standalone line purchase quantities |
+| Board schedule | CALCULATOR A/C/D/Z/AB/AD/AE/AF/AG/AN/AO/AR/AS, rows 9–208 | Item/product/section, design period/temperature, stack and thickness, reference box area, actual net/waste board areas, standalone sheet count and main status |
 | Board extra detail | EXTRA BOARDS A:N, rows 6–45 | J net area, K area with waste, L stock key, M validity; invalid rows retain their status and no quantity |
-| Board pooled purchasing | BOARD SUMMARY A6/E6/I6 and A12:L29 | Product/thickness pooling, including valid extra boards; use source whole-sheet and purchase-area totals |
+| Board pooled purchasing | BOARD SUMMARY A6/E6/I6 and A12:K29 | Product/thickness pooling, including valid extra boards; use source whole-sheet and purchase-area totals |
 
 For vermiculite ordering, use BAGS G20:G24. Do not sum the individually rounded SCHEDULE U values. Whole bags are withheld when the corresponding source incomplete/yield/waste conditions are not satisfied. Ductwork supplies net bags and roll equivalents, without an added waste factor or automatic whole-bag rounding.
 
@@ -217,7 +280,9 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Dropdowns retain numeric versus text values, source warning/stop behavior and dependencies, while repeated lists are shared without truncation.
 - Advanced inputs remain present when requested; source hidden databases and calculated cells remain readonly.
 - Forms display unchanged formula-backed settings without saving scalar overrides. Rendering, report generation and importing a draft do not persist inputs.
-- Calculator reports use current draft inputs and preserve omitted/invalid/withheld quantities and original ordering rules. They must not mix manual BAGS results into schedule totals.
+- Reviewed-default actions change exactly their declared input scope, leave saved records untouched until Save calculator, and retain later edits if a calculation response arrives late. An explicit empty engine overlay still matches original defaults.
+- Calculator reports retain every populated main schedule item, applicable extras, product tables and closing totals; the four removed appendix/helper sections stay absent. They preserve invalid/withheld quantities and source ordering rules and never add manual BAGS results to schedule totals.
+- Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, all eight fire-period columns remain aligned, and multiline references preserve saved text.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

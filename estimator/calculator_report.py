@@ -23,7 +23,6 @@ _WIDTH, _HEIGHT = landscape(A4)
 _MARGIN = 32
 _CONTENT = _WIDTH - 2 * _MARGIN
 _OUTPUT_LAST = {'ductwork': 43, 'steel_vermiculite': 25, 'steel_board': 48}
-_INPUT_LAST = {'ductwork': 9, 'steel_vermiculite': 12, 'steel_board': 24}
 _BOARD_DIRECTIONS = (
     ('Family (K)', 'Family (ESA input)'), ('Clear K to use', 'Clear Family (ESA input) to use'),
     ('Thickness lookup (P)', 'Thickness lookup'),
@@ -124,8 +123,8 @@ def project_calculator_report(calculator_id, inputs=None):
                          for row in range(first, last + 1)]}
 
     data = {'id': calculator_id, 'title': model['title'], 'source': deepcopy(model['source']),
-            'inputs': normalized, 'sheet': sheet_name, 'rows': rows, 'summaries': [], 'context': [],
-            'extra_rows': [], 'settings': [], 'incomplete_rows': sum(not row['complete'] for row in rows)}
+            'inputs': normalized, 'sheet': sheet_name, 'rows': rows, 'summaries': [],
+            'extra_rows': [], 'incomplete_rows': sum(not row['complete'] for row in rows)}
     if calculator_id == 'ductwork':
         data['summaries'] = [
             table('Product totals', 'SUMMARY', 8, 9, 11, 'ABCDEFGHIJ', note='Net spray bags and wrap roll equivalents remain fractional. The source has no whole-bag or whole-roll purchasing rule.'),
@@ -148,15 +147,6 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Available net bags', _sum_values(item['values']['E'] for item in data['summaries'][0]['rows'])),
                           ('Available pooled whole bags (incomplete products excluded)', _sum_values(item['values']['G'] for item in data['summaries'][0]['rows']))]
         data['basis'] = 'Spray surface follows the selected exposure, member quantity, length, girth and any area override. Published thickness and usable estimating thickness are reported separately. Unresolved rows remain listed.'
-        single = [(field['label'], engine.value('CALCULATOR', field['cell'])) for field in model['fields']['CALCULATOR']]
-        single += [(label, engine.value('CALCULATOR', cell)) for label, cell in (
-            ('Published thickness (mm)', 'H6'), ('Thickness status', 'H9'), ('Lookup ESA/M (m²/t)', 'K12'),
-            ('Lookup Hp/A (1/m)', 'K13'), ('Usable estimating thickness (mm)', 'K14'), ('Girth used (m)', 'K15'),
-            ('Spray area (m²)', 'K16'), ('Coating volume (m³)', 'K17'), ('Net bags', 'K18'),
-            ('Quantity status', 'H20'), ('Thickness source', 'H23'), ('Basis / review note', 'A35'))]
-        manual = [(sheets['BAGS']['cells'][f'A{row}']['value'], engine.value('BAGS', f'D{row}')) for row in range(6, 15)]
-        data['context'] = [{'title': 'Single-member calculator - separate from the schedule', 'fields': single},
-                           {'title': 'Manual bag calculation - separate from the schedule', 'fields': manual}]
     else:
         summary = table('Board stock totals by product and thickness', 'BOARD SUMMARY', 11, 12, 29, 'ABCDEFGHIJK',
             note='Stock is pooled by product and actual board thickness. Waste is applied before each stock-line sheet count is rounded. Per-line sheet counts are not pooled order quantities.')
@@ -175,22 +165,6 @@ def project_calculator_report(calculator_id, inputs=None):
                     'values': {column_name(column): engine.value('EXTRA BOARDS', column_name(column) + str(row)) for column in range(1, 15)},
                     'labels': {column_name(column): extras['cells'][column_name(column) + '5']['value'] for column in range(1, 15)}})
 
-    for name, fields in model.get('fields', {}).items():
-        for field in fields:
-            if field.get('setting'):
-                cell = sheets[name]['cells'].get(field['cell'], {})
-                number_format = model['styles']['cell_styles'][int(cell.get('style', 0))].get('number_format', '')
-                row = int(re.sub(r'\D', '', field['cell']))
-                group = ''
-                if calculator_id == 'ductwork':
-                    group = 'CAFCO 300' if row < 50 else 'MONOKOTE' if row < 95 else 'FyreWrap'
-                elif calculator_id == 'steel_vermiculite':
-                    group = next((product for first, last, product in ((36, 42, 'CAFCO 300'), (69, 75, 'MANDOLITE CP2'),
-                        (101, 107, 'FENDOLITE MII'), (178, 184, 'PERLIFOC HP ECO+'), (234, 240, 'MONOKOTE MK-6 HY'),
-                        (346, 372, 'Section-factor helpers')) if first <= row <= last), 'Project / calculation policy')
-                data['settings'].append({'sheet': name, 'group': group, 'label': field['label'], 'units': field.get('units', ''),
-                    'value': engine.value(name, field['cell']), 'percent': '%' in number_format,
-                    'notes': field.get('notes', '')})
     return data
 
 
@@ -269,36 +243,7 @@ class _ScheduleReport(_Report):
             fractions = [.06, .17, .08, .08, .07, .09, .09, .09, .08, .19]
         self.story.append(self.table(heads, rows, [_CONTENT * size for size in fractions], compact=True))
 
-    def details(self):
-        data = self.data
-        if data['rows']:
-            self.story += [PageBreak(), self.p('Schedule inputs, calculations and complete notes', 'section')]
-        for item in data['rows']:
-            v, labels = item['values'], item['labels']
-            self.story.append(self.p(f"Schedule item {item['line']}", 'subheading'))
-            inputs = [(labels[column], self.display(v[column], blank='Blank', percent=data['id'] == 'steel_board' and column == 'L')) for column in item['input_columns']]
-            self.story.append(self.pairs(inputs))
-            measures, notes = [], []
-            for number in range(_INPUT_LAST[data['id']] + 1, _OUTPUT_LAST[data['id']] + 1):
-                column = column_name(number)
-                value = _source_text(data['id'], data['sheet'], column + str(item['row']), v[column])
-                label = labels[column]
-                if not label or not _has_value(value):
-                    continue
-                if isinstance(value, str) and len(value) > 85:
-                    notes.append((label, value))
-                else:
-                    measures.append((label, value))
-            if item.get('wrap'):
-                measures.append(('Blanket thickness per layer (mm)', item['wrap_layer_mm']))
-            self.story.append(self.pairs(measures))
-            if not item['complete']:
-                self.story.append(self.p('Primary quantity is incomplete or unavailable; this item remains listed.', 'small'))
-            for label, value in notes:
-                self.story.append(self.p(f"Item {item['line']} - {label}", 'subheading'))
-                self.note_block(value)
-
-    def extras_and_context(self):
+    def extras(self):
         data = self.data
         if data['id'] == 'steel_board':
             self.story += [PageBreak(), self.p('EXTRA BOARDS', 'section')]
@@ -309,16 +254,6 @@ class _ScheduleReport(_Report):
                 self.story.append(self.p(f"Extra-board item {item['line']}", 'subheading'))
                 self.story.append(self.pairs([(item['labels'][column], self.display(value, blank='Blank', percent=column == 'H'))
                                               for column, value in item['values'].items() if column != 'L']))
-        for panel in data['context']:
-            self.story += [PageBreak(), self.p(panel['title'], 'section'), self.p('These independent helper inputs and results are not added to the schedule or its product order totals.', 'small')]
-            self.story.append(self.table(['Input / output', 'Snapshot value'],
-                [[self.p(label, 'cell'), self.p(self.display(value, blank='Blank', percent=label == 'Waste allowance'), 'cell')]
-                 for label, value in panel['fields']], [_CONTENT * .42, _CONTENT * .58]))
-        self.story += [PageBreak(), self.p('Settings used for this report', 'section')]
-        self.story.append(self.table(['Setting', 'Value', 'Units / basis'],
-            [[self.p((item['group'] + ' - ' if item['group'] else '') + item['label'], 'cell'), self.p(self.display(item['value'], blank='Blank', percent=item['percent']), 'cell'),
-              self.p(' | '.join(value for value in (item['units'], item['notes']) if value), 'cell')] for item in data['settings']],
-            [_CONTENT * .32, _CONTENT * .30, _CONTENT * .38]))
 
     def product_totals(self):
         data = self.data
@@ -355,7 +290,7 @@ class _ScheduleReport(_Report):
         self.story.append(KeepTogether([self.p('Overall schedule totals', 'subheading'),
             self.table(['Schedule measure', 'Total'], [[self.p(label, 'cell'), self.numeric(value)] for label, value in data['totals']],
                        [_CONTENT * .68, _CONTENT * .32])]))
-        self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; consult the full item notes before ordering.", 'small'))
+        self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
         self.story.append(self.p('Report generated from the complete current calculator input snapshot. Authoritative workbook: ' + data['source']['filename'] + '. Source SHA-256: ' + data['source']['sha256'] + '.', 'small'))
 
 
@@ -368,8 +303,7 @@ def build_calculator_report(calculator_id, inputs=None):
     report = _ScheduleReport(data)
     report.overview()
     report.schedule()
-    report.details()
-    report.extras_and_context()
+    report.extras()
     report.product_totals()
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,

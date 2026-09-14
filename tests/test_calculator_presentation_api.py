@@ -161,7 +161,11 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), before)
 
     def test_formula_backed_settings_remain_formulas_until_explicitly_overridden(self):
-        page = self.worksheet("steel_vermiculite", "SETTINGS")
+        initial_state = self.store.calculator_state("steel_vermiculite")
+        initial_rows = self.stored_rows()
+        # An explicit empty input snapshot uses the retained source formulas;
+        # a new unsaved state separately carries reviewed application defaults.
+        page = self.worksheet("steel_vermiculite", "SETTINGS", inputs={})
         cells = self.cells(page)
         for address in ("D70", "D102", "D179", "D235"):
             self.assertTrue(cells[address]["editable"])
@@ -170,7 +174,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(page["inputs"], {})
         changed = self.worksheet("steel_vermiculite", "SETTINGS", inputs={"SETTINGS": {"D70": 0.012345678901234567}})
         self.assertEqual(self.cells(changed)["D70"]["value"], 0.012345678901234567)
-        self.assertEqual(self.store.calculator_state("steel_vermiculite")["inputs"], {})
+        self.assertEqual(self.store.calculator_state("steel_vermiculite"), initial_state)
+        self.assertEqual(self.stored_rows(), initial_rows)
 
     def test_source_titles_sections_and_secondary_table_headers_are_distinguished(self):
         cases = [
@@ -237,12 +242,25 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 reader = PdfReader(BytesIO(payload))
                 text = "\n".join(page.extract_text() for page in reader.pages)
                 self.assertIn("Full schedule", text)
-                self.assertIn("Settings used for this report", text)
+                self.assertIn("Current calculator snapshot", text)
+                for heading in ("Schedule inputs, calculations and complete notes",
+                                "Single-member calculator - separate from the schedule",
+                                "Manual bag calculation - separate from the schedule",
+                                "Settings used for this report"):
+                    self.assertNotIn(heading, text)
                 self.assertIn("Final product and material summary", text)
-                self.assertIn("12.35", text)
-                self.assertIn("333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}", text)
+                self.assertIn("Overall schedule totals", reader.pages[-1].extract_text())
+                if identity != "steel_board":
+                    self.assertIn("12.35", text)
+                else:
+                    # Board length was shown in the removed input-detail
+                    # section; its retained schedule reports calculated areas.
+                    self.assertIn("Net board", text)
+                    self.assertIn("EXTRA BOARDS", text)
+                marker = "333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}"
+                self.assertIn("".join(marker.split()), "".join(text.split()))
                 self.assertNotIn("SAVED VALUE EXCLUDED FROM DRAFT", text)
-                self.assertGreaterEqual(len(reader.pages), 4)
+                self.assertGreaterEqual(len(reader.pages), 3)
                 self.assertTrue(any(obj.get_object().get("/Subtype") == "/Image"
                                     for obj in reader.pages[0]["/Resources"]["/XObject"].values()))
                 self.assertEqual(self.stored_rows(), before)

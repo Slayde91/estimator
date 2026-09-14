@@ -35,6 +35,8 @@
     ["depth/width in R/S", "Depth or OD and Width B"],
     ["Check L, or the default on SETTINGS when L is blank.", "Check Waste (%), or Default wastage on SETTINGS when Waste (%) is blank."],
   ];
+  const factorLookupDirections = [["the global lookup policy in D14", "the global Factor lookup policy"]];
+  const estimatingDensityDirections = [["Used only when direct yield is blank.", "Used only when direct yield is blank. Estimating density means dry-material consumption per applied volume, not installed coating density."]];
   const sourceDirections = {
     ductwork: {
       CALCULATOR: {
@@ -62,14 +64,17 @@
       SETTINGS: {
         A3: [["blue cells are editable", "highlighted inputs are editable"]],
         A7: [["Factor helper starts at row 341.", "The Section Factor Helper section is below."]],
-        G43: [["the global lookup policy in D14", "the global Factor lookup policy"]],
+        G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
+        G185: factorLookupDirections, G241: factorLookupDirections,
+        G38: estimatingDensityDirections, G71: estimatingDensityDirections, G103: estimatingDensityDirections,
+        G180: estimatingDensityDirections, G236: estimatingDensityDirections,
         BD7: [["Exact row sources are in SECTIONS AB:AC", "Exact row sources are retained in the steel-section source records"]],
         BD27: [["SECTIONS!A571:AV970 retains", "The retained steel-section reference data includes"]],
         D79: [["Source links: T330 and V330.", "See the Mandolite yield-source links on SETTINGS."]],
         D111: [["Source links: T331 and V331.", "See the Fendolite yield-source links on SETTINGS."]],
         D188: [["Source links: T332 and V332.", "See the Perlifoc yield-source links on SETTINGS."]],
         D244: [["Source links: T333 and V333.", "See the Monokote yield-source links on SETTINGS."]],
-        A301: [["Sources: P330:V333.", "See the product yield-source records on SETTINGS."]],
+        A301: [["CAFCO uses an inherited assumption;", "The original CAFCO workbook used an inherited assumption; reviewed defaults use Australian published coverage;"], ["Sources: P330:V333.", "See the product yield-source records on SETTINGS."]],
         A293: [["Sort or filter the entire SCHEDULE table, never one column alone.", "The complete SCHEDULE table stays together on one page."]],
       },
     },
@@ -182,8 +187,9 @@
   }
   function updateStatus(entry = current()) {
     if (!entry || entry !== current()) return;
-    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes" : "Saved calculator inputs · workbook defaults where unchanged";
+    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes" : "Saved calculator inputs · defaults where unchanged";
     const hasErrors = entry.invalid.size > 0;
+    if (entry.reviewedDefaultsButton) entry.reviewedDefaultsButton.disabled = state.action || hasErrors;
     $("calculator-save").disabled = state.action || hasErrors;
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
@@ -233,7 +239,8 @@
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const select = cell.type === "select" && !allowOther && options.length <= 40;
-    const control = node(select ? "select" : "input", numeric ? "calculator-number" : "");
+    const multiline = entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["D42", "D75", "D107", "D184", "D240"].includes(address);
+    const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
     const selectOptions = [];
     control.dataset.calculatorCell = address;
     control.dataset.calculatorSheet = entry.sheet;
@@ -249,7 +256,8 @@
       }
       control.value = String(value ?? "");
     } else {
-      control.type = "text";
+      if (multiline) { control.rows = 4; control.classList.add("calculator-basis-input"); }
+      else control.type = "text";
       control.value = numeric || isNumber(value) ? numericInputValue(value, cell) : value ?? "";
       if (numeric) control.inputMode = "decimal";
       control.autocomplete = "off";
@@ -352,6 +360,7 @@
       if (String(control.value) !== shown) control.value = shown;
       if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
     }
+    renderProductTotals(result, entry.productTotalsElement);
   }
 
   function choiceSignature(result, entry = current()) {
@@ -368,12 +377,14 @@
 
   function renderOverview(rows, entry, columns) {
     const summaryFields = {
-      steel_vermiculite: { SCHEDULE: [["A4", "A5"], ["G4", "G5"], ["M4", "M5"], ["S4", "S5"]] },
+      steel_vermiculite: { SCHEDULE: [["A4", "A5"], ["G4", "G5"], ["S4", "S5"]] },
       steel_board: { CALCULATOR: [["A4", "C4"], ["E4", "G4"], ["I4", "K4"], ["Y4", "AA4"], ["AC4", "AE4"], ["AG4", "AI4"]] },
     };
     const pairs = summaryFields[entry.definition.id]?.[entry.sheet] || [];
     const mapped = new Map(rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
     const used = new Set(pairs.flat()), cards = node("div", "calculator-summary-cards"), box = node("div", "calculator-overview");
+    const productSummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE";
+    if (productSummary) { used.add("M4"); used.add("M5"); cards.classList.add("calculator-summary-three"); }
     for (const [labelAddress, valueAddress] of pairs) {
       const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
       if (!label || !value || !columns.includes(value.column)) continue;
@@ -384,7 +395,13 @@
     for (const row of rows) for (const cell of row.cells) {
       if (!columns.includes(cell.column) || cell.value == null || cell.value === "") continue;
       const address = cell.address || `${columnName(cell.column)}${row.row}`;
-      if (used.has(address)) { if (!cardsPlaced) { box.append(cards); cardsPlaced = true; } continue; }
+      if (used.has(address)) {
+        if (!cardsPlaced) {
+          box.append(cards); cardsPlaced = true;
+          if (productSummary) { const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals"; entry.productTotalsElement = totals; renderProductTotals(entry.result, totals); box.append(totals); }
+        }
+        continue;
+      }
       const role = presentationRole(cell);
       const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
       item.dataset.calculatorOutput = address;
@@ -393,9 +410,69 @@
     return box;
   }
 
+  function renderProductTotals(result, container) {
+    if (!container) return;
+    const totals = result?.product_totals || [];
+    container.hidden = !totals.length;
+    if (!totals.length) { container.replaceChildren(); return; }
+    const heading = node("h4", "", "Running material totals"), note = node("p", "", "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
+    const scroll = node("div", "calculator-product-totals-scroll"), table = node("table"), head = node("thead"), body = node("tbody"), headers = node("tr");
+    for (const label of ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
+    head.append(headers);
+    for (const total of totals) {
+      const row = node("tr"), product = node("th", "", total.product); product.scope = "row"; row.append(product);
+      for (const value of [total.net_bags, total.whole_bags]) row.append(node("td", "calculator-number", displayValue(value)));
+      row.append(node("td", "calculator-product-order-status", total.status || "")); body.append(row);
+    }
+    table.append(head, body); scroll.append(table); container.replaceChildren(heading, note, scroll);
+  }
+
+  function sectionDetails(entry, result, metadata) {
+    const cells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
+    return (metadata.section_cells || []).map((address, index) => {
+      const cell = cells.get(address);
+      return cell && cell.value !== null && cell.value !== "" ? { address, label: sourceDisplayText(cell.value, entry, address), id: `calculator-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${address}`, theme: index % 11 } : null;
+    }).filter(Boolean);
+  }
+
+  function renderContents(sections) {
+    const contents = node("nav", "calculator-contents"), links = node("div", "calculator-contents-links");
+    contents.setAttribute("aria-label", "Worksheet contents"); contents.append(node("p", "calculator-contents-title", "On this page"));
+    for (const section of sections) { const link = node("a", `calculator-section-theme-${section.theme}`, section.label); link.href = `#${section.id}`; links.append(link); }
+    contents.append(links); return contents;
+  }
+
+  async function useReviewedDefaults() {
+    const entry = current(), defaults = entry?.definition.defaults?.SETTINGS;
+    if (!defaults || state.action || entry.invalid.size) return;
+    entry.inputs.SETTINGS = { ...(entry.inputs.SETTINGS || {}), ...clone(defaults) };
+    entry.revision++; entry.pendingResult = null; entry.needsRender = true;
+    message("Reviewed product yields and references applied to this draft. Save calculator to keep them.");
+    updateStatus(entry); await calculate();
+  }
+
+  function renderYieldReview(review) {
+    const details = node("details", "calculator-yield-review");
+    details.append(node("summary", "", `Reviewed product yields and sources${review.reviewed_at ? ` · ${review.reviewed_at}` : ""}`));
+    details.append(node("p", "", "Direct yield takes priority. Estimating density is inferred dry-material consumption, not installed coating density. Batch/theoretical and uninjected yields remain adjustable."));
+    const scroll = node("div", "calculator-yield-review-scroll"), table = node("table"), head = node("thead"), headers = node("tr"), body = node("tbody");
+    for (const label of ["Product", "Bag mass (kg)", "Direct yield (L/bag)", "Dry-material consumption (kg/m³)", "Basis and sources"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
+    head.append(headers);
+    for (const product of review.products || []) {
+      const row = node("tr"), name = node("th", "", product.product); name.scope = "row"; row.append(name);
+      for (const value of [product.bag_mass_kg, isNumber(product.direct_yield_m3) ? decimalShift(product.direct_yield_m3, 3) : product.direct_yield_m3, product.estimating_density_kg_m3]) row.append(node("td", "calculator-number", displayValue(value)));
+      const basis = node("td", "calculator-yield-basis"); basis.append(node("p", "", product.basis || ""));
+      for (const source of product.sources || []) { const url = safeDocumentUrl(source.url); if (!url) continue; const link = node("a", "", `${source.title || "Manufacturer source"}${source.page ? ` · ${source.page}` : ""}`); link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; basis.append(link); }
+      row.append(basis); body.append(row);
+    }
+    table.append(head, body); scroll.append(table); details.append(scroll); return details;
+  }
+
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
     const grid = $("calculator-grid"), result = entry.result, metadata = sheetMetadata(entry);
+    entry.productTotalsElement = null;
+    entry.reviewedDefaultsButton = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
     let columns = result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column));
@@ -412,20 +489,21 @@
       for (const merge of merges) if (populated.has(`${merge.start.column}:${merge.start.row}`)) for (const column of columns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
       columns = columns.filter((column) => occupied.has(column));
     }
-    const rows = (result.rows || []).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
+    const rows = (result.rows || []).filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
     const rowNumbers = rows.map((row) => row.row);
+    const sectionLinks = sectionDetails(entry, result, metadata), sectionsByAddress = new Map(sectionLinks.map((section) => [section.address, section]));
     state.optionLists.clear(); state.optionKeys = new WeakMap(); $("calculator-option-lists").replaceChildren();
     // These two source forms contain independent comparison matrices. Keeping
     // them separate lets the form stack on a phone while the matrix stays aligned.
     const matrix = entry.definition.id === "steel_vermiculite" ? ({ CALCULATOR: { first: 28, last: 30, label: "Published fire-period comparison" }, BAGS: { first: 19, last: 24, label: "Product order summary" } })[entry.sheet] : null;
+    const periodMatrix = matrix && entry.sheet === "CALCULATOR";
     const head = node("thead"), sections = new Map(), widths = [];
     const headRow = node("tr");
-    let tableWidth = 0;
     for (const column of columns) {
       const label = String(labels[column] || "");
       const minimum = !schedule ? 24 : /notes?|status|requirements|basis|sources?/i.test(label) ? 360 : /product|steel id|section|member mark|item.*mark|location|duct use/i.test(label) ? 220 : 125;
       const width = Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
-      widths.push(width); tableWidth += width;
+      widths.push(width);
       const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
     head.append(headRow);
@@ -436,12 +514,15 @@
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
       for (const column of columns) {
+        if (periodMatrix && group === "matrix" && column > 9) continue;
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
         if (merge && (column !== columns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== Math.max(merge.start.row, rowNumbers[0] || 1))) continue;
         const cell = values.get(column) || { column, value: null };
         const matrixHeading = group === "matrix" && row.row === matrix.first;
         const role = presentationRole(cell), td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
         if (matrixHeading) td.scope = "col";
+        const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
+        if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
         if (cell.presentation?.bold) td.classList.add("calculator-bold");
         if (merge) {
           td.colSpan = columns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
@@ -463,18 +544,31 @@
       sections.get(group).append(tr);
     }
     const content = [];
+    if (sectionLinks.length) content.push(renderContents(sectionLinks));
+    if (entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && entry.definition.defaults?.SETTINGS) {
+      const actions = node("div", "calculator-reviewed-defaults"), button = node("button", "", "Use reviewed yield defaults");
+      button.id = "calculator-reviewed-defaults"; entry.reviewedDefaultsButton = button;
+      button.type = "button"; button.disabled = state.action || entry.invalid.size > 0; button.addEventListener("click", useReviewedDefaults);
+      actions.append(button, node("p", "", "Apply the reviewed product yields and editable references to this draft. Your schedule and other settings are retained. Save calculator to keep the change.")); content.push(actions);
+      if (entry.definition.yield_review?.products?.length) content.push(renderYieldReview(entry.definition.yield_review));
+    }
     if (schedule) content.push(renderOverview(result.rows.filter((row) => row.row < schedule.header_row), entry, columns));
     for (const [group, body] of sections) {
       const responsive = matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" ? " calculator-comparison-table" : ""}`);
       const colgroup = node("colgroup");
-      for (const width of widths) { const col = node("col"); col.style.width = `${width}px`; colgroup.append(col); }
-      table.style.width = `${tableWidth}px`; table.append(colgroup);
+      const groupWidths = periodMatrix && group === "matrix" ? columns.filter((column) => column <= 9).map((column) => column === 1 ? 100 : 88) : widths;
+      for (const width of groupWidths) { const col = node("col"); col.style.width = `${width}px`; colgroup.append(col); }
+      table.style.width = `${groupWidths.reduce((sum, width) => sum + width, 0)}px`; table.append(colgroup);
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
       if (group === "matrix") { table.setAttribute("aria-label", matrix.label); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${matrix.label} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table); content.push(scroll);
+      if (periodMatrix && group === "matrix") {
+        const note = result.rows.find((row) => row.row === 28)?.cells.find((cell) => cell.column === 10);
+        if (note) { const text = node("p", "calculator-comparison-note"); text.dataset.calculatorOutput = note.address || "J28"; updateOutputCell(text, note); content.push(text); }
+      }
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     entry.renderedSheet = entry.sheet; entry.renderedAdvanced = entry.advanced; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
@@ -617,10 +711,11 @@
     const entry = current(); if (!entry || state.action) return;
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
-      if (!await confirmReplace("Reset to workbook defaults?", "This replaces this calculator's draft schedule and settings with the supplied workbook defaults, including its example rows. Click Save calculator to keep the reset.", "Reset draft")) return;
+      const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and supplied workbook example rows" : "supplied workbook defaults, including its example rows";
+      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save calculator to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
-      entry.inputs = {}; entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
-      message("Workbook defaults restored in this draft. Save calculator to keep them."); await calculate();
+      entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
+      message("Calculator defaults restored in this draft. Save calculator to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 
@@ -679,6 +774,7 @@
   }
 
   $("calculator-save").addEventListener("click", save);
+  $("calculator-reset").textContent = "Reset calculator defaults";
   $("calculator-reset").addEventListener("click", reset);
   $("calculator-recalculate").addEventListener("click", calculate);
   $("calculator-template").addEventListener("click", exportTemplate);

@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-09-14",
+  "note": "Direct yield takes priority. Estimating density below is equivalent dry-material consumption inferred from bag mass and yield, not installed coating density. These estimating bases do not include site loss or replace the project's approved fire-protection specification.",
+  "products": [
+    {
+      "product": "CAFCO 300",
+      "bag_mass_kg": 20,
+      "direct_yield_m3": 0.0651,
+      "estimating_density_kg_m3": 307.2196620583717,
+      "basis": "Reviewed 14 Sep 2026: Promat Australia CAFCO 300 TDS, Feb 2025, p4: 20 kg bags and nominal coverage 217 m²/tonne at 15 mm. Direct yield = 20/1000 × 217 × 0.015 = 65.10 L/bag. Estimating density is inferred dry-material consumption (mass/yield), not the published installed dry density of 310 kg/m³ ±15%. Actual site losses are additional; adjust yield or wastage to project evidence.",
+      "confidence": "Published nominal coverage; allow for site loss.",
+      "cells": {
+        "bag_mass_kg": "D36",
+        "direct_yield_m3": "D37",
+        "estimating_density_kg_m3": "D38",
+        "basis": "D42"
+      },
+      "sources": [
+        {
+          "title": "Promat Australia CAFCO 300 TDS (Feb 2025)",
+          "url": "https://media.promat.com/doc_367862_au/original/-1912786977/cafco-300-tds-en-au-2025-current.pdf",
+          "page": 4
+        }
+      ]
+    },
+    {
+      "product": "MANDOLITE CP2",
+      "bag_mass_kg": 20,
+      "direct_yield_m3": 0.0516,
+      "estimating_density_kg_m3": 387.5968992248062,
+      "basis": "Reviewed 14 Sep 2026: Promat AU-hosted MANDOLITE CP2 PDS (Nov 2009), p2 coverage 172 m²/tonne at 15 mm; p4 Australian bag mass 20 kg. Direct yield = 51.60 L/bag. Estimating density is inferred dry-material consumption, not installed coating density. The Apr 2010 application guide gives conflicting higher coverage; retain this lower PDS basis provisionally and verify project/site yield. Wastage remains separate.",
+      "confidence": "Provisional: published PDS and application-guide coverage conflict.",
+      "cells": {
+        "bag_mass_kg": "D69",
+        "direct_yield_m3": "D70",
+        "estimating_density_kg_m3": "D71",
+        "basis": "D75"
+      },
+      "sources": [
+        {
+          "title": "Promat AU-hosted MANDOLITE CP2 PDS (Nov 2009)",
+          "url": "https://media.promat.com/doc_368491_au/original/1472508648/promat-pds-cafco-mandolite-cp2-en.pdf",
+          "page": "2, 4"
+        },
+        {
+          "title": "MANDOLITE CP2 application guide (Apr 2010; conflicting coverage)",
+          "url": "https://ceasefire.com.au/wp-content/uploads/2024/05/Cafco-MANDOLITE-CP2-Application-Guide-AM.pdf",
+          "page": 15
+        }
+      ]
+    },
+    {
+      "product": "FENDOLITE MII",
+      "bag_mass_kg": 20,
+      "direct_yield_m3": 0.031,
+      "estimating_density_kg_m3": 645.1612903225806,
+      "basis": "Reviewed 14 Sep 2026: Promat FENDOLITE MII application guide (Sep 2008), PDF p15/printed p13, hosted by Ceasefire Australia: theoretical coverage 1.24 m² per 20 kg bag at 25 mm. Direct yield = 31.00 L/bag. Estimating density is inferred dry-material consumption, not installed coating density. This theoretical yield excludes wastage; retain project-specific loss allowances.",
+      "confidence": "Published theoretical coverage; excludes wastage.",
+      "cells": {
+        "bag_mass_kg": "D101",
+        "direct_yield_m3": "D102",
+        "estimating_density_kg_m3": "D103",
+        "basis": "D107"
+      },
+      "sources": [
+        {
+          "title": "FENDOLITE MII application guide (Sep 2008)",
+          "url": "https://ceasefire.com.au/wp-content/uploads/2024/05/Cafco-FENDOLITE-MII-Application-Guide-AM.pdf",
+          "page": 15
+        }
+      ]
+    },
+    {
+      "product": "PERLIFOC HP ECO+",
+      "bag_mass_kg": 17,
+      "direct_yield_m3": 0.04857142857142857,
+      "estimating_density_kg_m3": 350,
+      "basis": "Reviewed 14 Sep 2026: Tremco Australia PERLIFOC HP ECO+ brochure (170821), p3: 17 kg bags; minimum consumption 3.5 kg/m²/cm. Direct yield = 17/350 = 48.57 L/bag, a theoretical/batch basis. Estimating density is dry-material consumption, not hardened coating density. Altex NZ Aug 2022 PDS distinguishes batch 3.5 ±15% from continuous mixing 4.1 ±15% kg/m²/cm; continuous nominal yield would be 41.46 L/bag. Confirm mixing method and site yield before use.",
+      "confidence": "Qualified theoretical/batch basis; continuous mixing consumes more material.",
+      "cells": {
+        "bag_mass_kg": "D178",
+        "direct_yield_m3": "D179",
+        "estimating_density_kg_m3": "D180",
+        "basis": "D184"
+      },
+      "sources": [
+        {
+          "title": "Tremco Australia PERLIFOC HP ECO+ brochure",
+          "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20Technical%20Documents/Perlifoc%20HP%20ECO/PERLIFOC-HP-ECO-Structural-Steel-Spray-Fire-Protection.pdf?ext=.pdf",
+          "page": 3
+        },
+        {
+          "title": "Altex PDS (Aug 2022; NZ edition, mixing-method corroboration)",
+          "url": "https://api.altexcoatings.com/download.cfm?download=pds&productid=647",
+          "page": "1–2"
+        }
+      ]
+    },
+    {
+      "product": "MONOKOTE MK-6 HY",
+      "bag_mass_kg": 21.8,
+      "direct_yield_m3": 0.063712904832,
+      "estimating_density_kg_m3": 342.159882012645,
+      "basis": "Reviewed 14 Sep 2026: current GCP Australia MK-6/HY PDS (29 Apr 2026), p5 gives 21.8 kg bags. GCP yield chart hosted by Trafalgar Australia (2016), p1 gives 27–28 board feet/bag uninjected; retain the lower 27 board feet = 63.71 L/bag. Estimating density is inferred dry-material consumption, not minimum installed density. Injection has a different yield. Older documents use 21.9 kg; the published per-bag yield has not been rescaled. Confirm delivered pack and application method; allow for site loss.",
+      "confidence": "Conservative published uninjected estimate; verify current bag and site method.",
+      "cells": {
+        "bag_mass_kg": "D234",
+        "direct_yield_m3": "D235",
+        "estimating_density_kg_m3": "D236",
+        "basis": "D240"
+      },
+      "sources": [
+        {
+          "title": "GCP Australia MONOKOTE MK-6/HY & MK-6s PDS (Apr 2026)",
+          "url": "https://gcpat.com.au/sites/default/files/pdf/current/resource/GCPAT_monokote_mk_6hy_mk_6s_au_5546.pdf",
+          "page": 5
+        },
+        {
+          "title": "GCP MONOKOTE yield chart (Trafalgar Australia; 2016)",
+          "url": "https://tfire.com.au/documents/fire-spray-Monokote-Yield-Chart",
+          "page": 1
+        }
+      ]
+    }
+  ]
+}

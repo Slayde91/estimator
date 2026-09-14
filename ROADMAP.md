@@ -1,20 +1,62 @@
 # Roadmap
 
+Current increment: simplify the calculator presentation, make material-basis
+text read-only, hide requested source commentary, and use two output highlight
+states. Calculations, saved inputs and schedule PDFs retain their existing scope.
+Validation and publication for this increment belong in SESSION_HANDOFF.md.
+
+Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
+recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
+before job steps by GitHub account payment/spending limits. That evidence does
+not verify this subsequent presentation increment or its publication status.
+
 ## Implemented
 
-- Reconcile the empty remote repository and preserve original local workbooks.
-- Extract 417 inventory records, 166 dropdown values, all 64 Calculator inputs and 151 formulas with source traceability.
-- Translate all Calculator numeric and notes formulas, including blank/error behavior and unrounded pricing.
-- Expose the Calculator controls, pricing configuration, calculated breakdown and print view.
-- Use the supplied Ceasefire logo and provide downloadable PDF quote reports with saved-result/source-lineage preservation.
-- Save/reopen quotes with input, lookup-price/yield and result snapshots.
-- Protect calculations with independently captured Excel scenarios and test import, persistence and HTTP behavior.
-- Build a distribution without Excel or source workbooks, with declared PDF dependencies and the original logo included.
+- Original Quote Calculator inputs, formulas, editable pricing and saved snapshots.
+- Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and work summaries.
+- Whole-library Excel export/import with additions/removals, review and Save pricing.
+- Two-decimal presentation while retaining raw calculation precision.
+- Three workbook Calculators, every visible tab, board SETTINGS/EXTRA BOARDS and adjustable settings.
+- Permanent technical databases, original formulas and dependent dropdowns.
+- Schedule templates/import, separate drafts/saved states and source-version guards.
+- Continuous full-row calculator pages with branded forms, distinct section colours, linked contents and labelled totals.
+- Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
+- Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
+- One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under Product Settings and Rules.
+- Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; reset remains a draft until Save calculator. Numeric material settings stay adjustable.
+- Schedule PDF downloads with thicknesses, areas, applicable quantities, additional boards, product/ancillary tables and closing totals. Duplicate detail, standalone helper and settings appendices are removed.
+- Original exclusions/withheld quantities and the approved duct text correction.
+- Australian manuals, PDS/SDS and clearly labelled report/request links.
+- Independent native Microsoft Excel fixtures, HTTP/persistence and UI regressions.
+- Standalone source distribution and Windows launcher without Excel at runtime.
 
-## Outside the rules supplied by these workbooks
+## Verification and publication
 
-Automatic dimension-to-coverage conversion, steel section-factor/thickness lookup, FRL-based product eligibility and technical system selection have no executable specification in the supplied files. Steel/Duct are blank collection templates with examples. The current workflow labels and manually entered quantities reflect that limit. Additional technical source tables or an approved business specification are needed before implementing these functions.
+Work continues on `feat/workbook-calculators`. Current final validation and Git
+results belong in SESSION_HANDOFF.md. Do not infer CI success from local checks
+or treat a previous implementation checkpoint as verification of this change.
 
-## Future operational work
+The previous source-parity checkpoint passed 419,905 native Excel comparisons,
+covering 161,566 source formulas, 300 approved text outputs and 258,039 varied
+outputs across 3,471 schedule cases. The original Quote fixture remains
+216 × 151. Complete reconstruction tests protect database extraction. Reviewed
+commercial defaults require additional input-profile, precedence, save-isolation
+and display checks; source expectations stay unchanged. See
+[yield evidence and qualifications](docs/VERMICULITE_YIELD_REVIEW.md).
 
-An installer, authenticated shared deployment, concurrent multi-user editing and managed backups are not part of the current local application. They require an operating-environment decision; no public deployment has been performed. Existing SQLite quotes can be backed up locally while the application is stopped.
+## Meaningful remaining work
+
+Finish and record the current regression, runtime, PDF and distribution checks,
+then commit/publish the verified change. Recheck the previously observed GitHub
+account billing/spending-limit blocker and current-head CI/review state before
+merging [PR #6](https://github.com/Slayde91/estimator/pull/6). Never bypass or
+relabel a failed check.
+
+Future calculator-to-priced-quote transfer needs an explicit material, purchasing, product and labour mapping. The workbooks do not define it, so tools remain separate. Source revisions require fresh import, native comparison and intentional saved-state migration; hashes prevent silent changes today.
+
+An installer, authenticated shared hosting, concurrent multi-user editing and managed backups require an operating-environment decision. No public deployment has occurred.
+
+The historical 946f2c1 checkpoint recorded 176 Python tests, 56 UI checks and
+subsequent report/HTTP/distribution checks, with CI blocked before job steps.
+Those counts and renders predate both the PDF reductions/reviewed-default
+profile and the latest presentation cleanup; current results belong in SESSION_HANDOFF.md.

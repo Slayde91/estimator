@@ -1,11 +1,12 @@
 """Render a complete quote PDF from an already-calculated quote snapshot.
 
 The report does not call the calculator, read the current catalogue, or derive
-financial values. Worksheet cell references identify the authoritative values
-being presented; formatting never changes the saved calculation results.
+financial values. Internal worksheet keys select the authoritative values;
+the report uses business labels and formatting never changes saved results.
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
 from html import unescape
 import math
@@ -23,11 +24,13 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
-    LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
+    KeepTogether, LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
     Table, TableStyle,
 )
 
 from .calculator import masking_breakdown
+from .presentation import calculation_error_details
+from .quote_details import compile_work_summary
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -101,22 +104,22 @@ def _numeric(value):
         return False
 
 
-def _number(value, *, money=False, cents=False, percent=False, blank="Unavailable"):
+def _number(value, *, money=False, percent=False, blank="Unavailable"):
     if not _numeric(value):
         if isinstance(value, str) and value.startswith("#"):
             return "Unavailable: " + value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return "Unavailable: non-finite value"
         return blank if value is None or value == "" else _text(value)
-    displayed = value * 100 if percent else value
-    if not _numeric(displayed):
-        return "Unavailable: display range exceeded"
-    if cents:
-        formatted = format(displayed, ",.2f")
-    elif displayed != 0 and abs(displayed) < 0.00000001:
-        formatted = format(displayed, ".10g")
-    else:
-        formatted = format(displayed, ",.8f").rstrip("0").rstrip(".")
-        if formatted in ("-0", ""):
-            formatted = "0"
+    decimal = Decimal(str(value))
+    with localcontext() as context:
+        context.prec = max(28, decimal.adjusted() + 5)
+        if percent:
+            decimal *= 100
+        rounded = decimal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # Avoid negative zero while preserving real negative adjustments. This is
+    # presentation only: cells, totals and saved quote values are not changed.
+    formatted = format(abs(rounded) if rounded == 0 else rounded, ",.2f")
     return ("$" if money else "") + formatted + ("%" if percent else "")
 
 
@@ -138,6 +141,8 @@ def _styles():
     return {
         "title": ParagraphStyle("QuoteTitle", fontName="CeasefireVeraBold", fontSize=21,
                                 leading=27, spaceAfter=8, textColor=_INK, splitLongWords=1),
+        "long_title": ParagraphStyle("LongQuoteTitle", fontName="CeasefireVeraBold", fontSize=14,
+                                     leading=18, spaceAfter=8, textColor=_INK, splitLongWords=1),
         "section": ParagraphStyle("QuoteSection", fontName="CeasefireVeraBold", fontSize=15,
                                   leading=19, spaceBefore=6, spaceAfter=10, textColor=_INK),
         "subheading": ParagraphStyle("QuoteSubheading", fontName="CeasefireVeraBold", fontSize=10,
@@ -180,7 +185,7 @@ class _Report:
 
     def input(self, cell, **formatting):
         value = self.inputs.get(cell)
-        if formatting:
+        if formatting or _numeric(value):
             return _number(value, blank="Blank", **formatting)
         return "Blank" if value is None or value == "" else _text(value)
 
@@ -234,9 +239,11 @@ class _Report:
             if numeric_pattern.fullmatch(token) and pdfmetrics.stringWidth(token, "CeasefireVera", 6.8) > available_width:
                 prefix = "$" if "$" in token else ""
                 suffix = "%" if token.endswith("%") else ""
-                value = float(token.replace("$", "").replace(",", "").replace("%", ""))
-                mantissa, exponent = format(value, ".8e").split("e")
-                rendered.append(_escaped(prefix + mantissa.rstrip("0").rstrip(".")) +
+                value = Decimal(token.replace("$", "").replace(",", "").replace("%", ""))
+                with localcontext() as context:
+                    context.rounding = ROUND_HALF_UP
+                    mantissa, exponent = format(value, ".2e").split("e")
+                rendered.append(_escaped(prefix + mantissa) +
                                 "<br/>x 10<super>" + str(int(exponent)) + "</super>" + suffix)
             else:
                 rendered.append(line)
@@ -262,9 +269,15 @@ class _Report:
 
     def summary(self):
         self.story.append(self.p(self.quote.get("report_kind", "Saved quote"), "small"))
-        self.story.append(self.p(self.quote.get("title", "Untitled quote"), "title"))
+        title = self.quote.get("title", "Untitled quote")
+        # A composed project/client/site title can reach 704 characters. Keep
+        # every character, using a readable smaller heading for long details.
+        self.story.append(self.p(title, "long_title" if len(_text(title)) > 180 else "title"))
         self.story.append(self.p(self.quote.get("workflow", "Workflow not recorded")))
         identity = [
+            [self.p("Client", "cell"), self.p(self.quote.get("client") or "Not recorded", "cell")],
+            [self.p("Site address", "cell"), self.p(self.quote.get("site_address") or "Not recorded", "cell")],
+            [self.p("Project number", "cell"), self.p(self.quote.get("project_no") or "Not recorded", "cell")],
             [self.p("Quote reference", "cell"), self.p(self.quote.get("id") or "Current unsaved estimate", "cell")],
             [self.p("Snapshot updated", "cell"), self.p(_date(self.quote.get("updated_at")), "cell")],
         ]
@@ -274,7 +287,7 @@ class _Report:
             alert = Table([[self.p("CALCULATION INCOMPLETE", "alert")], [self.p(
                 "Some results are unavailable because the estimate contains calculation errors. "
                 "Available values are shown as recorded; unavailable values are never replaced with zero. "
-                "The complete error list is in the notes and traceability section.", "body")]],
+                "The complete error list is in the quote notes section.", "body")]],
                 colWidths=[_WIDTH])
             alert.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), _PALE_RED),
@@ -290,29 +303,31 @@ class _Report:
             ("Travel / accommodation", "F5"), ("Subtotal", "F6"),
             ("Fixed adjustment", "D27"), ("Grand total", "F7"),
         ]
-        rows = [[self.detail(label, "Calculator!" + cell), self.p(self.value(cell, money=True, cents=True), "numeric")]
+        rows = [[self.detail(label), self.p(self.value(cell, money=True), "numeric")]
                 for label, cell in totals]
         total_table = self.table(["Quote amount", "Amount ($)"], rows, [_WIDTH * .68, _WIDTH * .32])
         total_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 7), (-1, 7), colors.HexColor("#E8EEF0")),
             ("LINEABOVE", (0, 7), (-1, 7), 1, _RED),
         ]))
-        self.story.append(total_table)
-        self.story.append(self.p("Reconciliation checks", "subheading"))
+        # This is a fixed-size financial summary, so its grand total stays on
+        # the same page as its component amounts even with long quote details.
+        self.story.append(KeepTogether([total_table]))
+        self.story.append(self.p("Project measures", "subheading"))
         checks = [
-            [self.p("Second subtotal / grand-total path", "cell"),
-             self.p(self.value("D26", money=True, cents=True) + " / " + self.value("D28", money=True, cents=True), "numeric")],
-            [self.p("Total days / total task labour days", "cell"),
-             self.p(self.value("F10") + " / " + self.value("B44"), "numeric")],
-            [self.p("Rate per project area / item", "cell"), self.p(self.value("F8", money=True, cents=True), "numeric")],
+            [self.p("Total project days", "cell"), self.p(self.value("F10"), "numeric")],
+            [self.p("Rate per project area / item", "cell"), self.p(self.value("F8", money=True), "numeric")],
         ]
         self.story.append(self.table(["Calculated output", "Recorded value"], checks, [_WIDTH * .68, _WIDTH * .32], compact=True))
         self.story.extend([
             Spacer(1, 9),
-            self.p("Amounts on this summary display cents. Detail pages retain up to eight decimal places. "
+            self.p("Amounts, rates, quantities, days and percentages display no more than two decimal places. "
                    "Very large detail values use scientific notation. The quote total uses the original unrounded results; adding individually rounded line amounts "
                    "can differ by a few cents. No rounding adjustment has been added.", "small"),
         ])
+        self.story.extend([PageBreak(), self.p("Work summary", "section")])
+        summary = self.quote.get("work_summary") or compile_work_summary(self.quote.get("workflow", ""), self.result)
+        self.note_block(summary)
 
     def materials(self):
         self.story.extend([PageBreak(), self.p("Material breakdown", "section")])
@@ -324,11 +339,10 @@ class _Report:
         for label, row, price_row, _, _, _ in _LINES:
             unit = "bags / drums / rolls" if row == 15 else "panels" if row == 18 else "linear m" if row == 23 else "m²"
             yield_text = "Yield not used" if row in (15, 18) else "Yield: " + self.value(f"F{row}")
-            material = self.detail(label, self.input(f"D{row}") + "\n" + yield_text +
-                                   f" | row {row} / F{price_row}")
+            material = self.detail(label, self.input(f"D{row}") + "\n" + yield_text)
             rows.append([
                 material,
-                self.p(self.input(f"B{row}", cents=False) + "\n" + unit, "numeric"),
+                self.p(self.input(f"B{row}") + "\n" + unit, "numeric"),
                 self.p(self.value(f"B{price_row}"), "numeric"),
                 self.p(self.input(f"E{row}", percent=True) + "\n" + self.value(f"C{price_row}") + " units", "numeric"),
                 self.p(self.value(f"D{price_row}"), "numeric"),
@@ -345,11 +359,11 @@ class _Report:
             "shown in the labour and additions sections. Rounded purchasing counts appear only in the generated material notes; "
             "they do not replace the fractional quantities priced here.", "small"))
         self.story.append(self.p(
-            "Project area / items (B8): " + self.input("B8", cents=False) +
-            ". Global material adjustment (B26): " + self.input("B26", percent=True) +
-            ". Global labour adjustment (B27): " + self.input("B27", percent=True) + ".", "small"))
+            "Project area / items: " + self.input("B8") +
+            ". Global material adjustment: " + self.input("B26", percent=True) +
+            ". Global labour adjustment: " + self.input("B27", percent=True) + ".", "small"))
         self.story.append(self.p(
-            "The workbook takes coverage and units from the estimator. Measurement notes and workflow labels "
+            "Coverage and units are entered by the estimator. Measurement notes and workflow labels "
             "do not automatically calculate coverage, fire-rating suitability or required coating thickness.", "small"))
 
     def labour_and_additions(self):
@@ -359,9 +373,9 @@ class _Report:
             if labour_row is None:
                 continue
             rows.append([
-                self.detail(label, f"B{req_row} / F{labour_row}"),
+                self.detail(label),
                 self.p(self.input(team), "cell"),
-                self.p(self.input(f"C{row}", cents=False), "numeric"),
+                self.p(self.input(f"C{row}"), "numeric"),
                 self.p(self.value(f"B{req_row}"), "numeric"),
                 self.p(self.value(f"A{labour_row}", money=True), "numeric"),
                 self.p(self.value(f"F{labour_row}", money=True), "numeric"),
@@ -369,9 +383,8 @@ class _Report:
         widths = [88, 109, 56, 65, 92, _WIDTH - 410]
         self.story.append(self.table(["Task", "Labour selection", "Output units / day", "Days", "Daily sell rate", "Line amount"], rows, widths, compact=True))
         self.story.append(self.p(
-            "Pinning days (B37): " + self.value("B37") + ". They mirror meshing days and carry no separate labour charge. "
-            "The pinning daily-output input C17 is " + self.input("C17", cents=False) +
-            " and does not affect the workbook calculation. Total task labour: " + self.value("B44") +
+            "Pinning days: " + self.value("B37") + ". They mirror meshing days and carry no separate labour charge. "
+            "Total task labour: " + self.value("B44") +
             " days / " + self.value("B45") + " weeks.", "small"))
 
         self.story.append(self.p("Masking / cleaning", "subheading"))
@@ -380,29 +393,28 @@ class _Report:
         # today's catalogue, so historical pricing remains intact.
         masking = self.result.get("masking") or masking_breakdown(self.result)
         masking_rows = [
-            [self.detail("Masking labour", self.input("D7") + " | B51 / B53"),
+            [self.detail("Masking labour", self.input("D7")),
              self.p(self.value("B53"), "numeric"), self.p(self.value("B51", money=True), "numeric"),
              self.p(_number(masking.get("labour_total"), money=True), "numeric")],
-            [self.detail("Masking materials", self.input("B10") + " | B52 / B53"),
+            [self.detail("Masking materials", self.input("B10")),
              self.p(self.value("B53"), "numeric"), self.p(self.value("B52", money=True), "numeric"),
              self.p(_number(masking.get("material_base_total"), money=True), "numeric")],
-            [self.detail("Masking material adjustment", "B57"), self.p("", "numeric"), self.p("", "numeric"),
+            [self.detail("Masking material adjustment"), self.p("", "numeric"), self.p("", "numeric"),
              self.p(self.value("B57", money=True), "numeric")],
         ]
         self.story.append(self.table(["Component", "Days", "Rate per day", "Amount"], masking_rows,
                                      [221, 70, 108, _WIDTH - 399], compact=True))
         self.story.append(self.p(
-            "Masking input (B9): " + self.input("B9", percent=True) +
-            " of spray days. Base masking subtotal (B55): " + self.value("B55", money=True) +
-            "; total including adjustment (B58): " + self.value("B58", money=True) +
-            ". B52 already includes the material adjustment; B57 is its additional workbook adjustment. "
-            "These subtotals are included in the summary categories.", "small"))
+            "Masking allowance: " + self.input("B9", percent=True) +
+            " of spray days. The masking material rate includes the global material adjustment; "
+            "the separate masking material adjustment applies that percentage to the base masking material amount. "
+            "Masking costs are included in the labour and material summary categories.", "small"))
 
         self.story.extend([PageBreak(), self.p("Additions and project costs", "section")])
         rows = []
         for row, label, category, selection, unit in _ADDITIONS:
             rows.append([
-                self.detail(label, self.input(selection) + f" | D{row}"),
+                self.detail(label, self.input(selection)),
                 self.p(category, "cell"),
                 self.p(self.value(f"C{row}") + "\n" + unit, "numeric"),
                 self.p(self.value(f"B{row}", money=True), "numeric"),
@@ -411,16 +423,15 @@ class _Report:
         self.story.append(self.table(["Item / selection", "Category", "Adjusted qty", "Unit sell rate", "Amount"], rows,
                                      [187, 57, 83, 92, _WIDTH - 419], compact=True))
         self.story.append(self.p(
-            "Entered additions: extra days F26 = " + self.input("F26", cents=False) +
-            "; mobilisation quantity F27 = " + self.input("F27", cents=False) +
-            "; administration quantity F28 = " + self.input("F28", cents=False) +
-            "; access quantity B4 = " + self.input("B4", cents=False) +
-            ". Access hire uses weekly rates. Additions subtotal D120: " + self.value("D120", money=True) +
-            ". Fixed adjustment B28 / D27: " + self.value("D27", money=True) +
-            ". Subtotals shown here are explanatory and must not be added again to the summary.", "small"))
+            "Entered additions: extra days = " + self.input("F26") +
+            "; mobilisation quantity = " + self.input("F27") +
+            "; administration quantity = " + self.input("F28") +
+            "; access quantity = " + self.input("B4") +
+            ". Access hire uses weekly rates. Fixed adjustment: " + self.value("D27", money=True) +
+            ". All additions and the fixed adjustment are included in the quote summary.", "small"))
 
-    def notes_and_sources(self):
-        self.story.extend([PageBreak(), self.p("Notes and traceability", "section")])
+    def notes(self):
+        self.story.extend([PageBreak(), self.p("Quote notes", "section")])
         self.story.append(self.p("Estimator notes", "subheading"))
         self.note_block(self.inputs.get("B12"))
         self.story.append(self.p("Measurement / technical notes", "subheading"))
@@ -433,33 +444,13 @@ class _Report:
             self.note_block(notes)
         if self.errors:
             self.story.append(self.p("Calculation errors - complete list", "subheading"))
-            error_rows = [[self.p("Calculator!" + _text(cell), "cell"), self.p(code, "cell")]
-                          for cell, code in sorted(self.errors.items())]
-            self.story.append(self.table(["Affected source cell", "Recorded error"], error_rows,
+            error_rows = [[self.p(error["label"], "cell"), self.p(error["code"], "cell")]
+                          for error in calculation_error_details(self.result)]
+            self.story.append(self.table(["Affected calculation", "Recorded error"], error_rows,
                                          [_WIDTH * .55, _WIDTH * .45], compact=True))
-        self.story.append(self.p("Snapshot and source records", "subheading"))
         self.story.append(self.p(
-            "This report presents the quote's prepared result and pricing snapshot. It does not refresh "
-            "prices from the current catalogue or recalculate the quote. Supplier costs and markup "
-            "are not inferred from historical selling prices. Worksheet references identify the original "
-            "Calculator values used for each output.", "small"))
-        self.story.append(self.p(
-            "Report kind: " + _text(self.quote.get("report_kind", "Saved quote")) +
-            ". Quote reference: " + _text(self.quote.get("id") or "Current unsaved estimate") +
-            ". Snapshot: " + _date(self.quote.get("updated_at")) + ".", "small"))
-        source_hashes = self.quote.get("source_hashes", {})
-        for source_name, source in sorted(source_hashes.items()):
-            if isinstance(source, dict):
-                self.story.append(self.p(
-                    _text(source.get("filename") or source_name) + " | SHA-256: " +
-                    _text(source.get("sha256") or "Not recorded"), "small"))
-            else:
-                self.story.append(self.p(_text(source_name) + " | " + _text(source), "small"))
-        if not source_hashes:
-            self.story.append(self.p("Workbook source hashes were not recorded in this snapshot.", "small"))
-        signature = self.quote.get("configuration", {}).get("catalog_signature")
-        if signature:
-            self.story.append(self.p("Catalogue structure signature: " + _text(signature), "small"))
+            "This report uses the quote's recorded quantities and selling prices. "
+            "Later pricing-library changes do not alter a saved quote's report.", "small"))
 
 
 def render_quote_pdf(quote: dict) -> bytes:
@@ -479,7 +470,7 @@ def render_quote_pdf(quote: dict) -> bytes:
     report.summary()
     report.materials()
     report.labour_and_additions()
-    report.notes_and_sources()
+    report.notes()
     destination = BytesIO()
     document = SimpleDocTemplate(
         destination, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN,

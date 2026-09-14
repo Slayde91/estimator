@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "note": "Unmodified native Microsoft Excel capture bytes, compressed deterministically; never application-generated expectations.",
+  "fixtures": [
+    {
+      "id": "ductwork",
+      "kind": "default",
+      "filename": "ductwork-default.json.gz",
+      "capture_sha256": "84fb80fcc7a32e4e42652f32942ce69b3818c127c91fef895c5ac91268016a7a",
+      "gzip_sha256": "8a9544b23dbb269dc6c0c7a9633de52b95a31140408d50493777e630d0a41282",
+      "source_sha256": "9b2e5388a0118c4b3f66ea57f582d487d156585b45d9f34ebc8178f270ff7462",
+      "capture_bytes": 425589,
+      "gzip_bytes": 89208,
+      "scenarios": 2,
+      "outputs": 24359,
+      "oracle": {
+        "version": "16.0",
+        "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved",
+        "build": 20326.0,
+        "application": "Microsoft Excel",
+        "captured_utc": "2026-09-13T13:26:46.5717087Z"
+      }
+    },
+    {
+      "id": "ductwork",
+      "kind": "variations",
+      "filename": "ductwork-variations.json.gz",
+      "capture_sha256": "ebd2c6a76f9c238a9c175591dfb1ad3336f6dea2616c0531c875c2f41801402c",
+      "gzip_sha256": "48fb0cc8808fe85f0e0e304752810bce8b20cf9a13e7602ddbd82ecf7f72630c",
+      "source_sha256": "9b2e5388a0118c4b3f66ea57f582d487d156585b45d9f34ebc8178f270ff7462",
+      "capture_bytes": 890838,
+      "gzip_bytes": 120807,
+      "scenarios": 3,
+      "outputs": 21777,
+      "oracle": {
+        "application": "Microsoft Excel",
+        "version": "16.0",
+        "captured_utc": "2026-09-13T13:46:43.2756628Z",
+        "build": 20326.0,
+        "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved"
+      }
+    },
+    {
+      "id": "steel_board",
+      "kind": "default",
+      "filename": "steel_board-default.json.gz",
+      "capture_sha256": "a081790938fa17701f387267838c202f0965f263790f63e45b29035cc3baae20",
+      "gzip_sha256": "bf1244ce44577261e3cf53d0c07c1c07fa4af38bdbb9fc3eb2e6a8180dcca8be",
+      "source_sha256": "934e951e4255976a7d3fea64f77b0b0a7f1852174fecb126e76a640f0a38546d",
+      "capture_bytes": 747879,
+      "gzip_bytes": 87089,
+      "scenarios": 1,
+      "outputs": 16534,
+      "oracle": {
+        "version": "16.0",
+        "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved",
+        "build": 20326.0,
+        "application": "Microsoft Excel",
+        "captured_utc": "2026-09-13T13:26:49.8308191Z"
+      }
+    },
+    {
+      "id": "steel_board",
+      "kind": "variations",
+      "filename": "steel_board-variations.json.gz",
+      "capture_sha256": "5167a50182bff5d63865b7351331f0ab2168df22eed949e2cc660f1eea0bdc2a",
+      "gzip_sha256": "c3bf7fc8fbaa1734e7a3377d36f3b51846daeb46986c7940b2a5a3867e72c461",
+      "source_sha256": "934e951e4255976a7d3fea64f77b0b0a7f1852174fecb126e76a640f0a38546d",
+      "capture_bytes": 22628587,
+      "gzip_bytes": 1146156,
+      "scenarios": 10,
+      "outputs": 99854,
+      "oracle": {
+        "application": "Microsoft Excel",
+        "version": "16.0",
+        "captured_utc": "2026-09-13T13:46:51.7887090Z",
+        "build": 20326.0,
+        "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved"
+      }
+    },
+    {
+      "id": "steel_vermiculite",
+      "kind": "default",
+      "filename": "steel_vermiculite-default.json.gz",
+      "capture_sha256": "bf4b401b1f56c6c734d92add21d8f185ae85dfb977bb7b1214b12f0d04414c98",
+      "gzip_sha256": "9109987d45e63bd6d97700f4652a6d35af03585818216117e819e7a2463e82d7",
+      "source_sha256": "1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad",
+      "capture_bytes": 1889623,
+      "gzip_bytes": 567892,
+      "scenarios": 1,
+      "outputs": 120973,
+      "oracle": {
+        "version": "16.0",
+        "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved",
+        "build": 20326.0,
+        "application": "Microsoft Excel",
+        "captured_utc": "2026-09-13T13:26:59.2971924Z"
+      }
+    },
+    {
+      "id": "steel_vermiculite",
+      "kind": "variations",
+      "filename": "steel_vermiculite-variations.json.gz",
+      "capture_sha256": "94c8adc2c3a36de80a8ddf46ce95351f7889f266e9f95680bd20c172ac7e2d28",
+      "gzip_sha256": "ed349d7fd73aaca24a80d94e8e37c5d358bb15365005b7267c58902f5ff8da88",
+      "source_sha256": "1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad",
+      "capture_bytes": 3990699,
+      "gzip_bytes": 784994,
+      "scenarios": 8,
+      "outputs": 136408,
+      "oracle": {
+        "application": "Microsoft Excel",
+        "version": "16.0",
+        "captured_utc": "2026-09-13T13:47:06.9170786Z",
+        "build": 20326.0,
+        "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved"
+      }
+    }
+  ]
+}

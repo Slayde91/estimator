@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "calculators": [
+    {
+      "id": "steel_vermiculite",
+      "title": "Structural Steel (vermiculite)",
+      "source": {
+        "filename": "Ceasefire_Steel_Vermiculite_Estimator_NEW.xlsx",
+        "sha256": "1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad",
+        "size": 5512996
+      },
+      "pages": [
+        "CALCULATOR",
+        "SCHEDULE",
+        "BAGS",
+        "SETTINGS"
+      ],
+      "counts": {
+        "formulas": 120973,
+        "cells": 387366,
+        "sheets": 8,
+        "functions": {
+          "ABS": 2540,
+          "AND": 68766,
+          "ATAN": 42,
+          "COUNTIF": 3628,
+          "COUNTIFS": 5,
+          "IF": 294824,
+          "IFERROR": 92990,
+          "INDEX": 139598,
+          "INT": 1195,
+          "ISNUMBER": 45798,
+          "LEFT": 7170,
+          "LEN": 5,
+          "MATCH": 42337,
+          "MAX": 3723,
+          "MIN": 2051,
+          "NOT": 22726,
+          "OR": 33939,
+          "PI": 689,
+          "ROUND": 2390,
+          "ROUNDUP": 1007,
+          "SIN": 42,
+          "SQRT": 42,
+          "SUBSTITUTE": 9560,
+          "SUM": 7,
+          "SUMIF": 15,
+          "TEXT": 2390,
+          "UPPER": 1195,
+          "VLOOKUP": 4780
+        }
+      }
+    },
+    {
+      "id": "ductwork",
+      "title": "Ductwork",
+      "source": {
+        "filename": "Ceasefire_Duct_Estimator_NEW.xlsx",
+        "sha256": "9b2e5388a0118c4b3f66ea57f582d487d156585b45d9f34ebc8178f270ff7462",
+        "size": 582103
+      },
+      "pages": [
+        "CALCULATOR",
+        "SUMMARY",
+        "PRODUCT SETTINGS"
+      ],
+      "counts": {
+        "formulas": 24059,
+        "cells": 30173,
+        "sheets": 3,
+        "functions": {
+          "ABS": 2,
+          "AND": 16800,
+          "COUNTA": 300,
+          "COUNTIF": 604,
+          "FIND": 4800,
+          "IF": 56425,
+          "IFERROR": 6602,
+          "ISNUMBER": 5700,
+          "LEFT": 900,
+          "LEN": 600,
+          "LOWER": 300,
+          "MAX": 9000,
+          "MID": 1500,
+          "MIN": 2100,
+          "MOD": 1500,
+          "N": 9000,
+          "NOT": 4200,
+          "OR": 7200,
+          "RIGHT": 600,
+          "ROUND": 2100,
+          "ROUNDUP": 2100,
+          "SUBSTITUTE": 1800,
+          "SUM": 3302,
+          "SUMIF": 30,
+          "SUMIFS": 18,
+          "VALUE": 3300,
+          "VLOOKUP": 4800
+        }
+      }
+    },
+    {
+      "id": "steel_board",
+      "title": "Structural Steel (board)",
+      "source": {
+        "filename": "Ceasefire_Structural_Steel_Board_Estimator_NEW.xlsx",
+        "sha256": "934e951e4255976a7d3fea64f77b0b0a7f1852174fecb126e76a640f0a38546d",
+        "size": 1375542
+      },
+      "pages": [
+        "START",
+        "CALCULATOR",
+        "BOARD SUMMARY",
+        "EXTRA BOARDS",
+        "SETTINGS"
+      ],
+      "counts": {
+        "formulas": 16534,
+        "cells": 111260,
+        "sheets": 11,
+        "functions": {
+          "AND": 30724,
+          "CHAR": 1,
+          "CHOOSE": 1000,
+          "COUNTA": 242,
+          "COUNTIF": 650,
+          "FIND": 400,
+          "IF": 78683,
+          "IFERROR": 20070,
+          "INDEX": 2400,
+          "INT": 240,
+          "ISNUMBER": 11368,
+          "LEFT": 1800,
+          "LEN": 1200,
+          "LOWER": 400,
+          "MAX": 600,
+          "MID": 11800,
+          "N": 1400,
+          "NOT": 6680,
+          "OR": 14422,
+          "PI": 204,
+          "ROUNDUP": 1218,
+          "SUBSTITUTE": 800,
+          "SUM": 213,
+          "SUMIF": 36,
+          "SUMIFS": 72,
+          "TEXT": 5800,
+          "TRIM": 11400,
+          "VALUE": 5200,
+          "VLOOKUP": 4030
+        }
+      }
+    }
+  ]
+}

@@ -3,13 +3,14 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = {
-    fields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} },
+    fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, controller: null, pricingView: "inventory",
+    result: null, revision: 0, timer: null, controller: null, pricingView: "inventory", legacyTitle: "",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
-  const quantity = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 8 });
+  const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const percentCells = new Set(["B9", "B26", "B27", ...Array.from({ length: 9 }, (_, i) => `E${i + 15}`)]);
   const materialNames = [
     ["Spraying", "Bags / drums"], ["Meshing", "m²"], ["Pins / clips", "m²"],
@@ -32,6 +33,31 @@
   const formatNumber = (value) => isNumber(value) ? quantity.format(value) : value == null || value === "" ? "—" : String(value);
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
+
+  function quoteDetails() {
+    return { project_no: $("project-no").value.trim(), client: $("client").value.trim(), site_address: $("site-address").value.trim() };
+  }
+
+  function updateQuoteTitle() {
+    const details = quoteDetails();
+    $("quote-title").value = [details.project_no, details.client, details.site_address].filter(Boolean).join("- ") || state.legacyTitle || "Untitled quote";
+  }
+
+  function controlValue(value, percent = false) {
+    return isNumber(value) ? controlNumber.format(Number(percent ? shiftDecimal(value, 2) : value)) : value ?? "";
+  }
+
+  function editedNumber(control, percent = false) {
+    if (control.validity.badInput) return "Invalid number";
+    if (control.value === "") return "";
+    const numeric = Number(control.value);
+    if (!Number.isFinite(numeric)) return "Invalid number";
+    const displayed = controlNumber.format(numeric);
+    // Untouched imported values remain full precision in state. An intentional
+    // edit is limited to the two decimal places the estimator can see.
+    if (Number(displayed) !== numeric) control.value = displayed;
+    return Number(percent ? shiftDecimal(displayed, -2) : displayed);
+  }
 
   // Move the decimal point in its text representation, retaining all entered digits.
   function shiftDecimal(value, places) {
@@ -104,32 +130,29 @@
       control = node("input");
       control.type = field.type === "number" ? "number" : "text";
       const value = state.inputs[field.cell] ?? "";
-      control.value = isPercent(field) && isNumber(value) ? shiftDecimal(value, 2) : value;
+      control.value = controlValue(value, isPercent(field));
       if (control.type === "number") {
-        control.step = "any";
+        control.step = "0.01";
         control.inputMode = "decimal";
       }
     }
     control.id = `input-${field.cell}`;
     control.dataset.cell = field.cell;
-    control.setAttribute("aria-label", `${field.label || field.cell}${isPercent(field) ? " in percent" : ""}, Calculator ${field.cell}`);
-    control.title = `Calculator!${field.cell}`;
+    control.setAttribute("aria-label", `${field.label || "Estimate input"}${isPercent(field) ? " in percent" : ""}`);
     control.addEventListener("input", () => {
       let value = control.value;
-      if (field.type === "number" && control.validity.badInput) value = "Invalid number";
-      if (field.type === "number" && value !== "") {
-        const numeric = Number(isPercent(field) ? shiftDecimal(value, -2) : value);
-        value = Number.isFinite(numeric) ? numeric : "Invalid number";
-      }
+      if (field.type === "number") value = editedNumber(control, isPercent(field));
       state.inputs[field.cell] = value;
       updateDirty();
       scheduleCalculation();
     });
+    if (field.type === "number") control.addEventListener("blur", () => {
+      if (isNumber(state.inputs[field.cell]) || state.inputs[field.cell] === "") control.value = controlValue(state.inputs[field.cell], isPercent(field));
+    });
     if (compact) return control;
     const label = node("label", "field");
-    const caption = node("span", "", field.label || field.cell);
+    const caption = node("span", "", field.label || "Estimate input");
     if (isPercent(field) && !(field.label || "").includes("%")) caption.append(document.createTextNode(" (%)"));
-    caption.append(node("small", "field-cell", field.cell));
     label.append(caption, control);
     return label;
   }
@@ -141,7 +164,7 @@
     const h2 = node("h2", "", title);
     h2.id = `section-${fields[0].cell}`;
     section.setAttribute("aria-labelledby", h2.id);
-    heading.append(h2, node("span", "source-label", "Calculator inputs"));
+    heading.append(h2);
     const fieldGrid = node("div", "fields");
     for (const field of fields) fieldGrid.append(makeControl(field));
     section.append(heading, fieldGrid);
@@ -178,7 +201,7 @@
       const yieldCell = node("td", "calculated-yield");
       const value = node("span", "", "—");
       value.id = `yield-${row}`;
-      yieldCell.append(value, node("small", "yield-cell", `F${row}`));
+      yieldCell.append(value);
       tr.append(yieldCell);
       materials.append(tr);
     }
@@ -187,7 +210,7 @@
     for (const card of [
       inputCard("Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote."),
       additionCard,
-      inputCard("Other Calculator inputs", remainder),
+      inputCard("Other estimate inputs", remainder),
     ]) if (card) after.append(card);
   }
 
@@ -197,9 +220,9 @@
     for (const key of ["labour", "material", "access", "travel", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
     $("calculated-notes").textContent = "—";
-    $("calculation-trace").replaceChildren();
+    $("work-summary").textContent = status === "Calculating…" ? "Updating work summary…" : "Work summary is unavailable until the estimate can be calculated.";
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
-    cell.colSpan = 6; row.append(cell); $("material-results").replaceChildren(row);
+    cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
     $("calculation-errors").hidden = true;
     for (const control of document.querySelectorAll("[data-cell]")) control.removeAttribute("aria-invalid");
   }
@@ -222,7 +245,7 @@
     try {
       const result = await request("/api/calculate", {
         method: "POST", signal: state.controller.signal,
-        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration }),
+        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: $("workflow").value }),
       });
       if (revision !== state.revision) return null;
       state.result = result;
@@ -248,20 +271,17 @@
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
     $("calculated-notes").textContent = result.notes ?? cells.B30 ?? "";
+    $("work-summary").textContent = result.work_summary || "Choose a workflow and enter the required work quantities.";
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
       row.append(node("td", "", material.name || "—"), node("td", "numeric", formatNumber(material.quantity)),
         node("td", "numeric", formatMoney(material.price)), node("td", "numeric", formatMoney(material.total)),
-        node("td", "numeric", formatNumber(material.days)), node("td", "source-label", typeof material.source === "string" ? material.source : JSON.stringify(material.source || "")));
+        node("td", "numeric", formatNumber(material.days)));
       materialRows.push(row);
     }
-    if (!materialRows.length) { const row = node("tr"); const cell = node("td", "", "No material requirements."); cell.colSpan = 6; row.append(cell); materialRows.push(row); }
+    if (!materialRows.length) { const row = node("tr"); const cell = node("td", "", "No material requirements."); cell.colSpan = 5; row.append(cell); materialRows.push(row); }
     $("material-results").replaceChildren(...materialRows);
-    const inputCells = new Set(state.fields.map((field) => field.cell));
-    const trace = Object.entries(cells).filter(([cell, value]) => !inputCells.has(cell) && cell !== "B30" && (isNumber(value) || Object.hasOwn(errors, cell)));
-    trace.sort(([a], [b]) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]) || a.localeCompare(b));
-    $("calculation-trace").replaceChildren(...trace.map(([cell, value]) => { const row = node("tr"); row.append(node("td", "", cell), node("td", "", isNumber(value) ? String(value) : value)); return row; }));
     const entries = Object.entries(errors);
     $("calculation-status").textContent = entries.length ? "Check errors" : "Calculated";
     document.querySelector(".summary-card").setAttribute("aria-busy", "false");
@@ -269,36 +289,43 @@
     box.replaceChildren();
     box.hidden = !entries.length;
     if (entries.length) {
-      box.append(node("strong", "", "The Calculator reports errors."));
+      box.append(node("strong", "", "Some estimate calculations need attention."));
       const list = node("ul");
-      for (const [cell, error] of entries.slice(0, 12)) {
-        list.append(node("li", "", `${cell}: ${error}`));
-        $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
-      }
-      if (entries.length > 12) list.append(node("li", "", `${entries.length - 12} more errors are shown in Calculator values.`));
+      const details = result.error_details || entries.map(([, code]) => ({ label: "Estimate calculation", code }));
+      for (const error of details) list.append(node("li", "", `${error.label}: ${error.code}`));
+      for (const [cell] of entries) $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
       box.append(list);
     }
   }
 
-  async function confirmReplace(title, detail, action) {
-    const dialog = $("discard-dialog");
-    dialog.querySelector("h2").textContent = title;
-    dialog.querySelector("p").textContent = detail;
-    dialog.querySelector('[value="confirm"]').textContent = action;
-    return new Promise((resolve) => {
+  let confirmationQueue = Promise.resolve();
+
+  function confirmReplace(title, detail, action) {
+    // An import can finish while another confirmation is open. Each operation
+    // needs its own answer; one click must never confirm two replacements.
+    const answer = confirmationQueue.then(() => new Promise((resolve) => {
+      const dialog = $("discard-dialog");
+      dialog.querySelector("h2").textContent = title;
+      dialog.querySelector("p").textContent = detail;
+      dialog.querySelector('[value="confirm"]').textContent = action;
       dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
       dialog.returnValue = "cancel";
       dialog.showModal();
-    });
+    }));
+    confirmationQueue = answer.catch(() => {});
+    return answer;
   }
 
   async function newQuote() {
-    if (state.dirty && !await confirmReplace("Start a new estimate?", "Your current unsaved estimate changes will be replaced with the workbook defaults.", "Start new estimate")) return;
+    if (state.dirty && !await confirmReplace("Start a new estimate?", "Your current unsaved estimate changes will be replaced with the default estimate inputs.", "Start new estimate")) return;
     state.quoteContext++;
     state.quoteLoadRevision++;
     state.quote = null; state.quoteConfiguration = null;
+    state.fields = clone(state.currentFields);
     state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""]));
-    $("quote-title").value = "";
+    state.legacyTitle = "";
+    for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
+    updateQuoteTitle();
     $("workflow").selectedIndex = 0;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
@@ -306,8 +333,8 @@
   }
 
   async function saveQuote() {
+    updateQuoteTitle();
     const title = $("quote-title").value.trim();
-    if (!title) { message("Give this quote a name before saving.", true); $("quote-title").focus(); return; }
     const button = $("save-quote"); button.disabled = true;
     try {
       const inputs = clone(state.inputs);
@@ -315,15 +342,19 @@
       const measurements = $("measurements").value;
       const configuration = clone(state.quoteConfiguration || state.configuration);
       const quoteContext = state.quoteContext;
-      const payload = { title, inputs, workflow, measurements, configuration };
+      const details = quoteDetails();
+      const payload = { title, inputs, workflow, measurements, configuration, ...details };
       const saved = await request(state.quote ? `/api/quotes/${encodeURIComponent(state.quote.id)}` : "/api/quotes", { method: state.quote ? "PUT" : "POST", body: JSON.stringify(payload) });
       if (quoteContext !== state.quoteContext) { message(`Saved “${title}”. Your currently open estimate has been kept.`); return; }
       const pricingChangedDuringSave = JSON.stringify(state.quoteConfiguration || state.configuration) !== JSON.stringify(configuration);
       state.quote = saved;
+      if ([saved.project_no, saved.client, saved.site_address].some((value) => typeof value === "string" && value.trim())) state.legacyTitle = "";
+      updateQuoteTitle();
       if (!pricingChangedDuringSave) state.quoteConfiguration = clone(saved.configuration || configuration);
+      if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
       if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || $("quote-title").value.trim() !== title || $("workflow").value !== workflow || $("measurements").value !== measurements;
+      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || $("workflow").value !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
       message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
     } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
@@ -360,8 +391,13 @@
       state.quoteContext++;
       state.quote = quote;
       state.quoteConfiguration = clone(quote.configuration || state.configuration);
+      state.fields = clone(quote.fields || state.currentFields);
       state.inputs = { ...Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""])), ...quote.inputs };
-      $("quote-title").value = quote.title || "";
+      state.legacyTitle = [quote.project_no, quote.client, quote.site_address].some((value) => typeof value === "string" && value.trim()) ? "" : quote.title || "";
+      $("client").value = quote.client || "";
+      $("site-address").value = quote.site_address || "";
+      $("project-no").value = quote.project_no || "";
+      updateQuoteTitle();
       if (quote.workflow && !Array.from($("workflow").options).some((option) => option.value === quote.workflow)) {
         const option = node("option", "", quote.workflow); option.value = quote.workflow; $("workflow").append(option);
       }
@@ -383,6 +419,10 @@
     }
     if (view === "quotes") loadQuotes();
     if (view === "pricing") renderPricing();
+    if (view === "calculators") window.CeasefireCalculators?.open();
+    // Each section starts with its heading and actions visible below the sticky
+    // header, even when the previous estimate was scrolled far down the page.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
   function getOverride(kind, id) { return state.draft[kind]?.[id] || {}; }
@@ -405,23 +445,23 @@
   function priceInput(kind, item, key, options = {}) {
     const input = node("input", options.text ? "item-name" : "");
     input.type = options.text ? "text" : "number";
-    input.step = "any";
+    input.step = "0.01";
     input.dataset.priceField = key;
     const current = getOverride(kind, item.id)[key] ?? options.defaultValue ?? item[key] ?? "";
-    input.value = options.percent && isNumber(current) ? shiftDecimal(current, 2) : current;
+    input.value = options.text ? current : controlValue(current, options.percent);
     input.setAttribute("aria-label", `${item.name}: ${options.label || key}${options.percent ? " in percent" : ""}`);
     input.addEventListener("input", () => {
       let value = input.value;
-      if (!options.text && input.validity.badInput) value = "Invalid number";
-      if (!options.text && value !== "") {
-        const numeric = Number(options.percent ? shiftDecimal(value, -2) : value);
-        value = Number.isFinite(numeric) ? numeric : "Invalid number";
-      }
+      if (!options.text) value = editedNumber(input, options.percent);
       setOverride(kind, item, key, value);
       const row = input.closest("tr");
       row.classList.toggle("edited", !!state.draft[kind][item.id]);
       const output = row.querySelector("[data-sell-preview]");
       if (output) output.textContent = formatMoney(inventorySellPrice(item));
+    });
+    if (!options.text) input.addEventListener("blur", () => {
+      // Formatting the visible input does not add an override or round a rate.
+      if (input.value !== "" && !input.validity.badInput && Number.isFinite(Number(input.value))) input.value = controlValue(Number(input.value));
     });
     return input;
   }
@@ -445,26 +485,31 @@
   function rateDefaultPrice(item) {
     const inventory = state.catalog.inventory.find((record) => record.id === item.inventory_id);
     const inventoryOverride = inventory ? getOverride("inventory", inventory.id) : {};
-    if (inventory && ["supplier_price", "markup", "sales_price"].some((field) => Object.hasOwn(inventoryOverride, field))) return inventorySellPrice(inventory);
+    if (item.price_mode !== "override" && inventory && ["supplier_price", "markup", "sales_price"].some((field) => Object.hasOwn(inventoryOverride, field))) return inventorySellPrice(inventory);
     return item.price;
   }
 
-  function sourceText(source) {
-    if (!source) return "";
-    const cell = String(source.price || source.row || "");
-    return cell.includes("!") ? cell : `${source.sheet || "Lists"}!${cell}`;
+  function refreshPricingCatalog() {
+    state.catalog = clone(state.draft.catalog || state.baseline);
+    const selection = $("rate-group").value;
+    const options = Object.keys(state.catalog.rate_groups || {}).map((key) => {
+      const option = node("option", "", groups[key] || key); option.value = key; return option;
+    });
+    $("rate-group").replaceChildren(...options);
+    if (options.some((option) => option.value === selection)) $("rate-group").value = selection;
   }
 
   function resetButton(kind, item) {
     const button = node("button", "reset-button", "Reset row");
     button.type = "button";
-    button.setAttribute("aria-label", `Restore workbook defaults for ${item.name}`);
+    button.setAttribute("aria-label", `Restore imported values for ${item.name}`);
     button.addEventListener("click", () => { delete state.draft[kind][item.id]; markPricingDirty(); renderPricing(); });
     return button;
   }
 
   function renderPricing() {
     const inventoryView = state.pricingView === "inventory";
+    $("pricing-body").closest("table").classList.toggle("rates-table", !inventoryView);
     $("inventory-tab").classList.toggle("active", inventoryView);
     $("rates-tab").classList.toggle("active", !inventoryView);
     $("inventory-tab").setAttribute("aria-pressed", String(inventoryView));
@@ -476,19 +521,20 @@
     const matches = records.filter((item) => `${item.name} ${item.item_code || ""} ${getOverride(kind, item.id).name || ""}`.toLocaleLowerCase().includes(search));
     $("pricing-count").textContent = `${matches.length} of ${records.length} ${inventoryView ? "inventory items" : "rates"}`;
     $("pricing-help").textContent = inventoryView
-      ? "Workbook sell prices are retained exactly until edited. Changing supplier price or markup recalculates the sell price. Items without a supplier calculation have an editable manual sell price. Reset a row to restore its imported defaults."
-      : "Calculator rates are the workbook's lookup values. An explicit rate overrides linked inventory pricing; reset the row to restore its default lookup. Yield uses the workbook's existing units.";
+      ? "Changing supplier price or markup recalculates the sell price. Items without a supplier calculation have an editable manual sell price. Reset a row to restore its imported values."
+      : "An explicit rate overrides linked inventory pricing. Reset the row to restore its imported rate. Yield is the material coverage per unit.";
     const heading = node("tr");
-    for (const title of inventoryView ? ["Item code", "Product", "Supplier price", "Markup %", "Sell price", ""] : ["Source", "Rate / product", "Sell rate", "Yield", ""]) heading.append(node("th", "", title));
+    for (const title of inventoryView ? ["Item code", "Product", "Supplier price", "Markup %", "Sell price", ""] : ["Rate / product", "Sell rate", "Yield", ""]) heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const rows = matches.map((item) => {
       const row = node("tr", state.draft[kind]?.[item.id] ? "edited" : "");
       row.dataset.priceId = item.id;
-      row.append(node("td", "", inventoryView ? item.item_code || item.id : sourceText(item.source)));
+      if (inventoryView) row.append(node("td", "", item.item_code || "—"));
       const nameCell = node("td");
       if (inventoryView) nameCell.append(priceInput(kind, item, "name", { text: true, label: "Name" }));
       else nameCell.append(node("span", "", item.name));
-      nameCell.append(node("small", "subtext", inventoryView ? `Inventory_list · row ${item.source?.row ?? "—"}${item.pricing_mode === "manual" ? " · Manual sell price" : ""}` : groups[$("rate-group").value] || $("rate-group").value));
+      const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : groups[$("rate-group").value] || $("rate-group").value;
+      nameCell.append(node("small", "subtext", detail));
       row.append(nameCell);
       if (inventoryView) {
         const supplier = node("td");
@@ -507,62 +553,139 @@
       } else {
         const price = node("td"); price.append(priceInput(kind, item, "price", { label: "Sell rate", defaultValue: rateSellPrice(item) }));
         const yieldCell = node("td");
-        if (item.source?.yield || isNumber(item.yield) || Object.hasOwn(getOverride(kind, item.id), "yield")) yieldCell.append(priceInput(kind, item, "yield", { label: "Material yield" }));
+        if (item.uses_yield ?? !!item.source?.yield) yieldCell.append(priceInput(kind, item, "yield", { label: "Material yield" }));
         else yieldCell.textContent = "—";
         row.append(price, yieldCell);
       }
       const reset = node("td"); reset.append(resetButton(kind, item)); row.append(reset);
       return row;
     });
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = inventoryView ? 6 : 5; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = inventoryView ? 6 : 4; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     markPricingDirty();
   }
 
   async function savePricing() {
     const button = $("save-pricing"); button.disabled = true;
+    $("use-current-pricing").disabled = true;
+    let persisted = false;
     try {
       const draft = clone(state.draft);
       const configuration = await request("/api/configuration", { method: "PUT", body: JSON.stringify(draft) });
-      state.configuration = configuration;
-      if (JSON.stringify(state.draft) === JSON.stringify(draft)) state.draft = clone(configuration);
+      persisted = true;
+      const metadata = await request("/api/bootstrap");
+      // Keep prices and their dropdown definitions in step. Until both arrive,
+      // estimates continue using the previously loaded pricing configuration.
+      state.configuration = clone(metadata.configuration || configuration);
+      state.currentFields = clone(metadata.fields || state.currentFields);
+      if (JSON.stringify(state.draft) === JSON.stringify(draft)) state.draft = clone(state.configuration);
+      refreshPricingCatalog();
       renderPricing();
-      if (!state.quoteConfiguration) { updateDirty(); scheduleCalculation(); }
-      message(state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing configuration saved. Imported workbook defaults remain available through Reset row.");
-    } catch (error) { message(`Pricing was not saved. ${error.message}`, true); }
-    finally { button.disabled = false; }
+      if (!state.quoteConfiguration) { state.fields = clone(state.currentFields); renderInputs(); updateDirty(); scheduleCalculation(); }
+      const changedElsewhere = JSON.stringify(state.configuration) !== JSON.stringify(configuration);
+      message(changedElsewhere ? "Pricing was saved, then changed in another session. The latest saved library is loaded; any further draft edits are still unsaved."
+        : state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing library saved. The saved products, choices and rates now apply to new estimates.");
+    } catch (error) { message(persisted ? `Pricing was saved, but the updated dropdowns could not be loaded. Reload the app before starting another estimate. ${error.message}` : `Pricing was not saved. ${error.message}`, true); }
+    finally { button.disabled = false; $("use-current-pricing").disabled = false; }
+  }
+
+  function downloadFile(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = node("a");
+    link.href = url; link.download = filename; link.hidden = true;
+    document.body.append(link);
+    try { link.click(); }
+    finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }
+  }
+
+  async function exportPricing() {
+    const button = $("export-pricing");
+    if (button.disabled) return;
+    const draft = JSON.stringify(state.draft);
+    button.disabled = true; button.textContent = "Exporting…";
+    try {
+      const response = await fetch("/api/pricing/export", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ configuration: JSON.parse(draft) }),
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.error || `Export failed (${response.status}).`);
+      }
+      const contentType = (response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+      if (contentType !== "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") throw new Error("The server did not return an Excel workbook.");
+      const workbook = await response.blob();
+      if (!workbook.size) throw new Error("The server returned an empty workbook.");
+      downloadFile(workbook, "ceasefire-pricing.xlsx");
+      message(draft === JSON.stringify(state.draft)
+        ? "Excel download started. It includes all inventory and rate groups, including your unsaved pricing edits."
+        : "Excel download started using the pricing captured when you clicked Export Excel. Later edits are not included.");
+    } catch (error) { message(`Pricing was not exported. ${error.message}`, true); }
+    finally { button.disabled = false; button.textContent = "Export Excel"; }
+  }
+
+  function fileBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1]);
+      reader.onerror = () => reject(new Error("The selected file could not be read."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function importPricing() {
+    const input = $("pricing-import-file");
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    const button = $("import-pricing");
+    const draft = JSON.stringify(state.draft);
+    button.disabled = true; button.textContent = "Reading Excel…";
+    try {
+      if (!/\.xlsx$/i.test(file.name)) throw new Error("Choose an .xlsx workbook exported from this pricing library.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("The workbook must be 5 MB or smaller.");
+      const content = await fileBase64(file);
+      const preview = await request("/api/pricing/import", {
+        method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, configuration: JSON.parse(draft) }),
+      });
+      if (draft !== JSON.stringify(state.draft)) throw new Error("Pricing changed while the workbook was being read. Import it again to compare against your latest edits.");
+      const counts = (kind, label) => {
+        const count = preview.summary?.[kind] || {};
+        return `${label}: ${count.added || 0} added, ${count.removed || 0} removed, ${count.updated || 0} updated.`;
+      };
+      const detail = `${file.name}\n${counts("inventory", "Inventory")}\n${counts("rates", "Rates and choices")}\nThis replaces the entire draft library. Deleted workbook rows will be removed. The changes take effect only after you click Save pricing.`;
+      const accepted = await confirmReplace("Review imported pricing", detail, "Apply to draft");
+      if (!accepted) { message("Import cancelled. Your pricing draft was kept."); return; }
+      if (draft !== JSON.stringify(state.draft)) throw new Error("Pricing changed during import review. Import again to keep your latest edits safe.");
+      state.draft = clone(preview.configuration);
+      refreshPricingCatalog(); renderPricing();
+      message("Imported pricing is ready to review. Click Save pricing to apply the new products, dropdown choices and rates.");
+    } catch (error) { message(`Pricing was not imported. ${error.message}`, true); }
+    finally { button.disabled = false; button.textContent = "Import Excel"; }
   }
 
   async function bootstrap() {
     try {
       const data = await request("/api/bootstrap");
-      state.fields = data.fields || [];
-      state.catalog = data.baseline || data.catalog || { inventory: [], rate_groups: {} };
+      state.currentFields = clone(data.fields || []);
+      state.fields = clone(state.currentFields);
+      state.baseline = data.baseline || { inventory: [], rate_groups: {} };
       state.configuration = data.configuration || { inventory: {}, rates: {} };
       state.draft = clone(state.configuration);
       if (Array.isArray(data.workflows) && data.workflows.length) {
         $("workflow").replaceChildren(...data.workflows.map((workflow) => { const option = node("option", "", workflow); option.value = workflow; return option; }));
       }
-      const options = Object.keys(state.catalog.rate_groups || {}).map((key) => { const option = node("option", "", groups[key] || key); option.value = key; return option; });
-      $("rate-group").replaceChildren(...options);
+      refreshPricingCatalog();
       $("loading-state").hidden = true;
       await newQuote();
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
   }
 
-  async function printQuote() {
-    const button = $("print-quote"); button.disabled = true;
-    try {
-      const result = await calculate();
-      if (!result) { message("The estimate changed or could not be calculated. Check the inputs and print again.", true); return; }
-      showView("estimate");
-      window.print();
-    } finally { button.disabled = false; }
-  }
-
   function reportPayload() {
+    updateQuoteTitle();
     return {
       title: $("quote-title").value.trim(),
+      ...quoteDetails(),
       inputs: clone(state.inputs),
       configuration: clone(state.quoteConfiguration || state.configuration),
       workflow: $("workflow").value,
@@ -582,7 +705,6 @@
     const button = $("download-quote-pdf");
     if (button.disabled) return;
     const payload = reportPayload();
-    if (!payload.title) { message("Give this quote a name before downloading its PDF.", true); $("quote-title").focus(); return; }
     const quoteContext = state.quoteContext;
     const capturedPayload = JSON.stringify(payload);
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
@@ -633,21 +755,25 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
-  for (const id of ["quote-title", "workflow", "measurements"]) $(id).addEventListener("input", () => updateDirty());
+  for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
+  $("measurements").addEventListener("input", () => updateDirty());
+  $("workflow").addEventListener("change", () => { updateDirty(); scheduleCalculation(); });
   $("new-quote").addEventListener("click", newQuote);
   $("save-quote").addEventListener("click", saveQuote);
-  $("print-quote").addEventListener("click", printQuote);
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
   $("refresh-quotes").addEventListener("click", loadQuotes);
-  $("use-current-pricing").addEventListener("click", () => { state.quoteConfiguration = clone(state.configuration); $("snapshot-message").querySelector("span").textContent = "Current pricing applied. Save to replace this quote's pricing snapshot."; updateDirty(); scheduleCalculation(); message("Current pricing applied to this estimate. Save the quote to retain its new pricing snapshot."); });
+  $("use-current-pricing").addEventListener("click", () => { state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields); renderInputs(); $("snapshot-message").querySelector("span").textContent = "Current pricing applied. Save to replace this quote's pricing snapshot."; updateDirty(); scheduleCalculation(); message("Current pricing applied to this estimate. Check any removed product selections, then save the quote to retain its new pricing snapshot."); });
   $("inventory-tab").addEventListener("click", () => { state.pricingView = "inventory"; renderPricing(); });
   $("rates-tab").addEventListener("click", () => { state.pricingView = "rates"; renderPricing(); });
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
   $("save-pricing").addEventListener("click", savePricing);
+  $("export-pricing").addEventListener("click", exportPricing);
+  $("import-pricing").addEventListener("click", () => $("pricing-import-file").click());
+  $("pricing-import-file").addEventListener("change", importPricing);
   $("discard-pricing").addEventListener("click", async () => {
     if (state.pricingDirty && !await confirmReplace("Discard pricing changes?", "Unsaved pricing edits will be replaced with your last saved configuration.", "Discard changes")) return;
-    state.draft = clone(state.configuration); renderPricing(); message("Unsaved pricing changes discarded.");
+    state.draft = clone(state.configuration); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
   window.addEventListener("beforeunload", (event) => { if (state.dirty || state.pricingDirty) { event.preventDefault(); event.returnValue = ""; } });
   bootstrap();

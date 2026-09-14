@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import unittest
 
-from estimator.catalog import baseline, effective_catalog, validate_configuration, ValidationError
+from estimator.catalog import baseline, configuration_catalog, effective_catalog, has_yield, validate_catalog, validate_configuration, ValidationError
 from estimator.calculator import calculate
 from scripts.import_workbooks import extract, extract_calculator, translate_shared_formula
 
@@ -190,6 +190,105 @@ class ConfigurationTests(unittest.TestCase):
         for config in invalid:
             with self.subTest(config=config), self.assertRaises(ValidationError):
                 validate_configuration(config, self.data)
+
+
+class ReplacementCatalogTests(unittest.TestCase):
+    def setUp(self):
+        self.data = baseline()
+
+    def test_original_library_normalizes_without_changing_prices_units_or_blank_semantics(self):
+        result = validate_catalog(self.data)
+        self.assertEqual(result["inventory"], self.data["inventory"])
+        for group, rows in result["rate_groups"].items():
+            for original, current in zip(self.data["rate_groups"][group], rows):
+                self.assertEqual({k: current[k] for k in original}, original)
+                self.assertEqual(current["uses_yield"], bool(self.data["rate_group_rules"][group]["yield_column"]))
+                self.assertEqual(current["price_mode"], "inventory")
+        self.assertEqual(validate_catalog(result), result)
+
+    def test_replacement_adds_and_removes_products_and_choices_without_touching_original_defaults(self):
+        original = deepcopy(self.data)
+        self.data["inventory"] = [r for r in self.data["inventory"] if r["id"] != "200"]
+        for group, rows in self.data["rate_groups"].items():
+            self.data["rate_groups"][group] = [r for r in rows if r["inventory_id"] != "200"]
+        self.data["inventory"].append({"id": "new-spray", "name": "New spray", "sales_description": "New spray bag",
+                                       "supplier_price": 40, "markup": 0.25, "sales_price": 50, "pricing_mode": "supplier_markup"})
+        self.data["rate_groups"]["sprays"].append({"id": "sprays:new", "name": "New spray", "price": 50,
+                                                 "yield": None, "inventory_id": "new-spray", "source": {}})
+        configuration = validate_configuration({"catalog": self.data})
+        result = effective_catalog(configuration)
+        self.assertNotIn("200", [r["id"] for r in result["inventory"]])
+        self.assertNotIn("Promat Cafco 300", [r["name"] for r in result["rate_groups"]["sprays"]])
+        self.assertEqual(result["rate_groups"]["sprays"][-1]["name"], "New spray")
+        self.assertEqual(calculate({"D15": "New spray", "B15": 10}, configuration)["cells"]["A63"], 50)
+        self.assertEqual(baseline(), original)
+        self.assertEqual(configuration_catalog(configuration), configuration["catalog"])
+
+    def test_imported_linked_and_explicit_prices_keep_distinct_edit_behaviour(self):
+        self.data["rate_groups"]["primers"][0]["price_mode"] = "override"
+        self.data["rate_groups"]["primers"][0]["price"] = 501
+        result = effective_catalog({"catalog": self.data, "inventory": {"204": {"supplier_price": 200, "markup": 0.5}}})
+        self.assertEqual(result["rate_groups"]["primers"][0]["price"], 501)
+        self.assertEqual(result["rate_groups"]["topcoats"][0]["price"], 300)
+        explicit = effective_catalog({"catalog": self.data, "inventory": {"204": {"supplier_price": 200}},
+                                      "rates": {"primers:1": {"price": 777}}})
+        self.assertEqual(explicit["rate_groups"]["primers"][0]["price"], 777)
+
+    def test_custom_yields_and_unlinked_rates_do_not_depend_on_source_cells(self):
+        rate = self.data["rate_groups"]["boards"][0]
+        rate.update(inventory_id=None, price_mode="override", source={}, **{"yield": 2.5})
+        result = effective_catalog({"catalog": self.data, "rates": {rate["id"]: {"yield": 3.25, "price": 99}}})
+        self.assertTrue(has_yield(result["rate_groups"]["boards"][0]))
+        self.assertEqual(result["rate_groups"]["boards"][0]["yield"], 3.25)
+        calculated = calculate({"D22": rate["name"], "B22": 6.5}, {"catalog": result})
+        self.assertEqual(calculated["cells"]["F22"], 3.25)
+        self.assertEqual(calculated["cells"]["A97"], 99)
+
+    def test_empty_categories_are_preserved_and_missing_choice_is_an_explicit_calculation_error(self):
+        self.data["rate_groups"]["sprays"] = []
+        result = calculate({"B15": 10}, {"catalog": self.data})
+        self.assertEqual(result["cells"]["A63"], "#N/A")
+        self.assertIsNone(result["summary"]["total"])
+
+    def test_replacement_configuration_and_metadata_are_immutable(self):
+        configuration = {"catalog": self.data, "inventory": {"200": {"supplier_price": 100}}}
+        before = deepcopy(configuration)
+        result = effective_catalog(configuration)
+        result["inventory"][0]["name"] = "changed outside"
+        result["sources"]["inventory"]["filename"] = "changed.xlsx"
+        self.assertEqual(configuration, before)
+
+    def test_invalid_catalogue_structure_links_modes_numbers_and_yields_are_rejected(self):
+        invalid = [None, [], {**self.data, "unknown": True}, {**self.data, "inventory": {}},
+                   {**self.data, "rate_groups": {}}, {**self.data, "sources": []}]
+        mutations = [
+            lambda d: d["inventory"].append(deepcopy(d["inventory"][0])),
+            lambda d: d["inventory"][0].update(id=""),
+            lambda d: d["inventory"][0].update(pricing_mode=[]),
+            lambda d: d["inventory"][1].update(supplier_price=None),
+            lambda d: d["inventory"][0].update(sales_price=-1),
+            lambda d: d["inventory"][0].update(markup=-1.1),
+            lambda d: d["inventory"][0].update(properties={"weight": float("nan")}),
+            lambda d: d["rate_groups"]["mesh"].append(deepcopy(d["rate_groups"]["mesh"][0])),
+            lambda d: d["rate_groups"]["mesh"][1].update(name="n/a"),
+            lambda d: d["rate_groups"]["mesh"][0].update(inventory_id="missing"),
+            lambda d: d["rate_groups"]["mesh"][0].update(price_mode=[]),
+            lambda d: d["rate_groups"]["mesh"][0].update(inventory_id=None, price_mode="inventory"),
+            lambda d: d["rate_groups"]["mesh"][0].update(price=float("inf")),
+            lambda d: d["rate_groups"]["mesh"][0].update(uses_yield=False),
+            lambda d: d["rate_groups"]["mesh"][0].update(**{"yield": -1}),
+            lambda d: d["rate_groups"]["sprays"][0].update(**{"yield": 12}),
+            lambda d: d["rate_group_rules"]["mesh"].update(yield_column=None),
+        ]
+        for mutate in mutations:
+            data = deepcopy(self.data)
+            mutate(data)
+            invalid.append(data)
+        for index, data in enumerate(invalid):
+            with self.subTest(case=index), self.assertRaises(ValidationError):
+                validate_catalog(data)
+        with self.assertRaises(ValidationError):
+            validate_configuration({"rates": {"sprays:1": {"yield": 2}}})
 
 
 @unittest.skipUnless(os.environ.get("ESTIMATOR_WORKBOOK_DIR"), "Set ESTIMATOR_WORKBOOK_DIR to verify original workbook extraction")

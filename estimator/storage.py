@@ -8,7 +8,8 @@ import sqlite3
 import uuid
 
 from .calculator import calculate
-from .catalog import baseline, catalog_signature, effective_catalog, validate_configuration, ValidationError
+from .catalog import catalog_signature, configuration_catalog, effective_catalog, has_yield, validate_catalog, validate_configuration, ValidationError
+from .quote_details import QUOTE_DETAIL_LIMITS, compile_work_summary, compose_quote_title, validate_quote_details
 
 WORKFLOWS = (
     "Intumescent spray to ductwork", "Intumescent spray to structural steel",
@@ -27,7 +28,10 @@ class Store:
                 CREATE TABLE IF NOT EXISTS quotes (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at TEXT NOT NULL, data TEXT NOT NULL
                 );
-                PRAGMA user_version=1;
+                CREATE TABLE IF NOT EXISTS calculator_states (
+                    id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                PRAGMA user_version=2;
             """)
 
     @contextmanager
@@ -43,6 +47,32 @@ class Store:
         with self.connect() as db:
             row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
         return json.loads(row[0]) if row else {"inventory": {}, "rates": {}}
+
+    def calculator_state(self, calculator_id):
+        from .workbook_calculators import source_model
+        from .calculator_defaults import default_calculator_inputs
+        model = source_model(calculator_id)
+        with self.connect() as db:
+            row = db.execute('SELECT data FROM calculator_states WHERE id=?', (calculator_id,)).fetchone()
+        if row is None:
+            return {'inputs': default_calculator_inputs(calculator_id), 'source_sha256': model['source']['sha256']}
+        state = json.loads(row[0])
+        if state.get('source_sha256') != model['source']['sha256']:
+            raise ValidationError('The saved calculator uses a different source workbook version. Its saved inputs have been retained; an explicit version migration is required.')
+        return state
+
+    def save_calculator_state(self, calculator_id, inputs):
+        from .workbook_calculators import validate_calculator_edits, source_model
+        if not isinstance(inputs, dict):
+            raise ValidationError('Include a worksheet input object to save the calculator.')
+        saved = self.calculator_state(calculator_id)  # Reject different source versions before validation or writes.
+        state = {'inputs': validate_calculator_edits(calculator_id, inputs, saved['inputs']),
+                 'source_sha256': source_model(calculator_id)['source']['sha256'],
+                 'updated_at': datetime.now(timezone.utc).isoformat()}
+        with self.connect() as db:
+            db.execute('INSERT INTO calculator_states VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at',
+                       (calculator_id, json.dumps(state, allow_nan=False), state['updated_at']))
+        return state
 
     def save_configuration(self, value):
         value = validate_configuration(value)
@@ -63,16 +93,20 @@ class Store:
 
     def prepare_quote(self, data, quote_id=None):
         """Validate and calculate a pricing snapshot without writing a quote."""
-        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements"}:
+        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements", *QUOTE_DETAIL_LIMITS}:
             raise ValidationError("Quote contains unknown fields.")
         previous = self.quote(quote_id) if quote_id else None
-        title = data.get("title", "Untitled quote")
-        if not isinstance(title, str) or not title.strip() or len(title) > 200:
+        details = validate_quote_details(data, previous)
+        prior = previous or {}
+        legacy_title = prior.get("title", "Untitled quote") if not any(prior.get(key) for key in QUOTE_DETAIL_LIMITS) else "Untitled quote"
+        fallback = data.get("title", legacy_title)
+        if not any(details.values()) and (not isinstance(fallback, str) or not fallback.strip() or len(fallback) > 200):
             raise ValidationError("Quote title must contain 1 to 200 characters.")
-        workflow = data.get("workflow", WORKFLOWS[0])
+        title = compose_quote_title(**details, fallback=fallback)
+        workflow = data.get("workflow", prior.get("workflow", WORKFLOWS[0]))
         if not isinstance(workflow, str) or len(workflow) > 200:
             raise ValidationError("Workflow must be text of at most 200 characters.")
-        measurements = data.get("measurements", "")
+        measurements = data.get("measurements", prior.get("measurements", ""))
         if not isinstance(measurements, str) or len(measurements) > 20000:
             raise ValidationError("Measurement notes must be text of at most 20000 characters.")
         configuration = validate_configuration(data.get("configuration", previous["configuration"] if previous else self.configuration()))
@@ -81,17 +115,22 @@ class Store:
         # Storing only user overrides would let a future baseline price refresh
         # silently change an old quote when it is reopened and recalculated.
         catalog = effective_catalog(configuration)
+        # A quote owns its product identities as well as its prices. Replacing
+        # the live library may remove or rename products without rewriting it.
+        if "catalog" not in configuration:
+            configuration["catalog"] = validate_catalog(configuration_catalog(configuration))
         configuration["rates"] = {
-            rate["id"]: {"price": rate["price"], **({"yield": rate["yield"]} if rate["source"].get("yield") else {})}
+            rate["id"]: {"price": rate["price"], **({"yield": rate["yield"]} if has_yield(rate) else {})}
             for rates in catalog["rate_groups"].values() for rate in rates
         }
         configuration["catalog_signature"] = catalog_signature(catalog)
-        result = calculate(data.get("inputs", {}), configuration)
+        result = calculate(data.get("inputs", prior.get("inputs", {})), configuration)
         quote = {"id": quote_id or str(uuid.uuid4()), "title": title.strip(),
+                 **details, "work_summary": compile_work_summary(workflow, result),
                  "updated_at": datetime.now(timezone.utc).isoformat(), "workflow": workflow,
                  "measurements": measurements, "inputs": result["inputs"],
                  "configuration": configuration, "result": result,
-                 "source_hashes": baseline()["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
+                 "source_hashes": catalog["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
         return quote
 
     def save_quote(self, data, quote_id=None):

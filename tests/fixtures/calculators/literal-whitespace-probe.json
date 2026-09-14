@@ -1,0 +1,233 @@
+{
+  "source_sha256": "282d422db60a9e38d1583d715559f9e1e4f1a4ca1ee49f8cfcde2301d51dfc78",
+  "oracle": {
+    "mode": "Original workbook disposable copy, links disabled, full rebuild, not saved",
+    "version": "16.0",
+    "captured_utc": "2026-09-13T13:57:16.2137112Z",
+    "build": 20326.0,
+    "application": "Microsoft Excel"
+  },
+  "note": "Native Excel synthetic OOXML probe; expectations copied unchanged from direct cell Value2 and concatenation/LEN formulas.",
+  "cases": [
+    {
+      "input": [
+        "str_leading",
+        "str",
+        "  leading",
+        null
+      ],
+      "expected_cell": "leading",
+      "expected_concat": "leading",
+      "expected_length": 7.0
+    },
+    {
+      "input": [
+        "str_trailing",
+        "str",
+        "trailing  ",
+        null
+      ],
+      "expected_cell": "trailing",
+      "expected_concat": "trailing",
+      "expected_length": 8.0
+    },
+    {
+      "input": [
+        "str_both",
+        "str",
+        "  both  ",
+        null
+      ],
+      "expected_cell": "both",
+      "expected_concat": "both",
+      "expected_length": 4.0
+    },
+    {
+      "input": [
+        "str_only_spaces",
+        "str",
+        "   ",
+        null
+      ],
+      "expected_cell": "",
+      "expected_concat": "",
+      "expected_length": 0.0
+    },
+    {
+      "input": [
+        "str_xml_whitespace",
+        "str",
+        "\t\n  both \t\n",
+        null
+      ],
+      "expected_cell": "both",
+      "expected_concat": "both",
+      "expected_length": 4.0
+    },
+    {
+      "input": [
+        "str_v_preserve",
+        "str",
+        "  preserved  ",
+        "value"
+      ],
+      "expected_cell": "  preserved  ",
+      "expected_concat": "  preserved  ",
+      "expected_length": 13.0
+    },
+    {
+      "input": [
+        "str_v_default",
+        "str",
+        "  default  ",
+        "default"
+      ],
+      "expected_cell": "default",
+      "expected_concat": "default",
+      "expected_length": 7.0
+    },
+    {
+      "input": [
+        "str_cell_preserve",
+        "str",
+        "  inherited  ",
+        "cell"
+      ],
+      "expected_cell": "  inherited  ",
+      "expected_concat": "  inherited  ",
+      "expected_length": 13.0
+    },
+    {
+      "input": [
+        "str_row_preserve",
+        "str",
+        "  inherited row  ",
+        "row"
+      ],
+      "expected_cell": "  inherited row  ",
+      "expected_concat": "  inherited row  ",
+      "expected_length": 17.0
+    },
+    {
+      "input": [
+        "str_nbsp",
+        "str",
+        " nbsp ",
+        null
+      ],
+      "expected_cell": " nbsp ",
+      "expected_concat": " nbsp ",
+      "expected_length": 6.0
+    },
+    {
+      "input": [
+        "inline_preserve",
+        "inlineStr",
+        "  inline  ",
+        "value"
+      ],
+      "expected_cell": "  inline  ",
+      "expected_concat": "  inline  ",
+      "expected_length": 10.0
+    },
+    {
+      "input": [
+        "inline_default",
+        "inlineStr",
+        "  inline  ",
+        null
+      ],
+      "expected_cell": "inline",
+      "expected_concat": "inline",
+      "expected_length": 6.0
+    },
+    {
+      "input": [
+        "shared_preserve",
+        "s",
+        "  shared  ",
+        "value"
+      ],
+      "expected_cell": "  shared  ",
+      "expected_concat": "  shared  ",
+      "expected_length": 10.0
+    },
+    {
+      "input": [
+        "shared_default",
+        "s",
+        "  shared  ",
+        null
+      ],
+      "expected_cell": "shared",
+      "expected_concat": "shared",
+      "expected_length": 6.0
+    },
+    {
+      "input": [
+        "formula_preserve",
+        "formula",
+        "  formula  ",
+        null
+      ],
+      "expected_cell": "  formula  ",
+      "expected_concat": "  formula  ",
+      "expected_length": 11.0
+    },
+    {
+      "input": [
+        "str_internal_spaces",
+        "str",
+        "  internal  spaces  ",
+        null
+      ],
+      "expected_cell": "internal  spaces",
+      "expected_concat": "internal  spaces",
+      "expected_length": 16.0
+    },
+    {
+      "input": [
+        "str_preserved_only_spaces",
+        "str",
+        "   ",
+        "value"
+      ],
+      "expected_cell": "   ",
+      "expected_concat": "   ",
+      "expected_length": 3.0
+    },
+    {
+      "input": [
+        "str_newline_edges",
+        "str",
+        "\ninside\n",
+        null
+      ],
+      "expected_cell": "inside",
+      "expected_concat": "inside",
+      "expected_length": 6.0
+    },
+    {
+      "input": [
+        "str_spaces_around_nbsp",
+        "str",
+        "  nbsp  ",
+        null
+      ],
+      "expected_cell": " nbsp ",
+      "expected_concat": " nbsp ",
+      "expected_length": 6.0
+    },
+    {
+      "input": [
+        "str_preserved_xml_whitespace",
+        "str",
+        "\t\n text \t\n",
+        "value"
+      ],
+      "expected_cell": "\t\n text \t\n",
+      "expected_concat": "\t\n text \t\n",
+      "expected_length": 10.0
+    }
+  ]
+}

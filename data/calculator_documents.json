@@ -1,0 +1,753 @@
+{
+  "schema_version": 1,
+  "verified_date": "2026-09-13",
+  "purpose": "Official Australian document links for the products named in the source calculators. Links are reference resources; they do not change the packaged workbook rules or establish project suitability.",
+  "sections": {
+    "steel_vermiculite": [
+      {
+        "title": "CAFCO 300 Australian technical and product data sheet (2025)",
+        "kind": "Technical manual",
+        "url": "https://media.promat.com/doc_367862_au/original/-1912786977/cafco-300-tds-en-au-2025-current.pdf",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Product properties, yield and structural steel protection; source technical data used by the workbooks.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "CAFCO 300 Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/doc_367854_au/original/157331560/cafco300---2022.pdf",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia CAFCO 300; SDS dated 14 December 2022.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "CAFCO 300 application guides and supporting reports — Promat Australia",
+        "kind": "Manufacturer document request",
+        "url": "https://www.promat.com/en-au/construction/products-systems/products/boards/cafco-300-vermiculite-fire-spray/",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Manufacturer product and document portal",
+        "reference_coverage": "Request the application guide and report for the actual steel or duct arrangement.",
+        "notes": "The linked product page provides Australian technical contacts and downloads; a report is not implied by a product listing.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "Cafco MANDOLITE CP2 product and thickness data — Australia",
+        "kind": "Product data sheet",
+        "url": "https://media.promat.com/doc_368491_au/original/1472508648/promat-pds-cafco-mandolite-cp2-en.pdf",
+        "products": [
+          "MANDOLITE CP2"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Product properties, Australian published steel thickness tables and application information.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "CAFCO MANDOLITE CP2 Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/pi266219/original/713660739/cafco-cp2-patch-mix-exp-2026.pdf",
+        "products": [
+          "MANDOLITE CP2"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia SDS explicitly covers MANDOLITE CP2, P20 and patch mixes; dated 16 December 2022.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "MANDOLITE CP2 Australian application guide and reports — request",
+        "kind": "Manufacturer document request",
+        "url": "https://www.promat.com/en-au/construction/products-systems/products/spray-coatings/cafco-mandolite-cp2/",
+        "products": [
+          "MANDOLITE CP2"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Manufacturer product and document portal",
+        "reference_coverage": "Application guide, installation requirements and underlying Australian reports.",
+        "notes": "Request the Australian edition used for the project; overseas guides are not substituted.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "Cafco FENDOLITE MII Australian product information",
+        "kind": "Product data sheet",
+        "url": "https://www.promat.com/en-au/construction/products-systems/products/fire-stopping/cafco-fendolite-mii-cement-fire-spray/",
+        "products": [
+          "FENDOLITE MII"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Manufacturer product and document portal",
+        "reference_coverage": "Australian product page, application types and document portal.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "CAFCO FENDOLITE MII and TG Australian safety data sheet (2026)",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/pi59463/original/17968033/cafco-fendolite-mii-tg.pdf",
+        "products": [
+          "FENDOLITE MII"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia FENDOLITE MII and TG; SDS dated 23 April 2026.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "FENDOLITE MII Australian application guide and assessment — request",
+        "kind": "Manufacturer document request",
+        "url": "https://www.promat.com/en-au/construction/contact-us/",
+        "products": [
+          "FENDOLITE MII"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Request from manufacturer",
+        "reference_coverage": "Request Australian application manual, mesh/primer requirements and exact fire-curve assessment.",
+        "notes": "The workbook is the estimating source. Public overseas hydrocarbon tables are not substituted for its Australian structural-steel basis.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "PERLIFOC HP ECO+ structural steel spray product and application data",
+        "kind": "Product data sheet",
+        "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20Technical%20Documents/Perlifoc%20HP%20ECO/PERLIFOC-HP-ECO-Structural-Steel-Spray-Fire-Protection.pdf?ext=.pdf",
+        "products": [
+          "PERLIFOC HP ECO+"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Tremco Australia product, yield and application information cited in source SETTINGS.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "PERLIFOC HP ECO+ steel assessment FC15622 Issue 4",
+        "kind": "Assessment report",
+        "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Products/Certification%20and%20Technical%20Documents/Perlifoc%20HP%20ECO/FC15622-Issue-4-Tremco-PERLIFOC-AS-4100-Report-FINAL.pdf?ext=.pdf",
+        "products": [
+          "PERLIFOC HP ECO+"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian AS4100 steel assessment and published thickness tables.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "PERLIFOC HP ECO+ Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://www.tremco.com.au/TremcoAustralia/media/SiteAssets/Safety%20Data%20Sheets%20%28SDS%29/Perlifoc_Hp_Eco_-Aust_-_SDS.pdf?ext=.pdf",
+        "products": [
+          "PERLIFOC HP ECO+"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Tremco CPG Australia SDS for the exact HP Eco+ product.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "PERLIFOC HP ECO+ manuals, specifications and installation resources",
+        "kind": "Installation guide",
+        "url": "https://www.tremco.com.au/products/perlifoc-hp-eco",
+        "products": [
+          "PERLIFOC HP ECO+"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Manufacturer product and document portal",
+        "reference_coverage": "Official Australian specifications, product application document and assessment downloads.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE MK-6 HY Australian product data sheet",
+        "kind": "Product data sheet",
+        "url": "https://gcpat.com.au/sites/default/files/pdf/current/resource/GCPAT_monokote_mk_6hy_mk_6s_au_5546.pdf",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "GCP Australia MK-6 HY / MK-6s product data. MK-6 HY product section applies to these calculators.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE MK-6 HY Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://tfire.com.au/documents/MONOKOTE-MSDS",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian MK-6 HY SDS distributed by Trafalgar; the NZ SDS is not substituted.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE steel protection technical manual",
+        "kind": "Technical manual",
+        "url": "https://tfire.com.au/documents/fire-spray-for-steel-protection-technical-manual",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Trafalgar Australian structural-steel protection guidance; use MK-6 HY sections.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE solid steel assessment FAR4853",
+        "kind": "Assessment report",
+        "url": "https://tfire.com.au/documents/Monokote-Internal-Fire-Solid-Steel-Sections-FAR4853",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian internal-fire solid steel sections.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE hollow steel assessment FAR4856",
+        "kind": "Assessment report",
+        "url": "https://tfire.com.au/documents/Internal-Fire-Hollow-Steel-Sections-FAR4856",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian internal-fire hollow steel sections.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      }
+    ],
+    "ductwork": [
+      {
+        "title": "CAFCO 300 Australian technical and product data sheet (2025)",
+        "kind": "Technical manual",
+        "url": "https://media.promat.com/doc_367862_au/original/-1912786977/cafco-300-tds-en-au-2025-current.pdf",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Product properties, yield and structural steel protection; source technical data used by the workbooks.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "CAFCO 300 Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/doc_367854_au/original/157331560/cafco300---2022.pdf",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia CAFCO 300; SDS dated 14 December 2022.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "CAFCO 300 horizontal and vertical duct assessment FAS230196 RIR3.2",
+        "kind": "Assessment report",
+        "url": "https://media.promat.com/cert_371270_au/original/-1113990729/cafco-300---duct-assessment---horizontal-and-vertical-1-4-sided-as1530.4-2014-20240417-fas230196-rir3.2-external.pdf?brand=promatconstruction&market=au",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian AS1530.4:2014 duct assessment referenced by the source calculator; 17 April 2024.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "CAFCO 300 application guides and supporting reports — Promat Australia",
+        "kind": "Manufacturer document request",
+        "url": "https://www.promat.com/en-au/construction/products-systems/products/boards/cafco-300-vermiculite-fire-spray/",
+        "products": [
+          "CAFCO 300"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Manufacturer product and document portal",
+        "reference_coverage": "Request the application guide and report for the actual steel or duct arrangement.",
+        "notes": "The linked product page provides Australian technical contacts and downloads; a report is not implied by a product listing.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE MK-6 HY Australian product data sheet",
+        "kind": "Product data sheet",
+        "url": "https://gcpat.com.au/sites/default/files/pdf/current/resource/GCPAT_monokote_mk_6hy_mk_6s_au_5546.pdf",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "GCP Australia MK-6 HY / MK-6s product data. MK-6 HY product section applies to these calculators.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE MK-6 HY Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://tfire.com.au/documents/MONOKOTE-MSDS",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian MK-6 HY SDS distributed by Trafalgar; the NZ SDS is not substituted.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE duct assessment FC15909-01-2",
+        "kind": "Assessment report",
+        "url": "https://tfire.com.au/documents/monokote-gcp-test-report",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian AS1530.4:2014 duct report; source workbook FC15909 reference family.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "FyreWrap Australian ductwork technical and installation manual",
+        "kind": "Technical manual",
+        "url": "https://tfire.com.au/documents/FyreWrap_Technical_Manual",
+        "products": [
+          "FyreWrap"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Duct applications, overlaps, local layers, collars, fixing details, installation checklist and product specifications.",
+        "notes": "Current official product download verified. Dated 111024 manual Table2 on printed page23 confirms M6 masonry fixings.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "FyreWrap external-fire duct assessment FC17299",
+        "kind": "Assessment report",
+        "url": "https://tfire.com.au/documents/FyreWrap-external-fire-test-report",
+        "products": [
+          "FyreWrap"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian external-fire duct assessment referenced by the source workbook.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "FyreWrap internal-fire duct assessment FCO3226",
+        "kind": "Assessment report",
+        "url": "https://tfire.com.au/documents/FyreWrap-Test-Report",
+        "products": [
+          "FyreWrap"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian internal-fire duct assessment referenced by the source workbook.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "FyreWrap Elite Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://tfire.com.au/documents/FyreWRAP_MSDS",
+        "products": [
+          "FyreWrap"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Alkegen Australia SDS AU0009, 25 March 2024; includes Elite 1.5 duct insulation.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "MONOKOTE Australian ductwork technical and installation manual",
+        "kind": "Technical manual",
+        "url": "https://tfire.com.au/documents/fire-spray-for-ductwork-technical-manual",
+        "products": [
+          "MONOKOTE MK-6 HY"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Trafalgar Australian ductwork guide 220426: application, supports, components, fixing details and specifications.",
+        "notes": "The published 23.8kg packaging statement differs from the 21.8kg GCP product sheet; workbook calibrated yield is retained without a bag-mass conversion.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      }
+    ],
+    "steel_board": [
+      {
+        "title": "COREX structural steel assessment FAS200445 R2.0",
+        "kind": "Assessment report",
+        "url": "https://tfire.com.au/documents/COREX-AS4100-report",
+        "products": [
+          "TRAFALGAR COREX"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "21 October 2025 assessment to AS4100:2020 Amendment1; source workbook thickness and fixing evidence.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "COREX structural steel technical and installation manual",
+        "kind": "Technical manual",
+        "url": "https://tfire.com.au/documents/Corex-Technical-Manual",
+        "products": [
+          "TRAFALGAR COREX"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Official Australian steel-product download covering material properties, installation and steel details.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "COREX A1 Australian safety data sheet (2026)",
+        "kind": "Safety data sheet",
+        "url": "https://tfire.com.au/documents/COREX-MSDS-report",
+        "products": [
+          "TRAFALGAR COREX"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Trafalgar Australia SDS, revision 21 July 2026.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "HEAD"
+        }
+      },
+      {
+        "title": "PROMATECT 250 Australian steel protection handbook",
+        "kind": "Technical manual",
+        "url": "https://media.promat.com/pi9201/original/1931937606/promat-promatect-250-steel-protection.-en-au",
+        "products": [
+          "PROMATECT 250"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian product properties, steel tables, installation details and application limitations.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "PROMATECT 250 Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/doc_368487_au/original/-2109915742/promatect-250.pdf?brand=promatconstruction&market=au",
+        "products": [
+          "PROMATECT 250"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia SDS for PROMATECT-250, dated 25 May 2021.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "PROMATECT 100 Australian handbook 2023",
+        "kind": "Technical manual",
+        "url": "https://media.promat.com/pi9217/original/306051383/promatect-100-handbook-au---2023.pdf",
+        "products": [
+          "PROMATECT 100"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Exact Australian 2023 handbook edition named by the source workbook; steel protection, product properties and installation details.",
+        "notes": "PROMATECT 100 is retained as the source product; PROMATECT 100X is not substituted.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "PROMATECT 100 Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/doc_367767_au/original/1414809058/promatect-100---2022.pdf?brand=promatconstruction&market=au",
+        "products": [
+          "PROMATECT 100"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia SDS for PROMATECT-100, dated 14 December 2022.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "PROMATECT-XS Australian brochure and technical information (June 2025)",
+        "kind": "Technical manual",
+        "url": "https://media.promat.com/doc_368489_au/original/1272755470/promatect-xs-brochure_au_rev4_0625.pdf?brand=promatconstruction&market=au",
+        "products": [
+          "PROMATECT-XS"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian second-generation board product and steel protection information; references FAS230021.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "PROMATECT-XS Australian installation guide",
+        "kind": "Installation guide",
+        "url": "https://media.promat.com/pi687754/original/1339495521/promatect-xs-brochure_installation_au_rev2_24.pdf",
+        "products": [
+          "PROMATECT-XS"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Australian structural steel board installation guide, revision2 2024.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "PROMATECT-XS second generation Australian safety data sheet",
+        "kind": "Safety data sheet",
+        "url": "https://media.promat.com/doc_368490_au/original/-537705500/promatect-xs---2nd-generation-sds.pdf?brand=promatconstruction&market=au",
+        "products": [
+          "PROMATECT-XS"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Public PDF",
+        "reference_coverage": "Promat Australia SDS for PROMATECT XS2, dated 4 September 2023.",
+        "notes": "",
+        "link_verification": {
+          "status": 200,
+          "content_type": "application/pdf",
+          "method": "GET (headers and 4-byte signature only)"
+        }
+      },
+      {
+        "title": "Promat Australian underlying steel assessments — request exact report",
+        "kind": "Manufacturer document request",
+        "url": "https://www.promat.com/en-au/construction/contact-us/",
+        "products": [
+          "PROMATECT 250",
+          "PROMATECT 100",
+          "PROMATECT-XS"
+        ],
+        "region": "Australia",
+        "verified_date": "2026-09-13",
+        "availability": "Request from manufacturer",
+        "reference_coverage": "Request the exact PROMATECT 250/100 steel assessment or PROMATECT-XS FAS230021 and project-specific detail evidence.",
+        "notes": "Underlying reports were not located as public downloads. This link is a request route, not an assessment report.",
+        "link_verification": {
+          "status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "method": "HEAD"
+        }
+      }
+    ]
+  }
+}

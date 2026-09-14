@@ -1,4 +1,6 @@
+import base64
 import http.client
+from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
@@ -8,6 +10,9 @@ from unittest.mock import patch
 
 from estimator.catalog import ROOT, baseline
 from estimator.server import create_server
+from estimator.report import render_quote_pdf
+from estimator.storage import Store
+from openpyxl import load_workbook
 from test_report import pdf_text
 
 
@@ -106,13 +111,112 @@ class ServerTests(unittest.TestCase):
         quote = json.loads(body)
         changed = baseline()
         changed["sources"]["quote"]["sha256"] = "later-source-hash"
-        with patch("estimator.storage.baseline", return_value=changed):
+        with patch("estimator.catalog.baseline", return_value=changed), patch("estimator.report.render_quote_pdf", wraps=render_quote_pdf) as renderer:
             status, _, payload = self.request("POST", "/api/quote-report", {"source_quote_id": quote["id"], "title": "Unsaved changes", "inputs": {"B15": 12}, "configuration": quote["configuration"]})
         self.assertEqual(status, 200)
-        text = "".join(pdf_text(payload).split())
-        self.assertIn(quote["source_hashes"]["quote"]["sha256"], text)
-        self.assertNotIn("later-source-hash", text)
+        self.assertEqual(renderer.call_args.args[0]["source_hashes"], quote["source_hashes"])
+        self.assertNotIn("later-source-hash", pdf_text(payload))
         self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], body)
+
+    def test_excel_import_is_a_draft_until_save_and_replaces_choices(self):
+        previous = json.loads(self.request("GET", "/api/configuration")[2])
+        try:
+            self.assertEqual(self.request("PUT", "/api/configuration", {"inventory": {}, "rates": {}})[0], 200)
+            _, _, original = self.request("POST", "/api/quotes", {"title": "Before library replacement", "inputs": {"B15": 12.25}})
+            quote = json.loads(original)
+            status, headers, exported = self.request("POST", "/api/pricing/export", {})
+            self.assertEqual(status, 200)
+            self.assertIn("spreadsheetml.sheet", headers["Content-Type"])
+            workbook = load_workbook(BytesIO(exported))
+            inventory, rates = workbook["Inventory"], workbook["Rates"]
+            self.assertEqual(inventory.max_row, 418)
+            self.assertEqual(rates.max_row, 167)
+            # Delete the current default choice and add a new product and choice.
+            for row in rates.iter_rows(min_row=2):
+                if row[3].value == "Promat Cafco 300":
+                    rates.delete_rows(row[0].row)
+                    break
+            inventory.append(["qa-new-product", "QA-001", "Replacement spray", "Replacement spray", "Supplier markup", 100, .25, 125] + [None] * 11)
+            rates.append(["qa-new-rate", "sprays", "qa-new-product", "Replacement spray", "Inventory", 125, "Not used", None])
+            stream = BytesIO()
+            workbook.save(stream)
+            workbook.close()
+            pricing_before = self.request("GET", "/api/configuration")[2]
+            status, _, body = self.request("POST", "/api/pricing/import", {"filename": "replacement.xlsx", "content_base64": base64.b64encode(stream.getvalue()).decode()})
+            self.assertEqual(status, 200, body)
+            proposed = json.loads(body)
+            self.assertEqual(proposed["summary"]["inventory"]["added"], 1)
+            self.assertEqual(proposed["summary"]["rates"]["added"], 1)
+            self.assertEqual(proposed["summary"]["rates"]["removed"], 1)
+            self.assertEqual(self.request("GET", "/api/configuration")[2], pricing_before)
+            self.assertEqual(self.request("PUT", "/api/configuration", proposed["configuration"])[0], 200)
+            self.assertEqual(Store(Path(self.temp.name) / "test.sqlite3").configuration(), proposed["configuration"])
+            _, _, body = self.request("GET", "/api/bootstrap")
+            field = next(field for field in json.loads(body)["fields"] if field["cell"] == "D15")
+            self.assertIn("Replacement spray", field["options"])
+            self.assertNotIn("Promat Cafco 300", field["options"])
+            status, _, body = self.request("POST", "/api/calculate", {"inputs": {"D15": "Replacement spray", "B15": 10}})
+            self.assertEqual(status, 200)
+            result = json.loads(body)
+            self.assertEqual(result["cells"]["A63"], 125)
+            self.assertIsInstance(result["summary"]["total"], (int, float))
+            # Existing quote owns the removed product, prices and dropdowns.
+            self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], original)
+            status, _, body = self.request("POST", "/api/calculate", {"inputs": quote["inputs"], "configuration": quote["configuration"]})
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["cells"], quote["result"]["cells"])
+            self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}/report.pdf')[0], 200)
+        finally:
+            self.assertEqual(self.request("PUT", "/api/configuration", previous)[0], 200)
+
+    def test_bad_pricing_uploads_do_not_change_configuration(self):
+        before = self.request("GET", "/api/configuration")[2]
+        for body in ({}, {"filename": "rates.xlsm", "content_base64": "QQ=="},
+                     {"filename": "rates.xlsx", "content_base64": "broken!"},
+                     {"filename": "rates.xlsx", "content_base64": ""},
+                     {"filename": "rates.xlsx", "content_base64": "QQ=="}):
+            with self.subTest(body=body):
+                self.assertEqual(self.request("POST", "/api/pricing/import", body)[0], 400)
+                self.assertEqual(self.request("GET", "/api/configuration")[2], before)
+        self.assertEqual(self.request("POST", "/api/pricing/export", {}, {"Origin": "https://attacker.example"})[0], 403)
+
+    def test_estimate_details_name_summary_and_pdf_round_trip(self):
+        data = {"title": "Name is generated", "project_no": " CF-123 ", "client": " Example Client ",
+                "site_address": " 42 Test Street ", "workflow": "Fire wrap to ductwork",
+                "inputs": {"D15": "Trafalgar FyreWRAP 610", "B15": 12.34567}}
+        status, _, payload = self.request("POST", "/api/quotes", data)
+        self.assertEqual(status, 201, payload)
+        quote = json.loads(payload)
+        self.assertEqual(quote["title"], "CF-123- Example Client- 42 Test Street")
+        self.assertEqual(quote["client"], "Example Client")
+        self.assertEqual(quote["inputs"]["B15"], 12.34567)
+        self.assertIn("Fire wrap to ductwork", quote["work_summary"])
+        self.assertIn("Trafalgar FyreWRAP 610", quote["work_summary"])
+        self.assertNotIn("12.34567", quote["work_summary"])
+        self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], payload)
+        status, _, pdf = self.request("GET", f'/api/quotes/{quote["id"]}/report.pdf')
+        self.assertEqual(status, 200)
+        content = pdf_text(pdf)
+        for text in ("CF-123", "Example Client", "42 Test Street", "Work summary", "Trafalgar FyreWRAP 610"):
+            self.assertIn(text, content)
+        status, _, edited = self.request("PUT", f'/api/quotes/{quote["id"]}', {
+            "client": "Updated Client", "inputs": quote["inputs"], "workflow": quote["workflow"],
+        })
+        self.assertEqual(status, 200, edited)
+        self.assertEqual(json.loads(edited)["title"], "CF-123- Updated Client- 42 Test Street")
+
+    def test_work_summary_reacts_to_workflow_and_products_without_changing_calculation(self):
+        inputs = {"D15": "Promat Cafco 300", "B15": 2.34567}
+        status, _, first = self.request("POST", "/api/calculate", {"inputs": inputs, "workflow": "Intumescent spray to slabs"})
+        self.assertEqual(status, 200)
+        status, _, second = self.request("POST", "/api/calculate", {"inputs": inputs, "workflow": "Intumescent spray to walls"})
+        self.assertEqual(status, 200)
+        first, second = json.loads(first), json.loads(second)
+        self.assertEqual(first["cells"], second["cells"])
+        self.assertIn("Intumescent spray to slabs", first["work_summary"])
+        self.assertIn("Intumescent spray to walls", second["work_summary"])
+        for invalid in ({"workflow": {}}, {"workflow": "x" * 201}, {"work_summary": "Invented work"}):
+            self.assertEqual(self.request("POST", "/api/calculate", invalid)[0], 400)
 
     def test_pdf_requests_validate_inputs_and_respect_origin_boundary(self):
         for data in ({"title": ""}, {"title": "Invalid", "inputs": {"F7": 99}}, {"title": "Invalid", "source_quote_id": 123}):

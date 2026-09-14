@@ -40,10 +40,19 @@ _OMITTED_ROWS = {
         'SCHEDULE': [1, 2, 3, 8],
         'CALCULATOR': list(range(33, 42)),
     },
-    'steel_board': {'START': [3, 5, 6, *range(34, 40)]},
+    'steel_board': {'START': [3, 5, 6, *range(34, 40)], 'CALCULATOR': [2, 5, 7]},
+    'ductwork': {'CALCULATOR': [5, 6, 7, 9]},
 }
 _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
-                    'ductwork': {'CALCULATOR': [37]}}  # AK clearance guide; source values remain intact.
+                    'ductwork': {'CALCULATOR': [37, 38, 42, 43, 44]}}
+# Duct AJ is followed by the still-calculated AN/AO volume and yield outputs.
+# Column identities remain source coordinates; this order is browser-only.
+_DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]}}
+_DISPLAY_TEXT = {
+    'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'}},
+    'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
+                 'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'}},
+}
 # SUMMARY has independent tables sharing source column letters. Their browser
 # columns must be scoped to each table so hiding prose cannot hide quantities
 # in a different table. Widths are presentation pixels, not business constants.
@@ -68,7 +77,8 @@ _PRESENTATION_TABLES = {
     ]},
 }
 _OMITTED_RANGES = {'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']},
-                   'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13']}}
+                   'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13'],
+                                   'CALCULATOR': ['Y1:AI1', 'A6:L6']}}
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
 
 
@@ -245,6 +255,8 @@ def _sheet_metadata(model, sheet):
             'omitted_rows': list(_OMITTED_ROWS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),
+            'display_column_order': list(_DISPLAY_COLUMN_ORDER.get(model['id'], {}).get(sheet['name'], [])),
+            'display_text': dict(_DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {})),
             'presentation_tables': deepcopy(_PRESENTATION_TABLES.get(model['id'], {}).get(sheet['name'], [])),
             'table_layout': 'stacked' if model['id'] == 'steel_board' and sheet['name'] == 'SETTINGS' else 'inline',
             'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()

@@ -1,5 +1,53 @@
 # Session handoff
 
+## Calculator labels and column order — 2026-09-15
+
+Started from clean merged main `ef5cfc6` (PR #9), on
+`fix/calculator-labels-and-columns`. All twelve browser comments are implemented
+as display changes. The user's clarification removes only the board schedule's
+INPUTS / RESULTS labels and keeps all three BOARD SUMMARY total cards.
+
+The board schedule title is STRUCTURAL STEEL BOARD SCHEDULE; the product table
+heading is Board Totals. Requested production and introductory text is omitted,
+while the live incomplete-order warning remains. Duct titles are DUCT PROTECTION
+CALCULATOR and DUCT PROTECTION SUMMARY. The requested duct introductory text,
+fixing/qualification/source columns and blank AR spacer are hidden in both
+normal and advanced views. Spray body volume and working yield follow combined
+angle length. Source coordinates, inputs, formulas and reports are unchanged.
+Exact mappings are in docs/CALCULATOR_PRESENTATION_MAPPING.md.
+
+Verified locally:
+- The metadata/source-package preservation test passed (16.086 seconds), with
+  no editable cells overlapping omitted rows, columns, ranges or title aliases.
+- Four native Excel parity tests passed (69.891 seconds), covering duct and
+  board defaults, retained variations and the approved duct instruction exception.
+- All 63 calculator UI checks and 17 original UI checks, JavaScript syntax,
+  build (34 files) and whitespace checks passed.
+- All 36,176 source cells, input/formula flags and dropdown choices across the
+  four affected pages matched before/after, including the refreshed main service.
+- Board (8 pages) and duct (4 pages) PDF text matched the pre-change reports.
+- Live browser review confirmed 200 board and 300 duct schedule rows, all inputs,
+  retained three summary cards, renamed titles and normal/advanced column order.
+  Doubling a test duct length from 10 to 20 m changed volume from 0.60 to 1.20 m³
+  and bags from 11.70 to 23.40; the new layout survived recalculation. The test
+  input was restored. Browser error logs were empty.
+- Independent code and real-renderer review found no actionable issues; it also
+  checked control retention, unchanged raw results and the live order warning.
+
+The local service was refreshed with its original database. Both saved quotes
+and all pricing/calculator records matched the recovery baseline. Served assets
+and display metadata match the current code. The user's open tab was left
+untouched; refresh it to load the new interface, after saving any current draft.
+Isolated QA databases, PDFs, recovery backup and logs remain ignored under
+`.runtime/label-column-qa`; the distribution is ignored under `dist/`.
+
+This change does not alter source workbooks/packages, architecture, schema,
+pricing or passive-fire rules. The external board workbook re-save identity
+difference documented in PR #9 remains a separate existing limitation; no
+fresh byte-for-byte source-file claim is made here. Current native calculation
+regressions use the retained Excel results. Publication, exact-commit CI and
+merge evidence are recorded in the associated PR and local publication receipt.
+
 ## Board settings and product totals — 2026-09-15
 
 Started from clean merged main `2927cbe` (PR #8), on

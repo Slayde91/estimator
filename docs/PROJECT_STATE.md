@@ -2,7 +2,21 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The current board-only browser cleanup stacks SETTINGS into General settings,
+The current browser cleanup changes the displayed board schedule title to
+STRUCTURAL STEEL BOARD SCHEDULE and its product-summary heading to Board Totals.
+It removes the requested introductory rows/blocks while retaining the live
+incomplete-order warning and all 200 schedule rows. The separate BOARD SUMMARY
+page keeps its three cards, as clarified by the user.
+
+Ductwork displays DUCT PROTECTION CALCULATOR and DUCT PROTECTION SUMMARY. Its
+schedule omits the requested introductory rows and clearance/fixing/qualification
+columns, and places volume/yield before support instructions. Source page names,
+input keys, formulas, quantity holds, the approved copied-text correction and
+PDFs remain unchanged. Exact aliases, omissions and column order are recorded in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Current checks
+and publication outcomes belong in SESSION_HANDOFF.md and are not claimed here.
+
+The preceding board-only browser cleanup stacks SETTINGS into General settings,
 Fire periods and temperatures, and Diagnostic messages. It hides the primary
 Basis column and the dropdown table's final two reference/explanation rows
 using bounded display ranges. All 28 editable settings, exact values,

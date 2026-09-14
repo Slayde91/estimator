@@ -173,22 +173,34 @@ Parameter-table headers are rows 35/68/100/177/233. Preserve product-specific un
 
 ### CALCULATOR
 
-Render title, instructions and the source band headings in rows 1–9 above one table. Row 10 is its header; rows 11–310 are the full 300-row schedule. A contains fixed line numbers and is never imported. Inputs B:I are size, product, length, FRL, wall/floor counts, application and orientation.
+The browser displays A1 as **DUCT PROTECTION CALCULATOR** and omits introductory
+rows 5, 6, 7 and 9. These are display aliases/omissions; the source title, cells
+and CALCULATOR page name remain unchanged. Row 10 is the table header; rows
+11–310 remain the full 300-row schedule. A contains fixed line numbers and is
+never imported. Inputs B:I are size, product, length, FRL, wall/floor counts,
+application and orientation.
 
 Group results as J:P status/area/spray/wrap/roll/board quantities; Q:X wrap fixing/layers/local zones; Y:AC Maxilite strip geometry; AD:AJ penetration steel; AK:AM fixing/support instructions; AN:AO volume/yield; AP:AQ quantity qualifications/source. AR is a spacer. AS:CL are hidden helpers because source width is zero even though `hidden="0"`; omit them from normal presentation.
 
-At the user's request, omit AK (column 37), **Penetration clearance guide**, from
-both normal and advanced browser tables. This is a display omission only: all
-300 source formulas and their guidance remain in the calculation model and full
-worksheet response. AL **Penetration fixing guide**, AM support instructions,
-all input columns, quantities and source settings remain available. The PDF
-projection is unchanged.
+The browser omits columns 37/38/42/43/44 (AK, AL, AP, AQ and AR) in both normal
+and advanced views. This includes the penetration clearance/fixing guides,
+quantity qualification/source columns and spacer. Their formulas, text and
+withheld-quantity rules remain in the calculation model and worksheet response.
+The approved first-row-based copied-text correction to AL remains applied even
+though its browser column is hidden; the PDF projection is unchanged.
 
-Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to long notes. Do not squeeze those into ordinary numeric widths or enlarge every other column to match them. Keep all qualification text reachable and wrapped. A 300-row table may scroll vertically and horizontally on this one page without changing row identities.
+The configured display order is 1–36, 40, 41, 37, 38, 39, 42, 43, 44. Applying
+the omissions puts AN/AO volume/yield immediately after AJ, followed by AM
+support instructions: A:AJ, AN, AO, AM. Any remaining advanced columns retain
+their source order. Reordering affects headers and values together without
+renaming input keys or moving source cells.
+
+Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to long notes. Widths for omitted columns remain source evidence rather than visible layout requirements. Keep the remaining status/support text wrapped at readable widths. A 300-row table may scroll vertically and horizontally on this one page without changing row identities.
 
 ### SUMMARY
 
-The current browser projection uses four independent tables, with each table
+The browser displays A1 as **DUCT PROTECTION SUMMARY** while retaining the source
+title and SUMMARY page name. The current projection uses four independent tables, with each table
 keeping its own columns and widths. This supersedes the earlier recommendation
 to display every source commentary column:
 
@@ -229,7 +241,14 @@ Rows 40–100 are entirely decorative padding. There is no reason to display the
 
 ### CALCULATOR
 
-Move merged introductory notes rows 1–7 above the table, retaining their live warnings. Replace the six source summary cards with one running-total row per board product. Row 8 supplies the schedule column labels. Render all 200 rows 9–208 in one table. A:L are normal inputs; M:X are advanced inputs and must be available through the existing advanced toggle; Y:AI are the primary results.
+The browser displays A1 as **STRUCTURAL STEEL BOARD SCHEDULE**. It omits rows
+2, 5 and 7 plus Y1:AI1 and A6:L6 from the introduction, retaining the live Y6
+incomplete-order warning. Source titles and the CALCULATOR page name remain
+unchanged. The six source summary cards are replaced by one running-total row
+per product under **Board Totals**. This heading change does not remove the
+three cards on the separate BOARD SUMMARY page. Row 8 supplies the schedule
+column labels. All 200 rows 9–208 remain in one table. A:L are normal inputs;
+M:X remain available through the advanced toggle; Y:AI are the primary results.
 
 Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
 
@@ -370,6 +389,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
 - Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits only the Both/Mixed block J6:Q21. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
 - Board SETTINGS stacks three tables and keeps all 28 editable values, dependent dropdowns and diagnostic lookups. BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
+- Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; Board Totals does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. The three A1 title aliases do not rename worksheet/input keys.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

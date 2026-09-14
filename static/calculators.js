@@ -177,8 +177,11 @@
     return hidden;
   }
 
-  function sourceDisplayText(value, entry, address) {
-    if (typeof value !== "string" || !entry) return value;
+  function sourceDisplayText(value, entry, address, result = entry?.result) {
+    if (!entry) return value;
+    const overrides = result?.display_text || sheetMetadata(entry).display_text || {};
+    if (Object.prototype.hasOwnProperty.call(overrides, address) && typeof overrides[address] === "string") return overrides[address];
+    if (typeof value !== "string") return value;
     if (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && address === "A1") return "Product Settings and Rules";
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
@@ -329,7 +332,7 @@
     for (const column of Array.isArray(metadata.columns) ? metadata.columns : []) if (column.label) labels[columnNumber(column.column)] = column.label;
     for (const column of entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule.columns || [] : []) if (column.label) labels[columnNumber(column.column)] = column.label;
     for (const row of result.rows || []) if (headerRows.has(row.row)) {
-      for (const cell of row.cells) if (cell.value !== null && cell.value !== "" && !cell.editable) labels[cell.column] = String(cell.value);
+      for (const cell of row.cells) if (cell.value !== null && cell.value !== "" && !cell.editable) labels[cell.column] = String(sourceDisplayText(cell.value, entry, cell.address || `${columnName(cell.column)}${row.row}`, result));
     }
     entry.labels[entry.sheet] = labels;
     return labels;
@@ -359,7 +362,7 @@
 
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {} };
   }
 
   function omittedCell(metadata) {
@@ -395,7 +398,7 @@
     // rebuild that structure; ordinary schedule edits still retain every control.
     const rows = result.rows.filter((row) => !omittedRows.has(row.row));
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -427,7 +430,7 @@
     for (const [labelAddress, valueAddress] of pairs) {
       const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
       if (!label || !value || !columns.includes(value.column)) continue;
-      const card = node("div", "calculator-summary-metric"), heading = node("span", "", label.value), output = node("strong");
+      const card = node("div", "calculator-summary-metric"), heading = node("span", "", sourceDisplayText(label.value, entry, labelAddress)), output = node("strong");
       output.dataset.calculatorValue = "true"; output.calculatorValueCard = card;
       output.dataset.calculatorOutput = valueAddress; updateOutputCell(output, value); card.append(heading, output); cards.append(card);
     }
@@ -461,7 +464,7 @@
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
-    const heading = node("h4", "", board ? "Running board totals" : "Running material totals"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
+    const heading = node("h4", "", board ? "Board Totals" : "Running material totals"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
     const scroll = node("div", "calculator-product-totals-scroll"), table = node("table"), head = node("thead"), body = node("tbody"), headers = node("tr");
     for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
@@ -482,7 +485,7 @@
       const position = parseAddress(address);
       if (!position || omittedRows.has(position.row) || omittedColumns.has(position.column) || isOmitted(position.row, position.column)) return null;
       const cell = cells.get(address);
-      return cell && cell.value !== null && cell.value !== "" ? { address, label: sourceDisplayText(cell.value, entry, address), id: `calculator-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${address}`, theme: index % 11 } : null;
+      return cell && cell.value !== null && cell.value !== "" ? { address, label: sourceDisplayText(cell.value, entry, address, result), id: `calculator-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${address}`, theme: index % 11 } : null;
     }).filter(Boolean);
   }
 
@@ -502,6 +505,7 @@
     const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), isOmitted = omittedCell(metadata);
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column))).filter((column) => !omittedColumns.has(column));
+    columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const presentationTables = metadata.presentation_tables;

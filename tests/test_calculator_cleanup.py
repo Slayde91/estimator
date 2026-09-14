@@ -191,11 +191,23 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertEqual(sheet["omitted_columns"], [22, 23, 24] if sheet["name"] == "SCHEDULE" else [])
         for identity in ("steel_board", "ductwork"):
             for sheet in self.request("GET", identity=identity)["sheets"]:
-                self.assertEqual(sheet["omitted_rows"], [3, 5, 6, *range(34, 40)] if identity == "steel_board" and sheet["name"] == "START" else [])
-                self.assertEqual(sheet["omitted_columns"], [37] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else [])
+                expected_other_rows = {("steel_board", "START"): [3, 5, 6, *range(34, 40)],
+                                       ("steel_board", "CALCULATOR"): [2, 5, 7],
+                                       ("ductwork", "CALCULATOR"): [5, 6, 7, 9]}
+                self.assertEqual(sheet["omitted_rows"], expected_other_rows.get((identity, sheet["name"]), []))
+                self.assertEqual(sheet["omitted_columns"], [37, 38, 42, 43, 44] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else [])
                 expected_ranges = {("ductwork", "PRODUCT SETTINGS"): ["J6:Q21"],
-                                   ("steel_board", "SETTINGS"): ["D5:D34", "G12:N13"]}
+                                   ("steel_board", "SETTINGS"): ["D5:D34", "G12:N13"],
+                                   ("steel_board", "CALCULATOR"): ["Y1:AI1", "A6:L6"]}
                 self.assertEqual(sheet["omitted_ranges"], expected_ranges.get((identity, sheet["name"]), []))
+                expected_titles = {("steel_board", "CALCULATOR"): "STRUCTURAL STEEL BOARD SCHEDULE",
+                                   ("ductwork", "CALCULATOR"): "DUCT PROTECTION CALCULATOR",
+                                   ("ductwork", "SUMMARY"): "DUCT PROTECTION SUMMARY"}
+                title = expected_titles.get((identity, sheet["name"]))
+                self.assertEqual(sheet["display_text"], {"A1": title} if title else {})
+                expected_order = [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else []
+                self.assertEqual(sheet["display_column_order"], expected_order)
+                self.assertEqual(len(sheet["display_column_order"]), len(set(sheet["display_column_order"])))
                 if identity == "ductwork" and sheet["name"] == "SUMMARY":
                     tables = sheet["presentation_tables"]
                     self.assertEqual([(table["first_row"], table["last_row"], table["columns"]) for table in tables],
@@ -212,6 +224,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                 # source updates move editable cells into these regions.
                 for address in editable_cells(identity, sheet["name"]):
                     row, column = coordinates(address)
+                    self.assertNotIn(address, sheet["display_text"])
                     self.assertNotIn(row, sheet["omitted_rows"])
                     self.assertNotIn(column, sheet["omitted_columns"])
                     self.assertFalse(any(_contains(region, row, column) for region in sheet["omitted_ranges"]))

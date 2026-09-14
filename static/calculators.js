@@ -398,7 +398,9 @@
     // rebuild that structure; ordinary schedule edits still retain every control.
     const rows = result.rows.filter((row) => !omittedRows.has(row.row));
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
+    const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -450,7 +452,7 @@
       }
       const role = presentationRole(cell);
       const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
-      if (cell.calculated || isNumber(cell.value)) item.dataset.calculatorValue = "true";
+      if (cell.calculated || isNumber(cell.value) || !["title", "section", "column_header", "label"].includes(role)) item.dataset.calculatorValue = "true";
       item.dataset.calculatorOutput = address;
       updateOutputCell(item, cell); box.append(item);
     }
@@ -510,11 +512,19 @@
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const presentationTables = metadata.presentation_tables;
     const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
+    const projectedTables = metadata.table_layout === "projected" && presentationTables.length > 0;
     const boardSummary = entry.definition.id === "steel_board" && entry.sheet === "BOARD SUMMARY";
     const tableForRow = (row) => presentationTables.findIndex((table) => row >= table.first_row && row <= table.last_row);
     const merges = (metadata.merges || []).map((range) => {
       const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
     }).filter(Boolean);
+    const regions = presentationTables.map((definition, index) => {
+      const title = parseAddress(definition.title_address);
+      const titleRange = title && (merges.find(({ start }) => start.row === title.row && start.column === title.column) || { start: title, end: title });
+      const regionColumns = new Set(definition.columns.map(columnNumber));
+      return { definition, index, contains: (row, column) => row >= definition.first_row && row <= definition.last_row && regionColumns.has(column),
+        isTitle: (row, column) => Boolean(titleRange && row >= titleRange.start.row && row <= titleRange.end.row && column >= titleRange.start.column && column <= titleRange.end.column) };
+    });
     if (!schedule) {
       const occupied = new Set(), populated = new Set();
       for (const row of visibleRows) for (const cell of row.cells) if (columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))) {
@@ -525,12 +535,22 @@
       columns = columns.filter((column) => occupied.has(column));
     }
     const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5) && !(boardSummary && row.row <= 10)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : tableForRow(row.row) >= 0 || row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
-    const tableLinks = stackedTables ? presentationTables.map((table, index) => ({ label: table.label, id: `calculator-table-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${index}`, theme: index % 11 })) : [];
-    const sectionLinks = [...sectionDetails(entry, { ...result, rows: visibleRows }, metadata), ...tableLinks], sectionsByAddress = new Map(sectionLinks.filter((section) => section.address).map((section) => [section.address, section]));
+    const sourceCells = new Map(visibleRows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
+    const projectedTitles = new Set(presentationTables.map((table) => table.title_address).filter(Boolean));
+    const tableLinks = stackedTables || projectedTables ? presentationTables.map((table, index) => {
+      if (projectedTables && !table.title_address) return null;
+      const titleCell = sourceCells.get(table.title_address);
+      return { label: titleCell ? sourceDisplayText(titleCell.value, entry, table.title_address) : table.label, sourceRow: table.first_row,
+        id: `calculator-table-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${index}`, theme: index % 11 };
+    }) : [];
+    const sectionLinks = [...sectionDetails(entry, { ...result, rows: visibleRows }, metadata).filter((section) => !projectedTitles.has(section.address)), ...tableLinks.filter(Boolean)]
+      .sort((left, right) => (left.sourceRow ?? parseAddress(left.address)?.row ?? 0) - (right.sourceRow ?? parseAddress(right.address)?.row ?? 0));
+    sectionLinks.forEach((section, index) => { section.theme = index % 11; });
+    const sectionsByAddress = new Map(sectionLinks.filter((section) => section.address).map((section) => [section.address, section]));
     state.optionLists.clear(); state.optionKeys = new WeakMap(); $("calculator-option-lists").replaceChildren();
     // These two source forms contain independent comparison matrices. Keeping
     // them separate lets the form stack on a phone while the matrix stays aligned.
-    const matrix = entry.definition.id === "steel_vermiculite" ? ({ CALCULATOR: { first: 28, last: 30, label: "Published fire-period comparison" }, BAGS: { first: 19, last: 24, label: "Product order summary" } })[entry.sheet] : null;
+    const matrix = !projectedTables && entry.definition.id === "steel_vermiculite" ? ({ CALCULATOR: { first: 28, last: 30, label: "Published fire-period comparison" }, BAGS: { first: 19, last: 24, label: "Product order summary" } })[entry.sheet] : null;
     const periodMatrix = matrix && entry.sheet === "CALCULATOR";
     const head = node("thead"), sections = new Map(), widths = [];
     const groupForRow = (row) => {
@@ -539,17 +559,38 @@
       if (presentationTables.length) return `content-${presentationTables.filter((table) => table.last_row < row).length}`;
       return matrix ? row < matrix.first ? "before" : row <= matrix.last ? "matrix" : "after" : "all";
     };
-    const addGroup = (group, sourceRows, definition) => {
+    const addGroup = (group, sourceRows, definition, visibleCell = () => true) => {
+      if (projectedTables && !definition) sourceRows = sourceRows.map((row) => ({ ...row, cells: row.cells.filter((cell) => visibleCell(row.row, cell.column)) }))
+        .filter((row) => row.cells.some((cell) => cell.editable || cell.value !== null && cell.value !== undefined && cell.value !== ""));
       if (!sourceRows.length) return;
       let groupColumns = definition ? definition.columns.map(columnNumber).filter((column) => columns.includes(column)) : matrix && group === "matrix" ? columns.filter((column) => column <= 9) : columns;
-      if (stackedTables && !definition) {
+      const region = definition && regions[presentationTables.indexOf(definition)];
+      if (region?.definition.title_address) sourceRows = sourceRows.filter((row) => groupColumns.some((column) => !region.isTitle(row.row, column)));
+      if (definition?.table_kind === "form") sourceRows = sourceRows.filter((row) => row.cells.some((cell) => groupColumns.includes(cell.column) && !region.isTitle(row.row, cell.column) && (cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "")));
+      if (definition?.header_row) sourceRows = sourceRows.filter((row) => row.row >= definition.header_row || row.cells.some((cell) => groupColumns.includes(cell.column) && !region.isTitle(row.row, cell.column) && (cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "")));
+      if ((stackedTables || projectedTables) && !definition) {
         const occupied = new Set(sourceRows.flatMap((row) => row.cells.filter((cell) => cell.editable || cell.value !== null && cell.value !== undefined && cell.value !== "").map((cell) => cell.column)));
         for (const merge of merges) if (sourceRows.some((row) => row.row === merge.start.row && row.cells.some((cell) => cell.column === merge.start.column && cell.value != null && cell.value !== ""))) for (const column of groupColumns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
         groupColumns = groupColumns.filter((column) => occupied.has(column));
       }
-      sections.set(group, { body: node("tbody"), rows: sourceRows.map((row) => row.row), sourceRows, definition, columns: groupColumns });
+      sections.set(group, { body: node("tbody"), rows: sourceRows.map((row) => row.row), sourceRows, definition, columns: groupColumns, visibleCell, region });
     };
-    if (stackedTables) {
+    if (projectedTables) {
+      const clusters = [];
+      for (const region of [...regions].sort((left, right) => left.definition.first_row - right.definition.first_row)) {
+        let cluster = clusters.at(-1);
+        if (!cluster || region.definition.first_row > cluster.last) { cluster = { first: region.definition.first_row, last: region.definition.last_row, regions: [] }; clusters.push(cluster); }
+        cluster.last = Math.max(cluster.last, region.definition.last_row); cluster.regions.push(region);
+      }
+      let afterRow = 0;
+      for (const [index, cluster] of clusters.entries()) {
+        addGroup(`content-${index}`, rows.filter((row) => row.row >= afterRow && row.row < cluster.first));
+        for (const region of cluster.regions.sort((left, right) => left.index - right.index)) addGroup(`table-${region.index}`, rows.filter((row) => row.row >= region.definition.first_row && row.row <= region.definition.last_row), region.definition);
+        addGroup(`remainder-${index}`, rows.filter((row) => row.row >= cluster.first && row.row <= cluster.last), undefined, (row, column) => !cluster.regions.some((region) => region.contains(row, column)));
+        afterRow = cluster.last + 1;
+      }
+      addGroup("after", rows.filter((row) => row.row >= afterRow));
+    } else if (stackedTables) {
       const first = Math.min(...presentationTables.map((table) => table.first_row));
       addGroup("before", rows.filter((row) => row.row < first));
       presentationTables.forEach((definition, index) => addGroup(`table-${index}`, rows.filter((row) => row.row >= definition.first_row && row.row <= definition.last_row), definition));
@@ -575,14 +616,20 @@
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
       for (const column of groupColumns) {
-        if (isOmitted(row.row, column)) continue;
+        if (isOmitted(row.row, column) || !renderedGroup.visibleCell(row.row, column) || renderedGroup.region?.isTitle(row.row, column)) continue;
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
         if (merge && (column !== groupColumns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== renderedGroup.rows.find((visible) => visible >= merge.start.row && visible <= merge.end.row))) continue;
         const cell = values.get(column) || { column, value: null };
-        const matrixHeading = group === "matrix" && row.row === matrix.first || renderedGroup.definition?.first_row === row.row;
+        const definition = renderedGroup.definition;
+        const headerRow = definition && (Object.prototype.hasOwnProperty.call(definition, "header_row") ? definition.header_row : definition.title_address || definition.table_kind === "form" ? null : definition.first_row);
+        const hasOwnHeader = Boolean(definition && Object.prototype.hasOwnProperty.call(definition, "header_row"));
+        const sourceHeading = (!hasOwnHeader || headerRow === row.row) && (metadata.header_rows || []).includes(row.row);
+        const matrixHeading = group === "matrix" && row.row === matrix.first || Boolean(definition) && headerRow === row.row;
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
         let role = ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell);
-        const explicitHeading = matrixHeading || (metadata.header_rows || []).includes(row.row) || Boolean(section) || role === "title";
+        if (hasOwnHeader && row.row !== headerRow && role === "column_header" && !section) role = "body";
+        if (definition?.table_kind === "form" && role === "section" && !section && !(merge && groupColumns.every((visible) => visible >= merge.start.column && visible <= merge.end.column))) role = "label";
+        const explicitHeading = matrixHeading || sourceHeading || Boolean(section) || role === "title";
         if (!explicitHeading && (cell.calculated || cell.output || cell.read_only)) role = "output";
         const td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
         if (matrixHeading) td.scope = "col";
@@ -599,12 +646,12 @@
           const label = cell.label || labels[column] || preceding || "Calculator input";
           td.append(makeControl(cell, row.row, entry, `${label}${item ? `, item ${item}` : ""}`));
         } else {
-          const structural = matrixHeading || (metadata.header_rows || []).includes(row.row) || ["title", "section", "column_header"].includes(role);
+          const structural = matrixHeading || sourceHeading || ["title", "section", "column_header"].includes(role);
           const tableValue = Boolean(schedule) || group === "matrix" || Boolean(renderedGroup.definition) || referenceTableValue(entry, row.row, column);
-          if (!structural && (tableValue || cell.output || cell.calculated || role === "output" || !["label", "note"].includes(role) && cell.value !== null && cell.value !== undefined && cell.value !== "")) td.dataset.calculatorValue = "true";
+          if (!structural && (tableValue || cell.output || cell.calculated || role === "output" || role !== "label" && cell.value !== null && cell.value !== undefined && cell.value !== "")) td.dataset.calculatorValue = "true";
           td.dataset.calculatorOutput = cell.address || `${columnName(column)}${row.row}`;
           updateOutputCell(td, cell);
-          if ((metadata.header_rows || []).includes(row.row)) td.classList.add("calculator-source-heading");
+          if (sourceHeading) td.classList.add("calculator-source-heading");
         }
         tr.append(td);
       }
@@ -616,27 +663,35 @@
     if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
     for (const [group, renderedGroup] of sections) {
       const { body, definition, columns: groupColumns } = renderedGroup;
-      const responsive = matrix && group !== "matrix";
-      const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" ? " calculator-comparison-table" : ""}`);
+      const responsive = definition?.table_kind === "form" || matrix && group !== "matrix";
+      const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" || definition?.table_kind === "comparison" ? " calculator-comparison-table" : ""}`);
       const colgroup = node("colgroup");
-      const orderTable = matrix && !periodMatrix && group === "matrix";
+      const legacyOrder = matrix && !periodMatrix && group === "matrix";
+      const orderTable = legacyOrder || definition?.table_kind === "order";
       const fitBagsForm = matrix && !periodMatrix && group !== "matrix";
       const fitContent = presentationTables.length > 0 && !definition;
+      const fitWidth = fitBagsForm || fitContent || definition?.width_mode === "fit";
       if (orderTable) table.classList.add("calculator-order-table");
       if (fitBagsForm) table.classList.add("calculator-bags-form");
       if (fitContent) table.classList.add("calculator-content-table");
       if (definition) table.classList.add("calculator-projection-table");
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
-      for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitBagsForm || fitContent ? width / totalWidth * 100 : width}${orderTable || fitBagsForm || fitContent ? "%" : "px"}`; colgroup.append(col); }
-      table.style.width = orderTable || fitBagsForm || fitContent ? "100%" : `${totalWidth}px`; table.append(colgroup);
+      for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
+      table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);
-      if (stackedTables && definition) { const link = tableLinks[presentationTables.indexOf(definition)], section = node("section", "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, definition.label); heading.id = link.id; section.append(heading, scroll); content.push(section); }
+      const link = definition && tableLinks[presentationTables.indexOf(definition)];
+      if (link) {
+        const section = node("section", projectedTables ? "calculator-projected-section" : "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, link.label); heading.id = link.id;
+        const titleCell = sourceCells.get(definition.title_address);
+        if (titleCell) { heading.dataset.calculatorOutput = definition.title_address; updateOutputCell(heading, titleCell); }
+        section.append(heading, scroll); content.push(section);
+      }
       else content.push(scroll);
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;

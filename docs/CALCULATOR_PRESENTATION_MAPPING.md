@@ -10,8 +10,10 @@ The existing architecture is a shared workbook evaluator, HTTP projection and br
 
 The new `POST /api/calculators/<id>/worksheet` projection returns every source-page row, `visible_columns`, shared `option_sets`, cell `options_ref` and semantic `presentation` hints. The older bounded `calculate` endpoint remains compatible. UI grouping should consume these evaluated values and current validation choices; it should not recalculate them or derive technical status from colours.
 
-Source `section_cells` metadata supplies stable contents links and distinct
-colour themes in source order. Vermiculite SETTINGS has eleven targets: its
+Source `section_cells` metadata supplies stable contents links in source order.
+All main section headings use the existing DUCT PROTECTION SUMMARY red-gradient
+background and white text, replacing the former multicolour heading scheme.
+Contents/navigation styling remains separate. Vermiculite SETTINGS has eleven targets: its
 eight numbered sections and three factor-helper sections. Its banner reads
 Product Settings and Rules. A form's populated-cell structure
 participates in its refresh signature so newly available output/source notes
@@ -21,11 +23,11 @@ value updates.
 ## Shared presentation rules
 
 1. Keep all twelve page names. Show each selected worksheet as one page, with every prepared input row reachable by normal scrolling; do not split it into 25-row pages.
-2. Separate introductory merged notes from tabular data. Render a merged heading/note once from its anchor, with natural wrapping. Do not create a tall table row for every merged child or preserve the workbook's print-oriented row heights.
+2. Separate introductory merged notes from tabular data. Render a merged heading/note once from its anchor, with natural wrapping. Main source title/section cells, section anchors, overview titles and stacked/projected section headings use the same white text on the red-gradient banner. Do not create a tall table row for every merged child or preserve the workbook's print-oriented row heights.
 3. Collapse rows and trailing columns that contain only decorative spacing. Keep every schedule and EXTRA BOARDS input row, even when its current result is blank. A formula returning `""` is not evidence that an input row is disposable.
 4. Present normal inputs, advanced inputs and calculated outputs as visibly distinct groups. Use one output highlight for populated values and one for blanks; zero, error text and other nonblank results are populated. These colours indicate value presence only. Keep exact dependency-driven dropdowns and current read-only/write-validation rules; colour never grants edit permission or technical approval.
 5. On forms, use a two-column field layout on desktop and one column on a phone. Put units beside the value and source explanations below the field. Long status and basis text must wrap without truncation.
-6. On schedules, use one sticky header and sticky item identifier. Keep horizontal scrolling inside the table, with input widths suited to their contents. The page itself must fit a 390-pixel viewport. Numeric cells need roughly 110–130 px; product/section choices 190–260 px; status and detailed notes 300–420 px. These are UI recommendations, not source business constants.
+6. On schedules, retain the vertical sticky header but let every column, including the item identifier, scroll horizontally together. No calculator schedule freezes its first column. Use solid black gridlines consistently across schedules, material totals, order summaries and other calculator data tables. Keep scrolling inside each table and input widths suited to their contents. The page itself must fit a 390-pixel viewport. Numeric cells need roughly 110–130 px; product/section choices 190–260 px; status and detailed notes 300–420 px. These are UI recommendations, not source business constants.
 7. Display numbers to two decimals at rest and retain the exact raw value. Focused numeric controls and choices must distinguish small values such as 0.005, 0.01 and 1e-8. Never write a rounded display value merely because a field was focused or blurred.
 8. Retain all source qualification text and error/withheld states in the source graph and calculation results. The explicit browser omissions below do not alter those states or the PDF mapping. `NP`, an empty result and zero mean different things. Do not turn a missing quantity into zero or describe a displayed quantity as installation approval.
 9. Keep numeric Settings inputs, units, read-only calculation basis and live outputs. Omit the requested date/source-ID/document-name metadata and separate reviewed-yield action/panel from Settings presentation. Developer evidence retains full provenance. Do not expose hidden reference databases as new editable settings.
@@ -80,11 +82,17 @@ Most editable cells on the unprotected workbooks still have `locked=True`; only 
 
 ### CALCULATOR
 
-Use two adjacent cards rather than a fourteen-column spreadsheet: “Inputs” from A5/D6:D17 and “Thickness and quantities” from H5:N23. Keep seven selection/factor fields D6:D12 together, then quantity/geometry D14:D17. The empty D11, D16 and D17 inputs remain usable.
+After the retained introduction A1:N3, the browser renders three independent
+sections in order: Inputs A5:F24, Thickness and quantities H5:N24, then All
+published periods A26:I30. Each source heading appears once above its own
+table, using anchors A5, H5 and A26. Inputs and outputs are vertically ordered,
+replacing the earlier recommendation for two adjacent cards. Keep all eleven
+inputs D6:D12/D14:D17, including blank D11/D16/D17, and help text A20:F24.
 
-The output card contains published thickness H6, lookup status H9, ESA/M K12, Hp/A K13, usable estimating thickness K14, girth K15, spray area K16, coating volume K17, net bags K18, quantity status H20 and source H23. Preserve the distinction between published and usable estimating thickness. The later user instruction removes the third notes section below the comparison matrix from browser presentation only.
+The output section contains published thickness H6:K8 with unit L6, lookup status H9, ESA/M K12, Hp/A K13, usable estimating thickness K14, girth K15, spray area K16, coating volume K17, net bags K18, quantity status H20 and source H23. Preserve the distinction between published and usable estimating thickness. The later user instruction removes the separate notes section below the comparison matrix from browser presentation only.
 
-The “All published periods for this input” section starts at A26. A28:A30 supplies
+The “03 All published periods for this input” heading A26 stays with its
+comparison table in the third section. A28:A30 supplies
 the row labels and B28:I30 supplies eight period/thickness/status columns. The
 implemented matrix gives those eight period columns equal independent widths;
 G28:G30 is the 120-minute column, not a merge. Inheriting the narrow form spacer G
@@ -93,7 +101,7 @@ the third notes section at rows 33–41 are omitted from browser presentation,
 with their values retained in the source model. On phones the form stacks while this matrix retains
 aligned columns in its own horizontal scroller.
 
-Source widths: labels occupy merged A:C; inputs D:F; G is a 3-unit spacer. Results H:N use merged label/value regions. These merged groups support cards directly; multiplying each source column into a minimum-width web column creates excessive empty width.
+Source widths: labels occupy merged A:C; inputs D:F; G is a 3-unit spacer. Results H:N use merged label/value regions. The separate input/output form tables fit the available width; the comparison keeps independent numerical column widths. Source merges continue to identify labels and values without recreating the wide combined spreadsheet.
 
 ### SCHEDULE
 
@@ -115,9 +123,17 @@ All prepared rows remain present even though 999 original example slots return b
 
 ### BAGS
 
-Create a “Manual material quantity” form from D6:D8, with live results D9:D14. Keep the source limitations H6 and H11 adjacent. This manual calculation is independent of the SCHEDULE order summary.
+The browser aliases A1 to **MATERIAL QUANTITIES** without changing the BAGS page
+name or source title. After the introduction A1:N3, it renders a manual form
+from A6:N15 with three inputs D6:D8 and live results D9:D14. Source limitations
+H6 and H11 remain with that form. This calculation stays independent of the
+SCHEDULE order summary.
 
-Below it, render the “Product order summary” heading A17, row 19 headers and five product rows A20:I24. Do not turn it into another 29-row spreadsheet. Keep order status I and incomplete count H visible even when whole bags G are blank. Notes A27 follow the table.
+The next independent section owns the “Product order summary” heading A17,
+row 19 headers and five product rows A20:I24. Its heading must not remain below
+the manual form with its data separated elsewhere. Keep order status I and
+incomplete count H visible even when whole bags G are blank. Notes A27 follow
+the order table.
 
 The implemented phone view stacks manual inputs/results in one form and leaves
 the product-order matrix in a separate real table with its own horizontal scroll.
@@ -127,7 +143,7 @@ Blank J:N columns are omitted. All five product rows and quantities remain prese
 and the manual form fits the available page width.
 Each editable source field is rendered once.
 
-Source table widths indicate product A29, normal numerical columns 12–16 units, whole bags G21 and order status I35. Use a readable sticky product column with wrapped order-status text.
+Source table widths indicate product A29, normal numerical columns 12–16 units, whole bags G21 and order status I35. Product and numerical columns scroll together; order-status text remains wrapped.
 
 ### SETTINGS
 
@@ -153,9 +169,10 @@ HTTP/storage-save validation rejects arbitrary new edits while accepting source
 and reviewed-default text so Reset remains usable. The low-level evaluator
 retains historical overlay support. Definitions can retain `defaults` and
 `yield_review` as data separately from current inputs, but the browser no longer
-shows the reviewed-yield action/panel. Settings date/source-ID/document-name
-metadata rows 32–34, 65–67, 97–99, 174–176 and 230–232 are hidden in presentation;
-their complete provenance stays in developer records and source packages.
+shows the reviewed-yield action/panel. Introductory rows 3–4 and Settings
+date/source-ID/document-name metadata rows 32–34, 65–67, 97–99, 174–176 and
+230–232 are hidden in presentation; their complete provenance stays in developer
+records and source packages.
 
 The reviewed profile changes twenty existing settings: bag mass, direct yield,
 inferred consumption and reference for each product. Store supplies it only when
@@ -219,7 +236,20 @@ unrelated sections. The report projection below retains its existing mappings.
 
 ### PRODUCT SETTINGS
 
-Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup headings 36/74/117/123/129/136. The browser omits the explanatory Both/Mixed block J6:Q21. This is a targeted presentation omission, not removal of the Both/Mixed technical rule, a change to product choices, or permission to hide other J:Q reference blocks. Its source cells and evaluated values remain intact.
+Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup headings 36/74/117/123/129/136. The browser omits introductory rows 3–4 and the explanatory Both/Mixed block J6:Q21. These are targeted presentation omissions, not removal of the Both/Mixed technical rule, a change to product choices, or permission to hide other J:Q reference blocks. Their source cells and evaluated values remain intact.
+
+After the retained CAFCO/MONOKOTE content, three projections present the
+FyreWrap area as vertically ordered, independent sections:
+
+| Section | Source range | Heading / header | Retained content |
+| --- | --- | --- | --- |
+| FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | All core settings, roll-area output and product notes |
+| FyreWrap application table | J94:Q113 | J94 heading; row 95 header | Application choices and source requirements |
+| Penetration takeoff | J115:Q149 | J115 heading; row 116 header | Standard details, auxiliary tables and live exposure list J137:J149 with K137:Q139 note |
+
+Each heading appears once above its own data. Other source content remains in
+source order outside these projections, including use notes A153:H159. This
+changes layout only; all eleven editable controls and dependencies remain.
 
 Place the eleven editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The rest is readonly source calibration/scope/reference data.
 
@@ -391,5 +421,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Board SETTINGS stacks three tables and keeps all 28 editable values, dependent dropdowns and diagnostic lookups. BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
 - Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; Board Totals does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. The three A1 title aliases do not rename worksheet/input keys.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
+- Horizontal scrolling moves the first column with the remaining schedule columns while vertical column headings can stay visible. Data-table gridlines are solid black; main source, overview, total and projected-section headings share the red/white banner. Populated/blank data fills remain separate from heading styling and do not change calculation semantics.
+- Projected Inputs, Thickness and quantities, period comparison, product ordering and FyreWrap sections keep their own source headings with their data. Each original editable field occurs once; residual notes and unprojected source content remain available except for explicit omissions. BAGS displays MATERIAL QUANTITIES while retaining its original worksheet identity.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

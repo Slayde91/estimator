@@ -1,8 +1,9 @@
 # Roadmap
 
-Current increment: simplify the calculator presentation, make material-basis
-text read-only, hide requested source commentary, and use two output highlight
-states. Calculations, saved inputs and schedule PDFs retain their existing scope.
+Current increment: keep each calculator section heading with its data, use
+uniform red-and-white headings and black table grids, and let all columns scroll
+horizontally together. The two output highlight states remain. Calculations,
+saved inputs and schedule PDFs retain their existing scope.
 Validation and publication for this increment belong in SESSION_HANDOFF.md.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
@@ -19,7 +20,7 @@ not verify this subsequent presentation increment or its publication status.
 - Three workbook Calculators, every visible tab, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Permanent technical databases, original formulas and dependent dropdowns.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
-- Continuous full-row calculator pages with branded forms, distinct section colours, linked contents and labelled totals.
+- Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.
 - Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under Product Settings and Rules.
@@ -32,7 +33,7 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-Work continues on `feat/workbook-calculators`. Current final validation and Git
+Work continues on `fix/calculator-sections-and-grids`. Current final validation and Git
 results belong in SESSION_HANDOFF.md. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 

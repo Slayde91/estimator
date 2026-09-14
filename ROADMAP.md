@@ -24,10 +24,10 @@ All 419,905 new native Excel comparisons pass, covering all 161,566 source formu
 
 ## Meaningful remaining work
 
-Publish the current feature PR and merge only when current CI/review state supports it. Resolve any recurring external CI account problem; never bypass or relabel a failed check.
+PR #6 is updated and pushed. Resolve the verified GitHub account billing/spending-limit blocker, rerun current-head CI, and merge only when CI/review state supports it. Never bypass or relabel a failed check.
 
 Future calculator-to-priced-quote transfer needs an explicit material, purchasing, product and labour mapping. The workbooks do not define it, so tools remain separate. Source revisions require fresh import, native comparison and intentional saved-state migration; hashes prevent silent changes today.
 
 An installer, authenticated shared hosting, concurrent multi-user editing and managed backups require an operating-environment decision. No public deployment has occurred.
 
-Implementation commit 1bd8f90 is pushed to origin/feat/workbook-calculators. [PR #6](https://github.com/Slayde91/estimator/pull/6) is open and unmerged, with no reviews. Both fresh implementation-head Checks runs failed before job steps because GitHub reported account payment/spending-limit problems. All 155 Python tests and 46 UI checks passed locally; the distribution and refreshed local app were verified. Resolve the account blocker and require successful current-head CI before merging.
+Latest implementation commit 946f2c1 is pushed to origin/feat/workbook-calculators. [PR #6](https://github.com/Slayde91/estimator/pull/6) is open and unmerged, with no reviews. Both new implementation-head Checks runs failed before job steps because GitHub reported account payment/spending-limit problems. All 176 Python tests and 56 UI checks passed locally, followed by 21 final report/HTTP checks. The 32-file distribution, all 523 rendered PDF pages and refreshed local app were verified.

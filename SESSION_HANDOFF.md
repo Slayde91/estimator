@@ -56,9 +56,19 @@ The user's existing browser page was preserved; refresh it to load the new UI.
 All changed tracked/new source files belong to this increment. Synthetic
 databases, rendered reports, captures, backups and logs remain ignored in
 .runtime; the distribution stays ignored in dist. Original workbooks, pricing
-baseline, formula packages and the official logo bytes are unchanged. Publication
-of this increment is the remaining step; previous PR #6 checks were blocked by
-the GitHub account's payment/spending limit before any job steps.
+baseline, formula packages and the official logo bytes are unchanged.
+
+Implementation commit 946f2c11c9670e5e107306b6ffadec1b470646e5,
+“Polish calculator pages and add complete schedule PDF reports”, is pushed to
+origin/feat/workbook-calculators. PR #6 was updated to “Add workbook calculators
+with full schedules and PDF reports” and remains open and unmerged, with no
+reviews. Both new implementation-head Checks runs failed before any job steps:
+push 34833934393 / job 103943339708 and PR 34833938884 / job 103943353325.
+Both annotations explicitly report failed recent account payments or a spending
+limit requiring an increase. This is an external GitHub account blocker, not
+passing CI or a failed application test. Resolve Billing & plans, rerun Checks
+on the current PR head, then merge only when CI/review state permits. This
+publication record changes documentation only; runtime validation remains valid.
 
 ## Current work — 2026-09-14
 

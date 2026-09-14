@@ -2,6 +2,25 @@
 
 Date: 2026-09-14. Executable code and checked results take precedence over this document.
 
+## Current calculator presentation and schedule reports
+
+The calculator pages now expose every prepared row on one continuous page:
+1,000 vermiculite items, 300 duct items, 200 board items and 40 extra-board items.
+Forms and tables use the official colours, clearer source headings, labelled
+summary values and shared section dropdowns. The source calculation graphs and
+editable settings are unchanged.
+
+Every calculator has a draft PDF download containing the populated full
+schedule, thicknesses, relevant surface/material areas, applicable bags/sheets/
+wrap quantities, complete notes, settings and final product/quantity totals.
+Incomplete items remain visible; manual helpers, reference box area and pooled
+purchasing quantities remain distinct. Downloading does not save the calculator.
+See [presentation and report mapping](CALCULATOR_PRESENTATION_MAPPING.md).
+
+This work continues the clean fetched branch at 4f60526. Current validation and
+publication outcomes are recorded at the top of SESSION_HANDOFF.md; the older
+implementation evidence below remains historical, not proof of new CI success.
+
 ESTIMATOR is a local Python/browser application in C:\ESTIMATOR\app with SQLite storage and permanently imported workbook data. The original Quote estimator contains 64 inputs, 151 formulas, 417 inventory records and 166 choices across 14 rate groups. It retains project/client/site details, automatic quote names and work summaries, pricing import/export, the official logo and complete material/labour PDF reports. Saved quotes freeze their inputs, catalog, prices, yields and results. Pricing replacements remain drafts until Save pricing.
 
 ## Workbook calculators

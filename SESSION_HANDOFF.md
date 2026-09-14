@@ -1,5 +1,65 @@
 # Session handoff
 
+## Calculator presentation and full schedule PDFs — 2026-09-14
+
+Starting state: clean feat/workbook-calculators at 4f60526, matching its fetched
+upstream. PR #6 remains the existing feature PR; no user work or branches were
+discarded. This increment removes row pagination, improves all twelve page
+layouts, and adds a full schedule PDF for each calculator.
+
+The complete worksheet endpoint shares typed dropdown lists and source-derived
+presentation metadata. The old bounded calculate endpoint remains compatible.
+The report module uses the existing workbook evaluator, fonts/logo and PDF
+library. Every populated item, including incomplete/zero-input rows, is retained.
+Reports distinguish published/usable thickness, board stack/total thickness,
+spray area, board reference area, actual material area and pooled order quantities.
+Board extras and all editable settings are included; independent vermiculite
+helpers remain separate. No source formulas/packages, pricing, schema or saved
+state semantics change.
+
+Current source mapping: docs/CALCULATOR_PRESENTATION_MAPPING.md. New independent
+HTTP/report regressions are in tests/test_calculator_presentation_api.py and
+tests/test_calculator_report.py. Runtime screenshots, rendered PDFs, native
+projection checks and test logs are ignored under
+.runtime/calculator-presentation-qa.
+
+Validation: all 176 Python tests passed in 442.513 seconds, including original
+source reconstruction, all 419,905 native calculator comparisons and the old
+216 × 151 Quote comparisons. After the last report layout changes, all 21
+report/HTTP checks passed again in 132.865 seconds. JavaScript syntax, 39
+calculator UI checks and 17 existing UI checks passed. Independent review found
+and verified the fix for blank-to-populated source notes being omitted during
+refresh; a separate regression protects formula-backed editable Settings values.
+
+Desktop browser review covered every page; all prepared input rows and advanced
+board fields were counted. Phone review at 390 × 844 confirmed page containment
+for all three calculators and stacked single-member/bag forms with one copy of
+each control. A real browser download captured an unsaved last-row duct entry;
+the UI confirmed download and retained Unsaved calculator changes. No browser
+errors were recorded. The temporary viewport override was reset.
+
+The 32-file distribution built (5,332,788 bytes), and an isolated extracted copy
+served all twelve complete pages and all three PDF downloads with original
+workbook filesystem reads explicitly blocked. Default reports had 7 duct,
+10 vermiculite and 23 board pages. A full 1,000-valid-item spray PDF retained all
+1,000 detailed items across 370 pages. All 523 pages across seven representative
+PDFs were rendered and checked for text bounds, layout and the official logo.
+
+The main app was refreshed using Start-Estimator.ps1 and is running on port
+8765 as process 30120. Served calculator JS/CSS match the tested files. The live
+whole-sheet endpoint and source section styling were checked. A new SQLite
+recovery backup preceded refresh; both quotes, the empty pricing settings and
+empty calculator states remained identical. Quote/settings content SHA-256 is
+c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4.
+The user's existing browser page was preserved; refresh it to load the new UI.
+
+All changed tracked/new source files belong to this increment. Synthetic
+databases, rendered reports, captures, backups and logs remain ignored in
+.runtime; the distribution stays ignored in dist. Original workbooks, pricing
+baseline, formula packages and the official logo bytes are unchanged. Publication
+of this increment is the remaining step; previous PR #6 checks were blocked by
+the GitHub account's payment/spending limit before any job steps.
+
 ## Current work — 2026-09-14
 
 Repository: C:\ESTIMATOR\app. Branch feat/workbook-calculators starts at 01e3494120c324ccb491d92debf85359b0d06c43. Fetched origin/main: 615997c0f5dba856244421178a902e39af27a089. Starting tree was clean; previous estimate-details, pricing-library and launcher work is preserved. PR #5 is the prior publication and its Actions were blocked by account billing before job steps. Check the new PR's exact head independently before merging.

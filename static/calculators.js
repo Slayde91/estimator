@@ -5,7 +5,7 @@
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false };
+  const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
   const descriptions = {
     steel_vermiculite: "Steel schedules, coating thicknesses and material quantities",
     ductwork: "Ductwork dimensions, protection systems and quantities",
@@ -37,8 +37,13 @@
   ];
   const sourceDirections = {
     ductwork: {
-      CALCULATOR: { A3: [["Enter the schedule in blue cells.", "Enter the schedule in the highlighted inputs."], ["choose the duct use in column H", "choose the FyreWrap duct use"]] },
+      CALCULATOR: {
+        A3: [["Enter the schedule in blue cells.", "Enter the schedule in the highlighted inputs."], ["choose the duct use in column H", "choose the FyreWrap duct use"]],
+        A5: [["see the FRL header comment for FyreWrap applications.", "review the FyreWrap application notes in PRODUCT SETTINGS."]],
+        A6: [["Comments explain inputs, limits and excluded items.", "Review the input labels, calculated notes and PRODUCT SETTINGS for limits and excluded items."]],
+      },
       "PRODUCT SETTINGS": {
+        A4: [["CAFCO: rows 6–46 | MONOKOTE: 48–92 | FyreWrap: 94–150 | Use notes: 153–159", "CAFCO settings | MONOKOTE settings | FyreWrap settings | Use notes"]],
         E25: [["B35 selects the yield.", "Yield basis selects the yield."]],
         B43: [["Choose B35.", "Choose the CAFCO Yield basis."]],
         E65: [["separately from B73", "separately from Yield basis"], ["by B67/B66", "by the injected-to-uninjected chart-yield ratio"]],
@@ -52,10 +57,11 @@
     },
     steel_vermiculite: {
       CALCULATOR: { A20: [["Edit the blue cells.", "Edit the highlighted inputs."]] },
-      SCHEDULE: { A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the highlighted schedule inputs, or use Import schedule."]] },
+      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the highlighted schedule inputs, or use Import schedule."]] },
       BAGS: { A27: [["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "highlighted inputs are editable"]],
+        A7: [["Factor helper starts at row 341.", "The Section Factor Helper section is below."]],
         G43: [["the global lookup policy in D14", "the global Factor lookup policy"]],
         BD7: [["Exact row sources are in SECTIONS AB:AC", "Exact row sources are retained in the steel-section source records"]],
         BD27: [["SECTIONS!A571:AV970 retains", "The retained steel-section reference data includes"]],
@@ -64,6 +70,7 @@
         D188: [["Source links: T332 and V332.", "See the Perlifoc yield-source links on SETTINGS."]],
         D244: [["Source links: T333 and V333.", "See the Monokote yield-source links on SETTINGS."]],
         A301: [["Sources: P330:V333.", "See the product yield-source records on SETTINGS."]],
+        A293: [["Sort or filter the entire SCHEDULE table, never one column alone.", "The complete SCHEDULE table stays together on one page."]],
       },
     },
     steel_board: {
@@ -83,6 +90,8 @@
       CALCULATOR: {
         A5: [["Paste into A:L only.", "Enter the normal schedule inputs."]],
         A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, Show advanced columns for optional inputs, EXTRA BOARDS for additional allowances, and SETTINGS for configuration."]],
+        Y2: [["AD = reference box only  |  AE = all board layers, net  |  AF = board including wastage", "Box reference area is for reference only  |  Board required - net includes all layers  |  Board incl waste includes wastage"]],
+        Y5: [["AI gives the issue and action directly.", "Row status gives the issue and action directly."]],
         Y6: [["their notes in AI", "their Row status notes"]],
       },
       SETTINGS: { A3: [["Blue wastage", "The highlighted wastage setting"]] },
@@ -177,7 +186,7 @@
     const hasErrors = entry.invalid.size > 0;
     $("calculator-save").disabled = state.action || hasErrors;
     $("calculator-recalculate").disabled = hasErrors;
-    $("calculator-row-page").disabled = hasErrors;
+    $("calculator-pdf").disabled = state.action || hasErrors;
     if (hasErrors) $("calculator-calculation-status").textContent = "Enter a valid number to recalculate.";
     $("calculator-reset").disabled = state.action;
     $("calculator-import").disabled = state.action;
@@ -191,20 +200,39 @@
     entry.revision++;
     updateStatus(entry);
     clearTimeout(state.timer);
-    state.timer = setTimeout(() => { if (entry === current()) calculate(); }, 300);
+    state.timer = setTimeout(() => { if (entry === current()) calculate(); }, 550);
+  }
+
+  function cellOptions(cell, entry) {
+    return Array.isArray(cell.options) ? cell.options : entry.result?.option_sets?.[cell.options_ref] || [];
+  }
+
+  function sharedOptionList(options, cell) {
+    let key = state.optionKeys.get(options);
+    if (!key) { key = JSON.stringify(options); state.optionKeys.set(options, key); }
+    key = `${percent(cell) ? "percent:" : "value:"}${key}`;
+    if (state.optionLists.has(key)) return state.optionLists.get(key);
+    const list = node("datalist"); list.id = `calculator-shared-options-${++state.nextListId}`;
+    for (const item of options) { const option = node("option"); option.value = isNumber(item) ? numericInputValue(item, cell, true) : String(item); list.append(option); }
+    $("calculator-option-lists").append(list); state.optionLists.set(key, list.id); return list.id;
   }
 
   function makeControl(cell, row, entry, label) {
     const address = cell.address || `${columnName(cell.column)}${row}`;
     const key = `${entry.sheet}!${address}`;
-    const value = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
-    const options = Array.isArray(cell.options) ? cell.options : [];
+    const sourceSheet = entry.sheet;
+    const rawValue = () => {
+      const latest = entry.latestCells?.get(key);
+      return Object.prototype.hasOwnProperty.call(entry.inputs[sourceSheet] || {}, address) ? entry.inputs[sourceSheet][address] : latest ? latest.value : cell.value;
+    };
+    const value = rawValue();
+    const options = cellOptions(cell, entry);
     const allowOther = cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle);
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
-    const select = cell.type === "select" && !allowOther;
+    const select = cell.type === "select" && !allowOther && options.length <= 40;
     const control = node(select ? "select" : "input", numeric ? "calculator-number" : "");
     const selectOptions = [];
     control.dataset.calculatorCell = address;
@@ -232,7 +260,7 @@
     control.addEventListener("focus", () => {
       for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = `${numericInputValue(item.value, cell, true)}${percent(cell) ? "%" : ""}`;
       if (!select && !entry.invalid.has(key)) {
-        const raw = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+        const raw = rawValue();
         if (numeric || isNumber(raw)) {
           control.value = numericInputValue(raw, cell, true);
           // Replacing a rounded display changes the browser's selection. Keep
@@ -263,9 +291,14 @@
       setInput(entry, entry.sheet, address, next);
     });
     control.addEventListener("blur", () => {
+      const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : value;
+      if (!select && cell.type === "select" && !allowOther && selectedValue !== null && selectedValue !== "" && !options.some((option) => String(option) === String(selectedValue)) && String(value ?? "") !== String(selectedValue)) {
+        entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
+        $("calculator-calculation-status").textContent = "Choose a value from the available list."; updateStatus(entry);
+      }
       for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = displayValue(item.value, cell);
       if (!select && !entry.invalid.has(key)) {
-        const raw = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+        const raw = rawValue();
         if (numeric || isNumber(raw)) control.value = numericInputValue(raw, cell);
       }
       // Formatting alone never writes a rounded value back to the workbook.
@@ -274,11 +307,8 @@
       }
     });
     if (!select && options.length) {
-      const list = node("datalist");
-      list.id = `calculator-options-${entry.definition.id}-${address}`;
-      for (const item of options) { const option = node("option"); option.value = isNumber(item) ? numericInputValue(item, cell, true) : String(item); list.append(option); }
-      control.setAttribute("list", list.id);
-      const wrapper = node("div"); wrapper.append(control, list); return wrapper;
+      control.setAttribute("list", sharedOptionList(options, cell));
+      const wrapper = node("div"); wrapper.append(control); return wrapper;
     }
     return control;
   }
@@ -298,7 +328,11 @@
   }
 
   function updateOutputCell(element, cell) {
-    element.textContent = displayValue(sourceDisplayText(cell.value, current(), cell.address || element.dataset.calculatorOutput), cell);
+    const address = cell.address || element.dataset.calculatorOutput, entry = current();
+    element.textContent = displayValue(sourceDisplayText(cell.value, entry, address), cell);
+    if (entry?.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["J32", "J65", "J97", "J174", "J230"].includes(address) && cell.value === "BACK TO TOP") {
+      const link = node("a", "calculator-inline-link", "Back to worksheet controls"); link.href = "#calculator-sheet-title"; element.replaceChildren(link);
+    }
     element.classList.toggle("calculator-number", isNumber(cell.value));
     element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
   }
@@ -309,6 +343,54 @@
       const cell = cells.get(element.dataset.calculatorOutput);
       if (cell) updateOutputCell(element, cell);
     }
+    const entry = current();
+    for (const control of $("calculator-grid").querySelectorAll("[data-calculator-cell]")) {
+      const address = control.dataset.calculatorCell, key = `${entry.sheet}!${address}`, cell = cells.get(address);
+      if (!cell || control === document.activeElement || entry.invalid.has(key)) continue;
+      const value = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+      const shown = String(control.tagName.toLowerCase() === "select" ? value ?? "" : isNumber(value) ? numericInputValue(value, cell) : value ?? "");
+      if (String(control.value) !== shown) control.value = shown;
+      if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
+    }
+  }
+
+  function choiceSignature(result, entry = current()) {
+    const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { header_row: 5 } : null;
+    // Forms collapse empty rows/columns. A newly populated formula or note must
+    // rebuild that structure; ordinary schedule edits still retain every control.
+    const content = result.rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== "")).map((cell) => cell.column)]);
+    return JSON.stringify([result.visible_columns, content, result.option_sets || {}, result.rows.map((row) => row.cells.filter((cell) => cell.editable && (cell.options_ref || cell.options?.length)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.options_ref || cell.options]))]);
+  }
+
+  function presentationRole(cell) {
+    return cell.presentation?.role || (cell.editable ? "input" : cell.calculated ? "output" : "body");
+  }
+
+  function renderOverview(rows, entry, columns) {
+    const summaryFields = {
+      steel_vermiculite: { SCHEDULE: [["A4", "A5"], ["G4", "G5"], ["M4", "M5"], ["S4", "S5"]] },
+      steel_board: { CALCULATOR: [["A4", "C4"], ["E4", "G4"], ["I4", "K4"], ["Y4", "AA4"], ["AC4", "AE4"], ["AG4", "AI4"]] },
+    };
+    const pairs = summaryFields[entry.definition.id]?.[entry.sheet] || [];
+    const mapped = new Map(rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
+    const used = new Set(pairs.flat()), cards = node("div", "calculator-summary-cards"), box = node("div", "calculator-overview");
+    for (const [labelAddress, valueAddress] of pairs) {
+      const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
+      if (!label || !value || !columns.includes(value.column)) continue;
+      const card = node("div", "calculator-summary-metric"), heading = node("span", "", label.value), output = node("strong");
+      output.dataset.calculatorOutput = valueAddress; updateOutputCell(output, value); card.append(heading, output); cards.append(card);
+    }
+    let cardsPlaced = false;
+    for (const row of rows) for (const cell of row.cells) {
+      if (!columns.includes(cell.column) || cell.value == null || cell.value === "") continue;
+      const address = cell.address || `${columnName(cell.column)}${row.row}`;
+      if (used.has(address)) { if (!cardsPlaced) { box.append(cards); cardsPlaced = true; } continue; }
+      const role = presentationRole(cell);
+      const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
+      item.dataset.calculatorOutput = address;
+      updateOutputCell(item, cell); box.append(item);
+    }
+    return box;
   }
 
   function renderGrid(entry = current()) {
@@ -316,36 +398,55 @@
     const grid = $("calculator-grid"), result = entry.result, metadata = sheetMetadata(entry);
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
-    const columns = Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column));
+    let columns = result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column));
     const labels = headerLabels(entry, result);
-    const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : null;
+    const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const merges = (metadata.merges || []).map((range) => {
       const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
     }).filter(Boolean);
-    const table = node("table"), colgroup = node("colgroup"), head = node("thead"), body = node("tbody");
-    const rowCol = node("col"); rowCol.style.width = "52px"; colgroup.append(rowCol);
-    const headRow = node("tr"); headRow.append(node("th", "calculator-row-label", "Item"));
-    let tableWidth = 52;
+    if (!schedule) {
+      const occupied = new Set(), populated = new Set();
+      for (const row of result.rows) for (const cell of row.cells) if (columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))) {
+        occupied.add(cell.column); populated.add(`${cell.column}:${row.row}`);
+      }
+      for (const merge of merges) if (populated.has(`${merge.start.column}:${merge.start.row}`)) for (const column of columns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
+      columns = columns.filter((column) => occupied.has(column));
+    }
+    const rows = (result.rows || []).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
+    const rowNumbers = rows.map((row) => row.row);
+    state.optionLists.clear(); state.optionKeys = new WeakMap(); $("calculator-option-lists").replaceChildren();
+    // These two source forms contain independent comparison matrices. Keeping
+    // them separate lets the form stack on a phone while the matrix stays aligned.
+    const matrix = entry.definition.id === "steel_vermiculite" ? ({ CALCULATOR: { first: 28, last: 30, label: "Published fire-period comparison" }, BAGS: { first: 19, last: 24, label: "Product order summary" } })[entry.sheet] : null;
+    const head = node("thead"), sections = new Map(), widths = [];
+    const headRow = node("tr");
+    let tableWidth = 0;
     for (const column of columns) {
-      const width = Math.max(schedule ? 125 : 24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
-      const col = node("col"); col.style.width = `${width}px`; tableWidth += width; colgroup.append(col);
+      const label = String(labels[column] || "");
+      const minimum = !schedule ? 24 : /notes?|status|requirements|basis|sources?/i.test(label) ? 360 : /product|steel id|section|member mark|item.*mark|location|duct use/i.test(label) ? 220 : 125;
+      const width = Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
+      widths.push(width); tableWidth += width;
       const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
-    table.style.width = `${tableWidth}px`;
     head.append(headRow);
-    for (const row of result.rows || []) {
+    for (const row of rows) {
+      const group = matrix ? row.row < matrix.first ? "before" : row.row <= matrix.last ? "matrix" : "after" : "all";
+      if (!sections.has(group)) sections.set(group, node("tbody"));
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
-      const item = schedule && row.row >= schedule.first_row && row.row <= schedule.last_row ? row.row - schedule.first_row + 1 : "";
-      const rowLabel = node("th", "calculator-row-label", item); rowLabel.scope = "row"; tr.append(rowLabel);
+      const item = schedule ? row.row - schedule.first_row + 1 : "";
+      tr.dataset.sourceRow = String(row.row);
       for (const column of columns) {
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
-        if (merge && (column !== columns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== Math.max(merge.start.row, result.start_row))) continue;
+        if (merge && (column !== columns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== Math.max(merge.start.row, rowNumbers[0] || 1))) continue;
         const cell = values.get(column) || { column, value: null };
-        const td = node("td");
+        const matrixHeading = group === "matrix" && row.row === matrix.first;
+        const role = presentationRole(cell), td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
+        if (matrixHeading) td.scope = "col";
+        if (cell.presentation?.bold) td.classList.add("calculator-bold");
         if (merge) {
           td.colSpan = columns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
-          td.rowSpan = Math.min(merge.end.row, result.end_row) - row.row + 1;
-          td.classList.add("calculator-note");
+          td.rowSpan = rowNumbers.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1;
+          td.classList.add("calculator-merged");
         }
         if (cell.editable) {
           td.classList.add("calculator-editable");
@@ -359,33 +460,44 @@
         }
         tr.append(td);
       }
-      body.append(tr);
+      sections.get(group).append(tr);
     }
-    table.append(colgroup, head, body); grid.replaceChildren(table);
-    grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
-    $("calculator-page-status").textContent = `Rows ${result.start_row}–${result.end_row} of ${result.max_row}`;
-    $("calculator-previous").disabled = result.start_row <= 1;
-    $("calculator-next").disabled = result.end_row >= result.max_row;
-    const pages = [];
-    for (let row = 1; row <= result.max_row; row += 25) {
-      const option = node("option", "", `${row}–${Math.min(row + 24, result.max_row)}`); option.value = String(row); pages.push(option);
+    const content = [];
+    if (schedule) content.push(renderOverview(result.rows.filter((row) => row.row < schedule.header_row), entry, columns));
+    for (const [group, body] of sections) {
+      const responsive = matrix && group !== "matrix";
+      const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" ? " calculator-comparison-table" : ""}`);
+      const colgroup = node("colgroup");
+      for (const width of widths) { const col = node("col"); col.style.width = `${width}px`; colgroup.append(col); }
+      table.style.width = `${tableWidth}px`; table.append(colgroup);
+      if (schedule) table.append(head);
+      table.append(body);
+      const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
+      if (group === "matrix") { table.setAttribute("aria-label", matrix.label); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${matrix.label} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
+      scroll.append(table); content.push(scroll);
     }
-    $("calculator-row-page").replaceChildren(...pages); $("calculator-row-page").value = String(result.start_row);
+    grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
+    entry.renderedSheet = entry.sheet; entry.renderedAdvanced = entry.advanced; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
+    $("calculator-page-status").textContent = schedule ? `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
   }
 
   async function calculate() {
     const entry = current(); if (!entry || entry.invalid.size) return;
     clearTimeout(state.timer);
-    const revision = entry.revision, sheet = entry.sheet, startRow = entry.startRow, serial = ++state.requestRevision;
+    const revision = entry.revision, sheet = entry.sheet, advanced = entry.advanced, serial = ++state.requestRevision;
     $("calculator-calculation-status").textContent = "Calculating…";
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
-      const result = await request(endpoint(entry.definition.id, "calculate"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, start_row: startRow, row_count: 25 }) });
-      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || startRow !== entry.startRow) return;
+      const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: Boolean(advanced) }) });
+      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || advanced !== entry.advanced) return;
       if (result.inputs) entry.inputs = clone(result.inputs);
+      entry.latestCells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [`${sheet}!${cell.address || `${columnName(cell.column)}${row.row}`}`, cell])));
       const active = document.activeElement;
-      if (active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.result = result; entry.pendingResult = result; refreshOutputs(result); }
-      else { entry.result = result; entry.pendingResult = null; renderGrid(entry); }
+      const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.renderedAdvanced === advanced && entry.choiceSignature === choiceSignature(result);
+      entry.result = result;
+      if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
+      else if (!entry.needsRender && active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
+      else { entry.pendingResult = null; renderGrid(entry); }
       const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter(Boolean);
       $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
       $("calculator-calculation-status").textContent = warnings.length ? "Calculated · review the notes below" : "Calculated from the workbook rules";
@@ -398,7 +510,7 @@
   async function selectPage(sheet) {
     const entry = current(); if (!entry || !entry.definition.pages.includes(sheet)) return;
     if (entry.invalid.size) { message("Correct the invalid number before changing pages.", true); return; }
-    entry.sheet = sheet; entry.startRow = 1; entry.pendingResult = null; entry.result = null;
+    entry.sheet = sheet; entry.pendingResult = null; entry.result = null; entry.needsRender = true;
     entry.advanced = false; $("calculator-advanced").checked = false;
     $("calculator-sheet-title").textContent = sheet;
     $("calculator-advanced-label").hidden = !hiddenColumns(sheetMetadata(entry)).size;
@@ -460,7 +572,7 @@
         const definition = await request(endpoint(id));
         if (serial !== state.loadRevision) return;
         const inputs = clone(definition.inputs || {});
-        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, sheet: definition.pages[0], startRow: 1, result: null, pendingResult: null, labels: {}, advanced: false, invalid: new Map() };
+        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, sheet: definition.pages[0], needsRender: true, result: null, pendingResult: null, labels: {}, advanced: false, invalid: new Map() };
         state.entries.set(id, entry);
       }
       if (serial !== state.loadRevision) return;
@@ -507,7 +619,7 @@
     try {
       if (!await confirmReplace("Reset to workbook defaults?", "This replaces this calculator's draft schedule and settings with the supplied workbook defaults, including its example rows. Click Save calculator to keep the reset.", "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
-      entry.inputs = {}; entry.invalid.clear(); entry.revision++; entry.pendingResult = null;
+      entry.inputs = {}; entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
       message("Workbook defaults restored in this draft. Save calculator to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
@@ -530,7 +642,7 @@
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
       if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save calculator.`, "Apply to draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
-      entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null;
+      entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
       message(`Imported ${result.imported_rows} schedule rows into the draft. Save calculator to keep them.`); await calculate();
     } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
@@ -551,18 +663,19 @@
     finally { state.action = false; updateStatus(); }
   }
 
-  function changeRows(direction) {
-    const entry = current(); if (!entry?.result || entry.invalid.size) return;
-    const next = Math.max(1, entry.startRow + direction * 25);
-    if (next > entry.result.max_row) return;
-    entry.startRow = next; entry.pendingResult = null; $("calculator-grid").scrollTop = 0; calculate();
-  }
-
-  function jumpRows() {
-    const entry = current(); if (!entry?.result || entry.invalid.size) return;
-    const next = Number($("calculator-row-page").value);
-    if (!Number.isInteger(next) || next < 1 || next > entry.result.max_row || (next - 1) % 25 !== 0) return;
-    entry.startRow = next; entry.pendingResult = null; $("calculator-grid").scrollTop = 0; calculate();
+  async function downloadSchedulePdf() {
+    const entry = current(); if (!entry || entry.invalid.size || state.action) return;
+    const id = entry.definition.id, snapshot = clone(entry.inputs);
+    state.action = true; updateStatus();
+    try {
+      const response = await fetch(endpoint(id, "report.pdf"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputs: snapshot }) });
+      if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF generation failed."); }
+      if (!String(response.headers.get("Content-Type") || "").includes("application/pdf")) throw new Error("The server did not return a PDF report.");
+      const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a");
+      link.href = url; link.download = `ceasefire-${id}-schedule.pdf`; document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000); message("Schedule PDF downloaded using the draft captured when you clicked Download.");
+    } catch (error) { message(`Could not download the schedule PDF. ${error.message}`, true); }
+    finally { state.action = false; updateStatus(); }
   }
 
   $("calculator-save").addEventListener("click", save);
@@ -571,10 +684,8 @@
   $("calculator-template").addEventListener("click", exportTemplate);
   $("calculator-import").addEventListener("click", () => $("calculator-import-file").click());
   $("calculator-import-file").addEventListener("change", importSchedule);
-  $("calculator-previous").addEventListener("click", () => changeRows(-1));
-  $("calculator-next").addEventListener("click", () => changeRows(1));
-  $("calculator-row-page").addEventListener("change", jumpRows);
-  $("calculator-advanced").addEventListener("change", () => { const entry = current(); if (entry) { entry.advanced = $("calculator-advanced").checked; renderGrid(entry); } });
+  $("calculator-pdf").addEventListener("click", downloadSchedulePdf);
+  $("calculator-advanced").addEventListener("change", () => { const entry = current(); if (entry) { entry.advanced = $("calculator-advanced").checked; entry.needsRender = true; calculate(); } });
   window.addEventListener("beforeunload", (event) => { if ([...state.entries.values()].some((entry) => dirty(entry) || entry.invalid.size)) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireCalculators = { open };
 })();

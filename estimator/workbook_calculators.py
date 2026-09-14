@@ -14,6 +14,24 @@ from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, 
 from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, editable_cells
 
 
+# Source table headings outside the main schedules. See the per-page evidence
+# in docs/CALCULATOR_PRESENTATION_MAPPING.md; these affect styling only.
+_PRESENTATION_HEADERS = {
+    'steel_vermiculite': {'CALCULATOR': [28], 'BAGS': [19],
+                         'SETTINGS': [35, 54, 68, 86, 100, 123, 177, 196, 233, 259]},
+    'steel_board': {'EXTRA BOARDS': [5], 'BOARD SUMMARY': [11], 'SETTINGS': [5]},
+    'ductwork': {'SUMMARY': [8, 18, 30, 39],
+                 'PRODUCT SETTINGS': [7, 36, 49, 74, 95, 117, 123, 129, 136]},
+}
+_PRESENTATION_SECTIONS = {
+    'steel_vermiculite': {'CALCULATOR': ['A5', 'H5', 'A26'], 'BAGS': ['A17'],
+                         'SETTINGS': [f'A{row}' for row in (9, 17, 31, 64, 96, 173, 229, 270, 341, 356, 370)]},
+    'steel_board': {'START': [f'A{row}' for row in (8, 15, 21, 25, 30, 34)]},
+    'ductwork': {'SUMMARY': ['A17', 'A29', 'A38'],
+                 'PRODUCT SETTINGS': ['A6', 'A48', 'A94', 'A153']},
+}
+
+
 @lru_cache(maxsize=3)
 def source_model(calculator_id):
     # Caller-owned model is private to this module and never mutated or exposed.
@@ -125,7 +143,7 @@ def calculator_session(calculator_id, inputs):
     return normalized, engine, lock
 
 
-def validation_options(engine, sheet, address, validation):
+def validation_options(engine, sheet, address, validation, cache=None):
     if not validation or validation.get('type') != 'list':
         return []
     formula = validation.get('formula1', '').lstrip('=')
@@ -134,6 +152,9 @@ def validation_options(engine, sheet, address, validation):
         return [float(value) if re.fullmatch(r'[+-]?\d+(?:\.\d+)?', value) else value for value in items]
     first = validation['sqref'].split()[0].split(':')[0].replace('$', '')
     translated = Translator('=' + formula, origin=first).translate_formula(address).lstrip('=')
+    key = (sheet, translated)
+    if cache is not None and key in cache:
+        return cache[key]
     row, column = coordinates(address)
     result = engine.evaluate(parse_formula(relative_formula(translated, row, column)), sheet, row, column)
     items = list(result.values()) if isinstance(result, CellRange) else [result]
@@ -141,6 +162,8 @@ def validation_options(engine, sheet, address, validation):
     for value in items:
         if value not in (None, '') and value not in unique:
             unique.append(value)
+    if cache is not None:
+        cache[key] = unique
     return unique
 
 
@@ -158,7 +181,9 @@ def _sheet_metadata(model, sheet):
             'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
                 if data.get('hidden') in ('1', True) or float(data.get('ht', 15)) <= 0],
             'column_widths': widths, 'columns': labels, 'merges': sheet['merges'],
-            'header_rows': [schedule['header_row']] if sheet['name'] == schedule['sheet'] else [],
+            'header_rows': [schedule['header_row']] if sheet['name'] == schedule['sheet'] else
+                _PRESENTATION_HEADERS.get(model['id'], {}).get(sheet['name'], []),
+            'section_cells': _PRESENTATION_SECTIONS.get(model['id'], {}).get(sheet['name'], []),
             'source_state': sheet['state']}
 
 
@@ -188,17 +213,71 @@ def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_coun
     metadata = _sheet_metadata(model, source)
     if start_row > metadata['max_row']:
         raise ValidationError('The requested row is outside this worksheet.')
+    return _render_sheet(calculator_id, inputs, source, metadata, start_row,
+                         min(metadata['max_row'], start_row + row_count - 1))
+
+
+def calculate_worksheet(calculator_id, inputs=None, sheet=None, include_advanced=False):
+    """Return one complete source page with bounded, shared dropdown metadata.
+
+    The extent comes from the imported workbook, never a caller-supplied size.
+    This is a presentation projection; values still come from WorkbookEngine.
+    """
+    model = source_model(calculator_id)
+    if sheet is not None and not isinstance(sheet, str):
+        raise ValidationError('Choose an available calculator page.')
+    sheet = model['pages'][0] if sheet is None else sheet
+    if sheet not in model['pages']:
+        raise ValidationError('Choose an available calculator page.')
+    if not isinstance(include_advanced, bool):
+        raise ValidationError('Advanced columns must be enabled or disabled.')
+    source = next(item for item in model['sheets'] if item['name'] == sheet)
+    metadata = _sheet_metadata(model, source)
+    return _render_sheet(calculator_id, inputs, source, metadata, 1,
+                         metadata['max_row'], shared_options=True,
+                         include_advanced=include_advanced)
+
+
+def _presentation(style, original, value, row, column, metadata, editable):
+    """Translate source emphasis into semantic styling, without changing text."""
+    font = {child['tag']: child.get('attributes', {}) for child in style.get('font', {}).get('children', [])}
+    bold = 'b' in font and font['b'].get('val', '1') not in ('0', 'false')
+    size = float(font.get('sz', {}).get('val', 11))
+    white_heading = bold and font.get('color', {}).get('rgb', '').upper().endswith('FFFFFF')
+    role = 'body'
+    if row in metadata['header_rows']:
+        role = 'column_header'
+    elif isinstance(value, str) and value:
+        if not editable and (row == 1 or row <= 3 and size >= 16):
+            role = 'title'
+        elif not editable and (column_name(column) + str(row) in metadata['section_cells'] or white_heading or bold and size >= 12):
+            role = 'section'
+        elif len(value) > 110 or '\n' in value:
+            role = 'note'
+        elif bold and not editable:
+            role = 'label'
+    elif 'formula' in original and not editable:
+        role = 'output'
+    return {'role': role, 'bold': bold}
+
+
+def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
+                  shared_options=False, include_advanced=True):
+    model = source_model(calculator_id)
+    sheet = source['name']
     normalized, engine, lock = calculator_session(calculator_id, inputs)
     rows, warnings = [], []
-    end_row = min(metadata['max_row'], start_row + row_count - 1)
     styles = model['styles']['cell_styles']
     allowed = editable_cells(calculator_id, sheet)
+    columns = [column for column in range(1, metadata['max_column'] + 1)
+               if include_advanced or column not in metadata['hidden_columns']]
+    option_sets, option_keys, option_cache = {}, {}, {}
     if calculator_id == 'ductwork':
         warnings.append('The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.')
     with lock:
         for row in range(start_row, end_row + 1):
             cells = []
-            for column in range(1, metadata['max_column'] + 1):
+            for column in columns:
                 address = column_name(column) + str(row)
                 original = source['cells'].get(address, {})
                 value = engine.value(sheet, address)
@@ -207,6 +286,8 @@ def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_coun
                 cell = {'column': column, 'address': address, 'value': value, 'editable': address in allowed,
                         'type': field.get('type', 'number' if isinstance(value, (int, float)) else 'text'),
                         'number_format': style.get('number_format', 'General'), 'calculated': 'formula' in original}
+                if shared_options:
+                    cell['presentation'] = _presentation(style, original, value, row, column, metadata, address in allowed)
                 if field:
                     cell['label'] = field.get('label', 'Input')
                     validation = _validation(source, address)
@@ -215,7 +296,15 @@ def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_coun
                         cell['error_style'] = validation.get('errorStyle', 'stop')
                         cell['allow_other'] = cell['error_style'] in ('warning', 'information') or validation.get('showErrorMessage') not in ('1', True)
                         try:
-                            cell['options'] = validation_options(engine, sheet, address, validation)
+                            options = validation_options(engine, sheet, address, validation, option_cache)
+                            if shared_options:
+                                key = json.dumps(options, ensure_ascii=False, allow_nan=False)
+                                if key not in option_keys:
+                                    option_keys[key] = f'choices-{len(option_sets) + 1}'
+                                    option_sets[option_keys[key]] = options
+                                cell['options_ref'] = option_keys[key]
+                            else:
+                                cell['options'] = options
                         except FormulaError as error:
                             cell['options'] = []
                             cell['validation_issue'] = error.code
@@ -224,4 +313,5 @@ def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_coun
                 cells.append(cell)
             rows.append({'row': row, 'cells': cells})
     return {**metadata, 'sheet': sheet, 'start_row': start_row, 'end_row': end_row,
-            'rows': rows, 'inputs': normalized, 'warnings': warnings}
+            'rows': rows, 'inputs': normalized, 'warnings': warnings,
+            **({'visible_columns': columns, 'option_sets': option_sets} if shared_options else {})}

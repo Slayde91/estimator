@@ -9,6 +9,8 @@
 - Three workbook Calculators, every visible tab, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Permanent technical databases, original formulas and dependent dropdowns.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
+- Continuous full-row calculator pages with branded forms, headings and labelled totals.
+- Full schedule PDF downloads with thicknesses, areas, applicable material quantities, settings and pooled product summaries.
 - Original exclusions/withheld quantities and the approved duct text correction.
 - Australian manuals, PDS/SDS and clearly labelled report/request links.
 - Independent native Microsoft Excel fixtures, HTTP/persistence and UI regressions.

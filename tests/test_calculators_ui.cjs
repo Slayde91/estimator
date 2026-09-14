@@ -12,7 +12,7 @@ function element(tag = 'div') {
     setAttribute(name, value) { attributes.set(name, value); }, removeAttribute(name) { attributes.delete(name); }, getAttribute(name) { return attributes.get(name); },
     append(...items) { this.children.push(...items); this.options = this.children; },
     replaceChildren(...items) { this.children = items; this.options = items; },
-    querySelectorAll(selector) { const found=[]; const walk=node=>{if(selector==='[data-calculator-output]' && node.dataset?.calculatorOutput)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
+    querySelectorAll(selector) { const found=[]; const walk=node=>{if(selector==='[data-calculator-output]' && node.dataset?.calculatorOutput)found.push(node);if(selector==='[data-calculator-cell]'&&node.dataset?.calculatorCell)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
     select() { this.selectionStart=0;this.selectionEnd=String(this.value).length; },
     addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
     async emit(name) { const list = [...this.listeners[name] || []]; this.listeners[name] = (this.listeners[name] || []).filter(item => !item.once); for (const item of list) await item.fn(); },
@@ -33,7 +33,7 @@ vm.createContext(context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
-    exportTemplate,selectCalculator,selectPage,changeRows,jumpRows,headerLabels,safeDocumentUrl,renderGrid,renderDocuments,sourceDisplayText,hiddenColumns,
+    exportTemplate,downloadSchedulePdf,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -42,6 +42,9 @@ const copy = value => JSON.parse(JSON.stringify(value));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { resolve, reject, promise }; };
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 const realRender = audit.renderGrid;
+const descendants=(root)=>[root,...(root.children||[]).flatMap(descendants)];
+const renderedTable=()=>descendants(byId('calculator-grid')).find(node=>node.tagName==='table');
+const renderedControls=()=>descendants(byId('calculator-grid')).filter(node=>node.dataset?.calculatorCell);
 function setup(inputs = {}) {
   audit.state.entries.clear();
   Object.assign(audit.state, { current: 'steel_board', requestRevision: 0, loadRevision: 0, action: false, list: [{ id: 'steel_board', title: 'Structural Steel Board' }] });
@@ -166,7 +169,7 @@ let passed = 0;
   // An older metadata response cannot replace a calculator draft opened by a newer request.
   entry = setup(); const definition = copy(entry.definition); audit.state.entries.clear(); audit.state.current = null;
   const earlier = deferred(), later = deferred(); let loads = 0;
-  audit.setRequest(path => path.endsWith('/calculate') ? Promise.resolve(result()) : (++loads === 1 ? earlier.promise : later.promise));
+  audit.setRequest(path => path.endsWith('/worksheet') ? Promise.resolve(result()) : (++loads === 1 ? earlier.promise : later.promise));
   const firstOpen = audit.selectCalculator('steel_board'), secondOpen = audit.selectCalculator('steel_board');
   later.resolve({ ...definition, inputs: {} }); await secondOpen;
   const retained = audit.current(); audit.setInput(retained, 'CALCULATOR', 'B9', 33);
@@ -199,7 +202,7 @@ let passed = 0;
   await byId('calculator-confirm-dialog').close('confirm'); await confirmationRace; assert.equal(entry.inputs.CALCULATOR.B9, 77); passed++;
 
   // Reset restores only the draft and is explicitly confirmed.
-  entry = setup({ CALCULATOR: { B9: 4 } }); audit.setRequest(async path => { assert.match(path, /\/calculate$/); return result(); });
+  entry = setup({ CALCULATOR: { B9: 4 } }); audit.setRequest(async path => { assert.match(path, /\/worksheet$/); return result(); });
   const resetting = audit.reset(); await flush(); await byId('calculator-confirm-dialog').close('confirm'); await resetting;
   assert.deepEqual(copy(entry.inputs), {}); assert.equal(JSON.parse(entry.saved).CALCULATOR.B9, 4); assert.equal(audit.dirty(entry), true); passed++;
 
@@ -252,38 +255,129 @@ let passed = 0;
   assert.deepEqual([...audit.hiddenColumns({hidden_columns:[3],column_widths:{1:12,2:0,4:-1,5:9}})].sort(),[2,3,4]);passed++;
 
   // Form worksheets keep narrow source spacers; schedule controls retain usable widths.
-  entry=setup();entry.result=result({}, {rows:[]});entry.definition.sheets[0].column_widths={1:13,2:3,3:13};
-  realRender(entry);assert.equal(byId('calculator-grid').children[0].children[0].children[2].style.width,'125px');
+  entry=setup();entry.result=result({}, {rows:[{row:9,cells:[{column:1,value:'Field'},{column:2,value:1},{column:3,value:'Units'}]}]});entry.definition.sheets[0].column_widths={1:13,2:3,3:13};
+  realRender(entry);assert.equal(renderedTable().children[0].children[1].style.width,'125px');
   entry.definition.schedule.sheet='SCHEDULE';realRender(entry);
-  assert.equal(byId('calculator-grid').children[0].children[0].children[2].style.width,'24px');
-  assert.equal(byId('calculator-grid').children[0].style.width,'258px');passed++;
+  assert.equal(renderedTable().children[0].children[1].style.width,'24px');
+  assert.equal(renderedTable().style.width,'206px');passed++;
 
   // Rendered controls retain business names and source values, with advanced columns opt-in.
   entry = setup(); entry.definition.sheets[0].hidden_columns = [3];
   entry.result = result({}, { rows: [{ row: 9, cells: [{ column: 1, value: 'Beam 1', editable: true, type: 'text' }, { column: 2, value: 12.34567, editable: true, type: 'number' }, { column: 3, value: 19.123456 }] }] });
   realRender(entry);
-  const table = byId('calculator-grid').children[0];
-  assert.equal(table.children[0].children.length, 3); // item column + two visible columns
-  const controlCell = table.children[2].children[0].children[2].children[0];
+  const table = renderedTable();
+  assert.equal(table.children[0].children.length, 2); // only business columns, no row gutter
+  const controlCell = renderedControls().find(control=>control.dataset.calculatorCell==='B9');
   assert.equal(controlCell.getAttribute('aria-label'), 'Lineal metres, item 1');
   assert.equal(controlCell.value, '12.35');
-  entry.advanced = true; realRender(entry); assert.equal(byId('calculator-grid').children[0].children[0].children.length, 4); passed++;
+  entry.advanced = true; realRender(entry); assert.equal(renderedTable().children[0].children.length, 3); passed++;
 
   // Live calculated output updates without removing a focused input control.
-  const renderedControl = byId('calculator-grid').children[0].children[2].children[0].children[2].children[0];
+  const renderedControl = renderedControls().find(control=>control.dataset.calculatorCell==='B9');
   context.document.activeElement = renderedControl;
   audit.setRequest(async () => result({}, { rows: [{ row: 9, cells: [{ column: 1, value: 'Beam 1', editable: true, type: 'text' }, { column: 2, value: 12.34567, editable: true, type: 'number' }, { column: 3, value: '#VALUE!', error: '#VALUE!' }] }] }));
   await audit.calculate();
   const output = byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell => cell.dataset.calculatorOutput === 'C9');
   assert.equal(output.textContent, '#VALUE!'); assert.equal(output.classList.contains('calculator-error'), true);
-  assert.equal(byId('calculator-grid').children[0].children[2].children[0].children[2].children[0], renderedControl); passed++;
+  assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='B9'), renderedControl); passed++;
 
-  // Large schedules expose direct row-range navigation instead of forty Next clicks.
-  context.document.activeElement = null; entry.result.max_row = 1009; realRender(entry);
-  assert.equal(byId('calculator-row-page').children.length, 41);
-  let pageRequest; audit.setRequest(async (path, options) => { pageRequest=JSON.parse(options.body);return result({}, {start_row:1001,end_row:1009,max_row:1009}); });
-  byId('calculator-row-page').value = '1001'; audit.jumpRows(); await flush();
-  assert.equal(pageRequest.start_row, 1001); assert.equal(entry.startRow, 1001); passed++;
+  // The complete 1,000-row schedule is rendered at once; large choices share one datalist.
+  entry=setup();entry.definition.schedule.last_row=1008;entry.definition.sheets[0].max_column=12;
+  const choices=Array.from({length:553},(_,index)=>`Section ${index}`);
+  entry.result=result({}, {max_row:1008,max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),option_sets:{steel:choices},
+    rows:Array.from({length:1000},(_,index)=>({row:index+9,cells:Array.from({length:12},(_,column)=>({column:column+1,address:String.fromCharCode(65+column)+(index+9),value:column?1:null,editable:true,type:column?'number':'select',...(column?{}:{options_ref:'steel'})}))}))});
+  realRender(entry);
+  assert.equal(renderedTable().children.at(-1).children.length,1000);
+  assert.equal(renderedControls().length,12000);
+  assert.equal(byId('calculator-option-lists').children.length,1);
+  assert.equal(byId('calculator-option-lists').children[0].children.length,553);
+  assert.equal(byId('calculator-page-status').textContent,'1,000 schedule rows · Scroll to any item');
+  const html=fs.readFileSync('static/index.html','utf8');
+  assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);passed++;
+
+  // Ordinary value edits refresh outputs without rebuilding thousands of inputs.
+  const retainedControl=renderedControls()[0];
+  audit.setRender(realRender);audit.setRequest(async()=>copy(entry.result));
+  context.document.activeElement=null;await audit.calculate();
+  assert.equal(renderedControls()[0],retainedControl);passed++;
+
+  // Formula-backed editable defaults refresh after dependencies change, keeping exact focus values.
+  entry=setup();entry.result=result({}, {rows:[{row:9,cells:[{column:2,address:'B9',value:2,editable:true,type:'number',calculated:true}]}]});
+  realRender(entry);const derived=renderedControls()[0];
+  audit.setRequest(async()=>result({}, {rows:[{row:9,cells:[{column:2,address:'B9',value:3.24689,editable:true,type:'number',calculated:true}]}]}));
+  await audit.calculate();assert.equal(renderedControls()[0],derived);assert.equal(derived.value,'3.25');
+  await derived.emit('focus');assert.equal(derived.value,'3.24689');assert.deepEqual(copy(entry.inputs),{});passed++;
+
+  // Worksheet calls request all rows and carry the explicit advanced-column state.
+  entry=setup();entry.advanced=true;let worksheetBody;
+  audit.setRender(()=>{});audit.setRequest(async(path,options)=>{assert.match(path,/\/worksheet$/);worksheetBody=JSON.parse(options.body);return result();});
+  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{},sheet:'CALCULATOR',include_advanced:true});passed++;
+
+  // Schedule summaries retain each label/value relationship, including repeated zero counts.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
+  const overview=audit.renderOverview([{row:4,cells:[{column:1,address:'A4',value:'Total spray area'},{column:7,address:'G4',value:'Coating volume'},{column:13,address:'M4',value:'Scope blocks'},{column:19,address:'S4',value:'Not quantified'}]},
+    {row:5,cells:[{column:1,address:'A5',value:430.725},{column:7,address:'G5',value:11.2},{column:13,address:'M5',value:0},{column:19,address:'S5',value:0}]}],entry,Array.from({length:25},(_,i)=>i+1));
+  const cards=overview.children[0].children;assert.equal(cards.length,4);
+  assert.equal(cards[0].children[0].textContent,'Total spray area');assert.equal(cards[0].children[1].textContent,'430.73');
+  assert.equal(cards[2].children[0].textContent,'Scope blocks');assert.equal(cards[2].children[1].textContent,'0.00');
+  assert.equal(cards[3].children[0].textContent,'Not quantified');assert.equal(cards[3].children[1].textContent,'0.00');passed++;
+
+  // Decorative gaps disappear while section roles, populated merge widths and values survive.
+  entry=setup();entry.definition.schedule.sheet='SCHEDULE';entry.definition.sheets[0].merges=['A1:C1'];
+  entry.result=result({}, {max_column:5,visible_columns:[1,2,3,4,5],rows:[{row:1,cells:[{column:1,address:'A1',value:'Settings',presentation:{role:'title',bold:true}}]},
+    {row:2,cells:[{column:1,value:null}]},{row:3,cells:[{column:1,value:'Pack size',presentation:{role:'label',bold:true}},{column:2,value:12.34567,editable:true,type:'number'}]}]});
+  realRender(entry);assert.equal(renderedTable().children[0].children.length,3);assert.equal(renderedTable().children.at(-1).children.length,2);
+  const titleCell=renderedTable().children.at(-1).children[0].children[0];assert.equal(titleCell.colSpan,3);assert.match(titleCell.className,/calculator-role-title/);passed++;
+
+  // Empty-to-populated formula notes must enter the form without a page change.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
+  const formResult=populated=>result({}, {max_column:14,visible_columns:Array.from({length:14},(_,i)=>i+1),rows:[
+    {row:6,cells:[{column:1,address:'A6',value:'Product'},{column:4,address:'D6',value:populated?'CAFCO 300':null,editable:true,type:'select',options:['CAFCO 300']}]},
+    ...[23,33,35].map((row,index)=>({row,cells:[{column:index?1:8,address:`${index?'A':'H'}${row}`,value:populated?['C300-2021 p4','Exposure and steel temperature qualification','Thickness review and quantity limitation'][index]:'',calculated:true}]}))]});
+  entry.result=formResult(false);realRender(entry);
+  assert.equal(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).length,1);
+  audit.setRender(realRender);audit.setRequest(async()=>formResult(true));await audit.calculate();
+  for(const address of ['H23','A33','A35'])assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(cell=>cell.dataset.calculatorOutput===address),`${address} appears immediately`);
+  audit.setRequest(async()=>formResult(false));await audit.calculate();
+  assert.equal(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).length,1);passed++;
+
+  // Schedule overview notes also become visible when their formula changes from blank.
+  entry=setup();const introResult=value=>result({}, {rows:[{row:6,cells:[{column:1,address:'A6',value,calculated:true}]},{row:9,cells:[{column:2,address:'B9',value:1,editable:true,type:'number'}]}]});
+  entry.result=introResult('');realRender(entry);audit.setRender(realRender);audit.setRequest(async()=>introResult('Review the selected construction.'));await audit.calculate();
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A6').textContent,'Review the selected construction.');passed++;
+
+  // Mobile forms reuse each input once; comparison rows retain real column headers in their own scroll region.
+  for(const [sheet,first,last] of [['CALCULATOR',28,30],['BAGS',19,24]]){
+    entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';entry.sheet=sheet;
+    entry.definition.sheets=[{name:sheet,header_rows:[first],merges:['A1:D1','A6:C6'],hidden_columns:[]}];
+    entry.result=result({}, {sheet,max_column:4,visible_columns:[1,2,3,4],rows:[{row:1,cells:[{column:1,address:'A1',value:sheet,presentation:{role:'title'}}]},
+      {row:6,cells:[{column:1,address:'A6',value:'Area (m²)',presentation:{role:'label'}},{column:4,address:'D6',value:2.3456789,type:'number',editable:true}]},
+      ...Array.from({length:last-first+1},(_,i)=>({row:first+i,cells:[{column:1,address:`A${first+i}`,value:i?'Status':'Product'},{column:2,address:`B${first+i}`,value:i?26:'Thickness'}]})),
+      {row:last+3,cells:[{column:1,address:`A${last+3}`,value:'Keep the source design qualification.',presentation:{role:'note'}}]}]});
+    realRender(entry);const parts=byId('calculator-grid').children;
+    assert.equal(parts.length,3);assert.match(parts[0].className,/calculator-responsive-scroll/);assert.match(parts[2].className,/calculator-responsive-scroll/);
+    const comparison=parts[1].children[0];assert.match(comparison.className,/calculator-comparison-table/);
+    assert.equal(comparison.children.at(-1).children.length,last-first+1);
+    assert.equal(comparison.children.at(-1).children[0].children[0].tagName,'th');assert.equal(parts[1].getAttribute('role'),'region');
+    assert.equal(renderedControls().length,1);assert.equal(renderedControls()[0].dataset.calculatorCell,'D6');
+    await renderedControls()[0].emit('focus');assert.equal(renderedControls()[0].value,'2.3456789');await renderedControls()[0].emit('blur');assert.deepEqual(copy(entry.inputs),{});
+  }
+  const calculatorCss=fs.readFileSync('static/calculators.css','utf8');
+  assert.match(calculatorCss,/calculator-responsive-form\{display:block;width:100%!important;min-width:0/);
+  assert.match(calculatorCss,/calculator-responsive-scroll\{overflow:visible;max-height:none/);passed++;
+
+  // Historical Back to Top text now has a real, labelled destination.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');
+  audit.updateOutputCell(back,{address:'J32',value:'BACK TO TOP'});assert.equal(back.children[0].href,'#calculator-sheet-title');
+  assert.equal(back.children[0].textContent,'Back to worksheet controls');passed++;
+
+  // Schedule PDF downloads capture the clicked draft without saving or including later edits.
+  entry=setup({CALCULATOR:{B9:2.3456789}});const pdfResponse=deferred();let pdfBody,pdfPath;
+  audit.setFetch((path,options)=>{pdfPath=path;pdfBody=JSON.parse(options.body);return pdfResponse.promise;});
+  const downloading=audit.downloadSchedulePdf();audit.setInput(entry,'CALCULATOR','B9',9);
+  pdfResponse.resolve({ok:true,headers:{get:()=> 'application/pdf'},blob:async()=>new Blob(['%PDF-1.4'])});await downloading;
+  assert.match(pdfPath,/\/steel_board\/report\.pdf$/);assert.equal(pdfBody.inputs.CALCULATOR.B9,2.3456789);
+  assert.equal(entry.inputs.CALCULATOR.B9,9);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);passed++;
 
   // Cancelled file pickers and oversized workbooks do not read or submit content.
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });

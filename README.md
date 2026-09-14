@@ -37,13 +37,15 @@ The original Quote estimator uses assessed coverage/product quantities, as its E
 
 ## Calculators
 
-Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. Select a row range to move through large schedules, or show advanced columns for additional inputs.
+Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table or show advanced columns for additional inputs. Highlighted fields are editable, with bold headings, labelled totals and Ceasefire colours separating inputs and results.
 
 Enter inputs directly, or click **Export template**, fill its schedule in Excel and use **Import schedule**. Import replaces the complete schedule, including clearing unused old rows, and preserves other calculator settings. It stays a draft until **Save calculator**. Each calculator keeps its own saved inputs and settings. **Reset to workbook defaults** restores the original example schedule and settings as a draft.
 
 The templates contain only expected input columns and reference instructions: eight duct fields, 24 board fields and 12 vermiculite fields. Schedule capacities match Excel: 300 duct rows, 200 board rows and 1,000 vermiculite rows. Import accepts the exported values-only `.xlsx` layout, up to 5 MB; it does not map an arbitrary schedule layout or execute uploaded formulas.
 
 Calculator numbers display two decimals at rest. Selecting a numeric input reveals its exact value, and editing retains full precision so small yields and tolerances cannot be rounded into different results. The source databases and calculated cells are read-only. All intended workbook settings remain adjustable, including formula-backed yields. Source exclusions, review flags, errors and withheld quantities remain visible.
+
+**Download schedule PDF** creates a branded document from the current calculator draft without saving it. It includes every populated schedule item, all inputs and calculation notes, thicknesses, protection/material areas and applicable bag, sheet or wrap quantities. Unused blank slots are omitted; incomplete entries stay visible. Board EXTRA BOARDS and settings are included, followed by the product and quantity summary. Spray ordering follows the workbook's pooled bag rules; board ordering follows its pooled stock rules. Board and wrap do not use spray bags. Board reference box area is labelled separately from actual board material area.
 
 Each section has Australian technical-document links with clearly identified manuals, product data, safety data and report availability. The copied duct fixing-guide text uses the user-approved first-row correction; quantity formulas are unchanged. See [calculator mapping and validation](docs/WORKBOOK_CALCULATORS.md) and [approved exception](docs/CALCULATOR_EXCEPTIONS.md).
 

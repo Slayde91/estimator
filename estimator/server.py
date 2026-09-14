@@ -116,21 +116,31 @@ def create_server(port=8765, database=None):
                     self.send_payload(404, {"error": "Not found."})
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
-                calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|state|template|import)', route)
+                calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|state|template|import)', route)
                 if calculator_route:
-                    from .workbook_calculators import calculate_page, normalize_calculator_inputs
+                    from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs
                     calculator_id, action = calculator_route.groups()
                     expected_method = 'PUT' if action == 'state' else 'POST'
                     if self.command != expected_method:
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs'},
+                               'worksheet': {'inputs', 'sheet', 'include_advanced'}, 'report.pdf': {'inputs'},
                                'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
                     if action == 'calculate':
                         inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
                         self.send_payload(200, calculate_page(calculator_id, inputs, body.get('sheet'), body.get('start_row', 1), body.get('row_count', 25)))
+                    elif action == 'worksheet':
+                        inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
+                        self.send_payload(200, calculate_worksheet(calculator_id, inputs, body.get('sheet'), body.get('include_advanced', False)))
+                    elif action == 'report.pdf':
+                        from .calculator_report import build_calculator_report
+                        inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
+                        report = build_calculator_report(calculator_id, inputs)
+                        self.send_payload(200, report, 'application/pdf',
+                                          {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-schedule.pdf"'})
                     elif action == 'state':
                         if 'inputs' not in body:
                             raise ValidationError('Include the calculator inputs to save.')

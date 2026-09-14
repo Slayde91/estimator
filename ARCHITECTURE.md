@@ -78,7 +78,7 @@ answers. `workbook_calculators.py` validates typed overlays, resolves dependent
 dropdowns and serves exact worksheet pages. `schedule_workbook.py` extends the
 existing openpyxl/OOXML validation boundary for schedule-only template exchange.
 `static/calculators.js` owns separate calculator drafts, race-safe recalculation,
-precision-preserving controls, page ranges and explicit saving.
+precision-preserving controls, complete worksheets and explicit saving.
 
 Consequences: a bounded engine now implements only the Excel functions present
 in the supplied files. Any future formula feature requires explicit support and
@@ -108,6 +108,30 @@ mapped into pricing because the new workbooks do not specify that integration.
 The approved duct fixing-text correction is isolated from the immutable source
 and quantity formulas. See [mapping and native evidence](docs/WORKBOOK_CALCULATORS.md)
 and [exception record](docs/CALCULATOR_EXCEPTIONS.md).
+
+### Continuous worksheet presentation and schedule documents
+
+The existing paged projection is retained for compatibility. A `worksheet` POST
+returns the complete bounded source page with shared typed dropdown option sets,
+visible columns and source-derived presentation roles. The browser renders every
+prepared schedule row, retaining hidden/advanced choices and omitting decorative
+spacing only. Shared datalists avoid repeating large section libraries for every
+row. Neither presentation roles nor display rounding change calculated values.
+
+`calculator_report.py` projects a normalized input snapshot through the same
+workbook engine and approved exception. `POST /api/calculators/<id>/report.pdf`
+uses the existing ReportLab/fonts/logo pipeline and never writes saved state.
+Documents include every populated row (including unresolved rows), full details,
+settings, additional board allowances and original pooled product totals. Bag,
+sheet, roll, surface-area and reference-box semantics remain distinct. Small
+nonzero report settings can use scientific notation with two decimal places in
+the mantissa rather than becoming a misleading zero.
+
+Consequences: larger complete-page responses replace repeated 25-row requests;
+source extents and input limits still bound the workload. No new dependencies,
+storage schema, business formulas or source packages are introduced. Existing
+saved states and quote/pricing snapshots require no migration. See the
+[per-page presentation and output mapping](docs/CALCULATOR_PRESENTATION_MAPPING.md).
 
 ## Calculation and state boundaries
 

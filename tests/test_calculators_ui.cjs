@@ -741,6 +741,102 @@ let passed = 0;
   const introUpdate=copy(entry.result);introUpdate.rows.find(row=>row.row===6).cells[1].value='Incomplete order: 2 rows have no board quantity.';audit.setRequest(async()=>introUpdate);await audit.calculate();
   assert.equal(preservedWarning.textContent,'Incomplete order: 2 rows have no board quantity.');passed++;
 
+  // Projected vermiculite forms stack independently, retain every input, and keep the complete aligned period matrix.
+  entry=setup({CALCULATOR:{D6:12.3456789}});entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
+  const vermProjections=[
+    {first_row:5,last_row:24,columns:[1,2,3,4,5,6],column_widths:Array(6).fill(1),width_mode:'fit',table_kind:'form',title_address:'A5',label:'Inputs'},
+    {first_row:5,last_row:24,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),width_mode:'fit',table_kind:'form',title_address:'H5',label:'Thickness and quantities'},
+    {first_row:26,last_row:30,columns:[1,2,3,4,5,6,7,8,9],column_widths:[100,...Array(8).fill(88)],table_kind:'comparison',title_address:'A26',header_row:28,label:'Published periods'},
+  ];
+  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:vermProjections,header_rows:[28],section_cells:['A5','H5','A26'],omitted_ranges:['J28:N30'],merges:['A1:N1','A5:F5','H5:N5','H10:J10','H20:N20','A26:N26','J28:N30']}];
+  const vermRows=new Map(),pushVerm=(row,cell)=>{if(!vermRows.has(row))vermRows.set(row,{row,cells:[]});vermRows.get(row).cells.push(cell);};
+  for(const [row,column,value] of [[1,1,'Vermiculite calculator'],[3,1,'Source introduction'],[5,1,'01 INPUTS'],[5,8,'02 OUTPUTS'],[13,7,'Keep the unprojected note'],[20,1,'Input note'],[25,1,'Between the forms and periods'],[26,1,'03 PUBLISHED PERIODS'],[28,10,'Omitted matrix narrative']])pushVerm(row,{column,address:`${String.fromCharCode(64+column)}${row}`,value,presentation:{role:[1,5,26].includes(row)?'section':'note'}});
+  for(const row of [6,7,8,9,10,11,12,14,15,16,17])pushVerm(row,{column:4,address:`D${row}`,value:row===6?12.3456789:row,editable:true,type:'number'});
+  for(let row=6;row<=23;row++)pushVerm(row,{column:8,address:`H${row}`,value:row===10?'Lookup ESA/M':row===20?'Full-width source subheading':row+0.123456,calculated:![10,20].includes(row),presentation:{role:[10,20].includes(row)?'section':'output'}});
+  for(let row=28;row<=30;row++)for(let column=1;column<=9;column++)pushVerm(row,{column,address:`${String.fromCharCode(64+column)}${row}`,value:row===28?`Period ${column}`:row*column,calculated:row!==28});
+  vermRows.set(27,{row:27,cells:[]});
+  entry.result=result(copy(entry.inputs),{max_column:14,rows:[...vermRows.values()].sort((a,b)=>a.row-b.row)});const vermRaw=JSON.stringify(entry.result);
+  realRender(entry);audit.setRender(realRender);
+  const vermSections=descendants(byId('calculator-grid')).filter(node=>node.className==='calculator-projected-section');
+  assert.equal(vermSections.length,3);assert.deepEqual(vermSections.map(node=>node.children[0].dataset.calculatorOutput),['A5','H5','A26']);
+  assert.equal(renderedControls().length,11);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,11);
+  for(const section of vermSections){assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===section.children[0].dataset.calculatorOutput).length,1);assert.equal(descendants(byId('calculator-grid')).filter(node=>node.href===`#${section.children[0].id}`).length,1);assert.equal(section.children[0].dataset.calculatorValue,undefined);}
+  assert.ok(descendants(vermSections[0]).find(node=>node.tagName==='table').className.includes('calculator-responsive-form'));
+  const periodTable=descendants(vermSections[2]).find(node=>node.tagName==='table');assert.equal(periodTable.children[0].children.length,9);assert.ok(periodTable.children[0].children.slice(1).every(col=>col.style.width==='88px'));assert.equal(periodTable.children.at(-1).children[0].children[0].tagName,'th');assert.equal(periodTable.children.at(-1).children[0].dataset.sourceRow,'28');
+  assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='J28'));assert.equal(JSON.stringify(entry.result),vermRaw);
+  const orderedVermOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
+  const fieldLabel=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H10');assert.match(fieldLabel.className,/calculator-role-label/);
+  const formSubheading=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H20');assert.match(formSubheading.className,/calculator-role-section/);assert.equal(formSubheading.dataset.calculatorValue,undefined);
+  assert.ok(orderedVermOutputs.indexOf('H5')<orderedVermOutputs.indexOf('G13'));assert.ok(orderedVermOutputs.indexOf('G13')<orderedVermOutputs.indexOf('A25'));assert.ok(orderedVermOutputs.indexOf('A25')<orderedVermOutputs.indexOf('A26'));
+  const retainedVermInput=renderedControls()[0],vermUpdate=copy(entry.result);vermUpdate.rows.find(row=>row.row===6).cells.find(cell=>cell.column===8).value=0.987654;audit.setRequest(async()=>vermUpdate);await audit.calculate();
+  assert.equal(renderedControls()[0],retainedVermInput);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').textContent,'0.99');
+  vermUpdate.rows.find(row=>row.row===5).cells.find(cell=>cell.column===1).value='Updated input section';await audit.calculate();assert.ok(descendants(byId('calculator-grid')).some(node=>node.href&&node.textContent==='Updated input section'));assert.equal(entry.inputs.CALCULATOR.D6,12.3456789);passed++;
+
+  // The BAGS source heading owns its order matrix; the manual first input remains a normal editable table cell.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';
+  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',header_rows:[19],section_cells:['A17'],merges:['A1:N1','A17:N17'],presentation_tables:[
+    {first_row:6,last_row:15,columns:Array.from({length:14},(_,i)=>i+1),column_widths:Array(14).fill(1),width_mode:'fit',table_kind:'form',label:'Manual quantity'},
+    {first_row:17,last_row:24,columns:Array.from({length:9},(_,i)=>i+1),column_widths:[19,7,9,10,8,7,11,9,20],width_mode:'fit',table_kind:'order',title_address:'A17',header_row:19,label:'Product order summary'},
+  ]}];
+  entry.result=result({}, {sheet:'BAGS',max_column:14,rows:[{row:1,cells:[{column:1,address:'A1',value:'BAGS',presentation:{role:'title'}}]},
+    ...[6,7,8].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Manual input',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row,editable:true,type:'number'}]})),
+    {row:15,cells:[{column:1,address:'A15',value:'Manual quantity note',presentation:{role:'note'}}]},
+    {row:17,cells:[{column:1,address:'A17',value:'PRODUCT ORDER SUMMARY',presentation:{role:'section'}}]},{row:18,cells:[]},
+    ...[19,20,21,22,23,24].map(row=>({row,cells:Array.from({length:9},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===19?`Header ${i+1}`:i===8?'Order status':row,calculated:row>19}))})),
+  ]});realRender(entry);
+  assert.equal(renderedControls().length,3);const projectedOrder=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-projected-section');assert.equal(projectedOrder.children[0].textContent,'PRODUCT ORDER SUMMARY');
+  const projectedOrderTable=descendants(projectedOrder).find(node=>node.tagName==='table');assert.equal(projectedOrderTable.style.width,'100%');assert.equal(projectedOrderTable.children.at(-1).children.length,6);assert.equal(projectedOrderTable.children[0].children[8].style.width,'20%');
+  const manualTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Manual quantity');assert.ok(manualTable.children.at(-1).children[0].children.every(node=>node.tagName==='td'));
+  entry.result.rows.find(row=>row.row===18).cells.push({column:2,address:'B18',value:null,calculated:true});realRender(entry);
+  const preservedBlankFormula=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='B18');assert.ok(preservedBlankFormula);assert.equal(preservedBlankFormula.classList.contains('calculator-value-empty'),true);passed++;
+
+  // Duct projections remain between CAFCO/MONOKOTE and use notes; side-table references and uncovered controls survive.
+  entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
+  entry.definition.sheets=[{name:entry.sheet,table_layout:'projected',header_rows:[95,116,117,123],section_cells:['A6','A48','A94','J94','J115','A153'],merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
+    {first_row:94,last_row:151,columns:[1,2,3,4,5,6,7,8],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'form',title_address:'A94',label:'FyreWrap settings'},
+    {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application'},
+    {first_row:115,last_row:149,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'comparison',title_address:'J115',header_row:116,label:'Penetration'},
+  ]}];
+  entry.result=result({}, {sheet:entry.sheet,max_column:17,rows:[
+    ...[[6,1,'CAFCO'],[48,1,'MONOKOTE'],[94,1,'FYREWRAP'],[94,10,'APPLICATION'],[115,10,'PENETRATION'],[153,1,'USE NOTES']].map(([row,column,value])=>({row,cells:[{column,address:`${String.fromCharCode(64+column)}${row}`,value,presentation:{role:'section'}}]})),
+    ...[[8,2,25],[65,2,1],[97,2,0.61],[100,2,0.005],[150,17,0.123456]].map(([row,column,value])=>({row,cells:[{column,address:`${String.fromCharCode(64+column)}${row}`,value,editable:true,type:'number'}]})),
+    {row:95,cells:[{column:10,address:'J95',value:'Application header'}]},{row:96,cells:[{column:10,address:'J96',value:'Duct application'}]},
+    {row:114,cells:[{column:10,address:'J114',value:'Uncovered source note',presentation:{role:'note'}}]},
+    {row:116,cells:[{column:10,address:'J116',value:'Penetration header'}]},
+    {row:117,cells:[{column:1,address:'A117',value:'Left-hand section header',presentation:{role:'column_header'}},{column:10,address:'J117',value:'Wall board collars',presentation:{role:'column_header'}}]},
+    {row:123,cells:[{column:10,address:'J123',value:'Cut strips per collar',presentation:{role:'column_header'}}]},
+    {row:137,cells:[{column:10,address:'J137',value:'Dropdown source value'},{column:11,address:'K137',value:'Dropdown explanation',presentation:{role:'note'}}]},
+    {row:149,cells:[{column:10,address:'J149',value:'Last dropdown choice'}]},
+    {row:154,cells:[{column:1,address:'A154',value:'Retained use notes',presentation:{role:'note'}}]},
+  ].reduce((rows,row)=>{const existing=rows.find(other=>other.row===row.row);if(existing)existing.cells.push(...row.cells);else rows.push(row);return rows;},[]).sort((a,b)=>a.row-b.row)});
+  const ductProjectionRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  assert.equal(renderedControls().length,5);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,5);
+  const ductAddresses=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
+  for(const address of ['A6','A48','A94','J94','J115','J137','K137','J149','J114','A153','A154'])assert.equal(ductAddresses.filter(value=>value===address).length,1,address);
+  assert.ok(ductAddresses.indexOf('A48')<ductAddresses.indexOf('A94'));assert.ok(ductAddresses.indexOf('J115')<ductAddresses.indexOf('A153'));assert.ok(ductAddresses.indexOf('J149')<ductAddresses.indexOf('A153'));
+  assert.equal(JSON.stringify(entry.result),ductProjectionRaw);const retainedRoll=renderedControls().find(node=>node.dataset.calculatorCell==='B97');await retainedRoll.emit('focus');assert.equal(retainedRoll.value,'0.61');
+  const preciseOverlap=renderedControls().find(node=>node.dataset.calculatorCell==='B100');await preciseOverlap.emit('focus');assert.equal(preciseOverlap.value,'0.005');await preciseOverlap.emit('blur');assert.deepEqual(copy(entry.inputs),{});passed++;
+
+  // A projected table's own header is independent of left-hand headings sharing the same source rows.
+  const ductProjectedOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]');
+  for(const address of ['J117','J123']) {
+    const value=ductProjectedOutputs.find(node=>node.dataset.calculatorOutput===address);
+    assert.match(value.className,/calculator-role-body/);assert.equal(value.classList.contains('calculator-value-present'),true);assert.equal(value.classList.contains('calculator-source-heading'),false);
+  }
+  const leftHeader=ductProjectedOutputs.find(node=>node.dataset.calculatorOutput==='A117');assert.equal(leftHeader.dataset.calculatorValue,undefined);assert.equal(leftHeader.classList.contains('calculator-source-heading'),true);
+  const ownHeader=ductProjectedOutputs.find(node=>node.dataset.calculatorOutput==='J116');assert.equal(ownHeader.tagName,'th');assert.equal(ownHeader.dataset.calculatorValue,undefined);
+  const retainedPenetrationValue=ductProjectedOutputs.find(node=>node.dataset.calculatorOutput==='J117'),headerScopedUpdate=copy(entry.result);headerScopedUpdate.rows.find(row=>row.row===117).cells.find(cell=>cell.column===10).value='Updated wall board collars';
+  audit.setRequest(async()=>headerScopedUpdate);await audit.calculate();assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='J117'),retainedPenetrationValue);assert.equal(retainedPenetrationValue.classList.contains('calculator-value-present'),true);passed++;
+
+  // Populated notes use the same present-value state in forms and overview; headings stay structural.
+  entry=setup();entry.definition.schedule.sheet='SCHEDULE';entry.definition.sheets[0].section_cells=['A5'];
+  entry.result=result({}, {rows:[{row:5,cells:[{column:1,address:'A5',value:'Section heading',presentation:{role:'section'}}]},
+    {row:6,cells:[{column:1,address:'A6',value:'Read this source note',presentation:{role:'note'}},{column:2,address:'B6',value:'Calculated note',calculated:true,presentation:{role:'note'}}]}]});
+  realRender(entry);for(const address of ['A6','B6'])assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===address).classList.contains('calculator-value-present'),true);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='A5').dataset.calculatorValue,undefined);
+  const noteOverview=audit.renderOverview([{row:2,cells:[{column:1,address:'A2',value:'Overview note',presentation:{role:'note'}}]},{row:3,cells:[{column:1,address:'A3',value:'Overview heading',presentation:{role:'section'}}]}],entry,[1]);
+  assert.equal(descendants(noteOverview).find(node=>node.dataset?.calculatorOutput==='A2').classList.contains('calculator-value-present'),true);assert.equal(descendants(noteOverview).find(node=>node.dataset?.calculatorOutput==='A3').dataset.calculatorValue,undefined);passed++;
+
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');
   audit.updateOutputCell(back,{address:'J32',value:'BACK TO TOP'});assert.equal(back.children[0].href,'#calculator-sheet-title');

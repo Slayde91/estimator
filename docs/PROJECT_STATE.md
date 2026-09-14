@@ -2,7 +2,26 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The current browser cleanup changes the displayed board schedule title to
+The latest browser presentation increment removes frozen first columns from
+calculator schedules, adds solid black gridlines across calculator data tables,
+and gives every main section the existing red-and-white DUCT PROTECTION SUMMARY
+heading style. Vertical column headings can remain visible while scrolling.
+Source, overview, product-total and stacked/projected section headings share
+that style; navigation retains its existing appearance. The two populated/blank
+data fills remain distinct, with zero counted as populated.
+
+Vermiculite CALCULATOR now orders Inputs, Thickness and quantities and the
+period comparison as separate sections, each with its own source heading and
+data. BAGS displays MATERIAL QUANTITIES, with the product-order heading and
+table together after the manual form. Duct PRODUCT SETTINGS presents FyreWrap,
+its application table and penetration takeoff as separate vertical sections,
+and hides its requested introductory rows. Vermiculite SETTINGS also omits its
+introductory rows 3–4. All existing inputs, source notes
+outside explicit omissions, lookup lists and material quantities are retained.
+Source formulas, input identities, saved precision and PDF contents are unchanged. Current
+validation and publication evidence belongs in SESSION_HANDOFF.md.
+
+The preceding browser cleanup changes the displayed board schedule title to
 STRUCTURAL STEEL BOARD SCHEDULE and its product-summary heading to Board Totals.
 It removes the requested introductory rows/blocks while retaining the live
 incomplete-order warning and all 200 schedule rows. The separate BOARD SUMMARY
@@ -69,8 +88,8 @@ at that checkpoint. These are historical results, not verification of this incre
 The calculator pages now expose every prepared row on one continuous page:
 1,000 vermiculite items, 300 duct items, 200 board items and 40 extra-board items.
 Forms and tables use the official colours, clearer source headings, labelled
-summary values and shared section dropdowns. Main sections have distinct colour
-themes and linked contents. Vermiculite SETTINGS uses the Product Settings and
+summary values and shared section dropdowns. Main sections have uniform
+red-and-white headings and linked contents. Vermiculite SETTINGS uses the Product Settings and
 Rules banner with its section links; material-basis text is read-only. Outputs
 use two highlight states: populated and blank, with numeric zero populated.
 The single-member period matrix has independent column widths, including the

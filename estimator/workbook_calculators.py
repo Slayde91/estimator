@@ -22,26 +22,26 @@ _PRESENTATION_HEADERS = {
                          'SETTINGS': [35, 54, 68, 86, 100, 123, 177, 196, 233, 259]},
     'steel_board': {'EXTRA BOARDS': [5], 'BOARD SUMMARY': [11], 'SETTINGS': [5]},
     'ductwork': {'SUMMARY': [8, 18, 30, 39],
-                 'PRODUCT SETTINGS': [7, 36, 49, 74, 95, 117, 123, 129, 136]},
+                 'PRODUCT SETTINGS': [7, 36, 49, 74, 95, 116, 117, 123, 129, 136]},
 }
 _PRESENTATION_SECTIONS = {
     'steel_vermiculite': {'CALCULATOR': ['A5', 'H5', 'A26'], 'BAGS': ['A17'],
                          'SETTINGS': [f'A{row}' for row in (9, 17, 31, 64, 96, 173, 229, 270, 341, 356, 370)]},
     'steel_board': {'START': [f'A{row}' for row in (8, 15, 21, 25, 30, 34)]},
     'ductwork': {'SUMMARY': ['A17', 'A29', 'A38'],
-                 'PRODUCT SETTINGS': ['A6', 'A48', 'A94', 'A153']},
+                 'PRODUCT SETTINGS': ['A6', 'A48', 'A94', 'J94', 'J115', 'A153']},
 }
 
 # Presentation exclusions never remove cells from the calculation model or
 # report data. In particular, SCHEDULE W still gates complete bag quantities.
 _OMITTED_ROWS = {
     'steel_vermiculite': {
-        'SETTINGS': [32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232],
+        'SETTINGS': [3, 4, 32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232],
         'SCHEDULE': [1, 2, 3, 8],
         'CALCULATOR': list(range(33, 42)),
     },
     'steel_board': {'START': [3, 5, 6, *range(34, 40)], 'CALCULATOR': [2, 5, 7]},
-    'ductwork': {'CALCULATOR': [5, 6, 7, 9]},
+    'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4]},
 }
 _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
                     'ductwork': {'CALCULATOR': [37, 38, 42, 43, 44]}}
@@ -49,6 +49,7 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
 # Column identities remain source coordinates; this order is browser-only.
 _DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]}}
 _DISPLAY_TEXT = {
+    'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'}},
     'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'}},
     'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'}},
@@ -57,6 +58,27 @@ _DISPLAY_TEXT = {
 # columns must be scoped to each table so hiding prose cannot hide quantities
 # in a different table. Widths are presentation pixels, not business constants.
 _PRESENTATION_TABLES = {
+    'steel_vermiculite': {
+        'CALCULATOR': [
+            {'first_row': 5, 'last_row': 24, 'columns': list(range(1, 7)),
+             'column_widths': [1, 1, 1, 1, 1, 1], 'width_mode': 'fit',
+             'table_kind': 'form', 'title_address': 'A5', 'label': '01 INPUTS'},
+            {'first_row': 5, 'last_row': 24, 'columns': list(range(8, 15)),
+             'column_widths': [1, 1, 1, 1, 1, 1, 1], 'width_mode': 'fit',
+             'table_kind': 'form', 'title_address': 'H5', 'label': '02 THICKNESS & QUANTITIES'},
+            {'first_row': 26, 'last_row': 30, 'columns': list(range(1, 10)),
+             'column_widths': [190, *([115] * 8)], 'table_kind': 'comparison',
+             'title_address': 'A26', 'header_row': 28, 'label': '03 ALL PUBLISHED PERIODS FOR THIS INPUT'},
+        ],
+        'BAGS': [
+            {'first_row': 6, 'last_row': 15, 'columns': list(range(1, 15)),
+             'column_widths': [1, 1, 1, 1, 1, 1, .12, 1, 1, 1, 1, 1, 1, 1],
+             'width_mode': 'fit', 'table_kind': 'form', 'label': 'Manual material quantity'},
+            {'first_row': 17, 'last_row': 24, 'columns': list(range(1, 10)),
+             'column_widths': [19, 7, 9, 10, 8, 7, 11, 9, 20], 'width_mode': 'fit',
+             'table_kind': 'order', 'title_address': 'A17', 'header_row': 19, 'label': 'PRODUCT ORDER SUMMARY'},
+        ],
+    },
     'steel_board': {'SETTINGS': [
         {'first_row': 5, 'last_row': 34, 'columns': [1, 2, 3],
          'column_widths': [460, 180, 140], 'label': 'General settings'},
@@ -65,7 +87,18 @@ _PRESENTATION_TABLES = {
         {'first_row': 5, 'last_row': 51, 'columns': [16, 17],
          'column_widths': [360, 620], 'label': 'Diagnostic messages'},
     ]},
-    'ductwork': {'SUMMARY': [
+    'ductwork': {'PRODUCT SETTINGS': [
+        {'first_row': 94, 'last_row': 151, 'columns': list(range(1, 9)),
+         'column_widths': [25, 14, 10, 10, 10, 10, 10, 11], 'width_mode': 'fit',
+         'table_kind': 'form', 'title_address': 'A94', 'label': 'FYREWRAP'},
+        {'first_row': 94, 'last_row': 113, 'columns': list(range(10, 18)),
+         'column_widths': [196, 280, 133, 112, 161, 161, 84, 273],
+         'table_kind': 'comparison', 'title_address': 'J94', 'header_row': 95, 'label': 'FYREWRAP APPLICATION TABLE'},
+        {'first_row': 115, 'last_row': 149, 'columns': list(range(10, 18)),
+         'column_widths': [30, 18, 12, 8, 8, 8, 8, 8], 'width_mode': 'fit',
+         'table_kind': 'comparison', 'title_address': 'J115', 'header_row': 116,
+         'label': 'PENETRATION TAKEOFF — STANDARD FOUR-SIDED DETAILS'},
+    ], 'SUMMARY': [
         {'first_row': 8, 'last_row': 11, 'columns': list(range(1, 11)),
          'column_widths': [200, *([125] * 9)], 'label': 'Product totals'},
         {'first_row': 18, 'last_row': 26, 'columns': list(range(1, 7)),
@@ -76,7 +109,8 @@ _PRESENTATION_TABLES = {
          'column_widths': [200, *([125] * 6)], 'label': 'Maxilite cutting totals'},
     ]},
 }
-_OMITTED_RANGES = {'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']},
+_OMITTED_RANGES = {'steel_vermiculite': {'CALCULATOR': ['J28:N30']},
+                   'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']},
                    'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13'],
                                    'CALCULATOR': ['Y1:AI1', 'A6:L6']}}
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
@@ -258,7 +292,9 @@ def _sheet_metadata(model, sheet):
             'display_column_order': list(_DISPLAY_COLUMN_ORDER.get(model['id'], {}).get(sheet['name'], [])),
             'display_text': dict(_DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {})),
             'presentation_tables': deepcopy(_PRESENTATION_TABLES.get(model['id'], {}).get(sheet['name'], [])),
-            'table_layout': 'stacked' if model['id'] == 'steel_board' and sheet['name'] == 'SETTINGS' else 'inline',
+            'table_layout': ('projected' if (model['id'], sheet['name']) in {
+                ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'), ('ductwork', 'PRODUCT SETTINGS')}
+                else 'stacked' if model['id'] == 'steel_board' and sheet['name'] == 'SETTINGS' else 'inline'),
             'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
                 if data.get('hidden') in ('1', True) or float(data.get('ht', 15)) <= 0],
             'column_widths': widths, 'columns': labels, 'merges': sheet['merges'],

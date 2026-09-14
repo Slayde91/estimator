@@ -1,5 +1,64 @@
 # Session handoff
 
+## Calculator sections and black grids — 2026-09-15
+
+Started from clean merged main `5998389` (PR #10), on
+`fix/calculator-sections-and-grids`. The 27 browser comments are addressed
+through the existing presentation metadata, shared renderer and CSS.
+
+Vermiculite CALCULATOR stacks its input form, thickness/quantity results and
+published-period table, with each source heading attached to its own table.
+BAGS displays MATERIAL QUANTITIES and attaches PRODUCT ORDER SUMMARY to its
+table below the manual form. Duct PRODUCT SETTINGS stacks the main FyreWrap,
+application and penetration tables, retaining all side notes and the complete
+H-selection lookup tail. Both requested Settings introductions are hidden.
+
+Main sections share red backgrounds and white titles. All calculator data grids
+have solid black lines; first columns scroll horizontally with their tables.
+Populated notes share the existing populated-output fill, while blank output
+cells keep their separate fill. Projected field labels and each table's column
+headers are distinguished from section banners and adjacent workbook tables.
+Decorative spacer rows above the period/order tables are omitted; prepared
+input rows and blank calculated rows remain.
+
+The marked duct roll width and board gap fields were already allowlisted,
+editable suggested-value controls. Browser editing, recalculation, save and
+reload retained 1.22 m and an exact 0.007 m gap. Their workbook rules have not
+been broadened; fixed adjacent constants remain read-only. Focus reveals the
+exact value and the resting display retains two-decimal formatting.
+
+Verified locally:
+- Three metadata/input-persistence checks passed (12.512 seconds), including
+  immutable package hashes, omission safety, non-overlapping projections,
+  lookup-tail retention and exact save/reload of the marked settings.
+- All six native Excel regression tests passed (122.811 seconds), covering
+  all three default workbooks and retained variations.
+- All twelve worksheet/API/report checks passed (44.219 seconds). All 68
+  calculator UI checks, 17 original UI checks, JavaScript syntax, build
+  (34 distribution files) and whitespace checks passed.
+- All 104,068 source cells, input/formula flags and dropdown choices across
+  all twelve pages matched before/after and on the refreshed main service.
+- PDF text matched before/after for vermiculite (3 pages), board (8 pages)
+  and duct (4 pages).
+- Live browser review covered all twelve tabs, main section styles, source
+  headings attached to their tables, note highlights, black grids, unpinned
+  first columns, 1,000/300/200 schedule rows and 40 extra-board rows, retained
+  three board-summary cards and normal-weight Row status. Browser logs were empty.
+- Independent actual-data renderer review found no missing/duplicated inputs,
+  outputs or contents links, and confirmed precise values and control identity
+  through recalculation. No actionable findings remained.
+
+Runtime QA, PDF comparisons and the original-database recovery backup are
+ignored under `.runtime/section-grid-qa`; distribution output stays in `dist/`.
+The main service was refreshed with its existing database; served assets and
+section metadata match the final code. Both saved quotes and all pricing and
+calculator records matched the recovery baseline. The user's browser tab was
+left untouched. Refresh after saving any current draft to load the new UI.
+There are no source workbook/package, formula, technical rule, schema or pricing
+changes. The existing external board XLSX re-save identity difference is
+documented in PR #9 and is separate from this presentation change. Publication,
+full CI and verified merge results are retained with the PR and local receipt.
+
 ## Calculator labels and column order — 2026-09-15
 
 Started from clean merged main `ef5cfc6` (PR #9), on

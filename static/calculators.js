@@ -359,7 +359,7 @@
 
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [] };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout };
   }
 
   function omittedCell(metadata) {
@@ -395,7 +395,7 @@
     // rebuild that structure; ordinary schedule edits still retain every control.
     const rows = result.rows.filter((row) => !omittedRows.has(row.row));
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -414,13 +414,16 @@
     rows = rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     const summaryFields = {
       steel_vermiculite: { SCHEDULE: [["A4", "A5"], ["G4", "G5"], ["S4", "S5"]] },
-      steel_board: { CALCULATOR: [["A4", "C4"], ["E4", "G4"], ["I4", "K4"], ["Y4", "AA4"], ["AC4", "AE4"], ["AG4", "AI4"]] },
+      steel_board: { "BOARD SUMMARY": [["A5", "A6"], ["E5", "E6"], ["I5", "I6"]] },
     };
     const pairs = summaryFields[entry.definition.id]?.[entry.sheet] || [];
     const mapped = new Map(rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
     const used = new Set(pairs.flat()), cards = node("div", "calculator-summary-cards"), box = node("div", "calculator-overview");
     const productSummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE";
-    if (productSummary) { used.add("M4"); used.add("M5"); cards.classList.add("calculator-summary-three"); }
+    const boardSchedule = entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR";
+    if (productSummary) { used.add("M4"); used.add("M5"); }
+    if (pairs.length === 3) cards.classList.add("calculator-summary-three");
+    if (boardSchedule) for (const address of ["A4", "C4", "E4", "G4", "I4", "K4", "Y4", "AA4", "AC4", "AE4", "AG4", "AI4"]) used.add(address);
     for (const [labelAddress, valueAddress] of pairs) {
       const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
       if (!label || !value || !columns.includes(value.column)) continue;
@@ -429,14 +432,17 @@
       output.dataset.calculatorOutput = valueAddress; updateOutputCell(output, value); card.append(heading, output); cards.append(card);
     }
     let cardsPlaced = false;
+    const appendSummary = () => {
+      if (cardsPlaced) return;
+      if (pairs.length) box.append(cards);
+      cardsPlaced = true;
+      if (productSummary || boardSchedule) { const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals"; entry.productTotalsElement = totals; renderProductTotals(entry.result, totals); box.append(totals); }
+    };
     for (const row of rows) for (const cell of row.cells) {
       if (!columns.includes(cell.column) || cell.value == null || cell.value === "") continue;
       const address = cell.address || `${columnName(cell.column)}${row.row}`;
       if (used.has(address)) {
-        if (!cardsPlaced) {
-          box.append(cards); cardsPlaced = true;
-          if (productSummary) { const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals"; entry.productTotalsElement = totals; renderProductTotals(entry.result, totals); box.append(totals); }
-        }
+        appendSummary();
         continue;
       }
       const role = presentationRole(cell);
@@ -445,21 +451,25 @@
       item.dataset.calculatorOutput = address;
       updateOutputCell(item, cell); box.append(item);
     }
+    if (boardSchedule) appendSummary();
     return box;
   }
 
   function renderProductTotals(result, container) {
     if (!container) return;
-    const totals = result?.product_totals || [];
+    const board = Array.isArray(result?.board_product_totals);
+    const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
-    const heading = node("h4", "", "Running material totals"), note = node("p", "", "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
+    const heading = node("h4", "", board ? "Running board totals" : "Running material totals"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
     const scroll = node("div", "calculator-product-totals-scroll"), table = node("table"), head = node("thead"), body = node("tbody"), headers = node("tr");
-    for (const label of ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
+    for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
     for (const total of totals) {
       const row = node("tr"), product = node("th", "", total.product); product.scope = "row"; row.append(product);
-      for (const value of [total.net_bags, total.whole_bags, total.status]) { const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value }); row.append(cell); }
+      const incomplete = board ? [[total.incomplete_rows, "schedule rows"], [total.incomplete_extra_rows, "additional-board rows"]].filter(([count]) => count > 0).map(([count, label]) => `${displayValue(count)} incomplete ${label}`) : [];
+      const status = !board ? total.status : incomplete.length ? `${incomplete.join("; ")} — totals need review` : total.incomplete_rows == null && total.incomplete_extra_rows == null ? "" : "No incomplete rows";
+      for (const value of board ? [total.box_reference_area, total.net_board_area, total.whole_sheets, status] : [total.net_bags, total.whole_bags, status]) { const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value }); row.append(cell); }
       body.append(row);
     }
     table.append(head, body); scroll.append(table); container.replaceChildren(heading, note, scroll);
@@ -495,6 +505,8 @@
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const presentationTables = metadata.presentation_tables;
+    const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
+    const boardSummary = entry.definition.id === "steel_board" && entry.sheet === "BOARD SUMMARY";
     const tableForRow = (row) => presentationTables.findIndex((table) => row >= table.first_row && row <= table.last_row);
     const merges = (metadata.merges || []).map((range) => {
       const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
@@ -508,8 +520,9 @@
       for (const table of presentationTables) for (const column of table.columns) occupied.add(columnNumber(column));
       columns = columns.filter((column) => occupied.has(column));
     }
-    const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : tableForRow(row.row) >= 0 || row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
-    const sectionLinks = sectionDetails(entry, { ...result, rows: visibleRows }, metadata), sectionsByAddress = new Map(sectionLinks.map((section) => [section.address, section]));
+    const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5) && !(boardSummary && row.row <= 10)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : tableForRow(row.row) >= 0 || row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
+    const tableLinks = stackedTables ? presentationTables.map((table, index) => ({ label: table.label, id: `calculator-table-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${index}`, theme: index % 11 })) : [];
+    const sectionLinks = [...sectionDetails(entry, { ...result, rows: visibleRows }, metadata), ...tableLinks], sectionsByAddress = new Map(sectionLinks.filter((section) => section.address).map((section) => [section.address, section]));
     state.optionLists.clear(); state.optionKeys = new WeakMap(); $("calculator-option-lists").replaceChildren();
     // These two source forms contain independent comparison matrices. Keeping
     // them separate lets the form stack on a phone while the matrix stays aligned.
@@ -522,11 +535,26 @@
       if (presentationTables.length) return `content-${presentationTables.filter((table) => table.last_row < row).length}`;
       return matrix ? row < matrix.first ? "before" : row <= matrix.last ? "matrix" : "after" : "all";
     };
-    for (const row of rows) {
-      const group = groupForRow(row.row), definition = presentationTables[tableForRow(row.row)];
-      if (!sections.has(group)) sections.set(group, { body: node("tbody"), rows: [], definition,
-        columns: definition ? definition.columns.map(columnNumber).filter((column) => columns.includes(column)) : matrix && group === "matrix" ? columns.filter((column) => column <= 9) : columns });
-      sections.get(group).rows.push(row.row);
+    const addGroup = (group, sourceRows, definition) => {
+      if (!sourceRows.length) return;
+      let groupColumns = definition ? definition.columns.map(columnNumber).filter((column) => columns.includes(column)) : matrix && group === "matrix" ? columns.filter((column) => column <= 9) : columns;
+      if (stackedTables && !definition) {
+        const occupied = new Set(sourceRows.flatMap((row) => row.cells.filter((cell) => cell.editable || cell.value !== null && cell.value !== undefined && cell.value !== "").map((cell) => cell.column)));
+        for (const merge of merges) if (sourceRows.some((row) => row.row === merge.start.row && row.cells.some((cell) => cell.column === merge.start.column && cell.value != null && cell.value !== ""))) for (const column of groupColumns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
+        groupColumns = groupColumns.filter((column) => occupied.has(column));
+      }
+      sections.set(group, { body: node("tbody"), rows: sourceRows.map((row) => row.row), sourceRows, definition, columns: groupColumns });
+    };
+    if (stackedTables) {
+      const first = Math.min(...presentationTables.map((table) => table.first_row));
+      addGroup("before", rows.filter((row) => row.row < first));
+      presentationTables.forEach((definition, index) => addGroup(`table-${index}`, rows.filter((row) => row.row >= definition.first_row && row.row <= definition.last_row), definition));
+      addGroup("after", rows.filter((row) => row.row >= first && tableForRow(row.row) < 0));
+    } else {
+      for (const row of rows) {
+        const group = groupForRow(row.row), definition = presentationTables[tableForRow(row.row)];
+        if (!sections.has(group)) addGroup(group, rows.filter((candidate) => groupForRow(candidate.row) === group), definition);
+      }
     }
     const headRow = node("tr");
     for (const column of columns) {
@@ -537,8 +565,8 @@
       const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
     head.append(headRow);
-    for (const row of rows) {
-      const group = groupForRow(row.row), renderedGroup = sections.get(group), groupColumns = renderedGroup.columns;
+    for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
+      const groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
@@ -581,6 +609,7 @@
     const content = [];
     if (sectionLinks.length) content.push(renderContents(sectionLinks));
     if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
+    if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
     for (const [group, renderedGroup] of sections) {
       const { body, definition, columns: groupColumns } = renderedGroup;
       const responsive = matrix && group !== "matrix";
@@ -593,7 +622,7 @@
       if (fitBagsForm) table.classList.add("calculator-bags-form");
       if (fitContent) table.classList.add("calculator-content-table");
       if (definition) table.classList.add("calculator-projection-table");
-      const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : widths;
+      const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitBagsForm || fitContent ? width / totalWidth * 100 : width}${orderTable || fitBagsForm || fitContent ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = orderTable || fitBagsForm || fitContent ? "100%" : `${totalWidth}px`; table.append(colgroup);
@@ -602,7 +631,9 @@
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
-      scroll.append(table); content.push(scroll);
+      scroll.append(table);
+      if (stackedTables && definition) { const link = tableLinks[presentationTables.indexOf(definition)], section = node("section", "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, definition.label); heading.id = link.id; section.append(heading, scroll); content.push(section); }
+      else content.push(scroll);
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     entry.renderedSheet = entry.sheet; entry.renderedAdvanced = entry.advanced; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;

@@ -596,6 +596,89 @@ let passed = 0;
   assert.equal(retainedStatus.textContent,'Ready');assert.equal(retainedStatus.classList.contains('calculator-row-status'),true);
   assert.match(fs.readFileSync('static/calculators.css','utf8'),/td\.calculator-row-status\s*\{\s*font-weight:\s*400\s*!important/);passed++;
 
+  // Overlapping board settings source rows become three ordered tables, with every primary control exactly once.
+  entry=setup();entry.sheet='SETTINGS';
+  const boardSettingTables=[
+    {first_row:5,last_row:34,columns:[1,2,3],column_widths:[460,180,140],label:'Primary settings'},
+    {first_row:5,last_row:10,columns:[7,8,9,10,11,12,13,14],column_widths:Array(8).fill(140),label:'Dropdown values'},
+    {first_row:5,last_row:51,columns:[16,17],column_widths:[360,620],label:'Diagnostic messages'},
+  ];
+  entry.definition.sheets=[{name:'SETTINGS',header_rows:[5],table_layout:'stacked',presentation_tables:boardSettingTables,omitted_ranges:['D5:D34','G12:N13'],merges:['A1:H2','A3:H3','G13:K13','L13:N13']}];
+  const settingRows=[{row:1,cells:[{column:1,address:'A1',value:'SETTINGS & CONVENTIONS',presentation:{role:'title'}}]},
+    {row:3,cells:[{column:1,address:'A3',value:'Source constants are not project approvals.',presentation:{role:'note'}}]}];
+  for(let row=5;row<=51;row++) {
+    const cells=[];
+    if(row<=34) for(let column=1;column<=4;column++) cells.push({column,address:`${String.fromCharCode(64+column)}${row}`,value:row===22?null:column===2&&row>5?row+0.123456:column===4?'Removed basis':`Primary ${row}/${column}`,editable:column===2&&row>5&&row!==22,type:'number'});
+    if(row<=10||row===12||row===13) for(let column=7;column<=14;column++) cells.push({column,address:`${String.fromCharCode(64+column)}${row}`,value:row>=12?'Removed dropdown reference':row===5?`Dropdown ${column}`:row*10+column});
+    cells.push({column:16,address:`P${row}`,value:row===5?'Existing diagnostic code':`Diagnostic ${row}`},{column:17,address:`Q${row}`,value:row===5?'Plain-English message':'Live diagnostic lookup message'});
+    settingRows.push({row,cells});
+  }
+  entry.result=result({}, {sheet:'SETTINGS',max_column:17,visible_columns:Array.from({length:17},(_,i)=>i+1),rows:settingRows});
+  const settingsRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  const stacked=descendants(byId('calculator-grid')).filter(node=>node.className==='calculator-stacked-section');
+  assert.equal(stacked.length,3);assert.deepEqual(stacked.map(node=>node.children[0].textContent),boardSettingTables.map(table=>table.label));
+  assert.equal(new Set(stacked.map(node=>node.children[0].className)).size,3);
+  for(const section of stacked) assert.ok(descendants(byId('calculator-grid')).some(node=>node.href===`#${section.children[0].id}`));
+  for(const [index,section] of stacked.entries()) {
+    const table=descendants(section).find(node=>node.tagName==='table'),spec=boardSettingTables[index];
+    assert.equal(table.getAttribute('aria-label'),spec.label);assert.equal(table.children[0].children.length,spec.columns.length);
+    assert.equal(table.children.at(-1).children.length,spec.last_row-spec.first_row+1);
+  }
+  assert.equal(renderedControls().length,28);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,28);
+  assert.ok(renderedControls().some(node=>node.dataset.calculatorCell==='B12'));assert.ok(renderedControls().some(node=>node.dataset.calculatorCell==='B13'));
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>/Removed basis|Removed dropdown reference/.test(node.textContent||'')));
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A1').length,1);
+  assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Q51'));
+  assert.equal(JSON.stringify(entry.result),settingsRaw);assert.deepEqual(copy(entry.inputs),{});
+  const primaryControl=renderedControls().find(node=>node.dataset.calculatorCell==='B12');
+  const updatedSettings=copy(entry.result);updatedSettings.inputs={SETTINGS:{B12:99.987654}};updatedSettings.rows.find(row=>row.row===12).cells.find(cell=>cell.column===2).value=99.987654;
+  audit.setRequest(async()=>updatedSettings);await audit.calculate();assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B12'),primaryControl);assert.equal(primaryControl.value,'99.99');assert.equal(entry.inputs.SETTINGS.B12,99.987654);passed++;
+
+  // BOARD SUMMARY has three linked cards, preserves its live warning and does not repeat card rows in the grid.
+  entry=setup();entry.sheet='BOARD SUMMARY';entry.definition.sheets=[{name:entry.sheet,header_rows:[11],merges:['A1:L1','A3:L3','A6:C7','E6:G7','I6:L7','A8:L9']}];
+  entry.result=result({}, {sheet:entry.sheet,max_column:12,rows:[
+    {row:1,cells:[{column:1,address:'A1',value:'BOARD SUMMARY',presentation:{role:'title'}}]},
+    {row:3,cells:[{column:1,address:'A3',value:'Product totals include additional boards.',presentation:{role:'note'}}]},
+    {row:5,cells:[{column:1,address:'A5',value:'Net board area'},{column:5,address:'E5',value:'Board area with waste'},{column:9,address:'I5',value:'Whole sheets'}]},
+    {row:6,cells:[{column:1,address:'A6',value:58.476,calculated:true},{column:5,address:'E6',value:60.789,calculated:true},{column:9,address:'I6',value:27,calculated:true}]},
+    {row:8,cells:[{column:1,address:'A8',value:'9 incomplete rows need review.',calculated:true,presentation:{role:'note'}}]},
+    {row:11,cells:[{column:1,address:'A11',value:'Product'}]},
+    {row:12,cells:[{column:1,address:'A12',value:'COREX'},{column:7,address:'G12',value:21.014,calculated:true}]},
+  ]});
+  realRender(entry);audit.setRender(realRender);
+  const summaryCards=descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard);
+  assert.equal(summaryCards.length,3);assert.deepEqual(summaryCards.map(node=>node.textContent),['58.48','60.79','27.00']);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,1);
+  for(const row of descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow)) assert.ok(Number(row.dataset.sourceRow)>=11);
+  const updatedSummary=copy(entry.result);updatedSummary.rows.find(row=>row.row===6).cells[0].value=0;updatedSummary.rows.find(row=>row.row===8).cells[0].value='No incomplete rows';audit.setRequest(async()=>updatedSummary);await audit.calculate();
+  assert.equal(summaryCards[0].textContent,'0.00');assert.equal(summaryCards[0].calculatorValueCard.classList.contains('calculator-value-present'),true);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='A8').textContent,'No incomplete rows');passed++;
+
+  // The board schedule shows authoritative product totals instead of six detached metrics, with incomplete rows explicit.
+  entry=setup();entry.definition.sheets[0].max_column=35;
+  const boardTotals=[{product:'COREX',box_reference_area:12.34567,net_board_area:21.014,whole_sheets:11,incomplete_rows:5,incomplete_extra_rows:1},
+    {product:'P250',box_reference_area:0,net_board_area:null,whole_sheets:null,incomplete_rows:0,incomplete_extra_rows:2}];
+  entry.result=result({}, {max_column:35,board_product_totals:boardTotals,rows:[{row:1,cells:[{column:1,address:'A1',value:'Board calculator',presentation:{role:'title'}}]},
+    {row:4,cells:[1,3,5,7,9,11,25,27,29,31,33,35].map(column=>({column,address:`${column<=26?String.fromCharCode(64+column):'A'+String.fromCharCode(64+column-26)}4`,value:column%4===1?'Old metric label':100}))},
+    {row:6,cells:[{column:25,address:'Y6',value:'Incomplete order: 9 rows have no board quantity.',calculated:true,presentation:{role:'note'}}]},
+    {row:9,cells:[{column:1,address:'A9',value:'Member',editable:true,type:'text'}]}]});
+  const boardRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  assert.equal(descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard).length,0);
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='Old metric label'));
+  assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('9 rows have no board quantity')));
+  assert.ok(entry.productTotalsElement);const boardTotalNodes=descendants(entry.productTotalsElement);
+  assert.ok(boardTotalNodes.some(node=>node.textContent==='Box reference area (m²)'));
+  assert.ok(boardTotalNodes.some(node=>node.textContent==='12.35'));assert.ok(boardTotalNodes.some(node=>node.textContent==='21.01'));
+  assert.ok(boardTotalNodes.some(node=>/5.00 incomplete schedule rows; 1.00 incomplete additional-board rows/.test(node.textContent||'')));
+  const boardTable=boardTotalNodes.find(node=>node.tagName==='table'),incompleteProduct=boardTable.children[1].children[1];
+  assert.equal(incompleteProduct.children[1].classList.contains('calculator-value-present'),true);
+  assert.equal(incompleteProduct.children[2].classList.contains('calculator-value-empty'),true);assert.equal(incompleteProduct.children[3].textContent,'');
+  assert.equal(JSON.stringify(entry.result),boardRaw);
+  const updatedBoard=copy(entry.result);updatedBoard.board_product_totals[0].net_board_area=99.9999;updatedBoard.board_product_totals[0].incomplete_rows=0;updatedBoard.board_product_totals[0].incomplete_extra_rows=0;updatedBoard.rows.find(row=>row.row===6).cells[0].value='Incomplete order: 3 rows have no board quantity.';
+  const retainedMember=renderedControls()[0];audit.setRequest(async()=>updatedBoard);await audit.calculate();
+  assert.equal(renderedControls()[0],retainedMember);assert.ok(descendants(entry.productTotalsElement).some(node=>node.textContent==='100.00'));assert.ok(descendants(entry.productTotalsElement).some(node=>node.textContent==='No incomplete rows'));passed++;
+  assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('3 rows have no board quantity')));
+
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');
   audit.updateOutputCell(back,{address:'J32',value:'BACK TO TOP'});assert.equal(back.children[0].href,'#calculator-sheet-title');

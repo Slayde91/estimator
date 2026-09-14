@@ -229,15 +229,57 @@ Rows 40–100 are entirely decorative padding. There is no reason to display the
 
 ### CALCULATOR
 
-Move merged introductory notes rows 1–7 above the table, retaining their live counts and warnings. Row 8 supplies the column labels. Render all 200 rows 9–208 in one table. A:L are normal inputs; M:X are advanced inputs and must be available through the existing advanced toggle; Y:AI are the primary results.
+Move merged introductory notes rows 1–7 above the table, retaining their live warnings. Replace the six source summary cards with one running-total row per board product. Row 8 supplies the schedule column labels. Render all 200 rows 9–208 in one table. A:L are normal inputs; M:X are advanced inputs and must be available through the existing advanced toggle; Y:AI are the primary results.
 
 Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
 
 The required output distinctions are stack Z, layer count AA, total thickness AB, box girth AC, reference box area AD, actual net board AE, board with waste AF, standalone sheets AG, standalone purchase area AH and row notes AI. Do not relabel reference box area as board requirement. Hidden AJ:CI are retained calculation dependencies; the current source page extent intentionally presents only through AI.
 
+The worksheet API supplies `board_product_totals`. It uses the existing Excel
+evaluator's `SUMIF` to group schedule AD by product for **Box reference area
+(m²)**, and BOARD SUMMARY G/I by product for **Net board required (m²)** and
+**Whole sheets**. AD is bare box girth multiplied by the row's total lineal
+length; it is not the actual exposed steel-profile surface. Thermal ESA/M or
+Hp/A must not be used to invent a replacement surface-area measure. This area
+distinction has been explained to the user.
+
+BOARD SUMMARY G includes both board layers and valid EXTRA BOARDS; I retains
+the source's product/thickness stock pooling and upward sheet rounding. Do not
+sum schedule AG or divide a combined product area by an assumed stock size.
+`COUNTIFS` supplies incomplete schedule and extra-board counts per product.
+An incomplete row may still have a box reference area but no board quantity;
+the available totals must stay accompanied by those counts and the source
+warnings. An unrecognised/missing product is not represented by a known-product
+total, so the original schedule status and overall incomplete warning remain
+necessary. Valid extra boards can contribute even without a steel schedule row.
+
+The retained native Excel default fixture gives the following independent
+reference totals. These are source-example evidence, not a claim that the new
+browser/API tests have passed:
+
+| Product | Box reference m² | Net board m² | Pooled whole sheets | Incomplete / active schedule rows |
+| --- | ---: | ---: | ---: | ---: |
+| TRAFALGAR COREX | 13.456 | 21.014 | 11 | 5 / 16 |
+| PROMATECT 250 | 1.1 | 1.35 | 1 | 0 / 2 |
+| PROMATECT 100 | 6.392 | 10.172 | 5 | 3 / 11 |
+| PROMATECT-XS | 11.82 | 25.94 | 10 | 1 / 7 |
+| Total | 32.768 | 58.476 | 27 | 9 / 36 |
+
+There are no entered extra-board allowances in that source example. Summing
+the standalone schedule sheet counts would give 46 instead of the correct 27
+pooled sheets. Values above retain audit precision; the browser displays two
+decimals without changing the raw quantities.
+
 ### BOARD SUMMARY
 
-Show three summary cards A6/E6/I6, followed by the live qualification A8. Render row 11 headers and all eighteen product/thickness rows 12–29 as a purchasing table. Finish with A31 pooling rules and A35 explanation of board area. Preserve source columns K/L as reference/key information, optionally visually secondary.
+Show three summary cards using labels A5/E5/I5 and values A6/E6/I6: net board
+required, whole sheets and purchase area. Their source merged value ranges are
+A6:C7, E6:G7 and I6:L7. Render the introductory A3 text once and retain the
+live qualification A8:L9; omit duplicate source card rows from the table.
+Rows 1–10 contain no editable fields. Render row 11 headers and all eighteen
+product/thickness rows 12–29 as a purchasing table. Finish with A31 pooling
+rules and A35 explanation of board area. Preserve source columns K/L as
+reference/key information, optionally visually secondary.
 
 Source A width is 25 units, numeric B:J15, references K:L21. Group columns into product/stock, box/extra/net area, waste, whole sheets and purchase area. Retain zero-quantity stock rows or offer a reversible display filter; filtering must never change the source pooled totals.
 
@@ -249,9 +291,27 @@ Keep the alternative entry methods visibly grouped: pieces D × cut length E × 
 
 ### SETTINGS
 
-Use a four-column parameter table/form: A label, B editable value, C units, D basis. It contains B6:B21 and B23:B34, all 28 allowed settings. Group rows 6–10 as unit conventions/default waste, 11–21 as geometry/detail/temperature/tolerance settings, and 23–34 as COREX assessed limits. These are presentation groups; all labels, raw values and scope remain source-derived.
+Present three independent tables stacked vertically, in this order:
 
-Keep readonly dropdown reference tables G5:N12 and the diagnostic-message table P5:Q51 in separately labelled reference blocks. The latter contains long messages and requires natural wrapping. Source A44/D70 and P38/Q60 widths explain why a single seventeen-column table is unsuitable for this page.
+| Table | Visible source range | Behavior |
+| --- | --- | --- |
+| General settings | A5:C34 | Setting, editable value and units; all 28 allowed values B6:B21 and B23:B34 remain. Row 22 is spacing. |
+| Fire periods and temperatures | G5:N10 | Eight source headings from COREX FRL through Other beam temperature, with the original numeric choices. The empty No selection column remains part of the source table. |
+| Diagnostic messages | P5:Q51 | Readonly code/message pairs, with naturally wrapped messages. |
+
+The primary source table is A5:D34. Omit only D5:D34 (Basis) from browser
+presentation. Remove only G12:N13, the dropdown table's final reference and
+explanation rows; row 11 is blank. Do not omit whole rows 12/13, which also
+contain editable B12/B13. These bounded omissions retain every source value,
+formula and dependency. In particular, diagnostic P6:Q51 is a live VLOOKUP
+source for schedule AI statuses, not disposable text.
+
+General settings cover unit conventions/default waste (rows 6–10),
+geometry/detail/temperature/tolerance (11–21), and COREX assessed limits
+(23–34). The system identifiers B33/B34 remain editable strings, and B21's
+1e-8 tolerance must retain its exact raw value. Stacking the independent tables
+removes the oversized shared seventeen-column layout without changing input
+keys, calculations, source packages or persistence.
 
 ## Report projection and quantity semantics
 
@@ -309,6 +369,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
 - Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits only the Both/Mixed block J6:Q21. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
+- Board SETTINGS stacks three tables and keeps all 28 editable values, dependent dropdowns and diagnostic lookups. BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

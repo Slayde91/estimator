@@ -48,6 +48,14 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
 # columns must be scoped to each table so hiding prose cannot hide quantities
 # in a different table. Widths are presentation pixels, not business constants.
 _PRESENTATION_TABLES = {
+    'steel_board': {'SETTINGS': [
+        {'first_row': 5, 'last_row': 34, 'columns': [1, 2, 3],
+         'column_widths': [460, 180, 140], 'label': 'General settings'},
+        {'first_row': 5, 'last_row': 10, 'columns': list(range(7, 15)),
+         'column_widths': [140] * 8, 'label': 'Fire periods and temperatures'},
+        {'first_row': 5, 'last_row': 51, 'columns': [16, 17],
+         'column_widths': [360, 620], 'label': 'Diagnostic messages'},
+    ]},
     'ductwork': {'SUMMARY': [
         {'first_row': 8, 'last_row': 11, 'columns': list(range(1, 11)),
          'column_widths': [200, *([125] * 9)], 'label': 'Product totals'},
@@ -59,7 +67,8 @@ _PRESENTATION_TABLES = {
          'column_widths': [200, *([125] * 6)], 'label': 'Maxilite cutting totals'},
     ]},
 }
-_OMITTED_RANGES = {'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']}}
+_OMITTED_RANGES = {'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']},
+                   'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13']}}
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
 
 
@@ -237,6 +246,7 @@ def _sheet_metadata(model, sheet):
             'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),
             'presentation_tables': deepcopy(_PRESENTATION_TABLES.get(model['id'], {}).get(sheet['name'], [])),
+            'table_layout': 'stacked' if model['id'] == 'steel_board' and sheet['name'] == 'SETTINGS' else 'inline',
             'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
                 if data.get('hidden') in ('1', True) or float(data.get('ht', 15)) <= 0],
             'column_widths': widths, 'columns': labels, 'merges': sheet['merges'],
@@ -321,6 +331,39 @@ def _presentation(style, original, value, row, column, metadata, editable):
     return {'role': role, 'bold': bold}
 
 
+def _board_product_totals(engine):
+    """Read-only grouping of the source box areas and pooled stock quantities.
+
+    AD is bare box girth times length, not steel-profile surface. BOARD SUMMARY
+    G/I already include every board layer, valid extras, waste and stock-line
+    rounding. Summing per-member AG would overstate the pooled sheet order.
+    Reuse Excel SUMIF/COUNTIFS so case matching, blanks and errors follow the
+    same semantics as the workbook. These expressions do not alter its graph.
+    """
+    products = list(dict.fromkeys(engine.value('BOARD SUMMARY', f'A{row}') for row in range(12, 30)))
+
+    def evaluate(formula):
+        try:
+            return engine.evaluate(parse_formula(relative_formula(formula, 1, 1)), 'CALCULATOR', 1, 1)
+        except FormulaError as error:
+            return error.code
+
+    totals = []
+    for product in products:
+        # Product names come from the retained stock table; quote criteria as
+        # literal Excel text, including wildcard characters if a source adds any.
+        criterion = '"' + product.replace('~', '~~').replace('*', '~*').replace('?', '~?').replace('"', '""') + '"'
+        totals.append({
+            'product': product,
+            'box_reference_area': evaluate(f'SUMIF(CALCULATOR!$C$9:$C$208,{criterion},CALCULATOR!$AD$9:$AD$208)'),
+            'net_board_area': evaluate(f'SUMIF(\'BOARD SUMMARY\'!$A$12:$A$29,{criterion},\'BOARD SUMMARY\'!$G$12:$G$29)'),
+            'whole_sheets': evaluate(f'SUMIF(\'BOARD SUMMARY\'!$A$12:$A$29,{criterion},\'BOARD SUMMARY\'!$I$12:$I$29)'),
+            'incomplete_rows': evaluate(f'COUNTIFS(CALCULATOR!$C$9:$C$208,{criterion},CALCULATOR!$BD$9:$BD$208,1,CALCULATOR!$AR$9:$AR$208,"<>CLADDING ESTIMATE")'),
+            'incomplete_extra_rows': evaluate(f'COUNTIFS(\'EXTRA BOARDS\'!$B$6:$B$45,{criterion},\'EXTRA BOARDS\'!$M$6:$M$45,"<>ENTERED ALLOWANCE",\'EXTRA BOARDS\'!$M$6:$M$45,"<>")'),
+        })
+    return totals
+
+
 def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                   shared_options=False, include_advanced=True):
     model = source_model(calculator_id)
@@ -386,7 +429,9 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
              'status': engine.value('BAGS', f'I{row}')}
             for row in range(20, 25)
         ] if shared_options and calculator_id == 'steel_vermiculite' and sheet == 'SCHEDULE' else None
+        board_product_totals = _board_product_totals(engine) if shared_options and calculator_id == 'steel_board' and sheet == 'CALCULATOR' else None
     return {**metadata, 'sheet': sheet, 'start_row': start_row, 'end_row': end_row,
             'rows': rows, 'inputs': normalized, 'warnings': warnings,
             **({'product_totals': product_totals} if product_totals is not None else {}),
+            **({'board_product_totals': board_product_totals} if board_product_totals is not None else {}),
             **({'visible_columns': columns, 'option_sets': option_sets} if shared_options else {})}

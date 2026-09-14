@@ -33,7 +33,7 @@ vm.createContext(context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
-    exportTemplate,downloadSchedulePdf,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,renderYieldReview,useReviewedDefaults,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
+    exportTemplate,downloadSchedulePdf,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -261,7 +261,7 @@ let passed = 0;
   assert.match(updated,/START, CALCULATOR, BOARD SUMMARY, EXTRA BOARDS and SETTINGS/);
   assert.ok(updated.endsWith('Library edits must also update the generated geometric lookup prefix.'));
   entry.definition.id='steel_vermiculite';entry.sheet='CALCULATOR';
-  assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A20'),'Edit the highlighted inputs. Check the result.');
+  assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A20'),'Edit the input fields. Check the result.');
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A21'),'Edit the blue cells. Check the result.');
   entry.sheet='SCHEDULE';assert.match(audit.sourceDisplayText('INPUTS  |  Paste your steel schedule here; blue cells are editable.',entry,'A8'),/use Import schedule/);passed++;
 
@@ -307,7 +307,8 @@ let passed = 0;
   assert.equal(byId('calculator-option-lists').children[0].children.length,553);
   assert.equal(byId('calculator-page-status').textContent,'1,000 schedule rows · Scroll to any item');
   const html=fs.readFileSync('static/index.html','utf8');
-  assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);passed++;
+  assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);
+  assert.match(html,/Edit input fields · All schedule rows are available on this page/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
 
   // Ordinary value edits refresh outputs without rebuilding thousands of inputs.
   const retainedControl=renderedControls()[0];
@@ -399,7 +400,7 @@ let passed = 0;
   assert.equal(periods.children[0].children[6].style.width,'88px');assert.equal(periods.children[0].children[5].style.width,'88px');
   for(const row of periods.children.at(-1).children)assert.equal(row.children.length,9);
   assert.equal(periods.children.at(-1).children[0].children[6].textContent,'120.00');
-  assert.equal(descendants(byId('calculator-grid')).find(node=>node.dataset?.calculatorOutput==='J28').tagName,'p');passed++;
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput==='J28'));assert.equal(entry.result.rows[0].cells[9].value,'The source qualification stays visible.');passed++;
 
   // Every declared main section has a distinct theme and a real contents target; the old banner is omitted.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';entry.definition.schedule.sheet='SCHEDULE';
@@ -411,47 +412,114 @@ let passed = 0;
   for(const [index,link] of sectionLinks.entries()) {const target=descendants(byId('calculator-grid')).find(node=>`#${node.id}`===link.href);assert.ok(target);assert.equal(target.classList.contains(`calculator-section-theme-${index}`),true);}
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='OLD NAVIGATION BANNER'));passed++;
 
-  // All five material references are multiline editable inputs, retaining exact user text.
-  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
-  for(const row of [42,75,107,184,240]) {
-    const basis=audit.makeControl({address:`D${row}`,column:4,value:'Reviewed manufacturer basis.',type:'text',editable:true},row,entry,'Material basis / reference');
-    assert.equal(basis.tagName,'textarea');basis.value='Reviewed basis\nProject-specific note';await basis.emit('input');await basis.emit('blur');
-    assert.equal(entry.inputs.SETTINGS[`D${row}`],'Reviewed basis\nProject-specific note');
-  }passed++;
-
-  // Reviewed defaults replace only their own settings in the draft and do not save or discard later edits.
-  entry=setup({SCHEDULE:{A10:'Retain project member'},SETTINGS:{D10:0.15,D36:1,D42:'Custom'}});entry.definition.id='steel_vermiculite';
-  entry.definition.defaults={SETTINGS:{D36:20,D42:'Reviewed\nSource basis'}};
-  const reviewedResponse=deferred();let reviewedBody;
-  audit.setRequest((path,options)=>{assert.match(path,/\/worksheet$/);reviewedBody=JSON.parse(options.body);return reviewedResponse.promise;});
-  const reviewing=audit.useReviewedDefaults();assert.equal(entry.inputs.SETTINGS.D36,20);assert.equal(entry.inputs.SETTINGS.D10,0.15);assert.equal(entry.inputs.SCHEDULE.A10,'Retain project member');
-  audit.setInput(entry,'SETTINGS','D42','Later edit');reviewedResponse.resolve(result(reviewedBody.inputs));await reviewing;
-  assert.equal(entry.inputs.SETTINGS.D42,'Later edit');assert.equal(JSON.parse(entry.saved).SETTINGS.D36,1);assert.equal(audit.dirty(entry),true);passed++;
-
   // A full reset uses reviewed calculator defaults and remains a draft until explicitly saved.
   entry=setup({SCHEDULE:{A10:'Example'},SETTINGS:{D36:1}});entry.definition.defaults={SETTINGS:{D36:20,D42:'Reviewed'}};
   audit.setRequest(async(path,options)=>result(JSON.parse(options.body).inputs));
   const resetReviewed=audit.reset();await flush();await byId('calculator-confirm-dialog').close('confirm');await resetReviewed;
   assert.deepEqual(copy(entry.inputs),entry.definition.defaults);assert.equal(JSON.parse(entry.saved).SETTINGS.D36,1);assert.equal(audit.dirty(entry),true);passed++;
 
-  // Reviewed defaults follows live action/validation state after a reset renders while busy.
-  entry=setup({SETTINGS:{D36:1}});entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';entry.definition.defaults={SETTINGS:{D36:20}};
-  const resetForm=inputs=>result(inputs,{sheet:'SETTINGS',rows:[{row:36,cells:[{column:1,address:'A36',value:'Bag mass'},{column:4,address:'D36',value:inputs.SETTINGS.D36,type:'number',editable:true}]}],max_column:4});
-  entry.result=resetForm(entry.inputs);realRender(entry);assert.equal(entry.reviewedDefaultsButton.id,'calculator-reviewed-defaults');
-  audit.setRender(realRender);audit.setRequest(async(path,options)=>resetForm(JSON.parse(options.body).inputs));
-  const busyReset=audit.reset();await flush();assert.equal(entry.reviewedDefaultsButton.disabled,true);
-  await byId('calculator-confirm-dialog').close('confirm');await busyReset;
-  const reviewedButton=entry.reviewedDefaultsButton;assert.equal(reviewedButton.disabled,false);
-  const settingControl=renderedControls()[0];settingControl.value='invalid';await settingControl.emit('input');assert.equal(reviewedButton.disabled,true);
-  settingControl.value='21';await settingControl.emit('input');assert.equal(reviewedButton.disabled,false);
-  await audit.calculate();assert.equal(entry.reviewedDefaultsButton,reviewedButton);assert.equal(reviewedButton.disabled,false);passed++;
+  // Removed review controls cannot reappear from definition data; the five stored basis values remain readonly.
+  entry=setup({SETTINGS:{D42:'Stored basis\nExisting project qualification'}});entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
+  entry.definition.defaults={SETTINGS:{D36:20}};entry.definition.yield_review={products:[{product:'CAFCO 300'}]};
+  entry.result=result(copy(entry.inputs),{sheet:'SETTINGS',max_column:4,rows:[42,75,107,184,240].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Material basis / reference',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row===42?entry.inputs.SETTINGS.D42:'Retained source basis',editable:false,read_only:true,output:true,type:'text',presentation:{role:'note'}}]}))});
+  realRender(entry);assert.equal(renderedControls().length,0);
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.tagName==='button'||node.tagName==='details'));
+  const basisCell=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='D42');
+  assert.equal(basisCell.textContent,'Stored basis\nExisting project qualification');assert.equal(basisCell.classList.contains('calculator-value-present'),true);
+  assert.deepEqual(copy(entry.inputs),{SETTINGS:{D42:'Stored basis\nExisting project qualification'}});
+  assert.doesNotMatch(source,/function (?:useReviewedDefaults|renderYieldReview)|calculator-reviewed-defaults/);passed++;
 
-  // The review table converts yield to readable litres only for display and retains safe source links.
-  const reviewData={reviewed_at:'2026-09-14',products:[{product:'Reviewed product',bag_mass_kg:20,direct_yield_m3:.0651,estimating_density_kg_m3:307.219662058,basis:'Adjustable estimating basis.',sources:[{title:'Manufacturer data',url:'https://example.com/data.pdf',page:'p. 3'},{title:'Unsafe',url:'javascript:alert(1)'}]}]};
-  const reviewedPanel=audit.renderYieldReview(reviewData),reviewedRow=descendants(reviewedPanel).find(node=>node.tagName==='tbody').children[0];
-  assert.equal(reviewedRow.children[2].textContent,'65.10');assert.equal(reviewedRow.children[3].textContent,'307.22');
-  assert.equal(reviewData.products[0].direct_yield_m3,.0651);assert.equal(descendants(reviewedPanel).filter(node=>node.tagName==='a').length,1);
-  assert.match(reviewedPanel.children[1].textContent,/Direct yield takes priority.*inferred dry-material consumption.*remain adjustable/);passed++;
+  // Source metadata row exclusions remove presentation only, including all product publication blocks.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
+  const omitted=[32,33,34,65,66,67,97,98,99,174,175,176,230,231,232];
+  entry.definition.sheets=[{name:'SETTINGS',header_rows:[],merges:[],omitted_rows:omitted}];
+  entry.result=result({}, {sheet:'SETTINGS',rows:[...omitted.map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source publication ${row}`}]})),{row:36,cells:[{column:1,address:'A36',value:'Bag mass'},{column:2,address:'B36',value:20,editable:true,type:'number'}]}]});
+  const preservedSource=JSON.stringify(entry.result);realRender(entry);
+  assert.deepEqual(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).map(node=>node.dataset.sourceRow),['36']);
+  assert.equal(JSON.stringify(entry.result),preservedSource);assert.equal(renderedControls().length,1);passed++;
+
+  // Schedule title prose and V/W/X stay hidden in normal and advanced views; cards, pooled totals and Y stay visible.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
+  entry.definition.schedule.header_row=9;entry.definition.schedule.first_row=10;
+  entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[],omitted_rows:[1,2,3,8],omitted_columns:[22,23,24]}];
+  entry.result=result({}, {sheet:'SCHEDULE',max_column:25,visible_columns:Array.from({length:25},(_,i)=>i+1),product_totals:[{product:'CAFCO 300',net_bags:0,whole_bags:null,status:'NO SCHEDULE LINES'}],rows:[
+    ...[1,2,3,8].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Removed introductory line ${row}`}]})),
+    {row:4,cells:[{column:1,address:'A4',value:'Area'},{column:7,address:'G4',value:'Volume'},{column:19,address:'S4',value:'Not quantified'}]},
+    {row:5,cells:[{column:1,address:'A5',value:0},{column:7,address:'G5',value:0},{column:19,address:'S5',value:0}]},
+    {row:10,cells:[{column:1,address:'A10',value:'Member',editable:true,type:'text'},...[22,23,24,25].map(column=>({column,address:`${String.fromCharCode(64+column)}10`,value:column===25?'Visible detailed note':`Hidden source ${column}`,calculated:true}))]}]});
+  const fullResult=JSON.stringify(entry.result);
+  for(const advanced of [false,true]) {
+    entry.advanced=advanced;realRender(entry);const rendered=descendants(byId('calculator-grid'));
+    assert.ok(!rendered.some(node=>/^Removed introductory line|^Hidden source/.test(node.textContent||'')));
+    assert.ok(rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
+    assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement.hidden,false);
+    assert.equal(rendered.filter(node=>node.calculatorValueCard).length,3);
+  }
+  assert.equal(JSON.stringify(entry.result),fullResult);passed++;
+
+  // Every settings title is the same structural red banner; source titles remain unchanged.
+  for(const [id,sheet] of [['steel_vermiculite','SETTINGS'],['ductwork','PRODUCT SETTINGS'],['steel_board','SETTINGS']]){
+    entry=setup();entry.definition.id=id;entry.sheet=sheet;entry.definition.sheets=[{name:sheet,header_rows:[],merges:['A1:C1']}];
+    entry.result=result({}, {sheet,rows:[{row:1,cells:[{column:1,address:'A1',value:'Original settings title',presentation:{role:'section'}}]}]});
+    realRender(entry);const title=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A1');
+    assert.equal(title.textContent,'Product Settings and Rules');assert.match(title.className,/calculator-role-title/);assert.equal(title.dataset.calculatorValue,undefined);
+    assert.equal(entry.result.rows[0].cells[0].value,'Original settings title');
+  }passed++;
+
+  // A calculated reference with a heading-like source font remains a value output (Verm H23).
+  entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
+  entry.definition.sheets[0].section_cells=['A26'];
+  entry.result=result({}, {max_column:8,rows:[{row:23,cells:[{column:8,address:'H23',value:'C300-2021 p4',calculated:true,presentation:{role:'section',bold:true}}]},
+    {row:26,cells:[{column:1,address:'A26',value:'Published periods',calculated:true,presentation:{role:'section',bold:true}}]}]});
+  realRender(entry);const referenceOutput=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='H23');
+  assert.match(referenceOutput.className,/calculator-role-output/);assert.equal(referenceOutput.classList.contains('calculator-value-present'),true);
+  const explicitSection=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A26');
+  assert.match(explicitSection.className,/calculator-role-section/);assert.equal(explicitSection.dataset.calculatorValue,undefined);passed++;
+
+  // The BAGS order table uses nine logical columns, fills desktop width and gives status a bounded share.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';entry.definition.sheets=[{name:'BAGS',header_rows:[19],merges:['A1:N1']}];
+  entry.result=result({}, {sheet:'BAGS',max_column:14,visible_columns:Array.from({length:14},(_,i)=>i+1),rows:[{row:1,cells:[{column:1,address:'A1',value:'Bags'}]},...[19,20,21,22,23,24].map(row=>({row,cells:Array.from({length:9},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:i===8?'Order status':row===19?'Header':0,calculated:row!==19}))}))]});
+  realRender(entry);const order=descendants(byId('calculator-grid')).find(node=>node.classList?.contains('calculator-order-table'));
+  assert.equal(order.style.width,'100%');assert.equal(order.children[0].children.length,9);assert.equal(order.children[0].children[8].style.width,'20%');
+  assert.equal(order.children[0].children.reduce((sum,col)=>sum+parseFloat(col.style.width),0),100);
+  assert.equal(order.children.at(-1).children.length,6);
+  const bagsForm=descendants(byId('calculator-grid')).find(node=>node.classList?.contains('calculator-bags-form'));
+  assert.equal(bagsForm.style.width,'100%');assert.ok(bagsForm.children[0].children.every(col=>col.style.width.endsWith('%')));
+  assert.ok(Math.abs(bagsForm.children[0].children.reduce((sum,col)=>sum+parseFloat(col.style.width),0)-100)<1e-10);passed++;
+
+  // Every output state uses the same two fill classes, including live zero/error/text/blank transitions.
+  entry=setup();entry.result=result({}, {rows:[{row:9,cells:[{column:1,address:'A9',value:'Input',editable:true,type:'text'},{column:2,address:'B9',value:0,calculated:true,presentation:{role:'output',bold:true}},{column:3,address:'C9',value:'Label',presentation:{role:'label'}}]}]});
+  realRender(entry);audit.setRender(realRender);const retainedValue=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='B9');
+  for(const value of [null,'',undefined,0,'OK','#VALUE!']) {
+    const changed=result({}, {rows:[{row:9,cells:[{column:1,address:'A9',value:'Input',editable:true,type:'text'},{column:2,address:'B9',value,calculated:true,presentation:{role:'output',bold:true}},{column:3,address:'C9',value:'Label',presentation:{role:'label'}}]}]});
+    audit.setRequest(async()=>changed);await audit.calculate();
+    const expected=value!==null&&value!==undefined&&value!=='';
+    assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='B9'),retainedValue);
+    assert.equal(retainedValue.classList.contains('calculator-value-present'),expected);assert.equal(retainedValue.classList.contains('calculator-value-empty'),!expected);
+  }
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='C9').dataset.calculatorValue,'true');
+  assert.doesNotMatch(fs.readFileSync('static/calculators.css','utf8'),/nth-child\(even\).*background|tbody tr:hover>td/);passed++;
+
+  // Literal product/reference values inside source tables use output fills even when their original font was bold.
+  for(const [id,sheet,row,column] of [['ductwork','SUMMARY',9,1],['steel_board','BOARD SUMMARY',12,1],['steel_board','SETTINGS',6,7]]) {
+    entry=setup();entry.definition.id=id;entry.sheet=sheet;entry.definition.sheets=[{name:sheet,header_rows:[5],merges:[]}];
+    entry.result=result({}, {sheet,max_column:column,rows:[{row,cells:[{column,address:`${String.fromCharCode(64+column)}${row}`,value:'Reference product',presentation:{role:'label',bold:true}}]}]});
+    realRender(entry);const reference=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.textContent==='Reference product');
+    assert.equal(reference.classList.contains('calculator-value-present'),true);
+  }passed++;
+
+  // Duct SUMMARY E9/F9/G9 are real blank table outputs even though they contain no source formulas.
+  entry=setup();entry.definition.id='ductwork';entry.sheet='SUMMARY';entry.definition.sheets=[{name:'SUMMARY',header_rows:[8],merges:[]}];
+  entry.result=result({}, {sheet:'SUMMARY',max_column:7,rows:[{row:8,cells:[{column:1,address:'A8',value:'Product'},...[5,6,7].map(column=>({column,address:`${String.fromCharCode(64+column)}8`,value:'Quantity',presentation:{role:'column_header'}}))]},
+    {row:9,cells:[{column:1,address:'A9',value:'CAFCO 300'},...[5,6,7].map(column=>({column,address:`${String.fromCharCode(64+column)}9`,value:null,calculated:false,presentation:{role:'body'}}))]}]});
+  realRender(entry);for(const address of ['E9','F9','G9']) {
+    const blank=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput===address);
+    assert.equal(blank.dataset.calculatorValue,'true');assert.equal(blank.classList.contains('calculator-value-empty'),true);
+  }
+  entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';entry.definition.sheets[0].merges=['A1:H1'];
+  entry.result=result({}, {max_column:8,rows:[{row:1,cells:[{column:1,address:'A1',value:'Member calculator',presentation:{role:'title'}}]},
+    {row:6,cells:[{column:1,address:'A6',value:'Product',presentation:{role:'label'}},{column:4,address:'D6',value:'CAFCO 300',editable:true,type:'text'},{column:7,address:'G6',value:null,calculated:false}]}]});
+  realRender(entry);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='G6').dataset.calculatorValue,undefined);passed++;
 
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');

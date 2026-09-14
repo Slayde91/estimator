@@ -2,12 +2,15 @@
 
 Date: 2026-09-14. Executable code and checked results take precedence over this document.
 
-Current implementation `678ee3f` is committed and pushed on
-`feat/workbook-calculators`. All 189 Python tests, 65 UI checks, the build,
-revised PDF layouts and extracted runtime passed locally. PR #6 is updated and
-unmerged; both implementation-head CI jobs were blocked before steps by account
-payment/spending limits. The refreshed local app preserves existing saved data.
-See SESSION_HANDOFF.md for exact evidence and the publication checkpoint.
+The current increment simplifies the calculator display and makes material-basis
+text read-only. Source graphs, calculated results, saved states and schedule PDF
+contents are unchanged by this presentation request. Its current checks and Git
+outcome belong in SESSION_HANDOFF.md; no new pass or publication claim is made here.
+
+The earlier `678ee3f` checkpoint on `feat/workbook-calculators` recorded 189 Python
+tests, 65 UI checks, build, PDF and extracted-runtime checks passing locally.
+PR #6 was unmerged and CI blocked before steps by account payment/spending limits
+at that checkpoint. These are historical results, not verification of this increment.
 
 ## Current calculator presentation and schedule reports
 
@@ -15,15 +18,18 @@ The calculator pages now expose every prepared row on one continuous page:
 1,000 vermiculite items, 300 duct items, 200 board items and 40 extra-board items.
 Forms and tables use the official colours, clearer source headings, labelled
 summary values and shared section dropdowns. Main sections have distinct colour
-themes and linked contents. Vermiculite SETTINGS replaces its old static product
-banner with eleven section links; material-basis references are multiline inputs.
+themes and linked contents. Vermiculite SETTINGS uses the Product Settings and
+Rules banner with its section links; material-basis text is read-only. Outputs
+use two highlight states: populated and blank, with numeric zero populated.
 The single-member period matrix has independent column widths, including the
 120-minute column. Forms fit a phone while comparison tables scroll separately.
 
-Vermiculite SCHEDULE shows three top metrics and running net/whole-bag totals for
-each product. The removed thickness/scope-block card remains an underlying
-calculated value. Product totals come directly from BAGS, including pooled
-rounding and withheld values; the browser does not sum rounded schedule rows.
+Vermiculite SCHEDULE retains running net/whole-bag totals for each product.
+The requested top labels and columns V/W/X are hidden in the worksheet view;
+their status/source values remain in the original result graph and PDF mapping.
+Product totals come directly from BAGS, including pooled rounding and withheld
+values; the browser does not sum rounded schedule rows. The single-member
+CALCULATOR omits its third notes section, and BAGS uses compact column widths.
 
 Every calculator has a draft PDF download containing the populated full
 schedule, thicknesses, relevant surface/material areas, applicable bags/sheets/
@@ -44,24 +50,27 @@ proof of current tests, CI or publication success.
 The five reviewed product profiles are explicit input overlays in
 `data/vermiculite_yield_defaults.json`, separate from the immutable workbook
 graph. Each profile supplies bag mass, direct yield, inferred dry-material
-consumption and an editable reference: twenty SETTINGS inputs in total.
+consumption and retained basis/reference: twenty SETTINGS values in total.
+Numeric fields remain editable; basis text is read-only in the current product.
 See [yield evidence and qualifications](VERMICULITE_YIELD_REVIEW.md) and the
 [authorized exception](CALCULATOR_EXCEPTIONS.md).
 
 When no saved calculator state exists, Store returns these starting inputs
 without writing a database row. Existing saves, including an explicit empty
 overlay, retain their exact stored inputs. Reset calculator defaults restores
-the reviewed profile and source example rows in the draft. Use reviewed yield
-defaults replaces only those twenty settings, preserving the schedule and other
-settings. Both actions require Save calculator to persist; no migration occurs.
+the reviewed profile and source example rows in the draft, requiring Save
+calculator to persist. The separate reviewed-default action and evidence panel
+are removed from the UI. Settings hide review dates, source IDs and document
+names; the evidence remains in retained source data and developer documentation.
+No saved-input migration occurs.
 
 Direct yield retains the workbook's existing precedence. Estimating density is
 coverage-derived dry-material consumption, not installed coating density. Batch,
 theoretical and uninjected yield assumptions remain adjustable and qualified.
 No thickness, exposure, suitability, wastage or lookup rule is changed. Calling
 the calculation engine with an explicit empty overlay still reproduces original
-workbook defaults. The review table displays litres per bag for readability;
-calculations, controls on focus, saved inputs and exports retain full precision.
+workbook defaults. Calculations, controls on focus, saved inputs and exports
+retain full precision. Hidden presentation text is not deleted from stored evidence.
 
 ESTIMATOR is a local Python/browser application in C:\ESTIMATOR\app with SQLite storage and permanently imported workbook data. The original Quote estimator contains 64 inputs, 151 formulas, 417 inventory records and 166 choices across 14 rate groups. It retains project/client/site details, automatic quote names and work summaries, pricing import/export, the official logo and complete material/labour PDF reports. Saved quotes freeze their inputs, catalog, prices, yields and results. Pricing replacements remain drafts until Save pricing.
 
@@ -69,7 +78,7 @@ ESTIMATOR is a local Python/browser application in C:\ESTIMATOR\app with SQLite 
 
 Calculators adds Structural Steel (vermiculite), Structural Steel (board) and Ductwork. Every visible source tab has a page with its original name; board SETTINGS and EXTRA BOARDS are additionally exposed. Original formulas, hidden databases, names, table references, validation choices, styles and source hashes are permanently packaged. Excel and OneDrive are unnecessary at runtime. These new workbooks supply geometry, thickness and quantity rules absent from the original Quote workbook.
 
-Settings remain adjustable, including source formula-backed yields. Reference databases and calculated fields outside the declared editable settings are read-only. Each calculator has separate draft and saved inputs. Export template and Import schedule use exact values-only XLSX fields. Import replaces the schedule, clearing remaining previous rows while preserving other inputs/settings; only Save calculator persists. Capacities match Excel: 1,000 vermiculite, 200 board and 300 duct rows. Import rejects formulas, macros, external links and malformed data.
+Numeric settings remain adjustable, including source formula-backed yields. Reference databases, material-basis text and calculated fields outside the declared editable settings are read-only. Each calculator has separate draft and saved inputs. Export template and Import schedule use exact values-only XLSX fields. Import replaces the schedule, clearing remaining previous rows while preserving other inputs/settings; only Save calculator persists. Capacities match Excel: 1,000 vermiculite, 200 board and 300 duct rows. Import rejects formulas, macros, external links and malformed data.
 
 Values display two decimals at rest; focused controls reveal exact values. New calculator edits retain full precision, including small yields and tolerances. Numeric choices reveal exact values when choosing between options that round to the same display. This intentionally differs from the older Quote UI's two-decimal edit policy. Raw calculated values stay unrounded in both paths; product, fastener and report identifiers remain literal.
 

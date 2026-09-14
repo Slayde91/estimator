@@ -12,8 +12,8 @@ The new `POST /api/calculators/<id>/worksheet` projection returns every source-p
 
 Source `section_cells` metadata supplies stable contents links and distinct
 colour themes in source order. Vermiculite SETTINGS has eleven targets: its
-eight numbered sections and three factor-helper sections. The old static row-5
-product banner is omitted from presentation. A form's populated-cell structure
+eight numbered sections and three factor-helper sections. Its banner reads
+Product Settings and Rules. A form's populated-cell structure
 participates in its refresh signature so newly available output/source notes
 appear without switching pages. Schedule controls remain in place for ordinary
 value updates.
@@ -23,12 +23,12 @@ value updates.
 1. Keep all twelve page names. Show each selected worksheet as one page, with every prepared input row reachable by normal scrolling; do not split it into 25-row pages.
 2. Separate introductory merged notes from tabular data. Render a merged heading/note once from its anchor, with natural wrapping. Do not create a tall table row for every merged child or preserve the workbook's print-oriented row heights.
 3. Collapse rows and trailing columns that contain only decorative spacing. Keep every schedule and EXTRA BOARDS input row, even when its current result is blank. A formula returning `""` is not evidence that an input row is disposable.
-4. Present normal inputs, advanced inputs and calculated outputs as visibly distinct groups. Keep current readonly rules and exact dependency-driven dropdown values. Colour is an aid; the application allowlist remains the authority for editability.
+4. Present normal inputs, advanced inputs and calculated outputs as visibly distinct groups. Use one output highlight for populated values and one for blanks; zero, error text and other nonblank results are populated. These colours indicate value presence only. Keep exact dependency-driven dropdowns and current read-only/write-validation rules; colour never grants edit permission or technical approval.
 5. On forms, use a two-column field layout on desktop and one column on a phone. Put units beside the value and source explanations below the field. Long status and basis text must wrap without truncation.
 6. On schedules, use one sticky header and sticky item identifier. Keep horizontal scrolling inside the table, with input widths suited to their contents. The page itself must fit a 390-pixel viewport. Numeric cells need roughly 110–130 px; product/section choices 190–260 px; status and detailed notes 300–420 px. These are UI recommendations, not source business constants.
 7. Display numbers to two decimals at rest and retain the exact raw value. Focused numeric controls and choices must distinguish small values such as 0.005, 0.01 and 1e-8. Never write a rounded display value merely because a field was focused or blurred.
-8. Retain all source qualification text and error/withheld states. `NP`, an empty result and zero mean different things. Do not turn a missing quantity into zero or describe a displayed quantity as installation approval.
-9. Keep Settings inputs with their units, calculation basis and associated live outputs. Put large readonly lookup tables and source-review explanations in separately labelled reference sections on the same page. Do not expose hidden reference databases as new editable settings.
+8. Retain all source qualification text and error/withheld states in the source graph and calculation results. The explicit browser omissions below do not alter those states or the PDF mapping. `NP`, an empty result and zero mean different things. Do not turn a missing quantity into zero or describe a displayed quantity as installation approval.
+9. Keep numeric Settings inputs, units, read-only calculation basis and live outputs. Omit the requested date/source-ID/document-name metadata and separate reviewed-yield action/panel from Settings presentation. Developer evidence retains full provenance. Do not expose hidden reference databases as new editable settings.
 
 ## Source extents and spacing
 
@@ -82,25 +82,25 @@ Most editable cells on the unprotected workbooks still have `locked=True`; only 
 
 Use two adjacent cards rather than a fourteen-column spreadsheet: “Inputs” from A5/D6:D17 and “Thickness and quantities” from H5:N23. Keep seven selection/factor fields D6:D12 together, then quantity/geometry D14:D17. The empty D11, D16 and D17 inputs remain usable.
 
-The output card contains published thickness H6, lookup status H9, ESA/M K12, Hp/A K13, usable estimating thickness K14, girth K15, spray area K16, coating volume K17, net bags K18, quantity status H20 and source H23. Long result notes below the cards remain visible. Preserve the distinction between published and usable estimating thickness.
+The output card contains published thickness H6, lookup status H9, ESA/M K12, Hp/A K13, usable estimating thickness K14, girth K15, spray area K16, coating volume K17, net bags K18, quantity status H20 and source H23. Preserve the distinction between published and usable estimating thickness. The later user instruction removes the third notes section below the comparison matrix from browser presentation only.
 
 The “All published periods for this input” section starts at A26. A28:A30 supplies
 the row labels and B28:I30 supplies eight period/thickness/status columns. The
 implemented matrix gives those eight period columns equal independent widths;
 G28:G30 is the 120-minute column, not a merge. Inheriting the narrow form spacer G
-caused its malformed appearance. The merged J28:N30 explanation appears once
-below the table. Notes anchored at A33, A35, A38 and A40 remain visible without
-decorative blank rows. On phones the form stacks while this matrix retains
+caused its malformed appearance. The merged J28:N30 comparison narrative and
+the third notes section at rows 33–41 are omitted from browser presentation,
+with their values retained in the source model. On phones the form stacks while this matrix retains
 aligned columns in its own horizontal scroller.
 
 Source widths: labels occupy merged A:C; inputs D:F; G is a 3-unit spacer. Results H:N use merged label/value regions. These merged groups support cards directly; multiplying each source column into a minimum-width web column creates excessive empty width.
 
 ### SCHEDULE
 
-Render intro rows 1–8 once. The top cards retain spray area A4/A5, coating volume
-G4/G5 and not-quantified count S4/S5. The user removed the thickness/scope-block
-card M4/M5 from display; its engine value remains unchanged. The only schedule
-header is row 9. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y outputs;
+The top labels at rows 1, 2, 3 and 8 are omitted from the browser. Summary cards
+A4/A5, G4/G5 and S4/S5 remain visible. The earlier removed
+thickness/scope-block card M4/M5 is still calculated internally. The only schedule
+header is row 9. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y source outputs;
 hidden Z is the stable line ID and remains readonly/internal.
 
 Below the cards, Running material totals lists each BAGS A20:A24 product, E20:E24
@@ -109,7 +109,7 @@ supplies these as `product_totals`; the UI never derives them by summing rounded
 line quantities. Blank/withheld whole-bag values remain blank beside their
 status. Updating these totals does not rebuild the schedule controls.
 
-Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags; V:Y status/source/notes. Keep Y notes wide and wrapped. Source width emphasis is B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64.
+Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags. Source V/W/X status/source columns are explicitly hidden in this worksheet view, including advanced presentation; Y notes remain wide and wrapped. V/W/X stay in API/source results and the existing report projection. In particular, W continues to gate incomplete purchasing totals. Source width emphasis remains B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64; these source widths do not require hidden columns to be displayed.
 
 All prepared rows remain present even though 999 original example slots return blank formulas. The original workbook has one active example, not 1,000 completed estimates.
 
@@ -121,6 +121,10 @@ Below it, render the “Product order summary” heading A17, row 19 headers and
 
 The implemented phone view stacks manual inputs/results in one form and leaves
 the product-order matrix in a separate real table with its own horizontal scroll.
+The later compact layout sizes the nine A:I order columns at
+19/7/9/10/8/7/11/9/20 percent, reserving 20 percent for wrapped order status.
+Blank J:N columns are omitted. All five product rows and quantities remain present,
+and the manual form fits the available page width.
 Each editable source field is rendered once.
 
 Source table widths indicate product A29, normal numerical columns 12–16 units, whole bags G21 and order status I35. Use a readable sticky product column with wrapped order-status text.
@@ -133,30 +137,31 @@ Use a short section index that scrolls within the single page. Group source rows
 | --- | --- | --- | --- |
 | Global settings | A9; rows 10–15 | D10:D14 | Comparison tolerance D15 |
 | Common calculation rules | A17; rows 19–27 | None | Lookup, thickness holds, yield, orders and project-design explanations |
-| CAFCO 300 | A31; rows 32–58 | D36:D39, D42 | Yield/status rows 40–41, scope/evidence 45–52, exposure table header 54 |
-| MANDOLITE CP2 | A64; rows 65–90 | D69:D72, D75 | Yield/status 73–74, source rules 78–84, exposure header 86 |
-| FENDOLITE MII | A96; rows 97–167 | D101:D104, D107 | Yield/status 105–106, special-factor rules 110–121, exposure header 123 |
-| PERLIFOC HP ECO+ | A173; rows 174–223 | D178:D181, D184 | Yield/status 182–183, rules 187–194, exposure header 196 |
-| MONOKOTE MK-6 HY | A229; rows 230–264 | D234:D237, D240 | Yield/status 238–239, exceptions 243–257, exposure header 259 |
+| CAFCO 300 | A31; rows 32–58 | D36:D39 | Read-only basis D42; yield/status 40–41, scope/evidence 45–52, exposure header 54 |
+| MANDOLITE CP2 | A64; rows 65–90 | D69:D72 | Read-only basis D75; yield/status 73–74, source rules 78–84, exposure header 86 |
+| FENDOLITE MII | A96; rows 97–167 | D101:D104 | Read-only basis D107; yield/status 105–106, special-factor rules 110–121, exposure header 123 |
+| PERLIFOC HP ECO+ | A173; rows 174–223 | D178:D181 | Read-only basis D184; yield/status 182–183, rules 187–194, exposure header 196 |
+| MONOKOTE MK-6 HY | A229; rows 230–264 | D234:D237 | Read-only basis D240; yield/status 238–239, exceptions 243–257, exposure header 259 |
 | Operating rules | A270; rows 272–317 | None | Ordered source instructions with subsection labels at 272/276/280/284/288/292/296/300/304/308/312/316 |
 | Factor helper | A341; rows 343–353 | D346:D348 | Hp/A D350 and ESA/M D351; evidence limitation 353 |
 | Idealised hollow helper | A356; rows 358–367 | D358:D362 | Calculated area/perimeter/factors D364:D367 |
 | Castellated helper | A370; rows 372–373 | D372 | Special factor D373 |
 
-The five Material basis / reference inputs D42, D75, D107, D184 and D240 are
-multiline text controls. They retain the existing allowlist, support bounded
-line breaks and keep exact saved text. Definitions expose the reviewed profile
-as `defaults` and its evidence as `yield_review`, separately from current inputs.
-The optional review panel shows direct yield in L/bag for readability and links
-to each selected source. This display conversion does not round the stored
-m³/bag value.
+The five Material basis / reference values D42, D75, D107, D184 and D240 are
+read-only. Exact existing saved overrides remain retained and displayed;
+HTTP/storage-save validation rejects arbitrary new edits while accepting source
+and reviewed-default text so Reset remains usable. The low-level evaluator
+retains historical overlay support. Definitions can retain `defaults` and
+`yield_review` as data separately from current inputs, but the browser no longer
+shows the reviewed-yield action/panel. Settings date/source-ID/document-name
+metadata rows 32–34, 65–67, 97–99, 174–176 and 230–232 are hidden in presentation;
+their complete provenance stays in developer records and source packages.
 
 The reviewed profile changes twenty existing settings: bag mass, direct yield,
 inferred consumption and reference for each product. Store supplies it only when
 no saved row exists. Existing saves, including an empty input overlay, remain
-exact. Use reviewed yield defaults merges those twenty settings into the current
-draft; Reset calculator defaults also restores source example rows. Neither
-action writes storage until Save calculator. Source graphs and explicit empty
+exact. Reset calculator defaults restores the profile and source example rows
+in the draft; it does not write storage until Save calculator. Source graphs and explicit empty
 engine calls retain original workbook defaults, with no migration. Direct yield
 continues to take precedence over inferred dry-material consumption; the latter
 is not installed coating density. See the qualified product choices in
@@ -244,7 +249,7 @@ entered. At the user's request, these four sections are removed:
 - Manual bag calculation - separate from the schedule.
 - Settings used for this report.
 
-The single-member and manual-bag calculators and full editable settings remain
+The single-member and manual-bag calculators and numeric editable settings remain
 available in the app. Settings still affect report quantities through the
 captured input overlay; removing their appendix does not alter calculation.
 The table below describes retained printed quantities and their source mapping,
@@ -276,13 +281,14 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 
 ## Acceptance checks for this presentation change
 
-- All twelve complete-page responses cover their packaged extents, including the final editable schedule and EXTRA BOARDS rows. A normal-page display may collapse only source spacing, not hide or discard prepared input rows.
+- All twelve complete-page responses cover their packaged extents, including the final editable schedule and EXTRA BOARDS rows. Display omissions are limited to the explicit presentation rules and source spacing; prepared input rows must not be discarded.
 - Dropdowns retain numeric versus text values, source warning/stop behavior and dependencies, while repeated lists are shared without truncation.
 - Advanced inputs remain present when requested; source hidden databases and calculated cells remain readonly.
 - Forms display unchanged formula-backed settings without saving scalar overrides. Rendering, report generation and importing a draft do not persist inputs.
-- Reviewed-default actions change exactly their declared input scope, leave saved records untouched until Save calculator, and retain later edits if a calculation response arrives late. An explicit empty engine overlay still matches original defaults.
+- Reset changes its declared draft scope, leaves saved records untouched until Save calculator, and retains later edits if a calculation response arrives late. The removed reviewed-yield action/panel must not reappear. An explicit empty engine overlay still matches original defaults.
 - Calculator reports retain every populated main schedule item, applicable extras, product tables and closing totals; the four removed appendix/helper sections stay absent. They preserve invalid/withheld quantities and source ordering rules and never add manual BAGS results to schedule totals.
-- Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, all eight fire-period columns remain aligned, and multiline references preserve saved text.
+- Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
+- Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

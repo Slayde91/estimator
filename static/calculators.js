@@ -40,7 +40,7 @@
   const sourceDirections = {
     ductwork: {
       CALCULATOR: {
-        A3: [["Enter the schedule in blue cells.", "Enter the schedule in the highlighted inputs."], ["choose the duct use in column H", "choose the FyreWrap duct use"]],
+        A3: [["Enter the schedule in blue cells.", "Enter values in the schedule input fields."], ["choose the duct use in column H", "choose the FyreWrap duct use"]],
         A5: [["see the FRL header comment for FyreWrap applications.", "review the FyreWrap application notes in PRODUCT SETTINGS."]],
         A6: [["Comments explain inputs, limits and excluded items.", "Review the input labels, calculated notes and PRODUCT SETTINGS for limits and excluded items."]],
       },
@@ -58,11 +58,11 @@
       },
     },
     steel_vermiculite: {
-      CALCULATOR: { A20: [["Edit the blue cells.", "Edit the highlighted inputs."]] },
-      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the highlighted schedule inputs, or use Import schedule."]] },
+      CALCULATOR: { A20: [["Edit the blue cells.", "Edit the input fields."]] },
+      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the schedule inputs, or use Import schedule."]] },
       BAGS: { A27: [["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
-        A3: [["blue cells are editable", "highlighted inputs are editable"]],
+        A3: [["blue cells are editable", "input fields are editable"]],
         A7: [["Factor helper starts at row 341.", "The Section Factor Helper section is below."]],
         G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
         G185: factorLookupDirections, G241: factorLookupDirections,
@@ -99,7 +99,7 @@
         Y5: [["AI gives the issue and action directly.", "Row status gives the issue and action directly."]],
         Y6: [["their notes in AI", "their Row status notes"]],
       },
-      SETTINGS: { A3: [["Blue wastage", "The highlighted wastage setting"]] },
+      SETTINGS: { A3: [["Blue wastage", "The wastage setting"]] },
       "BOARD SUMMARY": {
         A8: [["CALCULATOR column AI", "CALCULATOR Row status"], ["on hidden EXTRA BOARDS", "on EXTRA BOARDS"]],
         A35: [["CALCULATOR column AD", "the CALCULATOR Box reference area"]],
@@ -179,6 +179,7 @@
 
   function sourceDisplayText(value, entry, address) {
     if (typeof value !== "string" || !entry) return value;
+    if (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && address === "A1") return "Product Settings and Rules";
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
     const position = parseAddress(address);
@@ -189,7 +190,6 @@
     if (!entry || entry !== current()) return;
     $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes" : "Saved calculator inputs · defaults where unchanged";
     const hasErrors = entry.invalid.size > 0;
-    if (entry.reviewedDefaultsButton) entry.reviewedDefaultsButton.disabled = state.action || hasErrors;
     $("calculator-save").disabled = state.action || hasErrors;
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
@@ -239,7 +239,7 @@
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const select = cell.type === "select" && !allowOther && options.length <= 40;
-    const multiline = entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["D42", "D75", "D107", "D184", "D240"].includes(address);
+    const multiline = Boolean(cell.multiline);
     const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
     const selectOptions = [];
     control.dataset.calculatorCell = address;
@@ -343,6 +343,21 @@
     }
     element.classList.toggle("calculator-number", isNumber(cell.value));
     element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
+    if (element.dataset.calculatorValue === "true") {
+      outputState(element, cell.value);
+      if (element.calculatorValueCard) outputState(element.calculatorValueCard, cell.value);
+    }
+  }
+
+  function outputState(element, value) {
+    const present = value !== null && value !== undefined && value !== "";
+    element.classList.toggle("calculator-value-present", present);
+    element.classList.toggle("calculator-value-empty", !present);
+  }
+
+  function displayMetadata(entry, result = entry.result) {
+    const metadata = sheetMetadata(entry);
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [] };
   }
 
   function refreshOutputs(result) {
@@ -365,17 +380,28 @@
 
   function choiceSignature(result, entry = current()) {
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { header_row: 5 } : null;
+    const metadata = displayMetadata(entry, result), omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns);
     // Forms collapse empty rows/columns. A newly populated formula or note must
     // rebuild that structure; ordinary schedule edits still retain every control.
-    const content = result.rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== "")).map((cell) => cell.column)]);
-    return JSON.stringify([result.visible_columns, content, result.option_sets || {}, result.rows.map((row) => row.cells.filter((cell) => cell.editable && (cell.options_ref || cell.options?.length)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.options_ref || cell.options]))]);
+    const rows = result.rows.filter((row) => !omittedRows.has(row.row));
+    const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
     return cell.presentation?.role || (cell.editable ? "input" : cell.calculated ? "output" : "body");
   }
 
+  function referenceTableValue(entry, row, column) {
+    if (entry.definition.id === "ductwork" && entry.sheet === "SUMMARY") return [[9, 11, 12], [19, 26, 6], [31, 32, 6], [40, 41, 9]].some(([first, last, endColumn]) => row >= first && row <= last && column <= endColumn);
+    if (entry.definition.id === "steel_board" && entry.sheet === "BOARD SUMMARY") return row >= 12 && row <= 29 && column <= 12;
+    if (entry.definition.id === "steel_board" && entry.sheet === "SETTINGS") return row >= 6 && ((row <= 12 && column >= 7 && column <= 14) || row <= 51 && column >= 16 && column <= 17);
+    return false;
+  }
+
   function renderOverview(rows, entry, columns) {
+    const omittedRows = new Set(displayMetadata(entry).omitted_rows);
+    rows = rows.filter((row) => !omittedRows.has(row.row));
     const summaryFields = {
       steel_vermiculite: { SCHEDULE: [["A4", "A5"], ["G4", "G5"], ["S4", "S5"]] },
       steel_board: { CALCULATOR: [["A4", "C4"], ["E4", "G4"], ["I4", "K4"], ["Y4", "AA4"], ["AC4", "AE4"], ["AG4", "AI4"]] },
@@ -389,6 +415,7 @@
       const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
       if (!label || !value || !columns.includes(value.column)) continue;
       const card = node("div", "calculator-summary-metric"), heading = node("span", "", label.value), output = node("strong");
+      output.dataset.calculatorValue = "true"; output.calculatorValueCard = card;
       output.dataset.calculatorOutput = valueAddress; updateOutputCell(output, value); card.append(heading, output); cards.append(card);
     }
     let cardsPlaced = false;
@@ -404,6 +431,7 @@
       }
       const role = presentationRole(cell);
       const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
+      if (cell.calculated || isNumber(cell.value)) item.dataset.calculatorValue = "true";
       item.dataset.calculatorOutput = address;
       updateOutputCell(item, cell); box.append(item);
     }
@@ -421,8 +449,8 @@
     head.append(headers);
     for (const total of totals) {
       const row = node("tr"), product = node("th", "", total.product); product.scope = "row"; row.append(product);
-      for (const value of [total.net_bags, total.whole_bags]) row.append(node("td", "calculator-number", displayValue(value)));
-      row.append(node("td", "calculator-product-order-status", total.status || "")); body.append(row);
+      for (const value of [total.net_bags, total.whole_bags, total.status]) { const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value }); row.append(cell); }
+      body.append(row);
     }
     table.append(head, body); scroll.append(table); container.replaceChildren(heading, note, scroll);
   }
@@ -442,40 +470,15 @@
     contents.append(links); return contents;
   }
 
-  async function useReviewedDefaults() {
-    const entry = current(), defaults = entry?.definition.defaults?.SETTINGS;
-    if (!defaults || state.action || entry.invalid.size) return;
-    entry.inputs.SETTINGS = { ...(entry.inputs.SETTINGS || {}), ...clone(defaults) };
-    entry.revision++; entry.pendingResult = null; entry.needsRender = true;
-    message("Reviewed product yields and references applied to this draft. Save calculator to keep them.");
-    updateStatus(entry); await calculate();
-  }
-
-  function renderYieldReview(review) {
-    const details = node("details", "calculator-yield-review");
-    details.append(node("summary", "", `Reviewed product yields and sources${review.reviewed_at ? ` · ${review.reviewed_at}` : ""}`));
-    details.append(node("p", "", "Direct yield takes priority. Estimating density is inferred dry-material consumption, not installed coating density. Batch/theoretical and uninjected yields remain adjustable."));
-    const scroll = node("div", "calculator-yield-review-scroll"), table = node("table"), head = node("thead"), headers = node("tr"), body = node("tbody");
-    for (const label of ["Product", "Bag mass (kg)", "Direct yield (L/bag)", "Dry-material consumption (kg/m³)", "Basis and sources"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
-    head.append(headers);
-    for (const product of review.products || []) {
-      const row = node("tr"), name = node("th", "", product.product); name.scope = "row"; row.append(name);
-      for (const value of [product.bag_mass_kg, isNumber(product.direct_yield_m3) ? decimalShift(product.direct_yield_m3, 3) : product.direct_yield_m3, product.estimating_density_kg_m3]) row.append(node("td", "calculator-number", displayValue(value)));
-      const basis = node("td", "calculator-yield-basis"); basis.append(node("p", "", product.basis || ""));
-      for (const source of product.sources || []) { const url = safeDocumentUrl(source.url); if (!url) continue; const link = node("a", "", `${source.title || "Manufacturer source"}${source.page ? ` · ${source.page}` : ""}`); link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; basis.append(link); }
-      row.append(basis); body.append(row);
-    }
-    table.append(head, body); scroll.append(table); details.append(scroll); return details;
-  }
-
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
-    const grid = $("calculator-grid"), result = entry.result, metadata = sheetMetadata(entry);
+    const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry);
     entry.productTotalsElement = null;
-    entry.reviewedDefaultsButton = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
-    let columns = result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column));
+    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns);
+    const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row));
+    let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column))).filter((column) => !omittedColumns.has(column));
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
     const merges = (metadata.merges || []).map((range) => {
@@ -483,15 +486,15 @@
     }).filter(Boolean);
     if (!schedule) {
       const occupied = new Set(), populated = new Set();
-      for (const row of result.rows) for (const cell of row.cells) if (columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))) {
+      for (const row of visibleRows) for (const cell of row.cells) if (columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))) {
         occupied.add(cell.column); populated.add(`${cell.column}:${row.row}`);
       }
       for (const merge of merges) if (populated.has(`${merge.start.column}:${merge.start.row}`)) for (const column of columns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
       columns = columns.filter((column) => occupied.has(column));
     }
-    const rows = (result.rows || []).filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
+    const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
     const rowNumbers = rows.map((row) => row.row);
-    const sectionLinks = sectionDetails(entry, result, metadata), sectionsByAddress = new Map(sectionLinks.map((section) => [section.address, section]));
+    const sectionLinks = sectionDetails(entry, { ...result, rows: visibleRows }, metadata), sectionsByAddress = new Map(sectionLinks.map((section) => [section.address, section]));
     state.optionLists.clear(); state.optionKeys = new WeakMap(); $("calculator-option-lists").replaceChildren();
     // These two source forms contain independent comparison matrices. Keeping
     // them separate lets the form stack on a phone while the matrix stays aligned.
@@ -514,14 +517,17 @@
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
       for (const column of columns) {
-        if (periodMatrix && group === "matrix" && column > 9) continue;
+        if (matrix && group === "matrix" && column > 9) continue;
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
         if (merge && (column !== columns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== Math.max(merge.start.row, rowNumbers[0] || 1))) continue;
         const cell = values.get(column) || { column, value: null };
         const matrixHeading = group === "matrix" && row.row === matrix.first;
-        const role = presentationRole(cell), td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
-        if (matrixHeading) td.scope = "col";
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
+        let role = ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell);
+        const explicitHeading = matrixHeading || (metadata.header_rows || []).includes(row.row) || Boolean(section) || role === "title";
+        if (!explicitHeading && (cell.calculated || cell.output || cell.read_only)) role = "output";
+        const td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
+        if (matrixHeading) td.scope = "col";
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
         if (cell.presentation?.bold) td.classList.add("calculator-bold");
         if (merge) {
@@ -535,6 +541,9 @@
           const label = cell.label || labels[column] || preceding || "Calculator input";
           td.append(makeControl(cell, row.row, entry, `${label}${item ? `, item ${item}` : ""}`));
         } else {
+          const structural = matrixHeading || (metadata.header_rows || []).includes(row.row) || ["title", "section", "column_header"].includes(role);
+          const tableValue = Boolean(schedule) || group === "matrix" || referenceTableValue(entry, row.row, column);
+          if (!structural && (tableValue || cell.output || cell.calculated || role === "output" || !["label", "note"].includes(role) && cell.value !== null && cell.value !== undefined && cell.value !== "")) td.dataset.calculatorValue = "true";
           td.dataset.calculatorOutput = cell.address || `${columnName(column)}${row.row}`;
           updateOutputCell(td, cell);
           if ((metadata.header_rows || []).includes(row.row)) td.classList.add("calculator-source-heading");
@@ -545,30 +554,24 @@
     }
     const content = [];
     if (sectionLinks.length) content.push(renderContents(sectionLinks));
-    if (entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && entry.definition.defaults?.SETTINGS) {
-      const actions = node("div", "calculator-reviewed-defaults"), button = node("button", "", "Use reviewed yield defaults");
-      button.id = "calculator-reviewed-defaults"; entry.reviewedDefaultsButton = button;
-      button.type = "button"; button.disabled = state.action || entry.invalid.size > 0; button.addEventListener("click", useReviewedDefaults);
-      actions.append(button, node("p", "", "Apply the reviewed product yields and editable references to this draft. Your schedule and other settings are retained. Save calculator to keep the change.")); content.push(actions);
-      if (entry.definition.yield_review?.products?.length) content.push(renderYieldReview(entry.definition.yield_review));
-    }
-    if (schedule) content.push(renderOverview(result.rows.filter((row) => row.row < schedule.header_row), entry, columns));
+    if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
     for (const [group, body] of sections) {
       const responsive = matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" ? " calculator-comparison-table" : ""}`);
       const colgroup = node("colgroup");
-      const groupWidths = periodMatrix && group === "matrix" ? columns.filter((column) => column <= 9).map((column) => column === 1 ? 100 : 88) : widths;
-      for (const width of groupWidths) { const col = node("col"); col.style.width = `${width}px`; colgroup.append(col); }
-      table.style.width = `${groupWidths.reduce((sum, width) => sum + width, 0)}px`; table.append(colgroup);
+      const orderTable = matrix && !periodMatrix && group === "matrix";
+      const fitBagsForm = matrix && !periodMatrix && group !== "matrix";
+      if (orderTable) table.classList.add("calculator-order-table");
+      if (fitBagsForm) table.classList.add("calculator-bags-form");
+      const groupWidths = matrix && group === "matrix" ? columns.filter((column) => column <= 9).map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : widths;
+      const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
+      for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitBagsForm ? width / totalWidth * 100 : width}${orderTable || fitBagsForm ? "%" : "px"}`; colgroup.append(col); }
+      table.style.width = orderTable || fitBagsForm ? "100%" : `${totalWidth}px`; table.append(colgroup);
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
       if (group === "matrix") { table.setAttribute("aria-label", matrix.label); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${matrix.label} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table); content.push(scroll);
-      if (periodMatrix && group === "matrix") {
-        const note = result.rows.find((row) => row.row === 28)?.cells.find((cell) => cell.column === 10);
-        if (note) { const text = node("p", "calculator-comparison-note"); text.dataset.calculatorOutput = note.address || "J28"; updateOutputCell(text, note); content.push(text); }
-      }
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     entry.renderedSheet = entry.sheet; entry.renderedAdvanced = entry.advanced; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;

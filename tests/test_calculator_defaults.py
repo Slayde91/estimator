@@ -90,14 +90,16 @@ class CalculatorDefaultsTests(unittest.TestCase):
                 self.assertEqual(store.calculator_state(IDENTITY), saved)
                 self.assertEqual(saved['inputs'], inputs)
 
-    def test_all_material_references_accept_multiline_text_but_other_controls_do_not(self):
+    def test_historical_material_references_render_readonly_and_retain_valid_multiline_text(self):
         for address in ('D42', 'D75', 'D107', 'D184', 'D240'):
             inputs = {'SETTINGS': {address: 'Project evidence\nSecond line\r\nThird line'}}
             self.assertEqual(normalize_calculator_inputs(IDENTITY, inputs), inputs)
             row = int(address[1:])
             cells = calculate_page(IDENTITY, inputs, 'SETTINGS', row, 1)['rows'][0]['cells']
             field = next(cell for cell in cells if cell['address'] == address)
-            self.assertTrue(field['editable'] and field['multiline'])
+            self.assertFalse(field['editable'])
+            self.assertTrue(field['read_only'] and field['output'] and field['multiline'])
+            self.assertEqual(field['value'], inputs['SETTINGS'][address])
             for bad in ('null\x00', 'tab\t', 'x' * 2001):
                 with self.assertRaises(ValidationError):
                     normalize_calculator_inputs(IDENTITY, {'SETTINGS': {address: bad}})

@@ -1,6 +1,76 @@
 # Session handoff
 
-## Australian yield review and calculator refinements — 2026-09-14
+## Calculator display cleanup and locked references — 2026-09-14
+
+Starting state: clean `feat/workbook-calculators` at `7cf8ca0`, matching its
+fetched upstream (0/0 divergence); fetched main remains `615997c`. This increment
+implements the user's display removals and latest explicit requirement that
+Material basis/reference be read-only. It does not revise the yield profile.
+
+Removed the reviewed-default button/evidence panel and the five products'
+date, source-ID and document-name rows from Settings. All three Settings banners
+read **Product Settings and Rules**. Vermiculite SCHEDULE hides the requested
+top instructions and V/W/X columns, retaining all 1,000 inputs, the three summary
+cards and pooled product quantities. Section 03 retains the period comparison
+and removes its adjacent and trailing notes. BAGS uses nine real table columns
+and proportional form widths; no desktop horizontal overflow remains at 1280px.
+
+The five references are readonly in both worksheet projections and user-facing
+HTTP/save validation. Existing saved reference text, including valid historical
+multiline/blank values, remains recoverable. Known source/reviewed defaults are
+accepted for Reset. Numeric settings remain editable at full precision. There
+is no saved-state migration, schema change or alteration to source workbooks,
+packaged formulas, native fixtures, default quantities or PDF projection.
+
+Every data output uses the same populated fill (`#fff0ce`) or empty fill
+(`#f2f3f5`), including zero, text, errors and non-formula blank table cells.
+Structural headings and navigation remain distinct. Browser review caught an
+inferred heading on the calculated source label and unclassified blank summary
+cells; both were corrected and covered by regression tests.
+
+Verified in this increment:
+- All **198 Python tests passed in 478.142 seconds**, with no skips. This includes
+  source reconstruction from the actual supplied workbooks, 419,905 original
+  native calculator comparisons, 32,616 original Quote comparisons, and the
+  reviewed-yield native scenarios/profile checks.
+- Nine new cleanup tests cover 50 rejected reference-edit requests without
+  database writes, saved-reference recovery/import/report/save, numeric precision,
+  known resets, version guards and retained W/Y incomplete-order dependencies.
+- JavaScript syntax, **53 calculator UI checks and 17 existing UI checks** pass.
+- Browser review covered all twelve pages. Every observed populated data output
+  uses `rgb(255, 240, 206)` and every empty data output `rgb(242, 243, 245)`.
+  All Settings banners and five locked references were checked. The schedules
+  retain 1,000/300/200 rows and 40 extra-board rows. Editing direct yield to zero
+  switched Yield Used to the empty fill; restoring and saving 0.0651 retained the
+  populated fill and full input precision in the isolated QA state. All eight
+  period columns were 132px wide. At 390px, BAGS forms fit the page and only the
+  wide order table scrolls internally; the viewport override was reset. Browser
+  error logs were empty.
+- The 34-file source build is **5,338,995 bytes**, SHA-256
+  `827b4a2d8d8e53407b9aed80d3a8fe7251cbd66adfa6f1b2590ace2c4c4d9fe5`.
+  An extracted copy served all twelve complete worksheets and the three PDFs
+  (3 vermiculite, 4 duct and 8 board pages) with source-workbook access blocked;
+  there were no attempted workbook reads. PDF layout code is unchanged.
+- The local server was refreshed using `Start-Estimator.ps1 -NoBrowser` after
+  a database backup. The two saved quotes, zero pricing rows and zero calculator
+  states remain identical. The quote/settings SHA-256 is still
+  `c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+  The user's browser tab/draft is left open; refresh after retaining unsaved work.
+- Main server PID **24820** serves the exact tested JS/CSS/HTML. Its metadata
+  confirms readonly references and presentation exclusions; live default totals
+  remain 172.02548458861258 net / 173 whole CAFCO bags.
+
+The publication checkpoint is recorded below when verified.
+At the starting head, PR #6 was open, unmerged, without reviews; both Checks jobs
+had failed before steps with the already documented billing/spending blocker.
+This is not a passing-CI claim for the current increment.
+
+Local-change classification: intended runtime, UI, regression-test and
+documentation changes only. Database backups, isolated QA state, logs and package
+checks are ignored under `.runtime/calculator-cleanup-qa`; `dist/` and caches are
+also ignored. No user workbook, secret or unrelated file is included.
+
+## Historical: Australian yield review and calculator refinements — 2026-09-14
 
 Starting state: clean `feat/workbook-calculators` at `e39f28d`, matching fetched
 `origin/feat/workbook-calculators`; main remains `615997c`. This increment follows

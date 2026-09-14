@@ -82,6 +82,20 @@ The existing document registry describes CAFCO and CP2 SDS contents as December 
 
 The recommended defaults are a separately traceable commercial estimating profile. Keep original source formulas, databases and native Excel fixtures immutable; maintain an explicit way to reproduce the original workbook defaults. Saved calculator inputs and deliberate user overrides must not silently adopt later manufacturer assumptions. Keep unrounded values in calculation, persistence and export; display precision must not become arithmetic precision.
 
+The later user presentation instruction removes the visible reviewed-yield action
+and review panel, and omits Settings date/source-ID/document-name metadata. This
+developer evidence record deliberately retains its dates, exact document titles,
+URLs, qualifications and derivations. Removing visible provenance does not delete
+the retained source material or change a selected yield.
+
+Material-basis text is now read-only. New arbitrary edits are rejected at HTTP
+and storage-save boundaries; exact existing saved overrides are preserved, and
+original-source/reviewed-default text can still be restored through Reset. The
+low-level evaluator continues to accept historical evidence overlays. Numeric
+material settings remain adjustable, and the profile still applies only to new
+unsaved states or an explicit reset. The latest worksheet hiding/colour/width
+changes do not modify quantities or the existing PDF contents.
+
 No new passive-fire thickness or suitability rule follows from this review. Native Microsoft Excel 16.0, build 20326, was used on 14 September 2026 to recalculate a byte-identical disposable copy of the original workbook. Macros, external links and events were disabled; the workbook was not saved. Both the original and disposable copy retained SHA-256 `1ea62906d13f2f5d34bae9c6f2391e084f26da5d597c9d69b154ad99579028ad` after capture.
 
 The five retained scenarios cover the original defaults without any overlay, reviewed direct yields for all five products, blank direct yields with equivalent-density fallback, precise user yield and waste overrides, and invalid direct/fallback values. Each varied scenario has two representative rows per product plus a last-row sentinel, exercising decimal lengths, area overrides, pooled product purchasing totals and cleared rows. Representative steel inputs came from previously captured native Excel quantified examples; no expected value came from the application's engine.

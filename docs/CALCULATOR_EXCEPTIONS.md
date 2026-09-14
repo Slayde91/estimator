@@ -51,7 +51,8 @@ package remain unchanged, including source hash
 
 The profile in `data/vermiculite_yield_defaults.json` supplies four existing
 SETTINGS inputs for each of five products: bag mass, direct yield, inferred
-dry-material consumption and editable basis/reference. Evidence, expression
+dry-material consumption and retained basis/reference. Numeric settings remain
+editable; the later user instruction makes basis text read-only. Evidence, expression
 derivations and source conflicts are recorded in
 [VERMICULITE_YIELD_REVIEW.md](VERMICULITE_YIELD_REVIEW.md).
 
@@ -86,12 +87,31 @@ Application boundary:
 - Existing saves retain exact stored inputs, including deliberately empty
   overlays. No migration, eager rewrite or silent adoption occurs.
 - Reset calculator defaults copies the profile into the draft and restores
-  source example rows. Use reviewed yield defaults merges only those twenty
-  SETTINGS inputs, preserving the schedule and other settings. Save calculator
-  is required to persist either action.
+  source example rows. Save calculator is required to persist that action.
+  The later presentation request removes the separate reviewed-yield action and
+  review panel; it does not remove the profile or silently change saved inputs.
 - The source model, normalizer, engine factory and report projection do not
   inject reviewed values. Explicit empty calculation inputs still reproduce
   the original workbook defaults. Numeric precision is retained throughout.
+
+## Later presentation and read-only basis instruction
+
+The later 14 September 2026 instruction supersedes the earlier editable-basis
+UI. D42, D75, D107, D184 and D240 are displayed read-only. HTTP and storage-save
+validation rejects arbitrary new basis edits while retaining exact existing
+saved overrides and accepting original-source or reviewed-default text for
+Reset. Historical evidence remains supported by the low-level evaluator; no
+stored record is rewritten simply because it predates this restriction.
+
+The separate reviewed-yield action/panel and requested Settings date/source-ID/
+document-name metadata are omitted from the browser. Source evidence, URLs,
+hashes and review dates remain in developer documentation and retained data.
+Vermiculite SCHEDULE V/W/X and top labels at rows 1/2/3/8, and the CALCULATOR third
+notes section at rows 33–41 and comparison narrative J28:N30, are presentation
+omissions only. W still gates incomplete bag
+orders. BAGS width and the two populated/blank output highlight states change
+layout only; numeric zero is populated. Source graphs, saved calculation values,
+pooled ordering rules and existing PDF contents are unchanged by this request.
 
 The original native Excel fixtures remain unchanged. Validate this profile
 through its explicit expressions, the unchanged formula precedence, saved-state

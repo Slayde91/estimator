@@ -115,19 +115,25 @@ and [exception record](docs/CALCULATOR_EXCEPTIONS.md).
 The existing paged projection is retained for compatibility. A `worksheet` POST
 returns the complete bounded source page with shared typed dropdown option sets,
 visible columns and source-derived presentation roles. The browser renders every
-prepared schedule row, retaining hidden/advanced choices and omitting decorative
-spacing only. Shared datalists avoid repeating large section libraries for every
+prepared schedule row, retaining hidden/advanced input choices. Explicit
+presentation omissions hide the requested vermiculite commentary and source
+metadata without removing their cells from the source graph. Shared datalists avoid repeating large section libraries for every
 row. Main-section metadata supplies stable contents anchors and colour themes.
 Non-schedule occupancy is part of the render signature, so a newly populated
 formula note is not lost during an in-place output refresh. The single-member
 period matrix has its own equal-width period columns rather than inheriting the
 form's narrow spacer. Neither presentation roles nor display rounding change
-calculated values.
+calculated values. Read-only outputs have two value-presence highlight states:
+populated and blank. Numeric zero belongs to the populated state; this styling
+does not interpret a technical status as acceptable or rejected.
 
 Vermiculite SCHEDULE receives `product_totals` from the existing BAGS product
 formulas, with net bags, pooled whole bags and order status. Its browser table
 refreshes from these server results without rebuilding schedule controls. The
 removed thickness/scope-block summary card remains in the source result graph.
+The later display cleanup hides SCHEDULE V/W/X and requested top labels, removes
+the CALCULATOR third notes section, and gives BAGS compact independent widths.
+These browser omissions do not change PDF content or pooled ordering values.
 
 `calculator_report.py` projects a normalized input snapshot through the same
 workbook engine and approved exception. `POST /api/calculators/<id>/report.pdf`
@@ -151,7 +157,7 @@ Previous architecture: an absent saved calculator state produced an empty input
 overlay and therefore the source workbook's original defaults. The implemented
 change adds `calculator_defaults.py` and a separately reviewed JSON profile for
 five vermiculite products. It supplies twenty existing SETTINGS inputs: bag mass,
-direct yield, inferred dry-material consumption and editable basis/reference.
+direct yield, inferred dry-material consumption and retained basis/reference.
 The reason is the user's authorized manufacturer-evidence review of commercial
 estimating assumptions. Source graphs, hashes, thickness tables and original
 native Excel fixtures remain unchanged; this is not a second formula engine.
@@ -160,22 +166,28 @@ native Excel fixtures remain unchanged; this is not a second formula engine.
 does not persist during that read. Existing saved rows are returned exactly,
 including an explicit empty overlay. Calculator definitions expose `defaults`
 and `yield_review` separately from current `inputs`. Reset copies the default
-overlay into the draft and restores source example rows. Use reviewed yield
-defaults merges only its twenty SETTINGS fields into the current draft; schedule
-inputs and other settings are retained. The existing PUT state is the only save.
+overlay into the draft and restores source example rows. The separate reviewed
+yield action and review panel were subsequently removed from the browser at the
+user's request. The existing PUT state is the only save.
 
 The normalizer, engine/session factory and report projection do not inject the
 profile. Explicit `{}` inputs still evaluate original workbook defaults, and
 caller-supplied values remain authoritative. A saved numeric direct yield is an
 explicit override, so later bag-mass edits do not rescale it implicitly. The
 source direct-yield precedence, blank/zero/error behavior and separate waste
-application are unchanged. The five already-editable basis fields accept bounded
-multiline text; other input text retains its existing control-character rules.
+application are unchanged. The latest presentation request makes material-basis
+text read-only and removes visible review dates, source IDs and document names
+from Settings. Existing basis overrides and full source evidence remain retained.
+The HTTP and storage-save boundary rejects arbitrary new basis text. Exact
+existing saved values, original source text and reviewed-default text remain
+accepted so unchanged saves and Reset do not require a migration. The low-level
+source evaluator still supports historical input evidence; it is not the write
+authorization boundary.
 
 Consequences: a new unsaved vermiculite calculator starts with reviewed commercial
 assumptions; existing work changes only through deliberate input actions. The
-review table shows litres per bag and linked basis evidence while retaining raw
-numeric precision. Density means inferred dry-material consumption rather than
+underlying profile and developer review retain numeric precision and linked
+basis evidence without displaying a separate review panel. Density means inferred dry-material consumption rather than
 installed coating density. Migration impact: no schema/version change, saved-row
 rewrite, package replacement or data migration. Source-default reconstruction
 and commercial-overlay validation remain separate checks. See the

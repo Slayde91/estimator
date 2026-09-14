@@ -26,14 +26,13 @@
 .calculator-grid thead th{position:sticky;top:0;z-index:3;background:#f3edef;color:#594650;text-transform:none;letter-spacing:0;font-size:10px;font-weight:700;border-bottom:2px solid #e1d2d7}
 .calculator-grid .calculator-row-label{position:sticky;left:0;width:52px;min-width:52px;text-align:center;background:#faf7f8;color:#807079;font-size:10px;font-weight:500;z-index:2;padding:12px 5px}
 .calculator-grid thead .calculator-row-label{z-index:4;background:#f3edef}
-.calculator-grid tbody tr:hover>td{background:#fffaf6}
 .calculator-grid td.calculator-editable{background:#fffcf2;padding:6px;vertical-align:middle}
 .calculator-grid td.calculator-number{text-align:right;font-variant-numeric:tabular-nums}
 .calculator-grid input,.calculator-grid select{min-width:105px;padding:8px 9px;font-size:11px;line-height:1.5;background:white;border-color:#dfd2b5;border-radius:5px}
 .calculator-grid input.calculator-number{text-align:right;font-variant-numeric:tabular-nums}
 .calculator-grid td.calculator-source-heading{font-weight:700;background:#faf3ef;color:#653f36}
 .calculator-grid td.calculator-note{color:#65545e;line-height:1.75;white-space:pre-line}
-.calculator-grid .calculator-error{color:var(--error);background:#fff1f2!important;font-weight:600}
+.calculator-grid .calculator-error{color:var(--error);font-weight:600}
 .calculator-warnings{margin:0 25px 16px;padding:12px 16px;background:#fff8e8;border:1px solid #eddaaa;border-radius:8px;font-size:11px;color:#70501c;white-space:pre-line;max-height:180px;overflow:auto}
 .calculator-documents{border-top:1px solid var(--line);padding:18px 25px;font-size:12px}
 .calculator-documents summary{font-weight:600;cursor:pointer;color:#66525d}
@@ -58,8 +57,6 @@
 .calculator-grid table{font-size:12px}
 .calculator-grid td,.calculator-grid th{padding:12px 14px;line-height:1.6}
 .calculator-grid thead th{background:#7f1320;color:#fff;border-color:#972c38;font-size:11px;font-weight:750;letter-spacing:.1px;padding:14px;line-height:1.5}
-.calculator-grid .calculator-schedule-table tbody tr:nth-child(even)>td{background:#fcf8f7}
-.calculator-grid .calculator-schedule-table tbody tr:hover>td{background:#fff2e2}
 .calculator-grid .calculator-schedule-table thead th:first-child{position:sticky;left:0;z-index:5}
 .calculator-grid .calculator-schedule-table tbody td:first-child{position:sticky;left:0;z-index:2;box-shadow:2px 0 0 #e5d4db;background:#fffaf5;font-weight:700}
 .calculator-grid .calculator-form-table td{border-right:0;border-bottom:1px solid #eee4e8;padding:12px 15px}
@@ -69,8 +66,8 @@
 .calculator-grid .calculator-form-table td.calculator-role-column_header{background:#f3e6e9;color:#5c2638;font-weight:750;border-block:1px solid #dfc5ce}
 .calculator-grid td.calculator-role-label{font-weight:700;color:#5b3342;background:#fcf7f8}
 .calculator-grid td.calculator-role-note{font-size:12px;color:#6a555f;background:#fffdf8;line-height:1.8}
-.calculator-grid td.calculator-role-output{font-weight:650;color:#342932;background:#f8f5f4}
-.calculator-grid td.calculator-role-output.calculator-number{font-size:14px;font-weight:750;color:#83101f;background:#fff3eb}
+.calculator-grid td.calculator-role-output{font-weight:650;color:#342932}
+.calculator-grid td.calculator-role-output.calculator-number{font-size:14px;font-weight:750;color:#83101f}
 .calculator-grid td.calculator-bold{font-weight:750}
 .calculator-grid td.calculator-editable{background:#fff8e4!important;border-bottom-color:#e5d1a1;padding:7px 9px}
 .calculator-grid input,.calculator-grid select{font-size:12px;padding:10px 11px;min-height:40px;box-shadow:0 1px 3px #4b281309;border-color:#cfb574;background:#fff}
@@ -95,7 +92,6 @@
 .calculator-inline-link{color:var(--accent);font-size:11px;font-weight:700;text-underline-offset:3px}
 #calculator-sheet-title{scroll-margin-top:180px}
 .calculator-grid .calculator-comparison-table th{background:#f3e6e9;color:#5c2638;font-weight:750;border-block:1px solid #dfc5ce}
-.calculator-comparison-note{padding:16px 24px;margin:0;background:#fffaf1;color:#6b5147;font-size:12px;line-height:1.75;border-bottom:1px solid #ebddc9}
 .calculator-grid textarea{display:block;width:100%;min-width:0;resize:vertical;font:inherit;font-size:12px;line-height:1.65;padding:12px;min-height:110px;box-sizing:border-box;border:1px solid #cfb574;border-radius:6px;background:#fff}
 .calculator-grid textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px #b90a1514}
 .calculator-summary-three{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -128,19 +124,6 @@
 .calculator-contents a{display:block;padding:8px 11px;border:1px solid var(--section-edge);border-left-width:3px;border-radius:6px;color:var(--section-ink);background:var(--section-bg);font-size:10px;line-height:1.45;font-weight:700;text-decoration:none}
 .calculator-contents a:hover{text-decoration:underline;text-underline-offset:3px}
 .calculator-contents a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.calculator-reviewed-defaults{display:flex;align-items:center;gap:18px;padding:15px 24px;border-bottom:1px solid #e9d9c9;background:#fff8eb}
-.calculator-reviewed-defaults button{flex-shrink:0;background:#fff;border-color:#bb7948;color:#763310;font-size:11px;font-weight:700;padding:10px 14px}
-.calculator-reviewed-defaults p{margin:0;color:#765a49;font-size:11px;line-height:1.7;max-width:650px}
-.calculator-yield-review{padding:15px 24px;border-bottom:1px solid #e8d9d0;background:#fffcf7}
-.calculator-yield-review summary{cursor:pointer;color:#753610;font-size:12px;font-weight:700;line-height:1.6}
-.calculator-yield-review>p{font-size:11px;color:#71574b;line-height:1.75;margin:13px 0}
-.calculator-yield-review-scroll{overflow:auto;border:1px solid #e6d9cd;border-radius:7px;margin-top:12px}
-.calculator-grid .calculator-yield-review table{min-width:950px;width:100%;table-layout:auto;font-size:11px}
-.calculator-grid .calculator-yield-review th,.calculator-grid .calculator-yield-review td{padding:12px;line-height:1.65}
-.calculator-grid .calculator-yield-review tbody th{background:#fff6e7;color:#684534;font-size:11px;text-align:left}
-.calculator-grid .calculator-yield-review .calculator-number{white-space:nowrap;vertical-align:top;color:#7c1724;font-weight:700}
-.calculator-yield-basis p{margin:0 0 7px;color:#69524a;font-size:11px}
-.calculator-yield-basis a{display:block;color:#832637;font-size:10px;line-height:1.8;text-underline-offset:3px}
 .calculator-table-scroll:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 @media(max-width:760px){.calculator-overview{padding:18px 20px}.calculator-grid{max-height:none}.calculator-table-scroll{max-height:74vh}.calculator-grid .calculator-form-table td.calculator-role-title{font-size:17px}.calculator-grid .calculator-form-table td{padding:10px 12px}.calculator-workspace{min-width:0}.calculator-sheet-footer{padding:14px 20px}}
 @media(max-width:760px){
@@ -151,6 +134,7 @@
   .calculator-responsive-form tr{display:grid;grid-template-columns:minmax(0,1fr);border-bottom:1px solid #e6d7dc;padding:7px 0}
   .calculator-grid .calculator-responsive-form td{display:block;width:auto;min-width:0;border:0;padding:9px 18px;text-align:left}
   .calculator-grid .calculator-responsive-form td:empty{display:none}
+  .calculator-grid .calculator-responsive-form td.calculator-value-empty{display:block;min-height:35px}
   .calculator-grid .calculator-responsive-form td.calculator-editable{padding:4px 18px 12px}
   .calculator-grid .calculator-responsive-form td.calculator-role-label{padding-bottom:4px;background:transparent}
   .calculator-grid .calculator-responsive-form td.calculator-number{font-size:17px;padding-top:4px}
@@ -158,6 +142,11 @@
   .calculator-contents{padding:16px 18px}
   .calculator-contents-links{gap:7px}
   .calculator-summary-three{grid-template-columns:1fr}
-  .calculator-reviewed-defaults{align-items:flex-start;flex-direction:column;gap:10px;padding:15px 18px}
-  .calculator-yield-review{padding:15px 18px}
 }
+
+/* Every value output uses one of two fills, independent of number, status or source style. */
+.calculator-grid .calculator-value-present{background:#fff0ce!important}
+.calculator-grid .calculator-value-empty{background:#f2f3f5!important}
+.calculator-grid .calculator-order-table{width:100%;min-width:880px}
+.calculator-grid .calculator-order-table td,.calculator-grid .calculator-order-table th{padding:10px 9px;overflow-wrap:anywhere}
+.calculator-grid .calculator-bags-form{width:100%;min-width:0}

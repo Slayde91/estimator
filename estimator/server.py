@@ -118,7 +118,7 @@ def create_server(port=8765, database=None):
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|state|template|import)', route)
                 if calculator_route:
-                    from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs
+                    from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs, validate_calculator_edits
                     calculator_id, action = calculator_route.groups()
                     expected_method = 'PUT' if action == 'state' else 'POST'
                     if self.command != expected_method:
@@ -129,15 +129,15 @@ def create_server(port=8765, database=None):
                                'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
+                    if action in {'calculate', 'worksheet', 'report.pdf', 'import'}:
+                        saved_inputs = store.calculator_state(calculator_id)['inputs']
+                        inputs = validate_calculator_edits(calculator_id, body.get('inputs', saved_inputs), saved_inputs)
                     if action == 'calculate':
-                        inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
                         self.send_payload(200, calculate_page(calculator_id, inputs, body.get('sheet'), body.get('start_row', 1), body.get('row_count', 25)))
                     elif action == 'worksheet':
-                        inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
                         self.send_payload(200, calculate_worksheet(calculator_id, inputs, body.get('sheet'), body.get('include_advanced', False)))
                     elif action == 'report.pdf':
                         from .calculator_report import build_calculator_report
-                        inputs = body.get('inputs', store.calculator_state(calculator_id)['inputs'])
                         report = build_calculator_report(calculator_id, inputs)
                         self.send_payload(200, report, 'application/pdf',
                                           {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-schedule.pdf"'})
@@ -163,8 +163,7 @@ def create_server(port=8765, database=None):
                             raise ValidationError('The Excel schedule upload is invalid.') from error
                         if not payload or len(payload) > MAX_PRICING_FILE:
                             raise ValidationError('Choose a nonempty schedule file of at most 5 MB.')
-                        current = normalize_calculator_inputs(calculator_id, body.get('inputs', store.calculator_state(calculator_id)['inputs']))
-                        proposed = import_schedule_workbook(calculator_id, payload, filename, current)
+                        proposed = import_schedule_workbook(calculator_id, payload, filename, inputs)
                         proposed['inputs'] = normalize_calculator_inputs(calculator_id, proposed['inputs'])
                         self.send_payload(200, proposed)
                 elif route == "/api/pricing/export" and self.command == "POST":

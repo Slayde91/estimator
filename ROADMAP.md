@@ -1,11 +1,14 @@
 # Roadmap
 
-Current increment: implementation `678ee3f` is pushed to
-`feat/workbook-calculators` and PR #6. The yield review, navigation, pooled bag
-summary, editable references and requested PDF contents are locally verified.
-All 189 Python tests and 65 UI checks pass. Current implementation CI was blocked
-before job steps by GitHub account payment/spending limits; merging remains the
-next blocked action. Exact evidence is in SESSION_HANDOFF.md.
+Current increment: simplify the calculator presentation, make material-basis
+text read-only, hide requested source commentary, and use two output highlight
+states. Calculations, saved inputs and schedule PDFs retain their existing scope.
+Validation and publication for this increment belong in SESSION_HANDOFF.md.
+
+Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
+recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
+before job steps by GitHub account payment/spending limits. That evidence does
+not verify this subsequent presentation increment or its publication status.
 
 ## Implemented
 
@@ -17,8 +20,10 @@ next blocked action. Exact evidence is in SESSION_HANDOFF.md.
 - Permanent technical databases, original formulas and dependent dropdowns.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
 - Continuous full-row calculator pages with branded forms, distinct section colours, linked contents and labelled totals.
-- Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix and editable multiline material references.
-- Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; explicit apply/reset actions remain drafts until Save calculator.
+- Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
+- Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
+- One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under Product Settings and Rules.
+- Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; reset remains a draft until Save calculator. Numeric material settings stay adjustable.
 - Schedule PDF downloads with thicknesses, areas, applicable quantities, additional boards, product/ancillary tables and closing totals. Duplicate detail, standalone helper and settings appendices are removed.
 - Original exclusions/withheld quantities and the approved duct text correction.
 - Australian manuals, PDS/SDS and clearly labelled report/request links.
@@ -53,5 +58,5 @@ An installer, authenticated shared hosting, concurrent multi-user editing and ma
 
 The historical 946f2c1 checkpoint recorded 176 Python tests, 56 UI checks and
 subsequent report/HTTP/distribution checks, with CI blocked before job steps.
-Those counts and renders predate the current PDF reductions and reviewed-default
-profile; current results belong in SESSION_HANDOFF.md.
+Those counts and renders predate both the PDF reductions/reviewed-default
+profile and the latest presentation cleanup; current results belong in SESSION_HANDOFF.md.

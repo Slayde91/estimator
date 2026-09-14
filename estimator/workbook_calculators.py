@@ -32,6 +32,18 @@ _PRESENTATION_SECTIONS = {
                  'PRODUCT SETTINGS': ['A6', 'A48', 'A94', 'A153']},
 }
 
+# Presentation exclusions never remove cells from the calculation model or
+# report data. In particular, SCHEDULE W still gates complete bag quantities.
+_OMITTED_ROWS = {
+    'steel_vermiculite': {
+        'SETTINGS': [32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232],
+        'SCHEDULE': [1, 2, 3, 8],
+        'CALCULATOR': list(range(33, 42)),
+    },
+}
+_OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]}}
+_READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
+
 
 @lru_cache(maxsize=3)
 def source_model(calculator_id):
@@ -84,8 +96,8 @@ def input_field(calculator_id, sheet, address):
     model = source_model(calculator_id)
     found = _field_maps(calculator_id).get((sheet['name'], address))
     if found:
-        if calculator_id == 'steel_vermiculite' and sheet['name'] == 'SETTINGS' and address in {'D42', 'D75', 'D107', 'D184', 'D240'}:
-            return {**found, 'multiline': True}
+        if calculator_id == 'steel_vermiculite' and sheet['name'] == 'SETTINGS' and address in _READ_ONLY_REFERENCES:
+            return {**found, 'multiline': True, 'read_only': True}
         return found
     row, column = coordinates(address)
     schedule = model['schedule']
@@ -136,6 +148,27 @@ def normalize_calculator_inputs(calculator_id, inputs=None):
     return normalized
 
 
+def validate_calculator_edits(calculator_id, inputs, saved_inputs):
+    """Enforce read-only references at user-facing calculation/save boundaries.
+
+    The source evaluator must still reproduce historical saved inputs. Accept
+    their exact references and the two known baselines (source and reviewed)
+    so loading and resetting a calculator need no data migration.
+    """
+    normalized = normalize_calculator_inputs(calculator_id, inputs)
+    if calculator_id != 'steel_vermiculite':
+        return normalized
+    source = next(sheet for sheet in source_model(calculator_id)['sheets'] if sheet['name'] == 'SETTINGS')['cells']
+    defaults = default_calculator_inputs(calculator_id)['SETTINGS']
+    saved = saved_inputs.get('SETTINGS', {})
+    for address in _READ_ONLY_REFERENCES & normalized.get('SETTINGS', {}).keys():
+        original = source.get(address, {}).get('value')
+        allowed = (original, defaults[address], saved.get(address, original))
+        if normalized['SETTINGS'][address] not in allowed:
+            raise ValidationError('Material basis/reference is read-only. Retain the saved reference or reset to the product defaults.')
+    return normalized
+
+
 @lru_cache(maxsize=6)
 def _session(calculator_id, serialized_inputs):
     return WorkbookEngine(source_model(calculator_id), json.loads(serialized_inputs), approved_formula_overrides(calculator_id)), RLock()
@@ -182,6 +215,8 @@ def _sheet_metadata(model, sheet):
     schedule = model['schedule']
     labels = [{'column': column_number(field['column']), 'label': field['label']} for field in schedule['columns']] if sheet['name'] == schedule['sheet'] else []
     return {'name': sheet['name'], 'max_row': r2, 'max_column': c2,
+            'omitted_rows': list(_OMITTED_ROWS.get(model['id'], {}).get(sheet['name'], [])),
+            'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
             'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
                 if data.get('hidden') in ('1', True) or float(data.get('ht', 15)) <= 0],
             'column_widths': widths, 'columns': labels, 'merges': sheet['merges'],
@@ -287,12 +322,15 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                 original = source['cells'].get(address, {})
                 value = engine.value(sheet, address)
                 field = input_field(calculator_id, source, address) if address in allowed else {}
+                editable = address in allowed and not field.get('read_only')
                 style = styles[int(original.get('style', 0))]
-                cell = {'column': column, 'address': address, 'value': value, 'editable': address in allowed,
+                cell = {'column': column, 'address': address, 'value': value, 'editable': editable,
                         'type': field.get('type', 'number' if isinstance(value, (int, float)) else 'text'),
                         'number_format': style.get('number_format', 'General'), 'calculated': 'formula' in original}
                 if shared_options:
-                    cell['presentation'] = _presentation(style, original, value, row, column, metadata, address in allowed)
+                    cell['presentation'] = _presentation(style, original, value, row, column, metadata, editable)
+                if field.get('read_only'):
+                    cell.update(read_only=True, output=True)
                 if field:
                     cell['label'] = field.get('label', 'Input')
                     if field.get('multiline'):

@@ -62,11 +62,11 @@ class Store:
         return state
 
     def save_calculator_state(self, calculator_id, inputs):
-        from .workbook_calculators import normalize_calculator_inputs, source_model
+        from .workbook_calculators import validate_calculator_edits, source_model
         if not isinstance(inputs, dict):
             raise ValidationError('Include a worksheet input object to save the calculator.')
-        self.calculator_state(calculator_id)  # Never overwrite a different source version silently.
-        state = {'inputs': normalize_calculator_inputs(calculator_id, inputs),
+        saved = self.calculator_state(calculator_id)  # Reject different source versions before validation or writes.
+        state = {'inputs': validate_calculator_edits(calculator_id, inputs, saved['inputs']),
                  'source_sha256': source_model(calculator_id)['source']['sha256'],
                  'updated_at': datetime.now(timezone.utc).isoformat()}
         with self.connect() as db:

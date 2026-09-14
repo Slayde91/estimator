@@ -1,6 +1,6 @@
 # Calculator presentation mapping
 
-Date: 2026-09-14. This is a source-backed presentation and reporting map, not a new calculation specification. Source cell addresses below are developer traceability keys; user labels use the workbook's meaningful headings. Source packages, formulas and original workbooks remain unchanged. The separately authorized reviewed material defaults populate existing editable inputs; their boundary is recorded below and in [CALCULATOR_EXCEPTIONS.md](CALCULATOR_EXCEPTIONS.md).
+Date: 2026-09-15. This is a source-backed presentation and reporting map, not a new calculation specification. Source cell addresses below are developer traceability keys; user labels use the workbook's meaningful headings. Source packages, formulas and original workbooks remain unchanged. The separately authorized reviewed material defaults populate existing editable inputs; their boundary is recorded below and in [CALCULATOR_EXCEPTIONS.md](CALCULATOR_EXCEPTIONS.md).
 
 ## Evidence and implementation boundary
 
@@ -188,20 +188,26 @@ Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to
 
 ### SUMMARY
 
-Build four tables with notes between them, not one 45-row grid:
+The current browser projection uses four independent tables, with each table
+keeping its own columns and widths. This supersedes the earlier recommendation
+to display every source commentary column:
 
-| Section | Header | Data | Supporting text |
-| --- | --- | --- | --- |
-| Product totals | A8:L8 | A9:L11 | A4 and A14 |
-| Penetration angles by size/location | A18:F18 | A19:F26 | A17 heading; keep basis/limitations E:F |
-| Working yields | A30:F30 | A31:F32 | A29 heading and A35 scope |
-| Maxilite board and cut strips | A39:I39 | A40:I41 | A38 heading and A43 explanation |
+| Section | Visible header | Visible data | Browser omission | Retained supporting text |
+| --- | --- | --- | --- | --- |
+| Product totals | A8:J8 | A9:J11 | K8:L11 basis/interpretation columns | A4 and A14 |
+| Penetration angles by size/location | A18:F18 | A19:F26 | None; E:F basis/limitations remain | A17 heading |
+| Working yields | A30:C30 | A31:C32 | D30:F32 | A29 heading and A35 scope |
+| Maxilite board and cut strips | A39:G39 | A40:G41 | H39:L41 | A38 heading and A43 explanation |
 
-Source SUMMARY numeric columns are 16–26 units; basis K32 and interpretation L52 are wider. Each table can choose widths by its own header meaning rather than inheriting unrelated column widths from the other tables.
+The product totals retain all quantities and withheld counts through J. These
+range-specific omissions must not hide E:F from the separate angle table or
+change any evaluated values. Source widths and merges remain in the package;
+independent browser tables avoid carrying the widest commentary columns into
+unrelated sections. The report projection below retains its existing mappings.
 
 ### PRODUCT SETTINGS
 
-Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup headings 36/74/117/123/129/136. The J:Q side notes/tables are meaningful visible references and must be relocated into readable reference blocks, not dropped.
+Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup headings 36/74/117/123/129/136. The browser omits the explanatory Both/Mixed block J6:Q21. This is a targeted presentation omission, not removal of the Both/Mixed technical rule, a change to product choices, or permission to hide other J:Q reference blocks. Its source cells and evaluated values remain intact.
 
 Place the eleven editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The rest is readonly source calibration/scope/reference data.
 
@@ -211,7 +217,13 @@ Source A:H parameter layout gives A43/B27 and H42 width units; J:Q contains sepa
 
 ### START
 
-This is an instruction page, not a schedule. Show the three live counters A6/E6/I6 beneath their labels A5/E5/I5. Render the five source sections as ordinary text/card groups: A8 everyday workflow; A15 area calculation; A21 safety/scope; A25 optional controls; A30 reading row notes. Preserve the source/traceability section A34:D39 with readable links.
+This is an instruction page, not a schedule. The browser omits row 3, the three
+counter labels/values in rows 5–6, and the source/traceability section in rows
+34–39. Its contents navigation also omits the Sources link, so no link targets a
+hidden section. Counters and source evidence remain in the source graph and
+worksheet response. The five retained sections are A8 everyday workflow, A15
+area calculation, A21 safety/scope, A25 optional controls and A30 reading row
+notes, displayed as ordinary text/card groups.
 
 Rows 40–100 are entirely decorative padding. There is no reason to display them as empty page height. Keep the source technical qualification wording and current scoped replacement of obsolete Excel-only instructions.
 
@@ -219,7 +231,7 @@ Rows 40–100 are entirely decorative padding. There is no reason to display the
 
 Move merged introductory notes rows 1–7 above the table, retaining their live counts and warnings. Row 8 supplies the column labels. Render all 200 rows 9–208 in one table. A:L are normal inputs; M:X are advanced inputs and must be available through the existing advanced toggle; Y:AI are the primary results.
 
-Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Keep row status AI highly visible. Source Y:AI headers should not appear twice as ordinary body cells.
+Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
 
 The required output distinctions are stack Z, layer count AA, total thickness AB, box girth AC, reference box area AD, actual net board AE, board with waste AF, standalone sheets AG, standalone purchase area AH and row notes AI. Do not relabel reference box area as board requirement. Hidden AJ:CI are retained calculation dependencies; the current source page extent intentionally presents only through AI.
 
@@ -296,6 +308,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Calculator reports retain every populated main schedule item, applicable extras, product tables and closing totals; the four removed appendix/helper sections stay absent. They preserve invalid/withheld quantities and source ordering rules and never add manual BAGS results to schedule totals.
 - Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
+- Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits only the Both/Mixed block J6:Q21. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

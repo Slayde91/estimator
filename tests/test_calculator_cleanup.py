@@ -12,10 +12,12 @@ import unittest
 
 from estimator.calculator_defaults import default_calculator_inputs
 from estimator.catalog import ROOT, ValidationError
+from estimator.excel_engine import coordinates
 from estimator.schedule_workbook import export_schedule_template
 from estimator.server import create_server
 from estimator.storage import Store
-from estimator.workbook_calculators import source_model, validate_calculator_edits
+from estimator.workbook_calculators import _contains, source_model, validate_calculator_edits
+from estimator.workbook_catalog import editable_cells
 
 
 IDENTITY = "steel_vermiculite"
@@ -189,8 +191,27 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertEqual(sheet["omitted_columns"], [22, 23, 24] if sheet["name"] == "SCHEDULE" else [])
         for identity in ("steel_board", "ductwork"):
             for sheet in self.request("GET", identity=identity)["sheets"]:
-                self.assertEqual(sheet["omitted_rows"], [])
+                self.assertEqual(sheet["omitted_rows"], [3, 5, 6, *range(34, 40)] if identity == "steel_board" and sheet["name"] == "START" else [])
                 self.assertEqual(sheet["omitted_columns"], [37] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else [])
+                self.assertEqual(sheet["omitted_ranges"], ["J6:Q21"] if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS" else [])
+                if identity == "ductwork" and sheet["name"] == "SUMMARY":
+                    tables = sheet["presentation_tables"]
+                    self.assertEqual([(table["first_row"], table["last_row"], table["columns"]) for table in tables],
+                                     [(8, 11, list(range(1, 11))), (18, 26, list(range(1, 7))),
+                                      (30, 32, [1, 2, 3]), (39, 41, list(range(1, 8)))])
+                    self.assertEqual(len(set(tables[0]["column_widths"][1:])), 1)
+                else:
+                    self.assertEqual(sheet["presentation_tables"], [])
+                # Projection rules must never hide an input, even if future
+                # source updates move editable cells into these regions.
+                for address in editable_cells(identity, sheet["name"]):
+                    row, column = coordinates(address)
+                    self.assertNotIn(row, sheet["omitted_rows"])
+                    self.assertNotIn(column, sheet["omitted_columns"])
+                    self.assertFalse(any(_contains(region, row, column) for region in sheet["omitted_ranges"]))
+                    for table in sheet["presentation_tables"]:
+                        if table["first_row"] <= row <= table["last_row"]:
+                            self.assertIn(column, table["columns"])
         self.assertEqual({path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in (ROOT / "data/calculators").glob("*.json.gz")}, self.package_hashes)
 

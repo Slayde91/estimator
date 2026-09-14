@@ -521,6 +521,81 @@ let passed = 0;
     {row:6,cells:[{column:1,address:'A6',value:'Product',presentation:{role:'label'}},{column:4,address:'D6',value:'CAFCO 300',editable:true,type:'text'},{column:7,address:'G6',value:null,calculated:false}]}]});
   realRender(entry);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='G6').dataset.calculatorValue,undefined);passed++;
 
+  // Duct summaries have separate table geometry; local omissions never hide another table's quantities.
+  entry=setup();entry.definition.id='ductwork';entry.sheet='SUMMARY';
+  const summaryTables=[
+    {first_row:8,last_row:11,columns:[1,2,3,4,5,6,7,8,9,10],column_widths:[200,125,125,125,125,125,125,125,125,125],label:'Product totals'},
+    {first_row:18,last_row:26,columns:['A','B','C','D','E','F'],column_widths:[200,160,160,125,200,360],label:'Angle totals'},
+    {first_row:30,last_row:32,columns:[1,2,3],column_widths:[200,125,180],label:'Working yields'},
+    {first_row:39,last_row:41,columns:[1,2,3,4,5,6,7],column_widths:[200,125,125,125,125,125,125],label:'Board totals'},
+  ];
+  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],presentation_tables:summaryTables,merges:['A1:L1','A17:L17','A29:L29','A38:L38','I40:L40','A43:L43']}];
+  const summaryRows=[1,17,29,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
+  for(const table of summaryTables) for(let row=table.first_row;row<=table.last_row;row++) summaryRows.push({row,cells:Array.from({length:12},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===26?null:row===table.first_row?`Header ${i+1}`:row*100+i,calculated:row!==table.first_row}))});
+  summaryRows.sort((a,b)=>a.row-b.row);
+  entry.result=result({}, {sheet:'SUMMARY',max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),rows:summaryRows});
+  const originalSummary=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  const summaryRendered=descendants(byId('calculator-grid')).filter(node=>node.tagName==='table');
+  assert.equal(summaryRendered.length,9);
+  assert.deepEqual(summaryRendered.map(table=>table.children.at(-1).children.map(row=>Number(row.dataset.sourceRow))),[[1],[8,9,10,11],[17],[18,19,20,21,22,23,24,25,26],[29],[30,31,32],[38],[39,40,41],[43]]);
+  for(const spec of summaryTables) {
+    const table=summaryRendered.find(node=>node.getAttribute('aria-label')===spec.label);
+    assert.equal(table.children[0].children.length,spec.columns.length);
+    assert.deepEqual(table.children[0].children.map(col=>col.style.width),spec.column_widths.map(width=>`${width}px`));
+    assert.ok(table.children.at(-1).children[0].children.every(cell=>cell.tagName==='th'));
+  }
+  const summaryOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]');
+  for(const address of ['K9','L9','D31','E31','F31','H40','I40','J40','K40','L40']) assert.ok(!summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
+  for(const address of ['D9','E9','F9','G9','D19','E19','F19','E40','F40','G40']) assert.ok(summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
+  const productColumns=summaryRendered[1].children[0].children;
+  assert.equal(productColumns[4].style.width,productColumns[1].style.width);assert.equal(productColumns[5].style.width,productColumns[1].style.width);
+  assert.equal(summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='A29').colSpan,12);
+  assert.equal(summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='A26').classList.contains('calculator-value-empty'),true);
+  assert.equal(JSON.stringify(entry.result),originalSummary);passed++;
+
+  // Ordinary result refreshes retain table nodes; layout metadata changes rebuild the independent columns.
+  const oldTable=summaryRendered[1],oldQuantity=summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='F9');
+  let summaryResponse=copy(entry.result);summaryResponse.rows.find(row=>row.row===9).cells.find(cell=>cell.column===6).value=123.456;
+  audit.setRequest(async()=>summaryResponse);await audit.calculate();
+  assert.equal(summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='F9'),oldQuantity);assert.equal(oldQuantity.textContent,'123.46');
+  summaryResponse={...summaryResponse,presentation_tables:copy(summaryTables)};summaryResponse.presentation_tables[0].column_widths[0]=240;
+  await audit.calculate();const changedProductTable=descendants(byId('calculator-grid')).find(node=>node.getAttribute?.('aria-label')==='Product totals'&&node.tagName==='table');
+  assert.notEqual(changedProductTable,oldTable);assert.equal(changedProductTable.children[0].children[0].style.width,'240px');passed++;
+
+  // Removing Both/Mixed notes is a bounded rectangle: left-hand settings and later FyreWrap reference columns survive.
+  entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
+  entry.definition.sheets=[{name:'PRODUCT SETTINGS',header_rows:[],section_cells:['J6','J94'],omitted_ranges:['J6:Q21'],merges:['J6:Q6','J94:Q94']}];
+  entry.result=result({}, {sheet:entry.sheet,max_column:17,rows:[
+    {row:6,cells:[{column:1,address:'A6',value:'Primary settings',presentation:{role:'label'}},{column:4,address:'D6',value:25.12345,editable:true,type:'number'},{column:10,address:'J6',value:'Removed Both/Mixed title',presentation:{role:'section'}}]},
+    {row:7,cells:[{column:10,address:'J7',value:'Removed Both/Mixed note'}]},
+    {row:21,cells:[{column:17,address:'Q21',value:'Removed final note'}]},
+    {row:94,cells:[{column:10,address:'J94',value:'FyreWrap reference',presentation:{role:'section'}}]},
+    {row:100,cells:[{column:10,address:'J100',value:0.005,editable:true,type:'number'},{column:17,address:'Q100',value:'Functional reference'}]},
+  ]});
+  const sourceSettings=JSON.stringify(entry.result);realRender(entry);
+  let settingsNodes=descendants(byId('calculator-grid'));
+  assert.ok(!settingsNodes.some(node=>/^Removed/.test(node.textContent||'')));
+  assert.ok(!settingsNodes.some(node=>node.href?.endsWith('-J6')));assert.ok(settingsNodes.some(node=>node.href?.endsWith('-J94')));
+  assert.ok(!settingsNodes.some(node=>['J6','J7','Q21'].includes(node.dataset?.calculatorOutput)));
+  assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell),['D6','J100']);
+  assert.ok(settingsNodes.some(node=>node.dataset?.calculatorOutput==='Q100'));assert.equal(JSON.stringify(entry.result),sourceSettings);
+  audit.setRender(realRender);audit.setRequest(async()=>({...entry.result,omitted_ranges:[]}));await audit.calculate();
+  settingsNodes=descendants(byId('calculator-grid'));assert.ok(settingsNodes.some(node=>node.dataset?.calculatorOutput==='J6'));passed++;
+
+  // Board status body cells are normal weight on render and refresh, while the schedule header remains bold.
+  entry=setup();entry.definition.sheets[0].max_column=35;
+  entry.result=result({}, {max_column:35,visible_columns:[1,35],rows:[{row:8,cells:[{column:35,address:'AI8',value:'Row status',presentation:{role:'column_header',bold:true}}]},
+    ...[9,208].map(row=>({row,cells:[{column:35,address:`AI${row}`,value:'Review required',calculated:true,presentation:{role:'output',bold:true}}]}))]});
+  realRender(entry);audit.setRender(realRender);
+  const statusOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]');
+  for(const address of ['AI9','AI208']) assert.equal(statusOutputs.find(node=>node.dataset.calculatorOutput===address).classList.contains('calculator-row-status'),true);
+  assert.ok(descendants(byId('calculator-grid')).filter(node=>node.tagName==='th').every(node=>!node.classList.contains('calculator-row-status')));
+  const retainedStatus=statusOutputs.find(node=>node.dataset.calculatorOutput==='AI9');
+  const statusResult=copy(entry.result);statusResult.rows.find(row=>row.row===9).cells[0].value='Ready';audit.setRequest(async()=>statusResult);await audit.calculate();
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='AI9'),retainedStatus);
+  assert.equal(retainedStatus.textContent,'Ready');assert.equal(retainedStatus.classList.contains('calculator-row-status'),true);
+  assert.match(fs.readFileSync('static/calculators.css','utf8'),/td\.calculator-row-status\s*\{\s*font-weight:\s*400\s*!important/);passed++;
+
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');
   audit.updateOutputCell(back,{address:'J32',value:'BACK TO TOP'});assert.equal(back.children[0].href,'#calculator-sheet-title');

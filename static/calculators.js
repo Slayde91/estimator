@@ -343,6 +343,8 @@
     }
     element.classList.toggle("calculator-number", isNumber(cell.value));
     element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
+    const position = parseAddress(address);
+    element.classList.toggle("calculator-row-status", Boolean(entry?.definition.id === "steel_board" && entry.sheet === "CALCULATOR" && position?.column === 35 && position.row >= 9 && position.row <= 208));
     if (element.dataset.calculatorValue === "true") {
       outputState(element, cell.value);
       if (element.calculatorValueCard) outputState(element.calculatorValueCard, cell.value);
@@ -357,7 +359,15 @@
 
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [] };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [] };
+  }
+
+  function omittedCell(metadata) {
+    const ranges = (metadata.omitted_ranges || []).map((range) => {
+      const [start, end] = range.split(":").map(parseAddress);
+      return start ? { start, end: end || start } : null;
+    }).filter(Boolean);
+    return (row, column) => ranges.some(({ start, end }) => row >= start.row && row <= end.row && column >= start.column && column <= end.column);
   }
 
   function refreshOutputs(result) {
@@ -380,12 +390,12 @@
 
   function choiceSignature(result, entry = current()) {
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { header_row: 5 } : null;
-    const metadata = displayMetadata(entry, result), omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns);
+    const metadata = displayMetadata(entry, result), omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), isOmitted = omittedCell(metadata);
     // Forms collapse empty rows/columns. A newly populated formula or note must
     // rebuild that structure; ordinary schedule edits still retain every control.
     const rows = result.rows.filter((row) => !omittedRows.has(row.row));
-    const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -400,8 +410,8 @@
   }
 
   function renderOverview(rows, entry, columns) {
-    const omittedRows = new Set(displayMetadata(entry).omitted_rows);
-    rows = rows.filter((row) => !omittedRows.has(row.row));
+    const metadata = displayMetadata(entry), omittedRows = new Set(metadata.omitted_rows), isOmitted = omittedCell(metadata);
+    rows = rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     const summaryFields = {
       steel_vermiculite: { SCHEDULE: [["A4", "A5"], ["G4", "G5"], ["S4", "S5"]] },
       steel_board: { CALCULATOR: [["A4", "C4"], ["E4", "G4"], ["I4", "K4"], ["Y4", "AA4"], ["AC4", "AE4"], ["AG4", "AI4"]] },
@@ -457,7 +467,10 @@
 
   function sectionDetails(entry, result, metadata) {
     const cells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
+    const isOmitted = omittedCell(metadata), omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns);
     return (metadata.section_cells || []).map((address, index) => {
+      const position = parseAddress(address);
+      if (!position || omittedRows.has(position.row) || omittedColumns.has(position.column) || isOmitted(position.row, position.column)) return null;
       const cell = cells.get(address);
       return cell && cell.value !== null && cell.value !== "" ? { address, label: sourceDisplayText(cell.value, entry, address), id: `calculator-section-${entry.definition.id}-${entry.sheet.replace(/\W+/g, "-")}-${address}`, theme: index % 11 } : null;
     }).filter(Boolean);
@@ -476,11 +489,13 @@
     entry.productTotalsElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
-    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns);
-    const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row));
+    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), isOmitted = omittedCell(metadata);
+    const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column))).filter((column) => !omittedColumns.has(column));
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
+    const presentationTables = metadata.presentation_tables;
+    const tableForRow = (row) => presentationTables.findIndex((table) => row >= table.first_row && row <= table.last_row);
     const merges = (metadata.merges || []).map((range) => {
       const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
     }).filter(Boolean);
@@ -490,10 +505,10 @@
         occupied.add(cell.column); populated.add(`${cell.column}:${row.row}`);
       }
       for (const merge of merges) if (populated.has(`${merge.start.column}:${merge.start.row}`)) for (const column of columns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
+      for (const table of presentationTables) for (const column of table.columns) occupied.add(columnNumber(column));
       columns = columns.filter((column) => occupied.has(column));
     }
-    const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
-    const rowNumbers = rows.map((row) => row.row);
+    const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : tableForRow(row.row) >= 0 || row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
     const sectionLinks = sectionDetails(entry, { ...result, rows: visibleRows }, metadata), sectionsByAddress = new Map(sectionLinks.map((section) => [section.address, section]));
     state.optionLists.clear(); state.optionKeys = new WeakMap(); $("calculator-option-lists").replaceChildren();
     // These two source forms contain independent comparison matrices. Keeping
@@ -501,6 +516,18 @@
     const matrix = entry.definition.id === "steel_vermiculite" ? ({ CALCULATOR: { first: 28, last: 30, label: "Published fire-period comparison" }, BAGS: { first: 19, last: 24, label: "Product order summary" } })[entry.sheet] : null;
     const periodMatrix = matrix && entry.sheet === "CALCULATOR";
     const head = node("thead"), sections = new Map(), widths = [];
+    const groupForRow = (row) => {
+      const index = tableForRow(row);
+      if (index >= 0) return `table-${index}`;
+      if (presentationTables.length) return `content-${presentationTables.filter((table) => table.last_row < row).length}`;
+      return matrix ? row < matrix.first ? "before" : row <= matrix.last ? "matrix" : "after" : "all";
+    };
+    for (const row of rows) {
+      const group = groupForRow(row.row), definition = presentationTables[tableForRow(row.row)];
+      if (!sections.has(group)) sections.set(group, { body: node("tbody"), rows: [], definition,
+        columns: definition ? definition.columns.map(columnNumber).filter((column) => columns.includes(column)) : matrix && group === "matrix" ? columns.filter((column) => column <= 9) : columns });
+      sections.get(group).rows.push(row.row);
+    }
     const headRow = node("tr");
     for (const column of columns) {
       const label = String(labels[column] || "");
@@ -511,17 +538,16 @@
     }
     head.append(headRow);
     for (const row of rows) {
-      const group = matrix ? row.row < matrix.first ? "before" : row.row <= matrix.last ? "matrix" : "after" : "all";
-      if (!sections.has(group)) sections.set(group, node("tbody"));
+      const group = groupForRow(row.row), renderedGroup = sections.get(group), groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
-      for (const column of columns) {
-        if (matrix && group === "matrix" && column > 9) continue;
+      for (const column of groupColumns) {
+        if (isOmitted(row.row, column)) continue;
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
-        if (merge && (column !== columns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== Math.max(merge.start.row, rowNumbers[0] || 1))) continue;
+        if (merge && (column !== groupColumns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== renderedGroup.rows.find((visible) => visible >= merge.start.row && visible <= merge.end.row))) continue;
         const cell = values.get(column) || { column, value: null };
-        const matrixHeading = group === "matrix" && row.row === matrix.first;
+        const matrixHeading = group === "matrix" && row.row === matrix.first || renderedGroup.definition?.first_row === row.row;
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
         let role = ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell);
         const explicitHeading = matrixHeading || (metadata.header_rows || []).includes(row.row) || Boolean(section) || role === "title";
@@ -531,8 +557,8 @@
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
         if (cell.presentation?.bold) td.classList.add("calculator-bold");
         if (merge) {
-          td.colSpan = columns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
-          td.rowSpan = rowNumbers.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1;
+          td.colSpan = groupColumns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
+          td.rowSpan = renderedGroup.rows.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1;
           td.classList.add("calculator-merged");
         }
         if (cell.editable) {
@@ -542,7 +568,7 @@
           td.append(makeControl(cell, row.row, entry, `${label}${item ? `, item ${item}` : ""}`));
         } else {
           const structural = matrixHeading || (metadata.header_rows || []).includes(row.row) || ["title", "section", "column_header"].includes(role);
-          const tableValue = Boolean(schedule) || group === "matrix" || referenceTableValue(entry, row.row, column);
+          const tableValue = Boolean(schedule) || group === "matrix" || Boolean(renderedGroup.definition) || referenceTableValue(entry, row.row, column);
           if (!structural && (tableValue || cell.output || cell.calculated || role === "output" || !["label", "note"].includes(role) && cell.value !== null && cell.value !== undefined && cell.value !== "")) td.dataset.calculatorValue = "true";
           td.dataset.calculatorOutput = cell.address || `${columnName(column)}${row.row}`;
           updateOutputCell(td, cell);
@@ -550,27 +576,32 @@
         }
         tr.append(td);
       }
-      sections.get(group).append(tr);
+      renderedGroup.body.append(tr);
     }
     const content = [];
     if (sectionLinks.length) content.push(renderContents(sectionLinks));
     if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
-    for (const [group, body] of sections) {
+    for (const [group, renderedGroup] of sections) {
+      const { body, definition, columns: groupColumns } = renderedGroup;
       const responsive = matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" ? " calculator-comparison-table" : ""}`);
       const colgroup = node("colgroup");
       const orderTable = matrix && !periodMatrix && group === "matrix";
       const fitBagsForm = matrix && !periodMatrix && group !== "matrix";
+      const fitContent = presentationTables.length > 0 && !definition;
       if (orderTable) table.classList.add("calculator-order-table");
       if (fitBagsForm) table.classList.add("calculator-bags-form");
-      const groupWidths = matrix && group === "matrix" ? columns.filter((column) => column <= 9).map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : widths;
+      if (fitContent) table.classList.add("calculator-content-table");
+      if (definition) table.classList.add("calculator-projection-table");
+      const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : widths;
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
-      for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitBagsForm ? width / totalWidth * 100 : width}${orderTable || fitBagsForm ? "%" : "px"}`; colgroup.append(col); }
-      table.style.width = orderTable || fitBagsForm ? "100%" : `${totalWidth}px`; table.append(colgroup);
+      for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitBagsForm || fitContent ? width / totalWidth * 100 : width}${orderTable || fitBagsForm || fitContent ? "%" : "px"}`; colgroup.append(col); }
+      table.style.width = orderTable || fitBagsForm || fitContent ? "100%" : `${totalWidth}px`; table.append(colgroup);
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
-      if (group === "matrix") { table.setAttribute("aria-label", matrix.label); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${matrix.label} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
+      const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
+      if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table); content.push(scroll);
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;

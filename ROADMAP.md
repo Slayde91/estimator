@@ -1,9 +1,10 @@
 # Roadmap
 
-Current increment: keep each calculator section heading with its data, use
-uniform red-and-white headings and black table grids, and let all columns scroll
-horizontally together. The two output highlight states remain. Calculations,
-saved inputs and schedule PDFs retain their existing scope.
+Current increment: hide the requested intermediate-area/reference columns in
+the board purchasing table and Evidence reference in EXTRA BOARDS, and remove
+the advanced-column checkbox from every calculator tab. Three BOARD SUMMARY
+cards and all prepared rows remain. Hidden input values, calculations, the
+worksheet API's advanced-data support and schedule PDFs retain their scope.
 Validation and publication for this increment belong in SESSION_HANDOFF.md.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
@@ -21,6 +22,7 @@ not verify this subsequent presentation increment or its publication status.
 - Permanent technical databases, original formulas and dependent dropdowns.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
 - Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.
+- Six-column board purchasing table with retained summary cards; hidden extra-board evidence fields and no browser advanced-column checkbox. Saved hidden inputs and the advanced worksheet API remain supported.
 - Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under Product Settings and Rules.
@@ -33,8 +35,8 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-Work continues on `fix/calculator-sections-and-grids`. Current final validation and Git
-results belong in SESSION_HANDOFF.md. Do not infer CI success from local checks
+Current final validation and Git results for the visible-column cleanup belong
+in SESSION_HANDOFF.md. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 
 The previous source-parity checkpoint passed 419,905 native Excel comparisons,
@@ -47,11 +49,11 @@ and display checks; source expectations stay unchanged. See
 
 ## Meaningful remaining work
 
-Finish and record the current regression, runtime, PDF and distribution checks,
-then commit/publish the verified change. Recheck the previously observed GitHub
-account billing/spending-limit blocker and current-head CI/review state before
-merging [PR #6](https://github.com/Slayde91/estimator/pull/6). Never bypass or
-relabel a failed check.
+Finish and record the current regression, runtime, saved-input preservation,
+PDF and distribution checks, then commit and publish the verified change.
+Verify the current PR's exact-head CI/review state before merging and confirm
+the resulting merge commit. Earlier CI or billing results do not establish the
+current outcome. Never bypass or relabel a failed check.
 
 Future calculator-to-priced-quote transfer needs an explicit material, purchasing, product and labour mapping. The workbooks do not define it, so tools remain separate. Source revisions require fresh import, native comparison and intentional saved-state migration; hashes prevent silent changes today.
 

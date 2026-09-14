@@ -17,8 +17,6 @@
 .calculator-sheet-heading{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:20px 25px 17px;border-top:1px solid var(--line)}
 .calculator-sheet-heading h3{font-size:16px}
 .calculator-sheet-heading .helper{margin-top:4px}
-.calculator-toggle{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:11px;color:var(--muted)}
-.calculator-toggle input{width:16px;height:16px;accent-color:var(--accent)}
 .calculator-grid{overflow:auto;max-height:72vh;min-height:180px;border-block:1px solid var(--line);scrollbar-width:thin;scrollbar-color:#c8b8bf #faf7f8;overscroll-behavior-x:contain}
 .calculator-grid[aria-busy=true]{opacity:.8}
 .calculator-grid table{border-collapse:separate;border-spacing:0;border-top:1px solid #000;border-left:1px solid #000;table-layout:fixed;width:max-content;min-width:100%;font-size:11px;margin:0}

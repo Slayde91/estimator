@@ -193,13 +193,19 @@ class CalculatorCleanupTests(unittest.TestCase):
             for sheet in self.request("GET", identity=identity)["sheets"]:
                 self.assertEqual(sheet["omitted_rows"], [3, 5, 6, *range(34, 40)] if identity == "steel_board" and sheet["name"] == "START" else [])
                 self.assertEqual(sheet["omitted_columns"], [37] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else [])
-                self.assertEqual(sheet["omitted_ranges"], ["J6:Q21"] if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS" else [])
+                expected_ranges = {("ductwork", "PRODUCT SETTINGS"): ["J6:Q21"],
+                                   ("steel_board", "SETTINGS"): ["D5:D34", "G12:N13"]}
+                self.assertEqual(sheet["omitted_ranges"], expected_ranges.get((identity, sheet["name"]), []))
                 if identity == "ductwork" and sheet["name"] == "SUMMARY":
                     tables = sheet["presentation_tables"]
                     self.assertEqual([(table["first_row"], table["last_row"], table["columns"]) for table in tables],
                                      [(8, 11, list(range(1, 11))), (18, 26, list(range(1, 7))),
                                       (30, 32, [1, 2, 3]), (39, 41, list(range(1, 8)))])
                     self.assertEqual(len(set(tables[0]["column_widths"][1:])), 1)
+                elif identity == "steel_board" and sheet["name"] == "SETTINGS":
+                    self.assertEqual(sheet["table_layout"], "stacked")
+                    self.assertEqual([(table["first_row"], table["last_row"], table["columns"]) for table in sheet["presentation_tables"]],
+                                     [(5, 34, [1, 2, 3]), (5, 10, list(range(7, 15))), (5, 51, [16, 17])])
                 else:
                     self.assertEqual(sheet["presentation_tables"], [])
                 # Projection rules must never hide an input, even if future
@@ -209,9 +215,9 @@ class CalculatorCleanupTests(unittest.TestCase):
                     self.assertNotIn(row, sheet["omitted_rows"])
                     self.assertNotIn(column, sheet["omitted_columns"])
                     self.assertFalse(any(_contains(region, row, column) for region in sheet["omitted_ranges"]))
-                    for table in sheet["presentation_tables"]:
-                        if table["first_row"] <= row <= table["last_row"]:
-                            self.assertIn(column, table["columns"])
+                    tables = [table for table in sheet["presentation_tables"] if table["first_row"] <= row <= table["last_row"]]
+                    if tables:
+                        self.assertTrue(any(column in table["columns"] for table in tables), address)
         self.assertEqual({path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in (ROOT / "data/calculators").glob("*.json.gz")}, self.package_hashes)
 

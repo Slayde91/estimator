@@ -2,7 +2,28 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The latest browser cleanup gives Ductwork SUMMARY four independent tables:
+The current board-only browser cleanup stacks SETTINGS into General settings,
+Fire periods and temperatures, and Diagnostic messages. It hides the primary
+Basis column and the dropdown table's final two reference/explanation rows
+using bounded display ranges. All 28 editable settings, exact values,
+dependent dropdown choices and diagnostic lookup records remain intact.
+BOARD SUMMARY presents three source-based cards for net board required, whole
+sheets and purchase area, retaining its incomplete-order warning.
+
+Board CALCULATOR replaces its six summary cards with running totals per product:
+box reference area, net board required and pooled whole sheets, with incomplete
+schedule/extra-board counts. The existing formula evaluator groups schedule
+box-reference areas and the source BOARD SUMMARY totals; valid extras and
+product/thickness stock rounding are preserved. Box reference area is not the
+steel profile's surface area, and the user has been informed of that distinction.
+No new geometry or purchasing rule is introduced. Source packages, formulas,
+saved inputs and PDF quantities remain unchanged. Exact ranges and independent
+source-example totals are in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Current
+validation and publication results will be recorded separately in
+SESSION_HANDOFF.md; this paragraph does not claim they have passed.
+
+The preceding browser cleanup gives Ductwork SUMMARY four independent tables:
 product totals, penetration angles, working yields and Maxilite strips. It
 omits the requested commentary columns while retaining all product quantities,
 withheld counts and the complete angle table. PRODUCT SETTINGS omits the

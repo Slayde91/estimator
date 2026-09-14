@@ -1,5 +1,54 @@
 # Session handoff
 
+## Board settings and product totals — 2026-09-15
+
+Started from clean merged main `2927cbe` (PR #8), on
+`fix/board-settings-and-product-totals`. The seven board browser comments are
+implemented. SETTINGS now has three stacked sections with contents links:
+General settings, Fire periods and temperatures, and Diagnostic messages.
+Only D5:D34 and G12:N13 are omitted from view; all 28 editable settings and
+the diagnostic lookup remain. BOARD SUMMARY has three source-total cards.
+CALCULATOR replaces six cards with live product totals and keeps normal-weight
+Row status, including after recalculation and in the advanced view.
+
+The area column is accurately labelled Box reference area: the workbook does
+not provide a universal steel-profile surface-area output. Product net board
+and whole-sheet quantities group the source BOARD SUMMARY stock totals,
+including valid extra boards and product/thickness rounding. The default
+example remains 58.476 m² net board, 27 whole sheets and 74.4 m² purchase area.
+Summing the individually rounded schedule sheets would incorrectly give 46.
+Source incomplete-row warnings and product-specific counts remain visible.
+
+Verified locally:
+- Three cleanup/native Excel parity tests passed (45.768 seconds), including
+  original board formulas and retained native Excel variations.
+- Nine new product-total tests passed (27.155 seconds), checking retained
+  Excel outputs, length/waste changes, valid/invalid extras, pooled rounding,
+  final input rows, blanks, zero, case matching, errors and source isolation.
+- Twelve complete-worksheet/API/report tests passed (124.329 seconds).
+- All 60 calculator UI checks, 17 original UI checks, JS syntax, build and
+  whitespace checks passed. The distribution contains 34 files.
+- All 10,433 board worksheet cells, input/formula flags and dropdown choices
+  matched the pre-change baseline, including on the refreshed main server.
+- The eight-page board PDF text matched the pre-change report exactly.
+- Live browser review confirmed three settings sections/contents links,
+  28 settings inputs, three summary cards, four product-total rows, all 200
+  schedule rows and 4,800 advanced controls. Editing a test length from 10 m
+  to 20 m updated net board to 77.12 m² and sheets to 33.00. Row status stayed
+  at font weight 400, its heading at 750, and output fills retained both states.
+  Browser error logs were empty. Independent code/renderer review found no
+  actionable issues.
+
+The local service was refreshed using the original database. Both saved quotes
+and all pricing/calculator records were verified unchanged. The user's open
+Ductwork tab has an unsaved draft and was deliberately left untouched; save
+the draft before refreshing that tab to load the new assets. Isolated QA
+databases, reports, recovery backup and logs are ignored under
+`.runtime/board-layout-qa`; build output remains ignored in `dist/`. No source
+workbook, formula, architecture, schema, pricing or passive-fire rule changes.
+Publication/CI/merge evidence is retained in the associated PR and local
+publication receipt.
+
 ## Calculator table cleanup — 2026-09-15
 
 Started from clean merged main `9e9939a` (PR #7) on the focused branch

@@ -153,3 +153,6 @@
 .calculator-grid .calculator-content-table{width:100%;min-width:0}
 .calculator-grid .calculator-projection-table th{background:#7f1320;color:#fff;font-size:11px;font-weight:750;border-color:#972c38}
 .calculator-grid td.calculator-row-status{font-weight:400!important}
+.calculator-stacked-section{min-width:0;margin-top:20px;border-top:1px solid #dfc5ce}
+.calculator-stacked-section>h4{margin:0;padding:16px 22px;background:var(--section-bg);color:var(--section-ink);border-left:4px solid var(--section-edge);font-size:15px;font-weight:750;scroll-margin-block-start:175px}
+.calculator-stacked-section .calculator-table-scroll{max-height:none}

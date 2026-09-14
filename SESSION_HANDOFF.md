@@ -1,5 +1,44 @@
 # Session handoff
 
+## Calculator table cleanup — 2026-09-15
+
+Started from clean merged main `9e9939a` (PR #7) on the focused branch
+`fix/calculator-table-cleanup`. The eight browser comments are implemented as
+presentation changes. Duct SUMMARY uses four independent tables; requested
+basis/source/interpretation and area-check columns are omitted only within
+their own table. Wrap/roll columns share the other numeric column widths.
+PRODUCT SETTINGS hides only J6:Q21, retaining the later working lookup tables.
+Board START hides the version subtitle, counters and Sources section/link;
+CALCULATOR AI9:AI208 uses normal font weight, including after recalculation.
+Exact source mappings are in docs/CALCULATOR_PRESENTATION_MAPPING.md.
+
+An independent audit found no editable overlap or formula references into the
+removed ranges across 40,593 duct/board formulas. Immutable source packages,
+input keys, formula graphs, saved data and report projections are retained.
+
+Verified locally:
+- Five metadata/native Excel regression tests passed (64.734 seconds), covering
+  original and varied duct and board calculations.
+- Twelve complete-worksheet/API/report tests passed (45.203 seconds), covering
+  all twelve pages, final prepared inputs, dropdowns and saved-state isolation.
+- All 57 calculator UI checks and 17 original UI checks, JS syntax, build and
+  diff whitespace checks passed. The distribution contains 34 files.
+- Before/after comparison matched all 39,640 source cell values and edit/formula
+  flags across the five affected pages. Refreshed port 8765 matched as well.
+- Duct (4 pages) and board (8 pages) PDF text matched the pre-change output.
+- Browser review verified all omissions, four summary table shapes, 125px
+  product quantity columns, the eleven retained duct settings controls, later
+  FyreWrap tables, five board START section links, all 200 board schedule rows,
+  400-weight row status and bold heading after recalculation. Output fills remain
+  the two existing states. Independent renderer review reported no findings.
+
+The local app was restarted with its original database; the two saved quotes
+and all pricing/calculator records were checked unchanged. The user's browser
+tab was retained. QA databases, reports, backups and logs are ignored under
+`.runtime/table-cleanup-qa`; build output remains ignored in `dist/`. No schema,
+architecture, pricing or technical-rule change. Publication and merge evidence
+is retained in the associated PR and local publication receipt.
+
 ## Duct clearance column display — 2026-09-14
 
 Started from clean merged main `f60ef4f` (PR #6), with the same tree as the

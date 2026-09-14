@@ -1,8 +1,20 @@
 # Project state
 
-Date: 2026-09-14. Executable code and checked results take precedence over this document.
+Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The latest display change hides Ductwork's Penetration clearance guide column
+The latest browser cleanup gives Ductwork SUMMARY four independent tables:
+product totals, penetration angles, working yields and Maxilite strips. It
+omits the requested commentary columns while retaining all product quantities,
+withheld counts and the complete angle table. PRODUCT SETTINGS omits the
+Both/Mixed explanation block. Board START omits the requested introduction,
+counters and Sources section/link; board CALCULATOR shows row statuses in
+normal font weight beneath their bold heading. These are display changes only:
+source packages, formulas, input keys, calculated values and PDFs are unchanged.
+Exact retained/omitted ranges are recorded in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Validation and
+publication outcomes for this increment belong in SESSION_HANDOFF.md.
+
+The preceding display change hides Ductwork's Penetration clearance guide column
 in normal and advanced views. Its underlying values and Product Settings
 guidance remain intact, as do the adjacent fixing/support columns and all
 calculations. See SESSION_HANDOFF.md for current verification evidence.
@@ -101,10 +113,11 @@ The prior source-parity checkpoint passed 419,905 native Excel comparisons: 161,
 
 The original Quote fixture remains 216 scenarios × 151 outputs, captured with verbatim Calculator formulas and saved lookups in a macro-free harness. That earlier evidence does not prove live XLSM external-link refresh.
 
-Work continues on `feat/workbook-calculators`, preserving earlier implementation
-and saved data. The prior publication checkpoint recorded pushed implementation
-946f2c1 and [PR #6](https://github.com/Slayde91/estimator/pull/6), with CI blocked
-before job steps by GitHub account payment/spending limits. That checkpoint's
+The historical `feat/workbook-calculators` publication checkpoint recorded
+implementation 946f2c1 and [PR #6](https://github.com/Slayde91/estimator/pull/6),
+with CI initially blocked before job steps by GitHub account payment/spending
+limits. PR #6 and the subsequent column cleanup in PR #7 have since merged.
+That older checkpoint's
 176 Python tests, 56 UI checks and subsequent 21 report/HTTP checks are historical.
 Current complete-suite, build, runtime, commit, push, CI and merge evidence belongs
 in SESSION_HANDOFF.md and must be checked independently for this change.

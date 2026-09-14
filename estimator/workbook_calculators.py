@@ -40,9 +40,26 @@ _OMITTED_ROWS = {
         'SCHEDULE': [1, 2, 3, 8],
         'CALCULATOR': list(range(33, 42)),
     },
+    'steel_board': {'START': [3, 5, 6, *range(34, 40)]},
 }
 _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
                     'ductwork': {'CALCULATOR': [37]}}  # AK clearance guide; source values remain intact.
+# SUMMARY has independent tables sharing source column letters. Their browser
+# columns must be scoped to each table so hiding prose cannot hide quantities
+# in a different table. Widths are presentation pixels, not business constants.
+_PRESENTATION_TABLES = {
+    'ductwork': {'SUMMARY': [
+        {'first_row': 8, 'last_row': 11, 'columns': list(range(1, 11)),
+         'column_widths': [200, *([125] * 9)], 'label': 'Product totals'},
+        {'first_row': 18, 'last_row': 26, 'columns': list(range(1, 7)),
+         'column_widths': [200, 160, 160, 125, 200, 360], 'label': 'Penetration angle totals'},
+        {'first_row': 30, 'last_row': 32, 'columns': [1, 2, 3],
+         'column_widths': [200, 125, 180], 'label': 'Working yields'},
+        {'first_row': 39, 'last_row': 41, 'columns': list(range(1, 8)),
+         'column_widths': [200, *([125] * 6)], 'label': 'Maxilite cutting totals'},
+    ]},
+}
+_OMITTED_RANGES = {'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']}}
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
 
 
@@ -218,6 +235,8 @@ def _sheet_metadata(model, sheet):
     return {'name': sheet['name'], 'max_row': r2, 'max_column': c2,
             'omitted_rows': list(_OMITTED_ROWS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
+            'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),
+            'presentation_tables': deepcopy(_PRESENTATION_TABLES.get(model['id'], {}).get(sheet['name'], [])),
             'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
                 if data.get('hidden') in ('1', True) or float(data.get('ht', 15)) <= 0],
             'column_widths': widths, 'columns': labels, 'merges': sheet['merges'],

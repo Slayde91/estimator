@@ -150,3 +150,6 @@
 .calculator-grid .calculator-order-table{width:100%;min-width:880px}
 .calculator-grid .calculator-order-table td,.calculator-grid .calculator-order-table th{padding:10px 9px;overflow-wrap:anywhere}
 .calculator-grid .calculator-bags-form{width:100%;min-width:0}
+.calculator-grid .calculator-content-table{width:100%;min-width:0}
+.calculator-grid .calculator-projection-table th{background:#7f1320;color:#fff;font-size:11px;font-weight:750;border-color:#972c38}
+.calculator-grid td.calculator-row-status{font-weight:400!important}

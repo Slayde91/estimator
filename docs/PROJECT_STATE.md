@@ -2,6 +2,13 @@
 
 Date: 2026-09-14. Executable code and checked results take precedence over this document.
 
+Current implementation `678ee3f` is committed and pushed on
+`feat/workbook-calculators`. All 189 Python tests, 65 UI checks, the build,
+revised PDF layouts and extracted runtime passed locally. PR #6 is updated and
+unmerged; both implementation-head CI jobs were blocked before steps by account
+payment/spending limits. The refreshed local app preserves existing saved data.
+See SESSION_HANDOFF.md for exact evidence and the publication checkpoint.
+
 ## Current calculator presentation and schedule reports
 
 The calculator pages now expose every prepared row on one continuous page:

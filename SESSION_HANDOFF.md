@@ -71,10 +71,22 @@ test databases, rendered PDFs and package checks are under ignored
 are intentional native regression evidence; no source XLSX/XLSM or external PDF
 is added to the runtime or repository.
 
-Publication checkpoint: validation and changes are ready for the existing PR #6.
-The preceding head's CI was blocked before steps by GitHub account payment/spending
-limits. Current-head results must be checked after push; do not infer CI success
-or merge permission from local checks.
+Publication checkpoint: implementation `678ee3f295e8972f001e126fceaad59a6f8e8c0f`
+(`Verify Australian spray yields and refine calculator reports`) was committed
+and pushed to `origin/feat/workbook-calculators`; divergence was verified as 0/0.
+[PR #6](https://github.com/Slayde91/estimator/pull/6) is updated, open and unmerged,
+with no reviews. Its implementation-head Checks runs 34843699621 and 34843694841
+both failed before any job step (`steps: []`). Both annotations explicitly cite
+failed account payments or the spending limit. This is a verified account blocker,
+not passing CI or a demonstrated code-test failure. No merge was attempted past
+the failed checks. Resolve billing, rerun current-head CI, inspect review state
+and merge only when supported. This follow-up documentation checkpoint makes no
+runtime change; its own head must also be checked after push.
+
+Local change classification: all intended source, documentation and native-fixture
+changes belong to this increment and its follow-up checkpoint. Runtime databases,
+backups, logs, downloaded source PDFs, disposable workbooks, QA renders, extracted
+packages, caches and the built distribution remain ignored local artifacts.
 
 ## Historical: calculator presentation and full schedule PDFs — 2026-09-14
 

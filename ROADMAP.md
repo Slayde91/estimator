@@ -1,5 +1,12 @@
 # Roadmap
 
+Current increment: implementation `678ee3f` is pushed to
+`feat/workbook-calculators` and PR #6. The yield review, navigation, pooled bag
+summary, editable references and requested PDF contents are locally verified.
+All 189 Python tests and 65 UI checks pass. Current implementation CI was blocked
+before job steps by GitHub account payment/spending limits; merging remains the
+next blocked action. Exact evidence is in SESSION_HANDOFF.md.
+
 ## Implemented
 
 - Original Quote Calculator inputs, formulas, editable pricing and saved snapshots.

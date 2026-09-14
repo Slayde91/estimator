@@ -41,7 +41,8 @@ _OMITTED_ROWS = {
         'CALCULATOR': list(range(33, 42)),
     },
 }
-_OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]}}
+_OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
+                    'ductwork': {'CALCULATOR': [37]}}  # AK clearance guide; source values remain intact.
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
 
 

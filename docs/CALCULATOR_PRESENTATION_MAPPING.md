@@ -177,6 +177,13 @@ Render title, instructions and the source band headings in rows 1–9 above one 
 
 Group results as J:P status/area/spray/wrap/roll/board quantities; Q:X wrap fixing/layers/local zones; Y:AC Maxilite strip geometry; AD:AJ penetration steel; AK:AM fixing/support instructions; AN:AO volume/yield; AP:AQ quantity qualifications/source. AR is a spacer. AS:CL are hidden helpers because source width is zero even though `hidden="0"`; omit them from normal presentation.
 
+At the user's request, omit AK (column 37), **Penetration clearance guide**, from
+both normal and advanced browser tables. This is a display omission only: all
+300 source formulas and their guidance remain in the calculation model and full
+worksheet response. AL **Penetration fixing guide**, AM support instructions,
+all input columns, quantities and source settings remain available. The PDF
+projection is unchanged.
+
 Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to long notes. Do not squeeze those into ordinary numeric widths or enlarge every other column to match them. Keep all qualification text reachable and wrapped. A 300-row table may scroll vertically and horizontally on this one page without changing row identities.
 
 ### SUMMARY

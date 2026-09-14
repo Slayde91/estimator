@@ -2,7 +2,12 @@
 
 Date: 2026-09-14. Executable code and checked results take precedence over this document.
 
-The current increment simplifies the calculator display and makes material-basis
+The latest display change hides Ductwork's Penetration clearance guide column
+in normal and advanced views. Its underlying values and Product Settings
+guidance remain intact, as do the adjacent fixing/support columns and all
+calculations. See SESSION_HANDOFF.md for current verification evidence.
+
+The preceding increment simplifies the calculator display and makes material-basis
 text read-only. Source graphs, calculated results, saved states and schedule PDF
 contents are unchanged by this presentation request. Its current checks and Git
 outcome belong in SESSION_HANDOFF.md; no new pass or publication claim is made here.

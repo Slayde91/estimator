@@ -1,6 +1,33 @@
 # Session handoff
 
-## Calculator display cleanup and locked references — 2026-09-14
+## Duct clearance column display — 2026-09-14
+
+Started from clean merged main `f60ef4f` (PR #6), with the same tree as the
+previous tested feature head. Created `fix/duct-clearance-column` without
+discarding local changes. The user requested removal of the Ductwork CALCULATOR
+**Penetration clearance guide** column if safe.
+
+Only browser omission metadata changes: AK (37) disappears in normal and advanced
+views. The 300 AK formulas, settings, full worksheet response and PDF projection
+are retained. No dependencies on AK were found across the 24,059 source formulas.
+MONOKOTE and FyreWrap clearance tables and CAFCO approved-detail guidance remain
+in Product Settings. Adjacent AL fixing and AM support guidance stay visible.
+
+Verified: the existing metadata regression and both duct native Excel regression
+tests passed (3 tests, 18.770 seconds). All 53 calculator UI checks, JS syntax and
+the build passed. A before/after comparison found all 27,900 complete-page cell
+values, edit flags and formula flags identical. Browser checks confirmed all
+300 rows and the final input remain, AK is absent in both views, and all AL/AM
+guide cells remain; browser error logs were empty.
+
+The local server was refreshed and its complete-page comparison also passed.
+A backup/check confirmed the two saved quotes and all pricing/calculator records
+are unchanged. The user's open tab was retained. Local QA, backup and comparison
+artifacts are ignored under `.runtime/duct-clearance-qa`; `dist/` remains ignored.
+Publication and merge evidence is retained in the associated GitHub PR and its
+local receipt. No architecture, schema, pricing or technical rule changes.
+
+## Historical: calculator display cleanup and locked references — 2026-09-14
 
 Starting state: clean `feat/workbook-calculators` at `7cf8ca0`, matching its
 fetched upstream (0/0 divergence); fetched main remains `615997c`. This increment

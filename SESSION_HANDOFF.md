@@ -1,5 +1,53 @@
 # Session handoff
 
+## Calculator visible columns — 2026-09-15
+
+The latest four browser comments request a smaller board purchasing table,
+hidden extra-board evidence fields and removal of the advanced-column checkbox
+throughout the calculators. The implementation extends the existing browser
+presentation metadata and renderer; no architecture or data migration changes
+are required.
+
+BOARD SUMMARY rows 11–29 use an independent six-column table: A:D and I:J.
+The four area columns E:H and the Stock source/Board key columns K:L are hidden
+only within that table. All eighteen stock rows remain, together with the three
+cards sourced from A6/E6/I6, the live qualification and notes A31/A35. Their
+underlying formulas and intermediate quantities still support the original
+pooled totals and report projection.
+
+EXTRA BOARDS column N, Evidence reference, is omitted only from the browser.
+Its editable API identity and existing N6:N45 saved values remain available;
+all forty visible rows retain their other inputs and status. This bounded,
+user-requested omission must be tested as an exception to the usual rule that
+display omissions do not hide editable source fields.
+
+All calculator tabs use the normal worksheet view without a Show advanced
+columns checkbox. Browser instructions no longer direct users to that control.
+The worksheet API retains `include_advanced`, and hidden advanced inputs keep
+their saved values and calculation effects when a visible field is edited or
+saved. Source packages, input allowlists, calculations and PDF scope stay intact.
+
+Validated on `fix/calculator-visible-columns`, based on merged main `56f98d1`:
+
+- All 12 cleanup/API tests passed, including first/last hidden evidence values,
+  saved optional inputs and unchanged summary quantities after a visible edit.
+- All 69 calculator UI and 17 original UI checks passed; JavaScript syntax and
+  the 34-file distribution build passed. Independent diff review found no issues.
+- Before/after HTTP comparison of all 12 pages matched all 104,068 cell values,
+  editable/calculated flags and shared choices exactly. All three PDFs retained
+  identical extracted text (vermiculite 3 pages, board 8, ductwork 4).
+- Isolated browser verification confirmed six stock columns and 18 stock rows,
+  all three summary cards and the A8/A31/A35 qualification/notes; EXTRA BOARDS
+  retained 40 rows and 360 visible inputs with no evidence column or checkbox.
+- The live database was backed up before refresh. Local evidence is under
+  `.runtime/visible-column-qa`; the final saved-data comparison and publication
+  record are written there after refresh/CI/merge verification.
+
+Commit, push, exact-head CI and merge are pending at this pre-publication
+checkpoint. Do not infer those outcomes from the local checks above. The final
+publication record and task reply give the verified Git result. Results in the
+preceding entries below are historical and do not verify this change.
+
 ## Calculator sections and black grids — 2026-09-15
 
 Started from clean merged main `5998389` (PR #10), on

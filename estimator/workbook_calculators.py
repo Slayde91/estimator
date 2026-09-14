@@ -44,6 +44,7 @@ _OMITTED_ROWS = {
     'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4]},
 }
 _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
+                    'steel_board': {'EXTRA BOARDS': [14]},
                     'ductwork': {'CALCULATOR': [37, 38, 42, 43, 44]}}
 # Duct AJ is followed by the still-calculated AN/AO volume and yield outputs.
 # Column identities remain source coordinates; this order is browser-only.
@@ -79,7 +80,12 @@ _PRESENTATION_TABLES = {
              'table_kind': 'order', 'title_address': 'A17', 'header_row': 19, 'label': 'PRODUCT ORDER SUMMARY'},
         ],
     },
-    'steel_board': {'SETTINGS': [
+    'steel_board': {'BOARD SUMMARY': [
+        # Keep the overview totals at A6/E6/I6; hide intermediate quantities
+        # and source identifiers only in the stock purchasing table.
+        {'first_row': 11, 'last_row': 29, 'columns': [1, 2, 3, 4, 9, 10],
+         'column_widths': [240, 150, 150, 150, 150, 150], 'label': 'Board purchasing totals'},
+    ], 'SETTINGS': [
         {'first_row': 5, 'last_row': 34, 'columns': [1, 2, 3],
          'column_widths': [460, 180, 140], 'label': 'General settings'},
         {'first_row': 5, 'last_row': 10, 'columns': list(range(7, 15)),

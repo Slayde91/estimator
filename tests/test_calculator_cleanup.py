@@ -203,7 +203,9 @@ class CalculatorCleanupTests(unittest.TestCase):
                                        ("ductwork", "CALCULATOR"): [5, 6, 7, 9],
                                        ("ductwork", "PRODUCT SETTINGS"): [3, 4]}
                 self.assertEqual(sheet["omitted_rows"], expected_other_rows.get((identity, sheet["name"]), []))
-                self.assertEqual(sheet["omitted_columns"], [37, 38, 42, 43, 44] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else [])
+                expected_columns = {("ductwork", "CALCULATOR"): [37, 38, 42, 43, 44],
+                                    ("steel_board", "EXTRA BOARDS"): [14]}
+                self.assertEqual(sheet["omitted_columns"], expected_columns.get((identity, sheet["name"]), []))
                 expected_ranges = {("ductwork", "PRODUCT SETTINGS"): ["J6:Q21"],
                                    ("steel_board", "SETTINGS"): ["D5:D34", "G12:N13"],
                                    ("steel_board", "CALCULATOR"): ["Y1:AI1", "A6:L6"]}
@@ -222,6 +224,10 @@ class CalculatorCleanupTests(unittest.TestCase):
                                      [(8, 11, list(range(1, 11))), (18, 26, list(range(1, 7))),
                                       (30, 32, [1, 2, 3]), (39, 41, list(range(1, 8)))])
                     self.assertEqual(len(set(tables[0]["column_widths"][1:])), 1)
+                elif identity == "steel_board" and sheet["name"] == "BOARD SUMMARY":
+                    self.assertEqual(sheet["table_layout"], "inline")
+                    self.assertEqual([(table["first_row"], table["last_row"], table["columns"]) for table in sheet["presentation_tables"]],
+                                     [(11, 29, [1, 2, 3, 4, 9, 10])])
                 elif identity == "steel_board" and sheet["name"] == "SETTINGS":
                     self.assertEqual(sheet["table_layout"], "stacked")
                     self.assertEqual([(table["first_row"], table["last_row"], table["columns"]) for table in sheet["presentation_tables"]],
@@ -231,19 +237,49 @@ class CalculatorCleanupTests(unittest.TestCase):
                     self.assertEqual([table["title_address"] for table in sheet["presentation_tables"]], ["A94", "J94", "J115"])
                 else:
                     self.assertEqual(sheet["presentation_tables"], [])
-                # Projection rules must never hide an input, even if future
-                # source updates move editable cells into these regions.
+                # The user explicitly requested hiding Evidence reference.
+                # No other editable cells may be omitted accidentally.
                 for address in editable_cells(identity, sheet["name"]):
                     row, column = coordinates(address)
                     self.assertNotIn(address, sheet["display_text"])
                     self.assertNotIn(row, sheet["omitted_rows"])
-                    self.assertNotIn(column, sheet["omitted_columns"])
+                    evidence = identity == "steel_board" and sheet["name"] == "EXTRA BOARDS" and column == 14 and 6 <= row <= 45
+                    if evidence:
+                        self.assertIn(column, sheet["omitted_columns"])
+                    else:
+                        self.assertNotIn(column, sheet["omitted_columns"])
                     self.assertFalse(any(_contains(region, row, column) for region in sheet["omitted_ranges"]))
                     tables = [table for table in sheet["presentation_tables"] if table["first_row"] <= row <= table["last_row"]]
                     if tables:
                         self.assertTrue(any(column in table["columns"] for table in tables), address)
         self.assertEqual({path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in (ROOT / "data/calculators").glob("*.json.gz")}, self.package_hashes)
+
+    def test_hidden_board_evidence_and_advanced_inputs_survive_visible_edits_and_save(self):
+        identity = "steel_board"
+        draft = {"EXTRA BOARDS": {"N6": "Retained evidence first row", "N45": "Retained evidence last row"},
+                 "CALCULATOR": {"X9": "Retained design reference"}}
+        self.request("PUT", "/state", {"inputs": draft}, identity=identity)
+        loaded = self.request("GET", identity=identity)["inputs"]
+        self.assertEqual(loaded, draft)
+        before = self.cells(self.request("POST", "/worksheet", {"sheet": "BOARD SUMMARY", "inputs": loaded}, identity=identity))
+        loaded["CALCULATOR"]["A9"] = "Renamed visible item"
+        extras = self.request("POST", "/worksheet", {"sheet": "EXTRA BOARDS", "inputs": loaded}, identity=identity)
+        cells = self.cells(extras)
+        self.assertEqual(extras["omitted_columns"], [14])
+        for address in ("N6", "N45"):
+            self.assertTrue(cells[address]["editable"])
+            self.assertEqual(cells[address]["value"], draft["EXTRA BOARDS"][address])
+        self.assertEqual(cells["M6"]["value"], "", "Evidence alone must not activate an allowance")
+        self.assertEqual(cells["M45"]["value"], "")
+        advanced = self.cells(self.request("POST", "/worksheet", {"sheet": "CALCULATOR", "inputs": loaded, "include_advanced": True}, identity=identity))
+        self.assertEqual(advanced["X9"]["value"], draft["CALCULATOR"]["X9"])
+        self.assertTrue(advanced["X9"]["editable"])
+        after = self.cells(self.request("POST", "/worksheet", {"sheet": "BOARD SUMMARY", "inputs": loaded}, identity=identity))
+        for address in ("A6", "E6", "I6", *(f"{column}{row}" for row in range(12, 30) for column in "EFGHIJKL")):
+            self.assertEqual(after[address]["value"], before[address]["value"], address)
+        self.assertEqual(self.request("PUT", "/state", {"inputs": loaded}, identity=identity)["inputs"], loaded)
+        self.assertEqual(self.request("GET", identity=identity)["inputs"], loaded)
 
     def test_projected_sections_cover_original_inputs_once_and_keep_lookup_tail(self):
         expected = {

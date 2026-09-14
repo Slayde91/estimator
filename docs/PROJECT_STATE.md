@@ -2,7 +2,21 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The latest browser presentation increment removes frozen first columns from
+The latest browser cleanup hides six requested BOARD SUMMARY table columns:
+the four intermediate area columns and the Stock source and Board key columns.
+Its independent purchasing table retains product, thickness, sheet dimensions,
+whole sheets and purchase area for all eighteen stock rows. All three summary
+cards, the live qualification and the pooling/area notes remain visible.
+
+EXTRA BOARDS hides Evidence reference in the browser while preserving its
+existing input identity, stored values and API support. Every calculator tab
+uses the normal view without a Show advanced columns checkbox. Advanced values
+remain in saved state and calculations and can still be requested through the
+worksheet API. These are browser presentation changes; source formulas,
+quantities, report projections and storage schema remain unchanged. Current
+validation and publication evidence belongs at the top of SESSION_HANDOFF.md.
+
+The preceding browser presentation increment removes frozen first columns from
 calculator schedules, adds solid black gridlines across calculator data tables,
 and gives every main section the existing red-and-white DUCT PROTECTION SUMMARY
 heading style. Vertical column headings can remain visible while scrolling.
@@ -69,7 +83,7 @@ Exact retained/omitted ranges are recorded in
 publication outcomes for this increment belong in SESSION_HANDOFF.md.
 
 The preceding display change hides Ductwork's Penetration clearance guide column
-in normal and advanced views. Its underlying values and Product Settings
+in the browser. Its underlying values and Product Settings
 guidance remain intact, as do the adjacent fixing/support columns and all
 calculations. See SESSION_HANDOFF.md for current verification evidence.
 

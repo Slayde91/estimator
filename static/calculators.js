@@ -87,14 +87,14 @@
         A16: [["AD is a reference area", "Box reference area is a reference area"]],
         A17: [["AE adds the layer areas.", "Board required - net adds the layer areas."]],
         A19: [["V is an INSIDE BOX GIRTH", "Box girth override is an INSIDE BOX GIRTH"], ["W is an extra inside-girth allowance", "Added girth is an extra inside-girth allowance"]],
-        A26: [["Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.", "Select Show advanced columns for exposure layout, partial depth, layer preference, thickness lookup, installation detail, depth/width, steel area/mass, inside box-girth override, added girth and design reference. Row status gives the required action. Detailed calculation outputs and notes remain part of the workbook rules."]],
+        A26: [["Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.", "Row status gives the required action. Saved optional inputs, detailed calculation outputs and notes remain part of the workbook rules."]],
         A27: [["Only START, CALCULATOR and BOARD SUMMARY are visible. Supporting data sheets remain embedded and hidden. Do not delete them.", "Use START, CALCULATOR, BOARD SUMMARY, EXTRA BOARDS and SETTINGS. Supporting reference data is retained by the application."]],
         A28: [["For a larger job, extend inside the table, copy ALL formula columns Y:CI and check dropdowns and purchasing ranges. Do not assume typing below row 208 automatically extends every summary formula.", "Larger schedules require extending the supported calculation range and checking every dropdown and purchasing total. Items beyond this capacity are not included automatically."]],
         A31: [["on the hidden EXTRA BOARDS sheet", "on the EXTRA BOARDS page"]],
       },
       CALCULATOR: {
         A5: [["Paste into A:L only.", "Enter the normal schedule inputs."]],
-        A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, Show advanced columns for optional inputs, EXTRA BOARDS for additional allowances, and SETTINGS for configuration."]],
+        A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, EXTRA BOARDS for additional allowances, and SETTINGS for configuration."]],
         Y2: [["AD = reference box only  |  AE = all board layers, net  |  AF = board including wastage", "Box reference area is for reference only  |  Board required - net includes all layers  |  Board incl waste includes wastage"]],
         Y5: [["AI gives the issue and action directly.", "Row status gives the issue and action directly."]],
         Y6: [["their notes in AI", "their Row status notes"]],
@@ -506,7 +506,7 @@
     const hidden = hiddenColumns(metadata);
     const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), isOmitted = omittedCell(metadata);
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
-    let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => entry.advanced || !hidden.has(column))).filter((column) => !omittedColumns.has(column));
+    let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => !hidden.has(column))).filter((column) => !omittedColumns.has(column));
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
@@ -695,23 +695,23 @@
       else content.push(scroll);
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
-    entry.renderedSheet = entry.sheet; entry.renderedAdvanced = entry.advanced; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
+    entry.renderedSheet = entry.sheet; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     $("calculator-page-status").textContent = schedule ? `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
   }
 
   async function calculate() {
     const entry = current(); if (!entry || entry.invalid.size) return;
     clearTimeout(state.timer);
-    const revision = entry.revision, sheet = entry.sheet, advanced = entry.advanced, serial = ++state.requestRevision;
+    const revision = entry.revision, sheet = entry.sheet, serial = ++state.requestRevision;
     $("calculator-calculation-status").textContent = "Calculating…";
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
-      const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: Boolean(advanced) }) });
-      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || advanced !== entry.advanced) return;
+      const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false }) });
+      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet) return;
       if (result.inputs) entry.inputs = clone(result.inputs);
       entry.latestCells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [`${sheet}!${cell.address || `${columnName(cell.column)}${row.row}`}`, cell])));
       const active = document.activeElement;
-      const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.renderedAdvanced === advanced && entry.choiceSignature === choiceSignature(result);
+      const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.choiceSignature === choiceSignature(result);
       entry.result = result;
       if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
       else if (!entry.needsRender && active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
@@ -729,9 +729,7 @@
     const entry = current(); if (!entry || !entry.definition.pages.includes(sheet)) return;
     if (entry.invalid.size) { message("Correct the invalid number before changing pages.", true); return; }
     entry.sheet = sheet; entry.pendingResult = null; entry.result = null; entry.needsRender = true;
-    entry.advanced = false; $("calculator-advanced").checked = false;
     $("calculator-sheet-title").textContent = sheet;
-    $("calculator-advanced-label").hidden = !hiddenColumns(sheetMetadata(entry)).size;
     $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
     renderPages(entry); message(); await calculate();
   }
@@ -790,15 +788,13 @@
         const definition = await request(endpoint(id));
         if (serial !== state.loadRevision) return;
         const inputs = clone(definition.inputs || {});
-        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, sheet: definition.pages[0], needsRender: true, result: null, pendingResult: null, labels: {}, advanced: false, invalid: new Map() };
+        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, sheet: definition.pages[0], needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
         state.entries.set(id, entry);
       }
       if (serial !== state.loadRevision) return;
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
       $("calculator-sheet-title").textContent = entry.sheet;
-      $("calculator-advanced").checked = entry.advanced;
-      $("calculator-advanced-label").hidden = !hiddenColumns(sheetMetadata(entry)).size;
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
       if (entry.result) renderGrid(entry); else $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
       await calculate();
@@ -905,7 +901,6 @@
   $("calculator-import").addEventListener("click", () => $("calculator-import-file").click());
   $("calculator-import-file").addEventListener("change", importSchedule);
   $("calculator-pdf").addEventListener("click", downloadSchedulePdf);
-  $("calculator-advanced").addEventListener("change", () => { const entry = current(); if (entry) { entry.advanced = $("calculator-advanced").checked; entry.needsRender = true; calculate(); } });
   window.addEventListener("beforeunload", (event) => { if ([...state.entries.values()].some((entry) => dirty(entry) || entry.invalid.size)) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireCalculators = { open };
 })();

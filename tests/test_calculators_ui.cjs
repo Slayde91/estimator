@@ -260,6 +260,8 @@ let passed = 0;
   const updated=audit.sourceDisplayText(maintenance,entry,'A27');
   assert.match(updated,/START, CALCULATOR, BOARD SUMMARY, EXTRA BOARDS and SETTINGS/);
   assert.ok(updated.endsWith('Library edits must also update the generated geometric lookup prefix.'));
+  const optionalDirections='Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.';
+  assert.equal(audit.sourceDisplayText(optionalDirections,entry,'A26'),'Row status gives the required action. Saved optional inputs, detailed calculation outputs and notes remain part of the workbook rules.');
   entry.definition.id='steel_vermiculite';entry.sheet='CALCULATOR';
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A20'),'Edit the input fields. Check the result.');
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A21'),'Edit the blue cells. Check the result.');
@@ -275,7 +277,7 @@ let passed = 0;
   assert.equal(renderedTable().children[0].children[1].style.width,'24px');
   assert.equal(renderedTable().style.width,'206px');passed++;
 
-  // Rendered controls retain business names and source values, with advanced columns opt-in.
+  // Rendered controls retain business names and source values; source-hidden columns stay out of the browser.
   entry = setup(); entry.definition.sheets[0].hidden_columns = [3];
   entry.result = result({}, { rows: [{ row: 9, cells: [{ column: 1, value: 'Beam 1', editable: true, type: 'text' }, { column: 2, value: 12.34567, editable: true, type: 'number' }, { column: 3, value: 19.123456 }] }] });
   realRender(entry);
@@ -284,9 +286,10 @@ let passed = 0;
   const controlCell = renderedControls().find(control=>control.dataset.calculatorCell==='B9');
   assert.equal(controlCell.getAttribute('aria-label'), 'Lineal metres, item 1');
   assert.equal(controlCell.value, '12.35');
-  entry.advanced = true; realRender(entry); assert.equal(renderedTable().children[0].children.length, 3); passed++;
+  assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(cell=>cell.dataset.calculatorOutput==='C9')); passed++;
 
   // Live calculated output updates without removing a focused input control.
+  entry.definition.sheets[0].hidden_columns=[];realRender(entry);
   const renderedControl = renderedControls().find(control=>control.dataset.calculatorCell==='B9');
   context.document.activeElement = renderedControl;
   audit.setRequest(async () => result({}, { rows: [{ row: 9, cells: [{ column: 1, value: 'Beam 1', editable: true, type: 'text' }, { column: 2, value: 12.34567, editable: true, type: 'number' }, { column: 3, value: '#VALUE!', error: '#VALUE!' }] }] }));
@@ -308,6 +311,8 @@ let passed = 0;
   assert.equal(byId('calculator-page-status').textContent,'1,000 schedule rows · Scroll to any item');
   const html=fs.readFileSync('static/index.html','utf8');
   assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);
+  assert.doesNotMatch(html,/Show advanced columns|calculator-advanced/);
+  assert.doesNotMatch(source,/Show advanced columns|calculator-advanced|entry\.advanced|renderedAdvanced/);
   assert.match(html,/Edit input fields · All schedule rows are available on this page/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
 
   // Ordinary value edits refresh outputs without rebuilding thousands of inputs.
@@ -323,10 +328,10 @@ let passed = 0;
   await audit.calculate();assert.equal(renderedControls()[0],derived);assert.equal(derived.value,'3.25');
   await derived.emit('focus');assert.equal(derived.value,'3.24689');assert.deepEqual(copy(entry.inputs),{});passed++;
 
-  // Worksheet calls request all rows and carry the explicit advanced-column state.
-  entry=setup();entry.advanced=true;let worksheetBody;
+  // Worksheet calls request all rows in the normal view while retaining saved hidden inputs.
+  entry=setup({CALCULATOR:{B9:2,M9:'Saved optional layout'}});let worksheetBody;
   audit.setRender(()=>{});audit.setRequest(async(path,options)=>{assert.match(path,/\/worksheet$/);worksheetBody=JSON.parse(options.body);return result();});
-  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{},sheet:'CALCULATOR',include_advanced:true});passed++;
+  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:false});passed++;
 
   // Schedule summaries retain relationships and zero values; the scope-block metric is display-only removed.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
@@ -438,7 +443,7 @@ let passed = 0;
   assert.deepEqual(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).map(node=>node.dataset.sourceRow),['36']);
   assert.equal(JSON.stringify(entry.result),preservedSource);assert.equal(renderedControls().length,1);passed++;
 
-  // Schedule title prose and V/W/X stay hidden in normal and advanced views; cards, pooled totals and Y stay visible.
+  // Schedule title prose and V/W/X stay hidden even in a full API result; cards, pooled totals and Y stay visible.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
   entry.definition.schedule.header_row=9;entry.definition.schedule.first_row=10;
   entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[],omitted_rows:[1,2,3,8],omitted_columns:[22,23,24]}];
@@ -448,13 +453,11 @@ let passed = 0;
     {row:5,cells:[{column:1,address:'A5',value:0},{column:7,address:'G5',value:0},{column:19,address:'S5',value:0}]},
     {row:10,cells:[{column:1,address:'A10',value:'Member',editable:true,type:'text'},...[22,23,24,25].map(column=>({column,address:`${String.fromCharCode(64+column)}10`,value:column===25?'Visible detailed note':`Hidden source ${column}`,calculated:true}))]}]});
   const fullResult=JSON.stringify(entry.result);
-  for(const advanced of [false,true]) {
-    entry.advanced=advanced;realRender(entry);const rendered=descendants(byId('calculator-grid'));
-    assert.ok(!rendered.some(node=>/^Removed introductory line|^Hidden source/.test(node.textContent||'')));
-    assert.ok(rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
-    assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement.hidden,false);
-    assert.equal(rendered.filter(node=>node.calculatorValueCard).length,3);
-  }
+  realRender(entry);const rendered=descendants(byId('calculator-grid'));
+  assert.ok(!rendered.some(node=>/^Removed introductory line|^Hidden source/.test(node.textContent||'')));
+  assert.ok(rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
+  assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement.hidden,false);
+  assert.equal(rendered.filter(node=>node.calculatorValueCard).length,3);
   assert.equal(JSON.stringify(entry.result),fullResult);passed++;
 
   // Every settings title is the same structural red banner; source titles remain unchanged.
@@ -634,25 +637,62 @@ let passed = 0;
   const updatedSettings=copy(entry.result);updatedSettings.inputs={SETTINGS:{B12:99.987654}};updatedSettings.rows.find(row=>row.row===12).cells.find(cell=>cell.column===2).value=99.987654;
   audit.setRequest(async()=>updatedSettings);await audit.calculate();assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B12'),primaryControl);assert.equal(primaryControl.value,'99.99');assert.equal(entry.inputs.SETTINGS.B12,99.987654);passed++;
 
-  // BOARD SUMMARY has three linked cards, preserves its live warning and does not repeat card rows in the grid.
-  entry=setup();entry.sheet='BOARD SUMMARY';entry.definition.sheets=[{name:entry.sheet,header_rows:[11],merges:['A1:L1','A3:L3','A6:C7','E6:G7','I6:L7','A8:L9']}];
+  // BOARD SUMMARY hides six purchasing columns while retaining all three cards, warning rows and raw quantities.
+  entry=setup();entry.sheet='BOARD SUMMARY';entry.definition.sheets=[{name:entry.sheet,header_rows:[11],presentation_tables:[{first_row:11,last_row:29,columns:[1,2,3,4,9,10],column_widths:[240,150,150,150,150,150],label:'Board purchasing totals'}],merges:['A1:L1','A3:L3','A6:C7','E6:G7','I6:L7','A8:L9','A31:L31','A35:L35']}];
+  const purchasingHeaders=['Product','Thickness mm','Sheet length mm','Sheet width mm','Box board - net m2','Extra boards - net m2','Net total sqm','With waste sqm','Whole sheets','Purchase sqm','Stock source','Board key'];
   entry.result=result({}, {sheet:entry.sheet,max_column:12,rows:[
     {row:1,cells:[{column:1,address:'A1',value:'BOARD SUMMARY',presentation:{role:'title'}}]},
     {row:3,cells:[{column:1,address:'A3',value:'Product totals include additional boards.',presentation:{role:'note'}}]},
     {row:5,cells:[{column:1,address:'A5',value:'Net board area'},{column:5,address:'E5',value:'Board area with waste'},{column:9,address:'I5',value:'Whole sheets'}]},
     {row:6,cells:[{column:1,address:'A6',value:58.476,calculated:true},{column:5,address:'E6',value:60.789,calculated:true},{column:9,address:'I6',value:27,calculated:true}]},
     {row:8,cells:[{column:1,address:'A8',value:'9 incomplete rows need review.',calculated:true,presentation:{role:'note'}}]},
-    {row:11,cells:[{column:1,address:'A11',value:'Product'}]},
-    {row:12,cells:[{column:1,address:'A12',value:'COREX'},{column:7,address:'G12',value:21.014,calculated:true}]},
+    {row:11,cells:purchasingHeaders.map((value,index)=>({column:index+1,address:`${String.fromCharCode(65+index)}11`,value}))},
+    ...[12,29].map(row=>({row,cells:purchasingHeaders.map((_,index)=>({column:index+1,address:`${String.fromCharCode(65+index)}${row}`,value:index===0?'COREX':index===6?21.014:index+1,calculated:index>3&&index<10}))})),
+    {row:31,cells:[{column:1,address:'A31',value:'Additional board quantities require review.',calculated:true,presentation:{role:'note'}}]},
+    {row:35,cells:[{column:1,address:'A35',value:'Board quantity scope note.',presentation:{role:'note'}}]},
   ]});
+  const sourceBoardSummary=JSON.stringify(entry.result);
   realRender(entry);audit.setRender(realRender);
   const summaryCards=descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard);
   assert.equal(summaryCards.length,3);assert.deepEqual(summaryCards.map(node=>node.textContent),['58.48','60.79','27.00']);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,1);
+  const purchasingTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Board purchasing totals');
+  assert.equal(purchasingTable.children[0].children.length,6);
+  assert.deepEqual(purchasingTable.children.at(-1).children[0].children.map(node=>node.textContent),[0,1,2,3,8,9].map(index=>purchasingHeaders[index]));
+  const purchasingOutputAddresses=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
+  for(const row of [12,29]) {
+    for(const column of ['E','F','G','H','K','L'])assert.ok(!purchasingOutputAddresses.includes(`${column}${row}`));
+    for(const column of ['A','B','C','D','I','J'])assert.ok(purchasingOutputAddresses.includes(`${column}${row}`));
+  }
+  for(const address of ['A6','E6','I6','A31','A35'])assert.ok(purchasingOutputAddresses.includes(address));
+  assert.equal(JSON.stringify(entry.result),sourceBoardSummary);
   for(const row of descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow)) assert.ok(Number(row.dataset.sourceRow)>=11);
   const updatedSummary=copy(entry.result);updatedSummary.rows.find(row=>row.row===6).cells[0].value=0;updatedSummary.rows.find(row=>row.row===8).cells[0].value='No incomplete rows';audit.setRequest(async()=>updatedSummary);await audit.calculate();
   assert.equal(summaryCards[0].textContent,'0.00');assert.equal(summaryCards[0].calculatorValueCard.classList.contains('calculator-value-present'),true);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='A8').textContent,'No incomplete rows');passed++;
+
+  // Hiding Evidence reference preserves saved references and optional inputs through edits, calculation and save.
+  entry=setup({CALCULATOR:{M9:'Saved optional layout'},'EXTRA BOARDS':{A6:'Extra support',N6:'Existing design reference'}});
+  entry.sheet='EXTRA BOARDS';entry.definition.sheets=[{name:entry.sheet,header_rows:[5],omitted_columns:[14],merges:[]}];
+  const extraResult=inputs=>result(copy(inputs),{sheet:'EXTRA BOARDS',max_column:14,visible_columns:[1,13,14],rows:[
+    {row:5,cells:[{column:1,address:'A5',value:'Item'},{column:13,address:'M5',value:'Status'},{column:14,address:'N5',value:'Evidence reference'}]},
+    {row:6,cells:[{column:1,address:'A6',value:inputs['EXTRA BOARDS'].A6,editable:true,type:'text'},{column:13,address:'M6',value:'REVIEW',calculated:true},{column:14,address:'N6',value:inputs['EXTRA BOARDS'].N6,editable:true,type:'text'}]},
+  ]});
+  entry.result=extraResult(entry.inputs);const sourceExtraRows=JSON.stringify(entry.result.rows);realRender(entry);audit.setRender(realRender);
+  assert.deepEqual(renderedControls().map(node=>node.dataset.calculatorCell),['A6']);
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='Evidence reference'));
+  assert.equal(JSON.stringify(entry.result.rows),sourceExtraRows);
+  const visibleExtraInput=renderedControls()[0];visibleExtraInput.value='Updated support';await visibleExtraInput.emit('input');
+  let extraSavedBody;
+  audit.setRequest(async(path,options)=>{
+    const body=JSON.parse(options.body);
+    if(path.endsWith('/worksheet')){assert.equal(body.include_advanced,false);return extraResult(body.inputs);}
+    assert.ok(path.endsWith('/state'));extraSavedBody=body;return {inputs:copy(body.inputs)};
+  });
+  await audit.calculate();await audit.save();
+  const retainedHiddenInputs={CALCULATOR:{M9:'Saved optional layout'},'EXTRA BOARDS':{A6:'Updated support',N6:'Existing design reference'}};
+  assert.deepEqual(extraSavedBody.inputs,retainedHiddenInputs);assert.deepEqual(copy(entry.inputs),retainedHiddenInputs);
+  assert.deepEqual(JSON.parse(entry.saved),retainedHiddenInputs);assert.equal(audit.dirty(entry),false);passed++;
 
   // The board schedule shows authoritative product totals instead of six detached metrics, with incomplete rows explicit.
   entry=setup();entry.definition.sheets[0].max_column=35;

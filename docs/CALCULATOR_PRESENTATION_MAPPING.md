@@ -25,7 +25,7 @@ value updates.
 1. Keep all twelve page names. Show each selected worksheet as one page, with every prepared input row reachable by normal scrolling; do not split it into 25-row pages.
 2. Separate introductory merged notes from tabular data. Render a merged heading/note once from its anchor, with natural wrapping. Main source title/section cells, section anchors, overview titles and stacked/projected section headings use the same white text on the red-gradient banner. Do not create a tall table row for every merged child or preserve the workbook's print-oriented row heights.
 3. Collapse rows and trailing columns that contain only decorative spacing. Keep every schedule and EXTRA BOARDS input row, even when its current result is blank. A formula returning `""` is not evidence that an input row is disposable.
-4. Present normal inputs, advanced inputs and calculated outputs as visibly distinct groups. Use one output highlight for populated values and one for blanks; zero, error text and other nonblank results are populated. These colours indicate value presence only. Keep exact dependency-driven dropdowns and current read-only/write-validation rules; colour never grants edit permission or technical approval.
+4. Use the normal worksheet view throughout the browser; no calculator tab offers a Show advanced columns checkbox. Advanced source inputs remain available through `include_advanced` in the worksheet API and retain their existing saved values and calculation effects. Keep normal inputs and calculated outputs visibly distinct. Use one output highlight for populated values and one for blanks; zero, error text and other nonblank results are populated. These colours indicate value presence only. Keep exact dependency-driven dropdowns and current read-only/write-validation rules; colour never grants edit permission or technical approval.
 5. On forms, use a two-column field layout on desktop and one column on a phone. Put units beside the value and source explanations below the field. Long status and basis text must wrap without truncation.
 6. On schedules, retain the vertical sticky header but let every column, including the item identifier, scroll horizontally together. No calculator schedule freezes its first column. Use solid black gridlines consistently across schedules, material totals, order summaries and other calculator data tables. Keep scrolling inside each table and input widths suited to their contents. The page itself must fit a 390-pixel viewport. Numeric cells need roughly 110–130 px; product/section choices 190–260 px; status and detailed notes 300–420 px. These are UI recommendations, not source business constants.
 7. Display numbers to two decimals at rest and retain the exact raw value. Focused numeric controls and choices must distinguish small values such as 0.005, 0.01 and 1e-8. Never write a rounded display value merely because a field was focused or blurred.
@@ -117,7 +117,7 @@ supplies these as `product_totals`; the UI never derives them by summing rounded
 line quantities. Blank/withheld whole-bag values remain blank beside their
 status. Updating these totals does not rebuild the schedule controls.
 
-Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags. Source V/W/X status/source columns are explicitly hidden in this worksheet view, including advanced presentation; Y notes remain wide and wrapped. V/W/X stay in API/source results and the existing report projection. In particular, W continues to gate incomplete purchasing totals. Source width emphasis remains B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64; these source widths do not require hidden columns to be displayed.
+Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags. Source V/W/X status/source columns are explicitly hidden in the browser; Y notes remain wide and wrapped. V/W/X stay in API/source results and the existing report projection. In particular, W continues to gate incomplete purchasing totals. Source width emphasis remains B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64; these source widths do not require hidden columns to be displayed.
 
 All prepared rows remain present even though 999 original example slots return blank formulas. The original workbook has one active example, not 1,000 completed estimates.
 
@@ -199,8 +199,8 @@ application and orientation.
 
 Group results as J:P status/area/spray/wrap/roll/board quantities; Q:X wrap fixing/layers/local zones; Y:AC Maxilite strip geometry; AD:AJ penetration steel; AK:AM fixing/support instructions; AN:AO volume/yield; AP:AQ quantity qualifications/source. AR is a spacer. AS:CL are hidden helpers because source width is zero even though `hidden="0"`; omit them from normal presentation.
 
-The browser omits columns 37/38/42/43/44 (AK, AL, AP, AQ and AR) in both normal
-and advanced views. This includes the penetration clearance/fixing guides,
+The browser omits columns 37/38/42/43/44 (AK, AL, AP, AQ and AR).
+This includes the penetration clearance/fixing guides,
 quantity qualification/source columns and spacer. Their formulas, text and
 withheld-quantity rules remain in the calculation model and worksheet response.
 The approved first-row-based copied-text correction to AL remains applied even
@@ -208,8 +208,8 @@ though its browser column is hidden; the PDF projection is unchanged.
 
 The configured display order is 1–36, 40, 41, 37, 38, 39, 42, 43, 44. Applying
 the omissions puts AN/AO volume/yield immediately after AJ, followed by AM
-support instructions: A:AJ, AN, AO, AM. Any remaining advanced columns retain
-their source order. Reordering affects headers and values together without
+support instructions: A:AJ, AN, AO, AM. Advanced source columns remain available
+through the worksheet API. Reordering affects headers and values together without
 renaming input keys or moving source cells.
 
 Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to long notes. Widths for omitted columns remain source evidence rather than visible layout requirements. Keep the remaining status/support text wrapped at readable widths. A 300-row table may scroll vertically and horizontally on this one page without changing row identities.
@@ -278,7 +278,8 @@ unchanged. The six source summary cards are replaced by one running-total row
 per product under **Board Totals**. This heading change does not remove the
 three cards on the separate BOARD SUMMARY page. Row 8 supplies the schedule
 column labels. All 200 rows 9–208 remain in one table. A:L are normal inputs;
-M:X remain available through the advanced toggle; Y:AI are the primary results.
+M:X are advanced source inputs retained through the worksheet API and saved
+state; they have no browser toggle. Y:AI are the primary results.
 
 Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
 
@@ -326,17 +327,25 @@ required, whole sheets and purchase area. Their source merged value ranges are
 A6:C7, E6:G7 and I6:L7. Render the introductory A3 text once and retain the
 live qualification A8:L9; omit duplicate source card rows from the table.
 Rows 1–10 contain no editable fields. Render row 11 headers and all eighteen
-product/thickness rows 12–29 as a purchasing table. Finish with A31 pooling
-rules and A35 explanation of board area. Preserve source columns K/L as
-reference/key information, optionally visually secondary.
+product/thickness rows 12–29 as an independent purchasing table showing A:D and
+I:J: product, thickness, sheet dimensions, whole sheets and purchase area.
+Hide E:H (Box board - net m2, Extra boards - net m2, Net total sqm and With waste
+sqm) and K:L (Stock source and Board key) only within this table. Their source
+values, formulas, report projection and use in pooled totals remain intact.
+Finish with A31 pooling rules and A35 explanation of board area. The table's
+scoped column selection must not remove the whole-sheet card at E6 or the other
+two cards above it.
 
-Source A width is 25 units, numeric B:J15, references K:L21. Group columns into product/stock, box/extra/net area, waste, whole sheets and purchase area. Retain zero-quantity stock rows or offer a reversible display filter; filtering must never change the source pooled totals.
+Source A width is 25 units, numeric B:J15, references K:L21. These source widths
+remain traceability evidence; the independent browser table gives its six
+visible columns usable widths. Retain every stock row, including zero-quantity
+rows; display omissions never change the source pooled totals.
 
 ### EXTRA BOARDS
 
-This source-hidden page is intentionally exposed because its inputs affect purchasing. Render its introduction once and row 5 as the header for all forty rows 6–45. Editable A:I and N cover item, product, thickness, pieces/cut dimensions or measured area, waste, purpose and evidence. J:M are live outputs/status.
+This source-hidden page is intentionally exposed because its inputs affect purchasing. Render its introduction once and row 5 as the header for all forty rows 6–45. Editable A:I cover item, product, thickness, pieces/cut dimensions or measured area, waste and purpose. J:M are live outputs/status. The user-requested Evidence reference column N is hidden only in the browser; its existing editable API identity and saved values remain intact. This is an explicit exception to the general rule against hiding editable fields, not removal of its input allowlist or stored data.
 
-Keep the alternative entry methods visibly grouped: pieces D × cut length E × cut width F **or** direct area G. Do not auto-clear one route when the other is entered: the existing source formula must show its conflict message. Include purpose I and evidence N alongside status M. Source I40/M36/N35 widths support generous wrapped text.
+Keep the alternative entry methods visibly grouped: pieces D × cut length E × cut width F **or** direct area G. Do not auto-clear one route when the other is entered: the existing source formula must show its conflict message. Include purpose I alongside status M. Source I40/M36 widths support generous wrapped text; hiding N does not alter the PDF or quantity rules.
 
 ### SETTINGS
 
@@ -411,7 +420,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 
 - All twelve complete-page responses cover their packaged extents, including the final editable schedule and EXTRA BOARDS rows. Display omissions are limited to the explicit presentation rules and source spacing; prepared input rows must not be discarded.
 - Dropdowns retain numeric versus text values, source warning/stop behavior and dependencies, while repeated lists are shared without truncation.
-- Advanced inputs remain present when requested; source hidden databases and calculated cells remain readonly.
+- The browser has no advanced-column checkbox or instructions to use it. The worksheet API still returns advanced inputs when `include_advanced` is requested; source hidden databases and calculated cells remain readonly. Normal-view editing, recalculation and saving preserve existing hidden advanced input values.
 - Forms display unchanged formula-backed settings without saving scalar overrides. Rendering, report generation and importing a draft do not persist inputs.
 - Reset changes its declared draft scope, leaves saved records untouched until Save calculator, and retains later edits if a calculation response arrives late. The removed reviewed-yield action/panel must not reappear. An explicit empty engine overlay still matches original defaults.
 - Calculator reports retain every populated main schedule item, applicable extras, product tables and closing totals; the four removed appendix/helper sections stay absent. They preserve invalid/withheld quantities and source ordering rules and never add manual BAGS results to schedule totals.
@@ -419,6 +428,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
 - Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits only the Both/Mixed block J6:Q21. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
 - Board SETTINGS stacks three tables and keeps all 28 editable values, dependent dropdowns and diagnostic lookups. BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
+- BOARD SUMMARY shows only A:D and I:J within rows 11–29, retaining all eighteen stock rows, three source-total cards, the live qualification and notes A31/A35. EXTRA BOARDS hides N while retaining all forty rows and editable A:I. Saving an unrelated visible edit preserves existing N6:N45 evidence and advanced input values. Complete API results, pooled quantities and PDF contents remain unchanged.
 - Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; Board Totals does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. The three A1 title aliases do not rename worksheet/input keys.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 - Horizontal scrolling moves the first column with the remaining schedule columns while vertical column headings can stay visible. Data-table gridlines are solid black; main source, overview, total and projected-section headings share the red/white banner. Populated/blank data fills remain separate from heading styling and do not change calculation semantics.

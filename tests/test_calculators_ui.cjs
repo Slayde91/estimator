@@ -667,6 +667,7 @@ let passed = 0;
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='Old metric label'));
   assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('9 rows have no board quantity')));
   assert.ok(entry.productTotalsElement);const boardTotalNodes=descendants(entry.productTotalsElement);
+  assert.ok(boardTotalNodes.some(node=>node.textContent==='Board Totals'));
   assert.ok(boardTotalNodes.some(node=>node.textContent==='Box reference area (m²)'));
   assert.ok(boardTotalNodes.some(node=>node.textContent==='12.35'));assert.ok(boardTotalNodes.some(node=>node.textContent==='21.01'));
   assert.ok(boardTotalNodes.some(node=>/5.00 incomplete schedule rows; 1.00 incomplete additional-board rows/.test(node.textContent||'')));
@@ -678,6 +679,67 @@ let passed = 0;
   const retainedMember=renderedControls()[0];audit.setRequest(async()=>updatedBoard);await audit.calculate();
   assert.equal(renderedControls()[0],retainedMember);assert.ok(descendants(entry.productTotalsElement).some(node=>node.textContent==='100.00'));assert.ok(descendants(entry.productTotalsElement).some(node=>node.textContent==='No incomplete rows'));passed++;
   assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('3 rows have no board quantity')));
+
+  // Duct output reordering moves the two requested results without losing prepared rows, controls or omitted columns.
+  entry=setup({CALCULATOR:{D11:2.3456789}});entry.definition.id='ductwork';
+  entry.definition.schedule={sheet:'CALCULATOR',first_row:11,last_row:310,header_row:10,columns:[{column:'B',label:'Width'},{column:'C',label:'Height'},{column:'D',label:'Length'}]};
+  const ductColumns=[2,3,4,36,37,38,39,40,41,42,43],columnOrder=[2,3,4,36,40,41,37,38,39,42,43];
+  const ductColumnName=column=>column<=26?String.fromCharCode(64+column):'A'+String.fromCharCode(64+column-26);
+  const ductLabels={2:'Width',3:'Height',4:'Length',36:'Combined angle length',37:'Hidden clearance',38:'Hidden fixing',39:'Support guide',40:'Spray body volume',41:'Working yield',42:'Qualifications',43:'Sources'};
+  entry.definition.sheets=[{name:'CALCULATOR',header_rows:[10],display_column_order:columnOrder,omitted_columns:[37,38],merges:[]}];
+  const reorderedRows=[{row:10,cells:ductColumns.map(column=>({column,address:`${ductColumnName(column)}10`,value:ductLabels[column]}))},
+    ...Array.from({length:300},(_,i)=>({row:i+11,cells:ductColumns.map(column=>({column,address:`${ductColumnName(column)}${i+11}`,value:column===4&&i===0?2.3456789:column<=4?null:column,editable:column<=4,type:'number',calculated:column>4}))}))];
+  entry.result=result(copy(entry.inputs),{max_row:310,max_column:43,visible_columns:ductColumns,rows:reorderedRows});
+  const reorderedSource=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  let ductTable=renderedTable(),firstDuctRow=ductTable.children.at(-1).children[0];
+  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,3,4,36,40,41,39,42,43].map(column=>ductLabels[column]));
+  assert.deepEqual(firstDuctRow.children.slice(3).map(node=>node.dataset.calculatorOutput),['AJ11','AN11','AO11','AM11','AP11','AQ11']);
+  assert.equal(ductTable.children.at(-1).children.length,300);assert.equal(renderedControls().length,900);
+  assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>/^A[KL]/.test(node.dataset.calculatorOutput)));
+  assert.equal(JSON.stringify(entry.result),reorderedSource);assert.equal(entry.inputs.CALCULATOR.D11,2.3456789);
+  const retainedDuctLength=renderedControls().find(node=>node.dataset.calculatorCell==='D11'),changedDuct=copy(entry.result);
+  changedDuct.rows.find(row=>row.row===11).cells.find(cell=>cell.column===40).value=0.123456;
+  audit.setRequest(async()=>changedDuct);await audit.calculate();assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='D11'),retainedDuctLength);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='AN11').textContent,'0.12');
+  changedDuct.display_column_order=['B','C','D','AJ','AO','AN','AN','ZZ'];await audit.calculate();ductTable=renderedTable();
+  assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,3,4,36,41,40,39,42,43].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);passed++;
+
+  // Browser text overrides cover titles, headers and contents while raw data and output-state classification stay unchanged.
+  entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
+  entry.definition.sheets=[{name:entry.sheet,header_rows:[5],section_cells:['A6'],omitted_rows:[3],display_text:{A1:'Ductwork Settings',A3:'Still omitted',A5:'Option',A6:'Product rules'},merges:['A1:C1']}];
+  entry.result=result({}, {sheet:entry.sheet,rows:[
+    {row:1,cells:[{column:1,address:'A1',value:'Original source title',presentation:{role:'title'}}]},
+    {row:3,cells:[{column:1,address:'A3',value:'Original omitted note'}]},
+    {row:5,cells:[{column:1,address:'A5',value:'Original header'}]},
+    {row:6,cells:[{column:1,address:'A6',value:'Original section',presentation:{role:'section'}}]},
+    {row:7,cells:[{column:1,address:'A7',value:'Editable setting',presentation:{role:'label'}},{column:2,address:'B7',value:0.005,editable:true,type:'number'},{column:3,address:'C7',value:'Calculated note',calculated:true}]},
+  ]});
+  const textSource=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  let overrideNodes=descendants(byId('calculator-grid'));
+  assert.ok(overrideNodes.some(node=>node.textContent==='Ductwork Settings'));assert.ok(overrideNodes.some(node=>node.href&&node.textContent==='Product rules'));
+  assert.ok(overrideNodes.some(node=>node.dataset?.calculatorOutput==='A5'&&node.textContent==='Option'));assert.ok(!overrideNodes.some(node=>node.dataset?.calculatorOutput==='A3'));
+  assert.equal(JSON.stringify(entry.result),textSource);
+  const revisedText=copy(entry.result);revisedText.display_text={A1:'Updated Ductwork Settings',A5:'Updated option',A6:'Updated product rules',C7:'Display-only note'};
+  audit.setRequest(async()=>revisedText);await audit.calculate();overrideNodes=descendants(byId('calculator-grid'));
+  assert.ok(overrideNodes.some(node=>node.textContent==='Updated Ductwork Settings'));assert.ok(overrideNodes.some(node=>node.href&&node.textContent==='Updated product rules'));
+  assert.ok(overrideNodes.some(node=>node.dataset?.calculatorOutput==='A5'&&node.textContent==='Updated option'));
+  const overriddenOutput=overrideNodes.find(node=>node.dataset?.calculatorOutput==='C7');assert.equal(overriddenOutput.textContent,'Display-only note');assert.equal(overriddenOutput.classList.contains('calculator-value-present'),true);
+  const textControl=renderedControls()[0];revisedText.rows.find(row=>row.row===7).cells[2].value='Updated raw note';await audit.calculate();
+  assert.equal(renderedControls()[0],textControl);assert.equal(overriddenOutput.textContent,'Display-only note');assert.equal(entry.result.rows.find(row=>row.row===7).cells[2].value,'Updated raw note');passed++;
+
+  // Exact board introductory omissions remove INPUTS/RESULTS wording while keeping the live global warning and all inputs.
+  entry=setup();entry.definition.sheets[0]={name:'CALCULATOR',header_rows:[8],omitted_rows:[2,5,7],omitted_ranges:['Y1:AI1','A6:L6'],display_text:{A1:'STRUCTURAL STEEL BOARD SCHEDULE'},merges:[]};
+  entry.result=result({}, {max_column:35,board_product_totals:[{product:'COREX',box_reference_area:0,net_board_area:0,whole_sheets:0,incomplete_rows:1,incomplete_extra_rows:0}],rows:[
+    {row:1,cells:[{column:1,address:'A1',value:'CEASEFIRE / STRUCTURAL STEEL BOARD SCHEDULE',presentation:{role:'title'}},{column:25,address:'Y1',value:'Removed version label'}]},
+    ...[2,5,7].map(row=>({row,cells:[{column:1,address:`A${row}`,value:row===7?'INPUTS':'Removed input direction'},{column:25,address:`Y${row}`,value:row===7?'RESULTS':'Removed result direction'}]})),
+    {row:6,cells:[{column:1,address:'A6',value:'Removed page direction'},{column:25,address:'Y6',value:'Incomplete order: 1 row has no board quantity.',calculated:true,presentation:{role:'note'}}]},
+    {row:9,cells:[{column:1,address:'A9',value:'Keep this member',editable:true,type:'text'}]},
+  ]});
+  const introRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);let introNodes=descendants(byId('calculator-grid'));
+  assert.ok(introNodes.some(node=>node.textContent==='STRUCTURAL STEEL BOARD SCHEDULE'));assert.ok(!introNodes.some(node=>/^Removed|^(INPUTS|RESULTS)$/.test(node.textContent||'')));
+  const preservedWarning=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='Y6');assert.ok(preservedWarning);assert.equal(renderedControls().length,1);assert.equal(JSON.stringify(entry.result),introRaw);
+  const introUpdate=copy(entry.result);introUpdate.rows.find(row=>row.row===6).cells[1].value='Incomplete order: 2 rows have no board quantity.';audit.setRequest(async()=>introUpdate);await audit.calculate();
+  assert.equal(preservedWarning.textContent,'Incomplete order: 2 rows have no board quantity.');passed++;
 
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');

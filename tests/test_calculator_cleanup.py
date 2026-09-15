@@ -183,19 +183,21 @@ class CalculatorCleanupTests(unittest.TestCase):
         self.assertEqual(self.request("GET")["inputs"], draft)
 
     def test_presentation_metadata_omits_only_requested_cells_and_preserves_source_packages(self):
-        expected_rows = {"SETTINGS": [3, 4, 32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232],
-                         "CALCULATOR": list(range(33, 42)), "SCHEDULE": [1, 2, 3, 8], "BAGS": []}
+        expected_rows = {"SETTINGS": [3, 4, 32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232,
+                                     *range(304, 308), *range(316, 320)],
+                         "CALCULATOR": [3, *range(33, 42)], "SCHEDULE": [1, 2, 3, 8], "BAGS": []}
         definition = self.request("GET")
         for sheet in definition["sheets"]:
             self.assertEqual(sheet["omitted_rows"], expected_rows[sheet["name"]])
             self.assertEqual(sheet["omitted_columns"], [22, 23, 24] if sheet["name"] == "SCHEDULE" else [])
             self.assertEqual(sheet["omitted_ranges"], ["J28:N30"] if sheet["name"] == "CALCULATOR" else [])
             aliases = {"BAGS": {"A1": "MATERIAL QUANTITIES"},
-                       "CALCULATOR": {"L6": "PUBLISHED VALUE"},
+                       "CALCULATOR": {"A1": "QUICK CALCULATOR", "L6": "PUBLISHED VALUE"},
                        "SETTINGS": {"A9": "GLOBAL SETTINGS", "A17": "COMMON CALCULATION RULES",
                                     "A31": "CAFCO 300", "A64": "MANDOLITE CP2", "A96": "FENDOLITE MII",
                                     "A173": "PERLIFOC HP ECO+", "A229": "MONOKOTE MK-6 HY",
-                                    "A270": "COMPLETE WORKBOOK OPERATING RULES"},
+                                    "A270": "COMPLETE WORKBOOK OPERATING RULES",
+                                    "A356": "IDEALISED HOLLOW GEOMETRY", "A370": "FENDOLITE CASTELLATED SECTION"},
                        "SCHEDULE": {"A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
             self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))
             for address in editable_cells(IDENTITY, sheet["name"]):

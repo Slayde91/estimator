@@ -252,9 +252,20 @@
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
-    const select = cell.type === "select" && !allowOther && (options.length <= 40 || display?.control === "select");
+    const select = cell.type === "select" && (display?.control === "select" || !allowOther && options.length <= 40);
+    const customAllowed = select && allowOther;
     const multiline = Boolean(cell.multiline);
     const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
+    const custom = customAllowed ? node("input", numeric ? "calculator-number" : "") : null;
+    let customMode = false, customToken = "__calculator_custom_value__", customOption;
+    while (options.some((option) => String(option) === customToken) || String(value) === customToken) customToken += "_";
+    if (custom) {
+      custom.type = "text"; custom.hidden = true; custom.autocomplete = "off";
+      custom.dataset.calculatorCustomCell = address; custom.dataset.calculatorSheet = sourceSheet;
+      custom.setAttribute("aria-label", `${label} custom value${percent(cell) ? " in percent" : ""}`);
+      if (numeric) custom.inputMode = "decimal";
+      customOption = node("option", "", "Enter custom value…"); customOption.value = customToken;
+    }
     const selectOptions = [];
     control.dataset.calculatorCell = address;
     control.dataset.calculatorSheet = entry.sheet;
@@ -267,6 +278,10 @@
       };
       control.calculatorEnsureOption = (item) => {
         item ??= "";
+        if (custom && String(item) === customToken) {
+          do { customToken += "_"; } while (options.some((option) => String(option) === customToken) || String(item) === customToken);
+          customOption.value = customToken; if (customMode) control.value = customToken;
+        }
         if (!selectOptions.some(({ value: existing }) => String(existing) === String(item))) appendOption(item);
       };
       const deferredOptions = options.length > 40;
@@ -278,11 +293,13 @@
         appendOption("");
         for (const item of options) if (String(item) !== "") appendOption(item);
         control.calculatorEnsureOption(selected);
-        control.value = String(selected ?? ""); optionsLoaded = true;
+        if (custom) control.append(customOption);
+        control.value = customMode ? customToken : String(selected ?? ""); optionsLoaded = true;
       };
       appendOption("");
       for (const item of deferredOptions ? [] : options) if (String(item) !== "") appendOption(item);
       control.calculatorEnsureOption(value);
+      if (custom) control.append(customOption);
       // A thousand prepared rows can share a large strict choice list. Keep
       // native selects lightweight until their first pointer/keyboard opening.
       if (deferredOptions) for (const event of ["pointerdown", "focus", "keydown"]) control.addEventListener(event, populate);
@@ -296,58 +313,75 @@
     }
     if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
     if (entry.invalid.has(key)) { control.value = entry.invalid.get(key); control.setAttribute("aria-invalid", "true"); }
-    let focusedValue;
-    control.addEventListener("focus", () => {
-      for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = `${numericInputValue(item.value, cell, true)}${percent(cell) ? "%" : ""}`;
-      if (!select && !entry.invalid.has(key)) {
-        const raw = rawValue();
-        if (numeric || isNumber(raw)) {
-          control.value = numericInputValue(raw, cell, true);
-          // Replacing a rounded display changes the browser's selection. Keep
-          // the whole exact value selected so the next edit replaces it.
-          control.select();
+    const bindEditor = (editor, isChoice) => {
+      let focusedValue;
+      editor.addEventListener("focus", () => {
+        for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = `${numericInputValue(item.value, cell, true)}${percent(cell) ? "%" : ""}`;
+        if (!isChoice && !entry.invalid.has(key)) {
+          const raw = rawValue();
+          if (numeric || isNumber(raw)) { editor.value = numericInputValue(raw, cell, true); editor.select(); }
         }
-      }
-      focusedValue = control.value;
-    });
-    control.addEventListener(select ? "change" : "input", () => {
-      let next = control.value;
-      const optionText = (option) => String(!select && isNumber(option) && percent(cell) ? decimalShift(option, 2) : option);
-      const optionIndex = options.findIndex((option) => optionText(option) === next);
-      const validSyntax = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(next.trim());
-      if (optionIndex >= 0) next = options[optionIndex];
-      else if ((numeric || (numericOptions && validSyntax)) && next !== "") {
-        next = validSyntax ? Number(next) : NaN;
-        if (!Number.isFinite(next)) {
-          entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
-          entry.revision++; entry.pendingResult = null; clearTimeout(state.timer); updateStatus(entry);
-          calculationStatus("Enter a valid number to recalculate."); return;
+        focusedValue = editor.value;
+      });
+      editor.addEventListener(isChoice ? "change" : "input", () => {
+        if (isChoice && custom && editor.value === customToken) {
+          customMode = true; custom.hidden = false;
+          custom.value = entry.invalid.has(key) ? entry.invalid.get(key) : numericInputValue(rawValue(), cell, true);
+          custom.focus?.(); return;
         }
-        if (percent(cell)) next = decimalShift(next, -2);
+        if (isChoice && custom) { customMode = false; custom.hidden = true; }
+        let next = editor.value;
+        const optionText = (option) => String(!isChoice && isNumber(option) && percent(cell) ? decimalShift(option, 2) : option);
+        const optionIndex = options.findIndex((option) => optionText(option) === next);
+        const selectedOption = isChoice ? selectOptions.find(({ option }) => option.value === next) : null;
+        const validSyntax = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(next.trim());
+        if (selectedOption) next = selectedOption.value;
+        else if (optionIndex >= 0) next = options[optionIndex];
+        else if ((numeric || (numericOptions && validSyntax)) && next !== "") {
+          next = validSyntax ? Number(next) : NaN;
+          if (!Number.isFinite(next)) {
+            entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true"); control.setAttribute("aria-invalid", "true");
+            entry.revision++; entry.pendingResult = null; clearTimeout(state.timer); updateStatus(entry);
+            calculationStatus("Enter a valid number to recalculate."); return;
+          }
+          if (percent(cell)) next = decimalShift(next, -2);
+        }
+        entry.invalid.delete(key); control.removeAttribute("aria-invalid"); custom?.removeAttribute("aria-invalid");
+        if (isNumber(next)) editor.title = `Exact value: ${numericInputValue(next, cell, true)}${percent(cell) ? "%" : ""}`;
+        else editor.removeAttribute("title");
+        setInput(entry, sourceSheet, address, next);
+      });
+      editor.addEventListener("blur", (event) => {
+        const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[sourceSheet] || {}, address) ? entry.inputs[sourceSheet][address] : value;
+        if (!isChoice && cell.type === "select" && !allowOther && selectedValue !== null && selectedValue !== "" && !options.some((option) => String(option) === String(selectedValue)) && String(value ?? "") !== String(selectedValue)) {
+          entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true");
+          calculationStatus("Choose a value from the available list."); updateStatus(entry);
+        }
+        for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = displayValue(item.value, cell);
+        if (!isChoice && !entry.invalid.has(key)) {
+          const raw = rawValue(); if (numeric || isNumber(raw)) editor.value = numericInputValue(raw, cell);
+        }
+        const target = event?.relatedTarget, choosingSettings = target?.dataset?.calculatorSettingsSection !== undefined;
+        const sameField = target?.dataset?.calculatorSheet === sourceSheet && (target.dataset.calculatorCell === address || target.dataset.calculatorCustomCell === address);
+        if (focusedValue !== undefined && entry.pendingResult && !entry.invalid.size && !choosingSettings && !sameField) {
+          entry.result = entry.pendingResult; entry.pendingResult = null; renderGrid(entry);
+        }
+      });
+    };
+    bindEditor(control, select);
+    if (custom) {
+      bindEditor(custom, false);
+      control.calculatorSyncValue = (next) => {
+        control.calculatorEnsureOption(next);
+        control.value = customMode ? customToken : String(next ?? "");
+        if (customMode && custom !== document.activeElement && !entry.invalid.has(key)) custom.value = numericInputValue(next, cell);
+      };
+      if (entry.invalid.has(key)) {
+        customMode = true; custom.hidden = false; custom.value = entry.invalid.get(key);
+        custom.setAttribute("aria-invalid", "true"); control.value = customToken;
       }
-      entry.invalid.delete(key); control.removeAttribute("aria-invalid");
-      if (isNumber(next)) control.title = `Exact value: ${numericInputValue(next, cell, true)}${percent(cell) ? "%" : ""}`;
-      else control.removeAttribute("title");
-      setInput(entry, sourceSheet, address, next);
-    });
-    control.addEventListener("blur", (event) => {
-      const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[sourceSheet] || {}, address) ? entry.inputs[sourceSheet][address] : value;
-      if (!select && cell.type === "select" && !allowOther && selectedValue !== null && selectedValue !== "" && !options.some((option) => String(option) === String(selectedValue)) && String(value ?? "") !== String(selectedValue)) {
-        entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
-        calculationStatus("Choose a value from the available list."); updateStatus(entry);
-      }
-      for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = displayValue(item.value, cell);
-      if (!select && !entry.invalid.has(key)) {
-        const raw = rawValue();
-        if (numeric || isNumber(raw)) control.value = numericInputValue(raw, cell);
-      }
-      // Formatting alone never writes a rounded value back to the workbook.
-      // A pending layout must not detach a settings button between focus and click.
-      const choosingSettings = event?.relatedTarget?.dataset?.calculatorSettingsSection !== undefined;
-      if (focusedValue !== undefined && entry.pendingResult && !entry.invalid.size && !choosingSettings) {
-        entry.result = entry.pendingResult; entry.pendingResult = null; renderGrid(entry);
-      }
-    });
+      const wrapper = node("div", "calculator-native-custom"); wrapper.append(control, custom); return wrapper;
+    }
     if (!select && options.length) {
       control.setAttribute("list", sharedOptionList(options, cell));
       const wrapper = node("div"); wrapper.append(control); return wrapper;
@@ -418,9 +452,12 @@
       const address = control.dataset.calculatorCell, key = `${entry.sheet}!${address}`, cell = cells.get(address);
       if (!cell || control === document.activeElement || entry.invalid.has(key)) continue;
       const value = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
-      control.calculatorEnsureOption?.(value);
-      const shown = String(control.tagName.toLowerCase() === "select" ? value ?? "" : isNumber(value) ? numericInputValue(value, cell) : value ?? "");
-      if (String(control.value) !== shown) control.value = shown;
+      if (control.calculatorSyncValue) control.calculatorSyncValue(value);
+      else {
+        control.calculatorEnsureOption?.(value);
+        const shown = String(control.tagName.toLowerCase() === "select" ? value ?? "" : isNumber(value) ? numericInputValue(value, cell) : value ?? "");
+        if (String(control.value) !== shown) control.value = shown;
+      }
       if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
     }
     renderProductTotals(result, entry.productTotalsElement);
@@ -435,7 +472,7 @@
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
-    return JSON.stringify([pageDefinition(entry), result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    return JSON.stringify([{ ...pageDefinition(entry), section_spacing: result.section_spacing ?? metadata.section_spacing }, result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options, cell.allow_other, cell.error_style, cell.validation]))]);
   }
 
   function presentationRole(cell) {
@@ -508,7 +545,7 @@
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
-    const heading = node("h4", "", board ? "SUMMARY" : "PRODUCT SUMMARY"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
+    const heading = node("h4", "", board ? "CALCULATED SUMMARY" : "PRODUCT SUMMARY"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
     const scroll = node("div", "calculator-product-totals-scroll"), table = node("table"), head = node("thead"), body = node("tbody"), headers = node("tr");
     for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
@@ -569,6 +606,7 @@
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
     const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry), page = pageDefinition(entry);
+    const sectionSpacing = Boolean(result.section_spacing ?? metadata.section_spacing);
     grid.classList.toggle("calculator-grid-expanded", Boolean(metadata.expand_tables));
     entry.productTotalsElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
@@ -681,7 +719,7 @@
       const originalGroups = [...sections]; sections.clear();
       for (const owner of [...(page.include_common === false ? [] : [null]), ...settingsDefinitions.map((section) => section.id)]) for (const [key, original] of originalGroups) {
         const visibleCell = (row, column) => original.visibleCell(row, column) && sectionOwner(row, column) === owner;
-        const sourceRows = original.sourceRows.map((row) => ({ ...row, cells: row.cells.filter((cell) => original.columns.includes(cell.column) && visibleCell(row.row, cell.column)) }))
+        const sourceRows = original.sourceRows.map((row) => ({ ...row, cells: row.cells.filter((cell) => original.columns.includes(cell.column) && visibleCell(row.row, cell.column) && !(owner === null && page.hidden_common_addresses?.includes(cell.address || `${columnName(cell.column)}${row.row}`))) }))
           .filter((row) => row.cells.some((cell) => cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "") || owner && original.definition && original.columns.some((column) => visibleCell(row.row, column)));
         if (!sourceRows.length) continue;
         let groupColumns = original.columns.filter((column) => sourceRows.some((row) => visibleCell(row.row, column)));
@@ -693,6 +731,19 @@
         sections.set(`${key}-settings-${owner || "common"}`, { ...original, body: node("tbody"), sourceRows, rows: sourceRows.map((row) => row.row), columns: groupColumns, visibleCell, settingsSectionId: owner });
       }
     }
+    const sectionStarts = sectionLinks.filter((section) => section.address).map((section) => parseAddress(section.address).row).sort((left, right) => left - right);
+    if (sectionSpacing) {
+      const originalGroups = [...sections]; sections.clear();
+      for (const [key, group] of originalGroups) {
+        if (group.definition) { sections.set(key, group); continue; }
+        const runs = [];
+        for (const row of group.sourceRows) {
+          if (!runs.length || sectionStarts.includes(row.row)) runs.push([]);
+          runs.at(-1).push(row);
+        }
+        runs.forEach((sourceRows, index) => sections.set(`${key}-part-${index}`, { ...group, body: node("tbody"), sourceRows, rows: sourceRows.map((row) => row.row) }));
+      }
+    }
     const headRow = node("tr");
     for (const column of columns) {
       const label = String(labels[column] || "");
@@ -702,6 +753,7 @@
       const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
     head.append(headRow);
+    let introPlaced = false;
     for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
       const groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
@@ -761,16 +813,30 @@
         tr.append(td);
       }
       renderedGroup.body.append(tr);
+      if (!introPlaced && page.intro_address && row.cells.some((cell) => cell.address === page.intro_after_address)) {
+        const intro = sourceCells.get(page.intro_address);
+        if (intro) {
+          const introRow = node("tr"), introCell = node("td", "calculator-role-note calculator-normal");
+          introRow.dataset.sourceRow = String(parseAddress(page.intro_address).row);
+          introCell.colSpan = groupColumns.length; introCell.dataset.calculatorOutput = page.intro_address;
+          introCell.dataset.calculatorValue = "true"; updateOutputCell(introCell, intro);
+          introRow.append(introCell); renderedGroup.body.append(introRow); introPlaced = true;
+        }
+      }
     }
     const content = [];
     const settings = settingsDefinitions.length && page.section_mode !== "content" ? settingsPanels(entry, settingsDefinitions) : null;
     if (sectionLinks.length && metadata.navigation_mode === "links") content.push(renderContents(sectionLinks));
-    if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
+    const boardSchedule = Boolean(schedule && entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR");
+    const scheduleOverview = schedule ? renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns) : null;
+    if (scheduleOverview && !boardSchedule) content.push(scheduleOverview);
     if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
     if (schedule && (entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE" || entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR")) {
       const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
+    if (boardSchedule) content.push(scheduleOverview);
+    const logicalSections = new Map();
     const displayGroups = [...sections], tableSlots = displayGroups.map(([, group], index) => group.definition ? index : -1).filter((index) => index >= 0);
     if (metadata.display_table_order.length) {
       const priority = (group) => { const index = presentationTables.indexOf(group.definition), selected = metadata.display_table_order.indexOf(index); return selected < 0 ? metadata.display_table_order.length + index : selected; };
@@ -803,7 +869,15 @@
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);
       const link = definition && tableLinks[presentationTables.indexOf(definition)];
-      const append = (element) => { const panel = settings?.panels.get(renderedGroup.settingsSectionId); if (panel) panel.append(element); else content.push(element); };
+      const append = (element) => {
+        const panel = settings?.panels.get(renderedGroup.settingsSectionId);
+        if (panel) panel.append(element);
+        else if (sectionSpacing) {
+          const first = renderedGroup.sourceRows[0]?.row ?? 0, start = sectionStarts.filter((row) => row <= first).at(-1) ?? 0;
+          if (!logicalSections.has(start)) { const section = node("section", "calculator-logical-section"); logicalSections.set(start, section); content.push(section); }
+          logicalSections.get(start).append(element);
+        } else content.push(element);
+      };
       if (link) {
         const section = node("section", projectedTables ? "calculator-projected-section" : "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, link.label); heading.id = link.id;
         const titleCell = sourceCells.get(definition.title_address);
@@ -845,7 +919,7 @@
       const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.renderedPage === page && entry.choiceSignature === choiceSignature(result);
       entry.result = result;
       if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
-      else if (!entry.needsRender && active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
+      else if (!entry.needsRender && (active?.dataset?.calculatorCell || active?.dataset?.calculatorCustomCell) && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
       else { entry.pendingResult = null; renderGrid(entry); }
       const copiedFixingNote = "The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.";
       const hideCopiedFixingNote = entry.definition.id === "ductwork" && ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"].includes(sheet);
@@ -1017,7 +1091,7 @@
     // Input events retain exact edits; blur completes dropdown validation before
     // the server calculates the captured draft for the downloaded register.
     const focused = document.activeElement;
-    if (focused?.dataset?.calculatorCell && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
+    if ((focused?.dataset?.calculatorCell || focused?.dataset?.calculatorCustomCell) && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
     if (current() !== entry || entry.invalid.size) return;
     const id = entry.definition.id, snapshot = clone(entry.inputs), revision = entry.revision;
     const button = $(buttonId), previousLabel = button.textContent;

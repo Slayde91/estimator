@@ -6,8 +6,8 @@ const scrollCalls = [];
 function element(tag='div') {
   return {
     tagName: tag, value: '', textContent: '', dataset: {}, children: [], disabled: false,
-    listeners: {}, parts: new Map(), options: [], files: [], validity: {badInput:false},
-    classList: {add(){},toggle(){}}, setAttribute(){},removeAttribute(){},focus(){},
+    listeners: {}, parts: new Map(), options: [], files: [], validity: {badInput:false}, attributes: new Map(),
+    classList: {add(){},toggle(){}}, setAttribute(name,value){this.attributes.set(name,value);},getAttribute(name){return this.attributes.get(name);},removeAttribute(name){this.attributes.delete(name);},focus(){},
     addEventListener(event, fn, options={}) { (this.listeners[event] ||= []).push({fn,once:options.once}); },
     emit(event) { const callbacks = [...(this.listeners[event] || [])]; this.listeners[event] = (this.listeners[event]||[]).filter(x=>!x.once); return Promise.all(callbacks.map(x=>x.fn())); },
     append(...children){this.children.push(...children);this.options=this.children;},
@@ -196,6 +196,31 @@ let passed=0;
   assert.equal(JSON.stringify(currentNotesFields),sourceNotesFields);assert.equal(audit.state.currentFields.find(field=>field.cell==='B12').default,'Allowances');
   audit.renderResults({});passed++;
 
+  // Labour rows display source-projected days, preserve literal labels, and read the authoritative total.
+  setup();const labourResult={summary:{days:16.987654321},cells:{},errors:{},materials:[],labour:{
+    tasks:[{name:'Spray / wrap',days:1.23456789},{name:'Mesh <literal>',days:2},{name:'Access panels',days:0},{name:'Fan enclosure mesh',days:3},{name:'Primer',days:0},{name:'Topcoat',days:0},{name:'Board',days:1},{name:'Mastic',days:0}],
+    task_days:7.23456789,masking_days:0.123456789,extra_days:1.5,mobilisation_days:.75,total_days:16.987654321}};
+  const labourBefore=JSON.stringify(labourResult);audit.renderResults(labourResult);
+  const labourRows=()=>byId('labour-results').children;
+  assert.equal(labourRows().length,13);assert.equal(labourRows()[0].children[1].textContent,'1.23');assert.equal(labourRows()[1].children[0].textContent,'Mesh <literal>');assert.equal(labourRows()[2].children[1].textContent,'0.00');
+  assert.equal(labourRows()[8].children[0].textContent,'Task labour subtotal');assert.equal(labourRows()[11].children[0].textContent,'Mobilisation allowance');assert.equal(labourRows()[11].children[1].textContent,'0.75');
+  assert.equal(labourRows()[12].children[0].textContent,'Total project days');assert.equal(labourRows()[12].children[1].textContent,'16.99');assert.equal(byId('sum-days').textContent,'16.99');
+  assert.equal(labourRows()[0].children[0].scope,'row');assert.equal(JSON.stringify(labourResult),labourBefore);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
+
+  // Missing and failed labour values remain unavailable or explicit errors rather than plausible zero days.
+  const missingLabour=copy(labourResult);missingLabour.labour.tasks[0].days=null;missingLabour.labour.task_days='#DIV/0!';missingLabour.labour.mobilisation_days='';missingLabour.labour.total_days='#N/A';
+  audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'#DIV/0!');assert.equal(labourRows()[11].children[1].textContent,'—');assert.equal(labourRows()[12].children[1].textContent,'#N/A');
+  audit.renderResults({});assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'Labour breakdown is unavailable for this result.');passed++;
+
+  // Labour output clears during calculation, rejects stale responses and cannot leave old totals after a failure.
+  setup();audit.renderResults(labourResult);const olderLabour=deferred(),newerLabour=deferred();let labourRequests=0;
+  audit.setRequest(()=>++labourRequests===1?olderLabour.promise:newerLabour.promise);
+  const olderLabourRun=audit.calculate();assert.equal(labourRows()[0].children[0].textContent,'Calculating…');assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'true');
+  const newerLabourRun=audit.calculate();const newerLabourResult=copy(labourResult);newerLabourResult.labour.total_days=22.5;newerLabourResult.summary.days=22.5;
+  newerLabour.resolve(newerLabourResult);await newerLabourRun;olderLabour.resolve(labourResult);await olderLabourRun;
+  assert.equal(labourRows().at(-1).children[1].textContent,'22.50');assert.equal(audit.state.result.labour.total_days,22.5);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');
+  audit.setRequest(async()=>{throw new Error('Calculation offline');});await audit.calculate();assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'No current calculation is available.');assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
+
   // Explicit saved notes, including the former default and deliberate blanks, survive opening, editing and saving.
   for(const savedNotes of ['Allowances','Measured project note','']) {
     setup();audit.state.currentFields=copy(currentNotesFields);
@@ -271,6 +296,8 @@ let passed=0;
   assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);
   assert.match(markup,/<span>NOTES <span class="optional">Optional<\/span><\/span><textarea id="measurements"/);
   assert.match(markup,/id="quote-title"[^>]*readonly/);assert.doesNotMatch(markup,/work-summary|Generated work summary|Updating work summary/);assert.doesNotMatch(source,/\$\("work-summary"\)/);passed++;
+  assert.ok(markup.indexOf('id="breakdown-heading"')<markup.indexOf('id="labour-breakdown"'));assert.ok(markup.indexOf('id="labour-breakdown"')<markup.indexOf('id="notes-heading"'));
+  assert.match(markup,/<th scope="col" class="numeric">Days<\/th>/);assert.match(markup,/Pinning is included in meshing days/);
 
   console.log(`${passed} UI metadata, precision, summary and race checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 import unittest
 
-from estimator.calculator import calculate, fields, masking_breakdown, specification
+from estimator.calculator import calculate, fields, labour_breakdown, masking_breakdown, specification
 from estimator.catalog import baseline, ValidationError
 
 
@@ -59,6 +59,60 @@ class CalculatorTests(unittest.TestCase):
         original = calculate({"B15": 35.75, "B26": 0.12, "B27": 0.25})
         expected = original.pop("masking")
         self.assertEqual(masking_breakdown(original), expected)
+
+    def test_labour_days_follow_source_components_without_pinning_twice(self):
+        self.assertEqual(specification()["formulas"]["F10"].strip(), "= SUM(B44,B53,C119)+0.5*C112")
+        self.assertEqual(specification()["formulas"]["B44"], "=SUM(B41,B35,B36,B42,B43,B40,B38,B39)")
+        for inputs in ({}, {"B15": 75, "B16": 120, "B18": 3, "B19": 12, "B20": 20, "B21": 20, "B22": 10, "B23": 5,
+                           "B9": .2, "B27": .125, "F26": 2.75, "F27": 3},
+                       {"B15": 18.125, "B9": 0, "B27": -.25, "F26": 0, "F27": 0}):
+            with self.subTest(inputs=inputs):
+                result = calculate(inputs)
+                cells, labour = result["cells"], result["labour"]
+                self.assertEqual(len(labour["tasks"]), 8)
+                self.assertNotIn("Pins / clips", [task["name"] for task in labour["tasks"]])
+                self.assertTrue(math.isclose(sum(task["days"] for task in labour["tasks"]), cells["B44"], rel_tol=1e-12))
+                self.assertEqual(labour["masking_days"], cells["B53"])
+                self.assertEqual(labour["extra_days"], cells["C119"])
+                self.assertEqual(labour["mobilisation_days"], .5*cells["C112"])
+                self.assertEqual(labour["total_days"], cells["F10"])
+                self.assertTrue(math.isclose(labour["task_days"]+labour["masking_days"]+labour["extra_days"]+labour["mobilisation_days"], cells["F10"], rel_tol=1e-12))
+                self.assertNotEqual(labour["total_days"], cells["F2"])
+
+    def test_labour_projection_preserves_errors_missing_cells_and_old_snapshots(self):
+        for inputs in ({"C15": 0}, {"B15": 1, "C15": 1e-307, "B27": 1e12}):
+            result = calculate(inputs)
+            self.assertEqual(result["labour"]["total_days"], result["errors"]["F10"])
+            self.assertEqual(result["labour"]["mobilisation_days"], result["errors"].get("C112", .5*result["cells"]["C112"] if isinstance(result["cells"]["C112"], (int,float)) else None))
+        missing = {"cells": {"B35": 0, "C112": "", "F10": None}, "errors": {"B53": "#N/A"}}
+        before = json.dumps(missing, sort_keys=True)
+        projected = labour_breakdown(missing)
+        self.assertEqual(projected["tasks"][0]["days"], 0)
+        self.assertIsNone(projected["tasks"][1]["days"])
+        self.assertIsNone(projected["task_days"])
+        self.assertEqual(projected["masking_days"], "#N/A")
+        self.assertEqual(projected["mobilisation_days"], "")
+        self.assertIsNone(projected["total_days"])
+        self.assertEqual(json.dumps(missing, sort_keys=True), before)
+        self.assertEqual(labour_breakdown({"cells": {"C112": 0}, "errors": {"C112": "#NUM!"}})["mobilisation_days"], "#NUM!")
+        original = calculate({"B15": 19.25, "F26": .75, "F27": 2})
+        expected = original.pop("labour")
+        before = json.dumps(original, sort_keys=True)
+        self.assertEqual(labour_breakdown(original), expected)
+        self.assertEqual(json.dumps(original, sort_keys=True), before)
+
+    def test_labour_projection_reconciles_independent_excel_day_fixtures(self):
+        fixture = json.loads((Path(__file__).parent / "fixtures" / "excel-calculator-oracle.json").read_text(encoding="utf-8-sig"))
+        for scenario in fixture["scenarios"]:
+            with self.subTest(scenario=scenario["id"]):
+                cells = scenario["expected"]
+                projected = labour_breakdown({"cells": cells})
+                self.assertEqual(projected["total_days"], cells["F10"])
+                if isinstance(cells["F10"], (int, float)):
+                    subtotal = sum(task["days"] for task in projected["tasks"])
+                    self.assertTrue(math.isclose(subtotal, cells["B44"], rel_tol=1e-12, abs_tol=1e-8))
+                    total = subtotal + projected["masking_days"] + projected["extra_days"] + projected["mobilisation_days"]
+                    self.assertTrue(math.isclose(total, cells["F10"], rel_tol=1e-12, abs_tol=1e-8))
 
 
 class ExcelOracleTests(unittest.TestCase):

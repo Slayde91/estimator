@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .calculator import calculate, fields
+from .calculator import calculate, fields, labour_breakdown
 from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, ValidationError
 from .presentation import calculation_error_details
 from .quote_details import compile_work_summary
@@ -50,7 +50,11 @@ def create_server(port=8765, database=None):
 
         def send_quote(self, status, quote):
             # Dropdown metadata belongs to the quote's own pricing snapshot.
+            result = quote["result"]
+            if "labour" not in result:
+                result = {**result, "labour": labour_breakdown(result)}
             self.send_payload(status, {**quote,
+                                       "result": result,
                                        "work_summary": quote.get("work_summary", compile_work_summary(quote.get("workflow", WORKFLOWS[0]), quote["result"])),
                                        "fields": fields(effective_catalog(quote["configuration"]))})
 

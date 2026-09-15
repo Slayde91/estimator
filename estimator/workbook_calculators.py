@@ -36,9 +36,10 @@ _PRESENTATION_SECTIONS = {
 # report data. In particular, SCHEDULE W still gates complete bag quantities.
 _OMITTED_ROWS = {
     'steel_vermiculite': {
-        'SETTINGS': [3, 4, 32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232],
+        'SETTINGS': [3, 4, 32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232,
+                     *range(304, 308), *range(316, 320)],
         'SCHEDULE': [1, 2, 3, 8],
-        'CALCULATOR': list(range(33, 42)),
+        'CALCULATOR': [3, *range(33, 42)],
     },
     'steel_board': {'START': [3, 5, 6, *range(34, 40)], 'CALCULATOR': [2, 5, 7]},
     'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4, *range(153, 160)]},
@@ -51,12 +52,14 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
 _DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]}}
 _DISPLAY_TEXT = {
     'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
-                         'CALCULATOR': {'L6': 'PUBLISHED VALUE'},
-                         'SETTINGS': dict(zip(
+                         'CALCULATOR': {'A1': 'QUICK CALCULATOR', 'L6': 'PUBLISHED VALUE'},
+                         'SETTINGS': {**dict(zip(
                              ('A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229', 'A270'),
                              ('GLOBAL SETTINGS', 'COMMON CALCULATION RULES', 'CAFCO 300',
                               'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+',
                               'MONOKOTE MK-6 HY', 'COMPLETE WORKBOOK OPERATING RULES'))),
+                                      'A356': 'IDEALISED HOLLOW GEOMETRY',
+                                      'A370': 'FENDOLITE CASTELLATED SECTION'},
                          'SCHEDULE': {'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
@@ -87,11 +90,20 @@ _DISPLAY_CELLS = {
             'A371': {'merge': 'A371:G371', 'role': 'collapsed_spacer'},
         },
     },
-    'steel_board': {'BOARD SUMMARY': {f'A{row}': {'bold': True} for row in range(12, 30)},
+    'steel_board': {'CALCULATOR': {f'{column}{row}': {'control': 'select'}
+                                  for row in range(9, 209) for column in 'CDHJ'},
+                    'EXTRA BOARDS': {f'{column}{row}': {'control': 'select'}
+                                     for row in range(6, 46) for column in 'BC'},
+                    'BOARD SUMMARY': {**{f'A{row}': {'bold': True} for row in range(12, 30)},
+                                      **{f'{column}{row}': {'suffix': ' mm'}
+                                         for row in range(12, 30) for column in 'BCD'},
+                                      **{f'J{row}': {'suffix': ' m²'} for row in range(12, 30)}},
                     'SETTINGS': {**{f'A{row}': {'bold': True} for row in range(6, 35)},
                                  **{f'P{row}': {'bold': True} for row in range(6, 52)}}},
     'ductwork': {
-        'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 311)}},
+        'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 311)},
+                       **{f'{column}{row}': {'control': 'select'}
+                          for row in range(11, 311) for column in 'CEHI'}},
         'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
                     **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
         'PRODUCT SETTINGS': {
@@ -131,10 +143,12 @@ _SETTINGS_SECTIONS = {
 _DISPLAY_PAGES = {
     'steel_vermiculite': [
         {'id': 'START', 'label': 'START', 'sheet': 'SETTINGS', 'section_ids': ['A270'],
-         'section_mode': 'content', 'include_common': False},
+         'section_mode': 'content', 'include_common': False,
+         'intro_address': 'A7', 'intro_after_address': 'A270'},
         *({'id': name, 'label': name, 'sheet': name} for name in ('CALCULATOR', 'SCHEDULE', 'BAGS')),
         {'id': 'SETTINGS', 'label': 'SETTINGS', 'sheet': 'SETTINGS',
-         'section_ids': ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229'], 'include_common': True},
+         'section_ids': ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229'], 'include_common': True,
+         'hidden_common_addresses': ['A7']},
         {'id': 'FACTOR CALCS', 'label': 'FACTOR CALCS', 'sheet': 'SETTINGS',
          'section_ids': ['A341', 'A356', 'A370'], 'include_common': False},
     ],
@@ -392,6 +406,7 @@ def _sheet_metadata(model, sheet):
             'display_table_order': [1, 0] if page == ('steel_vermiculite', 'BAGS') else [],
             'schedule_heading': 'MEMBER SCHEDULE' if page == ('steel_vermiculite', 'SCHEDULE') else '',
             'expand_tables': page == ('steel_board', 'START'),
+            'section_spacing': page == ('ductwork', 'SUMMARY'),
             'omitted_rows': list(_OMITTED_ROWS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),

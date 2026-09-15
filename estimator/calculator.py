@@ -101,6 +101,34 @@ def masking_breakdown(result):
     return breakdown
 
 
+def labour_breakdown(result):
+    """Explain source F10 using stored cells only, including older snapshots.
+
+    F10 = SUM(B44,B53,C119)+0.5*C112. B37 repeats meshing days and is
+    deliberately excluded from B44. These are days, not the F2 labour cost.
+    """
+    from .presentation import MATERIAL_NAMES
+
+    cells, errors = result.get("cells", {}), result.get("errors", {})
+
+    def read(address):
+        return errors.get(address, cells.get(address))
+
+    mobilisation = read("C112")
+    if isinstance(mobilisation, (int, float)) and not isinstance(mobilisation, bool):
+        mobilisation *= 0.5
+    return {
+        "tasks": [{"name": name, "days": read(f"B{requirement}")}
+                  for name, (_, _, requirement, labour, _) in zip(MATERIAL_NAMES, LINES)
+                  if labour is not None],
+        "task_days": read("B44"),
+        "masking_days": read("B53"),
+        "extra_days": read("C119"),
+        "mobilisation_days": mobilisation,
+        "total_days": read("F10"),
+    }
+
+
 def calculate(inputs=None, configuration=None):
     catalog = effective_catalog(configuration)
     inputs = normalize_inputs({} if inputs is None else inputs, catalog)
@@ -231,4 +259,5 @@ def calculate(inputs=None, configuration=None):
         "notes": cells["B30"],
     }
     result["masking"] = masking_breakdown(result)
+    result["labour"] = labour_breakdown(result)
     return result

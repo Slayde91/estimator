@@ -1,5 +1,76 @@
 # Session handoff
 
+## Labour days and calculator controls — commit-preparation checkpoint, 2026-09-15
+
+Work on `feat/labour-breakdown-calculator-controls` starts from PR #19's merge
+`335f4b6e0eac2419cb2b7f8c98998c0f5661d5d7`. The latest 27 browser comments
+extend the existing presentation boundaries:
+
+- Estimator Labour breakdown sits between Calculation breakdown and quote
+  notes. `labour_breakdown(result)` projects eight task-day values, B44 subtotal,
+  B53 masking, C119 adjusted extra labour, half of C112 mobilisation count and
+  F10 total days. B37 pinning mirrors meshing and is not added twice; F2 labour
+  money is separate. Missing/error values remain unavailable or explicit errors.
+  Fresh results include `labour`; older saved-quote responses add it to a copy
+  using stored cells only. Saved data and existing report calculations remain.
+- Vermiculite START omits SOURCE CONFLICTS rows 304–307 and ORIGINAL TAKE-OFF
+  rows 316–319. A7 guidance moves from SETTINGS to START beneath A270. The quick
+  calculator title is QUICK CALCULATOR with its subtitle removed; A356/A370
+  factor titles are shorter. These are browser changes over retained source cells.
+- Requested board schedule C/D/H/J and extra-board B/C choices and duct C/E/H/I
+  choices use native selects. Original warning/allow-other fields keep explicit
+  custom editors. Large lists, including 1,342 board steel sections, materialize
+  on opening without tightening validation or rewriting saved choices.
+- The board schedule title and live Y6 warning follow CALCULATED SUMMARY,
+  directly before schedule rows. BOARD SUMMARY B/C/D12:29 show mm and J12:J29
+  m² only for numeric values. Duct SUMMARY has four logical wrappers and blank
+  spacing, with existing per-table columns and values retained.
+- Shared toolbar helper text is removed. Import is yellow, Excel register green
+  (#217346) beside Export template, and PDF red.
+
+The native source audit `.runtime/labour-controls-qa/labour-source.json` records
+Quote.xlsm labels, original formulas, imported matches and source SHA-256
+`97fd43c4e55d3744e4348bf3596a3ab2a67357f12891524bfdb115f43b45c1a0`.
+Native F10 is `SUM(B44,B53,C119)+0.5*C112`, labelled Total Days. Source inspection
+was read-only; cached values are evidence, not runtime calculation answers.
+
+Verified so far: all 92 calculator UI and 25 Estimator UI checks pass (117
+total), plus both JavaScript syntax checks. Labour coverage includes literal
+labels, missing/errors, exact totals, clearing and stale-response rejection.
+Native review covers all 27 comments and confirms 13 labour rows and the default
+0.50 days. All 104,068 calculator source cells across twelve API worksheets and
+all three calculator PDF text/register-value projections match the baseline.
+Six Estimator API cases preserve every pre-existing result field; only the
+additive labour projection differs. Native evidence is retained in
+`.runtime/labour-controls-qa/browser-checks.json`.
+
+The full local Python run remains in progress at this checkpoint, including
+slow optional native-workbook extraction. It encountered a legacy metadata
+expectation that has since been corrected and one HTTP error awaiting its exact
+trace. The complete affected modules still require a focused rerun as needed.
+This record does not claim a clean full Python pass, distribution-build success
+or refreshed-runtime verification.
+
+Local classification: intended calculator projection, response enrichment,
+presentation metadata, UI, tests and docs remain uncommitted; ignored audit and
+runtime files stay under `.runtime/labour-controls-qa`. Source packages, workbook
+formula rules, persisted input keys, schema and existing report calculations
+are unchanged. Commit/push, PR, current-head CI/review and merge are pending.
+
+Next action: classify and publish the prepared change while the remaining local
+source audit finishes. Resolve the recorded test outcomes, require successful
+exact-head CI/review before merge, and verify the refreshed runtime and merge.
+The final receipt is `.runtime/labour-controls-qa/publication.json` after
+publication. Verified Git, checks and that receipt supersede this checkpoint;
+this document is not a claim that those later actions already succeeded.
+
+Continue with: “Inspect current Git and test evidence in C:\ESTIMATOR\app.
+Finish the labour-days and calculator-controls increment on
+feat/labour-breakdown-calculator-controls. Preserve source formulas, stored
+inputs, old quote snapshots and export calculations. Consult current Git/checks
+and .runtime/labour-controls-qa/publication.json for outcomes beyond this
+commit-preparation checkpoint; do not repeat already verified work.”
+
 ## START, factor tabs and Estimator cleanup — 2026-09-15
 
 Work on `fix/calculator-start-factor-tabs` starts from PR #18's verified merge
@@ -69,13 +140,14 @@ Test logs, source/export comparisons, live-asset hashes and before/after state
 receipts are retained under ignored `.runtime/tabs-notes-qa`; `dist/` remains
 ignored distribution output.
 
-Local classification: intended presentation metadata, browser code, regression
-tests and documentation are uncommitted. Commit/push, PR, exact-head CI/review
-and merge are pending for this branch. PR #18's historical evidence below does
-not establish publication of this increment.
-
-Next action: classify and publish the verified diff, then verify exact-head
-checks and the resulting merge commit.
+Publication is verified by `.runtime/tabs-notes-qa/publication.json`. Feature
+head `cc1ccf9a43b8c139e1d26e2ac6c07b08925c4f4e` was pushed on
+`fix/calculator-start-factor-tabs`. PR #19 merged on 2026-09-15 at 12:06:31 UTC
+as `335f4b6e0eac2419cb2b7f8c98998c0f5661d5d7`; feature and merge trees match.
+Exact-head push run 34966369826 and PR run 34966376062 passed 235 Python tests
+(231 passed, four skipped) and 111 UI checks. No reviews were recorded. The
+receipt records matching live assets, unchanged saved state and a clean tree;
+local runtime evidence and distribution output remain ignored.
 
 Continue with: “Inspect current Git and test evidence in C:\ESTIMATOR\app.
 Complete the START/FACTOR CALCS and Estimator cleanup on

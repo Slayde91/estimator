@@ -6,7 +6,7 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, controller: null, legacyTitle: "",
+    result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -476,7 +476,7 @@
       const row = input.closest("tr");
       row.classList.toggle("edited", !!state.draft[kind][item.id]);
       const output = row.querySelector("[data-sell-preview]");
-      if (output && kind === "inventory") output.textContent = formatMoney(inventorySellPrice(item));
+      if (output) output.textContent = formatMoney(inventorySellPrice(item));
       options.onChange?.();
     });
     if (!options.text) input.addEventListener("blur", () => {
@@ -520,7 +520,7 @@
   }
 
   function resetButton(kind, item) {
-    const button = node("button", "reset-button", kind === "inventory" ? "Reset product" : "Reset row");
+    const button = node("button", "reset-button", "Reset row");
     button.type = "button";
     button.setAttribute("aria-label", `Restore imported values for ${item.name}`);
     button.addEventListener("click", () => { delete state.draft[kind][item.id]; markPricingDirty(); renderPricing(); });
@@ -530,12 +530,12 @@
   function renderPricing() {
     const search = $("pricing-search").value.trim().toLocaleLowerCase();
     const selectedGroup = $("rate-group").value;
-    const records = (state.catalog.inventory || []).map((item) => ({ kind: "inventory", item, uses: [] }));
+    const records = (state.catalog.inventory || []).map((item) => ({ kind: "inventory", item, uses: [], key: `inventory:${item.id}` }));
     const products = new Map(records.map((record) => [record.item.id, record]));
     for (const [group, rates] of Object.entries(state.catalog.rate_groups || {})) for (const item of rates) {
       const use = { group, item }, product = products.get(item.inventory_id);
       if (product) product.uses.push(use);
-      else records.push({ kind: "rates", item, uses: [use] });
+      else records.push({ kind: "rates", item, uses: [use], key: `rates:${item.id}` });
     }
     const productText = ({ kind, item }) => `${item.name} ${item.item_code || ""} ${getOverride(kind, item.id).name || ""}`.toLocaleLowerCase();
     const matches = records.filter((record) => {
@@ -544,11 +544,9 @@
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "Edit product pricing once. Each estimator use has its own rate and material yield. Reset product restores product pricing; Reset rate restores its imported price source; Reset yield restores imported coverage.";
+    $("pricing-help").textContent = "Supplier price and markup calculate the product sell price. Expand Used in to edit each estimator rate or material yield. Reset rate restores its imported price source; Reset yield restores imported coverage.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Product sell price", "Used in Estimator", "Selection name", "Sell rate", "Yield"]) {
-      const cell = node("th", "", title); cell.scope = "col"; heading.append(cell);
-    }
+    for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Sell price", ""]) heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
     const resetRateField = (item, field, label, groupLabel) => {
@@ -565,8 +563,7 @@
     const rows = [];
     for (const record of matches) {
       const { item, kind, uses } = record, inventoryView = kind === "inventory";
-      const row = node("tr", "pricing-product-start");
-      row.classList.toggle("edited", Boolean(state.draft[kind]?.[item.id]));
+      const row = node("tr", state.draft[kind]?.[item.id] ? "edited" : "");
       row.dataset.priceId = item.id; row.dataset.priceKind = kind;
       row.append(node("td", "", inventoryView ? item.item_code || "—" : "—"));
       const nameCell = node("td");
@@ -574,7 +571,7 @@
       else nameCell.append(node("span", "", item.name));
       const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : "Standalone rate · no inventory link";
       nameCell.append(node("small", "subtext", detail));
-      nameCell.append(resetButton(kind, item));
+      if (!uses.length) nameCell.append(node("small", "subtext", "Not used in Estimator"));
       row.append(nameCell);
       if (inventoryView) {
         const supplier = node("td");
@@ -594,34 +591,39 @@
         const price = node("span", "price-value"); refreshers.push(() => { price.textContent = formatMoney(rateSellPrice(item)); });
         const sell = node("td"); sell.append(price); row.append(node("td", "", "—"), node("td", "", "—"), sell);
       }
-      // Product pricing has one editor, shared across all of its visible uses.
-      for (const cell of row.children) { cell.rowSpan = Math.max(1, uses.length); cell.classList.add("pricing-product-cell"); }
+      const reset = node("td"); reset.append(resetButton(kind, item)); row.append(reset);
       rows.push(row);
-      if (!uses.length) {
-        row.append(node("td", "pricing-use-category", "Not used in Estimator"), node("td", "pricing-selection", "—"), node("td", "", "—"), node("td", "", "—"));
-        continue;
-      }
-      for (const [index, { group, item: rate }] of uses.entries()) {
+      if (!uses.length) continue;
+      const detailRow = node("tr", "pricing-use-row"), detailCell = node("td"), details = node("details", "pricing-uses");
+      detailCell.colSpan = 6; detailRow.dataset.pricingUsesFor = record.key;
+      const groupNames = [...new Set(uses.map(({ group }) => groups[group] || group))].join(", ");
+      details.append(node("summary", "", `Used in: ${groupNames} · ${uses.length} ${uses.length === 1 ? "selection" : "selections"}`));
+      details.open = state.pricingExpanded.has(record.key) || Boolean(search && !productText(record).includes(search));
+      details.addEventListener("toggle", () => { if (details.open) state.pricingExpanded.add(record.key); else state.pricingExpanded.delete(record.key); });
+      const scroll = node("div", "pricing-uses-scroll"), table = node("table", "pricing-uses-table"), head = node("thead"), titles = node("tr"), body = node("tbody");
+      table.setAttribute("aria-label", `Estimator uses for ${getOverride(kind, item.id).name || item.name}`);
+      for (const title of ["Used in Estimator", "Selection name", "Sell rate", "Price source", "Yield", ""]) { const cell = node("th", "", title); cell.scope = "col"; titles.append(cell); }
+      head.append(titles);
+      for (const { group, item: rate } of uses) {
         const groupLabel = groups[group] || group;
-        const useRow = index === 0 ? row : node("tr", "pricing-use-row"); useRow.dataset.rateId = rate.id; useRow.dataset.rateGroup = group;
-        const price = node("td", "pricing-rate-cell"), input = priceInput("rates", rate, "price", { label: `${groupLabel} sell rate`, defaultValue: rateSellPrice(rate), onChange: refreshPrices });
-        const status = node("small", "pricing-rate-source"); status.dataset.rateSource = rate.id;
-        price.append(input, status, resetRateField(rate, "price", "Reset rate", groupLabel));
+        const useRow = node("tr", state.draft.rates?.[rate.id] ? "edited" : ""); useRow.dataset.rateId = rate.id; useRow.dataset.rateGroup = group;
+        const price = node("td"), input = priceInput("rates", rate, "price", { label: `${groupLabel} sell rate`, defaultValue: rateSellPrice(rate), onChange: refreshPrices }); price.append(input);
+        const status = node("td", "pricing-rate-source");
         refreshers.push(() => {
           if (input !== document.activeElement) input.value = controlValue(rateSellPrice(rate));
-          useRow.classList.toggle("edited", Boolean(state.draft[kind]?.[item.id] || state.draft.rates?.[rate.id]));
           status.textContent = Object.hasOwn(getOverride("rates", rate.id), "price") ? "Rate override" : !inventoryView ? "Standalone rate" : rate.price_mode === "override" ? "Imported rate override" : "Follows inventory pricing";
         });
-        const yieldCell = node("td", "pricing-yield-cell");
+        const yieldCell = node("td"), actions = node("td", "pricing-rate-actions");
+        actions.append(resetRateField(rate, "price", "Reset rate", groupLabel));
         if (rate.uses_yield ?? !!rate.source?.yield) {
           yieldCell.append(priceInput("rates", rate, "yield", { label: `${groupLabel} material yield`, onChange: refreshPrices }));
-          yieldCell.append(resetRateField(rate, "yield", "Reset yield", groupLabel));
+          actions.append(resetRateField(rate, "yield", "Reset yield", groupLabel));
         } else yieldCell.textContent = "—";
-        useRow.append(node("td", "pricing-use-category", groupLabel), node("td", "pricing-selection", rate.name), price, yieldCell);
-        if (index > 0) rows.push(useRow);
+        useRow.append(node("td", "", groups[group] || group), node("td", "", rate.name), price, status, yieldCell, actions); body.append(useRow);
       }
+      table.append(head, body); scroll.append(table); details.append(scroll); detailCell.append(details); detailRow.append(detailCell); rows.push(detailRow);
     }
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 9; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 6; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();

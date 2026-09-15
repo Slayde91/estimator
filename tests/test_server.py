@@ -1,6 +1,7 @@
 import base64
+import csv
 import http.client
-from io import BytesIO
+from io import BytesIO, StringIO
 import json
 from pathlib import Path
 import tempfile
@@ -149,25 +150,51 @@ class ServerTests(unittest.TestCase):
             sheet = workbook["Inventory & Rates"]
             columns = {cell.value: cell.column for cell in sheet[1]}
             records = list(sheet.iter_rows(min_row=2, values_only=True))
-            self.assertEqual(sum(row[columns["Row type"] - 1] == "Inventory" for row in records), 417)
-            self.assertEqual(sum(row[columns["Row type"] - 1] == "Use" for row in records), 166)
-            # Delete the current default choice and add a new product and choice.
-            for row in sheet.iter_rows(min_row=2):
-                if (row[columns["Row type"] - 1].value == "Use"
-                        and row[columns["Name"] - 1].value == "Promat Cafco 300"):
-                    sheet.delete_rows(row[0].row)
+            self.assertNotIn("Row type", columns)
+            self.assertEqual(len(records), 417)
+            self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 417)
+            use_columns = ("Group", "Selection name", "Price source", "Sell rate",
+                           "Yield type", "Yield", "Rate ID", "Use order")
+
+            def read_uses(record):
+                values = {name: record[columns[name] - 1] for name in use_columns}
+                if all(value in (None, "") for value in values.values()):
+                    return {name: [] for name in use_columns}
+                result = {name: next(csv.reader(StringIO(value, newline=""), delimiter=";", strict=True))
+                          if isinstance(value, str) and value else [value]
+                          for name, value in values.items()}
+                self.assertEqual(len({len(entries) for entries in result.values()}), 1)
+                return result
+
+            self.assertEqual(sum(len(read_uses(record)["Rate ID"]) for record in records), 166)
+            # Remove one choice from all eight lists, retaining its product.
+            removed_choice = None
+            for number, record in enumerate(records, 2):
+                uses = read_uses(record)
+                for index, (group, name) in enumerate(zip(uses["Group"], uses["Selection name"])):
+                    if group != "sprays" or name != "Promat Cafco 300":
+                        continue
+                    self.assertIsNone(removed_choice)
+                    removed_choice = (record[columns["Inventory ID"] - 1], uses["Rate ID"][index])
+                    for heading, entries in uses.items():
+                        entries.pop(index)
+                        value = None
+                        if len(entries) == 1 and not isinstance(entries[0], str):
+                            value = entries[0]
+                        elif entries:
+                            encoded = StringIO(newline="")
+                            csv.writer(encoded, delimiter=";").writerow(entries)
+                            value = encoded.getvalue()[:-2]
+                        sheet.cell(number, columns[heading]).value = value
                     break
-            for record in (
-                {"Row type": "Inventory", "Inventory ID": "qa-new-product", "Item code": "QA-001",
-                 "Name": "Replacement spray", "Sales description": "Replacement spray",
-                 "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
-                 "Sell price / rate": 125},
-                {"Row type": "Use", "Rate ID": "qa-new-rate", "Group": "sprays",
-                 "Inventory ID": "qa-new-product", "Name": "Replacement spray",
-                 "Price source": "Inventory", "Sell price / rate": 125,
-                 "Yield type": "Not used", "Use order": 999},
-            ):
-                sheet.append([record.get(header) for header in columns])
+            self.assertIsNotNone(removed_choice)
+            record = {"Inventory ID": "qa-new-product", "Item code": "QA-001",
+                      "Product name": "Replacement spray", "Sales description": "Replacement spray",
+                      "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
+                      "Sell price": 125, "Rate ID": "qa-new-rate", "Group": "sprays",
+                      "Selection name": "Replacement spray", "Price source": "Inventory", "Sell rate": 125,
+                      "Yield type": "Not used", "Use order": 999}
+            sheet.append([record.get(header) for header in columns])
             stream = BytesIO()
             workbook.save(stream)
             workbook.close()
@@ -176,8 +203,12 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(status, 200, body)
             proposed = json.loads(body)
             self.assertEqual(proposed["summary"]["inventory"]["added"], 1)
+            self.assertEqual(proposed["summary"]["inventory"]["removed"], 0)
             self.assertEqual(proposed["summary"]["rates"]["added"], 1)
             self.assertEqual(proposed["summary"]["rates"]["removed"], 1)
+            catalog = proposed["configuration"]["catalog"]
+            self.assertIn(removed_choice[0], {item["id"] for item in catalog["inventory"]})
+            self.assertNotIn(removed_choice[1], {rate["id"] for rates in catalog["rate_groups"].values() for rate in rates})
             self.assertEqual(self.request("GET", "/api/configuration")[2], pricing_before)
             self.assertEqual(self.request("PUT", "/api/configuration", proposed["configuration"])[0], 200)
             self.assertEqual(Store(Path(self.temp.name) / "test.sqlite3").configuration(), proposed["configuration"])

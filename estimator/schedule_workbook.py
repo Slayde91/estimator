@@ -195,6 +195,8 @@ def _check_order(payload):
                 previous_column = 0
                 for cell in row.findall(f"{namespace}c"):
                     match = re.fullmatch(r"([A-Z])([1-9]\d*)", cell.attrib["r"])
+                    if match is None:
+                        raise ValidationError("Use the selected calculator's schedule template; schedule columns must be within A:Z.")
                     column = ord(match[1]) - 64
                     if int(match[2]) != index or column <= previous_column:
                         raise ValidationError("Schedule workbook has duplicate, unordered or misplaced cells.")

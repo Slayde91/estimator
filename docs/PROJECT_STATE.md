@@ -2,29 +2,68 @@
 
 Date: 2026-09-16. Executable code and checked results take precedence over this document.
 
-Current increment: visible pricing yields and Excel view repair on
-`fix/pricing-workbook-views-and-visible-yields`, based on PR #23 merge
-`53c875dc4d4d7e576507f8d93bf1957e1c39e7ec`.
+Current increment: compact pricing export and restored expandable Used in
+details on `feat/compact-pricing-workbook`, based on verified PR #24 merge
+`7408276`.
 
-Pricing library shows each category, selection, sell rate and yield inline
-beside its product. Product purchasing values have one editor even with several
-uses. The Excel template displays all 417 Inventory and 166 Use rows without
-row outlining. Use-only fields remain blank on Inventory rows. The exporter
-initializes final C2/A2 freeze panes once with unique valid selections, fixing
-the duplicate/nonexistent pane records in the user's repair-triggering file.
-The same combined headers, stable IDs/use order, pricing/yield rules, legacy
-import support and saved-quote snapshots remain; there is no data migration.
+The browser again keeps category, selection, rate/source and yield controls
+inside each product's native expandable details. Shared product pricing,
+independent rate/yield resets, group filtering, search, unused inventory and
+standalone rates retain the existing draft behavior.
 
-Local validation: 24 pricing workbook tests passed, including both legacy and
-combined 216-scenario calculation comparisons, plus four integration tests and
-32 Estimator UI checks. Excel 16.0 build 20326 opened the corrected two-sheet
-file read-only with normal loading; the original failed the same check. All
-Inventory & Rates cell values match exactly and all 583 data rows are visible.
-Both sheets were rendered and reviewed. Browser checks confirmed shared-price
-propagation, a separate rate/yield override and independent resets. The current
-commit/PR/CI/merge remain pending at this checkpoint. Evidence and the final
-publication receipt belong in `.runtime/pricing-visible-yields-qa`. Earlier
-expandable/collapsed pricing descriptions below record superseded release behavior.
+The Inventory & Rates workbook has one row per product and 27 columns A:AA.
+Eight aligned semicolon CSV lists represent its uses, keeping empty slots,
+quoted names and exact rate/yield values. Mismatched list lengths are rejected.
+Product Sell price and use Sell rate stay separate. New blank-ID products link
+their same-row uses automatically; standalone rate rows leave product fields
+blank. Both older combined Inventory/Use rows and legacy separate sheets still
+import through the same validation path. Import remains a reviewed draft until
+Save pricing. Pricing rules, database schema and saved-quote snapshots are
+unchanged; the previous valid freeze-pane handling is retained.
+
+Initial local checks: 34 unique workbook tests passed across runs (ten compact and
+24 legacy), including three 216-scenario parity routes and the quoted-CRLF/XML
+normalization fix. Five API integration tests initially passed in 159.698 seconds,
+and all 126 UI checks pass (33 Estimator and 93 Calculator). JavaScript syntax
+and scoped diff checks pass. The export has
+417 product rows and 166 uses; effective catalog values, links and order match
+exactly after import. Excel 16.0 build 20326 opened the preceding 583-row and
+new 417-row files normally. Native SaveCopyAs/reimport preserved the exact
+catalog with zero changes. Both sheets were rendered and reviewed, including
+the ten-use N/A and two-use SBR rows. Browser filters and expansion work; Primer
+yield 155 survives closing/reopening while Topcoats stays 142.
+
+Initial CI on pushed commit `ba98894` caught a shared import-column limit
+that rejected board schedules, an old-format server-test assumption, and CRLF
+normalization when openpyxl runs without lxml. These paths are corrected.
+All 13 schedule tests (42.188 seconds), 14 server tests (21.797 seconds), and
+seven focused no-lxml serializer/precision/security tests (37.618 seconds) pass.
+The latter covers exact text and numeric values across two saves, including a
+text-only sheet. Wrong-format pricing uploads receive a validation error in all
+three calculators. That correction audit found no issues. Both CI runs on
+`b0b058a` passed 274 Python tests plus four optional source skips, 126 UI checks
+and build.
+
+A later native Excel edge probe required canonical OOXML text decoding and
+pricing-only literal-escape protection. The final parser passes five API tests
+(55.331 seconds, no skips), and the native three-use probe preserves names,
+rates, yields and IDs with zero import changes. Eight focused workbook tests
+pass (39.907 seconds), including OOXML text/escape validation, no-lxml handling
+and precision across all supported layouts. Native Excel 16.0 build 20326
+opened and saved the final literal-text probe normally: CRLF/LF, quoted
+semicolons, spaces and literal escape-looking text remain exact after app
+import, as do all three rate/yield pairs and identities, with zero changes.
+Fresh corrected-head CI, final runtime rechecks and publication remain pending;
+the earlier `b0b058a` success
+does not validate this final text correction. Evidence belongs in
+`.runtime/compact-pricing-qa`, with the final receipt at `publication.json`.
+
+Historical PR #24 repaired Excel worksheet views and displayed uses inline.
+Its 24 workbook tests, four integration tests, 32 UI checks, normal native Excel
+open and exact exported-value comparison passed. PR #24 merged at `7408276`
+with successful post-merge CI; see
+`.runtime/pricing-visible-yields-qa/publication.json`. Those results describe
+the preceding layout, not validation of the current compact format.
 
 Previous increment, published as PR #23: calculator presentation polish for twelve browser comments.
 Export template shares the Excel-green register style. The quick Section ID
@@ -39,8 +78,8 @@ before/after comparison preserves all 104,068 source values/input properties
 and shared option sets across twelve worksheets. Browser review confirms the
 native list, recalculation, all three toolbar styles, five product-setting
 fills/weights and the corrected manual-quantity grid at desktop/mobile sizes.
-Current validation and publication evidence belongs to
-`.runtime/calculator-polish-qa/publication.json` once recorded.
+That release's validation and publication evidence belongs to
+`.runtime/calculator-polish-qa/publication.json`.
 
 The unified pricing release below merged in PR #22 at
 `a4c8ffca5757f8abb96adff6eb6ab133e29f74c9`; both pre-merge CI runs passed
@@ -53,7 +92,7 @@ Used in Estimator filter, searchable product rows and expandable category/rate/
 yield details. Products with multiple uses share one inventory price owner;
 unused inventory and standalone rates remain accessible. Excel actions are green.
 
-The new values-only workbook has Inventory & Rates and Instructions sheets.
+That release's values-only workbook had Inventory & Rates and Instructions sheets.
 Inventory rows own purchasing values; collapsed Use rows preserve explicit IDs,
 group memberships, independent rates/yields and dropdown order. Old two-sheet
 pricing imports remain supported. The shared parser, calculation rules, catalogue

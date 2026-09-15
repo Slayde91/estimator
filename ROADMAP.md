@@ -1,16 +1,39 @@
 # Roadmap
 
-Current increment: visible pricing rates/yields and repaired Excel worksheet
-views on `fix/pricing-workbook-views-and-visible-yields`. The browser shows uses
-inline beside shared product pricing; all Excel Use rows are visible. Final
-freeze panes have unique, valid selections, avoiding Excel's view repair.
-The existing models, import schema, pricing rules and saved snapshots remain.
-Local checks pass: 24 pricing workbook tests, including both 216-scenario parity
-comparisons, four integration tests and 32 Estimator UI checks. Native Excel
-opened the corrected file normally; exported cell values match the original
-exactly. Both sheets were rendered, and browser checks verified shared prices
-and independent rate/yield resets. Publication remains pending at this
-checkpoint; evidence belongs in `.runtime/pricing-visible-yields-qa`.
+Current increment: compact pricing workbook and restored expandable Used in
+details on `feat/compact-pricing-workbook`. The exchange has one row per product
+with separate product Sell price and use Sell rate, eight aligned semicolon CSV
+use lists, preserved empty positions and strict count validation. Existing
+combined-row and two-list imports remain supported. The browser restores
+expand/collapse while retaining shared pricing and independent use edits.
+No calculation model, commercial rule or SQL migration is added.
+
+Initial local checks passed 34 unique workbook tests across runs (ten compact and 24 legacy),
+including three 216-scenario parity routes. Five API integration tests and all
+126 UI checks (33 Estimator and 93 Calculator) pass, as do JavaScript syntax and
+scoped diff checks. The 417-row export retains all 166 uses and exact
+catalog values, links and order. Native Excel opened both old/new layouts
+normally; its saved copy reimported without catalog changes. Both sheets were
+rendered, and browser filters/expanders preserved independent yields.
+
+Initial CI at `ba98894` caught the shared board-schedule column limit, an old
+server-test layout assumption and no-lxml CRLF normalization. The corrections
+pass 13 schedule, 14 server and seven no-lxml serializer/precision/security
+checks, including wrong-format upload validation for all three calculators.
+That correction audit found no issues, and both `b0b058a` CI runs passed 274
+Python tests plus four optional source skips, 126 UI checks and build.
+
+A later native Excel probe exposed escaped CRLF text. The final pricing-only
+decoder/export correction passes five API tests, eight focused workbook tests
+and the native three-use text/rate/yield/ID probe. Native SaveCopyAs/reimport
+preserves CRLF/LF, quoted names and literal escape-looking text with zero
+changes. Fresh corrected-head CI, final runtime rechecks and
+publication remain pending. Evidence belongs in `.runtime/compact-pricing-qa`.
+
+Historical PR #24 merged at `7408276` with successful post-merge CI. It repaired
+freeze-pane metadata and temporarily used an inline browser table with separate
+visible Excel Use rows. Its native Excel open, parity and browser results are
+retained in `.runtime/pricing-visible-yields-qa/publication.json`.
 
 Calculator dropdown/display polish merged in PR #23 at `53c875d`. Its scoped
 omissions, native quick dropdown and styles remain implemented. Release evidence
@@ -43,7 +66,7 @@ not verify this subsequent presentation increment or its publication status.
 - Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and saved/PDF work summaries.
 - Estimator NOTES label on the existing measurement field, blank B12 notes for new estimates, and no generated-summary panel. Saved notes, summary data and internal workflow behavior remain intact.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
-- Unified Inventory & Rates with a use filter, inline category/rate/yield controls, one shared product-price editor, separate resets, visible Excel Use rows, valid freeze panes and legacy-template import compatibility.
+- Unified Inventory & Rates with a use filter, expandable category/rate/yield details, one shared product-price editor and separate resets. Compact one-row product exports retain independent uses through aligned lists, valid freeze panes and both previous template formats on import.
 - Two-decimal presentation while retaining raw calculation precision.
 - Three workbook Calculators, source-backed browser tabs, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Source-backed vermiculite START/SETTINGS/FACTOR CALCS views: operating rules shown directly, seven settings choices and three helper choices. Duct and board retain five/three settings choices; all preserve complete calculation/save/report scope. Scoped navigation, order-first BAGS, MEMBER SCHEDULE, published-value units/highlight and expanded board START.
@@ -67,8 +90,8 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-SESSION_HANDOFF.md records the current pricing view/visibility checkpoint.
-Use current Git/checks and `.runtime/pricing-visible-yields-qa/publication.json` for later
+SESSION_HANDOFF.md records the current compact-pricing checkpoint.
+Use current Git/checks and `.runtime/compact-pricing-qa/publication.json` for later
 validation and publication outcomes. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 
@@ -82,7 +105,8 @@ and display checks; source expectations stay unchanged. See
 
 ## Meaningful remaining work
 
-Validate and publish the current display increment, then verify the refreshed runtime.
+Validate the current compact workbook and restored browser details, verify the
+refreshed runtime and saved state, then publish the increment.
 Verify the current PR's exact-head CI/review state before merging and confirm
 the resulting merge commit. Earlier CI or billing results do not establish the
 current outcome. Never bypass or relabel a failed check.

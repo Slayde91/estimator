@@ -37,7 +37,12 @@ The original Quote estimator uses assessed coverage/product quantities, as its E
 
 ## Calculators
 
-Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table to reach them. Editable fields have controls; calculated outputs use one highlight for populated values and another for blanks. Zero is a populated value. Main sections retain their colours and **On this page** links. Settings pages are headed **SETTINGS & RULES**. Single-member forms fit a phone, with comparison tables scrolling separately.
+Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table to reach them. Editable fields have controls; calculated outputs use one highlight for populated values and another for blanks. Zero is a populated value. Main sections use white text on red headings. Single-member forms fit a phone, with comparison tables scrolling separately.
+
+On **SETTINGS & RULES**, choose a section to open it. Only that section is shown;
+your other settings still affect calculations and are retained when you save or
+download. The browser remembers the open section while you switch pages.
+Vermiculite BAGS shows product ordering before the separate manual calculation.
 
 Enter inputs directly, or click **Export template**, fill its schedule in Excel and use **Import schedule**. Import replaces the complete schedule, including clearing unused old rows, and preserves other calculator settings. It stays a draft until **Save calculator**. Each calculator keeps its own saved inputs and settings. **Reset calculator defaults** restores the example schedule and default settings as a draft; vermiculite uses the reviewed material defaults described below.
 

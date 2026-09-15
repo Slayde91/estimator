@@ -197,10 +197,14 @@
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
     $("calculator-excel").disabled = state.action || hasErrors;
-    if (hasErrors) $("calculator-calculation-status").textContent = "Enter a valid number to recalculate.";
+    if (hasErrors) calculationStatus("Enter a valid number to recalculate.");
     $("calculator-reset").disabled = state.action;
     $("calculator-import").disabled = state.action;
     $("calculator-template").disabled = state.action;
+  }
+
+  function calculationStatus(text = "") {
+    const status = $("calculator-calculation-status"); status.textContent = text; status.hidden = !text;
   }
 
   function setInput(entry, sheet, address, value) {
@@ -293,7 +297,7 @@
         if (!Number.isFinite(next)) {
           entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
           entry.revision++; entry.pendingResult = null; clearTimeout(state.timer); updateStatus(entry);
-          $("calculator-calculation-status").textContent = "Enter a valid number to recalculate."; return;
+          calculationStatus("Enter a valid number to recalculate."); return;
         }
         if (percent(cell)) next = decimalShift(next, -2);
       }
@@ -302,11 +306,11 @@
       else control.removeAttribute("title");
       setInput(entry, entry.sheet, address, next);
     });
-    control.addEventListener("blur", () => {
+    control.addEventListener("blur", (event) => {
       const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : value;
       if (!select && cell.type === "select" && !allowOther && selectedValue !== null && selectedValue !== "" && !options.some((option) => String(option) === String(selectedValue)) && String(value ?? "") !== String(selectedValue)) {
         entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
-        $("calculator-calculation-status").textContent = "Choose a value from the available list."; updateStatus(entry);
+        calculationStatus("Choose a value from the available list."); updateStatus(entry);
       }
       for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = displayValue(item.value, cell);
       if (!select && !entry.invalid.has(key)) {
@@ -314,7 +318,9 @@
         if (numeric || isNumber(raw)) control.value = numericInputValue(raw, cell);
       }
       // Formatting alone never writes a rounded value back to the workbook.
-      if (focusedValue !== undefined && entry.pendingResult && !entry.invalid.size) {
+      // A pending layout must not detach a settings button between focus and click.
+      const choosingSettings = event?.relatedTarget?.dataset?.calculatorSettingsSection !== undefined;
+      if (focusedValue !== undefined && entry.pendingResult && !entry.invalid.size && !choosingSettings) {
         entry.result = entry.pendingResult; entry.pendingResult = null; renderGrid(entry);
       }
     });
@@ -341,7 +347,8 @@
 
   function updateOutputCell(element, cell) {
     const address = cell.address || element.dataset.calculatorOutput, entry = current();
-    element.textContent = displayValue(sourceDisplayText(cell.value, entry, address), cell);
+    const value = sourceDisplayText(cell.value, entry, address), suffix = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.suffix;
+    element.textContent = displayValue(value, cell) + (isNumber(value) && !cell.error && typeof suffix === "string" ? suffix : "");
     if (entry?.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["J32", "J65", "J97", "J174", "J230"].includes(address) && cell.value === "BACK TO TOP") {
       const link = node("a", "calculator-inline-link", "Back to worksheet controls"); link.href = "#calculator-sheet-title"; element.replaceChildren(link);
     }
@@ -363,7 +370,7 @@
 
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {} };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: result?.settings_sections ?? metadata.settings_sections ?? [], display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {
@@ -401,7 +408,7 @@
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -506,9 +513,36 @@
     contents.append(links); return contents;
   }
 
+  function settingsPanels(entry, definitions) {
+    const sheet = entry.sheet, chooser = node("div", "calculator-settings-chooser"), panels = new Map(), buttons = new Map();
+    chooser.setAttribute("role", "group"); chooser.setAttribute("aria-label", "Settings sections");
+    entry.settingsSelection ||= {};
+    const update = () => {
+      for (const [id, panel] of panels) {
+        const expanded = entry.settingsSelection[sheet] === id;
+        panel.hidden = !expanded; buttons.get(id).setAttribute("aria-expanded", String(expanded));
+      }
+    };
+    for (const [index, definition] of definitions.entries()) {
+      const prefix = `calculator-settings-${entry.definition.id}-${sheet}-${definition.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
+      const button = node("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
+      button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
+      panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
+      button.addEventListener("click", () => {
+        if (current() !== entry || entry.sheet !== sheet) return;
+        entry.settingsSelection[sheet] = entry.settingsSelection[sheet] === definition.id ? null : definition.id;
+        if (entry.pendingResult && !entry.invalid.size) { entry.result = entry.pendingResult; entry.pendingResult = null; renderGrid(entry); }
+        else update();
+      });
+      chooser.append(button); buttons.set(definition.id, button); panels.set(definition.id, panel);
+    }
+    update(); return { chooser, panels };
+  }
+
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
     const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry);
+    grid.classList.toggle("calculator-grid-expanded", Boolean(metadata.expand_tables));
     entry.productTotalsElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
@@ -521,6 +555,8 @@
     const presentationTables = metadata.presentation_tables;
     const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
     const projectedTables = metadata.table_layout === "projected" && presentationTables.length > 0;
+    const settingsDefinitions = metadata.navigation_mode === "select" ? metadata.settings_sections.map((section) => ({ ...section, bounds: section.ranges.map((range) => { const [start, end] = range.split(":").map(parseAddress); return { start, end: end || start }; }) })) : [];
+    const sectionOwner = (row, column) => settingsDefinitions.find((section) => section.bounds.some(({ start, end }) => row >= start.row && row <= end.row && column >= start.column && column <= end.column))?.id || null;
     const boardSummary = entry.definition.id === "steel_board" && entry.sheet === "BOARD SUMMARY";
     const tableForRow = (row) => presentationTables.findIndex((table) => row >= table.first_row && row <= table.last_row);
     const displayMerges = Object.values(metadata.display_cells).map((cell) => cell.merge).filter(Boolean);
@@ -611,6 +647,22 @@
         if (!sections.has(group)) addGroup(group, rows.filter((candidate) => groupForRow(candidate.row) === group), definition);
       }
     }
+    if (settingsDefinitions.length) {
+      const originalGroups = [...sections]; sections.clear();
+      for (const owner of [null, ...settingsDefinitions.map((section) => section.id)]) for (const [key, original] of originalGroups) {
+        const visibleCell = (row, column) => original.visibleCell(row, column) && sectionOwner(row, column) === owner;
+        const sourceRows = original.sourceRows.map((row) => ({ ...row, cells: row.cells.filter((cell) => original.columns.includes(cell.column) && visibleCell(row.row, cell.column)) }))
+          .filter((row) => row.cells.some((cell) => cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "") || owner && original.definition && original.columns.some((column) => visibleCell(row.row, column)));
+        if (!sourceRows.length) continue;
+        let groupColumns = original.columns.filter((column) => sourceRows.some((row) => visibleCell(row.row, column)));
+        if (!owner) {
+          const occupied = new Set(sourceRows.flatMap((row) => row.cells.filter((cell) => cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "").map((cell) => cell.column)));
+          for (const merge of merges) if (sourceRows.some((row) => row.row === merge.start.row && row.cells.some((cell) => cell.column === merge.start.column && cell.value != null && cell.value !== ""))) for (const column of groupColumns) if (column >= merge.start.column && column <= merge.end.column) occupied.add(column);
+          groupColumns = groupColumns.filter((column) => occupied.has(column));
+        }
+        sections.set(`${key}-settings-${owner || "common"}`, { ...original, body: node("tbody"), sourceRows, rows: sourceRows.map((row) => row.row), columns: groupColumns, visibleCell, settingsSectionId: owner });
+      }
+    }
     const headRow = node("tr");
     for (const column of columns) {
       const label = String(labels[column] || "");
@@ -681,14 +733,21 @@
       renderedGroup.body.append(tr);
     }
     const content = [];
-    if (sectionLinks.length) content.push(renderContents(sectionLinks));
+    const settings = settingsDefinitions.length ? settingsPanels(entry, settingsDefinitions) : null;
+    if (sectionLinks.length && metadata.navigation_mode === "links") content.push(renderContents(sectionLinks));
     if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
     if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
     if (schedule && (entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE" || entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR")) {
       const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
-    for (const [group, renderedGroup] of sections) {
+    const displayGroups = [...sections], tableSlots = displayGroups.map(([, group], index) => group.definition ? index : -1).filter((index) => index >= 0);
+    if (metadata.display_table_order.length) {
+      const priority = (group) => { const index = presentationTables.indexOf(group.definition), selected = metadata.display_table_order.indexOf(index); return selected < 0 ? metadata.display_table_order.length + index : selected; };
+      const orderedTables = tableSlots.map((index) => displayGroups[index]).sort((left, right) => priority(left[1]) - priority(right[1]));
+      tableSlots.forEach((index, position) => { displayGroups[index] = orderedTables[position]; });
+    }
+    for (const [group, renderedGroup] of displayGroups) {
       const { body, definition, columns: groupColumns } = renderedGroup;
       const responsive = definition?.table_kind === "form" || matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" || definition?.table_kind === "comparison" ? " calculator-comparison-table" : ""}`);
@@ -709,20 +768,25 @@
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
-      if (definition || !schedule && ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet)) scroll.classList.add("calculator-section-scroll");
+      if (definition || metadata.expand_tables || !schedule && ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet)) scroll.classList.add("calculator-section-scroll");
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);
       const link = definition && tableLinks[presentationTables.indexOf(definition)];
+      const append = (element) => { const panel = settings?.panels.get(renderedGroup.settingsSectionId); if (panel) panel.append(element); else content.push(element); };
       if (link) {
         const section = node("section", projectedTables ? "calculator-projected-section" : "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, link.label); heading.id = link.id;
         const titleCell = sourceCells.get(definition.title_address);
         applyCellDisplay(heading, metadata.display_cells[definition.title_address]);
         if (titleCell) { heading.dataset.calculatorOutput = definition.title_address; updateOutputCell(heading, titleCell); }
-        section.append(heading, scroll); content.push(section);
+        section.append(heading, scroll); append(section);
       }
-      else content.push(scroll);
+      else if (schedule && metadata.schedule_heading) {
+        const section = node("section", "calculator-schedule-section"), heading = node("h4", "", metadata.schedule_heading);
+        section.append(heading, scroll); append(section);
+      } else append(scroll);
     }
+    if (settings) content.push(settings.chooser, ...settings.panels.values());
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     entry.renderedSheet = entry.sheet; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     $("calculator-page-status").textContent = schedule ? `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
@@ -732,7 +796,7 @@
     const entry = current(); if (!entry || entry.invalid.size) return;
     clearTimeout(state.timer);
     const revision = entry.revision, sheet = entry.sheet, serial = ++state.requestRevision;
-    $("calculator-calculation-status").textContent = "Calculating…";
+    calculationStatus("Calculating…");
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
       const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false }) });
@@ -745,12 +809,14 @@
       if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
       else if (!entry.needsRender && active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
       else { entry.pendingResult = null; renderGrid(entry); }
-      const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter(Boolean);
+      const copiedFixingNote = "The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.";
+      const hideCopiedFixingNote = entry.definition.id === "ductwork" && ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"].includes(sheet);
+      const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter((warning) => warning && !(hideCopiedFixingNote && warning === copiedFixingNote));
       $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
-      $("calculator-calculation-status").textContent = warnings.length ? "Calculated · review the notes below" : "Calculated from the workbook rules";
+      calculationStatus();
       updateStatus(entry);
     } catch (error) {
-      if (current() === entry && serial === state.requestRevision && revision === entry.revision) { message(`Could not calculate. ${error.message}`, true); $("calculator-calculation-status").textContent = "Calculation needs attention"; }
+      if (current() === entry && serial === state.requestRevision && revision === entry.revision) { message(`Could not calculate. ${error.message}`, true); calculationStatus("Calculation needs attention"); }
     } finally { if (serial === state.requestRevision) $("calculator-grid").setAttribute("aria-busy", "false"); }
   }
 

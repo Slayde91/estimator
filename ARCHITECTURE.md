@@ -127,6 +127,22 @@ calculated values. Read-only outputs have two value-presence highlight states:
 populated and blank. Numeric zero belongs to the populated state; this styling
 does not interpret a technical status as acceptable or rejected.
 
+The same presentation metadata now declares Settings panel rectangles and a
+navigation mode. Vermiculite SETTINGS has eleven sections, Duct PRODUCT SETTINGS
+five and board SETTINGS three. Their initial view has no selected panel; native
+buttons reveal one section and retain that selection in client memory per
+calculator/page. This changes visibility only: the complete evaluated worksheet
+and draft still drive validation, recalculation, save/reset and PDF/Excel-register
+downloads. Column-bounded rectangles keep side-by-side duct/board tables
+independent without copying inputs or creating another calculation path.
+
+Existing presentation-table metadata controls the BAGS order and stable anchors;
+display aliases and a numeric-only suffix place mm beside the published value.
+Targeted browser text filtering removes generic success subtitles and the exact
+duct copied-fixing notice while preserving failures, other warnings and source
+responses. Board START expands with page scrolling. These are extensions of the
+existing renderer, with no dependency, source-graph or storage migration.
+
 Vermiculite SCHEDULE receives `product_totals` from the existing BAGS product
 formulas, with net bags, pooled whole bags and order status. Its browser table
 refreshes from these server results without rebuilding schedule controls. The

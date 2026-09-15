@@ -190,7 +190,9 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertEqual(sheet["omitted_rows"], expected_rows[sheet["name"]])
             self.assertEqual(sheet["omitted_columns"], [22, 23, 24] if sheet["name"] == "SCHEDULE" else [])
             self.assertEqual(sheet["omitted_ranges"], ["J28:N30"] if sheet["name"] == "CALCULATOR" else [])
-            self.assertEqual(sheet["display_text"], {"A1": "MATERIAL QUANTITIES"} if sheet["name"] == "BAGS" else {})
+            aliases = {"BAGS": {"A1": "MATERIAL QUANTITIES"},
+                       "SCHEDULE": {"A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
+            self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))
             for address in editable_cells(IDENTITY, sheet["name"]):
                 row, column = coordinates(address)
                 self.assertNotIn(row, sheet["omitted_rows"])
@@ -257,7 +259,7 @@ class CalculatorCleanupTests(unittest.TestCase):
 
     def test_display_spans_cover_only_decorative_children_and_notes_omission_has_no_inputs(self):
         expected = {
-            (IDENTITY, "BAGS"): {"G10": {"merge": "G10:N10", "role": "spacer"}},
+            (IDENTITY, "BAGS"): {"H10": {"merge": "H10:N10", "role": "spacer"}},
             ("ductwork", "CALCULATOR"): {"A3": {"role": "note"}},
             ("ductwork", "SUMMARY"): {"A17": {"merge": "A17:L17"}, "A29": {"merge": "A29:L29"}},
             ("ductwork", "PRODUCT SETTINGS"): {f"J{row}": {"merge": f"J{row}:Q{row}"} for row in (105, 108, 111, 131, 136)},
@@ -265,7 +267,8 @@ class CalculatorCleanupTests(unittest.TestCase):
         for (identity, name), overrides in expected.items():
             source = next(sheet for sheet in source_model(identity)["sheets"] if sheet["name"] == name)
             page = next(sheet for sheet in self.request("GET", identity=identity)["sheets"] if sheet["name"] == name)
-            self.assertEqual(page["display_cells"], overrides)
+            self.assertEqual({anchor: {key: value for key, value in override.items() if key in ("merge", "role")}
+                              for anchor, override in page["display_cells"].items() if "merge" in override or "role" in override}, overrides)
             self.assertEqual(page["merges"], source["merges"], "Source merge metadata must remain intact")
             inputs = editable_cells(identity, name)
             for anchor, override in overrides.items():
@@ -323,7 +326,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             (IDENTITY, "CALCULATOR"): [(5, 24, list(range(1, 7)), "A5"),
                                       (5, 24, list(range(8, 15)), "H5"),
                                       (26, 30, list(range(1, 10)), "A26")],
-            (IDENTITY, "BAGS"): [(6, 15, list(range(1, 15)), None), (17, 24, list(range(1, 10)), "A17")],
+            (IDENTITY, "BAGS"): [(6, 15, [*range(1, 7), *range(8, 15)], None), (17, 24, list(range(1, 10)), "A17")],
             ("ductwork", "PRODUCT SETTINGS"): [(94, 151, list(range(1, 9)), "A94"),
                                                (94, 113, list(range(10, 18)), "J94"),
                                                (115, 149, list(range(10, 18)), "J115")],
@@ -342,6 +345,14 @@ class CalculatorCleanupTests(unittest.TestCase):
                 self.assertNotIn(table.get("title_address"), editable_cells(identity, name))
             if identity == IDENTITY:
                 self.assertTrue({coordinates(address) for address in editable_cells(identity, name)} <= covered)
+                if name == "BAGS":
+                    source = next(sheet for sheet in source_model(identity)["sheets"] if sheet["name"] == name)
+                    for row in range(6, 16):
+                        divider = source["cells"].get(f"G{row}", {})
+                        self.assertIn(divider.get("value"), (None, ""))
+                        self.assertNotIn("formula", divider)
+                        self.assertNotIn((row, 7), covered)
+                    self.assertIn((20, 7), covered, "Preserve whole-bag order quantities below the manual form")
             else:
                 self.assertTrue({(row, 10) for row in range(137, 150)} <= covered, "Retain the H-selection lookup tail")
 

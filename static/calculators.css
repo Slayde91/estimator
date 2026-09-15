@@ -95,7 +95,7 @@
 .calculator-summary-three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .calculator-product-totals{width:100%;min-width:0;margin:0 0 12px}
 .calculator-product-totals h4{font-size:15px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);padding:16px 22px;border-bottom:4px solid var(--orange);margin:4px 0 7px}
-.calculator-product-totals>p{font-size:11px;margin-bottom:12px}
+.calculator-product-totals>p{font-size:11px;margin:0;padding:12px 15px;color:#6a555f;line-height:1.8;background:#fff0ce}
 .calculator-product-totals-scroll{overflow-x:auto;border:1px solid #000;border-radius:8px}
 .calculator-grid .calculator-product-totals table{width:100%;min-width:650px;table-layout:auto;font-size:12px}
 .calculator-grid .calculator-product-totals th,.calculator-grid .calculator-product-totals td{padding:10px 14px;vertical-align:middle}
@@ -159,3 +159,4 @@
 .calculator-overview-full h3{flex:0 0 100%;font-size:20px;margin:0}
 .calculator-overview-full .calculator-overview-note{flex:0 0 100%;padding:12px 15px;font-size:12px;color:#6a555f;line-height:1.8}
 .calculator-grid td.calculator-role-spacer{background:#fff0ce!important}
+.calculator-grid .calculator-align-center,.calculator-grid .calculator-align-center input,.calculator-grid .calculator-align-center select{text-align:center!important}

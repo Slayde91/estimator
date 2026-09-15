@@ -2,7 +2,38 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The latest eleven browser comments simplify the Estimator form and refine
+The latest 21 browser comments refine calculator units, table layout and label
+formatting. Vermiculite SCHEDULE's area and volume summary captions explicitly
+show m² and m³. Its running material totals and the board schedule's Board Totals
+occupy their own full-width sections with gold explanatory notes.
+
+The BAGS manual form omits decorative column G only in rows 6–15, preserving
+the working-yield label/value and the Whole bags quantities in the order table
+below. Its blank yield-row span is now H10:N10. Every SETTINGS/PRODUCT SETTINGS
+table expands with the page, while prepared schedule scrollers retain their
+existing vertical behavior. Duct SUMMARY and PRODUCT SETTINGS use bold first-column
+reference labels at explicit source anchors, keeping ancillary prose separate.
+The user-confirmed published-period table at vermiculite CALCULATOR A28:I30 is
+centered. Exact bounds are recorded in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md).
+
+These browser changes preserve source values, merges, formulas, input identities,
+saved-state behavior and PDF projections. Local validation passed 25 targeted
+Python tests, 73 calculator UI checks, 20 original UI checks, JavaScript syntax
+and the 34-file build. All 104,068 worksheet cells and three PDF text projections
+matched before/after. Browser checks confirmed the unit labels, full-width totals,
+centered period table, scoped BAGS omission, uncapped Settings tables and bold
+reference labels without errors; independent review found no actionable issues.
+
+The saved-data baseline contains two quotes and no settings or calculator-state
+records. The main service was successfully refreshed: all four served assets
+match the current files, and the new presentation metadata is active. The final
+database comparison preserved every record and schema version 2 exactly.
+Publication and current-head CI/merge remain pending. Detailed evidence and the
+current checkpoint are recorded at the top of SESSION_HANDOFF.md; successful
+local and runtime checks do not establish publication.
+
+The preceding eleven browser comments simplify the Estimator form and refine
 calculator table presentation. The Workflow dropdown is removed while saved
 workflow values and the existing new-estimate default remain in calculation,
 save and report requests. The existing dimensions/measurement field is labelled

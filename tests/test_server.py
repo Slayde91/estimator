@@ -146,16 +146,28 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertIn("spreadsheetml.sheet", headers["Content-Type"])
             workbook = load_workbook(BytesIO(exported))
-            inventory, rates = workbook["Inventory"], workbook["Rates"]
-            self.assertEqual(inventory.max_row, 418)
-            self.assertEqual(rates.max_row, 167)
+            sheet = workbook["Inventory & Rates"]
+            columns = {cell.value: cell.column for cell in sheet[1]}
+            records = list(sheet.iter_rows(min_row=2, values_only=True))
+            self.assertEqual(sum(row[columns["Row type"] - 1] == "Inventory" for row in records), 417)
+            self.assertEqual(sum(row[columns["Row type"] - 1] == "Use" for row in records), 166)
             # Delete the current default choice and add a new product and choice.
-            for row in rates.iter_rows(min_row=2):
-                if row[3].value == "Promat Cafco 300":
-                    rates.delete_rows(row[0].row)
+            for row in sheet.iter_rows(min_row=2):
+                if (row[columns["Row type"] - 1].value == "Use"
+                        and row[columns["Name"] - 1].value == "Promat Cafco 300"):
+                    sheet.delete_rows(row[0].row)
                     break
-            inventory.append(["qa-new-product", "QA-001", "Replacement spray", "Replacement spray", "Supplier markup", 100, .25, 125] + [None] * 11)
-            rates.append(["qa-new-rate", "sprays", "qa-new-product", "Replacement spray", "Inventory", 125, "Not used", None])
+            for record in (
+                {"Row type": "Inventory", "Inventory ID": "qa-new-product", "Item code": "QA-001",
+                 "Name": "Replacement spray", "Sales description": "Replacement spray",
+                 "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
+                 "Sell price / rate": 125},
+                {"Row type": "Use", "Rate ID": "qa-new-rate", "Group": "sprays",
+                 "Inventory ID": "qa-new-product", "Name": "Replacement spray",
+                 "Price source": "Inventory", "Sell price / rate": 125,
+                 "Yield type": "Not used", "Use order": 999},
+            ):
+                sheet.append([record.get(header) for header in columns])
             stream = BytesIO()
             workbook.save(stream)
             workbook.close()

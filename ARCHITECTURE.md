@@ -41,11 +41,21 @@ On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It r
 
 Previous architecture: a fixed workbook-derived catalog plus separately persisted user overrides. Proposed and implemented change: configuration JSON gains an optional `catalog` containing the active inventory and all 14 rate groups; the existing `inventory` and `rates` override maps remain separate. openpyxl 3.1.5 reads and writes the exchange workbook. This enables requested additions/removals and new prices while extending the existing calculator, configuration and SQLite boundaries.
 
-`POST /api/pricing/export` serializes the entire effective draft into Inventory, Rates and Instructions sheets. `POST /api/pricing/import` validates both lists and returns a replacement configuration with added/removed/updated counts; it never writes settings or quotes. The user reviews the replacement in the draft editor and applies it through the existing Save pricing operation. A removed row is removed from the active catalog after saving, while empty rate categories remain explicit. Unsupported category keys, duplicate choices, dangling inventory links and malformed values are rejected.
+`POST /api/pricing/export` serializes the entire effective draft into Inventory & Rates and Instructions sheets. Inventory rows own product details and purchasing values; outlined Use rows own the rate group, selection name, price source, rate and yield, linked by explicit Inventory ID. Rate IDs remain stable and Use order preserves dropdown order independently of product grouping or spreadsheet sorting. `POST /api/pricing/import` adapts the combined rows into the existing inventory/rate validation path and also accepts older separate Inventory and Rates sheets. It returns a replacement configuration with added/removed/updated counts and never writes settings or quotes. The user reviews the replacement in the draft editor and applies it through the existing Save pricing operation. A removed row is removed from the active catalog after saving, while empty rate categories remain explicit. Unsupported category keys, duplicate choices, dangling inventory links and malformed values are rejected.
 
 Existing IDs retain identity; new rows with blank IDs receive IDs. A user can supply a new unique Inventory ID in both lists when creating a linked product and rate together. A rate's `price_mode` distinguishes inventory-linked pricing from an explicit rate. Per-rate overrides still take final precedence. Its `uses_yield` flag derives from the fixed category rules, so new products do not need artificial worksheet references.
 
 Consequences: `.xlsx` is a values-only exchange format with exact headers, a 5 MB file limit, 5,000 rows per list and bounded archive contents. Formula cells, macro-bearing files, external links and unexpected data sheets are rejected; filtered/hidden rows still participate. Export preserves numeric values and literal strings. Import reconciles unchanged Excel-precision values with the existing catalog to avoid incidental price drift. Inventory dimensions may include descriptive ranges, while calculation yields retain their numeric/blank/empty-text semantics.
+
+The unified browser presentation replaces the former Inventory/Rates switch with
+one product list, a filter based on actual rate-group membership, and expandable
+Used in details. Unused inventory and unlinked rates remain accessible. This
+change makes purchasing values and their estimating uses editable together
+without flattening products with multiple uses into duplicate price records.
+The existing inventory and rate models, override precedence, fixed field-to-group
+mapping and name-within-group lookup remain unchanged. The workbook adaptation
+and presentation add no runtime dependency, SQL migration or alternate calculation
+path. Imports remain reviewed drafts and saved quotes retain their snapshots.
 
 Migration impact: no SQL schema change or eager quote rewrite. New and revised quotes embed the base catalog and freeze all effective prices/yields. Older configurations without `catalog` continue to resolve against the immutable original baseline, not the new global library. Their signature guard remains. Source hashes identify the catalog used and the imported pricing file; an unchanged saved quote retains its original lineage. Stored reports continue to use stored results directly.
 

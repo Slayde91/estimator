@@ -1,5 +1,36 @@
 # Session handoff
 
+## Unified Inventory & Rates — 2026-09-16
+
+Branch `feat/unified-inventory-rates` starts at PR #21's merge
+`ab48bafc45c13cd6077647f10aa4894e4fa64fad`. Pricing now has one product/use
+view with search, an explicit Used in Estimator filter and expandable use rows.
+Each category's price/yield controls have distinct accessible labels and separate
+reset actions. Unused products, standalone rates and imported price overrides
+remain available. Pricing import/export actions use the shared Excel green.
+
+The combined Inventory & Rates worksheet owns product values once and groups
+Use rows beneath their linked inventory. Use groups start collapsed; collapsed
+and filtered rows still import. IDs establish links independently of row order,
+and Use order preserves dropdown order. Both this new format and previous
+Inventory/Rates workbooks reuse the existing normalization/validation path.
+No pricing rule, original model, database schema or stored quote was migrated.
+
+Local validation passes: 22 workbook tests, four HTTP integration tests,
+14 server tests, 11 Calculator tests and 122 UI checks. The 216-scenario Excel
+oracle passes through both workbook layouts. Native browser review covers the
+combined list, filter, shared pricing, local override/yield, reset and Save pricing
+in an isolated test database. Artifact Tool rendered both new sheets for review;
+the workbook's outline flags were also checked. Native Excel was not automated.
+
+Recovery and evidence: `.runtime/unified-pricing-qa` holds the live database
+backup/state digest, original and new template previews, focused logs, and the
+publication receipt once CI and merge finish. The ready template is
+`C:/ESTIMATOR/outputs/unified-inventory-rates/ceasefire-pricing.xlsx`.
+The current live database is `.runtime/estimator.sqlite3`; test writes use only
+the separate browser.sqlite3 or temporary test databases. Keep user's open
+browser drafts intact during service refresh.
+
 ## Shared estimating notice — 2026-09-15
 
 Branch `feat/shared-estimating-notice` starts from merged PR #20,

@@ -6,7 +6,7 @@
     fields: [], currentFields: [], inputs: {}, catalog: { inventory: [], rate_groups: {} }, baseline: { inventory: [], rate_groups: {} },
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
-    result: null, revision: 0, timer: null, controller: null, pricingView: "inventory", legacyTitle: "",
+    result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -477,6 +477,7 @@
       row.classList.toggle("edited", !!state.draft[kind][item.id]);
       const output = row.querySelector("[data-sell-preview]");
       if (output) output.textContent = formatMoney(inventorySellPrice(item));
+      options.onChange?.();
     });
     if (!options.text) input.addEventListener("blur", () => {
       // Formatting the visible input does not add an override or round a rate.
@@ -511,11 +512,11 @@
   function refreshPricingCatalog() {
     state.catalog = clone(state.draft.catalog || state.baseline);
     const selection = $("rate-group").value;
-    const options = Object.keys(state.catalog.rate_groups || {}).map((key) => {
-      const option = node("option", "", groups[key] || key); option.value = key; return option;
+    const options = [["", "All uses"], ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, groups[key] || key]), ["not-used", "Not used"]].map(([key, label]) => {
+      const option = node("option", "", label); option.value = key; return option;
     });
     $("rate-group").replaceChildren(...options);
-    if (options.some((option) => option.value === selection)) $("rate-group").value = selection;
+    $("rate-group").value = options.some((option) => option.value === selection) ? selection : "";
   }
 
   function resetButton(kind, item) {
@@ -527,33 +528,50 @@
   }
 
   function renderPricing() {
-    const inventoryView = state.pricingView === "inventory";
-    $("pricing-body").closest("table").classList.toggle("rates-table", !inventoryView);
-    $("inventory-tab").classList.toggle("active", inventoryView);
-    $("rates-tab").classList.toggle("active", !inventoryView);
-    $("inventory-tab").setAttribute("aria-pressed", String(inventoryView));
-    $("rates-tab").setAttribute("aria-pressed", String(!inventoryView));
-    $("rate-group-field").hidden = inventoryView;
     const search = $("pricing-search").value.trim().toLocaleLowerCase();
-    const records = inventoryView ? state.catalog.inventory || [] : state.catalog.rate_groups?.[$("rate-group").value] || [];
-    const kind = inventoryView ? "inventory" : "rates";
-    const matches = records.filter((item) => `${item.name} ${item.item_code || ""} ${getOverride(kind, item.id).name || ""}`.toLocaleLowerCase().includes(search));
-    $("pricing-count").textContent = `${matches.length} of ${records.length} ${inventoryView ? "inventory items" : "rates"}`;
-    $("pricing-help").textContent = inventoryView
-      ? "Changing supplier price or markup recalculates the sell price. Items without a supplier calculation have an editable manual sell price. Reset a row to restore its imported values."
-      : "An explicit rate overrides linked inventory pricing. Reset the row to restore its imported rate. Yield is the material coverage per unit.";
+    const selectedGroup = $("rate-group").value;
+    const records = (state.catalog.inventory || []).map((item) => ({ kind: "inventory", item, uses: [], key: `inventory:${item.id}` }));
+    const products = new Map(records.map((record) => [record.item.id, record]));
+    for (const [group, rates] of Object.entries(state.catalog.rate_groups || {})) for (const item of rates) {
+      const use = { group, item }, product = products.get(item.inventory_id);
+      if (product) product.uses.push(use);
+      else records.push({ kind: "rates", item, uses: [use], key: `rates:${item.id}` });
+    }
+    const productText = ({ kind, item }) => `${item.name} ${item.item_code || ""} ${getOverride(kind, item.id).name || ""}`.toLocaleLowerCase();
+    const matches = records.filter((record) => {
+      const groupMatch = !selectedGroup || (selectedGroup === "not-used" ? !record.uses.length : record.uses.some((use) => use.group === selectedGroup));
+      const useText = record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ").toLocaleLowerCase();
+      return groupMatch && `${productText(record)} ${useText}`.includes(search);
+    });
+    $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
+    $("pricing-help").textContent = "Supplier price and markup calculate the product sell price. Expand Used in to edit each estimator rate or material yield. Reset rate restores its imported price source; Reset yield restores imported coverage.";
     const heading = node("tr");
-    for (const title of inventoryView ? ["Item code", "Product", "Supplier price", "Markup %", "Sell price", ""] : ["Rate / product", "Sell rate", "Yield", ""]) heading.append(node("th", "", title));
+    for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Sell price", ""]) heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
-    const rows = matches.map((item) => {
+    const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
+    const resetRateField = (item, field, label, groupLabel) => {
+      const button = node("button", "reset-button", label); button.type = "button";
+      button.setAttribute("aria-label", `${item.name}: ${groupLabel} ${label.toLowerCase()}`);
+      refreshers.push(() => { button.disabled = !Object.hasOwn(getOverride("rates", item.id), field); });
+      button.addEventListener("click", () => {
+        const patch = state.draft.rates?.[item.id];
+        if (patch) { delete patch[field]; if (!Object.keys(patch).length) delete state.draft.rates[item.id]; }
+        markPricingDirty(); renderPricing();
+      });
+      return button;
+    };
+    const rows = [];
+    for (const record of matches) {
+      const { item, kind, uses } = record, inventoryView = kind === "inventory";
       const row = node("tr", state.draft[kind]?.[item.id] ? "edited" : "");
-      row.dataset.priceId = item.id;
-      if (inventoryView) row.append(node("td", "", item.item_code || "—"));
+      row.dataset.priceId = item.id; row.dataset.priceKind = kind;
+      row.append(node("td", "", inventoryView ? item.item_code || "—" : "—"));
       const nameCell = node("td");
       if (inventoryView) nameCell.append(priceInput(kind, item, "name", { text: true, label: "Name" }));
       else nameCell.append(node("span", "", item.name));
-      const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : groups[$("rate-group").value] || $("rate-group").value;
+      const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : "Standalone rate · no inventory link";
       nameCell.append(node("small", "subtext", detail));
+      if (!uses.length) nameCell.append(node("small", "subtext", "Not used in Estimator"));
       row.append(nameCell);
       if (inventoryView) {
         const supplier = node("td");
@@ -562,25 +580,52 @@
           supplier.textContent = formatMoney(item.supplier_price);
           markup.textContent = "—";
         } else {
-          supplier.append(priceInput(kind, item, "supplier_price", { label: "Supplier price" }));
-          markup.append(priceInput(kind, item, "markup", { percent: true, label: "Markup" }));
+          supplier.append(priceInput(kind, item, "supplier_price", { label: "Supplier price", onChange: refreshPrices }));
+          markup.append(priceInput(kind, item, "markup", { percent: true, label: "Markup", onChange: refreshPrices }));
         }
         const sell = node("td");
-        if (item.pricing_mode === "manual") sell.append(priceInput(kind, item, "sales_price", { label: "Manual sell price" }));
+        if (item.pricing_mode === "manual") sell.append(priceInput(kind, item, "sales_price", { label: "Manual sell price", onChange: refreshPrices }));
         else { const output = node("span", "price-value", formatMoney(inventorySellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output); }
         row.append(supplier, markup, sell);
       } else {
-        const price = node("td"); price.append(priceInput(kind, item, "price", { label: "Sell rate", defaultValue: rateSellPrice(item) }));
-        const yieldCell = node("td");
-        if (item.uses_yield ?? !!item.source?.yield) yieldCell.append(priceInput(kind, item, "yield", { label: "Material yield" }));
-        else yieldCell.textContent = "—";
-        row.append(price, yieldCell);
+        const price = node("span", "price-value"); refreshers.push(() => { price.textContent = formatMoney(rateSellPrice(item)); });
+        const sell = node("td"); sell.append(price); row.append(node("td", "", "—"), node("td", "", "—"), sell);
       }
       const reset = node("td"); reset.append(resetButton(kind, item)); row.append(reset);
-      return row;
-    });
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = inventoryView ? 6 : 4; row.append(cell); rows.push(row); }
+      rows.push(row);
+      if (!uses.length) continue;
+      const detailRow = node("tr", "pricing-use-row"), detailCell = node("td"), details = node("details", "pricing-uses");
+      detailCell.colSpan = 6; detailRow.dataset.pricingUsesFor = record.key;
+      const groupNames = [...new Set(uses.map(({ group }) => groups[group] || group))].join(", ");
+      details.append(node("summary", "", `Used in: ${groupNames} · ${uses.length} ${uses.length === 1 ? "selection" : "selections"}`));
+      details.open = state.pricingExpanded.has(record.key) || Boolean(search && !productText(record).includes(search));
+      details.addEventListener("toggle", () => { if (details.open) state.pricingExpanded.add(record.key); else state.pricingExpanded.delete(record.key); });
+      const scroll = node("div", "pricing-uses-scroll"), table = node("table", "pricing-uses-table"), head = node("thead"), titles = node("tr"), body = node("tbody");
+      table.setAttribute("aria-label", `Estimator uses for ${getOverride(kind, item.id).name || item.name}`);
+      for (const title of ["Used in Estimator", "Selection name", "Sell rate", "Price source", "Yield", ""]) { const cell = node("th", "", title); cell.scope = "col"; titles.append(cell); }
+      head.append(titles);
+      for (const { group, item: rate } of uses) {
+        const groupLabel = groups[group] || group;
+        const useRow = node("tr", state.draft.rates?.[rate.id] ? "edited" : ""); useRow.dataset.rateId = rate.id; useRow.dataset.rateGroup = group;
+        const price = node("td"), input = priceInput("rates", rate, "price", { label: `${groupLabel} sell rate`, defaultValue: rateSellPrice(rate), onChange: refreshPrices }); price.append(input);
+        const status = node("td", "pricing-rate-source");
+        refreshers.push(() => {
+          if (input !== document.activeElement) input.value = controlValue(rateSellPrice(rate));
+          status.textContent = Object.hasOwn(getOverride("rates", rate.id), "price") ? "Rate override" : !inventoryView ? "Standalone rate" : rate.price_mode === "override" ? "Imported rate override" : "Follows inventory pricing";
+        });
+        const yieldCell = node("td"), actions = node("td", "pricing-rate-actions");
+        actions.append(resetRateField(rate, "price", "Reset rate", groupLabel));
+        if (rate.uses_yield ?? !!rate.source?.yield) {
+          yieldCell.append(priceInput("rates", rate, "yield", { label: `${groupLabel} material yield`, onChange: refreshPrices }));
+          actions.append(resetRateField(rate, "yield", "Reset yield", groupLabel));
+        } else yieldCell.textContent = "—";
+        useRow.append(node("td", "", groups[group] || group), node("td", "", rate.name), price, status, yieldCell, actions); body.append(useRow);
+      }
+      table.append(head, body); scroll.append(table); details.append(scroll); detailCell.append(details); detailRow.append(detailCell); rows.push(detailRow);
+    }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 6; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
+    refreshPrices();
     markPricingDirty();
   }
 
@@ -781,8 +826,6 @@
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
   $("refresh-quotes").addEventListener("click", loadQuotes);
   $("use-current-pricing").addEventListener("click", () => { state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields); renderInputs(); $("snapshot-message").querySelector("span").textContent = "Current pricing applied. Save to replace this quote's pricing snapshot."; updateDirty(); scheduleCalculation(); message("Current pricing applied to this estimate. Check any removed product selections, then save the quote to retain its new pricing snapshot."); });
-  $("inventory-tab").addEventListener("click", () => { state.pricingView = "inventory"; renderPricing(); });
-  $("rates-tab").addEventListener("click", () => { state.pricingView = "rates"; renderPricing(); });
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
   $("save-pricing").addEventListener("click", savePricing);

@@ -213,6 +213,8 @@ class CalculatorCleanupTests(unittest.TestCase):
                                    ("steel_board", "CALCULATOR"): ["Y1:AI1", "A6:L6"]}
                 self.assertEqual(sheet["omitted_ranges"], expected_ranges.get((identity, sheet["name"]), []))
                 expected_titles = {("steel_board", "CALCULATOR"): "STRUCTURAL STEEL BOARD SCHEDULE",
+                                   ("steel_board", "BOARD SUMMARY"): "BOARD SUMMARY",
+                                   ("steel_board", "EXTRA BOARDS"): "EXTRA BOARDS",
                                    ("ductwork", "CALCULATOR"): "DUCT PROTECTION CALCULATOR",
                                    ("ductwork", "SUMMARY"): "DUCT PROTECTION SUMMARY"}
                 title = expected_titles.get((identity, sheet["name"]))
@@ -260,6 +262,10 @@ class CalculatorCleanupTests(unittest.TestCase):
     def test_display_spans_cover_only_decorative_children_and_notes_omission_has_no_inputs(self):
         expected = {
             (IDENTITY, "BAGS"): {"H10": {"merge": "H10:N10", "role": "spacer"}},
+            (IDENTITY, "SETTINGS"): {
+                **{f"A{row}": {"role": "column_header"} for row in (48, 81, 113, 190, 246)},
+                **{f"D{row}": {"merge": f"D{row}:G{row}"} for row in (*range(346, 353), *range(358, 369), *range(372, 375))},
+                "A371": {"merge": "A371:G371", "role": "collapsed_spacer"}},
             ("ductwork", "CALCULATOR"): {"A3": {"role": "note"}},
             ("ductwork", "SUMMARY"): {"A17": {"merge": "A17:L17"}, "A29": {"merge": "A29:L29"}},
             ("ductwork", "PRODUCT SETTINGS"): {f"J{row}": {"merge": f"J{row}:Q{row}"} for row in (105, 108, 111, 131, 136)},
@@ -272,8 +278,8 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertEqual(page["merges"], source["merges"], "Source merge metadata must remain intact")
             inputs = editable_cells(identity, name)
             for anchor, override in overrides.items():
-                self.assertNotIn(anchor, inputs)
                 if "merge" not in override:
+                    self.assertNotIn(anchor, inputs)
                     continue
                 start, end = override["merge"].split(":")
                 self.assertEqual(start, anchor)
@@ -345,6 +351,18 @@ class CalculatorCleanupTests(unittest.TestCase):
                 self.assertNotIn(table.get("title_address"), editable_cells(identity, name))
             if identity == IDENTITY:
                 self.assertTrue({coordinates(address) for address in editable_cells(identity, name)} <= covered)
+                if name == "CALCULATOR":
+                    source = next(sheet for sheet in source_model(identity)["sheets"] if sheet["name"] == name)
+                    for table in tables:
+                        for row, layout in table.get("row_layouts", {}).items():
+                            anchors = [item["address"] for item in layout]
+                            self.assertEqual(len(anchors), len(set(anchors)))
+                            self.assertEqual(sum(item["span"] for item in layout), len(table["columns"]))
+                            populated = {address for address, cell in source["cells"].items()
+                                         if coordinates(address)[0] == int(row) and coordinates(address)[1] in table["columns"]
+                                         and (cell.get("value") not in (None, "") or "formula" in cell)}
+                            self.assertEqual(set(anchors), populated, "Row reordering must retain every source value exactly once")
+                            self.assertTrue(all(coordinates(address) in covered for address in anchors))
                 if name == "BAGS":
                     source = next(sheet for sheet in source_model(identity)["sheets"] if sheet["name"] == name)
                     for row in range(6, 16):

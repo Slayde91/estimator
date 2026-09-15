@@ -1,5 +1,66 @@
 # Session handoff
 
+## Calculator detail layout — 2026-09-15
+
+Work on `fix/calculator-detail-layout` starts from merged main `d2707ee`
+(PR #15). The latest 23 browser comments use the existing presentation metadata,
+renderer and CSS; the SETTINGS & RULES rename was already completed in PR #15.
+
+- Vermiculite SETTINGS merges the D:G value region at rows 346–352, 358–368 and
+  372–374 to absorb blank G dividers. A371:G371 becomes a collapsed decorative
+  row while H371:N374 notes and all helper inputs/results remain intact.
+- Vermiculite CALCULATOR's Thickness and quantities row 6 displays label L6
+  first across three columns, then value H6 across four columns with left
+  alignment. Source anchors and original row spans remain unchanged; the
+  previously centered A28:I30 period table remains centered.
+- SETTINGS technical-rule headings A48/A81/A113/A190/A246 use the pink
+  table-header role. References D75/D107/D184/D240 use normal font weight.
+  Exposure names A55:A58, A87:A90, A124:A167, A197:A223 and A260:A264 are bold,
+  as are SCHEDULE Exposure/Case cells C10:C1009 and their selection controls.
+- Duct CALCULATOR AM11:AM310 support prose uses normal weight; AM10 retains its
+  existing heading style. PRODUCT SETTINGS A142:A150 extends the bold reference
+  labels through Maxilite. Board purchasing product labels A12:A29 are bold.
+- Board CALCULATOR, BOARD SUMMARY and EXTRA BOARDS overviews use full-width
+  title/note rows and retain the three BOARD SUMMARY cards. Board A1 titles read
+  BOARD SUMMARY and EXTRA BOARDS. The shared running-total sections read SUMMARY
+  for board and PRODUCT SUMMARY for vermiculite; worksheet/input keys stay intact.
+
+These are browser display changes. Source packages, values, merges, formula
+graphs, input allowlists, technical rules, saved-data behavior, schema and PDF
+projections remain unchanged. Verified locally:
+
+- All 25 targeted Python tests passed in 96.918 seconds. All 75 calculator UI
+  checks and 20 original UI checks passed, as did JavaScript syntax checks.
+  The distribution build produced 34 files totaling 5,345,255 bytes.
+- Before/after HTTP comparisons matched all 104,068 cells across 12 worksheets,
+  including values, editable/calculated flags and shared choices. The cell digest
+  remains `482e389f0498903ce98d921e6dfacf82fa72ac490ebf615e981e9d42d03a4a90`.
+  All three PDF text comparisons matched: vermiculite 3 pages, board 8 and duct 4.
+- Browser review confirmed L6 before H6 with spans 3/4. The H6 value of 26 was
+  left-aligned at x=547.1328125, matching the neighboring value-column position.
+  All five technical headings matched A54's pink fill and font weight. Four
+  reference values used weight 400; exposure lookup text and the first/last
+  schedule Exposure/Case controls used weight 750.
+- Helper values spanned D:G without separate G dividers. Row 371 had zero
+  height while its retained right-side note remained visible at 112.8 px high.
+  All 300 duct AM prose cells used weight 400, and A142:A150 used weight 750.
+- All three board title/note overviews were 1,203 px wide at x=31. The summary
+  retained three cards in a 1,151 px region with a 26 px inset; all 18 purchasing
+  product names used weight 750. Every requested title alias was correct.
+  Browser logs contained no application errors; independent diff review was clean.
+
+The main service refreshed successfully at port 8765. All four served assets
+match the current files byte for byte, and the new presentation metadata is
+active. Before/after database state matches exactly: two quotes, zero settings,
+zero calculator-state records, schema version 2 and quote/settings digest
+`c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+Recovery, test, browser, worksheet, PDF and runtime receipts are retained under
+`.runtime/detail-layout-qa`.
+
+Commit, push, exact-head CI/review and merge remain pending at this checkpoint.
+The post-merge publication receipt will be retained separately in the ignored
+QA folder after verification. Earlier entries below do not verify this increment.
+
 ## Settings title — 2026-09-15
 
 The shared browser settings banner now reads **SETTINGS & RULES** in place of

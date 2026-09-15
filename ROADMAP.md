@@ -1,15 +1,16 @@
 # Roadmap
 
-Current increment: combine Inventory and Rates into one searchable, use-filtered
-library with expandable per-category rates/yields, Excel-green import/export
-actions and a combined workbook. Explicit IDs and use order preserve mapping;
-old templates remain accepted. Existing price/yield rules and saved quotes remain
-unchanged. No dependency, source-formula or database migration is introduced.
+Current increment: calculator dropdown and display polish from twelve browser
+comments. Shared Excel-green template actions, a native quick section dropdown,
+scoped comparison/evidence omissions and consistent fills/weights extend the
+existing display rules. Source calculations, pricing and saved data remain.
+Validation and publication evidence is retained in `.runtime/calculator-polish-qa`.
 
-Focused validation passes: 51 Python tests and 122 UI checks, including the
-216-scenario Excel oracle through both new and legacy workbook formats. Browser
-and worksheet visual review pass. Publication evidence follows in
-`.runtime/unified-pricing-qa/publication.json` after exact-head CI and merge.
+The unified Inventory & Rates release merged in PR #22 at `a4c8ffc` with
+257 Python passes, four optional source-workbook skips and 122 UI checks on
+both pre-merge CI runs. Explicit IDs and use order preserve mapping; old pricing
+templates remain accepted. Its runtime and data-preservation receipt is in
+`.runtime/unified-pricing-qa/publication.json`.
 
 The preceding shared footer merged in PR #21 at `ab48baf`, following the labour
 breakdown/calculator control work in PR #20 at `e843cf7`. Both releases have
@@ -56,8 +57,8 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-SESSION_HANDOFF.md records the labour/controls commit-preparation checkpoint.
-Use current Git/checks and `.runtime/labour-controls-qa/publication.json` for later
+SESSION_HANDOFF.md records the current calculator presentation checkpoint.
+Use current Git/checks and `.runtime/calculator-polish-qa/publication.json` for later
 validation and publication outcomes. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 
@@ -71,8 +72,7 @@ and display checks; source expectations stay unchanged. See
 
 ## Meaningful remaining work
 
-Publish the prepared change while the remaining local source audit completes.
-Resolve the recorded test outcomes and verify the build and refreshed runtime.
+Validate and publish the current display increment, then verify the refreshed runtime.
 Verify the current PR's exact-head CI/review state before merging and confirm
 the resulting merge commit. Earlier CI or billing results do not establish the
 current outcome. Never bypass or relabel a failed check.

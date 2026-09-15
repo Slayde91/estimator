@@ -73,9 +73,10 @@ _DISPLAY_TEXT = {
 # blanks; source formulas, input identities and source merge records stay intact.
 _DISPLAY_CELLS = {
     'steel_vermiculite': {
-        'BAGS': {'H10': {'merge': 'H10:N10', 'role': 'spacer'},
+        'BAGS': {'H6': {'merge': 'H6:N10'},
                  **{f'A{row}': {'bold': True} for row in range(20, 25)}},
-        'CALCULATOR': {'H6': {'align': 'left', 'suffix': ' mm', 'highlight': 'published-thickness'},
+        'CALCULATOR': {'D10': {'control': 'select'},
+                       'H6': {'align': 'left', 'suffix': ' mm', 'highlight': 'published-thickness'},
                        **{f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'}},
         'SCHEDULE': {**{f'C{row}': {'bold': True} for row in range(10, 1010)},
                      **{f'Y{row}': {'bold': False} for row in range(10, 1010)},
@@ -84,7 +85,8 @@ _DISPLAY_CELLS = {
             **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246)},
             **{f'D{row}': {'bold': False} for row in (42, 75, 107, 184, 240)},
             **{f'A{row}': {'bold': True} for row in (
-                *range(55, 59), *range(87, 91), *range(124, 168), *range(197, 224), *range(260, 265))},
+                52, *range(55, 59), *range(87, 91), *range(117, 122), *range(124, 168),
+                194, *range(197, 224), *range(250, 258), *range(260, 265))},
             **{f'D{row}': {'merge': f'D{row}:G{row}'} for row in (
                 *range(346, 353), *range(358, 369), *range(372, 375))},
             'A371': {'merge': 'A371:G371', 'role': 'collapsed_spacer'},
@@ -166,8 +168,8 @@ _PRESENTATION_TABLES = {
              'column_widths': [1, 1, 1, 1, 1, 1, 1], 'width_mode': 'fit',
              'table_kind': 'form', 'title_address': 'H5', 'label': '02 THICKNESS & QUANTITIES',
              'row_layouts': {'6': [{'address': 'L6', 'span': 3}, {'address': 'H6', 'span': 4}]}},
-            {'first_row': 26, 'last_row': 30, 'columns': list(range(1, 10)),
-             'column_widths': [190, *([115] * 8)], 'table_kind': 'comparison',
+            {'first_row': 26, 'last_row': 30, 'columns': [1, 3, 5, 6, 7, 8, 9],
+             'column_widths': [190, *([115] * 6)], 'table_kind': 'comparison',
              'title_address': 'A26', 'header_row': 28, 'label': '03 ALL PUBLISHED PERIODS FOR THIS INPUT'},
         ],
         'BAGS': [
@@ -215,7 +217,7 @@ _PRESENTATION_TABLES = {
          'column_widths': [200, *([125] * 6)], 'label': 'Maxilite cutting totals'},
     ]},
 }
-_OMITTED_RANGES = {'steel_vermiculite': {'CALCULATOR': ['J28:N30']},
+_OMITTED_RANGES = {'steel_vermiculite': {'CALCULATOR': ['J28:N30', 'B28:B30', 'D28:D30', 'H23:N24']},
                    'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']},
                    'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13'],
                                    'CALCULATOR': ['Y1:AI1', 'A6:L6']}}

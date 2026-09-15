@@ -2,7 +2,29 @@
 
 Date: 2026-09-16. Executable code and checked results take precedence over this document.
 
-Current implementation: Pricing library has one Inventory & Rates view, a
+Current increment: calculator presentation polish for twelve browser comments.
+Export template shares the Excel-green register style. The quick Section ID
+uses its existing strict list in a native dropdown. Only the displayed 15/45
+minute comparison columns and H23:N24 source-reference row are omitted; source
+values, valid periods and calculation rules are retained. The manual BAGS note
+spans the redundant spacer row. Label/input-cell fills use the surrounding
+yellow, text-entry values use normal weight, and diagnostic labels are bold.
+No source package, pricing rule, database schema or saved record is migrated.
+Local validation: 12 focused Python checks and 123 UI checks pass. A live
+before/after comparison preserves all 104,068 source values/input properties
+and shared option sets across twelve worksheets. Browser review confirms the
+native list, recalculation, all three toolbar styles, five product-setting
+fills/weights and the corrected manual-quantity grid at desktop/mobile sizes.
+Current validation and publication evidence belongs to
+`.runtime/calculator-polish-qa/publication.json` once recorded.
+
+The unified pricing release below merged in PR #22 at
+`a4c8ffca5757f8abb96adff6eb6ab133e29f74c9`; both pre-merge CI runs passed
+257 Python tests plus four optional source-workbook skips and 122 UI checks.
+Its verified runtime and unchanged-data receipt is in
+`.runtime/unified-pricing-qa/publication.json`.
+
+Pricing implementation: Pricing library has one Inventory & Rates view, a
 Used in Estimator filter, searchable product rows and expandable category/rate/
 yield details. Products with multiple uses share one inventory price owner;
 unused inventory and standalone rates remain accessible. Excel actions are green.

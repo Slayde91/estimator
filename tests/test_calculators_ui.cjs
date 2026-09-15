@@ -133,6 +133,19 @@ let passed = 0;
   warningNative.value=warningNative.children.find(option=>option.textContent==='Enter custom value…').value;await warningNative.emit('change');
   assert.equal(warningCustom.hidden,false);warningCustom.value='Another custom';await warningCustom.emit('input');assert.equal(entry.inputs.SCHEDULE.F11,'Another custom');assert.equal(entry.invalid.size,0);passed++;
 
+  // Quick steel section uses the same native list without changing its canonical input or period choices.
+  entry=setup({CALCULATOR:{D10:sectionOptions[100],D12:45}});
+  entry.definition.sheets=[{name:'CALCULATOR',display_cells:{D10:{control:'select'}}}];
+  entry.result={option_sets:{section_list:sectionOptions}};
+  const quickSection=audit.makeControl({column:4,address:'D10',type:'select',value:sectionOptions[100],options_ref:'section_list',allow_other:false,error_style:'stop'},10,entry,'Steel section ID');
+  assert.equal(quickSection.tagName,'select');assert.equal(quickSection.value,sectionOptions[100]);assert.equal(quickSection.getAttribute('aria-label'),'Steel section ID');
+  await quickSection.emit('focus');assert.equal(quickSection.children.length,554);assert.equal(quickSection.children[0].value,'');
+  assert.deepEqual(quickSection.children.slice(1).map(option=>option.value),sectionOptions);
+  quickSection.value=sectionOptions[552];await quickSection.emit('change');assert.equal(entry.inputs.CALCULATOR.D10,sectionOptions[552]);assert.equal(entry.inputs.CALCULATOR.D12,45);
+  const quickPeriod=audit.makeControl({column:4,address:'D12',type:'select',value:45,options:[15,30,45,60,90,120,180,240]},12,entry,'Fire period');
+  assert.ok(quickPeriod.children.some(option=>option.value==='15'));assert.ok(quickPeriod.children.some(option=>option.value==='45'));
+  assert.equal(entry.invalid.size,0);passed++;
+
   // Native warning lists preserve custom precision and validation; their action is never a source value.
   entry=setup({SETTINGS:{B6:7.123456789}});entry.definition.sheets[0].display_cells={B9:{control:'select'}};
   const customCell={column:2,address:'B9',type:'select',value:12.3456789,options:[10,15],error_style:'warning'};
@@ -881,18 +894,18 @@ let passed = 0;
   const introUpdate=copy(entry.result);introUpdate.rows.find(row=>row.row===6).cells[1].value='Incomplete order: 2 rows have no board quantity.';audit.setRequest(async()=>introUpdate);await audit.calculate();
   assert.equal(preservedWarning.textContent,'Incomplete order: 2 rows have no board quantity.');passed++;
 
-  // Projected vermiculite forms stack independently, retain every input, and keep the complete aligned period matrix.
+  // Projected vermiculite forms retain every input while hiding only the requested period columns and citation.
   entry=setup({CALCULATOR:{D6:12.3456789}});entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
   const vermProjections=[
     {first_row:5,last_row:24,columns:[1,2,3,4,5,6],column_widths:Array(6).fill(1),width_mode:'fit',table_kind:'form',title_address:'A5',label:'Inputs'},
     {first_row:5,last_row:24,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),width_mode:'fit',table_kind:'form',title_address:'H5',label:'Thickness and quantities'},
-    {first_row:26,last_row:30,columns:[1,2,3,4,5,6,7,8,9],column_widths:[100,...Array(8).fill(88)],table_kind:'comparison',title_address:'A26',header_row:28,label:'Published periods'},
+    {first_row:26,last_row:30,columns:[1,3,5,6,7,8,9],column_widths:[100,...Array(6).fill(88)],table_kind:'comparison',title_address:'A26',header_row:28,label:'Published periods'},
   ];
-  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',navigation_mode:'hidden',presentation_tables:vermProjections,header_rows:[28],section_cells:['A5','H5','A26'],display_cells:Object.fromEntries([28,29,30].flatMap(row=>[...'ABCDEFGHI'].map(column=>[`${column}${row}`,{align:'center'}]))),omitted_ranges:['J28:N30'],merges:['A1:N1','A5:F5','H5:N5','H10:J10','H20:N20','A26:N26','J28:N30']}];
+  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',navigation_mode:'hidden',presentation_tables:vermProjections,header_rows:[28],section_cells:['A5','H5','A26'],display_cells:Object.fromEntries([28,29,30].flatMap(row=>[...'ABCDEFGHI'].map(column=>[`${column}${row}`,{align:'center'}]))),omitted_ranges:['J28:N30','B28:B30','D28:D30','H23:N24'],merges:['A1:N1','A5:F5','H5:N5','H10:J10','H20:N20','H23:N24','A26:N26','J28:N30']}];
   const vermRows=new Map(),pushVerm=(row,cell)=>{if(!vermRows.has(row))vermRows.set(row,{row,cells:[]});vermRows.get(row).cells.push(cell);};
   for(const [row,column,value] of [[1,1,'Vermiculite calculator'],[3,1,'Source introduction'],[5,1,'01 INPUTS'],[5,8,'02 OUTPUTS'],[13,7,'Keep the unprojected note'],[20,1,'Input note'],[25,1,'Between the forms and periods'],[26,1,'03 PUBLISHED PERIODS'],[28,10,'Omitted matrix narrative']])pushVerm(row,{column,address:`${String.fromCharCode(64+column)}${row}`,value,presentation:{role:[1,5,26].includes(row)?'section':'note'}});
   for(const row of [6,7,8,9,10,11,12,14,15,16,17])pushVerm(row,{column:4,address:`D${row}`,value:row===6?12.3456789:row,editable:true,type:'number'});
-  for(let row=6;row<=23;row++)pushVerm(row,{column:8,address:`H${row}`,value:row===10?'Lookup ESA/M':row===20?'Full-width source subheading':row+0.123456,calculated:![10,20].includes(row),presentation:{role:[10,20].includes(row)?'section':'output'}});
+  for(let row=6;row<=23;row++)pushVerm(row,{column:8,address:`H${row}`,value:row===10?'Lookup ESA/M':row===20?'Full-width source subheading':row===23?'C300-2021 p4':row+0.123456,calculated:![10,20].includes(row),presentation:{role:[10,20].includes(row)?'section':'output'}});
   for(let row=28;row<=30;row++)for(let column=1;column<=9;column++)pushVerm(row,{column,address:`${String.fromCharCode(64+column)}${row}`,value:row===28?`Period ${column}`:row*column,calculated:row!==28});
   vermRows.set(27,{row:27,cells:[]});
   entry.result=result(copy(entry.inputs),{max_column:14,rows:[...vermRows.values()].sort((a,b)=>a.row-b.row)});const vermRaw=JSON.stringify(entry.result);
@@ -902,11 +915,13 @@ let passed = 0;
   assert.equal(renderedControls().length,11);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,11);
   for(const section of vermSections){assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===section.children[0].dataset.calculatorOutput).length,1);assert.equal(descendants(byId('calculator-grid')).filter(node=>node.href===`#${section.children[0].id}`).length,0);assert.equal(section.children[0].dataset.calculatorValue,undefined);}
   assert.ok(descendants(vermSections[0]).find(node=>node.tagName==='table').className.includes('calculator-responsive-form'));
-  const periodTable=descendants(vermSections[2]).find(node=>node.tagName==='table');assert.equal(periodTable.children[0].children.length,9);assert.ok(periodTable.children[0].children.slice(1).every(col=>col.style.width==='88px'));assert.equal(periodTable.children.at(-1).children[0].children[0].tagName,'th');assert.equal(periodTable.children.at(-1).children[0].dataset.sourceRow,'28');
+  const periodTable=descendants(vermSections[2]).find(node=>node.tagName==='table');assert.equal(periodTable.children[0].children.length,7);assert.ok(periodTable.children[0].children.slice(1).every(col=>col.style.width==='88px'));assert.equal(periodTable.children.at(-1).children[0].children[0].tagName,'th');assert.equal(periodTable.children.at(-1).children[0].dataset.sourceRow,'28');
   for(const periodRow of periodTable.children.at(-1).children)for(const cell of periodRow.children){assert.equal(cell.classList.contains('calculator-align-center'),true);assert.equal(cell.tagName,periodRow.dataset.sourceRow==='28'?'th':'td');}
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').classList.contains('calculator-align-center'),false);
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='J28'));assert.equal(JSON.stringify(entry.result),vermRaw);
   const orderedVermOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
+  for(const row of [28,29,30]){assert.deepEqual(periodTable.children.at(-1).children.find(node=>node.dataset.sourceRow===String(row)).children.map(node=>node.dataset.calculatorOutput),[...'ACEFGHI'].map(column=>`${column}${row}`));for(const column of ['B','D'])assert.ok(!orderedVermOutputs.includes(`${column}${row}`));}
+  assert.ok(!orderedVermOutputs.includes('H23'));assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='C300-2021 p4'));
   const fieldLabel=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H10');assert.match(fieldLabel.className,/calculator-role-label/);
   const formSubheading=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H20');assert.match(formSubheading.className,/calculator-role-section/);assert.equal(formSubheading.dataset.calculatorValue,undefined);
   assert.ok(orderedVermOutputs.indexOf('H5')<orderedVermOutputs.indexOf('G13'));assert.ok(orderedVermOutputs.indexOf('G13')<orderedVermOutputs.indexOf('A25'));assert.ok(orderedVermOutputs.indexOf('A25')<orderedVermOutputs.indexOf('A26'));
@@ -953,16 +968,19 @@ let passed = 0;
   assert.equal(collapsedRow.children[1].dataset.calculatorOutput,'H371');assert.equal(collapsedRow.children[1].colSpan,7);assert.equal(collapsedRow.children[1].rowSpan,4);assert.equal(collapsedRow.children[1].textContent,'Retained section-factor qualification');
   assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell),['D373']);assert.equal(JSON.stringify(entry.result),rawFactorRows);passed++;
 
-  // BAGS keeps its exact yield while merging the adjacent decorative cells into one gold spacer.
+  // BAGS extends the first source note over its decorative gap, preserving both notes and the exact yield.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';
-  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',navigation_mode:'hidden',display_table_order:[1,0],header_rows:[19],section_cells:['A17'],display_cells:{H10:{merge:'H10:N10',role:'spacer'},...Object.fromEntries([20,21,22,23,24].map(row=>[`A${row}`,{bold:true}]))},merges:['A1:N1','A3:N3','A17:N17'],presentation_tables:[
+  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',navigation_mode:'hidden',display_table_order:[1,0],header_rows:[19],section_cells:['A17'],display_cells:{H6:{merge:'H6:N10'},...Object.fromEntries([20,21,22,23,24].map(row=>[`A${row}`,{bold:true}]))},merges:['A1:N1','A3:N3','A17:N17','H6:N9','H11:N15',...[6,7,8,9,10,11,12,13,14].flatMap(row=>[`A${row}:C${row}`,`D${row}:F${row}`])],presentation_tables:[
     {first_row:1,last_row:15,columns:[1,2,3,4,5,6,8,9,10,11,12,13,14],column_widths:Array(13).fill(1),width_mode:'fit',table_kind:'form',title_address:'A1',subtitle_address:'A3',label:'Manual quantity'},
     {first_row:17,last_row:24,columns:Array.from({length:9},(_,i)=>i+1),column_widths:[19,7,9,10,8,7,11,9,20],width_mode:'fit',table_kind:'order',title_address:'A17',header_row:19,label:'Product order summary'},
   ]}];
   entry.result=result({}, {sheet:'BAGS',max_column:14,rows:[{row:1,cells:[{column:1,address:'A1',value:'BAGS',presentation:{role:'title'}}]},
     {row:3,cells:[{column:1,address:'A3',value:'Manual quantities stay separate from schedule orders.',presentation:{role:'note'}}]},
-    ...[6,7,8].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Manual input',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row,editable:true,type:'number'}]})),
+    ...[6,7,8].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Manual input',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row,editable:true,type:'number'},...(row===6?[{column:8,address:'H6',value:'Enter the spray area and established thickness.',presentation:{role:'note'}}]:[])]})),
+    {row:9,cells:[{column:1,address:'A9',value:'Coating volume'},{column:4,address:'D9',value:0.6,calculated:true}]},
     {row:10,cells:[{column:1,address:'A10',value:'Working yield',presentation:{role:'label'}},{column:4,address:'D10',value:0.05128205128205128,calculated:true},...Array.from({length:8},(_,index)=>({column:index+7,address:`${String.fromCharCode(71+index)}10`,value:null,presentation:{role:'body'}}))]},
+    {row:11,cells:[{column:1,address:'A11',value:'Waste'},{column:4,address:'D11',value:0},{column:8,address:'H11',value:'Verify the selected product yield.',presentation:{role:'note'}}]},
+    ...[12,13,14].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Quantity'},{column:4,address:`D${row}`,value:12,calculated:true}]})),
     {row:15,cells:[{column:1,address:'A15',value:'Manual quantity note',presentation:{role:'note'}}]},
     {row:17,cells:[{column:1,address:'A17',value:'PRODUCT ORDER SUMMARY',presentation:{role:'section'}}]},{row:18,cells:[]},
     ...[19,20,21,22,23,24].map(row=>({row,cells:Array.from({length:9},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===19?`Header ${i+1}`:i===8?'Order status':row,calculated:row>19}))})),
@@ -978,8 +996,11 @@ let passed = 0;
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
   for(const row of [20,21,22,23,24])assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===`A${row}`).classList.contains('calculator-bold'));
   const yieldRow=manualTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='10');
-  assert.equal(yieldRow.children.length,7);const yieldSpacer=yieldRow.children.at(-1);
-  assert.equal(yieldSpacer.dataset.calculatorOutput,'H10');assert.equal(yieldSpacer.colSpan,7);assert.match(yieldSpacer.className,/calculator-role-spacer/);
+  assert.deepEqual(yieldRow.children.map(node=>node.dataset.calculatorOutput),['A10','D10']);assert.deepEqual(yieldRow.children.map(node=>node.colSpan),[3,3]);
+  const bagNotes=byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>['H6','H11'].includes(node.dataset.calculatorOutput));
+  assert.equal(bagNotes.length,2);assert.deepEqual(bagNotes.map(node=>node.rowSpan),[5,5]);assert.ok(bagNotes.every(node=>node.colSpan===7&&/calculator-role-note/.test(node.className)));
+  assert.deepEqual(bagNotes.map(node=>node.textContent),['Enter the spray area and established thickness.','Verify the selected product yield.']);
+  assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='H10'));
   assert.equal(manualTable.children[0].children.length,13);assert.ok(manualTable.children[0].children.every(column=>column.style.width===manualTable.children[0].children[0].style.width));
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='G10'));
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='G20').textContent,'20.00');
@@ -1366,7 +1387,7 @@ let passed = 0;
   // Import and the three distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
   assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button><button id="calculator-pdf"[^>]*>Download schedule PDF<\/button>/);
-  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"[^>]*>Export template<\/button>/);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
   for(const [className,background,color] of [['calculator-import-button','#ffdb66','#332600'],['calculator-export-excel','#217346','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));

@@ -65,12 +65,12 @@
 .calculator-grid .calculator-form-table td.calculator-role-title{background:var(--calculator-section-bg);color:var(--calculator-section-ink);font-size:20px;font-weight:750;padding:21px 22px;letter-spacing:-.4px;border-bottom:4px solid var(--orange)}
 .calculator-grid .calculator-form-table td.calculator-role-section{background:var(--calculator-section-bg);color:var(--calculator-section-ink);font-size:14px;font-weight:750;border-top:0;border-bottom:4px solid var(--orange);padding:15px 18px}
 .calculator-grid .calculator-form-table td.calculator-role-column_header{background:#f3e6e9;color:#5c2638;font-weight:750;border-block:1px solid #000}
-.calculator-grid td.calculator-role-label{font-weight:700;color:#5b3342;background:#fcf7f8}
+.calculator-grid td.calculator-role-label{font-weight:700;color:#5b3342;background:#fff0ce}
 .calculator-grid td.calculator-role-note{font-size:12px;color:#6a555f;background:#fffdf8;line-height:1.8}
 .calculator-grid td.calculator-role-output{font-weight:650;color:#342932}
 .calculator-grid td.calculator-role-output.calculator-number{font-size:14px;font-weight:750;color:#83101f}
 .calculator-grid td.calculator-bold{font-weight:750}
-.calculator-grid td.calculator-editable{background:#fff8e4!important;border-bottom-color:#000;padding:7px 9px}
+.calculator-grid td.calculator-editable{background:#fff0ce!important;border-bottom-color:#000;padding:7px 9px}
 .calculator-grid input,.calculator-grid select{font-size:12px;padding:10px 11px;min-height:40px;box-shadow:0 1px 3px #4b281309;border-color:#cfb574;background:#fff}
 .calculator-grid input:focus,.calculator-grid select:focus{border-color:var(--accent);box-shadow:0 0 0 3px #b90a1514}
 .calculator-grid .calculator-form-table input,.calculator-grid .calculator-form-table select{min-width:0;width:100%}
@@ -137,7 +137,7 @@
   .calculator-grid .calculator-responsive-form td:empty{display:none}
   .calculator-grid .calculator-responsive-form td.calculator-value-empty{display:block;min-height:35px}
   .calculator-grid .calculator-responsive-form td.calculator-editable{padding:4px 18px 12px}
-  .calculator-grid .calculator-responsive-form td.calculator-role-label{padding-bottom:4px;background:transparent}
+  .calculator-grid .calculator-responsive-form td.calculator-role-label{padding-bottom:4px;background:#fff0ce}
   .calculator-grid .calculator-responsive-form td.calculator-number{font-size:17px;padding-top:4px}
   .calculator-grid .calculator-responsive-form input,.calculator-grid .calculator-responsive-form select{width:100%;min-width:0;font-size:14px;min-height:44px}
   .calculator-contents{padding:16px 18px}
@@ -169,7 +169,8 @@
 .calculator-grid .calculator-align-center,.calculator-grid .calculator-align-center input,.calculator-grid .calculator-align-center select{text-align:center!important}
 .calculator-grid .calculator-align-left,.calculator-grid .calculator-align-left input,.calculator-grid .calculator-align-left select{text-align:left!important}
 .calculator-grid .calculator-normal{font-weight:400!important}
-.calculator-grid .calculator-bold input,.calculator-grid .calculator-bold select{font-weight:inherit}
+.calculator-grid input,.calculator-grid textarea{font-weight:400}
+.calculator-grid .calculator-bold select{font-weight:inherit}
 .calculator-grid tr:has(>.calculator-role-collapsed_spacer){height:0}
 .calculator-grid td.calculator-role-collapsed_spacer{padding:0!important;height:0;border-block:0!important}
 .calculator-overview-full .calculator-summary-cards{width:calc(100% - 52px);margin:22px 26px}

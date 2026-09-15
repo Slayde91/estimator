@@ -153,6 +153,12 @@ remain available. Vermiculite Section ID uses a native select whose full source
 option list is materialized when opened, avoiding 553 options in each of 1,000
 rows at initial render. Main-section metadata supplies stable contents anchors
 and colour themes.
+The quick calculator uses this same strict native section control. Its 15/45
+minute comparison columns and source-reference row are omitted only through
+scoped display ranges; the engine and available fire-period inputs retain them.
+The manual BAGS note spans its adjacent blank spacer in display metadata.
+Shared label/input-cell surrounds use the populated yellow fill, while editable
+text remains normal weight and explicit diagnostic labels remain bold.
 Requested board and duct choices also use native selects. Board steel choices
 use the same deferred-option loading for 1,342 source sections. Where original
 validation permits warning/custom input, an explicit custom-value editor remains

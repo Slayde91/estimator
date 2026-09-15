@@ -11,6 +11,7 @@ import threading
 import unittest
 
 from pypdf import PdfReader
+from openpyxl import load_workbook
 
 from estimator.catalog import ROOT
 from estimator.server import create_server
@@ -280,6 +281,50 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.json_request("POST", "/api/calculators/missing/report.pdf", {}, expected=400)
         self.assertEqual(self.stored_rows(), before)
 
+    def test_all_excel_registers_use_the_current_draft_without_saving(self):
+        for identity in EXTENTS:
+            with self.subTest(identity=identity):
+                draft = self.single_row_draft(identity, f'CURRENT REGISTER {identity}')
+                sheet = source_model(identity)['schedule']['sheet']
+                marker_cell = 'B11' if identity == 'ductwork' else 'A9' if identity == 'steel_board' else 'A10'
+                self.store.save_calculator_state(identity, {sheet: {marker_cell: 'SAVED VALUE EXCLUDED FROM REGISTER'}})
+                before = self.stored_rows()
+                pristine = deepcopy(draft)
+                status, headers, payload = self.request('POST', f'/api/calculators/{identity}/register.xlsx', {'inputs': draft})
+                self.assertEqual(status, 200, payload[:300])
+                self.assertEqual(headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                self.assertEqual(headers['Content-Disposition'], f'attachment; filename="ceasefire-{identity}-register.xlsx"')
+                self.assertEqual(headers['Cache-Control'], 'no-store')
+                self.assertEqual(int(headers['Content-Length']), len(payload))
+                workbook = load_workbook(BytesIO(payload))
+                values = [cell.value for worksheet in workbook for row in worksheet for cell in row]
+                marker = '333x222' if identity == 'ductwork' else f'CURRENT REGISTER {identity}'
+                self.assertIn(marker, values)
+                self.assertNotIn('SAVED VALUE EXCLUDED FROM REGISTER', values)
+                if identity != 'steel_board':
+                    self.assertIn(12.345678901234567, values)
+                self.assertEqual(workbook['Schedule'].max_row, 6)
+                self.assertEqual(self.stored_rows(), before)
+                self.assertEqual(draft, pristine)
+
+    def test_excel_register_saved_fallback_and_request_boundaries(self):
+        self.store.save_calculator_state('ductwork', {'CALCULATOR': {'B11': '700x500', 'D11': 5}})
+        before = self.stored_rows()
+        status, _, payload = self.request('POST', '/api/calculators/ductwork/register.xlsx', {})
+        self.assertEqual(status, 200, payload[:300])
+        workbook = load_workbook(BytesIO(payload))
+        self.assertEqual(workbook['Schedule']['C6'].value, '700x500')
+        self.assertEqual(workbook['Schedule']['D6'].value, 5)
+        invalid = [{'sheet': 'SUMMARY'}, {'include_advanced': True}, {'title': 'Unsupported'},
+                   {'inputs': []}, {'inputs': True}, {'inputs': {'CALCULATOR': {'M11': 123}}},
+                   {'inputs': {'CALCULATOR': {'D11': float('inf')}}}]
+        for body in invalid:
+            with self.subTest(body=body):
+                self.json_request('POST', '/api/calculators/ductwork/register.xlsx', body, expected=400)
+        self.json_request('PUT', '/api/calculators/ductwork/register.xlsx', {}, expected=405)
+        self.json_request('POST', '/api/calculators/missing/register.xlsx', {}, expected=400)
+        self.assertEqual(self.stored_rows(), before)
+
     def test_pdf_retains_zero_and_incomplete_items_at_the_last_schedule_row(self):
         inputs = self.single_row_draft("steel_board", "ZERO LENGTH REVIEW")
         inputs["CALCULATOR"]["F9"] = 0
@@ -302,7 +347,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         with self.store.connect() as db:
             db.execute("INSERT INTO calculator_states VALUES(?,?,?)", ("ductwork", json.dumps(stale), "original-time"))
         before = self.stored_rows()
-        for route in ("worksheet", "report.pdf"):
+        for route in ("worksheet", "report.pdf", "register.xlsx"):
             with self.subTest(route=route):
                 error = self.json_request("POST", f"/api/calculators/ductwork/{route}", {"inputs": {}}, expected=400)
                 self.assertIn("version", error["error"])

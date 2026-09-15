@@ -116,7 +116,7 @@ def create_server(port=8765, database=None):
                     self.send_payload(404, {"error": "Not found."})
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
-                calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|state|template|import)', route)
+                calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|register\.xlsx|state|template|import)', route)
                 if calculator_route:
                     from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs, validate_calculator_edits
                     calculator_id, action = calculator_route.groups()
@@ -125,11 +125,11 @@ def create_server(port=8765, database=None):
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs'},
-                               'worksheet': {'inputs', 'sheet', 'include_advanced'}, 'report.pdf': {'inputs'},
+                               'worksheet': {'inputs', 'sheet', 'include_advanced'}, 'report.pdf': {'inputs'}, 'register.xlsx': {'inputs'},
                                'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
-                    if action in {'calculate', 'worksheet', 'report.pdf', 'import'}:
+                    if action in {'calculate', 'worksheet', 'report.pdf', 'register.xlsx', 'import'}:
                         saved_inputs = store.calculator_state(calculator_id)['inputs']
                         inputs = validate_calculator_edits(calculator_id, body.get('inputs', saved_inputs), saved_inputs)
                     if action == 'calculate':
@@ -141,6 +141,11 @@ def create_server(port=8765, database=None):
                         report = build_calculator_report(calculator_id, inputs)
                         self.send_payload(200, report, 'application/pdf',
                                           {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-schedule.pdf"'})
+                    elif action == 'register.xlsx':
+                        from .calculator_register import build_calculator_register
+                        workbook = build_calculator_register(calculator_id, inputs)
+                        self.send_payload(200, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                          {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-register.xlsx"'})
                     elif action == 'state':
                         if 'inputs' not in body:
                             raise ValidationError('Include the calculator inputs to save.')

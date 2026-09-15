@@ -2,7 +2,27 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The latest 23 browser comments refine calculator detail layout. Vermiculite
+Each calculator now has **Download Excel register** beside its schedule PDF.
+The workbook contains Summary and Schedule sheets, plus Extra boards for board
+protection. It captures the same calculated draft as the PDF: used items,
+incomplete statuses, material quantities, pooled totals, qualifications and
+source identity. Downloading does not save or change the calculator.
+
+Registers contain typed values rather than Excel calculation formulas. Numbers
+retain their unrounded values and display two decimals; text remains literal.
+Recalculate in the app and download again to update a register. Export template
+and Import schedule retain their separate input-only workflow.
+
+The export reuses the existing report projection, openpyxl dependency and exact
+number serializer. No source formulas, business rules or storage schema change.
+Current local checks passed seven register tests, 14 API tests, 81 calculator UI
+checks, 20 original UI checks, syntax and a 35-file build. Representative renders
+cover all seven default workbook sheets, with final shared table styling verified.
+The refreshed service returned all three registers correctly, served matching
+assets and preserved saved data. Publication and CI are pending; current evidence
+belongs in SESSION_HANDOFF.md.
+
+The preceding 23 browser comments refine calculator detail layout. Vermiculite
 factor helpers absorb blank dividers and collapse one blank left-side row while
 retaining adjacent notes, inputs and results. The Published thickness label
 appears before its left-aligned result. Five technical-rule headings use pink

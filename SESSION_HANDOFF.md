@@ -1,9 +1,54 @@
 # Session handoff
 
+## Calculator Excel registers — 2026-09-15
+
+Every calculator has Download Excel register beside Download schedule PDF.
+The new `calculator_register.py` adapter reuses `project_calculator_report`,
+openpyxl and the existing exact numeric serializer. The shared browser download
+action captures the draft, preserves concurrent edits and does not save it.
+`POST /api/calculators/<id>/register.xlsx` uses the existing PDF validation and
+source-identity boundary. Source graphs, quantity rules and schemas are unchanged.
+
+- Summary includes numeric overview totals, all existing material/product tables,
+  source qualifications and notes, plus the source filename and SHA-256.
+- Schedule contains the PDF-equivalent used items and statuses, with separate
+  quantity/length fields where applicable. Row 5 is the filter header and row 6
+  begins the data; C6 freezes headings and identifying columns in Excel.
+- Board Extra boards retains item number and source A:K/M:N values, including
+  evidence; internal L is excluded. An empty register has an explicit no-extras
+  message. Valid extras retain their original effect on pooled board totals.
+- Values stay typed and unrounded with two-decimal display. Literal text cannot
+  become formulas, hyperlinks or native Excel error cells. Each sheet explains
+  that updating the register requires recalculating and downloading from the app.
+  Export template / Import schedule remains the separate input workflow.
+
+Verified locally: seven register tests passed in 36.386 seconds, 14 API tests
+passed in 52.104 seconds, all 81 calculator UI and 20 original UI checks passed,
+and syntax checks and the 35-file distribution build passed. Browser downloads
+returned HTTP 200 for all three calculators; the vermiculite download displayed
+its success message without console errors.
+
+The bundled artifact-tool imported the three app-produced XLSX samples and
+rendered representative ranges from all seven sheets without changing the input
+files. Visual review found one formatting issue: adjacent numeric and text cells
+needed separation. Final ductwork Summary and Schedule previews verified the
+shared N/A alignment and subtle vertical separators, with clear columns and
+all content visible.
+The helper, sample workbooks, PNGs and render manifest are ignored under
+`.runtime/excel-register-qa`; the renderer adds no production dependency.
+
+The refreshed local service returned all three registers equivalent to the final
+samples, with correct MIME types, filenames and no-store headers. All four served
+asset hashes matched disk. Before/after saved data remained two quotes, zero
+settings and zero calculator states, schema version 2, with digest
+`c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+Commit/push, exact-head CI/review and merge remain pending. Record publication
+results separately when available; prior entries below describe earlier changes.
+
 ## Calculator detail layout — 2026-09-15
 
 Work on `fix/calculator-detail-layout` starts from merged main `d2707ee`
-(PR #15). The latest 23 browser comments use the existing presentation metadata,
+(PR #15). The preceding 23 browser comments use the existing presentation metadata,
 renderer and CSS; the SETTINGS & RULES rename was already completed in PR #15.
 
 - Vermiculite SETTINGS merges the D:G value region at rows 346–352, 358–368 and

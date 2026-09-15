@@ -1,10 +1,11 @@
-"""Combined pricing rows retain the calculator and saved-quote contracts."""
+"""Compact pricing rows retain the calculator and saved-quote contracts."""
 
 import base64
 from copy import deepcopy
+import csv
 import hashlib
 import http.client
-from io import BytesIO
+from io import BytesIO, StringIO
 import json
 from pathlib import Path
 import tempfile
@@ -26,6 +27,27 @@ SHARED_INPUTS = {
     'B21': 284, 'D21': '20kg SBR Latex - Promat', 'E21': 0,
     'B26': 0, 'B27': 0,
 }
+
+USE_COLUMNS = ('Group', 'Selection name', 'Price source', 'Sell rate',
+               'Yield type', 'Yield', 'Rate ID', 'Use order')
+
+
+def read_use_values(value):
+    """Read test fixtures independently of the application's vector parser."""
+    if value is None:
+        return ['']
+    if not isinstance(value, str):
+        return [value]
+    records = list(csv.reader(StringIO(value), delimiter=';', strict=True))
+    return records[0] if records else ['']
+
+
+def write_use_values(values):
+    if len(values) == 1 and not isinstance(values[0], str):
+        return values[0]
+    stream = StringIO()
+    csv.writer(stream, delimiter=';').writerow(values)
+    return stream.getvalue()[:-2]
 
 
 class UnifiedPricingIntegrationTests(unittest.TestCase):
@@ -49,14 +71,14 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         self.stop_server()
         self.temp.cleanup()
 
-    def request(self, method, path, payload=None):
+    def request(self, method, path, payload=None, *, expected_status=(200, 201)):
         connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
         try:
             connection.request(method, path, None if payload is None else json.dumps(payload),
                                {'Content-Type': 'application/json'})
             response = connection.getresponse()
             content = response.read()
-            self.assertIn(response.status, (200, 201), content[:800])
+            self.assertIn(response.status, expected_status, content[:800])
             return json.loads(content) if response.getheader('Content-Type', '').startswith('application/json') else content
         finally:
             connection.close()
@@ -76,14 +98,31 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
             self.assertEqual(workbook.sheetnames, ['Inventory & Rates', 'Instructions'])
             sheet = workbook['Inventory & Rates']
             headers = {cell.value: cell.column for cell in sheet[1]}
+            self.assertNotIn('Row type', headers)
             for row_type, identity, fields in edits:
-                id_column = headers['Inventory ID' if row_type == 'Inventory' else 'Rate ID']
-                matches = [row[0].row for row in sheet.iter_rows(min_row=2)
-                           if sheet.cell(row[0].row, headers['Row type']).value == row_type
-                           and sheet.cell(row[0].row, id_column).value == identity]
-                self.assertEqual(len(matches), 1, (row_type, identity))
-                for heading, value in fields.items():
-                    sheet.cell(matches[0], headers[heading]).value = value
+                if row_type == 'Inventory':
+                    matches = [row[0].row for row in sheet.iter_rows(min_row=2)
+                               if sheet.cell(row[0].row, headers['Inventory ID']).value == identity]
+                    self.assertEqual(len(matches), 1, (row_type, identity))
+                    for heading, value in fields.items():
+                        sheet.cell(matches[0], headers[heading]).value = value
+                else:
+                    self.assertEqual(row_type, 'Use')
+                    matches = [(row[0].row, index)
+                               for row in sheet.iter_rows(min_row=2)
+                               for index, rate_id in enumerate(read_use_values(
+                                   sheet.cell(row[0].row, headers['Rate ID']).value))
+                               if rate_id == identity]
+                    self.assertEqual(len(matches), 1, (row_type, identity))
+                    number, index = matches[0]
+                    count = len(read_use_values(sheet.cell(number, headers['Rate ID']).value))
+                    for heading, value in fields.items():
+                        self.assertIn(heading, USE_COLUMNS)
+                        cell = sheet.cell(number, headers[heading])
+                        values = read_use_values(cell.value)
+                        self.assertEqual(len(values), count, (identity, heading))
+                        values[index] = value
+                        cell.value = write_use_values(values)
             # Exercise an ordinary spreadsheet save, including its numeric precision.
             stream = BytesIO()
             workbook.save(stream)
@@ -92,12 +131,12 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
             workbook.close()
 
     def preview(self, payload, current=None):
-        body = {'filename': 'combined-pricing.xlsx', 'content_base64': base64.b64encode(payload).decode('ascii')}
+        body = {'filename': 'compact-pricing.xlsx', 'content_base64': base64.b64encode(payload).decode('ascii')}
         if current is not None:
             body['configuration'] = current
         proposed = self.request('POST', '/api/pricing/import', body)
         self.assertEqual(proposed['configuration']['catalog']['sources']['pricing_import'],
-                         {'filename': 'combined-pricing.xlsx', 'sha256': hashlib.sha256(payload).hexdigest()})
+                         {'filename': 'compact-pricing.xlsx', 'sha256': hashlib.sha256(payload).hexdigest()})
         return proposed
 
     def assert_calculation(self, actual, inputs, configuration):
@@ -134,7 +173,7 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
     def test_separate_use_override_and_yield_survive_round_trip_and_later_price_change(self):
         original = self.export()
         first_payload = self.edit(original, [
-            ('Use', 'primers:1', {'Sell price / rate': 401.25, 'Yield type': 'Number', 'Yield': 71}),
+            ('Use', 'primers:1', {'Sell rate': 401.25, 'Yield type': 'Number', 'Yield': 71}),
             ('Use', 'mesh:2', {'Yield type': 'Number', 'Yield': 2.5}),
         ])
         first = self.preview(first_payload)['configuration']
@@ -154,6 +193,31 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         topcoat = next(rate for rate in catalog['rate_groups']['topcoats'] if rate['id'] == 'topcoats:1')
         self.assertEqual((primer['inventory_id'], topcoat['inventory_id']), ('204', '204'))
         self.assertEqual((primer['price_mode'], topcoat['price_mode']), ('override', 'inventory'))
+        self.assertEqual((primer['price'], primer['yield'], topcoat['price'], topcoat['yield']),
+                         (401.25, 71, 360, 142))
+        workbook = load_workbook(BytesIO(self.export(second)))
+        try:
+            sheet = workbook['Inventory & Rates']
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            rows = [row[0].row for row in sheet.iter_rows(min_row=2)
+                    if sheet.cell(row[0].row, headers['Inventory ID']).value == '204']
+            self.assertEqual(len(rows), 1)
+            vectors = {name: read_use_values(sheet.cell(rows[0], headers[name]).value)
+                       for name in USE_COLUMNS}
+            self.assertEqual({len(values) for values in vectors.values()}, {2})
+            uses = {values['Rate ID']: values for values in
+                    (dict(zip(USE_COLUMNS, values)) for values in zip(*vectors.values()))}
+            self.assertEqual(set(uses), {'primers:1', 'topcoats:1'})
+            for rate_id, group, price_source, price, yield_value in (
+                ('primers:1', 'primers', 'Override', 401.25, 71),
+                ('topcoats:1', 'topcoats', 'Inventory', 360, 142),
+            ):
+                self.assertEqual((uses[rate_id]['Group'], uses[rate_id]['Price source']),
+                                 (group, price_source))
+                self.assertEqual((float(uses[rate_id]['Sell rate']), float(uses[rate_id]['Yield'])),
+                                 (price, yield_value))
+        finally:
+            workbook.close()
         round_trip = self.preview(self.export(second), second)
         self.assertEqual(round_trip['summary'], {'inventory': {'added': 0, 'removed': 0, 'updated': 0},
                                                 'rates': {'added': 0, 'removed': 0, 'updated': 0}})
@@ -170,22 +234,27 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         original = self.export()
         before = self.stored_rows()
         for kind, workbook_value, stored_value, output in (
-            ('Number', 2.5, 2.5, 4), ('Blank', None, None, '#DIV/0!'), ('Empty text', None, '', '#VALUE!'),
+            ('Number', 2.5, 2.5, 4), ('Number', 0, 0, '#DIV/0!'),
+            ('Blank', None, None, '#DIV/0!'), ('Empty text', None, '', '#VALUE!'),
         ):
             with self.subTest(kind=kind):
                 payload = self.edit(original, [('Use', 'mesh:2', {'Yield type': kind, 'Yield': workbook_value})])
                 proposed = self.preview(payload)['configuration']
+                mesh = next(rate for rate in effective_catalog(proposed)['rate_groups']['mesh']
+                            if rate['id'] == 'mesh:2')
+                self.assertEqual(mesh['yield'], stored_value)
+                self.assertEqual(type(mesh['yield']), type(stored_value))
                 actual = self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS, 'configuration': proposed})
                 self.assert_calculation(actual, SHARED_INPUTS, {'rates': {'mesh:2': {'yield': stored_value}}})
                 self.assertEqual(actual['cells']['B68'], output)
                 self.assertEqual(self.stored_rows(), before)
 
     def test_saved_quote_keeps_all_formula_results_and_its_library_after_save_and_restart(self):
-        old_quote = self.request('POST', '/api/quotes', {'title': 'Before combined pricing', 'inputs': SHARED_INPUTS})
+        old_quote = self.request('POST', '/api/quotes', {'title': 'Before compact pricing', 'inputs': SHARED_INPUTS})
         before = self.stored_rows()
         payload = self.edit(self.export(), [
             ('Inventory', '204', {'Supplier price': 300, 'Markup': 0.2}),
-            ('Inventory', '915', {'Sell price / rate': 2222}),
+            ('Inventory', '915', {'Sell price': 2222}),
             ('Use', 'mesh:2', {'Yield type': 'Number', 'Yield': 2.5}),
         ])
         proposed = self.preview(payload)['configuration']
@@ -195,7 +264,7 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         expected = {'inventory': {'204': {'supplier_price': 300, 'markup': 0.2}, '915': {'sales_price': 2222}},
                     'rates': {'mesh:2': {'yield': 2.5}}}
         self.assert_calculation(self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS}), SHARED_INPUTS, expected)
-        new_quote = self.request('POST', '/api/quotes', {'title': 'After combined pricing', 'inputs': SHARED_INPUTS})
+        new_quote = self.request('POST', '/api/quotes', {'title': 'After compact pricing', 'inputs': SHARED_INPUTS})
         self.assert_calculation(new_quote['result'], SHARED_INPUTS, expected)
         self.assertNotEqual(old_quote['result']['summary']['total'], new_quote['result']['summary']['total'])
         self.assertEqual(self.request('GET', f'/api/quotes/{old_quote["id"]}'), old_quote)
@@ -209,6 +278,36 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         self.assert_calculation(self.request('POST', '/api/calculate', {
             'inputs': old_quote['inputs'], 'configuration': old_quote['configuration']}), old_quote['inputs'], {})
         self.assert_calculation(self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS}), SHARED_INPUTS, expected)
+
+    def test_mismatched_use_lists_are_rejected_without_saving_or_losing_the_draft(self):
+        saved = {'inventory': {'915': {'sales_price': 1900}}, 'rates': {}}
+        self.request('PUT', '/api/configuration', saved)
+        old_quote = self.request('POST', '/api/quotes', {'title': 'Before rejected import', 'inputs': SHARED_INPUTS})
+        before = self.stored_rows()
+        draft = {'inventory': {'915': {'sales_price': 2222}},
+                 'rates': {'primers:1': {'price': 401.25, 'yield': 71}}}
+        original = self.export(draft)
+        for heading, shortened_value in (('Yield', 71), ('Group', 'primers'), ('Rate ID', 'primers:1')):
+            with self.subTest(heading=heading):
+                malformed = self.edit(original, [('Inventory', '204', {heading: shortened_value})])
+                rejected = self.request('POST', '/api/pricing/import', {
+                    'filename': 'mismatched-pricing.xlsx',
+                    'content_base64': base64.b64encode(malformed).decode('ascii'),
+                    'configuration': draft,
+                }, expected_status=(400,))
+                self.assertTrue(rejected.get('error'))
+                self.assertNotIn('configuration', rejected)
+                self.assertEqual(self.stored_rows(), before)
+        # The same unsaved draft can still be exported, previewed and calculated.
+        proposed = self.preview(self.export(draft), draft)
+        self.assertEqual(proposed['summary'], {'inventory': {'added': 0, 'removed': 0, 'updated': 0},
+                                             'rates': {'added': 0, 'removed': 0, 'updated': 0}})
+        self.assert_calculation(self.request('POST', '/api/calculate', {
+            'inputs': SHARED_INPUTS, 'configuration': proposed['configuration']}), SHARED_INPUTS, draft)
+        self.assert_calculation(self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS}),
+                                SHARED_INPUTS, saved)
+        self.assertEqual(self.request('GET', f'/api/quotes/{old_quote["id"]}'), old_quote)
+        self.assertEqual(self.stored_rows(), before)
 
 
 if __name__ == '__main__':

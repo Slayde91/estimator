@@ -1,7 +1,8 @@
 """Pricing XLSX round trips, list replacement, and untrusted-file rejection."""
 
 from copy import deepcopy
-from io import BytesIO
+import csv
+from io import BytesIO, StringIO
 import json
 import hashlib
 import math
@@ -16,8 +17,8 @@ from openpyxl import Workbook, load_workbook
 from estimator.calculator import calculate
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.pricing_workbook import (
-    INVENTORY_HEADERS, RATE_HEADERS, PROPERTY_HEADERS, COMBINED_HEADERS, COMBINED_SHEET,
-    export_pricing_workbook as export_combined_pricing_workbook,
+    INVENTORY_HEADERS, RATE_HEADERS, PROPERTY_HEADERS, COMBINED_HEADERS, COMPACT_HEADERS, COMBINED_SHEET,
+    export_pricing_workbook as export_compact_pricing_workbook,
     import_pricing_workbook, _format_sheet, _serialize_exact,
 )
 
@@ -63,6 +64,45 @@ def modify(payload, action, *, normal_excel_precision=False):
         result = _serialize_exact(workbook)
     workbook.close()
     return result
+
+
+def export_combined_pricing_workbook(configuration):
+    """Independent fixture of the former Inventory/Use-row template."""
+    original = load_workbook(BytesIO(export_pricing_workbook(configuration)))
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = COMBINED_SHEET
+    sheet.append(COMBINED_HEADERS)
+    inventory = [dict(zip(INVENTORY_HEADERS, row)) for row in original["Inventory"].iter_rows(min_row=2, values_only=True)]
+    rates = [dict(zip(RATE_HEADERS, row)) for row in original["Rates"].iter_rows(min_row=2, values_only=True)]
+    groups = {}
+    for rate in rates:
+        groups[rate["Group"]] = groups.get(rate["Group"], 0) + 1
+        rate["Use order"] = groups[rate["Group"]]
+    def append(kind, record):
+        values = {**record, "Row type": kind}
+        values["Name"] = record.get("Product name", record.get("Rate name"))
+        values["Sell price / rate"] = record.get("Sell price", record.get("Unit sell rate"))
+        sheet.append([values.get(header) for header in COMBINED_HEADERS])
+    for item in inventory:
+        append("Inventory", item)
+        for rate in rates:
+            if rate["Inventory ID"] == item["Inventory ID"]:
+                append("Use", rate)
+    for rate in rates:
+        if rate["Inventory ID"] is None:
+            append("Use", rate)
+    instructions = workbook.create_sheet("Instructions")
+    instructions.append(["Legacy template", "Retained import fixture"])
+    _format_sheet(sheet, COMBINED_HEADERS, {}, percent_columns=(6,), freeze_panes="C2")
+    _format_sheet(instructions, (), {}, freeze_panes="A2")
+    for page in workbook:
+        for row in page:
+            for cell in row:
+                if isinstance(cell.value, str):
+                    cell.data_type = "s"
+    original.close()
+    return _serialize_exact(workbook)
 
 
 def find(sheet, identity):
@@ -360,12 +400,6 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
             self.assertIsNone(combined_cell(sheet, "Inventory", "204", header).value, header)
         self.assertEqual([combined_cell(sheet, "Use", "primers:1", header).value for header in use_headers],
                          ["primers", "Inventory", "Number", 142, "primers:1", 1])
-        validations = {str(v.sqref): v for v in sheet.data_validations.dataValidation}
-        self.assertEqual(len(validations), 5)
-        self.assertTrue(validations["D2:D10001"].allow_blank)
-        self.assertFalse(validations["A2:A10001"].allow_blank)
-        self.assertEqual(validations["D2:D10001"].formula1.count(",") + 1, 14)
-        self.assertTrue(sheet.column_dimensions["P"].hidden)
         self.assertFalse(any(cell.data_type == "f" for page in workbook for row in page for cell in row))
         workbook.close()
 
@@ -539,6 +573,186 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
             self.imported(replace_part(self.exported, "xl/_rels/extra.xml.rels", b'<Relationships><Relationship TargetMode="External" Target="https://invalid.test"/></Relationships>'))
         with self.assertRaisesRegex(ValidationError, "entities"):
             self.imported(replace_part(self.exported, "xl/workbook.xml", b'<!DOCTYPE a [<!ENTITY b "x">]><a>&b;</a>'))
+
+
+VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
+
+
+def vector(values):
+    """Independent fixture codec, including deliberate empty CSV slots."""
+    if len(values) == 1 and not isinstance(values[0], str):
+        return values[0]
+    output = StringIO(newline="")
+    csv.writer(output, delimiter=";", lineterminator="\r\n").writerow(values)
+    return output.getvalue()[:-2]
+
+
+def vector_values(value):
+    return next(csv.reader(StringIO(value, newline=""), delimiter=";")) if isinstance(value, str) and value else [value]
+
+
+def compact_cell(sheet, identity, field):
+    row = next(row[0].row for row in sheet.iter_rows(min_row=2)
+               if row[COMPACT_HEADERS.index("Inventory ID")].value == identity)
+    return sheet.cell(row, COMPACT_HEADERS.index(field) + 1)
+
+
+def append_compact(sheet, **values):
+    sheet.append([values.get(header) for header in COMPACT_HEADERS])
+
+
+class CompactPricingWorkbookTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.exported = export_compact_pricing_workbook({})
+
+    def imported(self, payload=None, current=None):
+        return import_pricing_workbook(self.exported if payload is None else payload, "ceasefire-pricing.xlsx", {} if current is None else current)
+
+    test_compact_import_matches_216_native_excel_scenarios = LegacyPricingWorkbookTests.test_unchanged_import_preserves_every_calculator_cell_and_reports_no_changes
+    test_roundtrip_preserves_all_values_and_calculations = CombinedPricingWorkbookTests.test_roundtrip_preserves_every_product_rate_dropdown_order_and_calculation
+    test_exported_views_remain_valid_after_save = CombinedPricingWorkbookTests.test_exported_views_have_only_valid_unique_panes_before_and_after_openpyxl_save
+
+    def test_one_row_per_product_has_complete_aligned_uses_and_readable_height(self):
+        workbook = load_workbook(BytesIO(self.exported))
+        sheet = workbook[COMBINED_SHEET]
+        self.assertEqual(workbook.sheetnames, [COMBINED_SHEET, "Instructions"])
+        self.assertEqual(tuple(cell.value for cell in sheet[1]), COMPACT_HEADERS)
+        self.assertEqual((sheet.max_row, sheet.max_column), (418, 27))
+        self.assertEqual(sheet.auto_filter.ref, "A1:AA418")
+        self.assertTrue(sheet.column_dimensions["Q"].hidden)
+        self.assertEqual(compact_cell(sheet, "204", "Group").value, "primers;topcoats")
+        self.assertEqual(compact_cell(sheet, "204", "Rate ID").value, "primers:1;topcoats:1")
+        self.assertEqual(compact_cell(sheet, "204", "Sell rate").value, "384.93;384.93")
+        self.assertEqual(compact_cell(sheet, "204", "Yield").value, "142;142")
+        self.assertIsInstance(compact_cell(sheet, "204", "Sell price").value, float)
+        self.assertIn("%", compact_cell(sheet, "204", "Markup").number_format)
+        uses = 0
+        for row in sheet.iter_rows(min_row=2):
+            self.assertFalse(sheet.row_dimensions[row[0].row].hidden)
+            self.assertEqual(sheet.row_dimensions[row[0].row].outlineLevel, 0)
+            data = dict(zip(COMPACT_HEADERS, (cell.value for cell in row)))
+            if data["Group"] is None:
+                self.assertTrue(all(data[header] is None for header in VECTOR_HEADERS))
+                continue
+            count = len(vector_values(data["Group"]))
+            self.assertTrue(all(len(vector_values(data[header])) == count for header in VECTOR_HEADERS))
+            if count == 1:
+                self.assertIsInstance(data["Sell rate"], (int, float))
+            uses += count
+        self.assertEqual(uses, 166)
+        self.assertGreater(sheet.row_dimensions[compact_cell(sheet, "0", "Group").row].height, 31)
+        self.assertFalse(any(cell.data_type == "f" for page in workbook for row in page for cell in row))
+        workbook.close()
+
+    def test_edits_preserve_independent_prices_yields_and_link_restoration(self):
+        def edit(workbook):
+            sheet = workbook[COMBINED_SHEET]
+            for header, value in (("Supplier price", 300), ("Markup", .2), ("Sell rate", "401.1234567890123;384.93"), ("Yield", "71.12345678901234;142")):
+                compact_cell(sheet, "204", header).value = value
+        changed = self.imported(modify(self.exported, edit))
+        catalog = effective_catalog(changed["configuration"])
+        primer, topcoat = catalog["rate_groups"]["primers"][0], catalog["rate_groups"]["topcoats"][0]
+        self.assertEqual((primer["price"], primer["yield"]), (401.1234567890123, 71.12345678901234))
+        self.assertEqual((topcoat["price"], topcoat["yield"]), (360, 142))
+        self.assertEqual(primer["price_mode"], "override")
+        current = changed["configuration"]
+        def restore(workbook):
+            compact_cell(workbook[COMBINED_SHEET], "204", "Price source").value = "Inventory;Inventory"
+        restored = self.imported(modify(export_compact_pricing_workbook(current), restore), current)
+        rate = effective_catalog(restored["configuration"])["rate_groups"]["primers"][0]
+        self.assertEqual((rate["price"], rate["yield"]), (360, 71.12345678901234))
+
+    def test_csv_names_precision_ids_and_group_order_survive_sorting(self):
+        catalog = baseline()
+        special = '  Name; with "quotes"\r\nnext line  '
+        catalog["rate_groups"]["primers"][0]["name"] = special
+        current = {"catalog": catalog, "rates": {"primers:1": {"price": 413.1234567890123, "yield": 137.1234567890123}}, "inventory": {}}
+        original = effective_catalog(current)
+        def reorder(workbook):
+            sheet = workbook[COMBINED_SHEET]
+            data = list(sheet.iter_rows(min_row=2, values_only=True))
+            sheet.delete_rows(2, sheet.max_row)
+            for row in reversed(data):
+                values = dict(zip(COMPACT_HEADERS, row))
+                if values["Group"] is not None:
+                    for header in VECTOR_HEADERS:
+                        values[header] = vector(list(reversed(vector_values(values[header]))))
+                append_compact(sheet, **values)
+        payload = modify(export_compact_pricing_workbook(current), reorder, normal_excel_precision=True)
+        after = effective_catalog(self.imported(payload, current)["configuration"])
+        self.assertEqual({r["id"]: r for r in after["inventory"]}, {r["id"]: r for r in original["inventory"]})
+        for group, rates in original["rate_groups"].items():
+            self.assertEqual([r["id"] for r in after["rate_groups"][group]], [r["id"] for r in rates])
+            for old, new in zip(rates, after["rate_groups"][group]):
+                for key in ("name", "inventory_id", "price", "yield"):
+                    self.assertEqual(new[key], old[key], (group, key))
+        self.assertEqual(after["rate_groups"]["primers"][0]["name"], special)
+
+    def test_new_products_unused_products_and_standalone_rates_keep_ownership(self):
+        def add(workbook):
+            sheet = workbook[COMBINED_SHEET]
+            append_compact(sheet, **{"Product name": "New linked product", "Pricing mode": "Manual", "Markup": 0, "Sell price": 12,
+                "Group": "primers;topcoats", "Selection name": "New primer;New topcoat", "Price source": "Inventory;Inventory",
+                "Sell rate": "12;12", "Yield type": "Number;Number", "Yield": "10;20", "Rate ID": ";", "Use order": ";"})
+            append_compact(sheet, **{"Product name": "Unused product", "Pricing mode": "Manual", "Markup": 0, "Sell price": 3})
+            append_compact(sheet, **{"Group": "primers", "Selection name": "Standalone primer", "Price source": "Override", "Sell rate": 7,
+                                    "Yield type": "Number", "Yield": 0, "Rate ID": "new_standalone"})
+        result = self.imported(modify(self.exported, add))
+        catalog = effective_catalog(result["configuration"])
+        self.assertEqual(len(catalog["inventory"]), 419)
+        identity = next(item["id"] for item in catalog["inventory"] if item["name"] == "New linked product")
+        new = [rate for rows in catalog["rate_groups"].values() for rate in rows if rate["name"] in ("New primer", "New topcoat")]
+        self.assertEqual({rate["inventory_id"] for rate in new}, {identity})
+        self.assertEqual(len({rate["id"] for rate in new}), 2)
+        standalone = next(rate for rate in catalog["rate_groups"]["primers"] if rate["id"] == "new_standalone")
+        self.assertIsNone(standalone["inventory_id"])
+        self.assertEqual((standalone["price"], standalone["yield"]), (7, 0))
+        again = self.imported(export_compact_pricing_workbook(result["configuration"]), result["configuration"])
+        self.assertEqual(again["summary"], {"inventory": {"added": 0, "removed": 0, "updated": 0}, "rates": {"added": 0, "removed": 0, "updated": 0}})
+
+    def test_blank_empty_text_zero_and_separator_padding_are_preserved(self):
+        def edit(workbook):
+            sheet = workbook[COMBINED_SHEET]
+            for header, value in (("Group", "primers; topcoats"), ("Price source", "Inventory; Inventory"),
+                                  ("Rate ID", "primers:1; topcoats:1"), ("Yield type", "Blank; Empty text"), ("Yield", " ; "), ("Use order", "1; 1")):
+                compact_cell(sheet, "204", header).value = value
+        catalog = effective_catalog(self.imported(modify(self.exported, edit))["configuration"])
+        self.assertIsNone(catalog["rate_groups"]["primers"][0]["yield"])
+        self.assertEqual(catalog["rate_groups"]["topcoats"][0]["yield"], "")
+        def zero(workbook):
+            compact_cell(workbook[COMBINED_SHEET], "204", "Yield").value = "0;142"
+        catalog = effective_catalog(self.imported(modify(self.exported, zero))["configuration"])
+        self.assertEqual(catalog["rate_groups"]["primers"][0]["yield"], 0)
+
+    def test_mismatched_lists_bad_quotes_numbers_and_duplicate_orders_are_rejected(self):
+        for header, value, message in (("Yield", "142", "same number"), ("Rate ID", "primers:1", "same number"),
+                                       ("Selection name", 'Bad"name;Other', "CSV"), ("Selection name", '"Unclosed;Other', "CSV"),
+                                       ("Sell rate", "NaN;360", "number"), ("Use order", "1.5;1", "whole number"),
+                                       ("Group", "primers;primers", "Duplicate Use order")):
+            with self.subTest(header=header, value=value), self.assertRaisesRegex(ValidationError, message):
+                self.imported(modify(self.exported, lambda w: setattr(compact_cell(w[COMBINED_SHEET], "204", header), "value", value)))
+
+    def test_expanded_use_limits_cell_size_and_security_remain_enforced(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = COMBINED_SHEET
+        sheet.append(COMPACT_HEADERS)
+        append_compact(sheet, **{"Product name": "Limit", "Inventory ID": "limit", "Pricing mode": "Manual", "Markup": 0, "Sell price": 1,
+            "Group": "primers;primers;primers", "Selection name": "One;Two;Three", "Price source": "Inventory;Inventory;Inventory",
+            "Sell rate": "1;1;1", "Yield type": "Number;Number;Number", "Yield": "1;1;1", "Rate ID": "one;two;three", "Use order": "1;2;3"})
+        with patch("estimator.pricing_workbook.MAX_ROWS", 2), self.assertRaisesRegex(ValidationError, "after expansion"):
+            self.imported(_serialize_exact(workbook))
+        for header in ("Selection name", "Sell rate"):
+            with self.assertRaisesRegex(ValidationError, "formulas"):
+                self.imported(modify(self.exported, lambda w: setattr(compact_cell(w[COMBINED_SHEET], "204", header), "value", "=1+1")))
+        with self.assertRaisesRegex(ValidationError, "provided columns"):
+            self.imported(modify(self.exported, lambda w: setattr(w[COMBINED_SHEET]["AB2"], "value", "extra")))
+        catalog = baseline()
+        seed = catalog["rate_groups"]["primers"][0]
+        catalog["rate_groups"]["primers"] = [{**deepcopy(seed), "id": f"long:{i}", "name": f"{i}" + "x" * 990} for i in range(40)]
+        with self.assertRaisesRegex(ValidationError, "32,767"):
+            export_compact_pricing_workbook({"catalog": catalog})
 
 
 if __name__ == "__main__":

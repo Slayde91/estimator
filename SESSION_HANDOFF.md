@@ -1,6 +1,67 @@
 # Session handoff
 
-## Visible pricing yields and Excel views — 2026-09-16
+## Compact pricing workbook and restored use details — 2026-09-16
+
+Current branch: `feat/compact-pricing-workbook`, based on PR #24 merge
+`7408276`. That preceding release and its post-merge CI are verified; they do
+not validate this increment.
+
+The browser restores expandable Used in sections. Each product has one price
+editor; each linked use retains its own category, selection, rate, price source
+and yield. Search, group filters, unused products, standalone rates, remembered
+open state and independent resets retain the existing pricing draft behavior.
+Both pricing Excel actions remain green.
+
+The new Inventory & Rates export has one row per product and 27 columns A:AA.
+Product Sell price is distinct from use Sell rate. Group, Selection name, Price
+source, Sell rate, Yield type, Yield, Rate ID and Use order are eight matching
+semicolon CSV lists when a product has multiple uses. Empty positions are
+preserved, embedded delimiters/quotes are escaped, and unequal list lengths are
+rejected. A new blank-ID product receives one ID and its same-row uses link to
+it. Standalone rate rows leave product fields blank. The previous combined
+Inventory/Use rows and legacy Inventory/Rates sheets remain accepted. Import
+still creates a reviewed draft until Save pricing; no commercial rule, catalog
+model, dependency, SQL schema or saved quote is migrated.
+
+Verified at this checkpoint: 34 unique workbook tests passed across runs
+(ten compact and 24 legacy), including all three 216-scenario parity routes.
+The quoted-CRLF/XML normalization fix retains exact text. Five API integration tests passed in
+159.698 seconds, and all 126 UI checks pass (33 Estimator and 93 Calculator).
+JavaScript syntax and scoped diff checks pass. The export contains 417 product rows with 166 uses in matching
+same-row lists; reimport preserves every effective catalog value, link and
+dropdown order exactly.
+
+Excel 16.0 build 20326 opened both the preceding 583-row workbook and the new
+417-row workbook with normal loading. A native SaveCopyAs followed by app import
+preserved the exact catalog, with zero changes. Both new sheets were rendered
+and reviewed, including the ten-use N/A row and two-use SBR product. Browser
+review confirmed the SBR/Primers filter and restored closed/open details:
+Primer draft yield 155 survived close/reopen while Topcoats retained 142.
+
+Independent audit found no issues. Full CI and refreshed-runtime/saved-state
+checks are still pending, as are commit, push, PR and merge.
+Record final evidence in `.runtime/compact-pricing-qa/publication.json`; verify
+current Git and runtime facts before extending this checkpoint.
+
+Next action: finish refreshed-runtime and live-state validation, then publish
+through the existing PR workflow. Keep CI running in the background while
+completing independent review and evidence work. Tracked changes belong to this
+pricing exchange/presentation increment; QA exports, logs and database copies
+stay ignored. Preserve the user's open drafts and live saved data.
+
+Resume prompt: Continue `feat/compact-pricing-workbook` from current repository
+state. Read this checkpoint, inspect the five documentation files and current
+diff, complete the outstanding refreshed-runtime/saved-state checks without
+repeating verified work, then commit/push/PR/merge when exact-head
+CI and review permit. Record the verified merge and remaining local changes in
+`.runtime/compact-pricing-qa/publication.json`. Do not change pricing rules or
+overwrite the user's drafts.
+
+## Historical: visible pricing yields and Excel views — 2026-09-16
+
+Published as PR #24, merge `7408276`, with successful post-merge CI. The evidence
+below records that release; the current increment restores expandable browser
+details and replaces its separate Excel Use rows with same-row lists.
 
 Branch `fix/pricing-workbook-views-and-visible-yields` starts from verified
 PR #23 merge `53c875dc4d4d7e576507f8d93bf1957e1c39e7ec`. The browser now shows
@@ -34,17 +95,16 @@ both sheets and confirmed the visible rows and legible instructions.
 Browser verification changed SBR supplier cost to 300 and markup to 20%, making
 both linked Primers/Topcoats rates 360. A Primer override of 400 and yield 155
 left Topcoats unchanged. Reset rate retained yield 155; Reset yield restored
-142. Commit, push, PR, exact-head CI/review and merge remain pending at this
-checkpoint. Current Git evidence and the eventual
-`.runtime/pricing-visible-yields-qa/publication.json` receipt take precedence.
+142. These checks preceded the successful PR #24 publication. Its release
+evidence is retained in `.runtime/pricing-visible-yields-qa/publication.json`.
 
 The reported workbook was read only and copied to
 `.runtime/pricing-visible-yields-qa/before-pricing.xlsx`; source SHA-256 is
 `d7f617fc180432b6258be40f67984eef84bfbfd72b32c5fe45fb5facfffc0baf`.
 The same QA folder contains recovery and validation evidence. Preserve the
 user's workbook, open Excel/browser drafts and live saved state during QA.
-The earlier expandable/collapsed pricing layouts below are historical and are
-superseded by this visible layout.
+The earlier pricing layouts below are historical; the current behavior is
+described at the top of this handoff.
 
 ## Calculator presentation polish — 2026-09-16
 

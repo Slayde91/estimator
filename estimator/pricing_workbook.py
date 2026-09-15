@@ -5,8 +5,9 @@ the caller; parsing never writes configuration or saved quotes.
 """
 
 from copy import deepcopy
+import csv
 import hashlib
-from io import BytesIO
+from io import BytesIO, StringIO
 import math
 import re
 from uuid import uuid4
@@ -16,7 +17,7 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import coordinate_to_tuple, get_column_letter
+from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
 
@@ -49,12 +50,68 @@ COMBINED_HEADERS = (
     "Sell price / rate", "Price source", "Yield type", "Yield", "Pricing mode",
     "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
 )
-# Both layouts feed the same existing pricing parser. Product values have one
+COMPACT_HEADERS = (
+    "Item code", "Product name", "Supplier price", "Markup", "Sell price",
+    "Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield",
+    "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
+)
+USE_VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
+# All layouts feed the same existing pricing parser. Product values have one
 # owner; a use links to that owner explicitly, never by its physical position.
 _INVENTORY_COLUMNS = {name: {"Product name": "Name", "Sell price": "Sell price / rate"}.get(name, name)
                       for name in INVENTORY_HEADERS}
 _USE_COLUMNS = {name: {"Rate name": "Name", "Unit sell rate": "Sell price / rate"}.get(name, name)
                 for name in RATE_HEADERS}
+_COMPACT_USE_COLUMNS = {name: {"Rate name": "Selection name", "Unit sell rate": "Sell rate"}.get(name, name)
+                        for name in RATE_HEADERS if name != "Inventory ID"}
+
+
+def _pack_uses(values):
+    """One native scalar, or a positional semicolon CSV record without rounding."""
+    if not values:
+        return None
+    if len(values) == 1 and not isinstance(values[0], str):
+        return values[0]
+    buffer = StringIO(newline="")
+    csv.writer(buffer, delimiter=";", lineterminator="\r\n").writerow(values)
+    value = buffer.getvalue()[:-2]
+    if len(value) > 32767:
+        raise ValidationError("A product's use list exceeds Excel's 32,767-character cell limit.")
+    return value
+
+
+def _unpack_uses(value, label):
+    if value in (None, ""):
+        return [None]
+    if not isinstance(value, str):
+        return [value]
+    if len(value) > 32767:
+        raise ValidationError(f"{label}: a use list must have at most 32,767 characters.")
+    # csv.reader accepts quotes embedded in bare fields. Reject those as well
+    # as unterminated quotes so malformed lists cannot shift use associations.
+    field = r'(?:"(?:[^"]|"")*"|[^";\r\n]*)'
+    if not re.fullmatch(field + r'(?:;' + field + r')*', value):
+        raise ValidationError(f"{label}: use valid semicolon-separated CSV with doubled quotes inside quoted entries.")
+    try:
+        rows = list(csv.reader(StringIO(value, newline=""), delimiter=";", strict=True))
+    except csv.Error as error:
+        raise ValidationError(f"{label}: invalid semicolon-separated CSV.") from error
+    if len(rows) != 1:
+        raise ValidationError(f"{label}: a use list must contain one CSV record.")
+    return rows[0]
+
+
+def _use_number(value, label):
+    if value in (None, "") or isinstance(value, str) and not value.strip():
+        return None
+    if isinstance(value, str):
+        if not re.fullmatch(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?', value.strip()):
+            raise ValidationError(f"{label}: each entry must be a number or an empty slot.")
+        try:
+            return float(value)
+        except ValueError as error:
+            raise ValidationError(f"{label}: invalid numeric entry.") from error
+    return value
 
 
 def _text(value, label, *, optional=False, limit=1000):
@@ -200,94 +257,101 @@ def _serialize_exact(workbook):
                 for cell in root.iter(f"{{{XML_NS}}}c"):
                     if cell.attrib.get("r") in numbers[item.filename]:
                         cell.find(f"{{{XML_NS}}}v").text = numbers[item.filename][cell.attrib["r"]]
-                content = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+                # XML normalizes literal CR to LF on read. Preserve carriage
+                # returns in quoted use names as character references.
+                content = ET.tostring(root, encoding="utf-8", xml_declaration=True).replace(b"\r", b"&#13;")
             target.writestr(item.filename, content)
     return output.getvalue()
 
 
 def export_pricing_workbook(configuration):
-    """Export one product/use sheet, including unsaved reviewed edits."""
+    """Export one row per product with parallel use lists, including draft edits."""
     data = effective_catalog(configuration)
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = COMBINED_SHEET
-    sheet.append(COMBINED_HEADERS)
+    sheet.append(COMPACT_HEADERS)
     uses = {}
     for group, rates in data["rate_groups"].items():
         for order, rate in enumerate(rates, 1):
             uses.setdefault(rate.get("inventory_id"), []).append((group, order, rate))
 
-    def append(values):
-        sheet.append([values.get(header) for header in COMBINED_HEADERS])
-
-    def append_use(group, order, rate):
-        value = rate.get("yield")
-        append({"Row type": "Use", "Name": rate["name"], "Group": group,
-                "Sell price / rate": rate["price"], "Price source": _rate_mode(rate, configuration).title(),
-                "Yield type": _yield_type(value, bool(data["rate_group_rules"][group]["yield_column"])),
-                "Yield": value if isinstance(value, (int, float)) else None,
-                "Inventory ID": rate.get("inventory_id"), "Rate ID": rate["id"], "Use order": order})
+    def append(product, records):
+        vectors = {header: [] for header in USE_VECTOR_HEADERS}
+        for group, order, rate in records:
+            value = rate.get("yield")
+            use = {"Selection name": rate["name"], "Group": group,
+                   "Sell rate": rate["price"], "Price source": _rate_mode(rate, configuration).title(),
+                   "Yield type": _yield_type(value, bool(data["rate_group_rules"][group]["yield_column"])),
+                   "Yield": value if isinstance(value, (int, float)) else None,
+                   "Rate ID": rate["id"], "Use order": order}
+            for header in USE_VECTOR_HEADERS:
+                vectors[header].append(use[header])
+        values = {**product, **{header: _pack_uses(values) for header, values in vectors.items()}}
+        sheet.append([values.get(header) for header in COMPACT_HEADERS])
 
     for item in data["inventory"]:
-        append({"Row type": "Inventory", "Name": item["name"], "Item code": item.get("item_code", ""),
+        append({"Product name": item["name"], "Item code": item.get("item_code", ""),
                 "Supplier price": item.get("supplier_price"), "Markup": item["markup"],
-                "Sell price / rate": item["sales_price"],
+                "Sell price": item["sales_price"],
                 "Pricing mode": "Supplier markup" if item["pricing_mode"] == "supplier_markup" else "Manual",
                 "Sales description": item["sales_description"], "Inventory ID": item["id"],
-                **{header: item.get("properties", {}).get(key) for header, key in PROPERTY_HEADERS.items()}})
-        for group, order, rate in uses.get(item["id"], []):
-            append_use(group, order, rate)
+                **{header: item.get("properties", {}).get(key) for header, key in PROPERTY_HEADERS.items()}},
+               uses.get(item["id"], []))
     for group, order, rate in uses.get(None, []):
-        append_use(group, order, rate)
+        append({}, [(group, order, rate)])
 
-    widths = {"A": 14, "B": 43, "C": 15, "D": 21, "E": 17, "F": 14, "G": 19,
-              "H": 17, "I": 17, "J": 17, "K": 21, "L": 48, "M": 21, "N": 24, "O": 13,
-              **{get_column_letter(column): 19 for column in range(16, 27)}}
-    _format_sheet(sheet, COMBINED_HEADERS, widths, numeric_columns=(5, 6, 7, 10, *range(16, 27)), percent_columns=(6,), freeze_panes="C2")
+    widths = dict(zip("ABCDEFGHIJKLMNOP", (15, 43, 17, 14, 19, 26, 43, 20, 20, 21, 20, 21, 48, 21, 28, 18)))
+    widths.update({get_column_letter(column): 19 for column in range(17, 28)})
+    _format_sheet(sheet, COMPACT_HEADERS, widths, numeric_columns=(3, 4, 5, 9, 11, *range(17, 28)), percent_columns=(4,), freeze_panes="C2")
     sheet.sheet_properties.outlinePr.summaryRight = False
     # Optional dimensions are retained once on each product and can be expanded.
-    sheet.column_dimensions.group("P", "Z", outline_level=1, hidden=True)
-    sheet.column_dimensions["O"].collapsed = True
+    sheet.column_dimensions.group("Q", "AA", outline_level=1, hidden=True)
+    sheet.column_dimensions["P"].collapsed = True
     for row in sheet.iter_rows(min_row=2):
-        inventory = row[0].value == "Inventory"
-        allowed = set(_INVENTORY_COLUMNS.values()) if inventory else set(_USE_COLUMNS.values()) | {"Use order"}
-        for header, cell in zip(COMBINED_HEADERS, row):
-            cell.fill = PatternFill("solid", fgColor="FFF0DE" if inventory else "F0F5FA")
-            if header not in allowed | {"Row type"}:
+        inventory = row[13].value is not None
+        has_uses = row[5].value is not None
+        for header, cell in zip(COMPACT_HEADERS, row):
+            use_cell = header in USE_VECTOR_HEADERS
+            cell.fill = PatternFill("solid", fgColor="F0F5FA" if use_cell else "FFF0DE")
+            if use_cell and not has_uses or not use_cell and not inventory:
                 cell.fill = PatternFill("solid", fgColor="ECECEC")
-            if header == "Name":
+            if header == "Product name":
                 cell.font = Font(name="Calibri", size=11, color="174D8D", bold=inventory)
-                cell.alignment = Alignment(vertical="center", wrap_text=True, indent=0 if inventory else 1)
-        sheet.cell(row[0].row, 15).number_format = "0"
+        # Multi-use CSV remains visible at normal zoom; account for explicit
+        # newlines and conservative text width without changing stored values.
+        lines = max(sum(max(1, math.ceil(len(line) / max(1, widths[cell.column_letter] - 3)))
+                        for line in str(cell.value or "").splitlines() or [""])
+                    for cell in row[:16])
+        sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
+        sheet.cell(row[0].row, 16).number_format = "0"
     comments = {
-        "A": "Inventory owns product values. Use rows show Group, Price source, Yield type, Yield, Rate ID and Use order. All rows are visible. Gray cells do not apply to that row type and must stay blank.",
-        "G": "Inventory: edit for Manual pricing, otherwise change supplier price/markup. Use: editing this rate creates an Override; choose Inventory in Price source to restore its link.",
-        "I": "Number uses Yield. Blank is a genuine empty lookup value; Empty text preserves its distinct calculation behavior. Not used applies to groups without yields.",
-        "M": "Keep existing IDs. Each Use links to its Inventory row by this ID, regardless of row order. For new linked rows enter the same new unique ID on both rows. An unlinked Use may leave this blank with Override pricing.",
-        "N": "Keep existing Rate IDs. Leave blank to create a new Use, or supply a unique ID. Row position does not identify the rate.",
-        "O": "Retains dropdown order within each Group when rows are grouped or sorted. Use unique positive integers within a Group; leave blank for new Uses to append. Clear or update this number when moving a Use to another Group.",
+        "F": "The eight use columns are parallel semicolon-separated lists. First entries belong together, then second entries, and so on. Keep every list the same length, including empty slots.",
+        "G": 'Quote entries containing semicolons, quotes or newlines. Double quotes inside quoted entries: "Name; with ""quotes""". Spaces are significant; do not add separator padding.',
+        "I": "Editing a sell rate creates an Override. Set its matching Price source to Inventory to restore the linked product price.",
+        "J": "Number requires its matching Yield. Blank and Empty text preserve distinct empty-value behavior. Not used applies to groups without yields. Two empty yield slots are a single semicolon.",
+        "N": "Keep existing Inventory IDs. A new product with a blank ID receives one shared by its uses in this row. Standalone rates leave all product fields, including Inventory ID, blank.",
+        "O": "Keep existing Rate IDs in their matching positions. An empty slot creates a new use identity; row order does not identify rates.",
+        "P": "Use unique positive integers within each Group. Empty slots append new choices; clear or update the matching slot when moving a use to another Group.",
     }
     for column, text in comments.items():
         sheet[f"{column}1"].comment = Comment(text, "Ceasefire")
-    for column, choices in (("A", ("Inventory", "Use")), ("D", tuple(data["rate_groups"])),
-                            ("H", ("Inventory", "Override")), ("I", ("Number", "Blank", "Empty text", "Not used")),
-                            ("K", ("Supplier markup", "Manual"))):
-        _validation(sheet, column, choices, max_rows=2 * MAX_ROWS, allow_blank=column != "A")
+    _validation(sheet, "L", ("Supplier markup", "Manual"), max_rows=2 * MAX_ROWS, allow_blank=True)
 
     instructions = workbook.create_sheet("Instructions")
     for row in [
         ["CEASEFIRE INVENTORY & RATES", "How to update the combined pricing library"],
         ["Save changes", "Import previews this entire workbook. Review additions, removals and updates, then Save pricing in ESTIMATOR. Existing saved quotes retain their own products and prices."],
-        ["Inventory rows", "Inventory rows own the product name, item code, supplier/manual price, markup and properties. Group, Price source, Yield type, Yield, Rate ID and Use order do not apply here and stay blank. Optional product properties are in expandable columns P:Z."],
-        ["Complete replacement", "Keep the Inventory & Rates sheet and its headers. Delete a Use to remove that choice. To remove an Inventory row, remove or unlink every Use referencing its Inventory ID. Filtered, hidden and collapsed rows are still imported."],
-        ["Stable links and sorting", "Row type declares Inventory or Use. Inventory ID links a Use to a product, never proximity or row order. Keep existing IDs. Use order preserves dropdown order within a Group when sorting; leave it blank to append a new Use."],
-        ["Add products and uses", "Add an Inventory row and one Use per dropdown group. Enter the same new unique Inventory ID on linked rows. Blank Inventory/Rate IDs allocate new identities; a blank Use Inventory ID means an independent rate and requires Override pricing. Gray fields must remain blank."],
-        ["Supplier markup", "On Inventory rows enter supplier price and markup (30% means 0.30). Changing either recalculates sell price as supplier × (1 + markup). Unchanged inputs retain the existing stored sell price exactly."],
-        ["Manual pricing", "On Inventory rows choose Manual to enter Sell price / rate directly. Supplier price may be blank; markup remains information. On Use rows choose Inventory for the linked price or Override for an independent price."],
-        ["Use rows and yields", "All Use rows are visible. They own Group, Price source, Yield type, Yield, Rate ID and Use order. Editing a Use rate creates an Override; choose Inventory to restore its linked price. Number requires a nonnegative Yield; Blank and Empty text keep distinct empty-value behavior; Not used is for groups without yields."],
-        ["Names and groups", "Use Name is the Estimator dropdown selection. Group places it in the existing calculation category. Names must be unique within a Group. These categories reproduce the original selections; they do not establish technical suitability."],
-        ["Values only", "Use typed values, not formulas, macros or external links. Prices shown are a snapshot: import evaluates pricing edits in ESTIMATOR. No Excel formulas are required. The earlier Inventory and Rates two-sheet format remains supported for import."],
-        ["Limits", f"Maximum {MAX_ROWS:,} Inventory rows plus {MAX_ROWS:,} Use rows, 5 MB file, numeric magnitude up to 1 trillion. Prices/yields cannot be negative; markup cannot be below -100%."],
+        ["One row per product", "Product fields appear once. Group, Selection name, Price source, Sell rate, Yield type, Yield, Rate ID and Use order contain parallel semicolon-separated use lists. All eight lists must have the same number of entries. Optional product properties are in columns Q:AA."],
+        ["Editing use lists", 'First entries belong to the first use, second entries to the second use. Preserve empty slots: two blank yields are ; . Quote entries containing semicolons, quotes or newlines, and double quotes inside quoted entries. Example: "Name; with ""quotes""";Second name. Spaces are preserved; do not add padding.'],
+        ["Complete replacement", "Keep the sheet and exact headers. To remove a use, remove its entry from all eight lists. Delete a product row to remove that product and its uses. Filtered or manually hidden rows still import. Keep existing IDs; Use order preserves each Group's dropdown order after sorting."],
+        ["Add products and uses", "Add a product row with its pricing and aligned use lists. Blank Inventory ID allocates one product identity linked to all uses on that row; blank Rate ID slots allocate new uses. For standalone rates leave every product field blank and use Override pricing. Selection name supplies the standalone label."],
+        ["Supplier markup", "On product rows enter supplier price and markup (30% means 0.30). Changing either recalculates sell price as supplier × (1 + markup). Unchanged inputs retain the existing stored sell price exactly."],
+        ["Manual pricing", "Choose Manual to enter the product Sell price directly. Supplier price may be blank; markup remains information. Each use's Price source is Inventory for its linked price or Override for an independent price."],
+        ["Rates and yields", "Price source is Inventory or Override per entry. Editing a Sell rate creates an Override; choose Inventory to restore its link. Yield type Number requires a nonnegative Yield; Blank and Empty text retain distinct empty values; Not used applies to groups without yields. Use an empty Yield slot for these three types."],
+        ["Names and groups", "Selection name is the Estimator dropdown choice. Group places it in the existing calculation category. Names must be unique within a Group. These categories reproduce the original selections; they do not establish technical suitability."],
+        ["Values only", "Use values, not formulas, macros or external links. Single numeric entries are numbers; multiple entries use exact numeric text separated by semicolons. Prices are a snapshot; ESTIMATOR evaluates edits on import. Earlier Inventory/Use-row and separate Inventory/Rates templates remain supported."],
+        ["Limits", f"Maximum {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion, 5 MB file, 32,767 characters per cell and numeric magnitude up to 1 trillion. Prices/yields cannot be negative; markup cannot be below -100%. All use cells blank means no uses."],
         ["Group keys", "Use these exact Group keys. New group definitions are not introduced by importing a pricing file."],
         *[[group, "Yield required" if rule["yield_column"] else "Yield not used"]
           for group, rule in data["rate_group_rules"].items()],
@@ -362,7 +426,8 @@ def _preflight(payload, filename):
                     if name.startswith("xl/worksheets/") and local == "c":
                         address = element.attrib.get("r", "")
                         match = re.fullmatch(r"([A-Z]{1,3})([1-9][0-9]*)", address)
-                        if not match or int(match.group(2)) > max_rows + 1 or len(match.group(1)) > 1:
+                        max_columns = len(COMPACT_HEADERS) if COMBINED_SHEET in sheet_names else max(len(INVENTORY_HEADERS), len(RATE_HEADERS))
+                        if not match or int(match.group(2)) > max_rows + 1 or column_index_from_string(match.group(1)) > max_columns:
                             raise ValidationError(f"A pricing sheet must have at most {max_rows:,} rows and only the provided columns.")
     except ValidationError:
         raise
@@ -392,12 +457,17 @@ def _rows(sheet, headers, *, max_rows=MAX_ROWS):
 
 
 def _pricing_rows(workbook):
-    """Adapt either supported file layout to the existing business parser."""
+    """Adapt all three file layouts to the existing business parser."""
     names = set(workbook.sheetnames)
     if {"Inventory", "Rates"}.issubset(names) and not names - {"Inventory", "Rates", "Instructions"}:
         return list(_rows(workbook["Inventory"], INVENTORY_HEADERS)), list(_rows(workbook["Rates"], RATE_HEADERS))
     if COMBINED_SHEET not in names or names - {COMBINED_SHEET, "Instructions"}:
         raise ValidationError("Use the Inventory & Rates sheet, or the earlier Inventory and Rates sheets, with only an optional Instructions sheet.")
+    sheet = workbook[COMBINED_SHEET]
+    sheet.reset_dimensions()
+    headers = tuple(next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), ()))
+    if headers == COMPACT_HEADERS:
+        return _compact_rows(sheet)
     inventory, uses, orders = [], [], set()
     for number, row in _rows(workbook[COMBINED_SHEET], COMBINED_HEADERS, max_rows=2 * MAX_ROWS):
         kind = row["Row type"]
@@ -430,6 +500,54 @@ def _pricing_rows(workbook):
     # this permits new uses without renumbering existing choices.
     uses.sort(key=lambda item: (item[0] is None, item[0] or 0, item[1]))
     return inventory, [(number, row) for _, number, row in uses]
+
+
+def _compact_rows(sheet):
+    inventory, uses, orders = [], [], set()
+    for number, row in _rows(sheet, COMPACT_HEADERS, max_rows=2 * MAX_ROWS):
+        label = f"{COMBINED_SHEET} row {number}"
+        has_product = any(row[header] not in (None, "") for header in INVENTORY_HEADERS)
+        has_uses = any(row[header] not in (None, "") for header in USE_VECTOR_HEADERS)
+        record = {header: row[header] for header in INVENTORY_HEADERS}
+        if has_product:
+            # A compact row declares this product and its own uses together;
+            # generate one shared identity, never infer links to another row.
+            if has_uses and record["Inventory ID"] in (None, ""):
+                record["Inventory ID"] = f"inv_{uuid4().hex}"
+            inventory.append((number, record))
+        if len(inventory) > MAX_ROWS:
+            raise ValidationError(f"The library must have at most {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion.")
+        if not has_uses:
+            continue
+        vectors = {header: _unpack_uses(row[header], f"{label} {header}") for header in USE_VECTOR_HEADERS}
+        counts = {header: len(values) for header, values in vectors.items()}
+        if len(set(counts.values())) != 1:
+            details = ", ".join(f"{header}={count}" for header, count in counts.items())
+            raise ValidationError(f"{label}: all eight use lists must have the same number of entries, including empty slots ({details}).")
+        count = counts["Group"]
+        if len(uses) + count > MAX_ROWS:
+            raise ValidationError(f"The library must have at most {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion.")
+        for index in range(count):
+            use_label = f"{label} use {index + 1}"
+            use = {header: vectors[column][index] for header, column in _COMPACT_USE_COLUMNS.items()}
+            for header in ("Group", "Price source", "Yield type", "Rate ID"):
+                if isinstance(use[header], str):
+                    use[header] = use[header].strip()
+            use["Inventory ID"] = record["Inventory ID"] if has_product else None
+            for header in ("Unit sell rate", "Yield"):
+                use[header] = _use_number(use[header], f"{use_label} {header}")
+            order = _use_number(vectors["Use order"][index], f"{use_label} Use order")
+            if order is not None:
+                order = _number(order, f"{use_label} Use order", minimum=1)
+                if order != int(order) or order > MAX_ROWS:
+                    raise ValidationError(f"{use_label}: Use order must be a whole number from 1 to {MAX_ROWS}.")
+                key = (use["Group"], order)
+                if key in orders:
+                    raise ValidationError(f"{use_label}: Duplicate Use order in {use['Group']}.")
+                orders.add(key)
+            uses.append((order, number, index, use))
+    uses.sort(key=lambda item: (item[0] is None, item[0] or 0, item[1], item[2]))
+    return inventory, [(number, row) for _, number, _, row in uses]
 
 
 def _inventory_comparison(item):

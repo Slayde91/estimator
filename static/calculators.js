@@ -60,10 +60,10 @@
     steel_vermiculite: {
       CALCULATOR: { A20: [["Edit the blue cells.", "Edit the input fields."]] },
       SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the schedule inputs, or use Import schedule."]] },
-      BAGS: { A27: [["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
+      BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
-        A7: [["Factor helper starts at row 341.", "The Section Factor Helper section is below."]],
+        A7: [["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
         G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
         G185: factorLookupDirections, G241: factorLookupDirections,
         G38: estimatingDensityDirections, G71: estimatingDensityDirections, G103: estimatingDensityDirections,
@@ -171,6 +171,11 @@
   }
 
   function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
+  function displayPages(definition) {
+    return definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
+  }
+  function currentPage(entry) { return entry.page || entry.sheet; }
+  function pageDefinition(entry) { return displayPages(entry.definition).find((page) => page.id === currentPage(entry)) || { id: currentPage(entry), label: currentPage(entry), sheet: entry.sheet }; }
   function hiddenColumns(metadata) {
     const hidden = new Set(metadata.hidden_columns || []);
     for (const [column, width] of Object.entries(metadata.column_widths || {})) if (Number.isFinite(Number(width)) && Number(width) <= 0) hidden.add(columnNumber(column));
@@ -246,7 +251,8 @@
     // selection cannot determine the type of every other available option.
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
-    const select = cell.type === "select" && !allowOther && options.length <= 40;
+    const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
+    const select = cell.type === "select" && !allowOther && (options.length <= 40 || display?.control === "select");
     const multiline = Boolean(cell.multiline);
     const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
     const selectOptions = [];
@@ -254,14 +260,32 @@
     control.dataset.calculatorSheet = entry.sheet;
     control.setAttribute("aria-label", `${label}${percent(cell) ? " in percent" : ""}`);
     if (select) {
-      const values = [...options];
-      if (!values.some((option) => String(option) === "")) values.unshift("");
-      if (value !== null && value !== undefined && !values.some((option) => String(option) === String(value))) values.unshift(value);
-      for (const item of values) {
+      const appendOption = (item) => {
         const option = node("option", "", item === "" ? "(blank)" : displayValue(item, cell));
         option.value = String(item); control.append(option); selectOptions.push({ option, value: item });
         if (isNumber(item)) option.title = `Exact value: ${numericInputValue(item, cell, true)}${percent(cell) ? "%" : ""}`;
-      }
+      };
+      control.calculatorEnsureOption = (item) => {
+        item ??= "";
+        if (!selectOptions.some(({ value: existing }) => String(existing) === String(item))) appendOption(item);
+      };
+      const deferredOptions = options.length > 40;
+      let optionsLoaded = !deferredOptions;
+      const populate = () => {
+        if (optionsLoaded) return;
+        const selected = rawValue();
+        control.replaceChildren(); selectOptions.length = 0;
+        appendOption("");
+        for (const item of options) if (String(item) !== "") appendOption(item);
+        control.calculatorEnsureOption(selected);
+        control.value = String(selected ?? ""); optionsLoaded = true;
+      };
+      appendOption("");
+      for (const item of deferredOptions ? [] : options) if (String(item) !== "") appendOption(item);
+      control.calculatorEnsureOption(value);
+      // A thousand prepared rows can share a large strict choice list. Keep
+      // native selects lightweight until their first pointer/keyboard opening.
+      if (deferredOptions) for (const event of ["pointerdown", "focus", "keydown"]) control.addEventListener(event, populate);
       control.value = String(value ?? "");
     } else {
       if (multiline) { control.rows = 4; control.classList.add("calculator-basis-input"); }
@@ -304,10 +328,10 @@
       entry.invalid.delete(key); control.removeAttribute("aria-invalid");
       if (isNumber(next)) control.title = `Exact value: ${numericInputValue(next, cell, true)}${percent(cell) ? "%" : ""}`;
       else control.removeAttribute("title");
-      setInput(entry, entry.sheet, address, next);
+      setInput(entry, sourceSheet, address, next);
     });
     control.addEventListener("blur", (event) => {
-      const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : value;
+      const selectedValue = Object.prototype.hasOwnProperty.call(entry.inputs[sourceSheet] || {}, address) ? entry.inputs[sourceSheet][address] : value;
       if (!select && cell.type === "select" && !allowOther && selectedValue !== null && selectedValue !== "" && !options.some((option) => String(option) === String(selectedValue)) && String(value ?? "") !== String(selectedValue)) {
         entry.invalid.set(key, control.value); control.setAttribute("aria-invalid", "true");
         calculationStatus("Choose a value from the available list."); updateStatus(entry);
@@ -354,6 +378,8 @@
     }
     element.classList.toggle("calculator-number", isNumber(cell.value));
     element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
+    const highlight = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.highlight;
+    element.classList.toggle("calculator-published-thickness", highlight === "published-thickness" && isNumber(cell.value) && !cell.error);
     const position = parseAddress(address);
     element.classList.toggle("calculator-row-status", Boolean(entry?.definition.id === "steel_board" && entry.sheet === "CALCULATOR" && position?.column === 35 && position.row >= 9 && position.row <= 208));
     if (element.dataset.calculatorValue === "true") {
@@ -392,6 +418,7 @@
       const address = control.dataset.calculatorCell, key = `${entry.sheet}!${address}`, cell = cells.get(address);
       if (!cell || control === document.activeElement || entry.invalid.has(key)) continue;
       const value = Object.prototype.hasOwnProperty.call(entry.inputs[entry.sheet] || {}, address) ? entry.inputs[entry.sheet][address] : cell.value;
+      control.calculatorEnsureOption?.(value);
       const shown = String(control.tagName.toLowerCase() === "select" ? value ?? "" : isNumber(value) ? numericInputValue(value, cell) : value ?? "");
       if (String(control.value) !== shown) control.value = shown;
       if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
@@ -408,7 +435,7 @@
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    return JSON.stringify([pageDefinition(entry), result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -514,23 +541,23 @@
   }
 
   function settingsPanels(entry, definitions) {
-    const sheet = entry.sheet, chooser = node("div", "calculator-settings-chooser"), panels = new Map(), buttons = new Map();
+    const page = currentPage(entry), chooser = node("div", "calculator-settings-chooser"), panels = new Map(), buttons = new Map();
     chooser.setAttribute("role", "group"); chooser.setAttribute("aria-label", "Settings sections");
     entry.settingsSelection ||= {};
     const update = () => {
       for (const [id, panel] of panels) {
-        const expanded = entry.settingsSelection[sheet] === id;
+        const expanded = entry.settingsSelection[page] === id;
         panel.hidden = !expanded; buttons.get(id).setAttribute("aria-expanded", String(expanded));
       }
     };
     for (const [index, definition] of definitions.entries()) {
-      const prefix = `calculator-settings-${entry.definition.id}-${sheet}-${definition.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
+      const prefix = `calculator-settings-${entry.definition.id}-${page}-${definition.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
       const button = node("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       button.addEventListener("click", () => {
-        if (current() !== entry || entry.sheet !== sheet) return;
-        entry.settingsSelection[sheet] = entry.settingsSelection[sheet] === definition.id ? null : definition.id;
+        if (current() !== entry || currentPage(entry) !== page) return;
+        entry.settingsSelection[page] = entry.settingsSelection[page] === definition.id ? null : definition.id;
         if (entry.pendingResult && !entry.invalid.size) { entry.result = entry.pendingResult; entry.pendingResult = null; renderGrid(entry); }
         else update();
       });
@@ -541,7 +568,7 @@
 
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
-    const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry);
+    const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry), page = pageDefinition(entry);
     grid.classList.toggle("calculator-grid-expanded", Boolean(metadata.expand_tables));
     entry.productTotalsElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
@@ -555,8 +582,11 @@
     const presentationTables = metadata.presentation_tables;
     const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
     const projectedTables = metadata.table_layout === "projected" && presentationTables.length > 0;
-    const settingsDefinitions = metadata.navigation_mode === "select" ? metadata.settings_sections.map((section) => ({ ...section, bounds: section.ranges.map((range) => { const [start, end] = range.split(":").map(parseAddress); return { start, end: end || start }; }) })) : [];
-    const sectionOwner = (row, column) => settingsDefinitions.find((section) => section.bounds.some(({ start, end }) => row >= start.row && row <= end.row && column >= start.column && column <= end.column))?.id || null;
+    const sourceSettings = metadata.navigation_mode === "select" ? metadata.settings_sections.map((section) => ({ ...section, bounds: section.ranges.map((range) => { const [start, end] = range.split(":").map(parseAddress); return { start, end: end || start }; }) })) : [];
+    const settingsDefinitions = sourceSettings.filter((section) => !Array.isArray(page.section_ids) || page.section_ids.includes(section.id));
+    // Excluded sections still own their cells: they must never leak into a
+    // virtual page's common introduction merely because its chooser omits them.
+    const sectionOwner = (row, column) => sourceSettings.find((section) => section.bounds.some(({ start, end }) => row >= start.row && row <= end.row && column >= start.column && column <= end.column))?.id || null;
     const boardSummary = entry.definition.id === "steel_board" && entry.sheet === "BOARD SUMMARY";
     const tableForRow = (row) => presentationTables.findIndex((table) => row >= table.first_row && row <= table.last_row);
     const displayMerges = Object.values(metadata.display_cells).map((cell) => cell.merge).filter(Boolean);
@@ -565,11 +595,11 @@
       const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
     }).filter(Boolean);
     const regions = presentationTables.map((definition, index) => {
-      const title = parseAddress(definition.title_address);
-      const titleRange = title && (merges.find(({ start }) => start.row === title.row && start.column === title.column) || { start: title, end: title });
+      const headingRanges = [definition.title_address, definition.subtitle_address].map(parseAddress).filter(Boolean)
+        .map((position) => merges.find(({ start }) => start.row === position.row && start.column === position.column) || { start: position, end: position });
       const regionColumns = new Set(definition.columns.map(columnNumber));
       return { definition, index, contains: (row, column) => row >= definition.first_row && row <= definition.last_row && regionColumns.has(column),
-        isTitle: (row, column) => Boolean(titleRange && row >= titleRange.start.row && row <= titleRange.end.row && column >= titleRange.start.column && column <= titleRange.end.column) };
+        isTitle: (row, column) => headingRanges.some(({ start, end }) => row >= start.row && row <= end.row && column >= start.column && column <= end.column) };
     });
     if (!schedule) {
       const occupied = new Set(), populated = new Set();
@@ -582,7 +612,7 @@
     }
     const rows = visibleRows.filter((row) => !(entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && row.row === 5) && !(boardSummary && row.row <= 10)).filter((row) => schedule ? row.row >= schedule.first_row && row.row <= schedule.last_row : tableForRow(row.row) >= 0 || row.cells.some((cell) => columns.includes(cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))));
     const sourceCells = new Map(visibleRows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
-    const projectedTitles = new Set(presentationTables.map((table) => table.title_address).filter(Boolean));
+    const projectedTitles = new Set(presentationTables.flatMap((table) => [table.title_address, table.subtitle_address]).filter(Boolean));
     const tableLinks = stackedTables || projectedTables ? presentationTables.map((table, index) => {
       if (projectedTables && !table.title_address) return null;
       const titleCell = sourceCells.get(table.title_address);
@@ -647,9 +677,9 @@
         if (!sections.has(group)) addGroup(group, rows.filter((candidate) => groupForRow(candidate.row) === group), definition);
       }
     }
-    if (settingsDefinitions.length) {
+    if (sourceSettings.length) {
       const originalGroups = [...sections]; sections.clear();
-      for (const owner of [null, ...settingsDefinitions.map((section) => section.id)]) for (const [key, original] of originalGroups) {
+      for (const owner of [...(page.include_common === false ? [] : [null]), ...settingsDefinitions.map((section) => section.id)]) for (const [key, original] of originalGroups) {
         const visibleCell = (row, column) => original.visibleCell(row, column) && sectionOwner(row, column) === owner;
         const sourceRows = original.sourceRows.map((row) => ({ ...row, cells: row.cells.filter((cell) => original.columns.includes(cell.column) && visibleCell(row.row, cell.column)) }))
           .filter((row) => row.cells.some((cell) => cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "") || owner && original.definition && original.columns.some((column) => visibleCell(row.row, column)));
@@ -733,7 +763,7 @@
       renderedGroup.body.append(tr);
     }
     const content = [];
-    const settings = settingsDefinitions.length ? settingsPanels(entry, settingsDefinitions) : null;
+    const settings = settingsDefinitions.length && page.section_mode !== "content" ? settingsPanels(entry, settingsDefinitions) : null;
     if (sectionLinks.length && metadata.navigation_mode === "links") content.push(renderContents(sectionLinks));
     if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
     if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
@@ -779,7 +809,15 @@
         const titleCell = sourceCells.get(definition.title_address);
         applyCellDisplay(heading, metadata.display_cells[definition.title_address]);
         if (titleCell) { heading.dataset.calculatorOutput = definition.title_address; updateOutputCell(heading, titleCell); }
-        section.append(heading, scroll); append(section);
+        section.append(heading);
+        const subtitleCell = sourceCells.get(definition.subtitle_address);
+        if (subtitleCell) {
+          const subtitle = node("p", "calculator-projected-note");
+          subtitle.dataset.calculatorOutput = definition.subtitle_address;
+          applyCellDisplay(subtitle, metadata.display_cells[definition.subtitle_address]); updateOutputCell(subtitle, subtitleCell);
+          section.append(subtitle);
+        }
+        section.append(scroll); append(section);
       }
       else if (schedule && metadata.schedule_heading) {
         const section = node("section", "calculator-schedule-section"), heading = node("h4", "", metadata.schedule_heading);
@@ -788,23 +826,23 @@
     }
     if (settings) content.push(settings.chooser, ...settings.panels.values());
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
-    entry.renderedSheet = entry.sheet; entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
+    entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     $("calculator-page-status").textContent = schedule ? `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
   }
 
   async function calculate() {
     const entry = current(); if (!entry || entry.invalid.size) return;
     clearTimeout(state.timer);
-    const revision = entry.revision, sheet = entry.sheet, serial = ++state.requestRevision;
+    const revision = entry.revision, sheet = entry.sheet, page = currentPage(entry), serial = ++state.requestRevision;
     calculationStatus("Calculating…");
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
       const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false }) });
-      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet) return;
+      if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || page !== currentPage(entry)) return;
       if (result.inputs) entry.inputs = clone(result.inputs);
       entry.latestCells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [`${sheet}!${cell.address || `${columnName(cell.column)}${row.row}`}`, cell])));
       const active = document.activeElement;
-      const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.choiceSignature === choiceSignature(result);
+      const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.renderedPage === page && entry.choiceSignature === choiceSignature(result);
       entry.result = result;
       if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
       else if (!entry.needsRender && active?.dataset?.calculatorCell && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
@@ -816,23 +854,23 @@
       calculationStatus();
       updateStatus(entry);
     } catch (error) {
-      if (current() === entry && serial === state.requestRevision && revision === entry.revision) { message(`Could not calculate. ${error.message}`, true); calculationStatus("Calculation needs attention"); }
+      if (current() === entry && serial === state.requestRevision && revision === entry.revision && page === currentPage(entry)) { message(`Could not calculate. ${error.message}`, true); calculationStatus("Calculation needs attention"); }
     } finally { if (serial === state.requestRevision) $("calculator-grid").setAttribute("aria-busy", "false"); }
   }
 
-  async function selectPage(sheet) {
-    const entry = current(); if (!entry || !entry.definition.pages.includes(sheet)) return;
+  async function selectPage(id) {
+    const entry = current(), page = entry && displayPages(entry.definition).find((item) => item.id === id); if (!page) return;
     if (entry.invalid.size) { message("Correct the invalid number before changing pages.", true); return; }
-    entry.sheet = sheet; entry.pendingResult = null; entry.result = null; entry.needsRender = true;
-    $("calculator-sheet-title").textContent = sheet;
+    entry.page = page.id; entry.sheet = page.sheet; entry.pendingResult = null; entry.result = null; entry.needsRender = true;
+    $("calculator-sheet-title").textContent = page.label;
     $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
     renderPages(entry); message(); await calculate();
   }
 
   function renderPages(entry) {
-    const buttons = entry.definition.pages.map((sheet) => {
-      const button = node("button", "calculator-page", sheet); button.type = "button";
-      button.setAttribute("aria-pressed", String(sheet === entry.sheet)); button.addEventListener("click", () => selectPage(sheet)); return button;
+    const buttons = displayPages(entry.definition).map((page) => {
+      const button = node("button", "calculator-page", page.label); button.type = "button";
+      button.setAttribute("aria-pressed", String(page.id === currentPage(entry))); button.addEventListener("click", () => selectPage(page.id)); return button;
     });
     $("calculator-pages").replaceChildren(...buttons);
   }
@@ -883,13 +921,14 @@
         const definition = await request(endpoint(id));
         if (serial !== state.loadRevision) return;
         const inputs = clone(definition.inputs || {});
-        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, sheet: definition.pages[0], needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
+        const page = displayPages(definition)[0];
+        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
         state.entries.set(id, entry);
       }
       if (serial !== state.loadRevision) return;
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
-      $("calculator-sheet-title").textContent = entry.sheet;
+      $("calculator-sheet-title").textContent = pageDefinition(entry).label;
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
       if (entry.result) renderGrid(entry); else $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
       await calculate();

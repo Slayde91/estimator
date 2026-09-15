@@ -52,6 +52,11 @@ _DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 
 _DISPLAY_TEXT = {
     'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
                          'CALCULATOR': {'L6': 'PUBLISHED VALUE'},
+                         'SETTINGS': dict(zip(
+                             ('A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229', 'A270'),
+                             ('GLOBAL SETTINGS', 'COMMON CALCULATION RULES', 'CAFCO 300',
+                              'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+',
+                              'MONOKOTE MK-6 HY', 'COMPLETE WORKBOOK OPERATING RULES'))),
                          'SCHEDULE': {'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
@@ -67,9 +72,11 @@ _DISPLAY_CELLS = {
     'steel_vermiculite': {
         'BAGS': {'H10': {'merge': 'H10:N10', 'role': 'spacer'},
                  **{f'A{row}': {'bold': True} for row in range(20, 25)}},
-        'CALCULATOR': {'H6': {'align': 'left', 'suffix': ' mm'},
+        'CALCULATOR': {'H6': {'align': 'left', 'suffix': ' mm', 'highlight': 'published-thickness'},
                        **{f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'}},
-        'SCHEDULE': {f'C{row}': {'bold': True} for row in range(10, 1010)},
+        'SCHEDULE': {**{f'C{row}': {'bold': True} for row in range(10, 1010)},
+                     **{f'Y{row}': {'bold': False} for row in range(10, 1010)},
+                     **{f'F{row}': {'control': 'select'} for row in range(10, 1010)}},
         'SETTINGS': {
             **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246)},
             **{f'D{row}': {'bold': False} for row in (42, 75, 107, 184, 240)},
@@ -80,7 +87,9 @@ _DISPLAY_CELLS = {
             'A371': {'merge': 'A371:G371', 'role': 'collapsed_spacer'},
         },
     },
-    'steel_board': {'BOARD SUMMARY': {f'A{row}': {'bold': True} for row in range(12, 30)}},
+    'steel_board': {'BOARD SUMMARY': {f'A{row}': {'bold': True} for row in range(12, 30)},
+                    'SETTINGS': {**{f'A{row}': {'bold': True} for row in range(6, 35)},
+                                 **{f'P{row}': {'bold': True} for row in range(6, 52)}}},
     'ductwork': {
         'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 311)}},
         'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
@@ -117,6 +126,19 @@ _SETTINGS_SECTIONS = {
                                                ('Diagnostic messages', 'P5:Q51')))
     ],
 }
+# Browser tabs can project parts of one source worksheet. Source page names and
+# input keys remain unchanged for validation, calculation, persistence and export.
+_DISPLAY_PAGES = {
+    'steel_vermiculite': [
+        {'id': 'START', 'label': 'START', 'sheet': 'SETTINGS', 'section_ids': ['A270'],
+         'section_mode': 'content', 'include_common': False},
+        *({'id': name, 'label': name, 'sheet': name} for name in ('CALCULATOR', 'SCHEDULE', 'BAGS')),
+        {'id': 'SETTINGS', 'label': 'SETTINGS', 'sheet': 'SETTINGS',
+         'section_ids': ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229'], 'include_common': True},
+        {'id': 'FACTOR CALCS', 'label': 'FACTOR CALCS', 'sheet': 'SETTINGS',
+         'section_ids': ['A341', 'A356', 'A370'], 'include_common': False},
+    ],
+}
 # SUMMARY has independent tables sharing source column letters. Their browser
 # columns must be scoped to each table so hiding prose cannot hide quantities
 # in a different table. Widths are presentation pixels, not business constants.
@@ -135,9 +157,10 @@ _PRESENTATION_TABLES = {
              'title_address': 'A26', 'header_row': 28, 'label': '03 ALL PUBLISHED PERIODS FOR THIS INPUT'},
         ],
         'BAGS': [
-            {'first_row': 6, 'last_row': 15, 'columns': [*range(1, 7), *range(8, 15)],
+            {'first_row': 1, 'last_row': 15, 'columns': [*range(1, 7), *range(8, 15)],
              'column_widths': [1] * 13,
-             'width_mode': 'fit', 'table_kind': 'form', 'label': 'Manual material quantity'},
+             'width_mode': 'fit', 'table_kind': 'form', 'label': 'Manual material quantity',
+             'title_address': 'A1', 'subtitle_address': 'A3'},
             {'first_row': 17, 'last_row': 24, 'columns': list(range(1, 10)),
              'column_widths': [19, 7, 9, 10, 8, 7, 11, 9, 20], 'width_mode': 'fit',
              'table_kind': 'order', 'title_address': 'A17', 'header_row': 19, 'label': 'PRODUCT ORDER SUMMARY'},
@@ -363,7 +386,8 @@ def _sheet_metadata(model, sheet):
                 address, sheet['cells'][address].get('value', ''))
     return {'name': sheet['name'], 'max_row': r2, 'max_column': c2,
             'navigation_mode': 'select' if settings_sections else 'hidden' if page in {
-                ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'), ('steel_board', 'START')} else 'links',
+                ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'),
+                ('steel_board', 'START'), ('ductwork', 'SUMMARY')} else 'links',
             'settings_sections': settings_sections,
             'display_table_order': [1, 0] if page == ('steel_vermiculite', 'BAGS') else [],
             'schedule_heading': 'MEMBER SCHEDULE' if page == ('steel_vermiculite', 'SCHEDULE') else '',
@@ -392,6 +416,8 @@ def calculator_definition(calculator_id, inputs=None):
     documents_path = ROOT / 'data' / 'calculator_documents.json'
     documents = json.loads(documents_path.read_text(encoding='utf-8'))['sections'].get(calculator_id, []) if documents_path.exists() else []
     return {'id': calculator_id, 'title': model['title'], 'pages': model['pages'],
+            'display_pages': deepcopy(_DISPLAY_PAGES.get(calculator_id, [
+                {'id': name, 'label': name, 'sheet': name} for name in model['pages']])),
             'source': model['source'], 'schedule': deepcopy(model['schedule']),
             'sheets': [_sheet_metadata(model, sheet) for sheet in model['sheets'] if sheet['name'] in model['pages']],
             'inputs': normalize_calculator_inputs(calculator_id, inputs), 'documents': documents,

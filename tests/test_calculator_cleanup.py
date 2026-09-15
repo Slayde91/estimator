@@ -192,6 +192,10 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertEqual(sheet["omitted_ranges"], ["J28:N30"] if sheet["name"] == "CALCULATOR" else [])
             aliases = {"BAGS": {"A1": "MATERIAL QUANTITIES"},
                        "CALCULATOR": {"L6": "PUBLISHED VALUE"},
+                       "SETTINGS": {"A9": "GLOBAL SETTINGS", "A17": "COMMON CALCULATION RULES",
+                                    "A31": "CAFCO 300", "A64": "MANDOLITE CP2", "A96": "FENDOLITE MII",
+                                    "A173": "PERLIFOC HP ECO+", "A229": "MONOKOTE MK-6 HY",
+                                    "A270": "COMPLETE WORKBOOK OPERATING RULES"},
                        "SCHEDULE": {"A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
             self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))
             for address in editable_cells(IDENTITY, sheet["name"]):
@@ -336,7 +340,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             (IDENTITY, "CALCULATOR"): [(5, 24, list(range(1, 7)), "A5"),
                                       (5, 24, list(range(8, 15)), "H5"),
                                       (26, 30, list(range(1, 10)), "A26")],
-            (IDENTITY, "BAGS"): [(6, 15, [*range(1, 7), *range(8, 15)], None), (17, 24, list(range(1, 10)), "A17")],
+            (IDENTITY, "BAGS"): [(1, 15, [*range(1, 7), *range(8, 15)], "A1"), (17, 24, list(range(1, 10)), "A17")],
             ("ductwork", "PRODUCT SETTINGS"): [(94, 151, list(range(1, 9)), "A94"),
                                                (94, 113, list(range(10, 18)), "J94"),
                                                (115, 149, list(range(10, 18)), "J115")],

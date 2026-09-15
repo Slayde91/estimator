@@ -471,7 +471,7 @@ let passed = 0;
     entry=setup();entry.definition.id=id;entry.sheet=sheet;entry.definition.sheets=[{name:sheet,header_rows:[],merges:['A1:C1']}];
     entry.result=result({}, {sheet,rows:[{row:1,cells:[{column:1,address:'A1',value:'Original settings title',presentation:{role:'section'}}]}]});
     realRender(entry);const title=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A1');
-    assert.equal(title.textContent,'Product Settings and Rules');assert.match(title.className,/calculator-role-title/);assert.equal(title.dataset.calculatorValue,undefined);
+    assert.equal(title.textContent,'SETTINGS & RULES');assert.match(title.className,/calculator-role-title/);assert.equal(title.dataset.calculatorValue,undefined);
     assert.equal(entry.result.rows[0].cells[0].value,'Original settings title');
   }passed++;
 

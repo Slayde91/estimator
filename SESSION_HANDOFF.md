@@ -1,5 +1,17 @@
 # Session handoff
 
+## Settings title — 2026-09-15
+
+The shared browser settings banner now reads **SETTINGS & RULES** in place of
+Product Settings and Rules. This changes only the displayed A1 title on
+SETTINGS/PRODUCT SETTINGS pages; worksheet names, source values, formulas and
+reports retain their existing identities. The existing UI title check covers all
+three calculator settings pages. Publication evidence for this increment belongs
+in `.runtime/settings-title-qa/`; earlier entries below describe prior increments.
+Local validation passed: JavaScript syntax and all 73 calculator UI checks. The
+served `calculators.js` bytes match the updated file; no server restart is needed
+for this static asset. Source files and database contents were not edited.
+
 ## Calculator units and table labels — 2026-09-15
 
 Work on `fix/calculator-units-and-table-labels` starts from merged main

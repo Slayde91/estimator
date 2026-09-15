@@ -2,6 +2,9 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
+The shared calculator settings banner now displays **SETTINGS & RULES**. This is
+a browser title change only; worksheet names, source values and calculations are unchanged.
+
 The latest 21 browser comments refine calculator units, table layout and label
 formatting. Vermiculite SCHEDULE's area and volume summary captions explicitly
 show m² and m³. Its running material totals and the board schedule's Board Totals

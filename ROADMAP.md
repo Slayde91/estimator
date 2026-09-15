@@ -20,8 +20,14 @@ Initial CI at `ba98894` caught the shared board-schedule column limit, an old
 server-test layout assumption and no-lxml CRLF normalization. The corrections
 pass 13 schedule, 14 server and seven no-lxml serializer/precision/security
 checks, including wrong-format upload validation for all three calculators.
-Independent final audit found no issues. Full CI on the corrected head, final
-runtime/native rechecks and final
+That correction audit found no issues, and both `b0b058a` CI runs passed 274
+Python tests plus four optional source skips, 126 UI checks and build.
+
+A later native Excel probe exposed escaped CRLF text. The final pricing-only
+decoder/export correction passes five API tests, eight focused workbook tests
+and the native three-use text/rate/yield/ID probe. Native SaveCopyAs/reimport
+preserves CRLF/LF, quoted names and literal escape-looking text with zero
+changes. Fresh corrected-head CI, final runtime rechecks and
 publication remain pending. Evidence belongs in `.runtime/compact-pricing-qa`.
 
 Historical PR #24 merged at `7408276` with successful post-merge CI. It repaired

@@ -604,6 +604,44 @@ def append_compact(sheet, **values):
     sheet.append([values.get(header) for header in COMPACT_HEADERS])
 
 
+def raw_pricing_text(payload, replacements, *, shared=False):
+    """Independent Excel-style XML fixture; values already contain OOXML escapes."""
+    ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    with ZipFile(BytesIO(payload)) as archive:
+        sheet = ET.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+        relations = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        types = ET.fromstring(archive.read("[Content_Types].xml"))
+    strings = ET.Element(ns + "sst", count=str(len(replacements)), uniqueCount=str(len(replacements)))
+    for address, parts in replacements.items():
+        cell = sheet.find(f".//{ns}c[@r='{address}']")
+        cell.clear()
+        cell.set("r", address)
+        cell.set("t", "s" if shared else "inlineStr")
+        if shared:
+            ET.SubElement(cell, ns + "v").text = str(len(strings))
+            container = ET.SubElement(strings, ns + "si")
+        else:
+            container = ET.SubElement(cell, ns + "is")
+        for part in parts:
+            holder = ET.SubElement(container, ns + "r") if len(parts) > 1 else container
+            node = ET.SubElement(holder, ns + "t", {"{http://www.w3.org/XML/1998/namespace}space": "preserve"})
+            node.text = part
+        if len(parts) > 1:
+            phonetic = ET.SubElement(container, ns + "rPh", sb="0", eb="1")
+            ET.SubElement(phonetic, ns + "t").text = "not displayed"
+    payload = replace_part(payload, "xl/worksheets/sheet1.xml", ET.tostring(sheet, encoding="utf-8"))
+    if shared:
+        ET.SubElement(relations, "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship",
+                      Id="pricingText", Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings",
+                      Target="sharedStrings.xml")
+        ET.SubElement(types, "{http://schemas.openxmlformats.org/package/2006/content-types}Override",
+                      PartName="/xl/sharedStrings.xml", ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml")
+        payload = replace_part(payload, "xl/sharedStrings.xml", ET.tostring(strings, encoding="utf-8"))
+        payload = replace_part(payload, "xl/_rels/workbook.xml.rels", ET.tostring(relations, encoding="utf-8"))
+        payload = replace_part(payload, "[Content_Types].xml", ET.tostring(types, encoding="utf-8"))
+    return payload
+
+
 class CompactPricingWorkbookTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -725,6 +763,92 @@ workbook.close()
         process = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).resolve().parents[1],
                                  env={**os.environ, "OPENPYXL_LXML": "False"}, capture_output=True, text=True, timeout=30)
         self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+
+    def test_excel_shared_and_inline_text_preserve_real_and_literal_escapes(self):
+        workbook = load_workbook(BytesIO(self.exported))
+        row = compact_cell(workbook[COMBINED_SHEET], "204", "Selection name").row
+        workbook.close()
+        expected = ['  Name; "quoted"\r\nnext line  ', 'literal _x000D_ _x005F_ bare x005F_ \U0001f600']
+        encoded = vector(['  Name; "quoted"_x000D_\nnext line  ', 'literal _x005F_x000D_ _x005F_x005F_ bare x005F_ _xD83D__xDE00_'])
+        for shared in (False, True):
+            with self.subTest(shared=shared):
+                payload = raw_pricing_text(self.exported, {
+                    f"G{row}": [encoded], f"B{row}": ["split _x00", "0D_ product"], "F1": ["Gr_x006F_up"]}, shared=shared)
+                data = effective_catalog(self.imported(payload)["configuration"])
+                self.assertEqual(data["rate_groups"]["primers"][0]["name"], expected[0])
+                self.assertEqual(data["rate_groups"]["topcoats"][0]["name"], expected[1])
+                self.assertEqual(next(item["name"] for item in data["inventory"] if item["id"] == "204"), "split _x000D_ product")
+                for group, identity in (("primers", "primers:1"), ("topcoats", "topcoats:1")):
+                    rate = data["rate_groups"][group][0]
+                    self.assertEqual((rate["id"], rate["inventory_id"], rate["price"], rate["yield"]), (identity, "204", 384.93, 142))
+
+    def test_pricing_writer_protects_literal_escape_tokens_and_precise_use_values(self):
+        catalog = baseline()
+        names = ['  _x000D_; "literal" _x005F_ x005F_ _X000D_\r\nreal  ', 'Other _x0041_ \n line']
+        for group, name in zip(("primers", "topcoats"), names):
+            catalog["rate_groups"][group][0]["name"] = name
+        config = {"catalog": catalog, "rates": {"primers:1": {"price": 413.1234567890123, "yield": 137.1234567890123},
+                                                    "topcoats:1": {"price": 207.23456789012346, "yield": 62.34567890123456}}}
+        payload = export_compact_pricing_workbook(config)
+        with ZipFile(BytesIO(payload)) as archive:
+            xml = archive.read("xl/worksheets/sheet1.xml")
+        self.assertIn(b"_x005F_x000D_", xml)
+        self.assertIn(b"_x005F_x005F_", xml)
+        self.assertIn(b"&#13;", xml)
+        result = self.imported(payload, config)
+        data = effective_catalog(result["configuration"])
+        for group, name in zip(("primers", "topcoats"), names):
+            rate = data["rate_groups"][group][0]
+            self.assertEqual(rate["name"], name)
+            self.assertEqual((rate["price"], rate["yield"]), tuple(config["rates"][rate["id"]][field] for field in ("price", "yield")))
+        self.assertEqual(result["summary"]["rates"]["updated"], 0)
+        # The serializer's shared default keeps schedule export semantics.
+        workbook = Workbook()
+        workbook.active["A1"] = "_x000D_"
+        with ZipFile(BytesIO(_serialize_exact(workbook))) as archive:
+            self.assertNotIn(b"_x005F_x000D_", archive.read("xl/worksheets/sheet1.xml"))
+        workbook.close()
+
+    def test_decoded_controls_invalid_unicode_and_shared_references_are_rejected(self):
+        workbook = load_workbook(BytesIO(self.exported))
+        address = compact_cell(workbook[COMBINED_SHEET], "204", "Selection name").coordinate
+        workbook.close()
+        for shared in (False, True):
+            for token in ("_x0000_", "_x0001_", "_x000B_", "_xFFFF_", "_xFFFE_", "_xD800_"):
+                with self.subTest(shared=shared, token=token), self.assertRaisesRegex(ValidationError, "control characters|Unicode escape"):
+                    self.imported(raw_pricing_text(self.exported, {address: [f"Bad{token};Other"]}, shared=shared))
+        payload = raw_pricing_text(self.exported, {address: ["One;Two"]}, shared=True)
+        ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+        with ZipFile(BytesIO(payload)) as archive:
+            xml = archive.read("xl/worksheets/sheet1.xml")
+        for index in ("-1", "1", "1.5"):
+            root = ET.fromstring(xml)
+            root.find(f".//{ns}c[@r='{address}']/{ns}v").text = index
+            with self.subTest(index=index), self.assertRaisesRegex(ValidationError, "shared text reference"):
+                self.imported(replace_part(payload, "xl/worksheets/sheet1.xml", ET.tostring(root)))
+        root = ET.fromstring(xml)
+        row = root.find(f".//{ns}c[@r='{address}']/..")
+        duplicate = ET.SubElement(row, ns + "c", r=address, t="n")
+        ET.SubElement(duplicate, ns + "v").text = "1"
+        with self.assertRaisesRegex(ValidationError, "duplicate cell addresses"):
+            self.imported(replace_part(payload, "xl/worksheets/sheet1.xml", ET.tostring(root)))
+
+    def test_decoded_text_does_not_change_formula_or_nonfinite_number_validation(self):
+        workbook = load_workbook(BytesIO(self.exported))
+        address = compact_cell(workbook[COMBINED_SHEET], "204", "Selection name").coordinate
+        workbook.close()
+        payload = raw_pricing_text(self.exported, {address: ["_x003D_1+1;Other"]}, shared=True)
+        data = effective_catalog(self.imported(payload)["configuration"])
+        self.assertEqual(data["rate_groups"]["primers"][0]["name"], "=1+1")
+        ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+        with ZipFile(BytesIO(payload)) as archive:
+            xml = ET.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+        ET.SubElement(xml.find(f".//{ns}c[@r='{address}']"), ns + "f").text = "1+1"
+        with self.assertRaisesRegex(ValidationError, "formulas"):
+            self.imported(replace_part(payload, "xl/worksheets/sheet1.xml", ET.tostring(xml)))
+        for field in ("Sell rate", "Yield", "Use order"):
+            with self.subTest(field=field), self.assertRaisesRegex(ValidationError, "finite"):
+                self.imported(modify(self.exported, lambda book: setattr(compact_cell(book[COMBINED_SHEET], "204", field), "value", "1e999;1")))
 
     def test_new_products_unused_products_and_standalone_rates_keep_ownership(self):
         def add(workbook):

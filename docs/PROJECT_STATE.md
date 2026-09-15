@@ -23,7 +23,7 @@ unchanged; the previous valid freeze-pane handling is retained.
 
 Initial local checks: 34 unique workbook tests passed across runs (ten compact and
 24 legacy), including three 216-scenario parity routes and the quoted-CRLF/XML
-normalization fix. Five API integration tests passed in 159.698 seconds,
+normalization fix. Five API integration tests initially passed in 159.698 seconds,
 and all 126 UI checks pass (33 Estimator and 93 Calculator). JavaScript syntax
 and scoped diff checks pass. The export has
 417 product rows and 166 uses; effective catalog values, links and order match
@@ -40,8 +40,22 @@ All 13 schedule tests (42.188 seconds), 14 server tests (21.797 seconds), and
 seven focused no-lxml serializer/precision/security tests (37.618 seconds) pass.
 The latter covers exact text and numeric values across two saves, including a
 text-only sheet. Wrong-format pricing uploads receive a validation error in all
-three calculators. Independent final audit found no issues. Full corrected-head
-CI, final runtime/native rechecks and publication remain pending. Evidence belongs in
+three calculators. That correction audit found no issues. Both CI runs on
+`b0b058a` passed 274 Python tests plus four optional source skips, 126 UI checks
+and build.
+
+A later native Excel edge probe required canonical OOXML text decoding and
+pricing-only literal-escape protection. The final parser passes five API tests
+(55.331 seconds, no skips), and the native three-use probe preserves names,
+rates, yields and IDs with zero import changes. Eight focused workbook tests
+pass (39.907 seconds), including OOXML text/escape validation, no-lxml handling
+and precision across all supported layouts. Native Excel 16.0 build 20326
+opened and saved the final literal-text probe normally: CRLF/LF, quoted
+semicolons, spaces and literal escape-looking text remain exact after app
+import, as do all three rate/yield pairs and identities, with zero changes.
+Fresh corrected-head CI, final runtime rechecks and publication remain pending;
+the earlier `b0b058a` success
+does not validate this final text correction. Evidence belongs in
 `.runtime/compact-pricing-qa`, with the final receipt at `publication.json`.
 
 Historical PR #24 repaired Excel worksheet views and displayed uses inline.

@@ -9,6 +9,7 @@ import csv
 import hashlib
 from io import BytesIO, StringIO
 import math
+import posixpath
 import re
 from uuid import uuid4
 import xml.etree.ElementTree as ET
@@ -29,6 +30,7 @@ MAX_EXPANDED_BYTES = 20 * 1024 * 1024
 MAX_ROWS = 5000
 MAX_PARTS = 200
 XML_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_TEXT_ESCAPE = re.compile(r"_x([0-9A-Fa-f]{4})_")
 PROPERTY_HEADERS = {
     "Weight": "weight", "Width (mm)": "width_mm", "Length (mm)": "length_mm",
     "Thickness (mm)": "thickness_mm", "Area (m²)": "sqm", "Diameter (mm)": "diameter_mm",
@@ -232,7 +234,7 @@ def _validation(sheet, column, choices, *, max_rows=MAX_ROWS, allow_blank=True):
     validation.add(f"{column}2:{column}{max_rows + 1}")
 
 
-def _serialize_exact(workbook):
+def _serialize_exact(workbook, *, escape_text=False):
     """Retain binary-float round trips instead of openpyxl's 16-digit formatting.
 
     Cells remain ordinary numeric OOXML cells. Excel can display fewer digits;
@@ -270,7 +272,12 @@ def _serialize_exact(workbook):
                         # Without lxml, openpyxl emits literal CR characters.
                         # Restore text from the workbook before escaping it:
                         # the XML parse above has already normalized raw CR.
-                        text.text = strings[item.filename][cell.attrib["r"]]
+                        value = strings[item.filename][cell.attrib["r"]]
+                        # Pricing reads Excel's ST_Xstring escapes. Protect
+                        # literal escape-looking text before Excel reads it.
+                        # Other users of this shared serializer keep their
+                        # existing text contract unless they opt in.
+                        text.text = _TEXT_ESCAPE.sub(lambda match: "_x005F_" + match[0][1:], value) if escape_text else value
                 # XML normalizes literal CR to LF on read. Preserve carriage
                 # returns in quoted use names as character references.
                 content = ET.tostring(root, encoding="utf-8", xml_declaration=True).replace(b"\r", b"&#13;")
@@ -381,7 +388,7 @@ def export_pricing_workbook(configuration):
             for cell in row:
                 if isinstance(cell.value, str):
                     cell.data_type = "s"
-    return _serialize_exact(workbook)
+    return _serialize_exact(workbook, escape_text=True)
 
 
 def _preflight(payload, filename):
@@ -452,7 +459,87 @@ def _preflight(payload, filename):
         raise ValidationError("The workbook is damaged or is not a supported .xlsx file.") from error
 
 
-def _rows(sheet, headers, *, max_rows=MAX_ROWS):
+def _decode_excel_text(value):
+    # Decode once: _x005F_x000D_ means literal "_x000D_", not CR.
+    value = _TEXT_ESCAPE.sub(lambda match: chr(int(match[1], 16)), value)
+    if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        try:
+            value = value.encode("utf-16-le", errors="surrogatepass").decode("utf-16-le")
+        except UnicodeError as error:
+            raise ValidationError("Workbook text contains an invalid Unicode escape.") from error
+    if any((ord(character) < 32 and character not in "\n\r\t") or ord(character) in (0xFFFE, 0xFFFF)
+           for character in value):
+        raise ValidationError("Workbook text contains unsupported control characters.")
+    return value
+
+
+def _pricing_text_cells(payload):
+    """Read raw text before openpyxl removes some shared-string escapes.
+
+    This runs only after ZIP/XML preflight. Numbers, formulas and worksheet
+    structure remain the responsibility of openpyxl and the existing parser.
+    """
+    namespace = f"{{{XML_NS}}}"
+    relationship_id = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+
+    def text_value(container):
+        # Rich-text runs are displayed text; phonetic annotations are not.
+        pieces = []
+        for child in container:
+            if child.tag == namespace + "t":
+                pieces.append(_decode_excel_text(child.text or ""))
+            elif child.tag == namespace + "r":
+                pieces.extend(_decode_excel_text(text.text or "") for text in child if text.tag == namespace + "t")
+        return "".join(pieces)
+
+    with ZipFile(BytesIO(payload)) as archive:
+        relationships = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        parts = {relation.attrib["Id"]: (
+            relation.attrib.get("Type", ""),
+            posixpath.normpath(posixpath.join("xl", relation.attrib["Target"])).lstrip("/"))
+            for relation in relationships}
+        shared = []
+        for kind, path in parts.values():
+            if kind.endswith("/sharedStrings"):
+                shared = [text_value(item) for item in ET.fromstring(archive.read(path))
+                          if item.tag == namespace + "si"]
+        result = {}
+        document = ET.fromstring(archive.read("xl/workbook.xml"))
+        for sheet in document.findall(namespace + "sheets/" + namespace + "sheet"):
+            kind, path = parts[sheet.attrib[relationship_id]]
+            if not kind.endswith("/worksheet"):
+                continue
+            values, seen = {}, set()
+            for cell in ET.fromstring(archive.read(path)).iter(namespace + "c"):
+                address = cell.attrib["r"]
+                if address in seen:
+                    raise ValidationError("A pricing sheet must not contain duplicate cell addresses.")
+                seen.add(address)
+                if cell.attrib.get("t") == "s":
+                    index = cell.find(namespace + "v")
+                    if index is not None:
+                        if not re.fullmatch(r"[0-9]+", index.text or "") or int(index.text) >= len(shared):
+                            raise ValidationError("Workbook contains an invalid shared text reference.")
+                        values[address] = shared[int(index.text)]
+                elif cell.attrib.get("t") == "inlineStr":
+                    inline = cell.find(namespace + "is")
+                    if inline is not None:
+                        values[address] = text_value(inline)
+                elif cell.attrib.get("t") == "str":
+                    text = cell.find(namespace + "v")
+                    if text is not None:
+                        values[address] = _decode_excel_text(text.text or "")
+            result[sheet.attrib["name"]] = values
+        return result
+
+
+def _text_rows(sheet, text_cells):
+    for number, row in enumerate(sheet.iter_rows(values_only=True), 1):
+        yield tuple(text_cells.get(f"{get_column_letter(column)}{number}", value)
+                    for column, value in enumerate(row, 1))
+
+
+def _rows(sheet, headers, *, max_rows=MAX_ROWS, text_cells=None):
     # The optional OOXML dimension is absent in some valid editors' output,
     # and may be stale after a list edit. Derive it from actual bounded cells
     # so a missing dimension cannot fail or a small one silently truncate data.
@@ -463,7 +550,7 @@ def _rows(sheet, headers, *, max_rows=MAX_ROWS):
         raise ValidationError(f"{sheet.title} must contain the exported template headers.") from error
     if sheet.max_row > max_rows + 1 or sheet.max_column > len(headers):
         raise ValidationError(f"{sheet.title} has too many rows or unexpected columns.")
-    rows = sheet.iter_rows(values_only=True)
+    rows = _text_rows(sheet, text_cells or {})
     actual = tuple(next(rows, ()))
     if actual != tuple(headers):
         raise ValidationError(f"{sheet.title} headers must match the exported template exactly.")
@@ -473,20 +560,22 @@ def _rows(sheet, headers, *, max_rows=MAX_ROWS):
         yield row_number, dict(zip(headers, values))
 
 
-def _pricing_rows(workbook):
+def _pricing_rows(workbook, text_cells):
     """Adapt all three file layouts to the existing business parser."""
     names = set(workbook.sheetnames)
     if {"Inventory", "Rates"}.issubset(names) and not names - {"Inventory", "Rates", "Instructions"}:
-        return list(_rows(workbook["Inventory"], INVENTORY_HEADERS)), list(_rows(workbook["Rates"], RATE_HEADERS))
+        return (list(_rows(workbook["Inventory"], INVENTORY_HEADERS, text_cells=text_cells.get("Inventory"))),
+                list(_rows(workbook["Rates"], RATE_HEADERS, text_cells=text_cells.get("Rates"))))
     if COMBINED_SHEET not in names or names - {COMBINED_SHEET, "Instructions"}:
         raise ValidationError("Use the Inventory & Rates sheet, or the earlier Inventory and Rates sheets, with only an optional Instructions sheet.")
     sheet = workbook[COMBINED_SHEET]
     sheet.reset_dimensions()
-    headers = tuple(next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), ()))
+    sheet_text = text_cells.get(COMBINED_SHEET, {})
+    headers = tuple(next(_text_rows(sheet, sheet_text), ()))
     if headers == COMPACT_HEADERS:
-        return _compact_rows(sheet)
+        return _compact_rows(sheet, sheet_text)
     inventory, uses, orders = [], [], set()
-    for number, row in _rows(workbook[COMBINED_SHEET], COMBINED_HEADERS, max_rows=2 * MAX_ROWS):
+    for number, row in _rows(workbook[COMBINED_SHEET], COMBINED_HEADERS, max_rows=2 * MAX_ROWS, text_cells=sheet_text):
         kind = row["Row type"]
         if kind not in ("Inventory", "Use"):
             raise ValidationError(f"{COMBINED_SHEET} row {number}: Row type must be Inventory or Use.")
@@ -519,9 +608,9 @@ def _pricing_rows(workbook):
     return inventory, [(number, row) for _, number, row in uses]
 
 
-def _compact_rows(sheet):
+def _compact_rows(sheet, text_cells):
     inventory, uses, orders = [], [], set()
-    for number, row in _rows(sheet, COMPACT_HEADERS, max_rows=2 * MAX_ROWS):
+    for number, row in _rows(sheet, COMPACT_HEADERS, max_rows=2 * MAX_ROWS, text_cells=text_cells):
         label = f"{COMBINED_SHEET} row {number}"
         has_product = any(row[header] not in (None, "") for header in INVENTORY_HEADERS)
         has_uses = any(row[header] not in (None, "") for header in USE_VECTOR_HEADERS)
@@ -591,11 +680,14 @@ def import_pricing_workbook(payload, filename, current_configuration):
     previous_inventory = {item["id"]: item for item in current["inventory"]}
     previous_rates = {rate["id"]: (group, rate) for group, rows in current["rate_groups"].items() for rate in rows}
     try:
+        text_cells = _pricing_text_cells(payload)
         workbook = load_workbook(BytesIO(payload), read_only=True, data_only=False, keep_links=False)
+    except ValidationError:
+        raise
     except Exception as error:
         raise ValidationError("The workbook could not be read. Export a fresh .xlsx template and try again.") from error
     try:
-        inventory_rows, rate_rows = _pricing_rows(workbook)
+        inventory_rows, rate_rows = _pricing_rows(workbook, text_cells)
         proposed = deepcopy(current)
         proposed["sources"]["pricing_import"] = {
             "filename": filename.replace("\\", "/").rsplit("/", 1)[-1],

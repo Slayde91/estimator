@@ -25,8 +25,8 @@ model, dependency, SQL schema or saved quote is migrated.
 
 Initial local checks: 34 unique workbook tests passed across runs
 (ten compact and 24 legacy), including all three 216-scenario parity routes.
-The quoted-CRLF/XML normalization fix retains exact text. Five API integration tests passed in
-159.698 seconds, and all 126 UI checks pass (33 Estimator and 93 Calculator).
+Five API integration tests initially passed in 159.698 seconds, and all 126 UI
+checks pass (33 Estimator and 93 Calculator).
 JavaScript syntax and scoped diff checks pass. The export contains 417 product rows with 166 uses in matching
 same-row lists; reimport preserves every effective catalog value, link and
 dropdown order exactly.
@@ -50,9 +50,27 @@ tests (21.797 seconds), and seven focused serializer/precision/security tests
 with `OPENPYXL_LXML=False` (37.618 seconds). The serializer checks include forced
 fallback, text-only sheets, mixed line endings and exact numeric values across
 two saves. Schedule checks also verify that a pricing workbook uploaded to any
-of the three calculators produces a validation error. Independent final audit
-found no issues; syntax and scoped diff checks pass. Full CI on the corrected
-head, final runtime/native rechecks and final publication remain pending.
+of the three calculators produces a validation error. That correction audit
+found no issues; syntax and scoped diff checks pass. Both CI runs on `b0b058a`
+passed 274 Python tests with four optional source skips, 126 UI checks and build.
+
+A subsequent native Excel edge probe found that Excel saves CRLF using OOXML
+text escapes. The final pricing-only correction decodes canonical text once
+after archive preflight and protects literal escape-looking text on export.
+It extends text exchange only, without changing commercial rules or calculator
+templates. Five API tests with the final parser pass (55.331 seconds, no skips).
+The native three-use probe preserves names, rates, yields and IDs exactly, with
+zero import changes. Eight focused workbook tests pass (39.907 seconds),
+covering canonical shared/inline/rich text, literal escapes, invalid Unicode
+and references, duplicate cells, formula/nonfinite rejection and precision in
+all supported layouts. The no-lxml path also passes.
+
+The final native literal-text probe opened and saved normally in Excel 16.0
+build 20326. Exact text survives native SaveCopyAs and app import: CRLF/LF,
+quoted semicolons, spaces and literal `_x000D_`, `_x005F_` and bare `x005F_`.
+All three precise rate/yield pairs and identities remain exact, with zero
+import changes. The `b0b058a` CI success precedes this final correction: fresh
+corrected-head CI, final runtime rechecks and publication remain pending.
 Record final evidence in `.runtime/compact-pricing-qa/publication.json`; verify
 current Git and runtime facts before extending this checkpoint.
 

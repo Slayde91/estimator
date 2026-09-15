@@ -41,7 +41,7 @@ _OMITTED_ROWS = {
         'CALCULATOR': list(range(33, 42)),
     },
     'steel_board': {'START': [3, 5, 6, *range(34, 40)], 'CALCULATOR': [2, 5, 7]},
-    'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4]},
+    'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4, *range(153, 160)]},
 }
 _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
                     'steel_board': {'EXTRA BOARDS': [14]},
@@ -54,6 +54,16 @@ _DISPLAY_TEXT = {
     'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'}},
     'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'}},
+}
+# Browser-only spans and semantic corrections. Merged children are decorative
+# blanks; source formulas, input identities and source merge records stay intact.
+_DISPLAY_CELLS = {
+    'steel_vermiculite': {'BAGS': {'G10': {'merge': 'G10:N10', 'role': 'spacer'}}},
+    'ductwork': {
+        'CALCULATOR': {'A3': {'role': 'note'}},
+        'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'}},
+        'PRODUCT SETTINGS': {f'J{row}': {'merge': f'J{row}:Q{row}'} for row in (105, 108, 111, 131, 136)},
+    },
 }
 # SUMMARY has independent tables sharing source column letters. Their browser
 # columns must be scoped to each table so hiding prose cannot hide quantities
@@ -297,6 +307,7 @@ def _sheet_metadata(model, sheet):
             'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),
             'display_column_order': list(_DISPLAY_COLUMN_ORDER.get(model['id'], {}).get(sheet['name'], [])),
             'display_text': dict(_DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {})),
+            'display_cells': deepcopy(_DISPLAY_CELLS.get(model['id'], {}).get(sheet['name'], {})),
             'presentation_tables': deepcopy(_PRESENTATION_TABLES.get(model['id'], {}).get(sheet['name'], [])),
             'table_layout': ('projected' if (model['id'], sheet['name']) in {
                 ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'), ('ductwork', 'PRODUCT SETTINGS')}
@@ -382,6 +393,7 @@ def _presentation(style, original, value, row, column, metadata, editable):
             role = 'label'
     elif 'formula' in original and not editable:
         role = 'output'
+    role = metadata['display_cells'].get(column_name(column) + str(row), {}).get('role', role)
     return {'role': role, 'bold': bold}
 
 

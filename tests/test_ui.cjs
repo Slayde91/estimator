@@ -6,7 +6,7 @@ const scrollCalls = [];
 function element(tag='div') {
   return {
     tagName: tag, value: '', textContent: '', dataset: {}, children: [], disabled: false,
-    listeners: {}, parts: new Map(), options: [{value:'workflow'}], files: [], validity: {badInput:false},
+    listeners: {}, parts: new Map(), options: [], files: [], validity: {badInput:false},
     classList: {add(){},toggle(){}}, setAttribute(){},removeAttribute(){},focus(){},
     addEventListener(event, fn, options={}) { (this.listeners[event] ||= []).push({fn,once:options.once}); },
     emit(event) { const callbacks = [...(this.listeners[event] || [])]; this.listeners[event] = (this.listeners[event]||[]).filter(x=>!x.once); return Promise.all(callbacks.map(x=>x.fn())); },
@@ -21,7 +21,7 @@ function element(tag='div') {
 }
 function byId(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);}
 const context = {
-  document:{getElementById:byId,querySelector:selector=>byId(`selector:${selector}`),querySelectorAll:()=>[],createElement:element,createTextNode:text=>text,body:element()},
+  document:{getElementById:id=>id==='workflow'?null:byId(id),querySelector:selector=>byId(`selector:${selector}`),querySelectorAll:()=>[],createElement:element,createTextNode:text=>text,body:element()},
   window:{addEventListener(){},scrollTo(options){scrollCalls.push(options);}}, Intl, Number, JSON, Object, Set, Array, String, Promise, Error,
   setTimeout:()=>0,clearTimeout(){},AbortController, console,
   FileReader:class { readAsDataURL(){this.result='data:application/octet-stream;base64,AAAA';queueMicrotask(()=>this.onload());} },
@@ -30,7 +30,7 @@ vm.createContext(context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,saveQuote,openQuote,newQuote,confirmReplace,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,controlValue,formatNumber,formatMoney,calculate,renderResults,showView,
+    quoteDetails,updateQuoteTitle,reportPayload,controlValue,formatNumber,formatMoney,calculate,renderResults,showView,bootstrap,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -45,9 +45,8 @@ const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New s
 const oldConfig={inventory:{},rates:{},version:'old'};
 const newConfig={inventory:{},rates:{},version:'new'};
 function setup(){
-  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},dirty:false,quoteLoadRevision:0,legacyTitle:''});
-  for(const id of ['project-no','client','site-address'])byId(id).value='';
-  byId('workflow').options=[{value:'workflow'}]; byId('workflow').value='workflow';
+  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork'});
+  for(const id of ['project-no','client','site-address','measurements'])byId(id).value='';
 }
 let passed=0;
 (async()=>{
@@ -73,13 +72,14 @@ let passed=0;
   assert.equal(audit.state.fields[0].options[0],'Old spray');
   assert.equal(audit.state.currentFields[0].options[0],'New spray');
   assert.equal(audit.state.quoteConfiguration.version,'old');
+  assert.equal(audit.state.workflow,'workflow');
   const historical=audit.makeControl(audit.state.fields[0],true);
   assert.equal(historical.value,'Old spray');
   assert.ok(historical.options.some(x=>x.value==='Old spray'));
   await audit.newQuote();
   assert.equal(audit.state.quoteConfiguration,null);
   assert.equal(audit.state.fields[0].options[0],'New spray');
-  assert.equal(audit.state.inputs.D15,'New spray'); passed++;
+  assert.equal(audit.state.inputs.D15,'New spray');assert.equal(audit.state.workflow,'Intumescent spray to ductwork'); passed++;
 
   // Refresh failure must not mix new prices with old field metadata.
   setup(); audit.setRequest(async path=>{if(path==='/api/configuration')return copy(newConfig);throw new Error('Metadata offline');});
@@ -176,15 +176,41 @@ let passed=0;
   priceControl.value='125.555';await priceControl.emit('input');await priceControl.emit('blur');
   assert.equal(priceControl.value,'125.56');assert.equal(audit.state.draft.inventory.precise.supplier_price,125.56);passed++;
 
-  // A workflow change triggers calculation, sends the workflow and shows the server summary as text.
-  setup();const beforeScheduled=context.scheduled;
-  byId('workflow').value='Fire wrap to ductwork';await byId('workflow').emit('change');
-  assert.equal(context.scheduled,beforeScheduled+1);let calculationBody;
+  // Saved workflow labels remain part of calculations and summaries without a selector.
+  setup();audit.setRequest(async()=>({id:'wrap',title:'Saved wrap quote',configuration:oldConfig,fields:oldFields,inputs:{D15:'Old spray'},workflow:'Fire wrap to ductwork'}));
+  await audit.openQuote('wrap',element('button'));let calculationBody;
   audit.setRequest(async(path,options)=>{calculationBody=JSON.parse(options.body);return {summary:{total:1.2345,days:2.345},cells:{},materials:[],errors:{},notes:'Literal product 1.2345',work_summary:'Fire wrap to ductwork\nWrap: 12.35 m² <b>literal label</b>'};});
   await audit.calculate();assert.equal(calculationBody.workflow,'Fire wrap to ductwork');
   assert.equal(byId('work-summary').textContent,'Fire wrap to ductwork\nWrap: 12.35 m² <b>literal label</b>');
   assert.equal(byId('sum-days').textContent,'2.35');assert.equal(byId('sum-total').textContent,'$1.23');
   assert.equal(byId('calculated-notes').textContent,'Literal product 1.2345');passed++;
+
+  // New estimates retain the first server-supplied workflow and its normal input defaults.
+  setup();audit.setRequest(async path=>{assert.equal(path,'/api/bootstrap');return {configuration:newConfig,fields:newFields,workflows:['Intumescent spray to ductwork','Fire wrap to ductwork']};});
+  await audit.bootstrap();assert.equal(audit.state.workflow,'Intumescent spray to ductwork');assert.equal(audit.state.defaultWorkflow,'Intumescent spray to ductwork');
+  assert.equal(audit.reportPayload().workflow,'Intumescent spray to ductwork');assert.deepEqual(copy(audit.state.inputs),{D15:'New spray'});
+  audit.renderResults({});assert.equal(byId('work-summary').textContent,'Enter the required work quantities to generate a work summary.');passed++;
+
+  // Hidden historical workflow strings, including empty ones, survive note edits, saving and report payloads.
+  for(const historicalWorkflow of ['Legacy / mixed scopes','']) {
+    setup();audit.setRequest(async()=>({id:'historical-workflow',title:'Historical workflow',configuration:oldConfig,fields:oldFields,inputs:{D15:'Old spray'},workflow:historicalWorkflow,measurements:'Original note'}));
+    await audit.openQuote('historical-workflow',element('button'));
+    assert.equal(audit.state.workflow,historicalWorkflow);byId('measurements').value='Updated note';await byId('measurements').emit('input');
+    let historicalBody;
+    audit.setRequest(async(path,options)=>{assert.equal(path,'/api/quotes/historical-workflow');historicalBody=JSON.parse(options.body);return {id:'historical-workflow',...historicalBody,fields:oldFields};});
+    await audit.saveQuote();assert.equal(historicalBody.workflow,historicalWorkflow);assert.equal(historicalBody.measurements,'Updated note');
+    assert.deepEqual(historicalBody.configuration,oldConfig);assert.equal(audit.state.workflow,historicalWorkflow);assert.equal(audit.state.dirty,false);
+    assert.equal(audit.reportPayload().workflow,historicalWorkflow);
+  }passed++;
+
+  // A save response for a previous quote cannot restore its hidden workflow into a new estimate.
+  setup();audit.state.workflow='Fire wrap to ductwork';audit.state.quote={id:'prior'};byId('measurements').value='Prior notes';
+  const workflowSave=deferred();let workflowSaveBody;
+  audit.setRequest((path,options)=>{assert.equal(path,'/api/quotes/prior');workflowSaveBody=JSON.parse(options.body);return workflowSave.promise;});
+  const workflowSaveRun=audit.saveQuote();await audit.newQuote();
+  workflowSave.resolve({id:'prior',...workflowSaveBody,configuration:oldConfig,fields:oldFields});await workflowSaveRun;
+  assert.equal(workflowSaveBody.workflow,'Fire wrap to ductwork');assert.equal(audit.state.workflow,'Intumescent spray to ductwork');
+  assert.equal(audit.state.quote,null);assert.equal(audit.state.quoteConfiguration,null);assert.equal(byId('measurements').value,'');assert.equal(audit.state.dirty,false);passed++;
 
   // Metadata changes made during Save quote remain unsaved and cannot be lost.
   setup();byId('project-no').value='P-2';byId('client').value='Captured Client';byId('site-address').value='Site';audit.updateQuoteTitle();
@@ -213,6 +239,9 @@ let passed=0;
 
   const markup=fs.readFileSync('static/index.html','utf8');
   assert.doesNotMatch(markup,/id="print-quote"/);assert.doesNotMatch(source,/function printQuote|window\.print/);
+  assert.doesNotMatch(markup,/Estimating workflow|id="workflow"|Choose a workflow|Dimensions and takeoff notes/);
+  assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);
+  assert.match(markup,/<span>NOTES <span class="optional">Optional<\/span><\/span><textarea id="measurements"/);
   assert.match(markup,/id="quote-title"[^>]*readonly/);assert.match(markup,/id="work-summary"[^>]*tabindex="0"/);passed++;
 
   console.log(`${passed} UI metadata, precision, summary and race checks passed.`);

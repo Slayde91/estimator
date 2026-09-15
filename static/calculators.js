@@ -362,7 +362,7 @@
 
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {} };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {} };
   }
 
   function omittedCell(metadata) {
@@ -400,7 +400,7 @@
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
-    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
+    return JSON.stringify([result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options]))]);
   }
 
   function presentationRole(cell) {
@@ -424,6 +424,7 @@
     const pairs = summaryFields[entry.definition.id]?.[entry.sheet] || [];
     const mapped = new Map(rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
     const used = new Set(pairs.flat()), cards = node("div", "calculator-summary-cards"), box = node("div", "calculator-overview");
+    if (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR") box.classList.add("calculator-overview-full");
     const productSummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE";
     const boardSchedule = entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR";
     if (productSummary) { used.add("M4"); used.add("M5"); }
@@ -450,7 +451,7 @@
         appendSummary();
         continue;
       }
-      const role = presentationRole(cell);
+      const role = metadata.display_cells[address]?.role || presentationRole(cell);
       const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
       if (cell.calculated || isNumber(cell.value) || !["title", "section", "column_header", "label"].includes(role)) item.dataset.calculatorValue = "true";
       item.dataset.calculatorOutput = address;
@@ -515,7 +516,9 @@
     const projectedTables = metadata.table_layout === "projected" && presentationTables.length > 0;
     const boardSummary = entry.definition.id === "steel_board" && entry.sheet === "BOARD SUMMARY";
     const tableForRow = (row) => presentationTables.findIndex((table) => row >= table.first_row && row <= table.last_row);
-    const merges = (metadata.merges || []).map((range) => {
+    const displayMerges = Object.values(metadata.display_cells).map((cell) => cell.merge).filter(Boolean);
+    const sourceMerges = (metadata.merges || []).filter((range) => !displayMerges.some((override) => override.split(":")[0] === range.split(":")[0]));
+    const merges = [...displayMerges, ...sourceMerges].map((range) => {
       const [start, end] = range.split(":").map(parseAddress); return start ? { start, end: end || start } : null;
     }).filter(Boolean);
     const regions = presentationTables.map((definition, index) => {
@@ -626,7 +629,7 @@
         const sourceHeading = (!hasOwnHeader || headerRow === row.row) && (metadata.header_rows || []).includes(row.row);
         const matrixHeading = group === "matrix" && row.row === matrix.first || Boolean(definition) && headerRow === row.row;
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
-        let role = ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell);
+        let role = metadata.display_cells[cell.address || `${columnName(column)}${row.row}`]?.role || (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell));
         if (hasOwnHeader && row.row !== headerRow && role === "column_header" && !section) role = "body";
         if (definition?.table_kind === "form" && role === "section" && !section && !(merge && groupColumns.every((visible) => visible >= merge.start.column && visible <= merge.end.column))) role = "label";
         const explicitHeading = matrixHeading || sourceHeading || Boolean(section) || role === "title";
@@ -682,6 +685,7 @@
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
+      if (definition) scroll.classList.add("calculator-section-scroll");
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);

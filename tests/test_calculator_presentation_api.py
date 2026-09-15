@@ -180,7 +180,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
     def test_source_titles_sections_and_secondary_table_headers_are_distinguished(self):
         cases = [
             ("steel_vermiculite", "CALCULATOR", {"A1": "title", "A5": "section", "H5": "section", "B28": "column_header", "K16": "output"}),
-            ("steel_vermiculite", "BAGS", {"A17": "section", "A19": "column_header", "D10": "output", "G10": "spacer"}),
+            ("steel_vermiculite", "BAGS", {"A17": "section", "A19": "column_header", "D10": "output", "H10": "spacer"}),
             ("ductwork", "CALCULATOR", {"A1": "title", "A3": "note"}),
             ("ductwork", "SUMMARY", {"A8": "column_header", "A18": "column_header", "A30": "column_header", "A39": "column_header"}),
             ("steel_board", "START", {"A1": "title", "A8": "section"}),

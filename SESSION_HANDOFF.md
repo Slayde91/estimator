@@ -1,5 +1,63 @@
 # Session handoff
 
+## Calculator units and table labels — 2026-09-15
+
+Work on `fix/calculator-units-and-table-labels` starts from merged main
+`7ce244d` (PR #13). The latest 21 browser comments are addressed through the
+existing presentation metadata, renderer and CSS; no architecture or storage
+migration is introduced.
+
+- Vermiculite SCHEDULE A4/G4 display TOTAL ENTERED SPRAY AREA (m²) and COATING
+  VOLUME QUANTIFIED (m³), retaining the source values and formulas.
+- Vermiculite running material totals and board Board Totals are independent
+  full-width sections after their overviews. Their explanatory notes use gold
+  fill; source-derived quantities and summary cards remain intact.
+- BAGS manual-form rows 6–15 show A:F and H:N, omitting only decorative G. The
+  gold spacer becomes H10:N10; A10:C10 and D10:F10 retain the working-yield
+  label/value. Order-table G19:G24, including pooled Whole bags, stays visible.
+- All SETTINGS/PRODUCT SETTINGS tables expand to their content height, including
+  tables outside explicit projections. Prepared schedule scrollers retain their
+  existing vertical behavior, and horizontal overflow remains available.
+- Duct SUMMARY labels A9:A11, A19:A26 and A31:A32 are bold. PRODUCT SETTINGS
+  label anchors are A8:A35, A37:A39, A50:A73, A75:A79, A96:A115, A118:A121,
+  A124:A127, A130:A134, A137:A141, J96:J104, J117:J130 and J137:J149.
+  Adjacent ancillary prose retains its existing formatting.
+- The user confirmed comment 21 targets the vermiculite CALCULATOR's complete
+  published-period table. Alignment metadata centers A28:I30 only.
+
+Source packages, source merges, formula graphs, input allowlists, technical
+rules and PDF projections remain unchanged. Verified locally:
+
+- All 25 targeted Python tests passed in 65.859 seconds. All 73 calculator UI
+  checks and 20 original UI checks passed, as did JavaScript syntax checks.
+  The distribution build produced 34 files totaling 5,344,425 bytes.
+- Before/after HTTP comparisons matched all 104,068 cells across 12 worksheets,
+  including values, editable/calculated flags and shared choices. The retained
+  cell digest is `482e389f0498903ce98d921e6dfacf82fa72ac490ebf615e981e9d42d03a4a90`.
+  All three PDF text comparisons matched: vermiculite 3 pages, board 8 and duct 4.
+- Browser review confirmed the units and full-width material totals: grid,
+  heading and table were each 1,203 px wide and shared the same 31 px left edge.
+  All 27 A28:I30 header/data cells were centered. BAGS had 13 manual-form columns,
+  no decorative G column, a gold H10 span of seven columns and the retained
+  working-yield display of 0.07 at D10.
+- Vermiculite SETTINGS had a 14,670 px content height, no height cap and equal
+  client/scroll heights. All 134 targeted Duct labels had font weight at least
+  700; all four Duct settings wrappers had no height cap or vertical overflow.
+  Browser logs contained no errors. Independent review found no actionable issues.
+
+The saved-database baseline contains two quotes, zero settings records and zero
+calculator-state records. Recovery, test, worksheet and PDF evidence is retained
+under `.runtime/units-labels-qa`. The retry successfully refreshed the main
+service at port 8765. All four served assets match the current files byte for
+byte, and the new presentation metadata is active. The before/after database
+comparison retained all records exactly, with schema version 2 and quote/settings
+digest `c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+
+Commit, push, exact-head CI/review and merge remain pending at this checkpoint.
+The post-merge publication receipt will be recorded separately under the ignored
+QA folder once those outcomes are verified. Earlier entries below are historical
+and do not verify this increment.
+
 ## Estimator controls and calculator row presentation — 2026-09-15
 
 The latest eleven browser comments remove the Estimator Workflow dropdown and

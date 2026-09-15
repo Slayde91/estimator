@@ -10,8 +10,8 @@ The existing architecture is a shared workbook evaluator, HTTP projection and br
 
 The new `POST /api/calculators/<id>/worksheet` projection returns every source-page row, `visible_columns`, shared `option_sets`, cell `options_ref` and semantic `presentation` hints. The older bounded `calculate` endpoint remains compatible. UI grouping should consume these evaluated values and current validation choices; it should not recalculate them or derive technical status from colours.
 
-`presentation.display_cells` supplies explicitly bounded browser-only role and
-merge overrides. These affect rendering, not the source cell values, merges,
+`presentation.display_cells` supplies explicitly bounded browser-only role,
+merge, bold-label and alignment overrides. These affect rendering, not the source cell values, merges,
 formula graph or report projection. A decorative merge must contain no hidden
 editable value or populated result; its outside table edges remain visible.
 
@@ -32,7 +32,7 @@ value updates.
 3. Collapse rows and trailing columns that contain only decorative spacing. Keep every schedule and EXTRA BOARDS input row, even when its current result is blank. A formula returning `""` is not evidence that an input row is disposable.
 4. Use the normal worksheet view throughout the browser; no calculator tab offers a Show advanced columns checkbox. Advanced source inputs remain available through `include_advanced` in the worksheet API and retain their existing saved values and calculation effects. Keep normal inputs and calculated outputs visibly distinct. Use one output highlight for populated values and one for blanks; zero, error text and other nonblank results are populated. These colours indicate value presence only. Keep exact dependency-driven dropdowns and current read-only/write-validation rules; colour never grants edit permission or technical approval.
 5. On forms, use a two-column field layout on desktop and one column on a phone. Put units beside the value and source explanations below the field. Long status and basis text must wrap without truncation.
-6. On schedules, retain the vertical sticky header but let every column, including the item identifier, scroll horizontally together. No calculator schedule freezes its first column. Use solid black gridlines consistently across schedules, material totals, order summaries and other calculator data tables. Keep horizontal scrolling inside each table and input widths suited to their contents. Independent presentation tables, including BOARD SUMMARY purchasing, expand to their complete height and use page scrolling instead of a nested vertical cap; the prepared schedule scrollers retain their existing vertical behavior. The page itself must fit a 390-pixel viewport. Numeric cells need roughly 110–130 px; product/section choices 190–260 px; status and detailed notes 300–420 px. These are UI recommendations, not source business constants.
+6. On schedules, retain the vertical sticky header but let every column, including the item identifier, scroll horizontally together. No calculator schedule freezes its first column. Use solid black gridlines consistently across schedules, material totals, order summaries and other calculator data tables. Keep horizontal scrolling inside each table and input widths suited to their contents. Independent presentation tables, including BOARD SUMMARY purchasing, and all SETTINGS/PRODUCT SETTINGS tables expand to their complete height and use page scrolling instead of a nested vertical cap; the prepared schedule scrollers retain their existing vertical behavior. The page itself must fit a 390-pixel viewport. Numeric cells need roughly 110–130 px; product/section choices 190–260 px; status and detailed notes 300–420 px. These are UI recommendations, not source business constants.
 7. Display numbers to two decimals at rest and retain the exact raw value. Focused numeric controls and choices must distinguish small values such as 0.005, 0.01 and 1e-8. Never write a rounded display value merely because a field was focused or blurred.
 8. Retain all source qualification text and error/withheld states in the source graph and calculation results. The explicit browser omissions below do not alter those states or the PDF mapping. `NP`, an empty result and zero mean different things. Do not turn a missing quantity into zero or describe a displayed quantity as installation approval.
 9. Keep numeric Settings inputs, units, read-only calculation basis and live outputs. Omit the requested date/source-ID/document-name metadata and separate reviewed-yield action/panel from Settings presentation. Developer evidence retains full provenance. Do not expose hidden reference databases as new editable settings.
@@ -115,6 +115,11 @@ the third notes section at rows 33–41 are omitted from browser presentation,
 with their values retained in the source model. On phones the form stacks while this matrix retains
 aligned columns in its own horizontal scroller.
 
+The user-confirmed centering target is the complete published-period table
+A28:I30, including its header and result rows. Browser alignment metadata centers
+only those cells; the input/result forms and other comparison tables keep their
+existing alignment and source values.
+
 Source widths: labels occupy merged A:C; inputs D:F; G is a 3-unit spacer. Results H:N use merged label/value regions. The separate input/output form tables fit the available width; the comparison keeps independent numerical column widths. Source merges continue to identify labels and values without recreating the wide combined spreadsheet.
 
 ### SCHEDULE
@@ -125,11 +130,18 @@ thickness/scope-block card M4/M5 is still calculated internally. The only schedu
 header is row 9. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y source outputs;
 hidden Z is the stable line ID and remains readonly/internal.
 
+Browser labels A4 and G4 read **TOTAL ENTERED SPRAY AREA (m²)** and
+**COATING VOLUME QUANTIFIED (m³)**. Area and volume retain their existing values
+and formulas; these two explicit display aliases add units without changing the
+source captions or worksheet identity.
+
 Below the cards, Running material totals lists each BAGS A20:A24 product, E20:E24
 net bags, G20:G24 pooled whole bags and I20:I24 order status. The worksheet API
 supplies these as `product_totals`; the UI never derives them by summing rounded
 line quantities. Blank/withheld whole-bag values remain blank beside their
-status. Updating these totals does not rebuild the schedule controls.
+status. This totals section is a full-width sibling after the overview, rather
+than a child of its flex layout. Its explanatory text keeps the gold note fill.
+Updating these totals does not rebuild the schedule controls.
 
 Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags. Source V/W/X status/source columns are explicitly hidden in the browser; Y notes remain wide and wrapped. V/W/X stay in API/source results and the existing report projection. In particular, W continues to gate incomplete purchasing totals. Source width emphasis remains B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64; these source widths do not require hidden columns to be displayed.
 
@@ -139,13 +151,16 @@ All prepared rows remain present even though 999 original example slots return b
 
 The browser aliases A1 to **MATERIAL QUANTITIES** without changing the BAGS page
 name or source title. After the introduction A1:N3, it renders a manual form
-from A6:N15 with three inputs D6:D8 and live results D9:D14. Source limitations
+from rows 6–15 using columns A:F and H:N, omitting only decorative G from that
+form. The three inputs D6:D8 and live results D9:D14 remain. Source limitations
 H6 and H11 remain with that form. This calculation stays independent of the
 SCHEDULE order summary.
 
-Browser metadata merges the empty G10:N10 region into one gold spacer without
+Browser metadata merges the empty H10:N10 region into one gold spacer without
 internal vertical rules. The A10:C10 label and D10:F10 working-yield value remain
-separate and unchanged. The source merges and calculated value are preserved.
+separate and unchanged. Removing G from the manual form does not remove the
+Whole bags header or pooled whole-bag values in G19:G24 of the order table below.
+The source merges and calculated values are preserved.
 
 The next independent section owns the “Product order summary” heading A17,
 row 19 headers and five product rows A20:I24. Its heading must not remain below
@@ -166,6 +181,10 @@ Source table widths indicate product A29, normal numerical columns 12–16 units
 ### SETTINGS
 
 Use a short section index that scrolls within the single page. Group source rows as follows:
+
+All Settings tables, including source content outside explicit table projections,
+expand with the page and have no nested vertical height cap. Horizontal scrolling
+remains available where needed; this rule does not apply to prepared schedules.
 
 | Group | Heading / extent | Editable cells | Required adjacent readonly material |
 | --- | --- | --- | --- |
@@ -258,6 +277,10 @@ The A17 and A29 section headings each span A:L in the browser through
 display-only merges A17:L17 and A29:L29. Their original A:F source merges remain
 unchanged; the expanded red banners do not change the following table's columns.
 
+First-column reference labels are explicitly bold at A9:A11 (products),
+A19:A26 (penetration angle rows) and A31:A32 (working yields). Adjacent quantities,
+units and prose retain their existing formatting and values.
+
 ### PRODUCT SETTINGS
 
 Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup content. The browser omits introductory rows 3–4, the explanatory Both/Mixed block J6:Q21 and the complete USE NOTES section in rows 153–159, including its contents link. These are targeted presentation omissions, not removal of the Both/Mixed technical rule, a change to product choices, or permission to hide other J:Q reference blocks. Their source cells, API values and existing report projection remain intact.
@@ -278,6 +301,17 @@ J131:Q131 and J136:Q136. These rows retain their outside table borders without
 internal vertical rules; the adjacent text, parameters and live lookup records
 stay intact. This changes layout only; all eleven editable controls and
 dependencies remain.
+
+The following source-table label anchors are explicitly bold in the browser:
+
+- A8:A35, A37:A39, A50:A73 and A75:A79 for CAFCO/MONOKOTE reference labels.
+- A96:A115, A118:A121, A124:A127, A130:A134 and A137:A141 for FyreWrap reference labels.
+- J96:J104, J117:J130 and J137:J149 for the application/penetration tables and live lookup list.
+
+These ranges exclude ancillary prose, blank separators and section headings;
+the existing source heading styles remain separate. The whole PRODUCT SETTINGS
+page uses its content height, including unprojected tables, with no nested
+vertical cap. No input, lookup choice or technical rule changes with label weight.
 
 Place the eleven editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The rest is readonly source calibration/scope/reference data.
 
@@ -308,6 +342,10 @@ three cards on the separate BOARD SUMMARY page. Row 8 supplies the schedule
 column labels. All 200 rows 9–208 remain in one table. A:L are normal inputs;
 M:X are advanced source inputs retained through the worksheet API and saved
 state; they have no browser toggle. Y:AI are the primary results.
+
+Board Totals sits after the overview as a full-width section with its gold note
+text, matching the vermiculite material totals layout. Its source-derived
+quantities and separate BOARD SUMMARY cards retain their existing behavior.
 
 Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
 
@@ -465,6 +503,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 - Horizontal scrolling moves the first column with the remaining schedule columns while vertical column headings can stay visible. Data-table gridlines are solid black; main source, overview, total and projected-section headings share the red/white banner. Populated/blank data fills remain separate from heading styling and do not change calculation semantics.
 - Projected Inputs, Thickness and quantities, period comparison, product ordering and FyreWrap sections keep their own source headings with their data. Each original editable field occurs once; residual notes and unprojected source content remain available except for explicit omissions. BAGS displays MATERIAL QUANTITIES while retaining its original worksheet identity.
-- Independent presentation tables use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five listed blank PRODUCT SETTINGS J:Q rows render as gray spans with only outside borders; BAGS G10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
+- Independent presentation tables and every SETTINGS/PRODUCT SETTINGS table use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five listed blank PRODUCT SETTINGS J:Q rows render as gray spans with only outside borders; BAGS H10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
+- Vermiculite SCHEDULE uses the explicit m²/m³ summary labels and full-width material totals; Board Totals uses the same independent placement. BAGS omits G only in manual-form rows 6–15, preserving G19:G24 and all pooled order values. The confirmed A28:I30 period table is centered. Duct reference labels are bold only at the declared anchors, leaving adjacent explanatory prose unchanged.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.

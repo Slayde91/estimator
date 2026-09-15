@@ -50,7 +50,9 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
 # Column identities remain source coordinates; this order is browser-only.
 _DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]}}
 _DISPLAY_TEXT = {
-    'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'}},
+    'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
+                         'SCHEDULE': {'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
+                                      'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'}},
     'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'}},
@@ -58,11 +60,24 @@ _DISPLAY_TEXT = {
 # Browser-only spans and semantic corrections. Merged children are decorative
 # blanks; source formulas, input identities and source merge records stay intact.
 _DISPLAY_CELLS = {
-    'steel_vermiculite': {'BAGS': {'G10': {'merge': 'G10:N10', 'role': 'spacer'}}},
+    'steel_vermiculite': {
+        'BAGS': {'H10': {'merge': 'H10:N10', 'role': 'spacer'}},
+        'CALCULATOR': {f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'},
+    },
     'ductwork': {
         'CALCULATOR': {'A3': {'role': 'note'}},
-        'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'}},
-        'PRODUCT SETTINGS': {f'J{row}': {'merge': f'J{row}:Q{row}'} for row in (105, 108, 111, 131, 136)},
+        'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
+                    **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
+        'PRODUCT SETTINGS': {
+            **{f'J{row}': {'merge': f'J{row}:Q{row}'} for row in (105, 108, 111, 131, 136)},
+            # First-column reference labels, excluding section headings, prose
+            # and separator rows. These ranges follow the source tables.
+            **{f'A{row}': {'bold': True} for row in (
+                *range(8, 36), *range(37, 40), *range(50, 74), *range(75, 80),
+                *range(96, 116), *range(118, 122), *range(124, 128),
+                *range(130, 135), *range(137, 142))},
+            **{f'J{row}': {'bold': True} for row in (*range(96, 105), *range(117, 131), *range(137, 150))},
+        },
     },
 }
 # SUMMARY has independent tables sharing source column letters. Their browser
@@ -82,8 +97,8 @@ _PRESENTATION_TABLES = {
              'title_address': 'A26', 'header_row': 28, 'label': '03 ALL PUBLISHED PERIODS FOR THIS INPUT'},
         ],
         'BAGS': [
-            {'first_row': 6, 'last_row': 15, 'columns': list(range(1, 15)),
-             'column_widths': [1, 1, 1, 1, 1, 1, .12, 1, 1, 1, 1, 1, 1, 1],
+            {'first_row': 6, 'last_row': 15, 'columns': [*range(1, 7), *range(8, 15)],
+             'column_widths': [1] * 13,
              'width_mode': 'fit', 'table_kind': 'form', 'label': 'Manual material quantity'},
             {'first_row': 17, 'last_row': 24, 'columns': list(range(1, 10)),
              'column_widths': [19, 7, 9, 10, 8, 7, 11, 9, 20], 'width_mode': 'fit',

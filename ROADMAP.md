@@ -1,11 +1,11 @@
 # Roadmap
 
-Current increment: remove the Estimator Workflow dropdown while preserving
-saved/default workflow values, label the existing measurement field NOTES,
-and refine calculator note, heading and blank-row presentation. Independent
-presentation tables use their full height; prepared schedule scrollers retain
-their behavior. Duct USE NOTES is hidden only in the browser. Source values,
-formulas, stored data and schedule PDFs retain their existing scope.
+Current increment: add explicit m²/m³ to the vermiculite summary captions,
+give running material totals full-width sections, omit the decorative BAGS
+manual-form column, expand all Settings tables with the page, emphasize source
+reference labels and center the confirmed published-period table. Prepared
+schedules, source values, formulas, saved state and PDF projections retain their
+existing scope.
 Validation and publication for this increment belong in SESSION_HANDOFF.md.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
@@ -26,6 +26,7 @@ not verify this subsequent presentation increment or its publication status.
 - Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.
 - Six-column board purchasing table with retained summary cards; hidden extra-board evidence fields and no browser advanced-column checkbox. Saved hidden inputs and the advanced worksheet API remain supported.
 - Independent presentation tables with full content height, explicit note/heading/blank-row display overrides, and browser-only omission of Duct USE NOTES. Prepared schedules retain their vertical scrollers.
+- Explicit area/volume summary units, independent full-width running material totals, all Settings tables without vertical caps, and bounded reference-label/period-table formatting. Decorative BAGS G is omitted only from its manual form; pooled Whole bags remains visible below.
 - Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under Product Settings and Rules.
@@ -38,7 +39,7 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-Current final validation and Git results for the control and row cleanup belong
+Current final validation and Git results for the units and table-label cleanup belong
 in SESSION_HANDOFF.md. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 

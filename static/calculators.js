@@ -442,7 +442,6 @@
       if (cardsPlaced) return;
       if (pairs.length) box.append(cards);
       cardsPlaced = true;
-      if (productSummary || boardSchedule) { const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals"; entry.productTotalsElement = totals; renderProductTotals(entry.result, totals); box.append(totals); }
     };
     for (const row of rows) for (const cell of row.cells) {
       if (!columns.includes(cell.column) || cell.value == null || cell.value === "") continue;
@@ -451,13 +450,14 @@
         appendSummary();
         continue;
       }
-      const role = metadata.display_cells[address]?.role || presentationRole(cell);
+      const display = metadata.display_cells[address] || {}, role = display.role || presentationRole(cell);
       const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
+      if (display.bold) item.classList.add("calculator-bold");
+      if (display.align === "center") item.classList.add("calculator-align-center");
       if (cell.calculated || isNumber(cell.value) || !["title", "section", "column_header", "label"].includes(role)) item.dataset.calculatorValue = "true";
       item.dataset.calculatorOutput = address;
       updateOutputCell(item, cell); box.append(item);
     }
-    if (boardSchedule) appendSummary();
     return box;
   }
 
@@ -629,7 +629,8 @@
         const sourceHeading = (!hasOwnHeader || headerRow === row.row) && (metadata.header_rows || []).includes(row.row);
         const matrixHeading = group === "matrix" && row.row === matrix.first || Boolean(definition) && headerRow === row.row;
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
-        let role = metadata.display_cells[cell.address || `${columnName(column)}${row.row}`]?.role || (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell));
+        const display = metadata.display_cells[cell.address || `${columnName(column)}${row.row}`] || {};
+        let role = display.role || (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell));
         if (hasOwnHeader && row.row !== headerRow && role === "column_header" && !section) role = "body";
         if (definition?.table_kind === "form" && role === "section" && !section && !(merge && groupColumns.every((visible) => visible >= merge.start.column && visible <= merge.end.column))) role = "label";
         const explicitHeading = matrixHeading || sourceHeading || Boolean(section) || role === "title";
@@ -637,7 +638,8 @@
         const td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
         if (matrixHeading) td.scope = "col";
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
-        if (cell.presentation?.bold) td.classList.add("calculator-bold");
+        if (display.bold || cell.presentation?.bold) td.classList.add("calculator-bold");
+        if (display.align === "center") td.classList.add("calculator-align-center");
         if (merge) {
           td.colSpan = groupColumns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
           td.rowSpan = renderedGroup.rows.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1;
@@ -664,6 +666,10 @@
     if (sectionLinks.length) content.push(renderContents(sectionLinks));
     if (schedule) content.push(renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns));
     if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
+    if (schedule && (entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE" || entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR")) {
+      const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
+      entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
+    }
     for (const [group, renderedGroup] of sections) {
       const { body, definition, columns: groupColumns } = renderedGroup;
       const responsive = definition?.table_kind === "form" || matrix && group !== "matrix";
@@ -685,7 +691,7 @@
       if (schedule) table.append(head);
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
-      if (definition) scroll.classList.add("calculator-section-scroll");
+      if (definition || !schedule && ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet)) scroll.classList.add("calculator-section-scroll");
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);

@@ -1,17 +1,18 @@
 # Roadmap
 
-Current increment: simplify factor-helper blank dividers, place the published
-thickness label before its left-aligned result, and refine technical-heading,
-reference, exposure and product-label styles at explicit source anchors. Board
-overview titles/notes use full rows, with shorter summary/extra-board titles and
-retained summary cards. Source identities, calculations, technical rules, saved
-state and PDF projections retain their existing scope.
-Validation and publication for this increment belong in SESSION_HANDOFF.md.
+Current increment: add an Excel register download to each calculator beside its
+schedule PDF. The existing report projection supplies Summary, Schedule and
+board Extra boards sheets, preserving exact numeric values, incomplete statuses,
+pooled quantities and source identity. Downloads capture the draft without saving;
+the workbook is a calculated snapshot, separate from schedule input templates.
+No new production dependency, formula engine or storage migration is introduced.
+Validation and publication belong in SESSION_HANDOFF.md.
 
-Current local validation passed 25 targeted Python tests, 75 calculator UI checks,
-20 original UI checks, syntax and build checks. Worksheet/PDF comparisons,
-browser review and the refreshed main service with preserved database state were
-verified. Commit/publication and exact-head CI/merge remain pending.
+Current local checks passed seven register tests, 14 API tests, 81 calculator UI
+checks, 20 original UI checks, syntax and the 35-file build. The refreshed service
+returned all three registers correctly and preserved saved data. Seven sheets
+were visually reviewed and final shared table styling passed review. Publication
+and exact-head CI/merge remain pending.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
 recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
@@ -38,6 +39,7 @@ not verify this subsequent presentation increment or its publication status.
 - One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under SETTINGS & RULES.
 - Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; reset remains a draft until Save calculator. Numeric material settings stay adjustable.
 - Schedule PDF downloads with thicknesses, areas, applicable quantities, additional boards, product/ancillary tables and closing totals. Duplicate detail, standalone helper and settings appendices are removed.
+- Excel register downloads from the same draft/report projection, with typed exact values, Summary/Schedule and board Extra boards sheets, filters and retained statuses/qualifications. No state save or live Excel calculation is implied.
 - Original exclusions/withheld quantities and the approved duct text correction.
 - Australian manuals, PDS/SDS and clearly labelled report/request links.
 - Independent native Microsoft Excel fixtures, HTTP/persistence and UI regressions.

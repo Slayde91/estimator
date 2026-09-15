@@ -196,6 +196,7 @@
     $("calculator-save").disabled = state.action || hasErrors;
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
+    $("calculator-excel").disabled = state.action || hasErrors;
     if (hasErrors) $("calculator-calculation-status").textContent = "Enter a valid number to recalculate.";
     $("calculator-reset").disabled = state.action;
     $("calculator-import").disabled = state.action;
@@ -906,19 +907,43 @@
     finally { state.action = false; updateStatus(); }
   }
 
-  async function downloadSchedulePdf() {
+  async function downloadCalculatedFile({ action, buttonId, filename, label, mimeType, fileDescription }) {
     const entry = current(); if (!entry || entry.invalid.size || state.action) return;
-    const id = entry.definition.id, snapshot = clone(entry.inputs);
+    // Input events retain exact edits; blur completes dropdown validation before
+    // the server calculates the captured draft for the downloaded register.
+    const focused = document.activeElement;
+    if (focused?.dataset?.calculatorCell && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
+    if (current() !== entry || entry.invalid.size) return;
+    const id = entry.definition.id, snapshot = clone(entry.inputs), revision = entry.revision;
+    const button = $(buttonId), previousLabel = button.textContent;
     state.action = true; updateStatus();
+    button.textContent = `Preparing ${label}…`; button.setAttribute("aria-busy", "true");
     try {
-      const response = await fetch(endpoint(id, "report.pdf"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputs: snapshot }) });
-      if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF generation failed."); }
-      if (!String(response.headers.get("Content-Type") || "").includes("application/pdf")) throw new Error("The server did not return a PDF report.");
-      const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a");
-      link.href = url; link.download = `ceasefire-${id}-schedule.pdf`; document.body.append(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000); message("Schedule PDF downloaded using the draft captured when you clicked Download.");
-    } catch (error) { message(`Could not download the schedule PDF. ${error.message}`, true); }
-    finally { state.action = false; updateStatus(); }
+      const response = await fetch(endpoint(id, action), { method: "POST", headers: { "Content-Type": "application/json", Accept: mimeType }, body: JSON.stringify({ inputs: snapshot }) });
+      const contentType = String(response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+      if (!response.ok) {
+        let detail = `The server could not create the ${label} (${response.status}).`;
+        if (contentType === "application/json") { const error = await response.json().catch(() => null); if (typeof error?.error === "string") detail = error.error; }
+        throw new Error(detail);
+      }
+      if (contentType !== mimeType) throw new Error(`The server did not return ${fileDescription}.`);
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("The server returned an empty file.");
+      const url = URL.createObjectURL(blob), link = node("a");
+      link.href = url; link.download = `ceasefire-${id}-${filename}`; document.body.append(link);
+      try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      const changed = current() !== entry || entry.revision !== revision;
+      message(`${label} download started using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
+    } catch (error) { message(`Could not download the ${label}. ${error.message}`, true); }
+    finally { button.textContent = previousLabel; button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
+  }
+
+  function downloadSchedulePdf() {
+    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", filename: "schedule.pdf", label: "schedule PDF", mimeType: "application/pdf", fileDescription: "a PDF report" });
+  }
+
+  function downloadExcelRegister() {
+    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "register.xlsx", label: "Excel register", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
   }
 
   $("calculator-save").addEventListener("click", save);
@@ -929,6 +954,7 @@
   $("calculator-import").addEventListener("click", () => $("calculator-import-file").click());
   $("calculator-import-file").addEventListener("change", importSchedule);
   $("calculator-pdf").addEventListener("click", downloadSchedulePdf);
+  $("calculator-excel").addEventListener("click", downloadExcelRegister);
   window.addEventListener("beforeunload", (event) => { if ([...state.entries.values()].some((entry) => dirty(entry) || entry.invalid.size)) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireCalculators = { open };
 })();

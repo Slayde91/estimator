@@ -4,7 +4,7 @@ A local estimating application reproducing `Quote.xlsm`'s Calculator with perman
 
 ## Run
 
-Requires Python 3.11 or newer and the dependencies in `requirements.txt`: ReportLab 4.4.9 generates quote PDFs and openpyxl 3.1.5 reads/writes pricing workbooks. Estimating calculations and storage use Python's standard library. Microsoft Excel and the original source workbooks are not required to run the app.
+Requires Python 3.11 or newer and the dependencies in `requirements.txt`: ReportLab 4.4.9 generates PDFs and openpyxl 3.1.5 reads/writes pricing workbooks, calculator templates and Excel registers. Estimating calculations and storage use Python's standard library. Microsoft Excel and the original source workbooks are not required to run the app.
 
 On Windows, double-click **[Start-Estimator.cmd](Start-Estimator.cmd)**. It starts ESTIMATOR in the background and opens your browser, or reopens the existing app if it is already running. The app keeps running after the launcher or chat closes; double-click the launcher again after restarting Windows. Saved quotes and pricing continue to use `.runtime/estimator.sqlite3`. The launcher checks every pinned package in `requirements.txt`, prefers an installed compatible Python, and can also use the existing Codex Python runtime when available. It does not install software or register automatic startup. If startup fails, the launcher displays the problem; server startup logs are kept in `.runtime`. To select another port, run `Start-Estimator.cmd -Port 8766`; `-NoBrowser` starts or checks the app without opening a browser.
 
@@ -37,7 +37,7 @@ The original Quote estimator uses assessed coverage/product quantities, as its E
 
 ## Calculators
 
-Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table or show advanced columns for additional inputs. Editable fields have controls; calculated outputs use one highlight for populated values and another for blanks. Zero is a populated value. Main sections retain their colours and **On this page** links. Vermiculite SETTINGS is headed **SETTINGS & RULES**. Single-member forms fit a phone, with comparison tables scrolling separately.
+Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table to reach them. Editable fields have controls; calculated outputs use one highlight for populated values and another for blanks. Zero is a populated value. Main sections retain their colours and **On this page** links. Settings pages are headed **SETTINGS & RULES**. Single-member forms fit a phone, with comparison tables scrolling separately.
 
 Enter inputs directly, or click **Export template**, fill its schedule in Excel and use **Import schedule**. Import replaces the complete schedule, including clearing unused old rows, and preserves other calculator settings. It stays a draft until **Save calculator**. Each calculator keeps its own saved inputs and settings. **Reset calculator defaults** restores the example schedule and default settings as a draft; vermiculite uses the reviewed material defaults described below.
 
@@ -52,6 +52,14 @@ The templates contain only expected input columns and reference instructions: ei
 Calculator numbers display two decimals at rest. Selecting a numeric input reveals its exact value, and editing retains full precision so small yields and tolerances cannot be rounded into different results. The source databases, calculated cells and material-basis text are read-only. Numeric settings remain adjustable, including formula-backed yields. Hiding the requested worksheet commentary does not remove exclusions, errors or withheld-quantity rules from calculation, purchasing totals or PDF reports.
 
 **Download schedule PDF** creates a branded document from the current calculator draft without saving it. It retains every populated item in the main schedule, with thicknesses, protection/material areas, applicable bag, sheet or wrap quantities and main statuses. Unused blank slots are omitted; incomplete entries stay visible. Board EXTRA BOARDS, product/ancillary tables and closing totals remain included. The duplicate per-item detail appendix, separate single-member/manual-bag sections and settings appendix are removed. Editable settings still affect the captured calculation. Spray and board ordering follow their respective pooled workbook rules; manual helpers are not added to schedule totals. Board and wrap do not use spray bags, and board reference box area remains distinct from actual board material area.
+
+**Download Excel register** captures the same calculated draft in an `.xlsx`
+file without saving it. Summary contains totals, material tables and source
+qualifications; Schedule contains the used items with filters and statuses.
+Board registers also include Extra boards. Numbers retain their exact values
+and display two decimals. The register contains calculated values, not live
+formulas: recalculate in the app and download again to update it. To prepare
+inputs for import, continue using **Export template** and **Import schedule**.
 
 Each section has Australian technical-document links with clearly identified manuals, product data, safety data and report availability. The copied duct fixing-guide text uses the user-approved first-row correction; quantity formulas are unchanged. The reviewed vermiculite material profile is a separately authorized commercial input change. See [calculator mapping and validation](docs/WORKBOOK_CALCULATORS.md) and [approved exceptions](docs/CALCULATOR_EXCEPTIONS.md).
 

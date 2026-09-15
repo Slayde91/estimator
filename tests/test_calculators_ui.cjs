@@ -14,6 +14,7 @@ function element(tag = 'div') {
     replaceChildren(...items) { this.children = items; this.options = items; },
     querySelectorAll(selector) { const found=[]; const walk=node=>{if(selector==='[data-calculator-output]' && node.dataset?.calculatorOutput)found.push(node);if(selector==='[data-calculator-cell]'&&node.dataset?.calculatorCell)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
     select() { this.selectionStart=0;this.selectionEnd=String(this.value).length; },
+    blur() { this.blurred=true;return this.emit('blur'); },
     addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
     async emit(name) { const list = [...this.listeners[name] || []]; this.listeners[name] = (this.listeners[name] || []).filter(item => !item.once); for (const item of list) await item.fn(); },
     showModal() { assert.ok(!this.open); this.open = true; },
@@ -33,7 +34,7 @@ vm.createContext(context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
-    exportTemplate,downloadSchedulePdf,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
+    exportTemplate,downloadSchedulePdf,downloadExcelRegister,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -58,6 +59,7 @@ function setup(inputs = {}) {
   audit.state.entries.set('steel_board', entry);
   context.document.activeElement = null;
   byId('calculator-confirm-dialog').open = false;
+  byId('calculator-pdf').textContent='Download schedule PDF';byId('calculator-excel').textContent='Download Excel register';
   audit.setRender(() => {});
   return entry;
 }
@@ -1026,7 +1028,75 @@ let passed = 0;
   const downloading=audit.downloadSchedulePdf();audit.setInput(entry,'CALCULATOR','B9',9);
   pdfResponse.resolve({ok:true,headers:{get:()=> 'application/pdf'},blob:async()=>new Blob(['%PDF-1.4'])});await downloading;
   assert.match(pdfPath,/\/steel_board\/report\.pdf$/);assert.equal(pdfBody.inputs.CALCULATOR.B9,2.3456789);
-  assert.equal(entry.inputs.CALCULATOR.B9,9);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);passed++;
+  assert.equal(entry.inputs.CALCULATOR.B9,9);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
+  assert.equal(context.document.body.children.at(-1).download,'ceasefire-steel_board-schedule.pdf');assert.match(byId('calculator-message').textContent,/later edits are not included/);passed++;
+
+  // Every calculator's Excel register receives its complete clicked draft, including hidden settings and exact decimals.
+  const registerMime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  for(const id of ['steel_vermiculite','steel_board','ductwork']) {
+    entry=setup({CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}});entry.definition.id=id;
+    const pendingRegister=deferred();let registerBody,registerPath,registerHeaders;
+    audit.setFetch((path,options)=>{registerPath=path;registerBody=JSON.parse(options.body);registerHeaders=options.headers;return pendingRegister.promise;});
+    const registerRun=audit.downloadExcelRegister();
+    assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-save').disabled,true);
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').textContent,'Preparing Excel register…');
+    audit.setInput(entry,'CALCULATOR','B9',9.87654321);
+    pendingRegister.resolve({ok:true,headers:{get:()=>`${registerMime}; charset=binary`},blob:async()=>new Blob(['PK register'])});await registerRun;
+    assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,registerMime);
+    assert.deepEqual(registerBody,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}}});
+    const registerLink=context.document.body.children.at(-1);assert.equal(registerLink.download,`ceasefire-${id}-register.xlsx`);assert.equal(registerLink.clicked,true);
+    assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
+    assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').textContent,'Download Excel register');
+  }passed++;
+
+  // Focused numeric edits are validated before capture and are never rounded for the exported snapshot.
+  entry=setup();const exportInput=audit.makeControl({column:2,address:'B9',value:1,type:'number'},9,entry,'Length');
+  await exportInput.emit('focus');exportInput.value='7.654321987';await exportInput.emit('input');context.document.activeElement=exportInput;
+  let focusedExportBody;audit.setFetch(async(path,options)=>{focusedExportBody=JSON.parse(options.body);return {ok:true,headers:{get:()=>registerMime},blob:async()=>new Blob(['PK register'])};});
+  await audit.downloadExcelRegister();assert.equal(exportInput.blurred,true);assert.equal(focusedExportBody.inputs.CALCULATOR.B9,7.654321987);assert.equal(entry.inputs.CALCULATOR.B9,7.654321987);passed++;
+
+  // Dropdown blur validation and existing invalid/busy drafts block both downloads without a network request.
+  entry=setup();const strictChoices=Array.from({length:41},(_,index)=>`Product ${index}`);
+  const exportChoice=audit.makeControl({column:1,address:'A9',type:'select',value:'Product 0',options:strictChoices},9,entry,'Product').children[0];
+  exportChoice.value='Unlisted product';await exportChoice.emit('input');context.document.activeElement=exportChoice;
+  let blockedDownloads=0;audit.setFetch(async()=>{blockedDownloads++;throw new Error('Download should be blocked');});
+  await audit.downloadExcelRegister();await audit.downloadSchedulePdf();
+  assert.equal(blockedDownloads,0);assert.equal(entry.invalid.size,1);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);
+  entry=setup();audit.state.action=true;await audit.downloadExcelRegister();await audit.downloadSchedulePdf();assert.equal(blockedDownloads,0);audit.state.action=false;passed++;
+
+  // Switching calculators during export keeps both drafts and names the downloaded file for its captured calculator.
+  entry=setup({CALCULATOR:{B9:4.1234567}});const switchedRegister=deferred();let switchedBody;
+  audit.setFetch((path,options)=>{switchedBody=JSON.parse(options.body);return switchedRegister.promise;});const switchedRun=audit.downloadExcelRegister();
+  const switchedEntry={...entry,definition:{...entry.definition,id:'ductwork',title:'Ductwork'},inputs:{CALCULATOR:{B9:99}},saved:'{}',invalid:new Map()};
+  audit.state.entries.set('ductwork',switchedEntry);audit.state.current='ductwork';
+  switchedRegister.resolve({ok:true,headers:{get:()=>registerMime},blob:async()=>new Blob(['PK register'])});await switchedRun;
+  assert.equal(audit.current(),switchedEntry);assert.equal(switchedEntry.inputs.CALCULATOR.B9,99);assert.equal(entry.inputs.CALCULATOR.B9,4.1234567);assert.equal(switchedBody.inputs.CALCULATOR.B9,4.1234567);
+  assert.equal(context.document.body.children.at(-1).download,'ceasefire-steel_board-register.xlsx');assert.match(byId('calculator-message').textContent,/current draft was kept/);passed++;
+
+  // Generation/network failures, wrong MIME and empty files never start a download or leave either button busy.
+  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Download Excel register'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Download schedule PDF']]) {
+    const failures=[
+      {response:{ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Source validation detail'})},message:/Source validation detail/},
+      {response:{ok:false,status:500,headers:{get:()=> 'text/html'},json:async()=>{throw new Error('Must not parse HTML');}},message:/\(500\)/},
+      {response:{ok:true,headers:{get:()=> 'text/html'}},message:/did not return/},
+      {response:{ok:true,headers:{get:()=>mime},blob:async()=>new Blob([])},message:/empty file/},
+      {error:new Error('Connection unavailable'),message:/Connection unavailable/},
+    ];
+    for(const failure of failures) {
+      entry=setup({CALCULATOR:{B9:0.123456789}});const bodyCount=context.document.body.children.length,inputsBefore=JSON.stringify(entry.inputs),savedBefore=entry.saved;
+      audit.setFetch(async()=>{if(failure.error)throw failure.error;return failure.response;});await download();
+      assert.match(byId('calculator-message').textContent,failure.message);assert.equal(context.document.body.children.length,bodyCount);
+      assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);assert.equal(byId(buttonId).textContent,label);assert.equal(byId(buttonId).getAttribute('aria-busy'),undefined);
+      assert.equal(JSON.stringify(entry.inputs),inputsBefore);assert.equal(entry.saved,savedBefore);
+    }
+  }passed++;
+
+  // The register download sits next to PDF and remains distinct from the input-only template action.
+  const registerMarkup=fs.readFileSync('static/index.html','utf8');
+  assert.match(registerMarkup,/id="calculator-pdf"[^>]*>Download schedule PDF<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button>/);
+  assert.equal(byId('calculator-excel').listeners.click.length,1);passed++;
 
   // Cancelled file pickers and oversized workbooks do not read or submit content.
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });

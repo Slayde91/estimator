@@ -145,6 +145,32 @@ bag sections, and settings appendix are omitted. Settings still affect the
 snapshot's calculation; removing an appendix does not change its values. Bag,
 sheet, roll, surface-area and reference-box semantics remain distinct.
 
+The Excel register is a second output adapter over that same report projection.
+`calculator_register.py` calls `project_calculator_report` and writes a values-only
+XLSX through the existing openpyxl dependency and `_serialize_exact` helper from
+`pricing_workbook.py`. This adds an Excel view of the calculated register without
+creating another formula engine or redefining the PDF's quantity/ordering rules.
+`POST /api/calculators/<id>/register.xlsx` accepts the same captured input payload
+and read-only/source validation as the PDF endpoint and does not write state.
+
+Every register has Summary and Schedule sheets; board registers also have Extra
+boards, including an explicit empty message when no extra rows are entered.
+Summary contains the overview totals, existing product/material tables, notes,
+qualifications and source filename/SHA-256. Schedule retains all used report
+items and incomplete statuses. Extra boards retains the PDF's A:K/M:N values and
+item number, excluding internal column L. Populated detail tables have filters,
+repeated print headings and C6 freeze panes; Summary uses B5. These are workbook
+view settings, separate from the browser's horizontal scrolling behavior.
+
+The browser's shared calculated-download action captures the draft before the
+request, validates the returned file type and keeps any edits made while the
+download is running. Numeric values remain unrounded with two-decimal number
+formats; strings are written as literal text rather than formulas or hyperlinks.
+The exported workbook is a result snapshot: changing it does not recalculate the
+app's model. Users update the app inputs and download again. Existing input-only
+template/import behavior remains separate. No new runtime dependency or storage
+migration is required; the bundled artifact renderer is used only for local QA.
+
 Consequences: larger complete-page responses replace repeated 25-row requests;
 source extents and input limits still bound the workload. No new dependencies,
 storage schema, business formulas or source packages are introduced. Existing

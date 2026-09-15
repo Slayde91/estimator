@@ -20,7 +20,7 @@ All main section headings use the existing DUCT PROTECTION SUMMARY red-gradient
 background and white text, replacing the former multicolour heading scheme.
 Contents/navigation styling remains separate. Vermiculite SETTINGS has eleven targets: its
 eight numbered sections and three factor-helper sections. Its banner reads
-Product Settings and Rules. A form's populated-cell structure
+SETTINGS & RULES. A form's populated-cell structure
 participates in its refresh signature so newly available output/source notes
 appear without switching pages. Schedule controls remain in place for ordinary
 value updates.

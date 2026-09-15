@@ -182,7 +182,7 @@
     const overrides = result?.display_text || sheetMetadata(entry).display_text || {};
     if (Object.prototype.hasOwnProperty.call(overrides, address) && typeof overrides[address] === "string") return overrides[address];
     if (typeof value !== "string") return value;
-    if (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && address === "A1") return "Product Settings and Rules";
+    if (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && address === "A1") return "SETTINGS & RULES";
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
     const position = parseAddress(address);

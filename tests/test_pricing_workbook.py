@@ -6,6 +6,9 @@ from io import BytesIO, StringIO
 import json
 import hashlib
 import math
+import os
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import unittest
@@ -664,11 +667,6 @@ class CompactPricingWorkbookTests(unittest.TestCase):
         self.assertEqual((rate["price"], rate["yield"]), (360, 71.12345678901234))
 
     def test_csv_names_precision_ids_and_group_order_survive_sorting(self):
-        catalog = baseline()
-        special = '  Name; with "quotes"\r\nnext line  '
-        catalog["rate_groups"]["primers"][0]["name"] = special
-        current = {"catalog": catalog, "rates": {"primers:1": {"price": 413.1234567890123, "yield": 137.1234567890123}}, "inventory": {}}
-        original = effective_catalog(current)
         def reorder(workbook):
             sheet = workbook[COMBINED_SHEET]
             data = list(sheet.iter_rows(min_row=2, values_only=True))
@@ -679,15 +677,54 @@ class CompactPricingWorkbookTests(unittest.TestCase):
                     for header in VECTOR_HEADERS:
                         values[header] = vector(list(reversed(vector_values(values[header]))))
                 append_compact(sheet, **values)
-        payload = modify(export_compact_pricing_workbook(current), reorder, normal_excel_precision=True)
-        after = effective_catalog(self.imported(payload, current)["configuration"])
-        self.assertEqual({r["id"]: r for r in after["inventory"]}, {r["id"]: r for r in original["inventory"]})
-        for group, rates in original["rate_groups"].items():
-            self.assertEqual([r["id"] for r in after["rate_groups"][group]], [r["id"] for r in rates])
-            for old, new in zip(rates, after["rate_groups"][group]):
-                for key in ("name", "inventory_id", "price", "yield"):
-                    self.assertEqual(new[key], old[key], (group, key))
-        self.assertEqual(after["rate_groups"]["primers"][0]["name"], special)
+        # The stdlib openpyxl writer itself loses raw CR in ordinary saves.
+        # Verify exact CRLF through our exporter, and ordinary-save precision
+        # separately with LF, which that external writer represents faithfully.
+        for ordinary_save in (False, True):
+            with self.subTest(ordinary_save=ordinary_save):
+                catalog = baseline()
+                special = '  Name; with "quotes"' + ('\n' if ordinary_save else '\r\n') + 'next line  '
+                catalog["rate_groups"]["primers"][0]["name"] = special
+                current = {"catalog": catalog, "rates": {"primers:1": {"price": 413.1234567890123, "yield": 137.1234567890123}}, "inventory": {}}
+                original = effective_catalog(current)
+                payload = modify(export_compact_pricing_workbook(current), reorder, normal_excel_precision=ordinary_save)
+                after = effective_catalog(self.imported(payload, current)["configuration"])
+                self.assertEqual({r["id"]: r for r in after["inventory"]}, {r["id"]: r for r in original["inventory"]})
+                for group, rates in original["rate_groups"].items():
+                    self.assertEqual([r["id"] for r in after["rate_groups"][group]], [r["id"] for r in rates])
+                    for old, new in zip(rates, after["rate_groups"][group]):
+                        for key in ("name", "inventory_id", "price", "yield"):
+                            self.assertEqual(new[key], old[key], (group, key))
+                self.assertEqual(after["rate_groups"]["primers"][0]["name"], special)
+
+    def test_stdlib_serializer_preserves_line_breaks_on_text_only_sheets(self):
+        script = r'''
+from io import BytesIO
+from zipfile import ZipFile
+import openpyxl
+from estimator.pricing_workbook import _serialize_exact
+assert not openpyxl.LXML
+workbook = openpyxl.Workbook()
+text = workbook.active
+values = ["one\rtwo", "one\r\ntwo", "one\ntwo", "literal &#13;", '  name;"quoted"\t\u03bb  ']
+for value in values:
+    text.append([value])
+numbers = workbook.create_sheet("Numbers")
+numbers.append([0.12345678901234568, "numeric neighbour\r\ntext"])
+for iteration in range(2):
+    payload = _serialize_exact(workbook)
+    with ZipFile(BytesIO(payload)) as archive:
+        assert b"&#13;" in archive.read("xl/worksheets/sheet1.xml")
+    workbook.close()
+    workbook = openpyxl.load_workbook(BytesIO(payload))
+    assert [row[0].value for row in workbook.worksheets[0]] == values
+    assert workbook["Numbers"]["A1"].value == 0.12345678901234568
+    assert workbook["Numbers"]["B1"].value == "numeric neighbour\r\ntext"
+workbook.close()
+'''
+        process = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).resolve().parents[1],
+                                 env={**os.environ, "OPENPYXL_LXML": "False"}, capture_output=True, text=True, timeout=30)
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
 
     def test_new_products_unused_products_and_standalone_rates_keep_ownership(self):
         def add(workbook):

@@ -21,7 +21,7 @@ import through the same validation path. Import remains a reviewed draft until
 Save pricing. Pricing rules, database schema and saved-quote snapshots are
 unchanged; the previous valid freeze-pane handling is retained.
 
-Current checks: 34 unique workbook tests passed across runs (ten compact and
+Initial local checks: 34 unique workbook tests passed across runs (ten compact and
 24 legacy), including three 216-scenario parity routes and the quoted-CRLF/XML
 normalization fix. Five API integration tests passed in 159.698 seconds,
 and all 126 UI checks pass (33 Estimator and 93 Calculator). JavaScript syntax
@@ -33,10 +33,16 @@ catalog with zero changes. Both sheets were rendered and reviewed, including
 the ten-use N/A and two-use SBR rows. Browser filters and expansion work; Primer
 yield 155 survives closing/reopening while Topcoats stays 142.
 
-Independent audit found no issues. Full CI and refreshed-runtime/saved-state
-checks remain pending, alongside commit, push, PR and merge. Current evidence
-belongs in `.runtime/compact-pricing-qa`, with the eventual publication receipt
-at `publication.json`.
+Initial CI on pushed commit `ba98894` caught a shared import-column limit
+that rejected board schedules, an old-format server-test assumption, and CRLF
+normalization when openpyxl runs without lxml. These paths are corrected.
+All 13 schedule tests (42.188 seconds), 14 server tests (21.797 seconds), and
+seven focused no-lxml serializer/precision/security tests (37.618 seconds) pass.
+The latter covers exact text and numeric values across two saves, including a
+text-only sheet. Wrong-format pricing uploads receive a validation error in all
+three calculators. Independent final audit found no issues. Full corrected-head
+CI, final runtime/native rechecks and publication remain pending. Evidence belongs in
+`.runtime/compact-pricing-qa`, with the final receipt at `publication.json`.
 
 Historical PR #24 repaired Excel worksheet views and displayed uses inline.
 Its 24 workbook tests, four integration tests, 32 UI checks, normal native Excel

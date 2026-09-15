@@ -237,6 +237,7 @@ def _serialize_exact(workbook):
 
     Cells remain ordinary numeric OOXML cells. Excel can display fewer digits;
     importing the generated file directly must preserve the estimator's values.
+    Stored strings also retain their exact line breaks with either XML writer.
     """
     stream = BytesIO()
     workbook.save(stream)
@@ -245,6 +246,13 @@ def _serialize_exact(workbook):
             cell.coordinate: repr(cell.value)
             for row in sheet for cell in row
             if isinstance(cell.value, (int, float)) and not isinstance(cell.value, bool)
+        }
+        for index, sheet in enumerate(workbook, 1)
+    }
+    strings = {
+        f"xl/worksheets/sheet{index}.xml": {
+            cell.coordinate: cell.value for row in sheet for cell in row
+            if cell.data_type == "s" and isinstance(cell.value, str)
         }
         for index, sheet in enumerate(workbook, 1)
     }
@@ -257,6 +265,12 @@ def _serialize_exact(workbook):
                 for cell in root.iter(f"{{{XML_NS}}}c"):
                     if cell.attrib.get("r") in numbers[item.filename]:
                         cell.find(f"{{{XML_NS}}}v").text = numbers[item.filename][cell.attrib["r"]]
+                    text = cell.find(f"{{{XML_NS}}}is/{{{XML_NS}}}t")
+                    if text is not None and cell.attrib.get("r") in strings[item.filename]:
+                        # Without lxml, openpyxl emits literal CR characters.
+                        # Restore text from the workbook before escaping it:
+                        # the XML parse above has already normalized raw CR.
+                        text.text = strings[item.filename][cell.attrib["r"]]
                 # XML normalizes literal CR to LF on read. Preserve carriage
                 # returns in quoted use names as character references.
                 content = ET.tostring(root, encoding="utf-8", xml_declaration=True).replace(b"\r", b"&#13;")
@@ -426,7 +440,10 @@ def _preflight(payload, filename):
                     if name.startswith("xl/worksheets/") and local == "c":
                         address = element.attrib.get("r", "")
                         match = re.fullmatch(r"([A-Z]{1,3})([1-9][0-9]*)", address)
-                        max_columns = len(COMPACT_HEADERS) if COMBINED_SHEET in sheet_names else max(len(INVENTORY_HEADERS), len(RATE_HEADERS))
+                        # Schedule imports share this ZIP/XML check and can use
+                        # columns through Z. Each importer validates its own
+                        # exact headers after this broad resource bound.
+                        max_columns = len(COMPACT_HEADERS) if COMBINED_SHEET in sheet_names else 26
                         if not match or int(match.group(2)) > max_rows + 1 or column_index_from_string(match.group(1)) > max_columns:
                             raise ValidationError(f"A pricing sheet must have at most {max_rows:,} rows and only the provided columns.")
     except ValidationError:

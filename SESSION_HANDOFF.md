@@ -23,7 +23,7 @@ Inventory/Use rows and legacy Inventory/Rates sheets remain accepted. Import
 still creates a reviewed draft until Save pricing; no commercial rule, catalog
 model, dependency, SQL schema or saved quote is migrated.
 
-Verified at this checkpoint: 34 unique workbook tests passed across runs
+Initial local checks: 34 unique workbook tests passed across runs
 (ten compact and 24 legacy), including all three 216-scenario parity routes.
 The quoted-CRLF/XML normalization fix retains exact text. Five API integration tests passed in
 159.698 seconds, and all 126 UI checks pass (33 Estimator and 93 Calculator).
@@ -38,13 +38,26 @@ and reviewed, including the ten-use N/A row and two-use SBR product. Browser
 review confirmed the SBR/Primers filter and restored closed/open details:
 Primer draft yield 155 survived close/reopen while Topcoats retained 142.
 
-Independent audit found no issues. Full CI and refreshed-runtime/saved-state
-checks are still pending, as are commit, push, PR and merge.
+Initial CI on pushed commit `ba98894` exposed three missed paths: a shared
+column limit rejected board schedules, a server test expected the preceding
+workbook layout, and openpyxl without lxml normalized quoted CRLF text. The
+corrections retain the shared schedule envelope, adapt the server test without
+dropping draft/snapshot checks, and restore exact strings before XML carriage
+return escaping.
+
+Correction checks pass: all 13 schedule tests (42.188 seconds), all 14 server
+tests (21.797 seconds), and seven focused serializer/precision/security tests
+with `OPENPYXL_LXML=False` (37.618 seconds). The serializer checks include forced
+fallback, text-only sheets, mixed line endings and exact numeric values across
+two saves. Schedule checks also verify that a pricing workbook uploaded to any
+of the three calculators produces a validation error. Independent final audit
+found no issues; syntax and scoped diff checks pass. Full CI on the corrected
+head, final runtime/native rechecks and final publication remain pending.
 Record final evidence in `.runtime/compact-pricing-qa/publication.json`; verify
 current Git and runtime facts before extending this checkpoint.
 
-Next action: finish refreshed-runtime and live-state validation, then publish
-through the existing PR workflow. Keep CI running in the background while
+Next action: publish the verified corrections through the existing PR and
+finish refreshed-runtime/live-state validation. Keep CI running in the background while
 completing independent review and evidence work. Tracked changes belong to this
 pricing exchange/presentation increment; QA exports, logs and database copies
 stay ignored. Preserve the user's open drafts and live saved data.

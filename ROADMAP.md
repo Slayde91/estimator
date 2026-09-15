@@ -8,15 +8,21 @@ combined-row and two-list imports remain supported. The browser restores
 expand/collapse while retaining shared pricing and independent use edits.
 No calculation model, commercial rule or SQL migration is added.
 
-All 34 unique workbook tests pass across runs (ten compact and 24 legacy),
+Initial local checks passed 34 unique workbook tests across runs (ten compact and 24 legacy),
 including three 216-scenario parity routes. Five API integration tests and all
 126 UI checks (33 Estimator and 93 Calculator) pass, as do JavaScript syntax and
 scoped diff checks. The 417-row export retains all 166 uses and exact
 catalog values, links and order. Native Excel opened both old/new layouts
 normally; its saved copy reimported without catalog changes. Both sheets were
-rendered, and browser filters/expanders preserved independent yields. Independent
-audit found no issues. Full CI, refreshed-runtime and publication checks remain
-pending. Evidence belongs in `.runtime/compact-pricing-qa`.
+rendered, and browser filters/expanders preserved independent yields.
+
+Initial CI at `ba98894` caught the shared board-schedule column limit, an old
+server-test layout assumption and no-lxml CRLF normalization. The corrections
+pass 13 schedule, 14 server and seven no-lxml serializer/precision/security
+checks, including wrong-format upload validation for all three calculators.
+Independent final audit found no issues. Full CI on the corrected head, final
+runtime/native rechecks and final
+publication remain pending. Evidence belongs in `.runtime/compact-pricing-qa`.
 
 Historical PR #24 merged at `7408276` with successful post-merge CI. It repaired
 freeze-pane metadata and temporarily used an inline browser table with separate

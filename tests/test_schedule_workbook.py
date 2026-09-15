@@ -11,7 +11,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from openpyxl import load_workbook
 
 from estimator.catalog import ValidationError
-from estimator.pricing_workbook import _serialize_exact
+from estimator.pricing_workbook import _serialize_exact, export_pricing_workbook
 from estimator.schedule_workbook import export_schedule_template, import_schedule_workbook
 from estimator.workbook_catalog import load_workbook_catalog
 
@@ -171,6 +171,12 @@ class ScheduleWorkbookTests(unittest.TestCase):
                 self.imported(payload=edit(self.templates["ductwork"], lambda book: setattr(book["CALCULATOR"][address], "value", value)))
         with self.assertRaisesRegex(ValidationError, "External"):
             self.imported(payload=edit(self.templates["ductwork"], lambda book: setattr(book["CALCULATOR"]["A2"], "hyperlink", "https://example.com")))
+
+    def test_pricing_workbook_is_rejected_as_wrong_schedule_template(self):
+        payload = export_pricing_workbook({})
+        for identity in IDS:
+            with self.subTest(identity=identity), self.assertRaisesRegex(ValidationError, "schedule template"):
+                self.imported(identity, payload)
 
     def test_rejects_malformed_numeric_xml_and_invalid_file_types(self):
         payload = edit(self.templates["ductwork"], lambda book: setattr(book["CALCULATOR"]["C2"], "value", 12.5))

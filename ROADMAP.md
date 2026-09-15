@@ -1,10 +1,20 @@
 # Roadmap
 
-Current increment: calculator dropdown and display polish from twelve browser
-comments. Shared Excel-green template actions, a native quick section dropdown,
-scoped comparison/evidence omissions and consistent fills/weights extend the
-existing display rules. Source calculations, pricing and saved data remain.
-Validation and publication evidence is retained in `.runtime/calculator-polish-qa`.
+Current increment: visible pricing rates/yields and repaired Excel worksheet
+views on `fix/pricing-workbook-views-and-visible-yields`. The browser shows uses
+inline beside shared product pricing; all Excel Use rows are visible. Final
+freeze panes have unique, valid selections, avoiding Excel's view repair.
+The existing models, import schema, pricing rules and saved snapshots remain.
+Local checks pass: 24 pricing workbook tests, including both 216-scenario parity
+comparisons, four integration tests and 32 Estimator UI checks. Native Excel
+opened the corrected file normally; exported cell values match the original
+exactly. Both sheets were rendered, and browser checks verified shared prices
+and independent rate/yield resets. Publication remains pending at this
+checkpoint; evidence belongs in `.runtime/pricing-visible-yields-qa`.
+
+Calculator dropdown/display polish merged in PR #23 at `53c875d`. Its scoped
+omissions, native quick dropdown and styles remain implemented. Release evidence
+is retained in `.runtime/calculator-polish-qa`.
 
 The unified Inventory & Rates release merged in PR #22 at `a4c8ffc` with
 257 Python passes, four optional source-workbook skips and 122 UI checks on
@@ -33,7 +43,7 @@ not verify this subsequent presentation increment or its publication status.
 - Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and saved/PDF work summaries.
 - Estimator NOTES label on the existing measurement field, blank B12 notes for new estimates, and no generated-summary panel. Saved notes, summary data and internal workflow behavior remain intact.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
-- Unified Inventory & Rates with a use filter, expandable linked uses, separate price/yield resets, combined outline workbook and legacy-template import compatibility.
+- Unified Inventory & Rates with a use filter, inline category/rate/yield controls, one shared product-price editor, separate resets, visible Excel Use rows, valid freeze panes and legacy-template import compatibility.
 - Two-decimal presentation while retaining raw calculation precision.
 - Three workbook Calculators, source-backed browser tabs, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Source-backed vermiculite START/SETTINGS/FACTOR CALCS views: operating rules shown directly, seven settings choices and three helper choices. Duct and board retain five/three settings choices; all preserve complete calculation/save/report scope. Scoped navigation, order-first BAGS, MEMBER SCHEDULE, published-value units/highlight and expanded board START.
@@ -57,8 +67,8 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-SESSION_HANDOFF.md records the current calculator presentation checkpoint.
-Use current Git/checks and `.runtime/calculator-polish-qa/publication.json` for later
+SESSION_HANDOFF.md records the current pricing view/visibility checkpoint.
+Use current Git/checks and `.runtime/pricing-visible-yields-qa/publication.json` for later
 validation and publication outcomes. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 

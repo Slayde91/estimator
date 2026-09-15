@@ -16,8 +16,9 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.views import Selection
 
 from .catalog import ValidationError, effective_catalog, validate_configuration
 
@@ -119,8 +120,24 @@ def _yield_type(value, uses_yield):
     return "Blank" if value is None else "Empty text" if value == "" else "Number"
 
 
-def _format_sheet(sheet, headers, widths, numeric_columns=(), percent_columns=()):
-    sheet.freeze_panes = "E2" if sheet.title == "Inventory" else "E2"
+def _format_sheet(sheet, headers, widths, numeric_columns=(), percent_columns=(), *, freeze_panes="E2"):
+    # Reassigning a two-axis freeze in openpyxl retains the former pane
+    # selections. Start clean and place each selection inside its actual pane.
+    view = sheet.sheet_view
+    view.pane = None
+    view.selection = [Selection()]
+    sheet.freeze_panes = freeze_panes
+    row, column = coordinate_to_tuple(freeze_panes)
+    if row > 1 and column > 1:
+        positions = (("topRight", f"{get_column_letter(column)}1"),
+                     ("bottomLeft", f"A{row}"), ("bottomRight", freeze_panes))
+    elif row > 1:
+        positions = (("bottomLeft", freeze_panes),)
+    elif column > 1:
+        positions = (("topRight", freeze_panes),)
+    else:
+        positions = ((None, "A1"),)
+    view.selection = [Selection(pane=pane, activeCell=cell, sqref=cell) for pane, cell in positions]
     sheet.auto_filter.ref = sheet.dimensions
     sheet.sheet_view.showGridLines = False
     sheet.row_dimensions[1].height = 36
@@ -218,21 +235,15 @@ def export_pricing_workbook(configuration):
                 "Pricing mode": "Supplier markup" if item["pricing_mode"] == "supplier_markup" else "Manual",
                 "Sales description": item["sales_description"], "Inventory ID": item["id"],
                 **{header: item.get("properties", {}).get(key) for header, key in PROPERTY_HEADERS.items()}})
-        first_child = sheet.max_row + 1
         for group, order, rate in uses.get(item["id"], []):
             append_use(group, order, rate)
-        if sheet.max_row >= first_child:
-            sheet.row_dimensions.group(first_child, sheet.max_row, outline_level=1, hidden=True)
-            sheet.row_dimensions[first_child - 1].collapsed = True
     for group, order, rate in uses.get(None, []):
         append_use(group, order, rate)
 
     widths = {"A": 14, "B": 43, "C": 15, "D": 21, "E": 17, "F": 14, "G": 19,
               "H": 17, "I": 17, "J": 17, "K": 21, "L": 48, "M": 21, "N": 24, "O": 13,
               **{get_column_letter(column): 19 for column in range(16, 27)}}
-    _format_sheet(sheet, COMBINED_HEADERS, widths, numeric_columns=(5, 6, 7, 10, *range(16, 27)), percent_columns=(6,))
-    sheet.freeze_panes = "C2"
-    sheet.sheet_properties.outlinePr.summaryBelow = False
+    _format_sheet(sheet, COMBINED_HEADERS, widths, numeric_columns=(5, 6, 7, 10, *range(16, 27)), percent_columns=(6,), freeze_panes="C2")
     sheet.sheet_properties.outlinePr.summaryRight = False
     # Optional dimensions are retained once on each product and can be expanded.
     sheet.column_dimensions.group("P", "Z", outline_level=1, hidden=True)
@@ -249,7 +260,7 @@ def export_pricing_workbook(configuration):
                 cell.alignment = Alignment(vertical="center", wrap_text=True, indent=0 if inventory else 1)
         sheet.cell(row[0].row, 15).number_format = "0"
     comments = {
-        "A": "Inventory owns product values; Use owns a dropdown choice. Gray cells must stay blank. Expand/collapse the outlined Use rows with Excel's +/- controls.",
+        "A": "Inventory owns product values. Use rows show Group, Price source, Yield type, Yield, Rate ID and Use order. All rows are visible. Gray cells do not apply to that row type and must stay blank.",
         "G": "Inventory: edit for Manual pricing, otherwise change supplier price/markup. Use: editing this rate creates an Override; choose Inventory in Price source to restore its link.",
         "I": "Number uses Yield. Blank is a genuine empty lookup value; Empty text preserves its distinct calculation behavior. Not used applies to groups without yields.",
         "M": "Keep existing IDs. Each Use links to its Inventory row by this ID, regardless of row order. For new linked rows enter the same new unique ID on both rows. An unlinked Use may leave this blank with Override pricing.",
@@ -267,13 +278,13 @@ def export_pricing_workbook(configuration):
     for row in [
         ["CEASEFIRE INVENTORY & RATES", "How to update the combined pricing library"],
         ["Save changes", "Import previews this entire workbook. Review additions, removals and updates, then Save pricing in ESTIMATOR. Existing saved quotes retain their own products and prices."],
-        ["Inventory and Used in", "Each Inventory row owns the product name, supplier/manual price and properties. The outlined Use rows contain its dropdown groups, rate names, prices and yields. Use Excel's +/- controls to expand or collapse them; P:Z contains optional product properties."],
+        ["Inventory rows", "Inventory rows own the product name, item code, supplier/manual price, markup and properties. Group, Price source, Yield type, Yield, Rate ID and Use order do not apply here and stay blank. Optional product properties are in expandable columns P:Z."],
         ["Complete replacement", "Keep the Inventory & Rates sheet and its headers. Delete a Use to remove that choice. To remove an Inventory row, remove or unlink every Use referencing its Inventory ID. Filtered, hidden and collapsed rows are still imported."],
         ["Stable links and sorting", "Row type declares Inventory or Use. Inventory ID links a Use to a product, never proximity or row order. Keep existing IDs. Use order preserves dropdown order within a Group when sorting; leave it blank to append a new Use."],
         ["Add products and uses", "Add an Inventory row and one Use per dropdown group. Enter the same new unique Inventory ID on linked rows. Blank Inventory/Rate IDs allocate new identities; a blank Use Inventory ID means an independent rate and requires Override pricing. Gray fields must remain blank."],
         ["Supplier markup", "On Inventory rows enter supplier price and markup (30% means 0.30). Changing either recalculates sell price as supplier × (1 + markup). Unchanged inputs retain the existing stored sell price exactly."],
         ["Manual pricing", "On Inventory rows choose Manual to enter Sell price / rate directly. Supplier price may be blank; markup remains information. On Use rows choose Inventory for the linked price or Override for an independent price."],
-        ["Rate prices and yields", "Editing a Use sell rate creates an Override. Choose Inventory to restore a current Override to the linked price. Each Use owns its yield; product properties do not automatically change it. Number requires a nonnegative Yield; Blank and Empty text retain distinct empty-value behavior; Not used is for groups without yields."],
+        ["Use rows and yields", "All Use rows are visible. They own Group, Price source, Yield type, Yield, Rate ID and Use order. Editing a Use rate creates an Override; choose Inventory to restore its linked price. Number requires a nonnegative Yield; Blank and Empty text keep distinct empty-value behavior; Not used is for groups without yields."],
         ["Names and groups", "Use Name is the Estimator dropdown selection. Group places it in the existing calculation category. Names must be unique within a Group. These categories reproduce the original selections; they do not establish technical suitability."],
         ["Values only", "Use typed values, not formulas, macros or external links. Prices shown are a snapshot: import evaluates pricing edits in ESTIMATOR. No Excel formulas are required. The earlier Inventory and Rates two-sheet format remains supported for import."],
         ["Limits", f"Maximum {MAX_ROWS:,} Inventory rows plus {MAX_ROWS:,} Use rows, 5 MB file, numeric magnitude up to 1 trillion. Prices/yields cannot be negative; markup cannot be below -100%."],
@@ -282,8 +293,7 @@ def export_pricing_workbook(configuration):
           for group, rule in data["rate_group_rules"].items()],
     ]:
         instructions.append(row)
-    _format_sheet(instructions, (), {"A": 29, "B": 115})
-    instructions.freeze_panes = "A2"
+    _format_sheet(instructions, (), {"A": 29, "B": 115}, freeze_panes="A2")
     for row in range(2, 13):
         instructions.row_dimensions[row].height = 61
     instructions.auto_filter.ref = None

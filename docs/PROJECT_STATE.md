@@ -2,7 +2,31 @@
 
 Date: 2026-09-16. Executable code and checked results take precedence over this document.
 
-Current increment: calculator presentation polish for twelve browser comments.
+Current increment: visible pricing yields and Excel view repair on
+`fix/pricing-workbook-views-and-visible-yields`, based on PR #23 merge
+`53c875dc4d4d7e576507f8d93bf1957e1c39e7ec`.
+
+Pricing library shows each category, selection, sell rate and yield inline
+beside its product. Product purchasing values have one editor even with several
+uses. The Excel template displays all 417 Inventory and 166 Use rows without
+row outlining. Use-only fields remain blank on Inventory rows. The exporter
+initializes final C2/A2 freeze panes once with unique valid selections, fixing
+the duplicate/nonexistent pane records in the user's repair-triggering file.
+The same combined headers, stable IDs/use order, pricing/yield rules, legacy
+import support and saved-quote snapshots remain; there is no data migration.
+
+Local validation: 24 pricing workbook tests passed, including both legacy and
+combined 216-scenario calculation comparisons, plus four integration tests and
+32 Estimator UI checks. Excel 16.0 build 20326 opened the corrected two-sheet
+file read-only with normal loading; the original failed the same check. All
+Inventory & Rates cell values match exactly and all 583 data rows are visible.
+Both sheets were rendered and reviewed. Browser checks confirmed shared-price
+propagation, a separate rate/yield override and independent resets. The current
+commit/PR/CI/merge remain pending at this checkpoint. Evidence and the final
+publication receipt belong in `.runtime/pricing-visible-yields-qa`. Earlier
+expandable/collapsed pricing descriptions below record superseded release behavior.
+
+Previous increment, published as PR #23: calculator presentation polish for twelve browser comments.
 Export template shares the Excel-green register style. The quick Section ID
 uses its existing strict list in a native dropdown. Only the displayed 15/45
 minute comparison columns and H23:N24 source-reference row are omitted; source
@@ -24,7 +48,7 @@ The unified pricing release below merged in PR #22 at
 Its verified runtime and unchanged-data receipt is in
 `.runtime/unified-pricing-qa/publication.json`.
 
-Pricing implementation: Pricing library has one Inventory & Rates view, a
+Historical PR #22 implementation: Pricing library has one Inventory & Rates view, a
 Used in Estimator filter, searchable product rows and expandable category/rate/
 yield details. Products with multiple uses share one inventory price owner;
 unused inventory and standalone rates remain accessible. Excel actions are green.

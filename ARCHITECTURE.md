@@ -41,21 +41,29 @@ On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It r
 
 Previous architecture: a fixed workbook-derived catalog plus separately persisted user overrides. Proposed and implemented change: configuration JSON gains an optional `catalog` containing the active inventory and all 14 rate groups; the existing `inventory` and `rates` override maps remain separate. openpyxl 3.1.5 reads and writes the exchange workbook. This enables requested additions/removals and new prices while extending the existing calculator, configuration and SQLite boundaries.
 
-`POST /api/pricing/export` serializes the entire effective draft into Inventory & Rates and Instructions sheets. Inventory rows own product details and purchasing values; outlined Use rows own the rate group, selection name, price source, rate and yield, linked by explicit Inventory ID. Rate IDs remain stable and Use order preserves dropdown order independently of product grouping or spreadsheet sorting. `POST /api/pricing/import` adapts the combined rows into the existing inventory/rate validation path and also accepts older separate Inventory and Rates sheets. It returns a replacement configuration with added/removed/updated counts and never writes settings or quotes. The user reviews the replacement in the draft editor and applies it through the existing Save pricing operation. A removed row is removed from the active catalog after saving, while empty rate categories remain explicit. Unsupported category keys, duplicate choices, dangling inventory links and malformed values are rejected.
+`POST /api/pricing/export` serializes the entire effective draft into Inventory & Rates and Instructions sheets. Inventory rows own product details and purchasing values; visible Use rows own the rate group, selection name, price source, rate and yield, linked by explicit Inventory ID. Use-only fields stay blank on Inventory rows. Rate IDs remain stable and Use order preserves dropdown order independently of product grouping or spreadsheet sorting. `POST /api/pricing/import` adapts the combined rows into the existing inventory/rate validation path and also accepts older separate Inventory and Rates sheets. It returns a replacement configuration with added/removed/updated counts and never writes settings or quotes. The user reviews the replacement in the draft editor and applies it through the existing Save pricing operation. A removed row is removed from the active catalog after saving, while empty rate categories remain explicit. Unsupported category keys, duplicate choices, dangling inventory links and malformed values are rejected.
 
 Existing IDs retain identity; new rows with blank IDs receive IDs. A user can supply a new unique Inventory ID in both lists when creating a linked product and rate together. A rate's `price_mode` distinguishes inventory-linked pricing from an explicit rate. Per-rate overrides still take final precedence. Its `uses_yield` flag derives from the fixed category rules, so new products do not need artificial worksheet references.
 
 Consequences: `.xlsx` is a values-only exchange format with exact headers, a 5 MB file limit, 5,000 rows per list and bounded archive contents. Formula cells, macro-bearing files, external links and unexpected data sheets are rejected; filtered/hidden rows still participate. Export preserves numeric values and literal strings. Import reconciles unchanged Excel-precision values with the existing catalog to avoid incidental price drift. Inventory dimensions may include descriptive ranges, while calculation yields retain their numeric/blank/empty-text semantics.
 
 The unified browser presentation replaces the former Inventory/Rates switch with
-one product list, a filter based on actual rate-group membership, and expandable
-Used in details. Unused inventory and unlinked rates remain accessible. This
-change makes purchasing values and their estimating uses editable together
-without flattening products with multiple uses into duplicate price records.
+one product list and a filter based on actual rate-group membership. Category,
+selection name, sell rate and yield now appear inline beside each product,
+replacing the earlier expandable details. Shared product cells span their use
+rows, so each product price has one editor. Unused inventory and unlinked rates
+remain accessible, with independent product, rate and yield resets.
 The existing inventory and rate models, override precedence, fixed field-to-group
 mapping and name-within-group lookup remain unchanged. The workbook adaptation
 and presentation add no runtime dependency, SQL migration or alternate calculation
 path. Imports remain reviewed drafts and saved quotes retain their snapshots.
+
+Excel Use rows are no longer outlined or hidden by default. Optional property
+columns P:Z retain their existing outline. `_format_sheet` receives each sheet's
+final freeze point once (C2 for Inventory & Rates, A2 for Instructions) and
+reinitializes matching, unique pane selections. This fixes stale duplicate and
+nonexistent pane records caused by changing an earlier E2 freeze. It changes
+worksheet views only; the typed values, headers and import contract are retained.
 
 Migration impact: no SQL schema change or eager quote rewrite. New and revised quotes embed the base catalog and freeze all effective prices/yields. Older configurations without `catalog` continue to resolve against the immutable original baseline, not the new global library. Their signature guard remains. Source hashes identify the catalog used and the imported pricing file; an unchanged saved quote retains its original lineage. Stored reports continue to use stored results directly.
 
@@ -300,7 +308,7 @@ and commercial-overlay validation remain separate checks. See the
 
 The UI sends values only. New or edited estimates recompute prices, calculations and totals on the server; saved PDF reports use their stored results. No expression strings are executed or evaluated. Numeric empty inputs use Excel's blank arithmetic; missing lookup text and empty-text yields retain Excel error propagation. API text selections can produce `#N/A` for imported/invalid values; the UI offers the quote's applicable catalog choices and blank affordance. Calculated cells cannot be supplied as inputs.
 
-The original baseline never changes at runtime. A saved library replacement becomes the active catalog; edits remain separate configuration overrides. Changes to an inventory price propagate to linked rates unless a rate uses explicit pricing. Changing inventory display text alone does not alter a rate selection key; the Rates sheet controls choices explicitly. Quote saves freeze the catalog and all effective rate prices/yields so later replacements cannot silently reprice saved work. Explicitly adopting current pricing can leave removed or renamed selections unresolved; those errors require a new valid selection rather than an invented fallback.
+The original baseline never changes at runtime. A saved library replacement becomes the active catalog; edits remain separate configuration overrides. Changes to an inventory price propagate to linked rates unless a rate uses explicit pricing. Changing inventory display text alone does not alter a rate selection key; Use rows control choices explicitly (or Rates in a legacy template). Quote saves freeze the catalog and all effective rate prices/yields so later replacements cannot silently reprice saved work. Explicitly adopting current pricing can leave removed or renamed selections unresolved; those errors require a new valid selection rather than an invented fallback.
 
 Worksheet addresses remain in the deterministic formula engine, result snapshots, regression fixtures and developer source mappings. The estimator and PDF use named business fields and error descriptions. Removing redundant presentation references does not remove the original formula traceability or alter arithmetic.
 

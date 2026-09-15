@@ -121,28 +121,26 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .search-field input{font-size:12px}
 .pricing-controls>.field{max-width:230px}
 .pricing-controls .search-field{margin-left:0;flex:1;width:auto;max-width:560px}
-.pricing-table{min-width:850px;margin-top:15px}
-.pricing-table th:first-child{width:100px}
-.pricing-table th:nth-child(2){min-width:280px}
+.pricing-table{min-width:1320px;margin-top:15px}
+.pricing-table th:first-child{width:85px}
+.pricing-table th:nth-child(2){min-width:230px}
+.pricing-table th:nth-child(6){min-width:115px}
+.pricing-table th:nth-child(7){min-width:180px}
+.pricing-table th:nth-child(8){min-width:150px}
+.pricing-table td{vertical-align:top}
 .pricing-table input{font-size:12px;padding:9px}
 .pricing-table input[type=number]{min-width:95px;max-width:140px;text-align:right}
-.pricing-table .item-name{min-width:240px}
+.pricing-table .item-name{min-width:205px}
 .pricing-table .subtext{font-size:10px;color:var(--muted);display:block;margin-top:6px}
 .pricing-table .edited{background:#fff7e7}
 .pricing-table .reset-button{background:none;color:var(--accent);font-size:10px;white-space:nowrap;padding:7px;text-decoration:underline;text-underline-offset:3px}
 .pricing-table .reset-button:disabled{color:var(--muted);cursor:default;text-decoration:none;opacity:.6}
-.pricing-use-row>td{padding:0 14px 13px;border-top:0}
-.pricing-uses{border:1px solid var(--line);border-radius:8px;background:#fbf9fa}
-.pricing-uses>summary{padding:9px 12px;color:#51414a;font-weight:600;cursor:pointer}
-.pricing-uses[open]>summary{border-bottom:1px solid var(--line)}
-.pricing-uses-scroll{overflow-x:auto;max-width:100%;padding:0 12px 12px}
-.pricing-table .pricing-uses-table{min-width:780px;margin-top:8px;font-size:12px}
-.pricing-table .pricing-uses-table th:first-child{width:130px;min-width:130px}
-.pricing-table .pricing-uses-table th:nth-child(2){min-width:230px}
-.pricing-uses-table td{vertical-align:top}
-.pricing-rate-source{min-width:155px;font-size:11px;color:var(--muted)}
-.pricing-rate-actions{min-width:95px}
-.pricing-rate-actions .reset-button{display:block}
+.pricing-table .pricing-product-start>td{border-top:1px solid #d8cbd1}
+.pricing-product-cell>.reset-button{display:block;margin-top:6px}
+.pricing-use-category{font-weight:600}
+.pricing-selection{overflow-wrap:anywhere}
+.pricing-rate-source{display:block;font-size:10px;color:var(--muted);margin-top:5px;max-width:150px}
+.pricing-rate-cell>.reset-button,.pricing-yield-cell>.reset-button{display:block;margin-top:4px}
 .price-value{font-variant-numeric:tabular-nums;font-weight:650;white-space:nowrap}
 .import-guide{font-size:12px;color:var(--muted);margin:-4px 0 23px;max-width:1020px;line-height:1.8}
 .quote-item{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:21px 0;border-bottom:1px solid var(--line)}

@@ -190,7 +190,7 @@ class CalculatorCleanupTests(unittest.TestCase):
         for sheet in definition["sheets"]:
             self.assertEqual(sheet["omitted_rows"], expected_rows[sheet["name"]])
             self.assertEqual(sheet["omitted_columns"], [22, 23, 24] if sheet["name"] == "SCHEDULE" else [])
-            self.assertEqual(sheet["omitted_ranges"], ["J28:N30"] if sheet["name"] == "CALCULATOR" else [])
+            self.assertEqual(sheet["omitted_ranges"], ["J28:N30", "B28:B30", "D28:D30", "H23:N24"] if sheet["name"] == "CALCULATOR" else [])
             aliases = {"BAGS": {"A1": "MATERIAL QUANTITIES"},
                        "CALCULATOR": {"A1": "QUICK CALCULATOR", "L6": "PUBLISHED VALUE"},
                        "SETTINGS": {"A9": "GLOBAL SETTINGS", "A17": "COMMON CALCULATION RULES",
@@ -271,7 +271,7 @@ class CalculatorCleanupTests(unittest.TestCase):
 
     def test_display_spans_cover_only_decorative_children_and_notes_omission_has_no_inputs(self):
         expected = {
-            (IDENTITY, "BAGS"): {"H10": {"merge": "H10:N10", "role": "spacer"}},
+            (IDENTITY, "BAGS"): {"H6": {"merge": "H6:N10"}},
             (IDENTITY, "SETTINGS"): {
                 **{f"A{row}": {"role": "column_header"} for row in (48, 81, 113, 190, 246)},
                 **{f"D{row}": {"merge": f"D{row}:G{row}"} for row in (*range(346, 353), *range(358, 369), *range(372, 375))},
@@ -341,7 +341,7 @@ class CalculatorCleanupTests(unittest.TestCase):
         expected = {
             (IDENTITY, "CALCULATOR"): [(5, 24, list(range(1, 7)), "A5"),
                                       (5, 24, list(range(8, 15)), "H5"),
-                                      (26, 30, list(range(1, 10)), "A26")],
+                                      (26, 30, [1, 3, 5, 6, 7, 8, 9], "A26")],
             (IDENTITY, "BAGS"): [(1, 15, [*range(1, 7), *range(8, 15)], "A1"), (17, 24, list(range(1, 10)), "A17")],
             ("ductwork", "PRODUCT SETTINGS"): [(94, 151, list(range(1, 9)), "A94"),
                                                (94, 113, list(range(10, 18)), "J94"),

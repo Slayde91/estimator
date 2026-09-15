@@ -137,6 +137,61 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
             self.assertEqual(cell['validation']['formula1'], 'SectionList')
         self.assertEqual({address for address, display in metadata['display_cells'].items()
                           if display.get('control') == 'select'}, {f'F{row}' for row in range(10, 1010)})
+        calculator = self.metadata('steel_vermiculite', 'CALCULATOR')
+        self.assertEqual({address for address, display in calculator['display_cells'].items()
+                          if display.get('control') == 'select'}, {'D10'})
+        result = calculate_page('steel_vermiculite', {}, 'CALCULATOR', 10, 1)
+        quick = next(cell for cell in result['rows'][0]['cells'] if cell['address'] == 'D10')
+        self.assertEqual(quick['options'], options)
+        self.assertFalse(quick['allow_other'])
+        self.assertEqual(quick['error_style'], 'stop')
+
+    def test_quick_period_and_citation_omissions_keep_source_calculations_and_input_choices(self):
+        metadata = self.metadata('steel_vermiculite', 'CALCULATOR')
+        source = next(sheet for sheet in source_model('steel_vermiculite')['sheets']
+                      if sheet['name'] == 'CALCULATOR')
+        before = digest(source)
+        self.assertEqual(metadata['omitted_ranges'], ['J28:N30', 'B28:B30', 'D28:D30', 'H23:N24'])
+        self.assertEqual(metadata['omitted_columns'], [])
+        comparison = metadata['presentation_tables'][2]
+        self.assertEqual(comparison['columns'], [1, 3, 5, 6, 7, 8, 9])
+        self.assertEqual(comparison['column_widths'], [190, *([115] * 6)])
+        for address in editable_cells('steel_vermiculite', 'CALCULATOR'):
+            self.assertFalse(any(contains(region, address) for region in metadata['omitted_ranges']), address)
+        self.assertEqual(source['cells']['B28']['value'], 15)
+        self.assertEqual(source['cells']['D28']['value'], 45)
+        for address in ('B29', 'B30', 'D29', 'D30', 'H23'):
+            self.assertIn('formula', source['cells'][address])
+        self.assertEqual(source['cells']['H23']['formula'], 'IF(ENGINE!AL2="","",ENGINE!AL2)')
+        self.assertIn('H23:N24', source['merges'])
+        period_page = calculate_page('steel_vermiculite', {}, 'CALCULATOR', 12, 1)
+        period = next(cell for cell in period_page['rows'][0]['cells'] if cell['address'] == 'D12')
+        self.assertEqual(period['options'], [15, 30, 45, 60, 90, 120, 180, 240])
+        result = calculate_page('steel_vermiculite', {}, 'CALCULATOR', 23, 8)
+        values = {cell['address']: cell for row in result['rows'] for cell in row['cells']}
+        for address in ('H23', 'B28', 'D28', 'B29', 'B30', 'D29', 'D30'):
+            self.assertIn(address, values)
+        self.assertEqual(values['H23']['value'], 'C300-2021 p4')
+        self.assertEqual(values['B28']['value'], 15)
+        self.assertEqual(values['D28']['value'], 45)
+        self.assertEqual(digest(source), before)
+
+    def test_material_note_span_and_diagnostic_emphasis_preserve_source_content(self):
+        bags = self.metadata('steel_vermiculite', 'BAGS')
+        self.assertEqual(bags['display_cells']['H6'], {'merge': 'H6:N10'})
+        self.assertNotIn('H10', bags['display_cells'])
+        source = next(sheet for sheet in source_model('steel_vermiculite')['sheets'] if sheet['name'] == 'BAGS')
+        self.assertIn('H6:N9', source['merges'])
+        self.assertIn('H11:N15', source['merges'])
+        self.assertNotIn('H6:N10', source['merges'])
+        self.assertTrue(source['cells']['H6']['value'])
+        self.assertTrue(source['cells']['H11']['value'])
+        self.assertIn('formula', source['cells']['D10'])
+        settings = self.metadata('steel_vermiculite', 'SETTINGS')['display_cells']
+        for row in (52, *range(117, 122), 194, *range(250, 258)):
+            self.assertTrue(settings[f'A{row}']['bold'])
+        for row in (53, 122, 195, 258):
+            self.assertNotIn('bold', settings.get(f'A{row}', {}))
 
     def test_display_only_weight_and_thickness_highlight_have_exact_scopes(self):
         schedule = self.metadata('steel_vermiculite', 'SCHEDULE')['display_cells']

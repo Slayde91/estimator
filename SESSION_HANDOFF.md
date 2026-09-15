@@ -1,5 +1,34 @@
 # Session handoff
 
+## Calculator presentation polish — 2026-09-16
+
+Branch `feat/calculator-presentation-polish` starts from PR #22 merge
+`a4c8ffca5757f8abb96adff6eb6ab133e29f74c9`. The twelve browser comments use
+existing display metadata and shared styles: Excel-green Export template;
+native quick Section ID; scoped omission of 15/45-minute comparison columns
+and the dynamic source-reference row; one BAGS note spanning its redundant
+blank spacer; consistent yellow label/value-cell surrounds; normal text-entry
+weight and bold diagnostic labels. Source values and formula graphs remain.
+
+Verified locally: 12 focused Python checks, 93 calculator UI checks and 30
+Estimator UI checks pass. All 104,068 source cells/input properties and option
+sets across twelve HTTP worksheets match the baseline. Browser checks cover
+all five product settings, all three Excel toolbar styles, quick section
+selection/recalculation, the material-note merge and desktop/mobile layout.
+Independent production-diff review found no actionable defects. Full exact-head
+CI and merge results belong in the final publication receipt.
+
+The quick section choice remains strict and source-backed. Comparison omissions
+must stay local to B28:B30 and D28:D30, since column D contains input fields
+elsewhere. H23:N24 is display-only evidence removal. BAGS H6:N10 replaces the
+display split at row 10 without hiding the yield value in D10.
+
+Recovery, source-value comparisons, browser evidence and the eventual exact-head
+CI/merge receipt are retained in `.runtime/calculator-polish-qa`. Test writes
+use an isolated database; do not reload the user's own browser tab or save test
+values to `.runtime/estimator.sqlite3`. Prior pricing release PR #22 is merged;
+its receipt confirms unchanged stored quotes/settings and the live new template.
+
 ## Unified Inventory & Rates — 2026-09-16
 
 Branch `feat/unified-inventory-rates` starts at PR #21's merge

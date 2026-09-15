@@ -2,51 +2,51 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-Current increment on `fix/calculator-start-factor-tabs`: the latest twelve
-browser comments separate vermiculite START, SETTINGS and FACTOR CALCS views,
-refine source-backed headings and controls, and simplify the Estimator form.
-The six browser tabs retain the four original source pages. Operating rules
-appear directly on START; SETTINGS has seven choices and FACTOR CALCS three.
-All use the existing SETTINGS source cells, complete draft and report scope.
+Commit-preparation checkpoint on `feat/labour-breakdown-calculator-controls`: the latest
+27 browser comments add an Estimator Labour breakdown and refine calculator
+controls, titles, units, spacing and action styling.
 
-Vermiculite BAGS places product ordering before the MATERIAL QUANTITIES heading,
-subtitle and manual form. Published thickness H6 has a pale-blue highlight and
-its existing numeric mm suffix. Schedule Section ID uses a native source list,
-loaded when opened to keep 1,000-row rendering practical; note column Y uses
-normal font weight. Duct SUMMARY omits contents navigation, and board SETTINGS
-uses bold first-column labels in its general-settings and diagnostic tables.
+The new table reads stored calculation cells and explains F10 total project
+days through eight task rows, masking, adjusted extra labour and mobilisation.
+Pinning mirrors meshing and is excluded from the task subtotal. The separate
+F2 labour cost remains unchanged. Legacy saved-quote responses receive the
+additive detail from their own stored cells without rewriting the saved record.
+Missing values/errors remain visible; stale or failed calculations cannot leave
+an old labour table displayed.
 
-New Estimator estimates start Notes B12 blank. The immutable default remains
-`Allowances`, and saved explicit notes are preserved. The generated Work summary
-panel is removed; calculation responses, saved records and PDFs retain their
-summary data. No formula, technical rule, source package, schema or export
-contract changes. Exact projections are in [the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md).
+Requested board and duct choices use native selects, while source-approved
+custom/warning values retain an explicit editor. Large section lists are loaded
+on opening. Board purchasing dimensions/area show numeric-only mm/m² suffixes;
+its title and live warning follow CALCULATED SUMMARY. Duct SUMMARY uses four
+separated wrappers over its existing tables. Vermiculite START hides the two
+requested source-history blocks and gains the relocated guidance; QUICK
+CALCULATOR and factor titles are shorter. Toolbar actions have the requested
+colors and order, with the extra helper text removed.
 
-Verified locally: 89 calculator and 22 Estimator UI checks (111 total),
-29 API/cleanup tests, 13 section/tab contract tests and 42 focused Estimator
-backend/PDF tests passed, along with syntax/whitespace checks and the 35-file
-build. All 104,068 source cells across twelve worksheets, three PDF text
-projections and three register worksheet-value sets match before/after.
+Verified so far: 92 calculator UI and 25 Estimator UI checks pass (117 total),
+as do both JavaScript syntax checks. Native review covers all 27 comments and the
+13-row labour table and default 0.50 total. All 104,068 source cells across
+twelve calculator pages, all three PDF text/register-value projections, and
+six Estimator API scenarios' existing result fields match before/after; only
+the additive labour projection is new. Evidence is retained under
+`.runtime/labour-controls-qa`, including the read-only native Quote.xlsm F10 audit.
 
-Native review verified all requested layouts, hidden section selection, exact
-helper draft preservation, source-keyed controls and 554 native Section ID
-choices including the leading blank. Review fixes corrected A7/A27 helper
-locations and preserved blank-first option order. The main service now serves
-matching assets and the new tabs; schema version 2 and all saved records are
-unchanged. Final independent review found no remaining issues.
-Commit/push/PR/CI/merge remain pending at this checkpoint. Evidence is retained under `.runtime/tabs-notes-qa` and
-summarized at the top of SESSION_HANDOFF.md.
+The full local Python run is still continuing at this checkpoint. It encountered
+a legacy metadata expectation that has been corrected and one HTTP error whose
+exact trace remains pending. No clean full Python run, build or refreshed-runtime
+success is claimed. Commit/push, PR, exact-head CI/review and merge are pending.
+Current Git/check evidence and the eventual `.runtime/labour-controls-qa/publication.json`
+receipt take precedence over this commit-preparation record.
 
-The preceding section-navigation increment is published. PR #18 merged as
-`de808e13cd723853229358459c9ac03c8a696893` from feature head
-`d8d59c196d35cd89c1ad1a2fef021290dce3efac`. Both exact-head CI runs passed 227
-Python tests (223 passed, four skipped), 84 calculator UI checks and 20 original
-UI checks. Local evidence also matched all 104,068 source cells across twelve
-worksheets, all three PDF text projections and register worksheet values, and
-preserved saved data. The receipt is `.runtime/section-navigation-qa/publication.json`;
-that evidence establishes PR #18, not the current increment.
+The preceding START/factor increment is published: PR #19 merged as
+`335f4b6e0eac2419cb2b7f8c98998c0f5661d5d7` from feature head
+`cc1ccf9a43b8c139e1d26e2ac6c07b08925c4f4e`. Its two exact-head CI runs passed
+235 Python tests (231 passed, four skipped) and 111 UI checks. The receipt is
+`.runtime/tabs-notes-qa/publication.json`; those results verify PR #19, not the
+current increment. Source packages, formula rules, saved input keys, storage
+schema and existing report calculations remain unchanged.
 
-Each calculator now has **Download Excel register** beside its schedule PDF.
+Each calculator has **Download Excel register** immediately after Export template.
 The workbook contains Summary and Schedule sheets, plus Extra boards for board
 protection. It captures the same calculated draft as the PDF: used items,
 incomplete statuses, material quantities, pooled totals, qualifications and
@@ -66,7 +66,7 @@ The refreshed service returned all three registers correctly, served matching
 assets and preserved saved data. PR #17 merged as `364a024`; both exact-head CI
 runs passed 220 Python tests (216 passed, four skipped) and 101 UI checks. Its
 publication receipt is under `.runtime/excel-register-qa`; those prior checks
-do not validate the current START/FACTOR CALCS increment.
+do not validate the current labour-days and calculator-controls increment.
 
 The preceding 23 browser comments refine calculator detail layout. Vermiculite
 factor helpers absorb blank dividers and collapse one blank left-side row while
@@ -79,8 +79,8 @@ Duct support-instruction prose uses normal weight beneath its existing column
 heading. Maxilite reference labels and board purchasing product labels are bold.
 Board calculator, summary and extra-board titles/notes fill their overview rows,
 with all three BOARD SUMMARY cards retained. Browser titles read BOARD SUMMARY
-and EXTRA BOARDS; running-total sections read SUMMARY for board and PRODUCT
-SUMMARY for vermiculite. Worksheet identities and underlying source captions
+and EXTRA BOARDS; running-total sections read PRODUCT SUMMARY for vermiculite
+and now CALCULATED SUMMARY for board. Worksheet identities and underlying source captions
 remain unchanged. The exact cell/range boundaries are recorded in
 [the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md).
 
@@ -217,8 +217,8 @@ No new geometry or purchasing rule is introduced. Source packages, formulas,
 saved inputs and PDF quantities remain unchanged. Exact ranges and independent
 source-example totals are in
 [the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Current
-validation and publication results will be recorded separately in
-SESSION_HANDOFF.md; this paragraph does not claim they have passed.
+validation and publication must be checked against Git/checks and the latest
+receipt; this paragraph does not claim those checks have passed.
 
 The preceding browser cleanup gives Ductwork SUMMARY four independent tables:
 product totals, penetration angles, working yields and Maxilite strips. It

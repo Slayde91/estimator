@@ -1,26 +1,25 @@
 # Roadmap
 
-Current increment: separate vermiculite START, SETTINGS and FACTOR CALCS browser
-views while retaining the four source worksheets and complete calculation state.
-Operating rules display directly; seven setting choices and three factor-helper
-choices replace the combined eleven-choice view. Refine headings, native Section
-ID selection, BAGS placement and targeted cell emphasis. New Estimator Notes start
-blank; its generated-summary panel is removed while saved/PDF summaries remain.
+Current commit-preparation checkpoint: show source F10 project days in a dedicated Estimator Labour
+breakdown, with eight task contributions, masking, extra labour and mobilisation.
+Its stored-cell projection is additive; it preserves existing money calculations
+and enriches older response copies without rewriting quotes. The calculator
+changes refine native/custom selectors, requested title placement, purchasing
+units, START content, summary spacing and toolbar actions.
 
-This extends existing presentation metadata and initialization only. No dependency,
-calculation rule, source-package, export or storage migration is introduced.
-Local checks pass: 111 UI checks (89 calculator, 22 Estimator), 29 API/cleanup
-and 13 section/tab tests, 42 focused Estimator backend/PDF tests, syntax/diff
-checks and the 35-file build. Native review, exact draft retention and
-before/after source/export comparisons pass. The refreshed main app preserves
-saved data, and final independent review found no remaining issues.
-Commit/publication remain pending in SESSION_HANDOFF.md.
+No dependency, source-formula, storage migration or alternate calculation path
+is introduced. All 117 UI checks (92 calculator, 25 Estimator), both JavaScript
+syntax checks and current source/export/API comparisons pass. The full local
+Python run continues with a corrected legacy metadata expectation and one HTTP
+error awaiting its exact trace. A clean Python run, build and refreshed runtime
+are not yet verified. Commit/push, PR, CI/review and merge are pending. Current
+Git/checks and `.runtime/labour-controls-qa/publication.json` when available
+supersede this checkpoint.
 
-The preceding section-navigation increment merged in PR #18 as `de808e1` from
-`d8d59c1`. Both exact-head CI runs passed 227 Python tests (223 passed, four
-skipped) and 104 UI checks. Its verified local worksheet/export, browser and
-saved-state comparisons are retained under `.runtime/section-navigation-qa`.
-Those results do not validate this subsequent increment.
+The preceding START/factor increment merged in PR #19 as `335f4b6` from
+`cc1ccf9`. Both exact-head CI runs passed 235 Python tests (231 passed, four
+skipped) and 111 UI checks. Its evidence is retained under `.runtime/tabs-notes-qa`;
+those results do not validate this subsequent increment.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
 recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
@@ -30,19 +29,20 @@ not verify this subsequent presentation increment or its publication status.
 ## Implemented
 
 - Original Quote Calculator inputs, formulas, editable pricing and saved snapshots.
+- Labour-days breakdown from stored result cells, with correct pinning exclusion, source F10 total, explicit error/missing states and read-only enrichment for older saved-quote responses.
 - Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and saved/PDF work summaries.
 - Estimator NOTES label on the existing measurement field, blank B12 notes for new estimates, and no generated-summary panel. Saved notes, summary data and internal workflow behavior remain intact.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
 - Two-decimal presentation while retaining raw calculation precision.
 - Three workbook Calculators, source-backed browser tabs, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Source-backed vermiculite START/SETTINGS/FACTOR CALCS views: operating rules shown directly, seven settings choices and three helper choices. Duct and board retain five/three settings choices; all preserve complete calculation/save/report scope. Scoped navigation, order-first BAGS, MEMBER SCHEDULE, published-value units/highlight and expanded board START.
-- Permanent technical databases, original formulas and dependent dropdowns.
+- Permanent technical databases, original formulas and dependent dropdowns. Requested board/duct controls use native selects with source-permitted custom values retained; large steel lists populate when opened.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
 - Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.
 - Six-column board purchasing table with retained summary cards; hidden extra-board evidence fields and no browser advanced-column checkbox. Saved hidden inputs and the advanced worksheet API remain supported.
 - Independent presentation tables with full content height, explicit note/heading/blank-row display overrides, and browser-only omission of Duct USE NOTES. Prepared schedules retain their vertical scrollers.
 - Explicit area/volume summary units, independent full-width running material totals, all Settings tables without vertical caps, and bounded reference-label/period-table formatting. Decorative BAGS G is omitted only from its manual form; pooled Whole bags remains visible below.
-- Bounded detail-row layouts and helper spacer merges; pink technical headings, bold exposure/product labels and normal reference/support prose. Full-width board overviews retain summary cards; display titles use BOARD SUMMARY, EXTRA BOARDS, SUMMARY and PRODUCT SUMMARY without renaming worksheets.
+- Bounded detail-row layouts and helper spacer merges; pink technical headings, bold exposure/product labels and normal reference/support prose. Full-width board overviews retain summary cards; display titles use BOARD SUMMARY, EXTRA BOARDS, CALCULATED SUMMARY and PRODUCT SUMMARY without renaming worksheets.
 - Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - Populated/blank output highlights, plus a scoped published-thickness highlight; zero remains populated. Vermiculite Section ID uses the source-backed native list without duplicating every option across the initial 1,000-row DOM.
@@ -56,8 +56,9 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-Current final validation and Git results for the START/FACTOR CALCS increment belong
-in SESSION_HANDOFF.md. Do not infer CI success from local checks
+SESSION_HANDOFF.md records the labour/controls commit-preparation checkpoint.
+Use current Git/checks and `.runtime/labour-controls-qa/publication.json` for later
+validation and publication outcomes. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 
 The previous source-parity checkpoint passed 419,905 native Excel comparisons,
@@ -70,9 +71,8 @@ and display checks; source expectations stay unchanged. See
 
 ## Meaningful remaining work
 
-Commit and publish the locally verified change. Local regression, runtime,
-saved-state, export and distribution checks and final independent review have
-passed.
+Publish the prepared change while the remaining local source audit completes.
+Resolve the recorded test outcomes and verify the build and refreshed runtime.
 Verify the current PR's exact-head CI/review state before merging and confirm
 the resulting merge commit. Earlier CI or billing results do not establish the
 current outcome. Never bypass or relabel a failed check.

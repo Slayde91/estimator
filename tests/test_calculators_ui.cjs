@@ -129,7 +129,49 @@ let passed = 0;
   nativeSections[999].value='';await nativeSections[999].emit('change');await nativeSections[999].emit('blur');assert.equal(entry.inputs.SCHEDULE.F1009,'');assert.equal(entry.invalid.size,0);
   await nativeSections[2].emit('keydown',{key:'ArrowDown'});assert.equal(nativeSections[2].children.length,554);
   const warningSection=audit.makeControl({column:6,address:'F11',type:'select',value:'Custom',options:sectionOptions,error_style:'warning'},11,entry,'Steel section');
-  assert.equal(warningSection.children[0].tagName,'input');warningSection.children[0].value='Another custom';await warningSection.children[0].emit('input');assert.equal(entry.inputs.SCHEDULE.F11,'Another custom');assert.equal(entry.invalid.size,0);passed++;
+  const [warningNative,warningCustom]=warningSection.children;assert.equal(warningNative.tagName,'select');assert.equal(warningCustom.hidden,true);
+  warningNative.value=warningNative.children.find(option=>option.textContent==='Enter custom value…').value;await warningNative.emit('change');
+  assert.equal(warningCustom.hidden,false);warningCustom.value='Another custom';await warningCustom.emit('input');assert.equal(entry.inputs.SCHEDULE.F11,'Another custom');assert.equal(entry.invalid.size,0);passed++;
+
+  // Native warning lists preserve custom precision and validation; their action is never a source value.
+  entry=setup({SETTINGS:{B6:7.123456789}});entry.definition.sheets[0].display_cells={B9:{control:'select'}};
+  const customCell={column:2,address:'B9',type:'select',value:12.3456789,options:[10,15],error_style:'warning'};
+  const [customChoice,customEditor]=audit.makeControl(customCell,9,entry,'Thickness').children;
+  assert.equal(customChoice.value,'12.3456789');assert.equal(customChoice.children[0].value,'');assert.equal(customEditor.dataset.calculatorCell,undefined);
+  customChoice.value=customChoice.children.find(option=>option.textContent==='Enter custom value…').value;await customChoice.emit('change');
+  assert.equal(entry.inputs.CALCULATOR,undefined);assert.equal(customEditor.hidden,false);await customEditor.emit('focus');assert.equal(customEditor.value,'12.3456789');
+  customEditor.value='13.456789123';await customEditor.emit('input');await customEditor.emit('blur');assert.equal(entry.inputs.CALCULATOR.B9,13.456789123);assert.equal(customEditor.value,'13.46');
+  await customEditor.emit('focus');assert.equal(customEditor.value,'13.456789123');customEditor.value='13x';await customEditor.emit('input');
+  assert.equal(entry.inputs.CALCULATOR.B9,13.456789123);assert.equal(entry.invalid.get('CALCULATOR!B9'),'13x');assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-excel').disabled,true);
+  const invalidRebuild=audit.makeControl(customCell,9,entry,'Thickness').children;assert.equal(invalidRebuild[1].hidden,false);assert.equal(invalidRebuild[1].value,'13x');
+  let customCalls=0;audit.setRequest(async()=>{customCalls++;});audit.setFetch(async()=>{customCalls++;});await audit.save();await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(customCalls,0);
+  customChoice.value='15';await customChoice.emit('change');assert.equal(entry.invalid.size,0);assert.equal(customEditor.hidden,true);assert.equal(entry.inputs.CALCULATOR.B9,15);
+  customChoice.value='';await customChoice.emit('change');assert.equal(entry.inputs.CALCULATOR.B9,'');assert.equal(entry.inputs.SETTINGS.B6,7.123456789);passed++;
+
+  // Native mixed/custom values retain types, fractional percentages and literal action-looking values.
+  entry=setup();entry.definition.sheets[0].display_cells={B9:{control:'select'},C9:{control:'select'},D9:{control:'select'}};
+  const [mixedChoice,mixedEditor]=audit.makeControl({column:2,type:'select',value:'Legacy FRL',options:[60,90,'60/60/60'],allow_other:true},9,entry,'Fire rating').children;
+  mixedChoice.value='90';await mixedChoice.emit('change');assert.equal(entry.inputs.CALCULATOR.B9,90);
+  mixedChoice.value='60/60/60';await mixedChoice.emit('change');assert.equal(entry.inputs.CALCULATOR.B9,'60/60/60');
+  mixedChoice.value=mixedChoice.children.find(option=>option.textContent==='Enter custom value…').value;await mixedChoice.emit('change');mixedEditor.value='75/75/75';await mixedEditor.emit('input');assert.equal(entry.inputs.CALCULATOR.B9,'75/75/75');
+  const [customPercent,percentEditor]=audit.makeControl({column:3,type:'select',value:.123456789,options:[.1,.2],number_format:'0%',allow_other:true},9,entry,'Waste').children;
+  customPercent.value='0.123456789';await customPercent.emit('change');assert.equal(entry.inputs.CALCULATOR.C9,.123456789);
+  customPercent.value=customPercent.children.find(option=>option.textContent==='Enter custom value…').value;await customPercent.emit('change');percentEditor.value='13.456789';await percentEditor.emit('input');assert.equal(entry.inputs.CALCULATOR.C9,.13456789);
+  const actionLiteral='__calculator_custom_value__',literalSelect=audit.makeControl({column:4,type:'select',value:actionLiteral,options:['Listed'],allow_other:true},9,entry,'Item').children[0];
+  assert.notEqual(literalSelect.children.find(option=>option.textContent==='Enter custom value…').value,actionLiteral);literalSelect.value=actionLiteral;await literalSelect.emit('change');assert.equal(entry.inputs.CALCULATOR.D9,actionLiteral);passed++;
+
+  // Focused custom editors survive dependent-choice responses, then submit exact source-keyed drafts to save and downloads.
+  entry=setup({SETTINGS:{B6:8.7654321}});entry.definition.sheets[0].display_cells={B9:{control:'select'}};
+  const customResult=()=>result(copy(entry.inputs),{rows:[{row:9,cells:[{...customCell,editable:true}]}]});entry.result=customResult();realRender(entry);audit.setRender(realRender);
+  let activeChoice=renderedControls()[0],activeCustom=descendants(byId('calculator-grid')).find(node=>node.dataset?.calculatorCustomCell==='B9');
+  activeChoice.value=activeChoice.children.find(option=>option.textContent==='Enter custom value…').value;await activeChoice.emit('change');context.document.activeElement=activeCustom;await activeCustom.emit('focus');activeCustom.value='17.123456789';await activeCustom.emit('input');
+  audit.setRequest(async()=>({...customResult(),rows:[{row:9,cells:[{...customCell,editable:true,options:[12,18]}]}]}));await audit.calculate();
+  assert.ok(entry.pendingResult);assert.equal(descendants(byId('calculator-grid')).find(node=>node.dataset?.calculatorCustomCell==='B9'),activeCustom);assert.equal(activeCustom.value,'17.123456789');
+  await activeCustom.emit('blur',{relatedTarget:activeChoice});assert.ok(entry.pendingResult);activeCustom.value='18.123456789';await activeCustom.emit('input');assert.equal(entry.pendingResult,null);
+  let customSaved;context.document.activeElement=null;audit.setRequest(async(path,options)=>{customSaved=JSON.parse(options.body).inputs;return {inputs:customSaved};});await audit.save();assert.deepEqual(customSaved,{SETTINGS:{B6:8.7654321},CALCULATOR:{B9:18.123456789}});
+  const customDownloads=[];audit.setFetch(async(path,options)=>{customDownloads.push({path,inputs:JSON.parse(options.body).inputs});return {ok:true,headers:{get:()=>path.endsWith('.pdf')?'application/pdf':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>new Blob(['download'])};});
+  await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(customDownloads.length,2);assert.ok(customDownloads[0].path.endsWith('report.pdf'));assert.ok(customDownloads[1].path.endsWith('register.xlsx'));
+  for(const download of customDownloads)assert.deepEqual(download.inputs,customSaved);passed++;
 
   // Mixed FRLs retain each chosen option's original type in either direction.
   entry = setup();
@@ -566,15 +608,17 @@ let passed = 0;
     {first_row:39,last_row:41,columns:[1,2,3,4,5,6,7],column_widths:[200,125,125,125,125,125,125],label:'Board totals'},
   ];
   const boldDuctSummaryRows=[9,10,11,19,20,21,22,23,24,25,26,31,32];
-  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],presentation_tables:summaryTables,display_cells:{A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},merges:['A1:L1','A17:F17','A29:F29','A38:L38','I40:L40','A43:L43']}];
-  const summaryRows=[1,17,29,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
+  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],section_cells:['A17','A29','A38'],navigation_mode:'hidden',section_spacing:true,presentation_tables:summaryTables,display_cells:{A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},merges:['A1:L1','A14:L14','A15:L15','A17:F17','A29:F29','A35:L35','A36:L36','A37:L37','A38:L38','I40:L40','A43:L43']}];
+  const summaryRows=[1,14,15,17,29,35,36,37,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
   for(const table of summaryTables) for(let row=table.first_row;row<=table.last_row;row++) summaryRows.push({row,cells:Array.from({length:12},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===26?null:row===table.first_row?`Header ${i+1}`:row*100+i,calculated:row!==table.first_row}))});
   summaryRows.sort((a,b)=>a.row-b.row);
   entry.result=result({}, {sheet:'SUMMARY',max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),rows:summaryRows});
   const originalSummary=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   const summaryRendered=descendants(byId('calculator-grid')).filter(node=>node.tagName==='table');
-  assert.equal(summaryRendered.length,9);
-  assert.deepEqual(summaryRendered.map(table=>table.children.at(-1).children.map(row=>Number(row.dataset.sourceRow))),[[1],[8,9,10,11],[17],[18,19,20,21,22,23,24,25,26],[29],[30,31,32],[38],[39,40,41],[43]]);
+  assert.equal(summaryRendered.length,11);
+  assert.deepEqual(summaryRendered.map(table=>table.children.at(-1).children.map(row=>Number(row.dataset.sourceRow))),[[1],[8,9,10,11],[14,15],[17],[18,19,20,21,22,23,24,25,26],[29],[30,31,32],[35,36,37],[38],[39,40,41],[43]]);
+  const logicalSummary=byId('calculator-grid').children.filter(node=>node.className==='calculator-logical-section');assert.equal(logicalSummary.length,4);
+  assert.deepEqual(logicalSummary.map(section=>descendants(section).filter(node=>node.tagName==='tr').map(node=>Number(node.dataset.sourceRow))),[[1,8,9,10,11,14,15],[17,18,19,20,21,22,23,24,25,26],[29,30,31,32,35,36,37],[38,39,40,41,43]]);
   for(const spec of summaryTables) {
     const table=summaryRendered.find(node=>node.getAttribute('aria-label')===spec.label);
     assert.equal(table.children[0].children.length,spec.columns.length);
@@ -759,7 +803,11 @@ let passed = 0;
   assert.ok(byId('calculator-grid').children.includes(entry.productTotalsElement));
   const boardOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
   assert.equal(boardOverview.classList.contains('calculator-overview-full'),true);assert.ok(!descendants(boardOverview).includes(entry.productTotalsElement));
-  assert.ok(boardTotalNodes.some(node=>node.textContent==='SUMMARY'));
+  assert.ok(boardTotalNodes.some(node=>node.textContent==='CALCULATED SUMMARY'));
+  const boardGridChildren=byId('calculator-grid').children,boardOverviewIndex=boardGridChildren.indexOf(boardOverview);
+  assert.ok(boardGridChildren.indexOf(entry.productTotalsElement)<boardOverviewIndex);
+  assert.ok(descendants(boardGridChildren[boardOverviewIndex+1]).some(node=>node.dataset?.calculatorCell==='A9'));
+  for(const address of ['A1','Y6'])assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===address).length,1);
   assert.ok(boardTotalNodes.some(node=>node.textContent==='Box reference area (m²)'));
   assert.ok(boardTotalNodes.some(node=>node.textContent==='12.35'));assert.ok(boardTotalNodes.some(node=>node.textContent==='21.01'));
   assert.ok(boardTotalNodes.some(node=>/5.00 incomplete schedule rows; 1.00 incomplete additional-board rows/.test(node.textContent||'')));
@@ -1097,11 +1145,12 @@ let passed = 0;
   entry=setup();const virtualBase=copy(entry.definition);audit.state.entries.clear();audit.state.current=null;
   const virtualInputs={SETTINGS:{D10:1.23456789,D342:2.34567891,BF533:'Retained hidden input'},SCHEDULE:{A1009:'Last schedule mark'}};
   const virtualRows=copy(chooserCases[0].rows).map(row=>row.row===271?{...row,cells:row.cells.filter(cell=>!cell.editable)}:row);
+  virtualRows.push({row:7,cells:[{column:1,address:'A7',value:'Factor helper starts at row 341.',presentation:{role:'note'}}]});virtualRows.sort((a,b)=>a.row-b.row);
   const virtualDefinition={...virtualBase,id:'steel_vermiculite',title:'Vermiculite',inputs:copy(virtualInputs),pages:['CALCULATOR','SCHEDULE','BAGS','SETTINGS'],
     schedule:{...virtualBase.schedule,sheet:'SCHEDULE'},display_pages:[
-      {id:'START',label:'START',sheet:'SETTINGS',section_ids:['A270'],section_mode:'content',include_common:false},
+      {id:'START',label:'START',sheet:'SETTINGS',section_ids:['A270'],section_mode:'content',include_common:false,intro_address:'A7',intro_after_address:'A270'},
       ...['CALCULATOR','SCHEDULE','BAGS'].map(sheet=>({id:sheet,label:sheet,sheet})),
-      {id:'SETTINGS',label:'SETTINGS',sheet:'SETTINGS',section_ids:['A9','A17','A31','A64','A96','A173','A229'],include_common:true},
+      {id:'SETTINGS',label:'SETTINGS',sheet:'SETTINGS',section_ids:['A9','A17','A31','A64','A96','A173','A229'],include_common:true,hidden_common_addresses:['A7']},
       {id:'FACTOR CALCS',label:'FACTOR CALCS',sheet:'SETTINGS',section_ids:['A341','A356','A370'],include_common:false}],
     sheets:[{name:'SETTINGS',header_rows:[],...copy(chooserCases[0].metadata),navigation_mode:'select',settings_sections:copy(chooserCases[0].sections)},
       ...['CALCULATOR','SCHEDULE','BAGS'].map(name=>({name,header_rows:[],merges:[]}))]};
@@ -1119,6 +1168,9 @@ let passed = 0;
   assert.equal(entry.page,'START');assert.equal(entry.sheet,'SETTINGS');assert.equal(byId('calculator-sheet-title').textContent,'START');
   assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','CALCULATOR','SCHEDULE','BAGS','SETTINGS','FACTOR CALCS']);
   assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);assert.ok(virtualOutputs().includes('A270'));
+  assert.equal(virtualOutputs().filter(address=>address==='A7').length,1);
+  const startBody=descendants(byId('calculator-grid')).find(node=>node.tagName==='tbody'&&node.children.some(row=>row.dataset.sourceRow==='270'));
+  assert.equal(startBody.children[startBody.children.findIndex(row=>row.dataset.sourceRow==='270')+1].children[0].dataset.calculatorOutput,'A7');
   for(const address of ['A1','A9','A31','A341','D342'])assert.ok(!virtualOutputs().includes(address));
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;
   assert.equal(audit.sourceDisplayText('Factor helper starts at row 341.',entry,'A7'),'Open FACTOR CALCS for the Section Factor Helper.');
@@ -1127,7 +1179,7 @@ let passed = 0;
 
   // Settings and factor chooser selections are independent; hidden source inputs and invalid drafts survive switching.
   await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,7);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
-  assert.ok(virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
+  assert.ok(virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D10');
   assert.equal(virtualSetting.dataset.calculatorSheet,'SETTINGS');virtualSetting.value='3.45678912';await virtualSetting.emit('input');
   await audit.selectPage('FACTOR CALCS');assert.equal(virtualButtons().length,3);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,3);
@@ -1311,10 +1363,15 @@ let passed = 0;
     }
   }passed++;
 
-  // The register download sits next to PDF and remains distinct from the input-only template action.
+  // Import and the three distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
-  assert.match(registerMarkup,/id="calculator-pdf"[^>]*>Download schedule PDF<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button><button id="calculator-pdf"[^>]*>Download schedule PDF<\/button>/);
   assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button>/);
+  const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
+  for(const [className,background,color] of [['calculator-import-button','#ffdb66','#332600'],['calculator-export-excel','#217346','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
+    assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
+  }
+  assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
   assert.equal(byId('calculator-excel').listeners.click.length,1);passed++;
 
   // Cancelled file pickers and oversized workbooks do not read or submit content.

@@ -223,6 +223,9 @@
     $("calculated-notes").textContent = "—";
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
+    const labourRow = node("tr"), labourCell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
+    labourCell.colSpan = 2; labourRow.append(labourCell); $("labour-results").replaceChildren(labourRow);
+    $("labour-breakdown").setAttribute("aria-busy", "true");
     $("calculation-errors").hidden = true;
     for (const control of document.querySelectorAll("[data-cell]")) control.removeAttribute("aria-invalid");
   }
@@ -254,6 +257,7 @@
     } catch (error) {
       if (error.name === "AbortError" || revision !== state.revision) return null;
       clearResults("Calculation unavailable");
+      $("labour-breakdown").setAttribute("aria-busy", "false");
       document.querySelector(".summary-card").setAttribute("aria-busy", "false");
       const box = $("calculation-errors");
       box.textContent = error.message;
@@ -281,6 +285,24 @@
     }
     if (!materialRows.length) { const row = node("tr"); const cell = node("td", "", "No material requirements."); cell.colSpan = 5; row.append(cell); materialRows.push(row); }
     $("material-results").replaceChildren(...materialRows);
+    const labour = result.labour, labourRows = [];
+    if (labour) {
+      const addDays = (label, days, className = "") => {
+        const row = node("tr", className), labelCell = node("th", "", label);
+        labelCell.scope = "row"; row.append(labelCell, node("td", "numeric", formatNumber(days))); labourRows.push(row);
+      };
+      for (const task of labour.tasks || []) addDays(task.name, task.days);
+      addDays("Task labour subtotal", labour.task_days, "labour-subtotal");
+      addDays("Masking / cleaning", labour.masking_days);
+      addDays("Extra labour", labour.extra_days);
+      addDays("Mobilisation allowance", labour.mobilisation_days);
+      addDays("Total project days", labour.total_days, "labour-total");
+    } else {
+      const row = node("tr"), cell = node("td", "", "Labour breakdown is unavailable for this result.");
+      cell.colSpan = 2; row.append(cell); labourRows.push(row);
+    }
+    $("labour-results").replaceChildren(...labourRows);
+    $("labour-breakdown").setAttribute("aria-busy", "false");
     const entries = Object.entries(errors);
     $("calculation-status").textContent = entries.length ? "Check errors" : "Calculated";
     document.querySelector(".summary-card").setAttribute("aria-busy", "false");

@@ -49,7 +49,8 @@ value updates.
 7. Display numbers to two decimals at rest and retain the exact raw value. Focused numeric controls and choices must distinguish small values such as 0.005, 0.01 and 1e-8. Never write a rounded display value merely because a field was focused or blurred.
 8. Retain all source qualification text and error/withheld states in the source graph and calculation results. The explicit browser omissions below do not alter those states or the PDF mapping. `NP`, an empty result and zero mean different things. Do not turn a missing quantity into zero or describe a displayed quantity as installation approval.
 9. Keep numeric Settings inputs, units, read-only calculation basis and live outputs. Omit the requested date/source-ID/document-name metadata and separate reviewed-yield action/panel from Settings presentation. Developer evidence retains full provenance. Do not expose hidden reference databases as new editable settings.
-10. Omit generic completed-calculation subtitles in the browser while retaining loading, invalid-input and calculation-error feedback. Duct CALCULATOR, SUMMARY and PRODUCT SETTINGS omit only the exact copied-fixing explanatory notice from the browser warning list; all other warnings remain. The approved fixing correction, source/API warning and PDF/Excel-register content are unchanged.
+10. Remove the shared toolbar helper text. Place the green (#217346) Excel-register action immediately after Export template, use yellow for Import schedule and red for the PDF action. These styles do not change their separate payloads or export behavior.
+11. Omit generic completed-calculation subtitles in the browser while retaining loading, invalid-input and calculation-error feedback. Duct CALCULATOR, SUMMARY and PRODUCT SETTINGS omit only the exact copied-fixing explanatory notice from the browser warning list; all other warnings remain. The approved fixing correction, source/API warning and PDF/Excel-register content are unchanged.
 
 ## Related Estimator controls
 
@@ -66,6 +67,23 @@ loading and backend normalization remain unchanged. Explicit saved text and
 blanks survive. The auto-generated Work summary panel is removed from the
 Estimator UI, while calculation responses, saved quotes and PDFs retain their
 summary data.
+
+The Labour breakdown table sits between Calculation breakdown and quote notes.
+It projects stored result cells through `labour_breakdown(result)`, using the
+existing task mappings and display names. The eight task-day values are
+B35/B36/B38:B43; B44 is their source subtotal. B37 pinning equals B36 meshing and
+is excluded from that subtotal. F10, labelled Total Days in native Quote.xlsm,
+is `SUM(B44,B53,C119)+0.5*C112`: masking B53, adjusted extra labour C119 and half
+a day per adjusted mobilisation C112 are separate rows. The table displays the
+stored F10 as its total, never a sum of rounded browser values. F2 remains the
+separate labour money amount; this display does not add or recalculate costs.
+
+Fresh results add a `labour` object. Older saved-quote responses enrich a copy
+using their own stored cells without current prices, recalculation or a saved
+record write. Missing values remain unavailable, errors remain explicit and
+loading/failure clears stale rows. The native dependency audit and workbook hash
+are retained in `.runtime/labour-controls-qa/labour-source.json`; source workbook,
+existing result fields and PDF calculations remain unchanged.
 
 ## Source extents and spacing
 
@@ -117,7 +135,8 @@ Most editable cells on the unprotected workbooks still have `locked=True`; only 
 
 ### CALCULATOR
 
-After the retained introduction A1:N3, the browser renders three independent
+The browser displays A1 as **QUICK CALCULATOR** and omits the A3 subtitle.
+After that heading, it renders three independent
 sections in order: Inputs A5:F24, Thickness and quantities H5:N24, then All
 published periods A26:I30. Each source heading appears once above its own
 table, using anchors A5, H5 and A26. Inputs and outputs are vertically ordered,
@@ -238,9 +257,12 @@ read GLOBAL SETTINGS, COMMON CALCULATION RULES, CAFCO 300, MANDOLITE CP2,
 FENDOLITE MII, PERLIFOC HP ECO+, MONOKOTE MK-6 HY and COMPLETE WORKBOOK OPERATING
 RULES respectively.
 
-Visible helper directions in SETTINGS A7 and BAGS A27 now point to FACTOR CALCS
-instead of describing the helpers as below or inside Settings. These are scoped
-browser text replacements; the original source text remains available.
+Source A7 guidance is displayed once on START immediately below A270, and is
+omitted from the SETTINGS view. It and BAGS A27 direct users to FACTOR CALCS.
+START omits SOURCE CONFLICTS A304:N307 and ORIGINAL TAKE-OFF A316:N319, with
+those cells and formulas retained in the source model. Factor headings A356 and
+A370 read **IDEALISED HOLLOW GEOMETRY** and **FENDOLITE CASTELLATED SECTION**
+in both the section picker and section banner. These are browser-only mappings.
 
 All Settings tables, including source content outside explicit table projections,
 expand with the page and have no nested vertical height cap. Horizontal scrolling
@@ -255,7 +277,7 @@ remains available where needed; this rule does not apply to prepared schedules.
 | FENDOLITE MII | A96:N172 | D101:D104 | Read-only basis D107; yield/status 105–106, special-factor rules 110–121, exposure header 123 |
 | PERLIFOC HP ECO+ | A173:N228 | D178:D181 | Read-only basis D184; yield/status 182–183, rules 187–194, exposure header 196 |
 | MONOKOTE MK-6 HY | A229:N269 | D234:D237 | Read-only basis D240; yield/status 238–239, exceptions 243–257, exposure header 259 |
-| Operating rules | A270:N340 | None | Ordered source instructions with subsection labels at 272/276/280/284/288/292/296/300/304/308/312/316 |
+| Operating rules | A270:N340 | None | Ordered instructions; browser omits SOURCE CONFLICTS 304–307 and ORIGINAL TAKE-OFF 316–319 |
 | Factor helper | A341:N355 | D346:D348 | Hp/A D350 and ESA/M D351; evidence limitation 353 |
 | Idealised hollow helper | A356:N369 | D358:D362 | Calculated area/perimeter/factors D364:D367 |
 | Castellated helper | A370:N374 | D372 | Special factor D373 and adjacent H371:N374 notes |
@@ -311,6 +333,11 @@ and CALCULATOR page name remain unchanged. Row 10 is the table header; rows
 never imported. Inputs B:I are size, product, length, FRL, wall/floor counts,
 application and orientation.
 
+Product C11:C310, FRL E11:E310, application H11:H310 and orientation I11:I310
+use native selects. These use the original choices and validation policy. A
+source `allow_other` or warning/information field retains an explicit custom-value
+editor, so the control change does not reject a permitted saved or new value.
+
 Group results as J:P status/area/spray/wrap/roll/board quantities; Q:X wrap fixing/layers/local zones; Y:AC Maxilite strip geometry; AD:AJ penetration steel; AK:AM fixing/support instructions; AN:AO volume/yield; AP:AQ quantity qualifications/source. AR is a spacer. AS:CL are hidden helpers because source width is zero even though `hidden="0"`; omit them from normal presentation.
 
 The browser omits columns 37/38/42/43/44 (AK, AL, AP, AQ and AR).
@@ -335,8 +362,10 @@ Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to
 ### SUMMARY
 
 The browser displays A1 as **DUCT PROTECTION SUMMARY** while retaining the source
-title and SUMMARY page name. The current projection uses four independent tables, with each table
-keeping its own columns and widths. This supersedes the earlier recommendation
+title and SUMMARY page name. Four logical section wrappers separate product
+totals, penetration angles, working yields and Maxilite quantities by 24 px.
+Each owns its heading, table and associated notes while keeping its own columns
+and widths. This supersedes the earlier recommendation
 to display every source commentary column:
 
 | Section | Visible header | Visible data | Browser omission | Retained supporting text |
@@ -419,15 +448,22 @@ The browser displays A1 as **STRUCTURAL STEEL BOARD SCHEDULE**. It omits rows
 2, 5 and 7 plus Y1:AI1 and A6:L6 from the introduction, retaining the live Y6
 incomplete-order warning. Source titles and the CALCULATOR page name remain
 unchanged. The six source summary cards are replaced by one running-total row
-per product under **SUMMARY**. This heading change does not remove the
+per product under **CALCULATED SUMMARY**. This heading change does not remove the
 three cards on the separate BOARD SUMMARY page. Row 8 supplies the schedule
 column labels. All 200 rows 9–208 remain in one table. A:L are normal inputs;
 M:X are advanced source inputs retained through the worksheet API and saved
 state; they have no browser toggle. Y:AI are the primary results.
 
-SUMMARY sits after the overview as a full-width section with its gold note
-text, matching the vermiculite material totals layout. Its source-derived
-quantities and separate BOARD SUMMARY cards retain their existing behavior.
+Product C9:C208, section D9:D208, FRL H9:H208 and member J9:J208 use native
+selects. The 1,342 source steel choices are populated on opening to keep the
+initial 200-row render small. A leading blank and current/legacy values are
+retained; source-permitted custom values remain editable through the explicit
+custom option. Dropdown presentation does not change source validation rules.
+
+CALCULATED SUMMARY is a full-width section with its gold note text. The
+STRUCTURAL STEEL BOARD SCHEDULE title and live Y6 warning follow those totals,
+immediately before the schedule table. Its source-derived quantities and the
+separate BOARD SUMMARY cards retain their existing behavior.
 The board CALCULATOR, BOARD SUMMARY and EXTRA BOARDS overviews use full-width
 title and note rows. The BOARD SUMMARY cards remain within that expanded layout.
 
@@ -487,7 +523,9 @@ sqm) and K:L (Stock source and Board key) only within this table. Their source
 values, formulas, report projection and use in pooled totals remain intact.
 Finish with A31 pooling rules and A35 explanation of board area. The table's
 scoped column selection must not remove the whole-sheet card at E6 or the other
-two cards above it.
+two cards above it. Numeric thickness/sheet dimensions B12:D29 display an
+` mm` suffix and purchase area J12:J29 displays ` m²`; missing/error values do
+not receive units, and raw API/export values remain numeric and unmodified.
 
 The purchasing table has no nested vertical height cap: all eighteen stock rows
 contribute to the page height. This does not alter its horizontal overflow or
@@ -505,6 +543,8 @@ dimensions and qualification notes retain their existing formatting and values.
 
 The browser A1 title reads **EXTRA BOARDS** without the former detail-takeoff
 suffix. This is an explicit display alias, not a worksheet or data-key rename.
+Product B6:B45 and thickness C6:C45 use native selects with the same original
+choices, custom-value permission and dependent thickness behavior.
 
 This source-hidden page is intentionally exposed because its inputs affect purchasing. Render its introduction once and row 5 as the header for all forty rows 6–45. Editable A:I cover item, product, thickness, pieces/cut dimensions or measured area, waste and purpose. J:M are live outputs/status. The user-requested Evidence reference column N is hidden only in the browser; its existing editable API identity and saved values remain intact. This is an explicit exception to the general rule against hiding editable fields, not removal of its input allowlist or stored data.
 
@@ -598,12 +638,12 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - All picker pages initially hide their sections, expose exactly one selected panel and retain that client selection across recalculation and page switching. Vermiculite has seven Settings and three Factor choices; START directly shows operating rules. Together they cover the same eleven source rectangles, including adjacent/helper notes. Duct and board retain five/three choices. Board SETTINGS keeps all 28 editable values, dependent dropdowns and diagnostic lookups; hidden sections remain in the complete draft, validation, save, reset and both report scopes.
 - BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
 - BOARD SUMMARY shows only A:D and I:J within rows 11–29, retaining all eighteen stock rows, three source-total cards, the live qualification and notes A31/A35. EXTRA BOARDS hides N while retaining all forty rows and editable A:I. Saving an unrelated visible edit preserves existing N6:N45 evidence and advanced input values. Complete API results, pooled quantities and PDF contents remain unchanged.
-- Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; its SUMMARY section does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. A1 title aliases do not rename worksheet/input keys.
+- Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; its CALCULATED SUMMARY section does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. A1 title aliases do not rename worksheet/input keys.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 - Horizontal scrolling moves the first column with the remaining schedule columns while vertical column headings can stay visible. Data-table gridlines are solid black; main source, overview, total and projected-section headings share the red/white banner. Populated/blank data fills remain separate from heading styling and do not change calculation semantics.
 - Projected Inputs, Thickness and quantities, period comparison, product ordering and FyreWrap sections keep their own source headings with their data. Each original editable field occurs once; residual notes and unprojected source content remain available except for explicit omissions. BAGS displays MATERIAL QUANTITIES while retaining its original worksheet identity.
 - Independent presentation tables and every SETTINGS/PRODUCT SETTINGS table use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five listed blank PRODUCT SETTINGS J:Q rows render as gray spans with only outside borders; BAGS H10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
-- Vermiculite SCHEDULE uses the explicit m²/m³ summary labels and full-width PRODUCT SUMMARY; the board SUMMARY uses the same independent placement. BAGS omits G only in manual-form rows 6–15, preserving G19:G24 and all pooled order values. The confirmed A28:I30 period table is centered. Duct reference labels are bold only at the declared anchors, leaving adjacent explanatory prose unchanged.
+- Vermiculite SCHEDULE uses the explicit m²/m³ summary labels and full-width PRODUCT SUMMARY; the board CALCULATED SUMMARY uses the same independent placement. BAGS omits G only in manual-form rows 6–15, preserving G19:G24 and all pooled order values. The confirmed A28:I30 period table is centered. Duct reference labels are bold only at the declared anchors, leaving adjacent explanatory prose unchanged.
 - Factor-helper D:G spans remove only blank dividers; collapsing A371:G371 retains H371:N374 notes and every helper input/result. The Published thickness row renders L6 before left-aligned H6 with source identities and original row spans intact. Pink technical-rule headings, normal reference/support prose and bold exposure/product labels apply only to the listed anchors. Board overview title/notes fill their rows while all three summary cards remain; BOARD SUMMARY and EXTRA BOARDS are browser title aliases only.
 - Vermiculite CALCULATOR/BAGS, board START and duct SUMMARY omit contents links; board START uses page scrolling. BAGS orders its product table before the MATERIAL QUANTITIES heading, subtitle and manual form without duplicate IDs or inputs and uses bold A20:A24 names. MEMBER SCHEDULE, PUBLISHED VALUE, numeric-only H6 mm/highlight, normal schedule Y notes and the shorter J94 title are display changes. Generic success subtitles and only the exact duct copied-fixing notice are hidden; errors, other warnings, source/API text, PDF and Excel-register values remain intact.
 - Native Section ID controls retain all 553 active source choices, saved values and blank behavior, including after recalculation. Opening a control materializes its options without changing input state. All 1,000 rows remain available.
@@ -615,12 +655,25 @@ The earlier detail-layout checkpoint had 25 targeted Python tests, 75 calculator
 checks and 20 original UI checks passing, plus browser, unchanged worksheet/PDF
 and refreshed-runtime evidence. Exact checks and retained artifacts are recorded
 in its dated SESSION_HANDOFF.md entry. PR #18's section-navigation publication is
-recorded there and in `.runtime/section-navigation-qa/publication.json`. Current
+recorded there and in `.runtime/section-navigation-qa/publication.json`. The prior
 START/FACTOR CALCS local validation passed 89 calculator UI and 22 Estimator UI
 checks, 29 API/cleanup and 13 section/tab tests, the 42 focused Estimator
 backend/PDF tests, syntax/whitespace checks and the 35-file build. Native review
 covered the twelve requested changes, exact helper-draft retention and the
 554-option native select with blank first. All twelve source-page cell sets and
 all three PDF/register projections match before/after; the refreshed main app
-preserves saved data. The latest handoff entry records this evidence and the
-successful final independent review and still-pending publication separately.
+preserves saved data. PR #19 published that increment as merge `335f4b6e0eac2419cb2b7f8c98998c0f5661d5d7`;
+its receipt is `.runtime/tabs-notes-qa/publication.json`.
+
+The labour/controls commit-preparation checkpoint passes 92 calculator UI and 25 Estimator
+UI checks (117 total), plus both JavaScript syntax checks. Native
+review confirms all thirteen labour rows in their requested location and the
+source default 0.50 days, source-compatible choices, relocated guidance/titles,
+purchasing units and four separated Duct SUMMARY groups. All 104,068 calculator
+source cells across twelve pages and all three PDF/register projections match
+the baseline, as do six Estimator API scenarios' pre-existing result fields.
+The full local Python run is continuing, with a corrected legacy metadata
+expectation and one HTTP error awaiting its exact trace. No clean full Python,
+build or refreshed-runtime pass is claimed here. Commit/push, PR, exact-head
+CI/review and merge remain pending at this checkpoint. Later verified Git/checks
+and `.runtime/labour-controls-qa/publication.json` supersede this record.

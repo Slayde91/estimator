@@ -63,6 +63,21 @@ backend normalization and saved-quote loading keep their existing semantics.
 Explicit saved notes, including `Allowances` and blank text, are preserved.
 The separate measurement textarea retains its NOTES label and stored identity.
 
+The Estimator's Labour breakdown is an additive `result.labour` projection of
+stored calculation cells, produced by `labour_breakdown(result)`. It reuses the
+existing task mapping and display labels. The table explains source F10 total
+project days: eight task-day outputs, masking, adjusted extra days and
+`0.5*C112` mobilisation days. B37 pinning mirrors meshing and is excluded from
+the task subtotal. F10 remains the authoritative displayed total; F2 remains
+the separate labour-money calculation. Missing cells and Excel errors remain
+missing/errors rather than becoming zero.
+
+Fresh calculations include this projection. A saved-quote response lacking it
+gets a result copy enriched from its own stored cells, without recalculation,
+current-price reads or a write to the saved record. The browser clears the
+table while calculating or after failure and ignores stale responses through
+the existing revision guard. Existing PDF calculations and layout are unchanged.
+
 Display formatting uses two decimal places for numeric app controls, generated numeric descriptions, PDF values and XLSX numeric formats. Untouched original values stay in raw client/server state and exported cells; all calculation arithmetic remains unrounded. An intentional edit in a numeric app control records two displayed decimal places, including conversion from a displayed percentage to its stored fraction. This distinction prevents merely opening or saving an old quote from changing its totals. Literal product labels, IDs and notes are preserved.
 
 Consequences: metadata, naming and summaries use the existing quote JSON in SQLite; current library configuration JSON remains unchanged. No database schema or schema-version change, bulk rewrite or quote migration is needed. The official logo remains unchanged, and the interface update uses its red/orange brand colours with clearer estimate-detail grouping. Final UI/PDF visual verification belongs to the current feature checks rather than earlier screenshots.
@@ -128,6 +143,10 @@ remain available. Vermiculite Section ID uses a native select whose full source
 option list is materialized when opened, avoiding 553 options in each of 1,000
 rows at initial render. Main-section metadata supplies stable contents anchors
 and colour themes.
+Requested board and duct choices also use native selects. Board steel choices
+use the same deferred-option loading for 1,342 source sections. Where original
+validation permits warning/custom input, an explicit custom-value editor remains
+available; this does not tighten the source validation contract.
 Non-schedule occupancy is part of the render signature, so a newly populated
 formula note is not lost during an in-place output refresh. The single-member
 period matrix has its own equal-width period columns rather than inheriting the
@@ -157,6 +176,12 @@ and manual form. Settings/operating headings use concise aliases without their
 source numbering or slash suffixes. Duct SUMMARY omits contents navigation;
 vermiculite schedule note Y uses normal weight, and board Settings columns A/P
 use bold reference labels.
+Board purchasing dimensions and area use numeric-only mm/m² suffixes. Board
+schedule titles and its live warning follow CALCULATED SUMMARY, directly before
+the schedule. Duct SUMMARY groups its existing scoped tables into four section
+wrappers with spacing. Vermiculite START omits the requested original-takeoff
+and source-conflict blocks, carries the relocated A7 guidance, and the quick
+calculator/factor views use concise titles. These changes preserve source cells.
 Targeted browser text filtering removes generic success subtitles and the exact
 duct copied-fixing notice while preserving failures, other warnings and source
 responses. Board START expands with page scrolling. These are extensions of the

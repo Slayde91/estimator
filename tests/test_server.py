@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from estimator.catalog import ROOT, baseline
+from estimator.calculator import labour_breakdown
 from estimator.server import create_server
 from estimator.report import render_quote_pdf
 from estimator.storage import Store
@@ -60,6 +61,23 @@ class ServerTests(unittest.TestCase):
             with self.subTest(headers=headers):
                 self.assertEqual(self.request("POST", "/api/configuration", {}, headers)[0], 403)
         self.assertEqual(self.request("PUT", "/api/configuration", "inventory=x", {"Content-Type": "text/plain"})[0], 400)
+
+    def test_legacy_labour_response_projects_saved_cells_without_rewriting_quote(self):
+        store = Store(Path(self.temp.name) / "test.sqlite3")
+        original = store.save_quote({"title": "Legacy labour days", "inputs": {"B15": 27.125, "B27": .15, "F26": 1.5, "F27": 2}})
+        original["result"].pop("labour")
+        before = json.dumps(original, allow_nan=False)
+        with store.connect() as db:
+            db.execute("UPDATE quotes SET data=? WHERE id=?", (before, original["id"]))
+        with patch("estimator.server.calculate", side_effect=AssertionError("Legacy result recalculated")), patch("estimator.storage.calculate", side_effect=AssertionError("Legacy result recalculated")):
+            status, _, body = self.request("GET", f'/api/quotes/{original["id"]}')
+        self.assertEqual(status, 200)
+        response = json.loads(body)
+        self.assertEqual(response["result"]["labour"], labour_breakdown(original["result"]))
+        self.assertEqual({key: value for key, value in response["result"].items() if key != "labour"}, original["result"])
+        self.assertEqual(response["configuration"], original["configuration"])
+        with store.connect() as db:
+            self.assertEqual(db.execute("SELECT data FROM quotes WHERE id=?", (original["id"],)).fetchone()[0], before)
 
     def test_bad_json_and_unknown_cells_are_rejected(self):
         for body in ("[1]", '{"inputs":{"B15":NaN}}', "{", {"inputs": {"F7": 0}}, {"inputs": {"B15": 10**400}}):

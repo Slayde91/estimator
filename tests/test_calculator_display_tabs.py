@@ -109,8 +109,11 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
                                       if section['title_address'] == address), expected)
                 self.assertRegex(source['cells'][address]['value'], r'^\d{2}\s+/\s+')
                 self.assertTrue(source['cells'][address]['value'].endswith(expected))
-        for address in ('A341', 'A356', 'A370'):
-            self.assertNotIn(address, metadata['display_text'])
+        self.assertNotIn('A341', metadata['display_text'])
+        for address, title in (('A356', 'IDEALISED HOLLOW GEOMETRY'),
+                               ('A370', 'FENDOLITE CASTELLATED SECTION')):
+            self.assertEqual(metadata['display_text'][address], title)
+            self.assertTrue(source['cells'][address]['value'].startswith(title + '  |  '))
 
     def test_section_id_native_dropdown_keeps_every_source_choice_and_strict_rule(self):
         metadata = self.metadata('steel_vermiculite', 'SCHEDULE')

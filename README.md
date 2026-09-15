@@ -20,7 +20,7 @@ Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` i
 
 1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
-3. Review the live total, material quantities and named cost breakdown. Notes start blank on a new estimate; saved notes retain their exact text.
+3. Review the live total, material quantities, named cost breakdown and **Labour breakdown**. The labour table shows task, masking, extra-labour and mobilisation days leading to total project days. Pinning is included in meshing days. Notes start blank on a new estimate; saved notes retain their exact text.
 4. Save the quote. Reopening preserves its input values and pricing snapshot. Use **Use current pricing** to explicitly apply current settings.
 5. In **Pricing library**, edit supplier prices, markup, manual service prices or lookup rates/yields. **Reset row** restores that row's imported values. Use **Save pricing** to apply your changes.
 6. Use **Download PDF** for a branded quote report containing the estimate details and work summary. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. PDF download is the report action; the separate Print button has been removed.
@@ -47,6 +47,11 @@ retained when you save or download. The browser remembers the open section while
 you switch tabs. In vermiculite SCHEDULE, Section ID opens a native list of source
 sections. BAGS shows product ordering first, then the **MATERIAL QUANTITIES**
 heading and separate manual calculation.
+
+Board and duct product/section/detail choices also use native lists. Choices
+that allow a custom value keep a separate editor for that value. Board purchasing
+dimensions show mm and purchase area shows m². The board schedule title and live
+warning appear after its CALCULATED SUMMARY, directly above the member rows.
 
 Enter inputs directly, or click **Export template**, fill its schedule in Excel and use **Import schedule**. Import replaces the complete schedule, including clearing unused old rows, and preserves other calculator settings. It stays a draft until **Save calculator**. Each calculator keeps its own saved inputs and settings. **Reset calculator defaults** restores the example schedule and default settings as a draft; vermiculite uses the reviewed material defaults described below.
 

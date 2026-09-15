@@ -40,6 +40,10 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);box-shadow:0 4px 12px #b90a1525}
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}
 .secondary:hover{color:var(--accent);background:#fff7f5;border-color:#ddabad}
+.button.excel-button{color:#fff;background:#217346;border:1px solid #195c37}
+.button.excel-button:hover:not(:disabled){filter:brightness(.92)}
+.button.excel-button:focus-visible{outline:3px solid #222;outline-offset:3px}
+.button.excel-button:disabled{opacity:.5;filter:none;cursor:not-allowed}
 .text-button{background:none;color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-weight:600;padding:2px}
 .estimate-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:26px;align-items:start}
 .estimate-main{min-width:0}
@@ -109,24 +113,36 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .calculation-errors{padding:13px;border-radius:8px;font-size:11px;margin-top:19px;overflow-wrap:anywhere}
 .calculation-errors ul{padding-left:17px;margin:7px 0 0}
 .calculation-errors li{margin-top:5px}
-.pricing-controls{display:flex;align-items:center;gap:15px;margin-bottom:20px}
+.pricing-controls{display:flex;align-items:flex-end;gap:15px;margin-bottom:20px}
 .tabs{display:flex;padding:4px;background:#f6f1f3;border-radius:8px;flex-shrink:0}
 .tab{padding:9px 16px;border-radius:5px;background:none;font-size:12px;color:#806a75}
 .tab.active{background:white;box-shadow:0 1px 4px #4f172014;color:var(--accent);font-weight:650}
 .search-field{margin-left:auto;width:330px}
 .search-field input{font-size:12px}
 .pricing-controls>.field{max-width:230px}
+.pricing-controls .search-field{margin-left:0;flex:1;width:auto;max-width:560px}
 .pricing-table{min-width:850px;margin-top:15px}
 .pricing-table th:first-child{width:100px}
 .pricing-table th:nth-child(2){min-width:280px}
-.pricing-table.rates-table th:first-child{width:auto;min-width:280px}
-.pricing-table.rates-table th:nth-child(2){min-width:100px}
 .pricing-table input{font-size:12px;padding:9px}
 .pricing-table input[type=number]{min-width:95px;max-width:140px;text-align:right}
 .pricing-table .item-name{min-width:240px}
 .pricing-table .subtext{font-size:10px;color:var(--muted);display:block;margin-top:6px}
 .pricing-table .edited{background:#fff7e7}
 .pricing-table .reset-button{background:none;color:var(--accent);font-size:10px;white-space:nowrap;padding:7px;text-decoration:underline;text-underline-offset:3px}
+.pricing-table .reset-button:disabled{color:var(--muted);cursor:default;text-decoration:none;opacity:.6}
+.pricing-use-row>td{padding:0 14px 13px;border-top:0}
+.pricing-uses{border:1px solid var(--line);border-radius:8px;background:#fbf9fa}
+.pricing-uses>summary{padding:9px 12px;color:#51414a;font-weight:600;cursor:pointer}
+.pricing-uses[open]>summary{border-bottom:1px solid var(--line)}
+.pricing-uses-scroll{overflow-x:auto;max-width:100%;padding:0 12px 12px}
+.pricing-table .pricing-uses-table{min-width:780px;margin-top:8px;font-size:12px}
+.pricing-table .pricing-uses-table th:first-child{width:130px;min-width:130px}
+.pricing-table .pricing-uses-table th:nth-child(2){min-width:230px}
+.pricing-uses-table td{vertical-align:top}
+.pricing-rate-source{min-width:155px;font-size:11px;color:var(--muted)}
+.pricing-rate-actions{min-width:95px}
+.pricing-rate-actions .reset-button{display:block}
 .price-value{font-variant-numeric:tabular-nums;font-weight:650;white-space:nowrap}
 .import-guide{font-size:12px;color:var(--muted);margin:-4px 0 23px;max-width:1020px;line-height:1.8}
 .quote-item{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:21px 0;border-bottom:1px solid var(--line)}

@@ -16,6 +16,7 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from .catalog import ValidationError, effective_catalog, validate_configuration
@@ -41,6 +42,18 @@ RATE_HEADERS = (
     "Rate ID", "Group", "Inventory ID", "Rate name", "Price source",
     "Unit sell rate", "Yield type", "Yield",
 )
+COMBINED_SHEET = "Inventory & Rates"
+COMBINED_HEADERS = (
+    "Row type", "Name", "Item code", "Group", "Supplier price", "Markup",
+    "Sell price / rate", "Price source", "Yield type", "Yield", "Pricing mode",
+    "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
+)
+# Both layouts feed the same existing pricing parser. Product values have one
+# owner; a use links to that owner explicitly, never by its physical position.
+_INVENTORY_COLUMNS = {name: {"Product name": "Name", "Sell price": "Sell price / rate"}.get(name, name)
+                      for name in INVENTORY_HEADERS}
+_USE_COLUMNS = {name: {"Rate name": "Name", "Unit sell rate": "Sell price / rate"}.get(name, name)
+                for name in RATE_HEADERS}
 
 
 def _text(value, label, *, optional=False, limit=1000):
@@ -135,14 +148,14 @@ def _format_sheet(sheet, headers, widths, numeric_columns=(), percent_columns=()
     sheet.print_title_rows = "1:1"
 
 
-def _validation(sheet, column, choices):
-    validation = DataValidation(type="list", formula1='"' + ",".join(choices) + '"')
+def _validation(sheet, column, choices, *, max_rows=MAX_ROWS, allow_blank=True):
+    validation = DataValidation(type="list", formula1='"' + ",".join(choices) + '"', allow_blank=allow_blank)
     validation.errorTitle = "Choose a listed value"
     validation.error = "Use one of the values shown in the dropdown."
     validation.showErrorMessage = True
     validation.errorStyle = "stop"
     sheet.add_data_validation(validation)
-    validation.add(f"{column}2:{column}{MAX_ROWS + 1}")
+    validation.add(f"{column}2:{column}{max_rows + 1}")
 
 
 def _serialize_exact(workbook):
@@ -176,72 +189,107 @@ def _serialize_exact(workbook):
 
 
 def export_pricing_workbook(configuration):
-    """Export the current effective library, including unsaved reviewed edits."""
+    """Export one product/use sheet, including unsaved reviewed edits."""
     data = effective_catalog(configuration)
     workbook = Workbook()
-    inventory = workbook.active
-    inventory.title = "Inventory"
-    inventory.append(INVENTORY_HEADERS)
-    for item in data["inventory"]:
-        inventory.append([
-            item["id"], item.get("item_code", ""), item["name"], item["sales_description"],
-            "Supplier markup" if item["pricing_mode"] == "supplier_markup" else "Manual",
-            item.get("supplier_price"), item["markup"], item["sales_price"],
-            *(item.get("properties", {}).get(key) for key in PROPERTY_HEADERS.values()),
-        ])
-    _format_sheet(inventory, INVENTORY_HEADERS,
-                  {"A": 21, "B": 16, "C": 43, "D": 53, "E": 21,
-                   **{chr(65 + index): 17 for index in range(5, 19)}},
-                  numeric_columns=tuple(range(6, 20)), percent_columns=(7,))
-    inventory["A1"].comment = Comment("Keep existing IDs. A blank ID creates a new item; use your own unique ID to link a new item from Rates.", "Ceasefire")
-    inventory["H1"].comment = Comment("Editable for Manual pricing. Supplier markup prices recalculate only when supplier price or markup changes; unchanged stored prices are preserved.", "Ceasefire")
-    _validation(inventory, "E", ("Supplier markup", "Manual"))
+    sheet = workbook.active
+    sheet.title = COMBINED_SHEET
+    sheet.append(COMBINED_HEADERS)
+    uses = {}
+    for group, rates in data["rate_groups"].items():
+        for order, rate in enumerate(rates, 1):
+            uses.setdefault(rate.get("inventory_id"), []).append((group, order, rate))
 
-    rates = workbook.create_sheet("Rates")
-    rates.append(RATE_HEADERS)
-    for group, rows in data["rate_groups"].items():
-        uses_yield = bool(data["rate_group_rules"][group]["yield_column"])
-        for rate in rows:
-            value = rate.get("yield")
-            rates.append([
-                rate["id"], group, rate.get("inventory_id"), rate["name"],
-                _rate_mode(rate, configuration).title(), rate["price"],
-                _yield_type(value, uses_yield), value if isinstance(value, (int, float)) else None,
-            ])
-    _format_sheet(rates, RATE_HEADERS,
-                  {"A": 23, "B": 20, "C": 21, "D": 58, "E": 18, "F": 19, "G": 18, "H": 18},
-                  numeric_columns=(6, 8))
-    _validation(rates, "E", ("Inventory", "Override"))
-    _validation(rates, "B", tuple(data["rate_groups"]))
-    _validation(rates, "G", ("Number", "Blank", "Empty text", "Not used"))
-    rates["E1"].comment = Comment("Inventory follows the linked item's price. Override keeps a separate rate. Editing a unit sell rate automatically makes it an override; changing this source to Inventory restores the link.", "Ceasefire")
-    rates["G1"].comment = Comment("Number uses the numeric Yield. Blank is a genuine empty value (zero in Excel lookups); Empty text preserves the distinct empty-string calculation behavior. Use Not used for groups without a yield.", "Ceasefire")
+    def append(values):
+        sheet.append([values.get(header) for header in COMBINED_HEADERS])
+
+    def append_use(group, order, rate):
+        value = rate.get("yield")
+        append({"Row type": "Use", "Name": rate["name"], "Group": group,
+                "Sell price / rate": rate["price"], "Price source": _rate_mode(rate, configuration).title(),
+                "Yield type": _yield_type(value, bool(data["rate_group_rules"][group]["yield_column"])),
+                "Yield": value if isinstance(value, (int, float)) else None,
+                "Inventory ID": rate.get("inventory_id"), "Rate ID": rate["id"], "Use order": order})
+
+    for item in data["inventory"]:
+        append({"Row type": "Inventory", "Name": item["name"], "Item code": item.get("item_code", ""),
+                "Supplier price": item.get("supplier_price"), "Markup": item["markup"],
+                "Sell price / rate": item["sales_price"],
+                "Pricing mode": "Supplier markup" if item["pricing_mode"] == "supplier_markup" else "Manual",
+                "Sales description": item["sales_description"], "Inventory ID": item["id"],
+                **{header: item.get("properties", {}).get(key) for header, key in PROPERTY_HEADERS.items()}})
+        first_child = sheet.max_row + 1
+        for group, order, rate in uses.get(item["id"], []):
+            append_use(group, order, rate)
+        if sheet.max_row >= first_child:
+            sheet.row_dimensions.group(first_child, sheet.max_row, outline_level=1, hidden=True)
+            sheet.row_dimensions[first_child - 1].collapsed = True
+    for group, order, rate in uses.get(None, []):
+        append_use(group, order, rate)
+
+    widths = {"A": 14, "B": 43, "C": 15, "D": 21, "E": 17, "F": 14, "G": 19,
+              "H": 17, "I": 17, "J": 17, "K": 21, "L": 48, "M": 21, "N": 24, "O": 13,
+              **{get_column_letter(column): 19 for column in range(16, 27)}}
+    _format_sheet(sheet, COMBINED_HEADERS, widths, numeric_columns=(5, 6, 7, 10, *range(16, 27)), percent_columns=(6,))
+    sheet.freeze_panes = "C2"
+    sheet.sheet_properties.outlinePr.summaryBelow = False
+    sheet.sheet_properties.outlinePr.summaryRight = False
+    # Optional dimensions are retained once on each product and can be expanded.
+    sheet.column_dimensions.group("P", "Z", outline_level=1, hidden=True)
+    sheet.column_dimensions["O"].collapsed = True
+    for row in sheet.iter_rows(min_row=2):
+        inventory = row[0].value == "Inventory"
+        allowed = set(_INVENTORY_COLUMNS.values()) if inventory else set(_USE_COLUMNS.values()) | {"Use order"}
+        for header, cell in zip(COMBINED_HEADERS, row):
+            cell.fill = PatternFill("solid", fgColor="FFF0DE" if inventory else "F0F5FA")
+            if header not in allowed | {"Row type"}:
+                cell.fill = PatternFill("solid", fgColor="ECECEC")
+            if header == "Name":
+                cell.font = Font(name="Calibri", size=11, color="174D8D", bold=inventory)
+                cell.alignment = Alignment(vertical="center", wrap_text=True, indent=0 if inventory else 1)
+        sheet.cell(row[0].row, 15).number_format = "0"
+    comments = {
+        "A": "Inventory owns product values; Use owns a dropdown choice. Gray cells must stay blank. Expand/collapse the outlined Use rows with Excel's +/- controls.",
+        "G": "Inventory: edit for Manual pricing, otherwise change supplier price/markup. Use: editing this rate creates an Override; choose Inventory in Price source to restore its link.",
+        "I": "Number uses Yield. Blank is a genuine empty lookup value; Empty text preserves its distinct calculation behavior. Not used applies to groups without yields.",
+        "M": "Keep existing IDs. Each Use links to its Inventory row by this ID, regardless of row order. For new linked rows enter the same new unique ID on both rows. An unlinked Use may leave this blank with Override pricing.",
+        "N": "Keep existing Rate IDs. Leave blank to create a new Use, or supply a unique ID. Row position does not identify the rate.",
+        "O": "Retains dropdown order within each Group when rows are grouped or sorted. Use unique positive integers within a Group; leave blank for new Uses to append. Clear or update this number when moving a Use to another Group.",
+    }
+    for column, text in comments.items():
+        sheet[f"{column}1"].comment = Comment(text, "Ceasefire")
+    for column, choices in (("A", ("Inventory", "Use")), ("D", tuple(data["rate_groups"])),
+                            ("H", ("Inventory", "Override")), ("I", ("Number", "Blank", "Empty text", "Not used")),
+                            ("K", ("Supplier markup", "Manual"))):
+        _validation(sheet, column, choices, max_rows=2 * MAX_ROWS, allow_blank=column != "A")
 
     instructions = workbook.create_sheet("Instructions")
     for row in [
-        ["CEASEFIRE PRICING LIBRARY", "How to update your library"],
-        ["Save changes", "Import previews this entire workbook. Review additions, removals and updates, then Save pricing in ESTIMATOR to apply it. Existing saved quotes retain their stored prices."],
-        ["Complete replacement", "Keep both Inventory and Rates sheets with their headers. Delete a row to remove that product or choice. A removed inventory item must also be removed or unlinked from Rates."],
-        ["Add products and choices", "Append rows. Keep existing IDs unchanged. Blank IDs receive new IDs. To link a new product and new rate in the same workbook, enter your own matching unique Inventory ID on both sheets."],
-        ["Supplier markup", "Enter supplier price and markup (30% means 0.30). Changing either recalculates the sell price as supplier × (1 + markup). Unchanged inputs preserve the existing sell price exactly."],
-        ["Manual pricing", "Choose Manual to enter the Sell price directly. Supplier price may be blank; markup is retained as information."],
-        ["Rate prices", "Inventory follows the linked sell price after inventory price changes. Editing Unit sell rate makes an Override. To restore a current Override to the linked inventory price, choose Inventory. An unlinked rate must use Override."],
-        ["Yield", "Use Number and enter a nonnegative Yield, or choose Blank / Empty text to preserve supported empty-value behavior. Not used applies only to groups without yield calculations."],
-        ["Values only", "Use typed values, not formulas, macros or external links. Text is text even when it starts with an equals sign. Both worksheets are imported in full, including filtered or hidden rows."],
-        ["Limits", f"Maximum {MAX_ROWS:,} rows per list, 5 MB file, numeric magnitude up to 1 trillion. Prices and yields cannot be negative; markup cannot be below -100%."],
-        ["Group keys", "Use these exact keys in Rates. Choices must have unique names within a group."],
+        ["CEASEFIRE INVENTORY & RATES", "How to update the combined pricing library"],
+        ["Save changes", "Import previews this entire workbook. Review additions, removals and updates, then Save pricing in ESTIMATOR. Existing saved quotes retain their own products and prices."],
+        ["Inventory and Used in", "Each Inventory row owns the product name, supplier/manual price and properties. The outlined Use rows contain its dropdown groups, rate names, prices and yields. Use Excel's +/- controls to expand or collapse them; P:Z contains optional product properties."],
+        ["Complete replacement", "Keep the Inventory & Rates sheet and its headers. Delete a Use to remove that choice. To remove an Inventory row, remove or unlink every Use referencing its Inventory ID. Filtered, hidden and collapsed rows are still imported."],
+        ["Stable links and sorting", "Row type declares Inventory or Use. Inventory ID links a Use to a product, never proximity or row order. Keep existing IDs. Use order preserves dropdown order within a Group when sorting; leave it blank to append a new Use."],
+        ["Add products and uses", "Add an Inventory row and one Use per dropdown group. Enter the same new unique Inventory ID on linked rows. Blank Inventory/Rate IDs allocate new identities; a blank Use Inventory ID means an independent rate and requires Override pricing. Gray fields must remain blank."],
+        ["Supplier markup", "On Inventory rows enter supplier price and markup (30% means 0.30). Changing either recalculates sell price as supplier × (1 + markup). Unchanged inputs retain the existing stored sell price exactly."],
+        ["Manual pricing", "On Inventory rows choose Manual to enter Sell price / rate directly. Supplier price may be blank; markup remains information. On Use rows choose Inventory for the linked price or Override for an independent price."],
+        ["Rate prices and yields", "Editing a Use sell rate creates an Override. Choose Inventory to restore a current Override to the linked price. Each Use owns its yield; product properties do not automatically change it. Number requires a nonnegative Yield; Blank and Empty text retain distinct empty-value behavior; Not used is for groups without yields."],
+        ["Names and groups", "Use Name is the Estimator dropdown selection. Group places it in the existing calculation category. Names must be unique within a Group. These categories reproduce the original selections; they do not establish technical suitability."],
+        ["Values only", "Use typed values, not formulas, macros or external links. Prices shown are a snapshot: import evaluates pricing edits in ESTIMATOR. No Excel formulas are required. The earlier Inventory and Rates two-sheet format remains supported for import."],
+        ["Limits", f"Maximum {MAX_ROWS:,} Inventory rows plus {MAX_ROWS:,} Use rows, 5 MB file, numeric magnitude up to 1 trillion. Prices/yields cannot be negative; markup cannot be below -100%."],
+        ["Group keys", "Use these exact Group keys. New group definitions are not introduced by importing a pricing file."],
         *[[group, "Yield required" if rule["yield_column"] else "Yield not used"]
           for group, rule in data["rate_group_rules"].items()],
     ]:
         instructions.append(row)
-    _format_sheet(instructions, (), {"A": 29, "B": 106})
+    _format_sheet(instructions, (), {"A": 29, "B": 115})
     instructions.freeze_panes = "A2"
-    for row in range(2, 11):
-        instructions.row_dimensions[row].height = 49
+    for row in range(2, 13):
+        instructions.row_dimensions[row].height = 61
     instructions.auto_filter.ref = None
     # Never allow a product label beginning '=' to become an Excel formula.
-    for sheet in workbook:
-        for row in sheet:
+    for page in workbook:
+        for row in page:
             for cell in row:
                 if isinstance(cell.value, str):
                     cell.data_type = "s"
@@ -263,6 +311,12 @@ def _preflight(payload, filename):
                 raise ValidationError("Workbook expands beyond the 20 MB limit.")
             if "xl/workbook.xml" not in names or "[Content_Types].xml" not in names:
                 raise ValidationError("This is not an Excel .xlsx workbook.")
+            workbook_xml = archive.read("xl/workbook.xml")
+            if b"\x00" in workbook_xml or b"<!DOCTYPE" in workbook_xml.upper() or b"<!ENTITY" in workbook_xml.upper():
+                raise ValidationError("XML declarations with entities are not supported.")
+            sheet_names = {element.attrib.get("name") for element in ET.fromstring(workbook_xml).iter()
+                           if element.tag.rsplit("}", 1)[-1] == "sheet"}
+            max_rows = 2 * MAX_ROWS if COMBINED_SHEET in sheet_names else MAX_ROWS
             for entry in entries:
                 name = entry.filename.lower()
                 if entry.flag_bits & 1 or ".." in name.split("/") or name.startswith(("/", "\\")):
@@ -292,21 +346,21 @@ def _preflight(payload, filename):
                     if name.startswith("xl/worksheets/") and local == "row":
                         worksheet_rows += 1
                         row_index = element.attrib.get("r", str(worksheet_rows))
-                        if (worksheet_rows > MAX_ROWS + 1 or not row_index.isdigit()
-                                or not 1 <= int(row_index) <= MAX_ROWS + 1):
-                            raise ValidationError(f"Each list must have at most {MAX_ROWS:,} rows.")
+                        if (worksheet_rows > max_rows + 1 or not row_index.isdigit()
+                                or not 1 <= int(row_index) <= max_rows + 1):
+                            raise ValidationError(f"A pricing sheet must have at most {max_rows:,} rows.")
                     if name.startswith("xl/worksheets/") and local == "c":
                         address = element.attrib.get("r", "")
                         match = re.fullmatch(r"([A-Z]{1,3})([1-9][0-9]*)", address)
-                        if not match or int(match.group(2)) > MAX_ROWS + 1 or len(match.group(1)) > 1:
-                            raise ValidationError(f"Each list must have at most {MAX_ROWS:,} rows and only the provided columns.")
+                        if not match or int(match.group(2)) > max_rows + 1 or len(match.group(1)) > 1:
+                            raise ValidationError(f"A pricing sheet must have at most {max_rows:,} rows and only the provided columns.")
     except ValidationError:
         raise
     except (BadZipFile, ET.ParseError, KeyError, RuntimeError, ValueError, OSError, NotImplementedError) as error:
         raise ValidationError("The workbook is damaged or is not a supported .xlsx file.") from error
 
 
-def _rows(sheet, headers):
+def _rows(sheet, headers, *, max_rows=MAX_ROWS):
     # The optional OOXML dimension is absent in some valid editors' output,
     # and may be stale after a list edit. Derive it from actual bounded cells
     # so a missing dimension cannot fail or a small one silently truncate data.
@@ -315,7 +369,7 @@ def _rows(sheet, headers):
         sheet.calculate_dimension(force=True)
     except (UnboundLocalError, IndexError) as error:
         raise ValidationError(f"{sheet.title} must contain the exported template headers.") from error
-    if sheet.max_row > MAX_ROWS + 1 or sheet.max_column > len(headers):
+    if sheet.max_row > max_rows + 1 or sheet.max_column > len(headers):
         raise ValidationError(f"{sheet.title} has too many rows or unexpected columns.")
     rows = sheet.iter_rows(values_only=True)
     actual = tuple(next(rows, ()))
@@ -325,6 +379,47 @@ def _rows(sheet, headers):
         if all(value in (None, "") for value in values):
             continue
         yield row_number, dict(zip(headers, values))
+
+
+def _pricing_rows(workbook):
+    """Adapt either supported file layout to the existing business parser."""
+    names = set(workbook.sheetnames)
+    if {"Inventory", "Rates"}.issubset(names) and not names - {"Inventory", "Rates", "Instructions"}:
+        return list(_rows(workbook["Inventory"], INVENTORY_HEADERS)), list(_rows(workbook["Rates"], RATE_HEADERS))
+    if COMBINED_SHEET not in names or names - {COMBINED_SHEET, "Instructions"}:
+        raise ValidationError("Use the Inventory & Rates sheet, or the earlier Inventory and Rates sheets, with only an optional Instructions sheet.")
+    inventory, uses, orders = [], [], set()
+    for number, row in _rows(workbook[COMBINED_SHEET], COMBINED_HEADERS, max_rows=2 * MAX_ROWS):
+        kind = row["Row type"]
+        if kind not in ("Inventory", "Use"):
+            raise ValidationError(f"{COMBINED_SHEET} row {number}: Row type must be Inventory or Use.")
+        mapping = _INVENTORY_COLUMNS if kind == "Inventory" else _USE_COLUMNS
+        allowed = {"Row type", *mapping.values()} | ({"Use order"} if kind == "Use" else set())
+        unexpected = [header for header, value in row.items() if header not in allowed and value not in (None, "")]
+        if unexpected:
+            raise ValidationError(f"{COMBINED_SHEET} row {number}: {', '.join(unexpected)} must be blank on an {kind} row.")
+        record = {header: row[column] for header, column in mapping.items()}
+        if kind == "Inventory":
+            inventory.append((number, record))
+        else:
+            order = row["Use order"]
+            if order not in (None, ""):
+                order = _number(order, f"{COMBINED_SHEET} row {number} Use order", minimum=1)
+                if order != int(order) or order > MAX_ROWS:
+                    raise ValidationError(f"{COMBINED_SHEET} row {number}: Use order must be a whole number from 1 to {MAX_ROWS}.")
+                key = (row["Group"], order)
+                if key in orders:
+                    raise ValidationError(f"{COMBINED_SHEET} row {number}: Duplicate Use order in {row['Group']}.")
+                orders.add(key)
+            else:
+                order = None
+            uses.append((order, number, record))
+        if len(inventory) > MAX_ROWS or len(uses) > MAX_ROWS:
+            raise ValidationError(f"The library must have at most {MAX_ROWS:,} Inventory rows and {MAX_ROWS:,} Use rows.")
+    # Each group keeps its own sequence. Blank orders append in file order;
+    # this permits new uses without renumbering existing choices.
+    uses.sort(key=lambda item: (item[0] is None, item[0] or 0, item[1]))
+    return inventory, [(number, row) for _, number, row in uses]
 
 
 def _inventory_comparison(item):
@@ -355,8 +450,7 @@ def import_pricing_workbook(payload, filename, current_configuration):
     except Exception as error:
         raise ValidationError("The workbook could not be read. Export a fresh .xlsx template and try again.") from error
     try:
-        if not {"Inventory", "Rates"}.issubset(workbook.sheetnames) or set(workbook.sheetnames) - {"Inventory", "Rates", "Instructions"}:
-            raise ValidationError("The workbook must contain Inventory and Rates, with only an optional Instructions sheet.")
+        inventory_rows, rate_rows = _pricing_rows(workbook)
         proposed = deepcopy(current)
         proposed["sources"]["pricing_import"] = {
             "filename": filename.replace("\\", "/").rsplit("/", 1)[-1],
@@ -365,7 +459,7 @@ def import_pricing_workbook(payload, filename, current_configuration):
         proposed["inventory"] = []
         proposed["rate_groups"] = {group: [] for group in current["rate_groups"]}
         inventory_ids = set()
-        for row_number, row in _rows(workbook["Inventory"], INVENTORY_HEADERS):
+        for row_number, row in inventory_rows:
             label = f"Inventory row {row_number}"
             identity = _identifier(row["Inventory ID"], "Inventory ID", "inv", inventory_ids)
             old = previous_inventory.get(identity)
@@ -418,7 +512,7 @@ def import_pricing_workbook(payload, filename, current_configuration):
         inventory = {item["id"]: item for item in proposed["inventory"]}
         rate_ids = set()
         group_names = {group: set() for group in proposed["rate_groups"]}
-        for row_number, row in _rows(workbook["Rates"], RATE_HEADERS):
+        for row_number, row in rate_rows:
             label = f"Rates row {row_number}"
             identity = _identifier(row["Rate ID"], "Rate ID", "rate", rate_ids)
             group = row["Group"]

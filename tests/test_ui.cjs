@@ -10,10 +10,10 @@ function element(tag='div') {
     classList: {add(){},toggle(){}}, setAttribute(name,value){this.attributes.set(name,value);},getAttribute(name){return this.attributes.get(name);},removeAttribute(name){this.attributes.delete(name);},focus(){},
     addEventListener(event, fn, options={}) { (this.listeners[event] ||= []).push({fn,once:options.once}); },
     emit(event) { const callbacks = [...(this.listeners[event] || [])]; this.listeners[event] = (this.listeners[event]||[]).filter(x=>!x.once); return Promise.all(callbacks.map(x=>x.fn())); },
-    append(...children){this.children.push(...children);this.options=this.children;},
-    replaceChildren(...children){this.children=children;this.options=children;},
-    querySelector(selector){if(!this.parts.has(selector))this.parts.set(selector,element());return this.parts.get(selector);},
-    closest(selector){return this.querySelector(`parent:${selector}`);},
+    append(...children){this.children.push(...children);this.options=this.children;children.forEach(child=>{if(child&&typeof child==='object')child.parent=this;});},
+    replaceChildren(...children){this.children=[];this.append(...children);},
+    querySelector(selector){if(selector==='[data-sell-preview]'){const find=node=>node.dataset?.sellPreview?node:(node.children||[]).map(find).find(Boolean);return this.children.map(find).find(Boolean)||null;}if(!this.parts.has(selector))this.parts.set(selector,element());return this.parts.get(selector);},
+    closest(selector){for(let current=this;current;current=current.parent)if(current.tagName===selector)return current;return this.querySelector(`parent:${selector}`);},
     showModal(){assert.ok(!this.open);this.open=true;},
     close(value){this.returnValue=value;this.open=false;return this.emit('close');},
     click(){this.clicked=true;}, remove(){},
@@ -30,8 +30,8 @@ vm.createContext(context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,saveQuote,openQuote,newQuote,confirmReplace,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,controlValue,formatNumber,formatMoney,calculate,renderResults,showView,bootstrap,
-    setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;}};
+    quoteDetails,updateQuoteTitle,reportPayload,controlValue,formatNumber,formatMoney,calculate,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,
+    setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
 })();`);
@@ -175,6 +175,76 @@ let passed=0;
   assert.equal(audit.state.draft.inventory.precise,undefined);assert.equal(item.supplier_price,123.456789);
   priceControl.value='125.555';await priceControl.emit('input');await priceControl.emit('blur');
   assert.equal(priceControl.value,'125.56');assert.equal(audit.state.draft.inventory.precise.supplier_price,125.56);passed++;
+
+  // One inventory product exposes every actual use; standalone rates and unused products are retained.
+  const pricingFixture={inventory:[
+    {id:'coat',item_code:'P-1',name:'Coating <literal>',supplier_price:100.123456,markup:.2,sales_price:120.1481472,pricing_mode:'supplier_markup'},
+    {id:'unused',item_code:'P-2',name:'Unused Primers product',supplier_price:20,markup:.1,sales_price:22,pricing_mode:'supplier_markup'},
+    {id:'manual',item_code:'P-3',name:'Manual inventory',supplier_price:null,markup:0,sales_price:400,pricing_mode:'manual'}],
+    rate_groups:{primers:[{id:'primer',inventory_id:'coat',name:'Primer choice',price:120.1481472,yield:10.123456,uses_yield:true,price_mode:'inventory'}],
+      topcoats:[{id:'topcoat',inventory_id:'coat',name:'Topcoat choice',price:180.123456,yield:8,uses_yield:true,price_mode:'override'}],
+      labour_rates:[{id:'team',inventory_id:null,name:'Site team',price:1000,yield:'',uses_yield:false,price_mode:'override'}],
+      sprays:[{id:'duplicate-name',inventory_id:null,name:'Coating <literal>',price:55,yield:2,uses_yield:true,price_mode:'override'}]}};
+  const pricingNodes=()=>{const walk=node=>[node,...(node.children||[]).flatMap(walk)];return walk(byId('pricing-body'));};
+  const productRows=()=>byId('pricing-body').children.filter(row=>row.dataset.priceId);
+  const rateRow=id=>pricingNodes().find(node=>node.dataset.rateId===id);
+  const rateInput=(id,field)=>rateRow(id).children.flatMap(cell=>cell.children||[]).find(node=>node.dataset.priceField===field);
+  const rateAction=(id,label)=>rateRow(id).children.at(-1).children.find(button=>button.textContent===label);
+  const productInput=(id,field)=>productRows().find(row=>row.dataset.priceId===id).children.flatMap(cell=>cell.children||[]).find(node=>node.dataset.priceField===field);
+  setup();audit.state.baseline=copy(pricingFixture);audit.state.configuration={inventory:{},rates:{}};audit.state.draft={inventory:{},rates:{}};audit.state.pricingExpanded=new Set();
+  byId('pricing-search').value='';byId('rate-group').value='';audit.setRenderPricing(audit.renderPricing);audit.refreshPricingCatalog();audit.renderPricing();
+  const originalPricing=JSON.stringify(pricingFixture);
+  assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
+  assert.deepEqual(pricingNodes().filter(node=>node.dataset.rateId).map(node=>node.dataset.rateId),['primer','topcoat','team','duplicate-name']);
+  assert.deepEqual(byId('rate-group').children.map(option=>option.textContent),['All uses','Primers','Topcoats','Labour','Sprays','Not used']);
+  assert.equal(rateInput('primer','yield').value,'10.12');assert.equal(rateInput('team','yield'),undefined);
+  for(const [id,name,group] of [['primer','Primer choice','Primers'],['topcoat','Topcoat choice','Topcoats']]) {
+    assert.equal(rateInput(id,'price').getAttribute('aria-label'),`${name}: ${group} sell rate`);
+    assert.equal(rateInput(id,'yield').getAttribute('aria-label'),`${name}: ${group} material yield`);
+    assert.equal(rateAction(id,'Reset rate').getAttribute('aria-label'),`${name}: ${group} reset rate`);
+    assert.equal(rateAction(id,'Reset yield').getAttribute('aria-label'),`${name}: ${group} reset yield`);
+  }
+  assert.equal(productInput('coat','name').value,'Coating <literal>');assert.equal(rateRow('duplicate-name').children[1].textContent,'Coating <literal>');
+  assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
+
+  // Search and category filters resolve links, even when product names look like another category.
+  byId('rate-group').value='primers';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);assert.ok(rateRow('topcoat'));
+  byId('rate-group').value='sprays';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['duplicate-name']);
+  byId('rate-group').value='not-used';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused','manual']);
+  byId('rate-group').value='';byId('pricing-search').value='Topcoat choice';await byId('pricing-search').emit('input');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
+  assert.equal(pricingNodes().find(node=>node.tagName==='details').open,true);
+  byId('pricing-search').value='P-2';await byId('pricing-search').emit('input');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
+  byId('pricing-search').value='no match';await byId('pricing-search').emit('input');assert.equal(productRows().length,0);assert.equal(byId('pricing-body').children[0].children[0].textContent,'No matching products or rates.');
+  assert.deepEqual(copy(audit.state.draft),{inventory:{},rates:{}});passed++;
+
+  // Inventory price changes refresh linked uses without overwriting imported rate overrides or untouched precision.
+  byId('pricing-search').value='';audit.renderPricing();const supplierInput=productInput('coat','supplier_price');
+  await supplierInput.emit('blur');await rateInput('primer','price').emit('blur');await rateInput('primer','yield').emit('blur');assert.deepEqual(copy(audit.state.draft),{inventory:{},rates:{}});
+  assert.equal(audit.state.catalog.inventory[0].supplier_price,100.123456);assert.equal(audit.state.catalog.rate_groups.primers[0].yield,10.123456);
+  supplierInput.value='200';await supplierInput.emit('input');assert.equal(rateInput('primer','price').value,'240.00');assert.equal(rateInput('topcoat','price').value,'180.12');
+  assert.equal(productRows()[0].querySelector('[data-sell-preview]').textContent,'$240.00');
+  assert.equal(rateRow('primer').children[3].textContent,'Follows inventory pricing');assert.equal(rateRow('topcoat').children[3].textContent,'Imported rate override');
+  rateInput('primer','price').value='250';await rateInput('primer','price').emit('input');rateInput('primer','yield').value='12.75';await rateInput('primer','yield').emit('input');
+  supplierInput.value='210';await supplierInput.emit('input');assert.equal(rateInput('primer','price').value,'250.00');assert.equal(rateRow('primer').children[3].textContent,'Rate override');
+  assert.deepEqual(copy(audit.state.draft.rates.primer),{price:250,yield:12.75});assert.equal(audit.state.catalog.rate_groups.primers[0].price_mode,'inventory');assert.equal(audit.state.catalog.rate_groups.topcoats[0].price_mode,'override');passed++;
+
+  // Each field reset preserves other edits and imported pricing mode, and disclosures stay open across rerenders.
+  let coatDetails=pricingNodes().find(node=>node.tagName==='details');coatDetails.open=true;await coatDetails.emit('toggle');
+  await rateAction('primer','Reset rate').emit('click');assert.deepEqual(copy(audit.state.draft.rates.primer),{yield:12.75});assert.equal(rateInput('primer','price').value,'252.00');
+  assert.equal(pricingNodes().find(node=>node.tagName==='details').open,true);assert.equal(rateAction('primer','Reset rate').disabled,true);
+  await rateAction('primer','Reset yield').emit('click');assert.equal(audit.state.draft.rates.primer,undefined);assert.equal(rateInput('primer','yield').value,'10.12');
+  rateInput('topcoat','price').value='199';await rateInput('topcoat','price').emit('input');await rateAction('topcoat','Reset rate').emit('click');assert.equal(rateInput('topcoat','price').value,'180.12');assert.equal(rateRow('topcoat').children[3].textContent,'Imported rate override');
+  productInput('manual','sales_price').value='450';await productInput('manual','sales_price').emit('input');rateInput('team','price').value='1050';await rateInput('team','price').emit('input');
+  assert.equal(productRows().find(row=>row.dataset.priceId==='team').children[4].children[0].textContent,'$1,050.00');
+  byId('pricing-search').value='Site team';await byId('pricing-search').emit('input');byId('pricing-search').value='';await byId('pricing-search').emit('input');
+  assert.equal(productInput('manual','sales_price').value,'450.00');assert.equal(rateInput('team','price').value,'1050.00');assert.equal(audit.state.configuration.inventory.manual,undefined);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
+
+  // Export ignores the visible group/search filter and captures edits from all uses with exact untouched defaults.
+  byId('rate-group').value='primers';byId('pricing-search').value='Primer choice';await byId('rate-group').emit('change');
+  let unifiedExport;audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return {ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:100})};});await audit.exportPricing();
+  assert.equal(unifiedExport.inventory.manual.sales_price,450);assert.equal(unifiedExport.rates.team.price,1050);assert.equal(unifiedExport.inventory.coat.supplier_price,210);assert.equal(unifiedExport.rates.topcoat,undefined);assert.equal(unifiedExport.rates.primer,undefined);
+  assert.equal(audit.state.catalog.rate_groups.primers[0].price,120.1481472);assert.equal(audit.state.catalog.rate_groups.primers[0].yield,10.123456);assert.match(byId('app-message').textContent,/all inventory and rate groups/);passed++;
+  audit.setRenderPricing(()=>{audit.state.pricingDirty=JSON.stringify(audit.state.draft)!==JSON.stringify(audit.state.configuration);});byId('pricing-search').value='';byId('rate-group').value='';
 
   // Saved workflow labels and summary data remain available without either removed UI control.
   setup();audit.setRequest(async()=>({id:'wrap',title:'Saved wrap quote',configuration:oldConfig,fields:oldFields,inputs:{D15:'Old spray'},workflow:'Fire wrap to ductwork'}));

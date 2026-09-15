@@ -1,6 +1,28 @@
 # Project state
 
-Date: 2026-09-15. Executable code and checked results take precedence over this document.
+Date: 2026-09-16. Executable code and checked results take precedence over this document.
+
+Current implementation: Pricing library has one Inventory & Rates view, a
+Used in Estimator filter, searchable product rows and expandable category/rate/
+yield details. Products with multiple uses share one inventory price owner;
+unused inventory and standalone rates remain accessible. Excel actions are green.
+
+The new values-only workbook has Inventory & Rates and Instructions sheets.
+Inventory rows own purchasing values; collapsed Use rows preserve explicit IDs,
+group memberships, independent rates/yields and dropdown order. Old two-sheet
+pricing imports remain supported. The shared parser, calculation rules, catalogue
+model, SQLite schema and saved-quote snapshots are unchanged.
+
+Local checks: 22 workbook tests (including the 216-scenario Excel oracle through
+both formats), four API integration tests, 14 server tests, 11 Calculator tests,
+and 122 UI checks pass. Browser review verified filtering, both uses of SBR Latex,
+linked prices, a separate override, independent resets and save/reload. Both new
+workbook sheets were rendered and reviewed. CI/merge evidence is recorded after
+publication in `.runtime/unified-pricing-qa/publication.json`.
+
+Prior release: shared estimating notice PR #21 merged at
+`ab48bafc45c13cd6077647f10aa4894e4fa64fad` with both CI runs passing.
+The checkpoints below describe earlier work.
 
 Shared estimating notice: the application footer now carries the requested
 CEASEFIRE PFP guidance note beneath every browser view. The footer wraps on

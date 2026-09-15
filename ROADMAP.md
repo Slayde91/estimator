@@ -1,20 +1,19 @@
 # Roadmap
 
-Current commit-preparation checkpoint: show source F10 project days in a dedicated Estimator Labour
-breakdown, with eight task contributions, masking, extra labour and mobilisation.
-Its stored-cell projection is additive; it preserves existing money calculations
-and enriches older response copies without rewriting quotes. The calculator
-changes refine native/custom selectors, requested title placement, purchasing
-units, START content, summary spacing and toolbar actions.
+Current increment: combine Inventory and Rates into one searchable, use-filtered
+library with expandable per-category rates/yields, Excel-green import/export
+actions and a combined workbook. Explicit IDs and use order preserve mapping;
+old templates remain accepted. Existing price/yield rules and saved quotes remain
+unchanged. No dependency, source-formula or database migration is introduced.
 
-No dependency, source-formula, storage migration or alternate calculation path
-is introduced. All 117 UI checks (92 calculator, 25 Estimator), both JavaScript
-syntax checks and current source/export/API comparisons pass. The full local
-Python run continues with a corrected legacy metadata expectation and one HTTP
-error awaiting its exact trace. A clean Python run, build and refreshed runtime
-are not yet verified. Commit/push, PR, CI/review and merge are pending. Current
-Git/checks and `.runtime/labour-controls-qa/publication.json` when available
-supersede this checkpoint.
+Focused validation passes: 51 Python tests and 122 UI checks, including the
+216-scenario Excel oracle through both new and legacy workbook formats. Browser
+and worksheet visual review pass. Publication evidence follows in
+`.runtime/unified-pricing-qa/publication.json` after exact-head CI and merge.
+
+The preceding shared footer merged in PR #21 at `ab48baf`, following the labour
+breakdown/calculator control work in PR #20 at `e843cf7`. Both releases have
+successful exact-head CI receipts in their corresponding `.runtime` QA folders.
 
 The preceding START/factor increment merged in PR #19 as `335f4b6` from
 `cc1ccf9`. Both exact-head CI runs passed 235 Python tests (231 passed, four
@@ -33,6 +32,7 @@ not verify this subsequent presentation increment or its publication status.
 - Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and saved/PDF work summaries.
 - Estimator NOTES label on the existing measurement field, blank B12 notes for new estimates, and no generated-summary panel. Saved notes, summary data and internal workflow behavior remain intact.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
+- Unified Inventory & Rates with a use filter, expandable linked uses, separate price/yield resets, combined outline workbook and legacy-template import compatibility.
 - Two-decimal presentation while retaining raw calculation precision.
 - Three workbook Calculators, source-backed browser tabs, board SETTINGS/EXTRA BOARDS and adjustable settings.
 - Source-backed vermiculite START/SETTINGS/FACTOR CALCS views: operating rules shown directly, seven settings choices and three helper choices. Duct and board retain five/three settings choices; all preserve complete calculation/save/report scope. Scoped navigation, order-first BAGS, MEMBER SCHEDULE, published-value units/highlight and expanded board START.

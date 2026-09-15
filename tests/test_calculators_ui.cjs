@@ -532,7 +532,7 @@ let passed = 0;
     {first_row:30,last_row:32,columns:[1,2,3],column_widths:[200,125,180],label:'Working yields'},
     {first_row:39,last_row:41,columns:[1,2,3,4,5,6,7],column_widths:[200,125,125,125,125,125,125],label:'Board totals'},
   ];
-  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],presentation_tables:summaryTables,merges:['A1:L1','A17:L17','A29:L29','A38:L38','I40:L40','A43:L43']}];
+  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],presentation_tables:summaryTables,display_cells:{A17:{merge:'A17:L17'},A29:{merge:'A29:L29'}},merges:['A1:L1','A17:F17','A29:F29','A38:L38','I40:L40','A43:L43']}];
   const summaryRows=[1,17,29,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
   for(const table of summaryTables) for(let row=table.first_row;row<=table.last_row;row++) summaryRows.push({row,cells:Array.from({length:12},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===26?null:row===table.first_row?`Header ${i+1}`:row*100+i,calculated:row!==table.first_row}))});
   summaryRows.sort((a,b)=>a.row-b.row);
@@ -552,7 +552,13 @@ let passed = 0;
   for(const address of ['D9','E9','F9','G9','D19','E19','F19','E40','F40','G40']) assert.ok(summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
   const productColumns=summaryRendered[1].children[0].children;
   assert.equal(productColumns[4].style.width,productColumns[1].style.width);assert.equal(productColumns[5].style.width,productColumns[1].style.width);
-  assert.equal(summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='A29').colSpan,12);
+  for(const row of [17,29]) {
+    const titleRow=descendants(byId('calculator-grid')).find(node=>node.dataset?.sourceRow===String(row));
+    assert.equal(titleRow.children.length,1);assert.equal(titleRow.children[0].colSpan,12);
+    assert.equal(titleRow.children[0].dataset.calculatorOutput,`A${row}`);
+  }
+  assert.ok(entry.definition.sheets[0].merges.includes('A17:F17'));assert.ok(entry.definition.sheets[0].merges.includes('A29:F29'));
+  assert.equal(descendants(byId('calculator-grid')).filter(node=>node.classList?.contains('calculator-section-scroll')).length,4);
   assert.equal(summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='A26').classList.contains('calculator-value-empty'),true);
   assert.equal(JSON.stringify(entry.result),originalSummary);passed++;
 
@@ -812,27 +818,36 @@ let passed = 0;
   assert.equal(renderedControls()[0],retainedVermInput);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').textContent,'0.99');
   vermUpdate.rows.find(row=>row.row===5).cells.find(cell=>cell.column===1).value='Updated input section';await audit.calculate();assert.ok(descendants(byId('calculator-grid')).some(node=>node.href&&node.textContent==='Updated input section'));assert.equal(entry.inputs.CALCULATOR.D6,12.3456789);passed++;
 
-  // The BAGS source heading owns its order matrix; the manual first input remains a normal editable table cell.
+  // BAGS keeps its exact yield while merging the adjacent decorative cells into one gold spacer.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';
-  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',header_rows:[19],section_cells:['A17'],merges:['A1:N1','A17:N17'],presentation_tables:[
+  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',header_rows:[19],section_cells:['A17'],display_cells:{G10:{merge:'G10:N10',role:'spacer'}},merges:['A1:N1','A17:N17'],presentation_tables:[
     {first_row:6,last_row:15,columns:Array.from({length:14},(_,i)=>i+1),column_widths:Array(14).fill(1),width_mode:'fit',table_kind:'form',label:'Manual quantity'},
     {first_row:17,last_row:24,columns:Array.from({length:9},(_,i)=>i+1),column_widths:[19,7,9,10,8,7,11,9,20],width_mode:'fit',table_kind:'order',title_address:'A17',header_row:19,label:'Product order summary'},
   ]}];
   entry.result=result({}, {sheet:'BAGS',max_column:14,rows:[{row:1,cells:[{column:1,address:'A1',value:'BAGS',presentation:{role:'title'}}]},
     ...[6,7,8].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Manual input',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row,editable:true,type:'number'}]})),
+    {row:10,cells:[{column:1,address:'A10',value:'Working yield',presentation:{role:'label'}},{column:4,address:'D10',value:0.05128205128205128,calculated:true},...Array.from({length:8},(_,index)=>({column:index+7,address:`${String.fromCharCode(71+index)}10`,value:null,presentation:{role:'body'}}))]},
     {row:15,cells:[{column:1,address:'A15',value:'Manual quantity note',presentation:{role:'note'}}]},
     {row:17,cells:[{column:1,address:'A17',value:'PRODUCT ORDER SUMMARY',presentation:{role:'section'}}]},{row:18,cells:[]},
     ...[19,20,21,22,23,24].map(row=>({row,cells:Array.from({length:9},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===19?`Header ${i+1}`:i===8?'Order status':row,calculated:row>19}))})),
-  ]});realRender(entry);
+  ]});const rawBagCells=JSON.stringify(entry.result);realRender(entry);
   assert.equal(renderedControls().length,3);const projectedOrder=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-projected-section');assert.equal(projectedOrder.children[0].textContent,'PRODUCT ORDER SUMMARY');
   const projectedOrderTable=descendants(projectedOrder).find(node=>node.tagName==='table');assert.equal(projectedOrderTable.style.width,'100%');assert.equal(projectedOrderTable.children.at(-1).children.length,6);assert.equal(projectedOrderTable.children[0].children[8].style.width,'20%');
   const manualTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Manual quantity');assert.ok(manualTable.children.at(-1).children[0].children.every(node=>node.tagName==='td'));
+  const yieldRow=manualTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='10');
+  assert.equal(yieldRow.children.length,7);const yieldSpacer=yieldRow.children.at(-1);
+  assert.equal(yieldSpacer.dataset.calculatorOutput,'G10');assert.equal(yieldSpacer.colSpan,8);assert.match(yieldSpacer.className,/calculator-role-spacer/);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='D10').textContent,'0.05');
+  assert.equal(entry.result.rows.find(row=>row.row===10).cells.find(cell=>cell.address==='D10').value,0.05128205128205128);
+  assert.equal(JSON.stringify(entry.result),rawBagCells);
+  for(const table of [manualTable,projectedOrderTable])assert.ok(descendants(byId('calculator-grid')).some(node=>node.classList?.contains('calculator-section-scroll')&&node.children.includes(table)));
   entry.result.rows.find(row=>row.row===18).cells.push({column:2,address:'B18',value:null,calculated:true});realRender(entry);
   const preservedBlankFormula=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='B18');assert.ok(preservedBlankFormula);assert.equal(preservedBlankFormula.classList.contains('calculator-value-empty'),true);passed++;
 
-  // Duct projections remain between CAFCO/MONOKOTE and use notes; side-table references and uncovered controls survive.
+  // Duct projections omit USE NOTES while retaining side-table references, uncovered controls and blank separator rows.
   entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
-  entry.definition.sheets=[{name:entry.sheet,table_layout:'projected',header_rows:[95,116,117,123],section_cells:['A6','A48','A94','J94','J115','A153'],merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
+  const blankDuctRows=[105,108,111,131,136];
+  entry.definition.sheets=[{name:entry.sheet,table_layout:'projected',header_rows:[95,116,117,123,136],section_cells:['A6','A48','A94','J94','J115','A153'],omitted_rows:[153,154,155,156,157,158,159],display_cells:Object.fromEntries(blankDuctRows.map(row=>[`J${row}`,{merge:`J${row}:Q${row}`}])),merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
     {first_row:94,last_row:151,columns:[1,2,3,4,5,6,7,8],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'form',title_address:'A94',label:'FyreWrap settings'},
     {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application'},
     {first_row:115,last_row:149,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'comparison',title_address:'J115',header_row:116,label:'Penetration'},
@@ -847,13 +862,25 @@ let passed = 0;
     {row:123,cells:[{column:10,address:'J123',value:'Cut strips per collar',presentation:{role:'column_header'}}]},
     {row:137,cells:[{column:10,address:'J137',value:'Dropdown source value'},{column:11,address:'K137',value:'Dropdown explanation',presentation:{role:'note'}}]},
     {row:149,cells:[{column:10,address:'J149',value:'Last dropdown choice'}]},
-    {row:154,cells:[{column:1,address:'A154',value:'Retained use notes',presentation:{role:'note'}}]},
+    ...blankDuctRows.map(row=>({row,cells:[...Array.from({length:8},(_,index)=>({column:index+1,address:`${String.fromCharCode(65+index)}${row}`,value:`Main setting ${row}/${index+1}`})),...Array.from({length:8},(_,index)=>({column:index+10,address:`${String.fromCharCode(74+index)}${row}`,value:null,presentation:{role:'body'}}))]})),
+    ...[154,155,156,157,158,159].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Omitted use note ${row}`,presentation:{role:'note'}}]})),
   ].reduce((rows,row)=>{const existing=rows.find(other=>other.row===row.row);if(existing)existing.cells.push(...row.cells);else rows.push(row);return rows;},[]).sort((a,b)=>a.row-b.row)});
   const ductProjectionRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   assert.equal(renderedControls().length,5);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,5);
   const ductAddresses=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
-  for(const address of ['A6','A48','A94','J94','J115','J137','K137','J149','J114','A153','A154'])assert.equal(ductAddresses.filter(value=>value===address).length,1,address);
-  assert.ok(ductAddresses.indexOf('A48')<ductAddresses.indexOf('A94'));assert.ok(ductAddresses.indexOf('J115')<ductAddresses.indexOf('A153'));assert.ok(ductAddresses.indexOf('J149')<ductAddresses.indexOf('A153'));
+  for(const address of ['A6','A48','A94','J94','J115','J137','K137','J149','J114'])assert.equal(ductAddresses.filter(value=>value===address).length,1,address);
+  assert.ok(ductAddresses.indexOf('A48')<ductAddresses.indexOf('A94'));assert.ok(ductAddresses.indexOf('J94')<ductAddresses.indexOf('J115'));assert.ok(ductAddresses.indexOf('J115')<ductAddresses.indexOf('J149'));
+  for(const row of [153,154,155,156,157,158,159])assert.ok(!ductAddresses.includes(`A${row}`));
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.href?.endsWith('-A153')||node.textContent==='USE NOTES'));
+  for(const row of blankDuctRows) {
+    const sectionTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')===(row<115?'Application':'Penetration'));
+    const separator=sectionTable.children.at(-1).children.find(node=>node.dataset.sourceRow===String(row));
+    assert.equal(separator.children.length,1);assert.equal(separator.children[0].colSpan,8);
+    assert.equal(separator.children[0].dataset.calculatorOutput,`J${row}`);assert.equal(separator.children[0].classList.contains('calculator-value-empty'),true);
+    assert.equal(separator.children[0].tagName,'td');assert.equal(separator.children[0].classList.contains('calculator-source-heading'),false);
+    for(const column of ['A','B','C','D','E','F','G','H'])assert.equal(ductAddresses.filter(value=>value===`${column}${row}`).length,1);
+  }
+  assert.equal(descendants(byId('calculator-grid')).filter(node=>node.classList?.contains('calculator-section-scroll')).length,3);
   assert.equal(JSON.stringify(entry.result),ductProjectionRaw);const retainedRoll=renderedControls().find(node=>node.dataset.calculatorCell==='B97');await retainedRoll.emit('focus');assert.equal(retainedRoll.value,'0.61');
   const preciseOverlap=renderedControls().find(node=>node.dataset.calculatorCell==='B100');await preciseOverlap.emit('focus');assert.equal(preciseOverlap.value,'0.005');await preciseOverlap.emit('blur');assert.deepEqual(copy(entry.inputs),{});passed++;
 
@@ -876,6 +903,26 @@ let passed = 0;
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='A5').dataset.calculatorValue,undefined);
   const noteOverview=audit.renderOverview([{row:2,cells:[{column:1,address:'A2',value:'Overview note',presentation:{role:'note'}}]},{row:3,cells:[{column:1,address:'A3',value:'Overview heading',presentation:{role:'section'}}]}],entry,[1]);
   assert.equal(descendants(noteOverview).find(node=>node.dataset?.calculatorOutput==='A2').classList.contains('calculator-value-present'),true);assert.equal(descendants(noteOverview).find(node=>node.dataset?.calculatorOutput==='A3').dataset.calculatorValue,undefined);passed++;
+
+  // The duct introduction is a full-width note even when its retained source style says section heading.
+  entry=setup();entry.definition.id='ductwork';entry.definition.schedule.header_row=10;entry.definition.schedule.first_row=11;
+  entry.definition.sheets=[{name:'CALCULATOR',header_rows:[10],display_cells:{A3:{role:'note'}},merges:['A1:C1','A3:C3']}];
+  entry.result=result({}, {rows:[{row:1,cells:[{column:1,address:'A1',value:'DUCT PROTECTION CALCULATOR',presentation:{role:'title'}}]},
+    {row:3,cells:[{column:1,address:'A3',value:'Enter the schedule in blue cells.',presentation:{role:'section',bold:true}}]},
+    {row:11,cells:[{column:2,address:'B11',value:1,editable:true,type:'number'}]}]});
+  const rawDuctIntro=JSON.stringify(entry.result);realRender(entry);
+  const ductOverview=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-overview');assert.equal(ductOverview.classList.contains('calculator-overview-full'),true);
+  const ductIntro=descendants(ductOverview).find(node=>node.dataset?.calculatorOutput==='A3');
+  assert.equal(ductIntro.tagName,'p');assert.equal(ductIntro.className,'calculator-overview-note');assert.equal(ductIntro.classList.contains('calculator-value-present'),true);
+  assert.equal(ductIntro.textContent,'Enter values in the schedule input fields.');assert.equal(JSON.stringify(entry.result),rawDuctIntro);
+  assert.equal(renderedControls().length,1);passed++;
+
+  // Each independent section scrolls with the page; only its horizontal overflow remains, with explicit fills.
+  const sectionCss=fs.readFileSync('static/calculators.css','utf8');
+  assert.match(sectionCss,/\.calculator-table-scroll\.calculator-section-scroll\s*\{\s*max-height:\s*none\s*\}/);
+  assert.match(sectionCss,/\.calculator-grid td\.calculator-role-spacer\s*\{\s*background:\s*#fff0ce!important\s*\}/);
+  assert.match(sectionCss,/\.calculator-grid \.calculator-value-empty\s*\{\s*background:\s*#f2f3f5!important\s*\}/);
+  assert.match(sectionCss,/\.calculator-overview-full \.calculator-overview-note\s*\{[^}]*flex:\s*0 0 100%/);passed++;
 
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');

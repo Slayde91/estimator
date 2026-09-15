@@ -1,5 +1,63 @@
 # Session handoff
 
+## Estimator controls and calculator row presentation — 2026-09-15
+
+The latest eleven browser comments remove the Estimator Workflow dropdown and
+rename the existing dimensions/measurement textarea to NOTES. Its underlying
+`measurements` field and stored text remain unchanged. Internal saved workflow
+values and the existing new-estimate default continue to feed calculations,
+saves and reports; removing the control does not change the workflow rules.
+
+Independent presentation tables, including the board purchasing table, expand
+to their full height without nested vertical caps. Horizontal overflow remains
+available, and the prepared schedule scrollers retain their existing behavior.
+
+The existing presentation metadata adds explicit browser-only cell overrides:
+
+- Duct CALCULATOR A3 has a note role. Its title and note occupy full rows, with
+  the note using the same gold fill as SUMMARY.
+- Duct SUMMARY A17:L17 and A29:L29 replace the original A:F merges only in the
+  browser, allowing both red section headings to span the full row.
+- Duct PRODUCT SETTINGS merges each blank gray row J105:Q105, J108:Q108,
+  J111:Q111, J131:Q131 and J136:Q136. Outside borders remain; internal dividers
+  are removed without hiding adjacent text, settings or lookup records.
+- Vermiculite BAGS merges the blank G10:N10 region into one gold span, retaining
+  the A10:C10 label and D10:F10 working-yield value.
+- Duct PRODUCT SETTINGS omits USE NOTES rows 153–159 and the associated contents
+  link in the browser. The source cells, API values and report projection remain.
+
+These are rendering and form-control changes with no source workbook/package,
+formula, calculation rule, storage schema or report-scope change. No migration
+is required. Verified locally on `fix/calculator-banners-and-spacing`, based
+on merged main `8d460c9`:
+
+- All 25 focused cleanup/presentation API tests, 71 calculator UI checks and
+  20 original UI checks passed. Both JavaScript syntax checks and the 34-file
+  distribution build passed. Independent review found no actionable issues.
+- Before/after HTTP comparisons matched all 104,068 cells across 12 worksheets,
+  including values, editability, calculated flags and shared choices. The three
+  calculator PDFs retained identical extracted text (3/8/4 pages).
+- Isolated browser checks confirmed the absent workflow selector, NOTES label,
+  full-width duct introduction with a yellow note, single-cell full-row summary
+  headings, five merged gray separators, retained 11 settings inputs, and no
+  USE NOTES section/link. The retry also confirmed BAGS A10/D10/G10 as three
+  cells with spans 3/3/8 and matching gold fills. Board purchasing retains 18
+  stock rows, six columns and three cards; its wrapper has no height cap and
+  equal client/scroll height (897 px), so no inner vertical scrolling remains.
+- The live database was backed up before refresh. Test, saved-data comparison
+  and publication records are under `.runtime/banner-spacing-qa`.
+
+The user-authorized retry refreshed the main server successfully. The served
+app, calculator and HTML asset hashes match the current files; all new Python
+display metadata is active. Saved quotes, pricing/settings and calculator state
+match the retained backup exactly. The QA server and both verification tabs
+were closed; the user's original tabs were left untouched.
+
+Commit, push and exact-head CI/merge are pending at this pre-publication
+checkpoint. The final `.runtime/banner-spacing-qa/publication.json` and task
+reply record verified publication outcomes. Earlier entries below do not
+verify this increment.
+
 ## Calculator visible columns — 2026-09-15
 
 The latest four browser comments request a smaller board purchasing table,

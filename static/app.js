@@ -7,6 +7,7 @@
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
     result: null, revision: 0, timer: null, controller: null, pricingView: "inventory", legacyTitle: "",
+    workflow: "", defaultWorkflow: "Intumescent spray to ductwork",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -245,7 +246,7 @@
     try {
       const result = await request("/api/calculate", {
         method: "POST", signal: state.controller.signal,
-        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: $("workflow").value }),
+        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow }),
       });
       if (revision !== state.revision) return null;
       state.result = result;
@@ -271,7 +272,7 @@
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
     $("calculated-notes").textContent = result.notes ?? cells.B30 ?? "";
-    $("work-summary").textContent = result.work_summary || "Choose a workflow and enter the required work quantities.";
+    $("work-summary").textContent = result.work_summary || "Enter the required work quantities to generate a work summary.";
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
@@ -326,7 +327,7 @@
     state.legacyTitle = "";
     for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
     updateQuoteTitle();
-    $("workflow").selectedIndex = 0;
+    state.workflow = state.defaultWorkflow;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
     renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
@@ -338,7 +339,7 @@
     const button = $("save-quote"); button.disabled = true;
     try {
       const inputs = clone(state.inputs);
-      const workflow = $("workflow").value;
+      const workflow = state.workflow;
       const measurements = $("measurements").value;
       const configuration = clone(state.quoteConfiguration || state.configuration);
       const quoteContext = state.quoteContext;
@@ -354,7 +355,7 @@
       if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
       if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || $("workflow").value !== workflow || $("measurements").value !== measurements;
+      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
       message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
     } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
@@ -398,10 +399,7 @@
       $("site-address").value = quote.site_address || "";
       $("project-no").value = quote.project_no || "";
       updateQuoteTitle();
-      if (quote.workflow && !Array.from($("workflow").options).some((option) => option.value === quote.workflow)) {
-        const option = node("option", "", quote.workflow); option.value = quote.workflow; $("workflow").append(option);
-      }
-      $("workflow").value = quote.workflow || $("workflow").options[0].value;
+      state.workflow = typeof quote.workflow === "string" ? quote.workflow : state.defaultWorkflow;
       $("measurements").value = typeof quote.measurements === "string" ? quote.measurements : JSON.stringify(quote.measurements || "");
       $("snapshot-message").hidden = false;
       $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
@@ -673,7 +671,7 @@
       state.configuration = data.configuration || { inventory: {}, rates: {} };
       state.draft = clone(state.configuration);
       if (Array.isArray(data.workflows) && data.workflows.length) {
-        $("workflow").replaceChildren(...data.workflows.map((workflow) => { const option = node("option", "", workflow); option.value = workflow; return option; }));
+        state.defaultWorkflow = data.workflows[0];
       }
       refreshPricingCatalog();
       $("loading-state").hidden = true;
@@ -688,7 +686,7 @@
       ...quoteDetails(),
       inputs: clone(state.inputs),
       configuration: clone(state.quoteConfiguration || state.configuration),
-      workflow: $("workflow").value,
+      workflow: state.workflow,
       measurements: $("measurements").value,
       ...(state.quote ? { source_quote_id: state.quote.id } : {}),
     };
@@ -757,7 +755,6 @@
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
-  $("workflow").addEventListener("change", () => { updateDirty(); scheduleCalculation(); });
   $("new-quote").addEventListener("click", newQuote);
   $("save-quote").addEventListener("click", saveQuote);
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);

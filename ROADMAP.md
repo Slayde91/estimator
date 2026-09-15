@@ -1,10 +1,11 @@
 # Roadmap
 
-Current increment: hide the requested intermediate-area/reference columns in
-the board purchasing table and Evidence reference in EXTRA BOARDS, and remove
-the advanced-column checkbox from every calculator tab. Three BOARD SUMMARY
-cards and all prepared rows remain. Hidden input values, calculations, the
-worksheet API's advanced-data support and schedule PDFs retain their scope.
+Current increment: remove the Estimator Workflow dropdown while preserving
+saved/default workflow values, label the existing measurement field NOTES,
+and refine calculator note, heading and blank-row presentation. Independent
+presentation tables use their full height; prepared schedule scrollers retain
+their behavior. Duct USE NOTES is hidden only in the browser. Source values,
+formulas, stored data and schedule PDFs retain their existing scope.
 Validation and publication for this increment belong in SESSION_HANDOFF.md.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
@@ -16,6 +17,7 @@ not verify this subsequent presentation increment or its publication status.
 
 - Original Quote Calculator inputs, formulas, editable pricing and saved snapshots.
 - Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and work summaries.
+- Estimator NOTES label on the existing measurement field; saved/default workflow behavior retained internally without a Workflow dropdown.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
 - Two-decimal presentation while retaining raw calculation precision.
 - Three workbook Calculators, every visible tab, board SETTINGS/EXTRA BOARDS and adjustable settings.
@@ -23,6 +25,7 @@ not verify this subsequent presentation increment or its publication status.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
 - Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.
 - Six-column board purchasing table with retained summary cards; hidden extra-board evidence fields and no browser advanced-column checkbox. Saved hidden inputs and the advanced worksheet API remain supported.
+- Independent presentation tables with full content height, explicit note/heading/blank-row display overrides, and browser-only omission of Duct USE NOTES. Prepared schedules retain their vertical scrollers.
 - Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under Product Settings and Rules.
@@ -35,7 +38,7 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-Current final validation and Git results for the visible-column cleanup belong
+Current final validation and Git results for the control and row cleanup belong
 in SESSION_HANDOFF.md. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 

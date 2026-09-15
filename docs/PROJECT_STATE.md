@@ -2,7 +2,24 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-The latest browser cleanup hides six requested BOARD SUMMARY table columns:
+The latest eleven browser comments simplify the Estimator form and refine
+calculator table presentation. The Workflow dropdown is removed while saved
+workflow values and the existing new-estimate default remain in calculation,
+save and report requests. The existing dimensions/measurement field is labelled
+NOTES; its stored identity and text remain unchanged.
+
+Independent presentation tables, including board purchasing, expand to their
+full content height; prepared schedule scrollers keep their existing behavior.
+Duct CALCULATOR's introduction note has a full-width gold row. Two SUMMARY
+section headings span the full table width, five blank PRODUCT SETTINGS rows
+lose internal dividers, and the blank BAGS yield-row region becomes one gold
+span. USE NOTES rows 153–159 and their contents link are hidden from Duct
+PRODUCT SETTINGS. Exact browser-only overrides are recorded in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Source values,
+merges, formulas, saved data, report projections and schemas remain intact.
+Validation and publication for this increment belong in SESSION_HANDOFF.md.
+
+The preceding browser cleanup hides six requested BOARD SUMMARY table columns:
 the four intermediate area columns and the Stock source and Board key columns.
 Its independent purchasing table retains product, thickness, sheet dimensions,
 whole sheets and purchase area for all eighteen stock rows. All three summary

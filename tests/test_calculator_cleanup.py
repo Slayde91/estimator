@@ -201,7 +201,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                 expected_other_rows = {("steel_board", "START"): [3, 5, 6, *range(34, 40)],
                                        ("steel_board", "CALCULATOR"): [2, 5, 7],
                                        ("ductwork", "CALCULATOR"): [5, 6, 7, 9],
-                                       ("ductwork", "PRODUCT SETTINGS"): [3, 4]}
+                                       ("ductwork", "PRODUCT SETTINGS"): [3, 4, *range(153, 160)]}
                 self.assertEqual(sheet["omitted_rows"], expected_other_rows.get((identity, sheet["name"]), []))
                 expected_columns = {("ductwork", "CALCULATOR"): [37, 38, 42, 43, 44],
                                     ("steel_board", "EXTRA BOARDS"): [14]}
@@ -254,6 +254,43 @@ class CalculatorCleanupTests(unittest.TestCase):
                         self.assertTrue(any(column in table["columns"] for table in tables), address)
         self.assertEqual({path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in (ROOT / "data/calculators").glob("*.json.gz")}, self.package_hashes)
+
+    def test_display_spans_cover_only_decorative_children_and_notes_omission_has_no_inputs(self):
+        expected = {
+            (IDENTITY, "BAGS"): {"G10": {"merge": "G10:N10", "role": "spacer"}},
+            ("ductwork", "CALCULATOR"): {"A3": {"role": "note"}},
+            ("ductwork", "SUMMARY"): {"A17": {"merge": "A17:L17"}, "A29": {"merge": "A29:L29"}},
+            ("ductwork", "PRODUCT SETTINGS"): {f"J{row}": {"merge": f"J{row}:Q{row}"} for row in (105, 108, 111, 131, 136)},
+        }
+        for (identity, name), overrides in expected.items():
+            source = next(sheet for sheet in source_model(identity)["sheets"] if sheet["name"] == name)
+            page = next(sheet for sheet in self.request("GET", identity=identity)["sheets"] if sheet["name"] == name)
+            self.assertEqual(page["display_cells"], overrides)
+            self.assertEqual(page["merges"], source["merges"], "Source merge metadata must remain intact")
+            inputs = editable_cells(identity, name)
+            for anchor, override in overrides.items():
+                self.assertNotIn(anchor, inputs)
+                if "merge" not in override:
+                    continue
+                start, end = override["merge"].split(":")
+                self.assertEqual(start, anchor)
+                first_row, first_column = coordinates(start)
+                last_row, last_column = coordinates(end)
+                for address, cell in source["cells"].items():
+                    row, column = coordinates(address)
+                    if first_row <= row <= last_row and first_column <= column <= last_column and address != anchor:
+                        self.assertNotIn(address, inputs, address)
+                        self.assertNotIn("formula", cell, address)
+                        self.assertIn(cell.get("value"), (None, ""), address)
+            if name == "PRODUCT SETTINGS":
+                for address, cell in source["cells"].items():
+                    row, _ = coordinates(address)
+                    if 153 <= row <= 159:
+                        self.assertNotIn(address, inputs)
+                        self.assertNotIn("formula", cell)
+                self.assertTrue(set(range(153, 160)) <= set(page["omitted_rows"]))
+                for row in (105, 108, 111, 131, 136):
+                    self.assertNotIn(row, page["omitted_rows"], "Retain the main FyreWrap table on the same source rows")
 
     def test_hidden_board_evidence_and_advanced_inputs_survive_visible_edits_and_save(self):
         identity = "steel_board"

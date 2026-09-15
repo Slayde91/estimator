@@ -1,12 +1,17 @@
 # Roadmap
 
-Current increment: add explicit m²/m³ to the vermiculite summary captions,
-give running material totals full-width sections, omit the decorative BAGS
-manual-form column, expand all Settings tables with the page, emphasize source
-reference labels and center the confirmed published-period table. Prepared
-schedules, source values, formulas, saved state and PDF projections retain their
-existing scope.
+Current increment: simplify factor-helper blank dividers, place the published
+thickness label before its left-aligned result, and refine technical-heading,
+reference, exposure and product-label styles at explicit source anchors. Board
+overview titles/notes use full rows, with shorter summary/extra-board titles and
+retained summary cards. Source identities, calculations, technical rules, saved
+state and PDF projections retain their existing scope.
 Validation and publication for this increment belong in SESSION_HANDOFF.md.
+
+Current local validation passed 25 targeted Python tests, 75 calculator UI checks,
+20 original UI checks, syntax and build checks. Worksheet/PDF comparisons,
+browser review and the refreshed main service with preserved database state were
+verified. Commit/publication and exact-head CI/merge remain pending.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
 recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
@@ -27,6 +32,7 @@ not verify this subsequent presentation increment or its publication status.
 - Six-column board purchasing table with retained summary cards; hidden extra-board evidence fields and no browser advanced-column checkbox. Saved hidden inputs and the advanced worksheet API remain supported.
 - Independent presentation tables with full content height, explicit note/heading/blank-row display overrides, and browser-only omission of Duct USE NOTES. Prepared schedules retain their vertical scrollers.
 - Explicit area/volume summary units, independent full-width running material totals, all Settings tables without vertical caps, and bounded reference-label/period-table formatting. Decorative BAGS G is omitted only from its manual form; pooled Whole bags remains visible below.
+- Bounded detail-row layouts and helper spacer merges; pink technical headings, bold exposure/product labels and normal reference/support prose. Full-width board overviews retain summary cards; display titles use BOARD SUMMARY, EXTRA BOARDS, SUMMARY and PRODUCT SUMMARY without renaming worksheets.
 - Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - One populated-output highlight and one blank-output highlight; zero remains populated. Vermiculite Settings retains section navigation under SETTINGS & RULES.
@@ -39,7 +45,7 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-Current final validation and Git results for the units and table-label cleanup belong
+Current final validation and Git results for the detail-layout cleanup belong
 in SESSION_HANDOFF.md. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 

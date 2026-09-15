@@ -53,7 +53,9 @@ _DISPLAY_TEXT = {
     'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
                          'SCHEDULE': {'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
-    'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'}},
+    'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
+                    'BOARD SUMMARY': {'A1': 'BOARD SUMMARY'},
+                    'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
     'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'}},
 }
@@ -62,10 +64,22 @@ _DISPLAY_TEXT = {
 _DISPLAY_CELLS = {
     'steel_vermiculite': {
         'BAGS': {'H10': {'merge': 'H10:N10', 'role': 'spacer'}},
-        'CALCULATOR': {f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'},
+        'CALCULATOR': {'H6': {'align': 'left'},
+                       **{f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'}},
+        'SCHEDULE': {f'C{row}': {'bold': True} for row in range(10, 1010)},
+        'SETTINGS': {
+            **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246)},
+            **{f'D{row}': {'bold': False} for row in (75, 107, 184, 240)},
+            **{f'A{row}': {'bold': True} for row in (
+                *range(55, 59), *range(87, 91), *range(124, 168), *range(197, 224), *range(260, 265))},
+            **{f'D{row}': {'merge': f'D{row}:G{row}'} for row in (
+                *range(346, 353), *range(358, 369), *range(372, 375))},
+            'A371': {'merge': 'A371:G371', 'role': 'collapsed_spacer'},
+        },
     },
+    'steel_board': {'BOARD SUMMARY': {f'A{row}': {'bold': True} for row in range(12, 30)}},
     'ductwork': {
-        'CALCULATOR': {'A3': {'role': 'note'}},
+        'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 311)}},
         'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
                     **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
         'PRODUCT SETTINGS': {
@@ -75,7 +89,7 @@ _DISPLAY_CELLS = {
             **{f'A{row}': {'bold': True} for row in (
                 *range(8, 36), *range(37, 40), *range(50, 74), *range(75, 80),
                 *range(96, 116), *range(118, 122), *range(124, 128),
-                *range(130, 135), *range(137, 142))},
+                *range(130, 135), *range(137, 151))},
             **{f'J{row}': {'bold': True} for row in (*range(96, 105), *range(117, 131), *range(137, 150))},
         },
     },
@@ -91,7 +105,8 @@ _PRESENTATION_TABLES = {
              'table_kind': 'form', 'title_address': 'A5', 'label': '01 INPUTS'},
             {'first_row': 5, 'last_row': 24, 'columns': list(range(8, 15)),
              'column_widths': [1, 1, 1, 1, 1, 1, 1], 'width_mode': 'fit',
-             'table_kind': 'form', 'title_address': 'H5', 'label': '02 THICKNESS & QUANTITIES'},
+             'table_kind': 'form', 'title_address': 'H5', 'label': '02 THICKNESS & QUANTITIES',
+             'row_layouts': {'6': [{'address': 'L6', 'span': 3}, {'address': 'H6', 'span': 4}]}},
             {'first_row': 26, 'last_row': 30, 'columns': list(range(1, 10)),
              'column_widths': [190, *([115] * 8)], 'table_kind': 'comparison',
              'title_address': 'A26', 'header_row': 28, 'label': '03 ALL PUBLISHED PERIODS FOR THIS INPUT'},

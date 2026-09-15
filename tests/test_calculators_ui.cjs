@@ -350,6 +350,7 @@ let passed = 0;
   const totalsResult=(net,whole)=>result({}, {sheet:'SCHEDULE',product_totals:[{product:'CAFCO 300',net_bags:net,whole_bags:whole,status:whole==null?'REVIEW YIELD':'QUANTITY COMPLETE'}],
     rows:[{row:4,cells:[{column:1,address:'A4',value:'Spray area'}]},{row:5,cells:[{column:1,address:'A5',value:20}]},{row:9,cells:[{column:2,address:'B9',value:1,editable:true,type:'number'}]}]});
   entry.result=totalsResult(2.3456789,null);realRender(entry);const bagInput=renderedControls()[0],totalsNode=entry.productTotalsElement;
+  assert.equal(totalsNode.children[0].textContent,'PRODUCT SUMMARY');
   assert.ok(byId('calculator-grid').children.includes(totalsNode));
   const bagOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
   assert.ok(!descendants(bagOverview).includes(totalsNode));assert.ok(descendants(bagOverview).some(node=>node.calculatorValueCard));
@@ -670,6 +671,7 @@ let passed = 0;
   realRender(entry);audit.setRender(realRender);
   const summaryCards=descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard);
   assert.equal(summaryCards.length,3);assert.deepEqual(summaryCards.map(node=>node.textContent),['58.48','60.79','27.00']);
+  assert.equal(byId('calculator-grid').children.find(node=>node.className==='calculator-overview').classList.contains('calculator-overview-full'),true);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,1);
   const purchasingTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Board purchasing totals');
   assert.equal(purchasingTable.children[0].children.length,6);
@@ -690,11 +692,17 @@ let passed = 0;
   entry=setup({CALCULATOR:{M9:'Saved optional layout'},'EXTRA BOARDS':{A6:'Extra support',N6:'Existing design reference'}});
   entry.sheet='EXTRA BOARDS';entry.definition.sheets=[{name:entry.sheet,header_rows:[5],omitted_columns:[14],merges:[]}];
   const extraResult=inputs=>result(copy(inputs),{sheet:'EXTRA BOARDS',max_column:14,visible_columns:[1,13,14],rows:[
+    {row:1,cells:[{column:1,address:'A1',value:'EXTRA BOARDS / DETAIL TAKEOFF',presentation:{role:'title'}}]},
+    {row:3,cells:[{column:1,address:'A3',value:'Add additional boards using the required quantities.',presentation:{role:'note'}}]},
     {row:5,cells:[{column:1,address:'A5',value:'Item'},{column:13,address:'M5',value:'Status'},{column:14,address:'N5',value:'Evidence reference'}]},
     {row:6,cells:[{column:1,address:'A6',value:inputs['EXTRA BOARDS'].A6,editable:true,type:'text'},{column:13,address:'M6',value:'REVIEW',calculated:true},{column:14,address:'N6',value:inputs['EXTRA BOARDS'].N6,editable:true,type:'text'}]},
   ]});
   entry.result=extraResult(entry.inputs);const sourceExtraRows=JSON.stringify(entry.result.rows);realRender(entry);audit.setRender(realRender);
   assert.deepEqual(renderedControls().map(node=>node.dataset.calculatorCell),['A6']);
+  const extraOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
+  assert.equal(extraOverview.classList.contains('calculator-overview-full'),true);
+  assert.equal(extraOverview.children.find(node=>node.dataset.calculatorOutput==='A1').tagName,'h3');
+  assert.equal(extraOverview.children.find(node=>node.dataset.calculatorOutput==='A3').className,'calculator-overview-note');
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='Evidence reference'));
   assert.equal(JSON.stringify(entry.result.rows),sourceExtraRows);
   const visibleExtraInput=renderedControls()[0];visibleExtraInput.value='Updated support';await visibleExtraInput.emit('input');
@@ -723,8 +731,9 @@ let passed = 0;
   assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('9 rows have no board quantity')));
   assert.ok(entry.productTotalsElement);const boardTotalNodes=descendants(entry.productTotalsElement);
   assert.ok(byId('calculator-grid').children.includes(entry.productTotalsElement));
-  assert.ok(!descendants(byId('calculator-grid').children.find(node=>node.className==='calculator-overview')).includes(entry.productTotalsElement));
-  assert.ok(boardTotalNodes.some(node=>node.textContent==='Board Totals'));
+  const boardOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
+  assert.equal(boardOverview.classList.contains('calculator-overview-full'),true);assert.ok(!descendants(boardOverview).includes(entry.productTotalsElement));
+  assert.ok(boardTotalNodes.some(node=>node.textContent==='SUMMARY'));
   assert.ok(boardTotalNodes.some(node=>node.textContent==='Box reference area (m²)'));
   assert.ok(boardTotalNodes.some(node=>node.textContent==='12.35'));assert.ok(boardTotalNodes.some(node=>node.textContent==='21.01'));
   assert.ok(boardTotalNodes.some(node=>/5.00 incomplete schedule rows; 1.00 incomplete additional-board rows/.test(node.textContent||'')));
@@ -831,6 +840,40 @@ let passed = 0;
   assert.equal(renderedControls()[0],retainedVermInput);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').textContent,'0.99');
   vermUpdate.rows.find(row=>row.row===5).cells.find(cell=>cell.column===1).value='Updated input section';await audit.calculate();assert.ok(descendants(byId('calculator-grid')).some(node=>node.href&&node.textContent==='Updated input section'));assert.equal(entry.inputs.CALCULATOR.D6,12.3456789);passed++;
 
+  // A presentation row can swap the published caption/value while retaining source IDs, vertical merges and controls.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
+  const publishedLayout={first_row:5,last_row:9,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),title_address:'H5',table_kind:'comparison',label:'Thickness and quantities',row_layouts:{6:[{address:'L6',span:3},{address:'H6',span:4}],9:[{address:'H9',span:7}]}};
+  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:[publishedLayout],header_rows:[],display_cells:{H6:{align:'left'},H9:{bold:false}},merges:['H5:N5','H6:K8','L6:N8','H9:J9','K9:N9']}];
+  entry.result=result({}, {max_column:14,rows:[
+    {row:5,cells:[{column:8,address:'H5',value:'Thickness and quantities',presentation:{role:'section'}}]},
+    {row:6,cells:[{column:4,address:'D6',value:12.3456789,editable:true,type:'number',label:'Member length'},{column:8,address:'H6',value:26,calculated:true},{column:12,address:'L6',value:'mm / PUBLISHED VALUE',presentation:{role:'note'}}]},
+    {row:7,cells:[]},{row:8,cells:[]},
+    {row:9,cells:[{column:8,address:'H9',value:'Reference quantity',presentation:{role:'label',bold:true}},{column:11,address:'K9',value:0.123456789,editable:true,type:'number',label:'Reference quantity'}]},
+  ]});
+  const rawPublishedLayout=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  const publishedTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Thickness and quantities');
+  const publishedRow=publishedTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='6');
+  assert.deepEqual(publishedRow.children.map(cell=>cell.dataset.calculatorOutput),['L6','H6']);assert.deepEqual(publishedRow.children.map(cell=>cell.colSpan),[3,4]);assert.deepEqual(publishedRow.children.map(cell=>cell.rowSpan),[3,3]);
+  assert.equal(publishedRow.children[1].textContent,'26.00');assert.equal(publishedRow.children[1].classList.contains('calculator-align-left'),true);
+  const belowPublishedRow=publishedTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='9');assert.equal(belowPublishedRow.children.length,2);assert.deepEqual(belowPublishedRow.children.map(cell=>cell.colSpan),[3,4]);
+  assert.equal(belowPublishedRow.children[0].classList.contains('calculator-normal'),true);assert.equal(belowPublishedRow.children[0].classList.contains('calculator-bold'),false);
+  assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell).sort(),['D6','K9']);
+  const referenceControl=renderedControls().find(control=>control.dataset.calculatorCell==='K9');assert.equal(referenceControl.getAttribute('aria-label'),'Reference quantity');
+  assert.equal(JSON.stringify(entry.result),rawPublishedLayout);
+  const updatedPublishedLayout=copy(entry.result);updatedPublishedLayout.rows.find(row=>row.row===6).cells.find(cell=>cell.address==='H6').value=27.123456789;audit.setRequest(async()=>updatedPublishedLayout);await audit.calculate();
+  assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='K9'),referenceControl);assert.equal(publishedRow.children[1].textContent,'27.12');assert.equal(publishedRow.children[1].dataset.calculatorOutput,'H6');assert.equal(publishedRow.children[1].rowSpan,3);passed++;
+
+  // Collapsing a blank factor-helper row leaves its neighbouring merged source note and later inputs intact.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
+  entry.definition.sheets=[{name:'SETTINGS',header_rows:[],display_cells:{A371:{merge:'A371:G371',role:'collapsed_spacer'}},merges:['H371:N374',...[372,373,374].flatMap(row=>[`A${row}:C${row}`,`D${row}:G${row}`])]}];
+  entry.result=result({}, {sheet:'SETTINGS',max_column:14,rows:[{row:371,cells:[{column:1,address:'A371',value:null},{column:8,address:'H371',value:'Retained section-factor qualification',presentation:{role:'note'}}]},
+    ...[372,373,374].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Section-factor input',presentation:{role:'label'}},{column:4,address:`D${row}`,value:12.3456789,editable:row===373,type:'number'}]}))]});
+  const rawFactorRows=JSON.stringify(entry.result);realRender(entry);
+  const collapsedRow=descendants(byId('calculator-grid')).find(node=>node.dataset?.sourceRow==='371');assert.equal(collapsedRow.children.length,2);
+  assert.match(collapsedRow.children[0].className,/calculator-role-collapsed_spacer/);assert.equal(collapsedRow.children[0].colSpan,7);assert.equal(collapsedRow.children[0].dataset.calculatorValue,undefined);assert.equal(collapsedRow.children[0].classList.contains('calculator-value-empty'),false);
+  assert.equal(collapsedRow.children[1].dataset.calculatorOutput,'H371');assert.equal(collapsedRow.children[1].colSpan,7);assert.equal(collapsedRow.children[1].rowSpan,4);assert.equal(collapsedRow.children[1].textContent,'Retained section-factor qualification');
+  assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell),['D373']);assert.equal(JSON.stringify(entry.result),rawFactorRows);passed++;
+
   // BAGS keeps its exact yield while merging the adjacent decorative cells into one gold spacer.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';
   entry.definition.sheets=[{name:'BAGS',table_layout:'projected',header_rows:[19],section_cells:['A17'],display_cells:{H10:{merge:'H10:N10',role:'spacer'}},merges:['A1:N1','A17:N17'],presentation_tables:[
@@ -922,7 +965,7 @@ let passed = 0;
 
   // Cell-specific bold and centred text are presentation only and survive ordinary result refreshes.
   entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
-  entry.definition.sheets=[{name:entry.sheet,header_rows:[],display_cells:{J96:{bold:true,align:'center'},K96:{align:'center'}},merges:[]}];
+  entry.definition.sheets=[{name:entry.sheet,header_rows:[],display_cells:{J96:{bold:true,align:'center'},K96:{align:'center'},L96:{bold:false,align:'left'}},merges:[]}];
   entry.result=result({}, {sheet:entry.sheet,max_column:12,visible_columns:[10,11,12],rows:[{row:96,cells:[
     {column:10,address:'J96',value:'Application detail',presentation:{role:'body',bold:false}},
     {column:11,address:'K96',value:0.123456789,calculated:true,presentation:{role:'body'}},
@@ -932,12 +975,13 @@ let passed = 0;
   const alignedOutput=address=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===address);
   const alignedLabel=alignedOutput('J96');assert.equal(alignedLabel.classList.contains('calculator-bold'),true);assert.equal(alignedLabel.classList.contains('calculator-align-center'),true);
   assert.equal(alignedOutput('K96').classList.contains('calculator-align-center'),true);assert.equal(alignedOutput('K96').classList.contains('calculator-bold'),false);
-  assert.equal(alignedOutput('L96').classList.contains('calculator-bold'),true);assert.equal(alignedOutput('L96').classList.contains('calculator-align-center'),false);
+  assert.equal(alignedOutput('L96').classList.contains('calculator-bold'),false);assert.equal(alignedOutput('L96').classList.contains('calculator-normal'),true);assert.equal(alignedOutput('L96').classList.contains('calculator-align-left'),true);assert.equal(alignedOutput('L96').classList.contains('calculator-align-center'),false);
   assert.equal(JSON.stringify(entry.result),rawAlignedCells);
   const alignedUpdate=copy(entry.result);alignedUpdate.rows[0].cells[1].value=0.987654321;audit.setRequest(async()=>alignedUpdate);await audit.calculate();
   assert.equal(alignedOutput('J96'),alignedLabel);assert.equal(alignedOutput('K96').textContent,'0.99');assert.equal(alignedOutput('K96').classList.contains('calculator-align-center'),true);
   alignedUpdate.display_cells={J96:{align:'center'},K96:{align:'center'}};await audit.calculate();
   assert.notEqual(alignedOutput('J96'),alignedLabel);assert.equal(alignedOutput('J96').classList.contains('calculator-bold'),false);assert.equal(alignedOutput('J96').classList.contains('calculator-align-center'),true);
+  assert.equal(alignedOutput('L96').classList.contains('calculator-normal'),false);assert.equal(alignedOutput('L96').classList.contains('calculator-bold'),true);
   assert.equal(alignedUpdate.rows[0].cells[0].presentation.bold,false);passed++;
 
   // Populated notes use the same present-value state in forms and overview; headings stay structural.
@@ -951,7 +995,7 @@ let passed = 0;
 
   // The duct introduction is a full-width note even when its retained source style says section heading.
   entry=setup();entry.definition.id='ductwork';entry.definition.schedule.header_row=10;entry.definition.schedule.first_row=11;
-  entry.definition.sheets=[{name:'CALCULATOR',header_rows:[10],display_cells:{A3:{role:'note'}},merges:['A1:C1','A3:C3']}];
+  entry.definition.sheets=[{name:'CALCULATOR',header_rows:[10],display_cells:{A3:{role:'note',bold:false,align:'left'}},merges:['A1:C1','A3:C3']}];
   entry.result=result({}, {rows:[{row:1,cells:[{column:1,address:'A1',value:'DUCT PROTECTION CALCULATOR',presentation:{role:'title'}}]},
     {row:3,cells:[{column:1,address:'A3',value:'Enter the schedule in blue cells.',presentation:{role:'section',bold:true}}]},
     {row:11,cells:[{column:2,address:'B11',value:1,editable:true,type:'number'}]}]});
@@ -959,6 +1003,7 @@ let passed = 0;
   const ductOverview=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-overview');assert.equal(ductOverview.classList.contains('calculator-overview-full'),true);
   const ductIntro=descendants(ductOverview).find(node=>node.dataset?.calculatorOutput==='A3');
   assert.equal(ductIntro.tagName,'p');assert.equal(ductIntro.className,'calculator-overview-note');assert.equal(ductIntro.classList.contains('calculator-value-present'),true);
+  assert.equal(ductIntro.classList.contains('calculator-normal'),true);assert.equal(ductIntro.classList.contains('calculator-bold'),false);assert.equal(ductIntro.classList.contains('calculator-align-left'),true);
   assert.equal(ductIntro.textContent,'Enter values in the schedule input fields.');assert.equal(JSON.stringify(entry.result),rawDuctIntro);
   assert.equal(renderedControls().length,1);passed++;
 
@@ -967,7 +1012,8 @@ let passed = 0;
   assert.match(sectionCss,/\.calculator-table-scroll\.calculator-section-scroll\s*\{\s*max-height:\s*none\s*\}/);
   assert.match(sectionCss,/\.calculator-grid td\.calculator-role-spacer\s*\{\s*background:\s*#fff0ce!important\s*\}/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-value-empty\s*\{\s*background:\s*#f2f3f5!important\s*\}/);
-  assert.match(sectionCss,/\.calculator-overview-full \.calculator-overview-note\s*\{[^}]*flex:\s*0 0 100%/);passed++;
+  assert.match(sectionCss,/\.calculator-overview-full\s*>\s*p\s*\{[^}]*flex:\s*0 0 100%/);
+  assert.match(sectionCss,/\.calculator-grid \.calculator-normal\s*\{\s*font-weight:\s*400!important/);passed++;
 
   // Historical Back to Top text now has a real, labelled destination.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';const back=element('td');

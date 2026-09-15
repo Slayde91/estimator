@@ -2,10 +2,42 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
+The latest 23 browser comments refine calculator detail layout. Vermiculite
+factor helpers absorb blank dividers and collapse one blank left-side row while
+retaining adjacent notes, inputs and results. The Published thickness label
+appears before its left-aligned result. Five technical-rule headings use pink
+table-header styling; selected references use normal text and exposure names
+use bold text.
+
+Duct support-instruction prose uses normal weight beneath its existing column
+heading. Maxilite reference labels and board purchasing product labels are bold.
+Board calculator, summary and extra-board titles/notes fill their overview rows,
+with all three BOARD SUMMARY cards retained. Browser titles read BOARD SUMMARY
+and EXTRA BOARDS; running-total sections read SUMMARY for board and PRODUCT
+SUMMARY for vermiculite. Worksheet identities and underlying source captions
+remain unchanged. The exact cell/range boundaries are recorded in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md).
+
+These changes extend the existing presentation metadata and renderer without
+altering calculations, source merges, technical rules, saved inputs, schemas or
+PDF projections. Local checks passed 25 targeted Python tests, 75 calculator UI
+checks, 20 original UI checks, JavaScript syntax and the 34-file build. All
+104,068 worksheet cells and three PDF text projections matched before/after.
+Browser review confirmed the row order/alignment, helper spans, label weights,
+pink headings, full-width board overviews, retained cards and title aliases with
+no application errors. Independent diff review was clean.
+
+The main service was refreshed successfully: four served assets match the current
+files and the new presentation metadata is active. Database state retained two
+quotes, no settings or calculator-state records and schema version 2 exactly.
+Commit/publication and current-head CI/merge remain pending. Detailed evidence
+belongs at the top of SESSION_HANDOFF.md and in `.runtime/detail-layout-qa`;
+local/runtime checks do not establish a published or merged change.
+
 The shared calculator settings banner now displays **SETTINGS & RULES**. This is
 a browser title change only; worksheet names, source values and calculations are unchanged.
 
-The latest 21 browser comments refine calculator units, table layout and label
+The preceding 21 browser comments refined calculator units, table layout and label
 formatting. Vermiculite SCHEDULE's area and volume summary captions explicitly
 show m² and m³. Its running material totals and the board schedule's Board Totals
 occupy their own full-width sections with gold explanatory notes.
@@ -32,9 +64,10 @@ The saved-data baseline contains two quotes and no settings or calculator-state
 records. The main service was successfully refreshed: all four served assets
 match the current files, and the new presentation metadata is active. The final
 database comparison preserved every record and schema version 2 exactly.
-Publication and current-head CI/merge remain pending. Detailed evidence and the
-current checkpoint are recorded at the top of SESSION_HANDOFF.md; successful
-local and runtime checks do not establish publication.
+Publication and current-head CI/merge were pending at that prior documentation
+checkpoint; its final publication receipt is under `.runtime/units-labels-qa`.
+Current evidence belongs at the top of SESSION_HANDOFF.md; successful local and
+runtime checks do not establish publication.
 
 The preceding eleven browser comments simplify the Estimator form and refine
 calculator table presentation. The Workflow dropdown is removed while saved

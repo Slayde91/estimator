@@ -414,6 +414,12 @@
     return false;
   }
 
+  function applyCellDisplay(element, display = {}, sourceBold = false) {
+    if (display.bold === false) element.classList.add("calculator-normal");
+    else if (display.bold === true || sourceBold) element.classList.add("calculator-bold");
+    if (["left", "center"].includes(display.align)) element.classList.add(`calculator-align-${display.align}`);
+  }
+
   function renderOverview(rows, entry, columns) {
     const metadata = displayMetadata(entry), omittedRows = new Set(metadata.omitted_rows), isOmitted = omittedCell(metadata);
     rows = rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
@@ -424,7 +430,7 @@
     const pairs = summaryFields[entry.definition.id]?.[entry.sheet] || [];
     const mapped = new Map(rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
     const used = new Set(pairs.flat()), cards = node("div", "calculator-summary-cards"), box = node("div", "calculator-overview");
-    if (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR") box.classList.add("calculator-overview-full");
+    if (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR" || entry.definition.id === "steel_board" && ["CALCULATOR", "BOARD SUMMARY", "EXTRA BOARDS"].includes(entry.sheet)) box.classList.add("calculator-overview-full");
     const productSummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE";
     const boardSchedule = entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR";
     if (productSummary) { used.add("M4"); used.add("M5"); }
@@ -434,6 +440,7 @@
       const label = mapped.get(labelAddress), value = mapped.get(valueAddress);
       if (!label || !value || !columns.includes(value.column)) continue;
       const card = node("div", "calculator-summary-metric"), heading = node("span", "", sourceDisplayText(label.value, entry, labelAddress)), output = node("strong");
+      applyCellDisplay(heading, metadata.display_cells[labelAddress]); applyCellDisplay(output, metadata.display_cells[valueAddress]);
       output.dataset.calculatorValue = "true"; output.calculatorValueCard = card;
       output.dataset.calculatorOutput = valueAddress; updateOutputCell(output, value); card.append(heading, output); cards.append(card);
     }
@@ -452,8 +459,7 @@
       }
       const display = metadata.display_cells[address] || {}, role = display.role || presentationRole(cell);
       const item = node(isNumber(cell.value) ? "strong" : role === "title" ? "h3" : "p", `calculator-overview-${isNumber(cell.value) ? "metric" : role}`);
-      if (display.bold) item.classList.add("calculator-bold");
-      if (display.align === "center") item.classList.add("calculator-align-center");
+      applyCellDisplay(item, display);
       if (cell.calculated || isNumber(cell.value) || !["title", "section", "column_header", "label"].includes(role)) item.dataset.calculatorValue = "true";
       item.dataset.calculatorOutput = address;
       updateOutputCell(item, cell); box.append(item);
@@ -467,7 +473,7 @@
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
-    const heading = node("h4", "", board ? "Board Totals" : "Running material totals"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
+    const heading = node("h4", "", board ? "SUMMARY" : "PRODUCT SUMMARY"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
     const scroll = node("div", "calculator-product-totals-scroll"), table = node("table"), head = node("thead"), body = node("tbody"), headers = node("tr");
     for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
@@ -618,10 +624,19 @@
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
-      for (const column of groupColumns) {
+      const requestedLayout = renderedGroup.definition?.row_layouts?.[row.row];
+      let rowLayout = null;
+      if (Array.isArray(requestedLayout) && requestedLayout.length) {
+        const proposed = requestedLayout.map((placement) => ({ ...parseAddress(placement?.address), span: placement?.span })), layoutColumns = new Set(proposed.map((placement) => placement.column));
+        const visibleColumn = (column) => groupColumns.includes(column) && !isOmitted(row.row, column) && renderedGroup.visibleCell(row.row, column) && !renderedGroup.region?.isTitle(row.row, column);
+        const requiredColumns = row.cells.filter((cell) => visibleColumn(cell.column) && (cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "")).map((cell) => cell.column);
+        if (layoutColumns.size === proposed.length && proposed.every((placement) => placement.row === row.row && visibleColumn(placement.column) && values.has(placement.column) && Number.isInteger(placement.span) && placement.span > 0) && proposed.reduce((total, placement) => total + placement.span, 0) === groupColumns.length && requiredColumns.every((column) => layoutColumns.has(column))) rowLayout = proposed;
+      }
+      for (const placement of rowLayout || groupColumns.map((column) => ({ column }))) {
+        const column = placement.column;
         if (isOmitted(row.row, column) || !renderedGroup.visibleCell(row.row, column) || renderedGroup.region?.isTitle(row.row, column)) continue;
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
-        if (merge && (column !== groupColumns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== renderedGroup.rows.find((visible) => visible >= merge.start.row && visible <= merge.end.row))) continue;
+        if (!rowLayout && merge && (column !== groupColumns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== renderedGroup.rows.find((visible) => visible >= merge.start.row && visible <= merge.end.row))) continue;
         const cell = values.get(column) || { column, value: null };
         const definition = renderedGroup.definition;
         const headerRow = definition && (Object.prototype.hasOwnProperty.call(definition, "header_row") ? definition.header_row : definition.title_address || definition.table_kind === "form" ? null : definition.first_row);
@@ -638,9 +653,11 @@
         const td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
         if (matrixHeading) td.scope = "col";
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
-        if (display.bold || cell.presentation?.bold) td.classList.add("calculator-bold");
-        if (display.align === "center") td.classList.add("calculator-align-center");
-        if (merge) {
+        applyCellDisplay(td, display, cell.presentation?.bold);
+        if (rowLayout) {
+          td.colSpan = placement.span; td.rowSpan = merge ? renderedGroup.rows.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1 : 1;
+          if (placement.span > 1) td.classList.add("calculator-merged");
+        } else if (merge) {
           td.colSpan = groupColumns.filter((visible) => visible >= merge.start.column && visible <= merge.end.column).length;
           td.rowSpan = renderedGroup.rows.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1;
           td.classList.add("calculator-merged");
@@ -699,6 +716,7 @@
       if (link) {
         const section = node("section", projectedTables ? "calculator-projected-section" : "calculator-stacked-section"), heading = node("h4", `calculator-section-anchor calculator-section-theme-${link.theme}`, link.label); heading.id = link.id;
         const titleCell = sourceCells.get(definition.title_address);
+        applyCellDisplay(heading, metadata.display_cells[definition.title_address]);
         if (titleCell) { heading.dataset.calculatorOutput = definition.title_address; updateOutputCell(heading, titleCell); }
         section.append(heading, scroll); content.push(section);
       }

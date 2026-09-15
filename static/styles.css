@@ -135,8 +135,9 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .quote-item h3{overflow-wrap:anywhere;font-size:15px}
 .quote-item p{color:var(--muted);font-size:11px;margin-top:5px}
 .empty-state{padding:60px 24px;text-align:center;color:var(--muted)}
-footer{max-width:1600px;margin:auto;padding:21px 30px;border-top:1px solid var(--line);font-size:9px;font-weight:750;letter-spacing:1px;display:flex;justify-content:space-between;color:#7b6772}
+footer{max-width:1600px;margin:auto;padding:21px 30px;border-top:1px solid var(--line);font-size:9px;font-weight:750;letter-spacing:1px;display:flex;flex-wrap:wrap;gap:12px 20px;justify-content:space-between;color:#7b6772}
 footer span{font-weight:400;letter-spacing:0}
+footer .estimating-notice{flex-basis:100%;margin:0;font-size:12px;font-weight:400;line-height:1.6;letter-spacing:0}
 dialog{border:1px solid var(--line);border-top:3px solid var(--orange);border-radius:14px;padding:28px;max-width:480px;box-shadow:0 20px 70px #30111e33;color:var(--ink)}
 dialog::backdrop{background:#2e192377;backdrop-filter:blur(2px)}
 dialog p{margin:15px 0 24px;font-size:13px;color:var(--muted);white-space:pre-line;overflow-wrap:anywhere}

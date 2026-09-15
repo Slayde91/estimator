@@ -1,6 +1,55 @@
 # Session handoff
 
+## Visible pricing yields and Excel views — 2026-09-16
+
+Branch `fix/pricing-workbook-views-and-visible-yields` starts from verified
+PR #23 merge `53c875dc4d4d7e576507f8d93bf1957e1c39e7ec`. The browser now shows
+each use's category, selection name, sell rate and yield inline beside its
+product. Shared product fields have one editor across multiple uses. Search,
+group filtering, standalone/unused items and independent product/rate/yield
+resets retain the existing draft and pricing semantics.
+
+The user's exported workbook contained duplicate pane selections and a
+nonexistent bottom-right pane on Instructions, matching Excel's sheet2 view
+repair message. All 166 Use rows were also hidden. The exporter now configures
+the final C2/A2 freeze once per sheet, replaces selections with valid unique
+panes, and exports every Use row visible without row outlining. Inventory rows
+still leave use-only fields blank; the Use rows own groups, price sources,
+yields, Rate IDs and use order. Optional property columns P:Z remain expandable.
+Typed values, exact headers, legacy imports, calculation rules, stable links,
+storage and saved-quote snapshots are unchanged.
+
+Verified locally: 24 pricing workbook tests passed in 198.670 seconds, including
+the legacy and combined 216-scenario parity comparisons, import/security checks,
+numeric precision, visible rows and OOXML view invariants. All 32 Estimator UI
+checks and four integration tests (56.458 seconds) pass.
+
+Microsoft Excel 16.0 build 20326 opened the corrected workbook read-only with
+normal loading (`xlNormalLoad=0`), retaining both sheets and 583 data rows. The
+original failed the same native open. Inventory & Rates freezes two columns
+and one header row. All original/corrected cells in that sheet have exactly
+equal values: 417 Inventory and 166 Use rows, all visible. Artifact Tool rendered
+both sheets and confirmed the visible rows and legible instructions.
+
+Browser verification changed SBR supplier cost to 300 and markup to 20%, making
+both linked Primers/Topcoats rates 360. A Primer override of 400 and yield 155
+left Topcoats unchanged. Reset rate retained yield 155; Reset yield restored
+142. Commit, push, PR, exact-head CI/review and merge remain pending at this
+checkpoint. Current Git evidence and the eventual
+`.runtime/pricing-visible-yields-qa/publication.json` receipt take precedence.
+
+The reported workbook was read only and copied to
+`.runtime/pricing-visible-yields-qa/before-pricing.xlsx`; source SHA-256 is
+`d7f617fc180432b6258be40f67984eef84bfbfd72b32c5fe45fb5facfffc0baf`.
+The same QA folder contains recovery and validation evidence. Preserve the
+user's workbook, open Excel/browser drafts and live saved state during QA.
+The earlier expandable/collapsed pricing layouts below are historical and are
+superseded by this visible layout.
+
 ## Calculator presentation polish — 2026-09-16
+
+Published as PR #23, merge `53c875dc4d4d7e576507f8d93bf1957e1c39e7ec`.
+The following text retains its original validation checkpoint.
 
 Branch `feat/calculator-presentation-polish` starts from PR #22 merge
 `a4c8ffca5757f8abb96adff6eb6ab133e29f74c9`. The twelve browser comments use

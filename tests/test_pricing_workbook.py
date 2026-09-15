@@ -18,7 +18,7 @@ from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.pricing_workbook import (
     INVENTORY_HEADERS, RATE_HEADERS, PROPERTY_HEADERS, COMBINED_HEADERS, COMBINED_SHEET,
     export_pricing_workbook as export_combined_pricing_workbook,
-    import_pricing_workbook, _serialize_exact,
+    import_pricing_workbook, _format_sheet, _serialize_exact,
 )
 
 
@@ -326,7 +326,7 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
     # layouts; the combined format must not weaken the legacy parity coverage.
     test_combined_import_matches_216_native_excel_scenarios = LegacyPricingWorkbookTests.test_unchanged_import_preserves_every_calculator_cell_and_reports_no_changes
 
-    def test_export_has_one_owner_per_product_and_expandable_uses_with_exact_values(self):
+    def test_export_has_one_owner_per_product_and_visible_uses_with_exact_values(self):
         workbook = load_workbook(BytesIO(self.exported))
         self.assertEqual(workbook.sheetnames, [COMBINED_SHEET, "Instructions"])
         sheet = workbook[COMBINED_SHEET]
@@ -334,7 +334,6 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
         self.assertEqual((sheet.max_row, sheet.max_column), (584, 26))
         self.assertEqual(sheet.freeze_panes, "C2")
         self.assertEqual(sheet.auto_filter.ref, "A1:Z584")
-        self.assertFalse(sheet.sheet_properties.outlinePr.summaryBelow)
         rows = list(sheet.iter_rows(min_row=2, values_only=True))
         self.assertEqual(sum(row[0] == "Inventory" for row in rows), 417)
         self.assertEqual(sum(row[0] == "Use" for row in rows), 166)
@@ -343,15 +342,24 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
         self.assertIn("%", combined_cell(sheet, "Inventory", "204", "Markup").number_format)
         self.assertEqual(combined_cell(sheet, "Inventory", "204", "Sell price / rate").value, 384.93)
         parent = combined_row(sheet, "Inventory", "204")
-        self.assertTrue(sheet.row_dimensions[parent].collapsed)
+        self.assertFalse(sheet.row_dimensions[parent].collapsed)
         for rate_id, offset in (("primers:1", 1), ("topcoats:1", 2)):
             child = combined_row(sheet, "Use", rate_id)
             self.assertEqual(child, parent + offset)
-            self.assertEqual(sheet.row_dimensions[child].outlineLevel, 1)
-            self.assertTrue(sheet.row_dimensions[child].hidden)
+            self.assertEqual(sheet.row_dimensions[child].outlineLevel, 0)
+            self.assertFalse(sheet.row_dimensions[child].hidden)
             self.assertEqual(combined_cell(sheet, "Use", rate_id, "Inventory ID").value, "204")
             self.assertEqual(combined_cell(sheet, "Use", rate_id, "Yield").value, 142)
             self.assertIsNone(combined_cell(sheet, "Use", rate_id, "Supplier price").value)
+        for row in range(2, sheet.max_row + 1):
+            self.assertFalse(sheet.row_dimensions[row].hidden, row)
+            self.assertFalse(sheet.row_dimensions[row].collapsed, row)
+            self.assertEqual(sheet.row_dimensions[row].outlineLevel, 0, row)
+        use_headers = ("Group", "Price source", "Yield type", "Yield", "Rate ID", "Use order")
+        for header in use_headers:
+            self.assertIsNone(combined_cell(sheet, "Inventory", "204", header).value, header)
+        self.assertEqual([combined_cell(sheet, "Use", "primers:1", header).value for header in use_headers],
+                         ["primers", "Inventory", "Number", 142, "primers:1", 1])
         validations = {str(v.sqref): v for v in sheet.data_validations.dataValidation}
         self.assertEqual(len(validations), 5)
         self.assertTrue(validations["D2:D10001"].allow_blank)
@@ -359,6 +367,48 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
         self.assertEqual(validations["D2:D10001"].formula1.count(",") + 1, 14)
         self.assertTrue(sheet.column_dimensions["P"].hidden)
         self.assertFalse(any(cell.data_type == "f" for page in workbook for row in page for cell in row))
+        workbook.close()
+
+    def test_exported_views_have_only_valid_unique_panes_before_and_after_openpyxl_save(self):
+        namespace = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        expected = {
+            "xl/worksheets/sheet1.xml": (
+                {"xSplit": "2", "ySplit": "1", "topLeftCell": "C2", "activePane": "bottomRight", "state": "frozen"},
+                [("topRight", "C1"), ("bottomLeft", "A2"), ("bottomRight", "C2")]),
+            "xl/worksheets/sheet2.xml": (
+                {"ySplit": "1", "topLeftCell": "A2", "activePane": "bottomLeft", "state": "frozen"},
+                [("bottomLeft", "A2")]),
+        }
+        for payload in (self.exported, modify(self.exported, lambda workbook: None, normal_excel_precision=True)):
+            with ZipFile(BytesIO(payload)) as archive:
+                for path, (pane_attributes, selections) in expected.items():
+                    root = ET.fromstring(archive.read(path))
+                    views = root.findall("s:sheetViews/s:sheetView", namespace)
+                    self.assertEqual(len(views), 1, path)
+                    view = views[0]
+                    panes = view.findall("s:pane", namespace)
+                    self.assertEqual(len(panes), 1, path)
+                    self.assertEqual(panes[0].attrib, pane_attributes, path)
+                    selected = view.findall("s:selection", namespace)
+                    self.assertEqual([(node.get("pane"), node.get("activeCell")) for node in selected], selections, path)
+                    self.assertEqual(len({node.get("pane") for node in selected}), len(selected), path)
+                    self.assertTrue(all(node.get("sqref") == node.get("activeCell") for node in selected))
+                    self.assertIn(panes[0].get("activePane"), {node.get("pane") for node in selected})
+
+    def test_formatting_reinitializes_selections_when_freeze_changes(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(["Product", "Rate"])
+        sheet.append(["Test product", 12.3456789012345])
+        original = list(sheet.values)
+        for freeze, expected in (("E2", ["topRight", "bottomLeft", "bottomRight"]),
+                                 ("A2", ["bottomLeft"]), ("C2", ["topRight", "bottomLeft", "bottomRight"]),
+                                 ("C2", ["topRight", "bottomLeft", "bottomRight"]),
+                                 ("C1", ["topRight"]), ("A1", [None])):
+            _format_sheet(sheet, (), {}, freeze_panes=freeze)
+            self.assertEqual([selection.pane for selection in sheet.sheet_view.selection], expected)
+            self.assertEqual(len(sheet.views.sheetView), 1)
+            self.assertEqual(list(sheet.values), original)
         workbook.close()
 
     def test_roundtrip_preserves_every_product_rate_dropdown_order_and_calculation(self):

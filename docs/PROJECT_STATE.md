@@ -2,6 +2,16 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
+Shared estimating notice: the application footer now carries the requested
+CEASEFIRE PFP guidance note beneath every browser view. The footer wraps on
+narrow screens. Pricing-library behavior, imports and calculations are unchanged.
+Local validation: all four main views checked in the browser, footer visually
+reviewed, 117 existing UI checks passed, and the 35-file distribution built.
+
+The preceding labour/control work below was subsequently merged as PR #20 at
+`e843cf7a09b6ec20f14ff93ebe7ad0863cbbb148`; both exact-head CI runs succeeded.
+Its final receipt is `.runtime/labour-controls-qa/publication.json`.
+
 Commit-preparation checkpoint on `feat/labour-breakdown-calculator-controls`: the latest
 27 browser comments add an Estimator Labour breakdown and refine calculator
 controls, titles, units, spacing and action styling.

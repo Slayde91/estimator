@@ -1,5 +1,20 @@
 # Session handoff
 
+## Shared estimating notice — 2026-09-15
+
+Branch `feat/shared-estimating-notice` starts from merged PR #20,
+`e843cf7a09b6ec20f14ff93ebe7ad0863cbbb148`. The shared HTML footer now displays
+the user's exact CEASEFIRE PFP estimating notice beneath all browser views,
+with wrapping text. Pricing-library consolidation was discussed only; no
+pricing schema, calculation, import/export or stored-data changes were made.
+
+Verified locally: the note follows content in Estimator, Calculators, Pricing
+library and Saved quotes; its layout was visually reviewed. All 117 existing
+UI checks pass, `git diff --check` passes, and the 35-file distribution builds.
+Publication evidence is retained in `.runtime/footer-notice-qa` once available.
+The earlier labour/control checkpoint below is historical; PR #20's final
+successful CI and merge are recorded in `.runtime/labour-controls-qa/publication.json`.
+
 ## Labour days and calculator controls — commit-preparation checkpoint, 2026-09-15
 
 Work on `feat/labour-breakdown-calculator-controls` starts from PR #19's merge

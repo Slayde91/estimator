@@ -161,7 +161,9 @@ class CalculatorSectionNavigationTests(unittest.TestCase):
         bags = self.metadata('steel_vermiculite', 'BAGS')
         self.assertEqual(bags['display_table_order'], [1, 0])
         self.assertEqual([(table['first_row'], table['last_row']) for table in bags['presentation_tables']],
-                         [(6, 15), (17, 24)])
+                         [(1, 15), (17, 24)])
+        self.assertEqual(bags['presentation_tables'][0]['title_address'], 'A1')
+        self.assertEqual(bags['presentation_tables'][0]['subtitle_address'], 'A3')
         self.assertEqual(self.metadata('steel_vermiculite', 'SCHEDULE')['schedule_heading'], 'MEMBER SCHEDULE')
         self.assertTrue(self.metadata('steel_board', 'START')['expand_tables'])
 

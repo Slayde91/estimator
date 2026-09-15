@@ -148,6 +148,26 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 self.assertTrue(any('copied fixing instructions' in warning for warning in page['warnings']))
         self.assertEqual(self.stored_rows(), before)
 
+    def test_display_tabs_keep_the_original_settings_api_and_saved_input_scope(self):
+        definition = self.json_request('GET', '/api/calculators/steel_vermiculite')
+        self.assertEqual(definition['pages'], ['CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS'])
+        self.assertEqual([page['id'] for page in definition['display_pages']],
+                         ['START', 'CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS', 'FACTOR CALCS'])
+        draft = {'SETTINGS': {'D346': 123.4567890123, 'D358': 219.8765432109}}
+        saved = self.json_request('PUT', '/api/calculators/steel_vermiculite/state', {'inputs': draft})
+        self.assertEqual(saved['inputs'], draft)
+        before = self.stored_rows()
+        page = self.worksheet('steel_vermiculite', 'SETTINGS')
+        for address, value in draft['SETTINGS'].items():
+            self.assertEqual(self.cells(page)[address]['value'], value)
+        for browser_page in ('START', 'FACTOR CALCS'):
+            self.json_request('POST', '/api/calculators/steel_vermiculite/worksheet',
+                              {'sheet': browser_page}, expected=400)
+            self.json_request('PUT', '/api/calculators/steel_vermiculite/state',
+                              {'inputs': {browser_page: {'D346': 999}}}, expected=400)
+        self.assertEqual(self.json_request('GET', '/api/calculators/steel_vermiculite')['inputs'], draft)
+        self.assertEqual(self.stored_rows(), before)
+
     def test_dropdowns_share_full_lists_and_keep_dependent_numeric_choices(self):
         inputs = {"CALCULATOR": {"C9": "TRAFALGAR COREX", "C10": "PROMATECT 250", "I9": "Beam", "I10": "Column"}}
         result = self.worksheet("steel_board", "CALCULATOR", inputs=inputs)

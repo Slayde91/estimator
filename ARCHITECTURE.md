@@ -35,7 +35,7 @@ On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It r
 | `estimator/storage.py` | Current library/settings, quote metadata/work summaries, saved full inputs, complete catalog/rate/yield snapshots, result evidence and source hashes |
 | `estimator/report.py` | Branded PDF presentation of quote details, generated work summaries, existing results and inputs using business labels |
 | `estimator/server.py` | Loopback-only allowlisted HTTP/JSON interface and request validation |
-| `static/` | Accessible estimate-details controls, automatic name/work summary, draft pricing editor/import review, Excel export, quote persistence, named cost breakdown, original logo and PDF download |
+| `static/` | Accessible estimate-details controls, automatic quote names, draft pricing editor/import review, Excel export, quote persistence, named cost breakdown, original logo and PDF download |
 
 ## Pricing library extension
 
@@ -55,7 +55,13 @@ Previous architecture: quote JSON stored a manual title, workflow, notes, calcul
 
 Metadata is trimmed and bounded to 100 characters for project number, 200 for client and 400 for site address; control characters are rejected. The quote name joins nonempty project/client/site values with the exact separator `- `, giving `Project No.- Client- Site Address` and a maximum of 704 characters. The server derives the name rather than trusting a manually supplied title when metadata is present. Omitted metadata retains previous values during updates; explicit empty strings clear them. Legacy manual names remain available for records without metadata, and a new empty record uses `Untitled quote`.
 
-`compile_work_summary(workflow, result)` reads only the given workflow, inputs and calculated cells. It describes active products and coverage, quantities/yields/wastage, labour teams and days, masking, selected services, extra labour and adjustments. It shares existing material and addition labels and reads calculated values without reimplementing their formulas. New calculations expose the summary to the UI and new quote saves store it. Older reports can derive a display summary from their saved snapshot without changing the stored record or consulting current prices. A summary is a description of entered estimating facts, not technical product approval or geometry inference.
+`compile_work_summary(workflow, result)` reads only the given workflow, inputs and calculated cells. It describes active products and coverage, quantities/yields/wastage, labour teams and days, masking, selected services, extra labour and adjustments. It shares existing material and addition labels and reads calculated values without reimplementing their formulas. Calculation responses and quote saves retain the summary, and PDFs still include it; the Estimator's generated-summary panel is removed. Older reports can derive a summary from their saved snapshot without changing the stored record or consulting current prices. A summary is a description of entered estimating facts, not technical product approval or geometry inference.
+
+New-estimate initialization explicitly sets the existing Notes input B12 to an
+empty string. The immutable workbook field default remains `Allowances`;
+backend normalization and saved-quote loading keep their existing semantics.
+Explicit saved notes, including `Allowances` and blank text, are preserved.
+The separate measurement textarea retains its NOTES label and stored identity.
 
 Display formatting uses two decimal places for numeric app controls, generated numeric descriptions, PDF values and XLSX numeric formats. Untouched original values stay in raw client/server state and exported cells; all calculation arithmetic remains unrounded. An intentional edit in a numeric app control records two displayed decimal places, including conversion from a displayed percentage to its stored fraction. This distinction prevents merely opening or saving an old quote from changing its totals. Literal product labels, IDs and notes are preserved.
 
@@ -117,27 +123,40 @@ returns the complete bounded source page with shared typed dropdown option sets,
 visible columns and source-derived presentation roles. The browser renders every
 prepared schedule row, retaining hidden/advanced input choices. Explicit
 presentation omissions hide the requested vermiculite commentary and source
-metadata without removing their cells from the source graph. Shared datalists avoid repeating large section libraries for every
-row. Main-section metadata supplies stable contents anchors and colour themes.
+metadata without removing their cells from the source graph. Shared datalists
+remain available. Vermiculite Section ID uses a native select whose full source
+option list is materialized when opened, avoiding 553 options in each of 1,000
+rows at initial render. Main-section metadata supplies stable contents anchors
+and colour themes.
 Non-schedule occupancy is part of the render signature, so a newly populated
 formula note is not lost during an in-place output refresh. The single-member
 period matrix has its own equal-width period columns rather than inheriting the
 form's narrow spacer. Neither presentation roles nor display rounding change
 calculated values. Read-only outputs have two value-presence highlight states:
-populated and blank. Numeric zero belongs to the populated state; this styling
-does not interpret a technical status as acceptable or rejected.
+populated and blank. Numeric zero belongs to the populated state. The published
+thickness H6 has an explicit pale-blue display highlight; none of these colors
+interprets a technical status as acceptable or rejected.
 
-The same presentation metadata now declares Settings panel rectangles and a
-navigation mode. Vermiculite SETTINGS has eleven sections, Duct PRODUCT SETTINGS
-five and board SETTINGS three. Their initial view has no selected panel; native
-buttons reveal one section and retain that selection in client memory per
-calculator/page. This changes visibility only: the complete evaluated worksheet
+The same presentation metadata declares section rectangles, navigation modes
+and browser `display_pages`. Vermiculite adds START and FACTOR CALCS around its
+four unchanged source pages. START directly displays the operating rules from
+SETTINGS; SETTINGS offers seven global/product choices and FACTOR CALCS three
+helper choices. Duct PRODUCT SETTINGS retains five choices and board SETTINGS
+three. Picker pages initially have no selected panel; native buttons reveal one
+section and retain that selection in client memory per display page. START has
+no picker. All three vermiculite views continue to request source SETTINGS and
+retain SETTINGS cell keys for edits. The complete evaluated worksheet
 and draft still drive validation, recalculation, save/reset and PDF/Excel-register
 downloads. Column-bounded rectangles keep side-by-side duct/board tables
 independent without copying inputs or creating another calculation path.
 
 Existing presentation-table metadata controls the BAGS order and stable anchors;
 display aliases and a numeric-only suffix place mm beside the published value.
+The product-order table now precedes the MATERIAL QUANTITIES heading, subtitle
+and manual form. Settings/operating headings use concise aliases without their
+source numbering or slash suffixes. Duct SUMMARY omits contents navigation;
+vermiculite schedule note Y uses normal weight, and board Settings columns A/P
+use bold reference labels.
 Targeted browser text filtering removes generic success subtitles and the exact
 duct copied-fixing notice while preserving failures, other warnings and source
 responses. Board START expands with page scrolling. These are extensions of the

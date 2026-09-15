@@ -2,34 +2,49 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
-Current increment: the three **SETTINGS & RULES** pages use section buttons.
-They begin with no section open and show only the selected section: eleven
-choices for vermiculite, five for ductwork and three for board. The browser
-retains the selection while recalculating or switching pages; all settings stay
-in the complete draft, validation, save/reset and PDF/Excel-register scope.
+Current increment on `fix/calculator-start-factor-tabs`: the latest twelve
+browser comments separate vermiculite START, SETTINGS and FACTOR CALCS views,
+refine source-backed headings and controls, and simplify the Estimator form.
+The six browser tabs retain the four original source pages. Operating rules
+appear directly on START; SETTINGS has seven choices and FACTOR CALCS three.
+All use the existing SETTINGS source cells, complete draft and report scope.
 
-Vermiculite CALCULATOR/BAGS and board START omit contents navigation. BAGS shows
-the product order summary before its manual form and uses bold product names.
-Vermiculite gains the MEMBER SCHEDULE heading and shows numeric published values
-with mm beside the value. CAFCO review prose uses normal weight, the FyreWrap
-application heading is shorter, and board START uses page scrolling. Generic
-completed-calculation subtitles and the exact duct copied-fixing notice are
-hidden in the browser; errors, other warnings and the source/API content remain.
+Vermiculite BAGS places product ordering before the MATERIAL QUANTITIES heading,
+subtitle and manual form. Published thickness H6 has a pale-blue highlight and
+its existing numeric mm suffix. Schedule Section ID uses a native source list,
+loaded when opened to keep 1,000-row rendering practical; note column Y uses
+normal font weight. Duct SUMMARY omits contents navigation, and board SETTINGS
+uses bold first-column labels in its general-settings and diagnostic tables.
 
-These changes extend existing presentation metadata and the renderer, with no
-new dependency, schema, formula or technical-rule change. Exact ranges are in
-[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Six new section
-tests, 28 API/cleanup tests, 84 calculator UI checks, 20 original UI checks,
-syntax/diff checks and the 35-file build passed. All 104,068 cells across twelve
-API worksheets, three PDF text projections and three register worksheet-value
-sets match before/after. The source audit retains 73 editable Settings controls
-and five read-only material references exactly once.
+New Estimator estimates start Notes B12 blank. The immutable default remains
+`Allowances`, and saved explicit notes are preserved. The generated Work summary
+panel is removed; calculation responses, saved records and PDFs retain their
+summary data. No formula, technical rule, source package, schema or export
+contract changes. Exact projections are in [the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md).
 
-Browser checks verified section selection, retained drafts/hidden controls,
-headings, units, weights and board START scrolling. Independent review found no
-issues. The main service refreshed successfully and preserved every saved record
-and schema version 2. Commit/publication and exact-head CI/merge remain pending;
-current evidence belongs at the top of SESSION_HANDOFF.md.
+Verified locally: 89 calculator and 22 Estimator UI checks (111 total),
+29 API/cleanup tests, 13 section/tab contract tests and 42 focused Estimator
+backend/PDF tests passed, along with syntax/whitespace checks and the 35-file
+build. All 104,068 source cells across twelve worksheets, three PDF text
+projections and three register worksheet-value sets match before/after.
+
+Native review verified all requested layouts, hidden section selection, exact
+helper draft preservation, source-keyed controls and 554 native Section ID
+choices including the leading blank. Review fixes corrected A7/A27 helper
+locations and preserved blank-first option order. The main service now serves
+matching assets and the new tabs; schema version 2 and all saved records are
+unchanged. Final independent review found no remaining issues.
+Commit/push/PR/CI/merge remain pending at this checkpoint. Evidence is retained under `.runtime/tabs-notes-qa` and
+summarized at the top of SESSION_HANDOFF.md.
+
+The preceding section-navigation increment is published. PR #18 merged as
+`de808e13cd723853229358459c9ac03c8a696893` from feature head
+`d8d59c196d35cd89c1ad1a2fef021290dce3efac`. Both exact-head CI runs passed 227
+Python tests (223 passed, four skipped), 84 calculator UI checks and 20 original
+UI checks. Local evidence also matched all 104,068 source cells across twelve
+worksheets, all three PDF text projections and register worksheet values, and
+preserved saved data. The receipt is `.runtime/section-navigation-qa/publication.json`;
+that evidence establishes PR #18, not the current increment.
 
 Each calculator now has **Download Excel register** beside its schedule PDF.
 The workbook contains Summary and Schedule sheets, plus Extra boards for board
@@ -51,7 +66,7 @@ The refreshed service returned all three registers correctly, served matching
 assets and preserved saved data. PR #17 merged as `364a024`; both exact-head CI
 runs passed 220 Python tests (216 passed, four skipped) and 101 UI checks. Its
 publication receipt is under `.runtime/excel-register-qa`; those prior checks
-do not validate the current section-navigation increment.
+do not validate the current START/FACTOR CALCS increment.
 
 The preceding 23 browser comments refine calculator detail layout. Vermiculite
 factor helpers absorb blank dividers and collapse one blank left-side row while
@@ -238,9 +253,10 @@ The calculator pages now expose every prepared row on one continuous page:
 1,000 vermiculite items, 300 duct items, 200 board items and 40 extra-board items.
 Forms and tables use the official colours, clearer source headings, labelled
 summary values and shared section dropdowns. Main sections have uniform
-red-and-white headings and linked contents. Vermiculite SETTINGS uses the Product Settings and
-Rules banner with its section links; material-basis text is read-only. Outputs
-use two highlight states: populated and blank, with numeric zero populated.
+red-and-white headings and scoped navigation. Vermiculite operating rules and
+factor helpers have separate browser tabs; SETTINGS has seven section choices.
+Material-basis text is read-only. Outputs distinguish populated and blank values,
+with numeric zero populated and a separate published-thickness highlight.
 The single-member period matrix has independent column widths, including the
 120-minute column. Forms fit a phone while comparison tables scroll separately.
 

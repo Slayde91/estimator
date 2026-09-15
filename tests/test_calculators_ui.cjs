@@ -110,7 +110,26 @@ let passed = 0;
   const rating = warningWrapper.children[0]; assert.equal(rating.tagName, 'input');
   rating.value = '75'; await rating.emit('input'); assert.equal(entry.inputs.CALCULATOR.B9, 75);
   const strict = audit.makeControl({ column: 3, type: 'select', value: 4, options: [1, 2, 3, 4] }, 9, entry, 'Sides');
-  assert.equal(strict.tagName, 'select'); strict.value = '3'; await strict.emit('change'); assert.equal(entry.inputs.CALCULATOR.C9, 3); passed++;
+  assert.equal(strict.tagName, 'select');assert.equal(strict.children[0].value,''); strict.value = '3'; await strict.emit('change'); assert.equal(entry.inputs.CALCULATOR.C9, 3); passed++;
+
+  // Large strict native lists stay lightweight until opened, without losing any source choices.
+  entry=setup({SCHEDULE:{F1009:'Legacy custom section'}});entry.sheet='SCHEDULE';
+  const sectionOptions=Array.from({length:553},(_,index)=>`Steel section ${index+1}`);
+  entry.definition.sheets=[{name:'SCHEDULE',display_cells:Object.fromEntries(Array.from({length:1000},(_,index)=>[`F${index+10}`,{control:'select'}]))}];
+  entry.result={option_sets:{section_list:sectionOptions}};
+  const nativeSections=Array.from({length:1000},(_,index)=>audit.makeControl({column:6,address:`F${index+10}`,type:'select',value:sectionOptions[index%553],options_ref:'section_list'},index+10,entry,'Steel section'));
+  assert.ok(nativeSections.every(control=>control.tagName==='select'&&control.children.length<=2&&control.children[0].value===''));
+  assert.ok(nativeSections.reduce((total,control)=>total+control.children.length,0)<=2000);
+  await nativeSections[0].emit('pointerdown');
+  assert.equal(nativeSections[0].children.length,554);assert.equal(nativeSections[0].children[0].value,'');assert.deepEqual(nativeSections[0].children.filter(option=>option.value!=='').map(option=>option.value),sectionOptions);
+  nativeSections[0].value=sectionOptions[552];await nativeSections[0].emit('change');assert.equal(entry.inputs.SCHEDULE.F10,sectionOptions[552]);
+  assert.equal(nativeSections[1].children.length,2);
+  await nativeSections[999].emit('focus');assert.equal(nativeSections[999].children.length,555);assert.equal(nativeSections[999].children[0].value,'');assert.equal(nativeSections[999].value,'Legacy custom section');
+  assert.ok(sectionOptions.every(value=>nativeSections[999].children.some(option=>option.value===value)));
+  nativeSections[999].value='';await nativeSections[999].emit('change');await nativeSections[999].emit('blur');assert.equal(entry.inputs.SCHEDULE.F1009,'');assert.equal(entry.invalid.size,0);
+  await nativeSections[2].emit('keydown',{key:'ArrowDown'});assert.equal(nativeSections[2].children.length,554);
+  const warningSection=audit.makeControl({column:6,address:'F11',type:'select',value:'Custom',options:sectionOptions,error_style:'warning'},11,entry,'Steel section');
+  assert.equal(warningSection.children[0].tagName,'input');warningSection.children[0].value='Another custom';await warningSection.children[0].emit('input');assert.equal(entry.inputs.SCHEDULE.F11,'Another custom');assert.equal(entry.invalid.size,0);passed++;
 
   // Mixed FRLs retain each chosen option's original type in either direction.
   entry = setup();
@@ -850,7 +869,7 @@ let passed = 0;
   // A presentation row can swap the published caption/value while retaining source IDs, vertical merges and controls.
   entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
   const publishedLayout={first_row:5,last_row:9,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),title_address:'H5',table_kind:'comparison',label:'Thickness and quantities',row_layouts:{6:[{address:'L6',span:3},{address:'H6',span:4}],9:[{address:'H9',span:7}]}};
-  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:[publishedLayout],header_rows:[],display_text:{L6:'PUBLISHED VALUE'},display_cells:{H6:{align:'left',suffix:' mm'},H9:{bold:false}},merges:['H5:N5','H6:K8','L6:N8','H9:J9','K9:N9']}];
+  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:[publishedLayout],header_rows:[],display_text:{L6:'PUBLISHED VALUE'},display_cells:{H6:{align:'left',suffix:' mm',highlight:'published-thickness'},H9:{bold:false}},merges:['H5:N5','H6:K8','L6:N8','H9:J9','K9:N9']}];
   entry.result=result({}, {max_column:14,rows:[
     {row:5,cells:[{column:8,address:'H5',value:'Thickness and quantities',presentation:{role:'section'}}]},
     {row:6,cells:[{column:4,address:'D6',value:12.3456789,editable:true,type:'number',label:'Member length'},{column:8,address:'H6',value:26,calculated:true},{column:12,address:'L6',value:'mm / PUBLISHED VALUE',presentation:{role:'note'}}]},
@@ -869,7 +888,10 @@ let passed = 0;
   assert.equal(JSON.stringify(entry.result),rawPublishedLayout);
   const updatedPublishedLayout=copy(entry.result);updatedPublishedLayout.rows.find(row=>row.row===6).cells.find(cell=>cell.address==='H6').value=27.123456789;audit.setRequest(async()=>updatedPublishedLayout);await audit.calculate();
   assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='K9'),referenceControl);assert.equal(publishedRow.children[1].textContent,'27.12 mm');assert.equal(publishedRow.children[1].dataset.calculatorOutput,'H6');assert.equal(publishedRow.children[1].rowSpan,3);
-  for(const [value,error] of [[null,false],['',false],['HOLD',false],[NaN,false],[Infinity,false],[26,true]]){audit.updateOutputCell(publishedRow.children[1],{address:'H6',value,error});assert.ok(!publishedRow.children[1].textContent.endsWith(' mm'));}
+  assert.ok(publishedRow.children[1].classList.contains('calculator-published-thickness'));
+  for(const [value,error] of [[null,false],['',false],['HOLD',false],[NaN,false],[Infinity,false],[26,true]]){audit.updateOutputCell(publishedRow.children[1],{address:'H6',value,error});assert.ok(!publishedRow.children[1].textContent.endsWith(' mm'));assert.equal(publishedRow.children[1].classList.contains('calculator-published-thickness'),false);}
+  audit.updateOutputCell(publishedRow.children[1],{address:'H6',value:0});assert.ok(publishedRow.children[1].classList.contains('calculator-published-thickness'));assert.ok(publishedRow.children[1].classList.contains('calculator-value-present'));
+  assert.match(fs.readFileSync('static/calculators.css','utf8'),/\.calculator-value-present\.calculator-published-thickness\{background:#dceeff!important\}/);
   assert.equal(entry.result.rows.find(row=>row.row===6).cells.find(cell=>cell.address==='H6').value,27.123456789);passed++;
 
   // Collapsing a blank factor-helper row leaves its neighbouring merged source note and later inputs intact.
@@ -885,11 +907,12 @@ let passed = 0;
 
   // BAGS keeps its exact yield while merging the adjacent decorative cells into one gold spacer.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';
-  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',navigation_mode:'hidden',display_table_order:[1,0],header_rows:[19],section_cells:['A17'],display_cells:{H10:{merge:'H10:N10',role:'spacer'},...Object.fromEntries([20,21,22,23,24].map(row=>[`A${row}`,{bold:true}]))},merges:['A1:N1','A17:N17'],presentation_tables:[
-    {first_row:6,last_row:15,columns:[1,2,3,4,5,6,8,9,10,11,12,13,14],column_widths:Array(13).fill(1),width_mode:'fit',table_kind:'form',label:'Manual quantity'},
+  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',navigation_mode:'hidden',display_table_order:[1,0],header_rows:[19],section_cells:['A17'],display_cells:{H10:{merge:'H10:N10',role:'spacer'},...Object.fromEntries([20,21,22,23,24].map(row=>[`A${row}`,{bold:true}]))},merges:['A1:N1','A3:N3','A17:N17'],presentation_tables:[
+    {first_row:1,last_row:15,columns:[1,2,3,4,5,6,8,9,10,11,12,13,14],column_widths:Array(13).fill(1),width_mode:'fit',table_kind:'form',title_address:'A1',subtitle_address:'A3',label:'Manual quantity'},
     {first_row:17,last_row:24,columns:Array.from({length:9},(_,i)=>i+1),column_widths:[19,7,9,10,8,7,11,9,20],width_mode:'fit',table_kind:'order',title_address:'A17',header_row:19,label:'Product order summary'},
   ]}];
   entry.result=result({}, {sheet:'BAGS',max_column:14,rows:[{row:1,cells:[{column:1,address:'A1',value:'BAGS',presentation:{role:'title'}}]},
+    {row:3,cells:[{column:1,address:'A3',value:'Manual quantities stay separate from schedule orders.',presentation:{role:'note'}}]},
     ...[6,7,8].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Manual input',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row,editable:true,type:'number'}]})),
     {row:10,cells:[{column:1,address:'A10',value:'Working yield',presentation:{role:'label'}},{column:4,address:'D10',value:0.05128205128205128,calculated:true},...Array.from({length:8},(_,index)=>({column:index+7,address:`${String.fromCharCode(71+index)}10`,value:null,presentation:{role:'body'}}))]},
     {row:15,cells:[{column:1,address:'A15',value:'Manual quantity note',presentation:{role:'note'}}]},
@@ -900,6 +923,10 @@ let passed = 0;
   const projectedOrderTable=descendants(projectedOrder).find(node=>node.tagName==='table');assert.equal(projectedOrderTable.style.width,'100%');assert.equal(projectedOrderTable.children.at(-1).children.length,6);assert.equal(projectedOrderTable.children[0].children[8].style.width,'20%');
   const manualTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Manual quantity');assert.ok(manualTable.children.at(-1).children[0].children.every(node=>node.tagName==='td'));
   assert.ok(descendants(byId('calculator-grid')).indexOf(projectedOrderTable)<descendants(byId('calculator-grid')).indexOf(manualTable));assert.match(projectedOrder.children[0].id,/-1$/);
+  const manualSection=byId('calculator-grid').children.find(node=>node.className==='calculator-projected-section'&&descendants(node).includes(manualTable));
+  assert.deepEqual(manualSection.children.slice(0,2).map(node=>node.dataset.calculatorOutput),['A1','A3']);assert.equal(manualSection.children[1].tagName,'p');assert.match(manualSection.children[0].id,/-0$/);
+  for(const address of ['A1','A3'])assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===address).length,1);
+  assert.ok(!descendants(manualTable).some(node=>['A1','A3'].includes(node.dataset?.calculatorOutput)));
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
   for(const row of [20,21,22,23,24])assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===`A${row}`).classList.contains('calculator-bold'));
   const yieldRow=manualTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='10');
@@ -1065,6 +1092,77 @@ let passed = 0;
     assert.equal(chooserButtons()[1].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs[scenario.sheet][controlAddress],12.3456789);assert.equal(entry.saved,savedBeforeChoice);assert.equal(other.inputs.CALCULATOR.B9,99);
     await chooserButtons()[1].emit('click');assert.equal(openPanels().length,0);
   }passed++;
+
+  // Browser tabs partition one source Settings sheet without creating new input or API identities.
+  entry=setup();const virtualBase=copy(entry.definition);audit.state.entries.clear();audit.state.current=null;
+  const virtualInputs={SETTINGS:{D10:1.23456789,D342:2.34567891,BF533:'Retained hidden input'},SCHEDULE:{A1009:'Last schedule mark'}};
+  const virtualRows=copy(chooserCases[0].rows).map(row=>row.row===271?{...row,cells:row.cells.filter(cell=>!cell.editable)}:row);
+  const virtualDefinition={...virtualBase,id:'steel_vermiculite',title:'Vermiculite',inputs:copy(virtualInputs),pages:['CALCULATOR','SCHEDULE','BAGS','SETTINGS'],
+    schedule:{...virtualBase.schedule,sheet:'SCHEDULE'},display_pages:[
+      {id:'START',label:'START',sheet:'SETTINGS',section_ids:['A270'],section_mode:'content',include_common:false},
+      ...['CALCULATOR','SCHEDULE','BAGS'].map(sheet=>({id:sheet,label:sheet,sheet})),
+      {id:'SETTINGS',label:'SETTINGS',sheet:'SETTINGS',section_ids:['A9','A17','A31','A64','A96','A173','A229'],include_common:true},
+      {id:'FACTOR CALCS',label:'FACTOR CALCS',sheet:'SETTINGS',section_ids:['A341','A356','A370'],include_common:false}],
+    sheets:[{name:'SETTINGS',header_rows:[],...copy(chooserCases[0].metadata),navigation_mode:'select',settings_sections:copy(chooserCases[0].sections)},
+      ...['CALCULATOR','SCHEDULE','BAGS'].map(name=>({name,header_rows:[],merges:[]}))]};
+  const virtualResult=inputs=>result(copy(inputs),{sheet:'SETTINGS',max_column:14,rows:copy(virtualRows)}),virtualRequests=[];
+  const serveVirtual=async(path,options)=>{
+    if(!options)return copy(virtualDefinition);
+    const body=JSON.parse(options.body);virtualRequests.push({path,body});
+    if(path.endsWith('/state'))return {inputs:body.inputs};
+    assert.equal(body.sheet,'SETTINGS');return virtualResult(body.inputs);
+  };
+  audit.setRequest(serveVirtual);audit.setRender(realRender);await audit.selectCalculator('steel_vermiculite');entry=audit.current();
+  const virtualButtons=()=>descendants(byId('calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
+  const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
+  const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
+  assert.equal(entry.page,'START');assert.equal(entry.sheet,'SETTINGS');assert.equal(byId('calculator-sheet-title').textContent,'START');
+  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','CALCULATOR','SCHEDULE','BAGS','SETTINGS','FACTOR CALCS']);
+  assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);assert.ok(virtualOutputs().includes('A270'));
+  for(const address of ['A1','A9','A31','A341','D342'])assert.ok(!virtualOutputs().includes(address));
+  assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;
+  assert.equal(audit.sourceDisplayText('Factor helper starts at row 341.',entry,'A7'),'Open FACTOR CALCS for the Section Factor Helper.');
+  const bagsDirectionsEntry={...entry,sheet:'BAGS',result:null};
+  assert.equal(audit.sourceDisplayText('Change product yields and waste in SETTINGS. The factor helper is also there.',bagsDirectionsEntry,'A27'),'Change product yields and waste in SETTINGS. Open FACTOR CALCS for factor helpers.');
+
+  // Settings and factor chooser selections are independent; hidden source inputs and invalid drafts survive switching.
+  await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,7);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
+  assert.ok(virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
+  await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D10');
+  assert.equal(virtualSetting.dataset.calculatorSheet,'SETTINGS');virtualSetting.value='3.45678912';await virtualSetting.emit('input');
+  await audit.selectPage('FACTOR CALCS');assert.equal(virtualButtons().length,3);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,3);
+  assert.ok(!virtualOutputs().includes('A1'));for(const address of ['A9','A31','A270','D42'])assert.ok(!virtualOutputs().includes(address));
+  await virtualButtons()[0].emit('click');const virtualFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');
+  assert.equal(virtualFactor.dataset.calculatorSheet,'SETTINGS');virtualFactor.value='4.56789123';await virtualFactor.emit('input');
+  await audit.selectPage('SETTINGS');assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D10,3.45678912);
+  await audit.selectPage('FACTOR CALCS');assert.equal(virtualButtons()[0].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs.SETTINGS.D342,4.56789123);
+  const invalidFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');invalidFactor.value='not a number';await invalidFactor.emit('input');
+  const beforeBlockedTab=virtualRequests.length;await audit.selectPage('START');assert.equal(entry.page,'FACTOR CALCS');assert.equal(virtualRequests.length,beforeBlockedTab);assert.ok(entry.invalid.has('SETTINGS!D342'));
+  invalidFactor.value='4.56789123';await invalidFactor.emit('input');await audit.selectPage('START');assert.equal(entry.page,'START');assert.equal(entry.invalid.size,0);
+  assert.equal(entry.inputs.SETTINGS.BF533,'Retained hidden input');assert.equal(entry.inputs.SCHEDULE.A1009,'Last schedule mark');
+  assert.equal(entry.inputs.START,undefined);assert.equal(entry.inputs['FACTOR CALCS'],undefined);assert.ok(virtualRequests.every(request=>request.body.sheet==='SETTINGS'));passed++;
+
+  // Late responses for another browser tab cannot replace the active tab even when both share SETTINGS.
+  const oldVirtual=deferred();let virtualCalls=0;
+  audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);assert.equal(body.sheet,'SETTINGS');return ++virtualCalls===1?oldVirtual.promise:virtualResult(body.inputs);});
+  const oldVirtualRun=audit.selectPage('SETTINGS');await audit.selectPage('FACTOR CALCS');
+  const freshVirtualResult=entry.result;oldVirtual.resolve(virtualResult({SETTINGS:{D10:-99}}));await oldVirtualRun;
+  assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.renderedPage,'FACTOR CALCS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,3);assert.equal(entry.inputs.SETTINGS.D10,3.45678912);
+  const oldVirtualError=deferred();virtualCalls=0;
+  audit.setRequest(async(path,options)=>++virtualCalls===1?oldVirtualError.promise:virtualResult(JSON.parse(options.body).inputs));
+  const oldFailure=audit.selectPage('START');await audit.selectPage('SETTINGS');oldVirtualError.reject(new Error('Obsolete START failure'));await oldFailure;
+  assert.equal(entry.page,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete START failure'));assert.equal(virtualButtons().length,7);passed++;
+
+  // Saving, both downloads and reset from a virtual tab still use the complete source-keyed calculator draft.
+  audit.setRequest(serveVirtual);await audit.selectPage('FACTOR CALCS');const fullVirtualDraft=copy(entry.inputs);
+  await audit.save();assert.deepEqual(virtualRequests.at(-1).body,{inputs:fullVirtualDraft});assert.equal(entry.saved,JSON.stringify(fullVirtualDraft));
+  for(const [download,action,mime] of [[audit.downloadSchedulePdf,'report.pdf','application/pdf'],[audit.downloadExcelRegister,'register.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']]) {
+    let capturedVirtualDownload;audit.setFetch(async(path,options)=>{assert.ok(path.endsWith('/'+action));capturedVirtualDownload=JSON.parse(options.body);return {ok:true,headers:{get:()=>mime},blob:async()=>new Blob(['download'])};});
+    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
+  }
+  entry.definition.defaults={SETTINGS:{D10:9.123456789,D342:8.987654321},SCHEDULE:{A1009:'Reset schedule'}};
+  const savedBeforeVirtualReset=entry.saved,virtualReset=audit.reset();await byId('calculator-confirm-dialog').close('confirm');await virtualReset;
+  assert.deepEqual(copy(entry.inputs),copy(entry.definition.defaults));assert.equal(entry.saved,savedBeforeVirtualReset);assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');passed++;
 
   // Successful generic subtitles disappear; calculating/errors remain, and only the exact approved duct banner is hidden.
   const approvedFixingBanner='The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.';

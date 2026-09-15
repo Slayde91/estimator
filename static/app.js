@@ -221,7 +221,6 @@
     for (const key of ["labour", "material", "access", "travel", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
     $("calculated-notes").textContent = "—";
-    $("work-summary").textContent = status === "Calculating…" ? "Updating work summary…" : "Work summary is unavailable until the estimate can be calculated.";
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
     $("calculation-errors").hidden = true;
@@ -272,7 +271,6 @@
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
     $("calculated-notes").textContent = result.notes ?? cells.B30 ?? "";
-    $("work-summary").textContent = result.work_summary || "Enter the required work quantities to generate a work summary.";
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
@@ -323,7 +321,8 @@
     state.quoteLoadRevision++;
     state.quote = null; state.quoteConfiguration = null;
     state.fields = clone(state.currentFields);
-    state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""]));
+    // Start notes blank without changing workbook defaults or saved-quote inputs.
+    state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.cell === "B12" ? "" : field.default ?? ""]));
     state.legacyTitle = "";
     for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
     updateQuoteTitle();

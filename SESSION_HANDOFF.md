@@ -1,5 +1,88 @@
 # Session handoff
 
+## START, factor tabs and Estimator cleanup — 2026-09-15
+
+Work on `fix/calculator-start-factor-tabs` starts from PR #18's verified merge
+`de808e13cd723853229358459c9ac03c8a696893`. The latest twelve browser comments
+extend the current presentation and initialization boundaries:
+
+- Vermiculite `display_pages` presents START, CALCULATOR, SCHEDULE, BAGS,
+  SETTINGS and FACTOR CALCS. The source `pages` list remains the same four
+  worksheets. START displays operating rules A270:N340 directly; SETTINGS has
+  seven global/product choices, and FACTOR CALCS three helper choices. Every
+  editable helper still uses its original SETTINGS cell key.
+- Settings headings A9/A17/A31/A64/A96/A173/A229 and operating heading A270 use
+  concise aliases without the original number/slash prefixes. BAGS places its
+  order table first, then MATERIAL QUANTITIES, the subtitle and manual form.
+- CALCULATOR H6 has a distinct pale-blue highlight; its numeric mm suffix and
+  published-value semantics remain. SCHEDULE F10:F1009 uses native Section ID
+  selection from 553 active source choices, populated on opening to avoid
+  duplicating that list across 1,000 initial controls. Y10:Y1009 uses normal
+  weight. Duct SUMMARY removes contents navigation. Board SETTINGS A6:A34 and
+  P6:P51 use bold first-column labels.
+- New Estimator estimates set Notes B12 to blank without modifying immutable
+  `data/calculator.json`. Explicit saved notes, including `Allowances` and blank
+  strings, still load/edit/save exactly. The generated Work summary panel and
+  its DOM writes are removed; API, saved-quote and PDF summary data remain.
+
+No technical rules, workbook formulas, source packages, persisted input keys,
+storage schema or export contract change. The new browser tabs project the
+existing source worksheet rather than creating alternate calculation scopes.
+
+Verified locally: all 89 calculator UI checks and 22 Estimator UI checks
+passed (111 total), as did JavaScript syntax and whitespace checks and the
+35-file distribution build. The 29 API/cleanup tests passed in 148.342 seconds;
+13 section/tab contract tests passed in 30.917 seconds. The earlier focused
+42 Estimator calculator/quote-details/storage/PDF tests also passed. These are
+local results; current-head CI has not yet run at this checkpoint.
+
+All 104,068 evaluated source cells across twelve API worksheets match the
+pre-change snapshot, with digest
+`482e389f0498903ce98d921e6dfacf82fa72ac490ebf615e981e9d42d03a4a90`.
+All three PDF extracted-text projections and three Excel-register worksheet
+value sets also match. This is semantic export comparison, not binary equality.
+Immutable calculator data and calculation/export/storage modules are unchanged.
+
+Native browser checks covered all twelve comments. START shows operating rules
+without a chooser or controls. SETTINGS starts with seven hidden panels and
+25 retained controls; FACTOR CALCS starts with three hidden panels and nine
+controls still keyed to SETTINGS. The selected helper and exact D346 draft
+`1.23456789` survive START-to-FACTOR navigation. BAGS orders the product table
+before MATERIAL QUANTITIES, its A3 subtitle and manual table, with A1/A3 each
+rendered once. H6 shows `26.00 mm` with RGB(220, 238, 255).
+
+All 1,000 schedule rows retain native F-column selects. Opening F10 exposes
+554 choices: blank first, then `1000WB215`, through `Z350-32H`; the current
+`410UB54` value is retained. Y10 uses normal weight 400; board SETTINGS A6:A34
+and P6:P51 use bold weight 750. Duct SUMMARY has no contents navigation and
+retains nine tables. New Estimator B12 is blank and the work-summary panel is
+absent. Review found and fixed two issues: stale helper directions in SETTINGS
+A7/BAGS A27 now point to FACTOR CALCS, and native lists retain blank-first order.
+Final independent review confirmed both fixes and found no remaining issues.
+
+The main service refreshed successfully on port 8765. Served index.html,
+app.js, styles.css, calculators.js and calculators.css match current files;
+the new display tabs are active. Saved state is unchanged: schema version 2,
+two quotes, zero settings and zero calculator-state records, with digest
+`c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+Test logs, source/export comparisons, live-asset hashes and before/after state
+receipts are retained under ignored `.runtime/tabs-notes-qa`; `dist/` remains
+ignored distribution output.
+
+Local classification: intended presentation metadata, browser code, regression
+tests and documentation are uncommitted. Commit/push, PR, exact-head CI/review
+and merge are pending for this branch. PR #18's historical evidence below does
+not establish publication of this increment.
+
+Next action: classify and publish the verified diff, then verify exact-head
+checks and the resulting merge commit.
+
+Continue with: “Inspect current Git and test evidence in C:\ESTIMATOR\app.
+Complete the START/FACTOR CALCS and Estimator cleanup on
+fix/calculator-start-factor-tabs, preserving workbook sources, input keys,
+calculation/export semantics and saved quotes. Update this checkpoint with
+verified validation and publication results; do not repeat completed work.”
+
 ## Calculator section navigation — 2026-09-15
 
 Work on `fix/calculator-section-navigation` starts from merged main `364a024`
@@ -55,9 +138,15 @@ The main service refreshed successfully on port 8765. Saved state matched the
 baseline exactly: schema version 2, two quotes, zero settings and zero calculator
 states, with quote/settings digest
 `c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
-Commit/push, PR, exact-head CI/review and merge remain pending at this checkpoint.
-Record their verified outcome separately; earlier entries do not establish
-publication of this increment.
+Publication is verified by `.runtime/section-navigation-qa/publication.json`.
+Feature head `d8d59c196d35cd89c1ad1a2fef021290dce3efac` was pushed to
+`origin/fix/calculator-section-navigation`. PR #18 merged into main on
+2026-09-15 at 11:10:08 UTC as `de808e13cd723853229358459c9ac03c8a696893`.
+The merge and feature trees match. Push run 34961318221 and PR run 34961325645
+both passed at that exact feature head: 227 Python tests (223 passed, four
+skipped), 84 calculator UI checks and 20 original UI checks. No reviews were
+recorded. The receipt records a clean checkout, matching served assets and
+unchanged saved state. Runtime evidence and distribution output remain ignored.
 
 ## Calculator Excel registers — 2026-09-15
 

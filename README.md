@@ -18,9 +18,9 @@ python -m estimator
 
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
 
-1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts. Select the estimating workflow.
+1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
-3. Review the automatically generated **Work summary**, live total, material quantities and named cost breakdown. The summary updates from the selected workflow, products, quantities, labour and allowances.
+3. Review the live total, material quantities and named cost breakdown. Notes start blank on a new estimate; saved notes retain their exact text.
 4. Save the quote. Reopening preserves its input values and pricing snapshot. Use **Use current pricing** to explicitly apply current settings.
 5. In **Pricing library**, edit supplier prices, markup, manual service prices or lookup rates/yields. **Reset row** restores that row's imported values. Use **Save pricing** to apply your changes.
 6. Use **Download PDF** for a branded quote report containing the estimate details and work summary. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. PDF download is the report action; the separate Print button has been removed.
@@ -37,12 +37,16 @@ The original Quote estimator uses assessed coverage/product quantities, as its E
 
 ## Calculators
 
-Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Every visible workbook tab has a page with the same name. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table to reach them. Editable fields have controls; calculated outputs use one highlight for populated values and another for blanks. Zero is a populated value. Main sections use white text on red headings. Single-member forms fit a phone, with comparison tables scrolling separately.
+Choose **Calculators**, then **Structural Steel (vermiculite)**, **Structural Steel (board)** or **Ductwork**. Vermiculite has START, CALCULATOR, SCHEDULE, BAGS, SETTINGS and FACTOR CALCS tabs. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table to reach them. Editable fields have controls; calculated outputs distinguish populated values from blanks, with a separate highlight for published thickness. Zero is a populated value. Main sections use white text on red headings. Single-member forms fit a phone, with comparison tables scrolling separately.
 
-On **SETTINGS & RULES**, choose a section to open it. Only that section is shown;
-your other settings still affect calculations and are retained when you save or
-download. The browser remembers the open section while you switch pages.
-Vermiculite BAGS shows product ordering before the separate manual calculation.
+Vermiculite **START** shows the operating rules directly. **SETTINGS** has seven
+global/product sections, and **FACTOR CALCS** has three helper sections. Choose a
+section to open it; only that section is shown. Duct and board Settings use the
+same selection behavior. Other settings still affect calculations and are
+retained when you save or download. The browser remembers the open section while
+you switch tabs. In vermiculite SCHEDULE, Section ID opens a native list of source
+sections. BAGS shows product ordering first, then the **MATERIAL QUANTITIES**
+heading and separate manual calculation.
 
 Enter inputs directly, or click **Export template**, fill its schedule in Excel and use **Import schedule**. Import replaces the complete schedule, including clearing unused old rows, and preserves other calculator settings. It stays a draft until **Save calculator**. Each calculator keeps its own saved inputs and settings. **Reset calculator defaults** restores the example schedule and default settings as a draft; vermiculite uses the reviewed material defaults described below.
 

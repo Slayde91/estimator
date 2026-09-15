@@ -17,12 +17,20 @@ retaining their identities and original row spans. These affect rendering, not t
 formula graph or report projection. A decorative merge must contain no hidden
 editable value or populated result; its outside table edges remain visible.
 
-Source `section_cells` metadata supplies stable contents links in source order.
+Source `section_cells` metadata supplies stable anchors. `navigation_mode`
+selects ordinary contents links, no contents navigation, or the Settings section
+picker. The three Settings pages initially show their banner and picker with
+all sections hidden; choosing a native button shows only that section. Selection
+is client-only state per calculator/page and survives recalculation and page
+switching during that browser session. It does not narrow the draft, worksheet
+response, validation, save, reset, PDF or Excel-register scope.
 All main section headings use the existing DUCT PROTECTION SUMMARY red-gradient
 background and white text, replacing the former multicolour heading scheme.
-Contents/navigation styling remains separate. Vermiculite SETTINGS has eleven targets: its
-eight numbered sections and three factor-helper sections. Its banner reads
-SETTINGS & RULES. A form's populated-cell structure
+Contents/navigation styling remains separate. Vermiculite SETTINGS has eleven
+choices, Duct PRODUCT SETTINGS has five and board SETTINGS has three. Their
+banners read SETTINGS & RULES. Vermiculite CALCULATOR/BAGS and board START omit
+contents navigation while retaining their content and stable section anchors.
+A form's populated-cell structure
 participates in its refresh signature so newly available output/source notes
 appear without switching pages. Schedule controls remain in place for ordinary
 value updates.
@@ -38,6 +46,7 @@ value updates.
 7. Display numbers to two decimals at rest and retain the exact raw value. Focused numeric controls and choices must distinguish small values such as 0.005, 0.01 and 1e-8. Never write a rounded display value merely because a field was focused or blurred.
 8. Retain all source qualification text and error/withheld states in the source graph and calculation results. The explicit browser omissions below do not alter those states or the PDF mapping. `NP`, an empty result and zero mean different things. Do not turn a missing quantity into zero or describe a displayed quantity as installation approval.
 9. Keep numeric Settings inputs, units, read-only calculation basis and live outputs. Omit the requested date/source-ID/document-name metadata and separate reviewed-yield action/panel from Settings presentation. Developer evidence retains full provenance. Do not expose hidden reference databases as new editable settings.
+10. Omit generic completed-calculation subtitles in the browser while retaining loading, invalid-input and calculation-error feedback. Duct CALCULATOR, SUMMARY and PRODUCT SETTINGS omit only the exact copied-fixing explanatory notice from the browser warning list; all other warnings remain. The approved fixing correction, source/API warning and PDF/Excel-register content are unchanged.
 
 ## Related Estimator controls
 
@@ -121,7 +130,9 @@ The user-confirmed centering target is the complete published-period table
 A28:I30, including its header and result rows. Browser alignment metadata centers
 only those cells. In the separate Thickness and quantities form, row 6 displays
 the Published thickness label at L6 first with a three-column span, then the
-value at H6 with a four-column span and left alignment. This scoped row layout
+value at H6 with a four-column span and left alignment. L6 now reads
+**PUBLISHED VALUE**, and the browser appends **mm** to numeric H6 output only.
+Blank, text and error results receive no numeric suffix. This scoped row layout
 preserves both source anchors, their original row spans and evaluated values;
 it does not swap source cell contents or alter the centered period table.
 
@@ -132,7 +143,7 @@ Source widths: labels occupy merged A:C; inputs D:F; G is a 3-unit spacer. Resul
 The top labels at rows 1, 2, 3 and 8 are omitted from the browser. Summary cards
 A4/A5, G4/G5 and S4/S5 remain visible. The earlier removed
 thickness/scope-block card M4/M5 is still calculated internally. The only schedule
-header is row 9. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y source outputs;
+header is row 9, beneath the browser **MEMBER SCHEDULE** section banner. Show all 1,000 rows 10–1009 together. A:L are inputs, M:Y source outputs;
 hidden Z is the stable line ID and remains readonly/internal.
 
 Browser labels A4 and G4 read **TOTAL ENTERED SPRAY AREA (m²)** and
@@ -159,7 +170,8 @@ not 1,000 completed estimates.
 ### BAGS
 
 The browser aliases A1 to **MATERIAL QUANTITIES** without changing the BAGS page
-name or source title. After the introduction A1:N3, it renders a manual form
+name or source title. After the introduction A1:N3, it renders the product-order
+summary before the independent manual form. The manual form comes
 from rows 6–15 using columns A:F and H:N, omitting only decorative G from that
 form. The three inputs D6:D8 and live results D9:D14 remain. Source limitations
 H6 and H11 remain with that form. This calculation stays independent of the
@@ -168,12 +180,13 @@ SCHEDULE order summary.
 Browser metadata merges the empty H10:N10 region into one gold spacer without
 internal vertical rules. The A10:C10 label and D10:F10 working-yield value remain
 separate and unchanged. Removing G from the manual form does not remove the
-Whole bags header or pooled whole-bag values in G19:G24 of the order table below.
+Whole bags header or pooled whole-bag values in G19:G24 of the order table above.
 The source merges and calculated values are preserved.
 
-The next independent section owns the “Product order summary” heading A17,
-row 19 headers and five product rows A20:I24. Its heading must not remain below
-the manual form with its data separated elsewhere. Keep order status I and
+The first independent table section owns the “Product order summary” heading
+A17, row 19 headers and five product rows A20:I24. Product names A20:A24 are bold.
+`display_table_order` reorders these two existing projections while their source
+anchors and stable IDs stay intact. Keep order status I and
 incomplete count H visible even when whole bags G are blank. Notes A27 follow
 the order table.
 
@@ -189,7 +202,10 @@ Source table widths indicate product A29, normal numerical columns 12–16 units
 
 ### SETTINGS
 
-Use a short section index that scrolls within the single page. Group source rows as follows:
+Use the section picker with no initial section selected. Each selected section
+uses its exact A:N rectangle below; the whole worksheet remains in calculation
+and save scope. The eleven ranges retain all adjacent helper notes and source
+merges while applying the already declared omissions inside each range.
 
 All Settings tables, including source content outside explicit table projections,
 expand with the page and have no nested vertical height cap. Horizontal scrolling
@@ -197,17 +213,17 @@ remains available where needed; this rule does not apply to prepared schedules.
 
 | Group | Heading / extent | Editable cells | Required adjacent readonly material |
 | --- | --- | --- | --- |
-| Global settings | A9; rows 10–15 | D10:D14 | Comparison tolerance D15 |
-| Common calculation rules | A17; rows 19–27 | None | Lookup, thickness holds, yield, orders and project-design explanations |
-| CAFCO 300 | A31; rows 32–58 | D36:D39 | Read-only basis D42; yield/status 40–41, scope/evidence 45–52, exposure header 54 |
-| MANDOLITE CP2 | A64; rows 65–90 | D69:D72 | Read-only basis D75; yield/status 73–74, source rules 78–84, exposure header 86 |
-| FENDOLITE MII | A96; rows 97–167 | D101:D104 | Read-only basis D107; yield/status 105–106, special-factor rules 110–121, exposure header 123 |
-| PERLIFOC HP ECO+ | A173; rows 174–223 | D178:D181 | Read-only basis D184; yield/status 182–183, rules 187–194, exposure header 196 |
-| MONOKOTE MK-6 HY | A229; rows 230–264 | D234:D237 | Read-only basis D240; yield/status 238–239, exceptions 243–257, exposure header 259 |
-| Operating rules | A270; rows 272–317 | None | Ordered source instructions with subsection labels at 272/276/280/284/288/292/296/300/304/308/312/316 |
-| Factor helper | A341; rows 343–353 | D346:D348 | Hp/A D350 and ESA/M D351; evidence limitation 353 |
-| Idealised hollow helper | A356; rows 358–367 | D358:D362 | Calculated area/perimeter/factors D364:D367 |
-| Castellated helper | A370; rows 372–373 | D372 | Special factor D373 |
+| Global settings | A9:N16 | D10:D14 | Comparison tolerance D15 |
+| Common calculation rules | A17:N30 | None | Lookup, thickness holds, yield, orders and project-design explanations |
+| CAFCO 300 | A31:N63 | D36:D39 | Read-only basis D42; yield/status 40–41, scope/evidence 45–52, exposure header 54 |
+| MANDOLITE CP2 | A64:N95 | D69:D72 | Read-only basis D75; yield/status 73–74, source rules 78–84, exposure header 86 |
+| FENDOLITE MII | A96:N172 | D101:D104 | Read-only basis D107; yield/status 105–106, special-factor rules 110–121, exposure header 123 |
+| PERLIFOC HP ECO+ | A173:N228 | D178:D181 | Read-only basis D184; yield/status 182–183, rules 187–194, exposure header 196 |
+| MONOKOTE MK-6 HY | A229:N269 | D234:D237 | Read-only basis D240; yield/status 238–239, exceptions 243–257, exposure header 259 |
+| Operating rules | A270:N340 | None | Ordered source instructions with subsection labels at 272/276/280/284/288/292/296/300/304/308/312/316 |
+| Factor helper | A341:N355 | D346:D348 | Hp/A D350 and ESA/M D351; evidence limitation 353 |
+| Idealised hollow helper | A356:N369 | D358:D362 | Calculated area/perimeter/factors D364:D367 |
+| Castellated helper | A370:N374 | D372 | Special factor D373 and adjacent H371:N374 notes |
 
 The five Material basis / reference values D42, D75, D107, D184 and D240 are
 read-only. Exact existing saved overrides remain retained and displayed;
@@ -223,7 +239,8 @@ records and source packages.
 Browser-only role overrides make the five technical-rule headings
 A48, A81, A113, A190 and A246 use the pink table-header fill. These are local
 table headings; the main section banners retain their red/white style. Reference
-values D75, D107, D184 and D240 explicitly use normal font weight. Exposure names
+values D42, D75, D107, D184 and D240 explicitly use normal font weight, including
+the CAFCO review prose. Exposure names
 are bold at A55:A58, A87:A90,
 A124:A167, A197:A223 and A260:A264. None of these weight changes affects the
 read-only boundary, source text or technical lookup choices.
@@ -312,17 +329,19 @@ units and prose retain their existing formatting and values.
 
 Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup content. The browser omits introductory rows 3–4, the explanatory Both/Mixed block J6:Q21 and the complete USE NOTES section in rows 153–159, including its contents link. These are targeted presentation omissions, not removal of the Both/Mixed technical rule, a change to product choices, or permission to hide other J:Q reference blocks. Their source cells, API values and existing report projection remain intact.
 
-After the retained CAFCO/MONOKOTE content, three projections present the
-FyreWrap area as vertically ordered, independent sections:
+The picker independently exposes CAFCO A6:H46, MONOKOTE A48:H92 and the three
+FyreWrap rectangles below. All five start hidden. Bounds include columns as well
+as rows, so selecting a left-hand product does not expose the application or
+penetration table on the right. Existing omissions remain in effect.
 
 | Section | Source range | Heading / header | Retained content |
 | --- | --- | --- | --- |
 | FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | All core settings, roll-area output and product notes |
-| FyreWrap application table | J94:Q113 | J94 heading; row 95 header | Application choices and source requirements |
+| FyreWrap application table | J94:Q113 | J94 displays FYREWRAP APPLICATION TABLE; row 95 header | Application choices and source requirements |
 | Penetration takeoff | J115:Q149 | J115 heading; row 116 header | Standard details, auxiliary tables and live exposure list J137:J149 with K137:Q139 note |
 
-Each heading appears once above its own data. Other source content remains in
-source order outside these projections except the explicit omissions above.
+Each selected heading appears once above its own data. Hidden sections retain
+their values, inputs and calculation effects; the complete API page is unchanged.
 Browser-only merges join each blank gray row J105:Q105, J108:Q108, J111:Q111,
 J131:Q131 and J136:Q136. These rows retain their outside table borders without
 internal vertical rules; the adjacent text, parameters and live lookup records
@@ -351,8 +370,8 @@ Source A:H parameter layout gives A43/B27 and H42 width units; J:Q contains sepa
 
 This is an instruction page, not a schedule. The browser omits row 3, the three
 counter labels/values in rows 5–6, and the source/traceability section in rows
-34–39. Its contents navigation also omits the Sources link, so no link targets a
-hidden section. Counters and source evidence remain in the source graph and
+34–39. Its contents navigation is omitted completely. Retained content uses page
+scrolling without a nested vertical pane. Counters and source evidence remain in the source graph and
 worksheet response. The five retained sections are A8 everyday workflow, A15
 area calculation, A21 safety/scope, A25 optional controls and A30 reading row
 notes, displayed as ordinary text/card groups.
@@ -458,7 +477,8 @@ Keep the alternative entry methods visibly grouped: pieces D × cut length E × 
 
 ### SETTINGS
 
-Present three independent tables stacked vertically, in this order:
+Present three independent choices in this order, with no section shown until
+the user selects it:
 
 | Table | Visible source range | Behavior |
 | --- | --- | --- |
@@ -476,8 +496,8 @@ source for schedule AI statuses, not disposable text.
 General settings cover unit conventions/default waste (rows 6–10),
 geometry/detail/temperature/tolerance (11–21), and COREX assessed limits
 (23–34). The system identifiers B33/B34 remain editable strings, and B21's
-1e-8 tolerance must retain its exact raw value. Stacking the independent tables
-removes the oversized shared seventeen-column layout without changing input
+1e-8 tolerance must retain its exact raw value. Selecting independent tables
+avoids the oversized shared seventeen-column layout without changing input
 keys, calculations, source packages or persistence.
 
 ## Report projection and quantity semantics
@@ -536,7 +556,8 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
 - Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits the explicitly listed introductory rows, Both/Mixed block J6:Q21 and USE NOTES rows 153–159, including that section's contents link. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
-- Board SETTINGS stacks three tables and keeps all 28 editable values, dependent dropdowns and diagnostic lookups. BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
+- All three Settings pages initially hide their sections, expose exactly one selected panel and retain that client selection across recalculation and page switching. Check all eleven vermiculite, five duct and three board rectangles, including right-side/helper notes. Board SETTINGS keeps all 28 editable values, dependent dropdowns and diagnostic lookups; hidden sections remain in the complete draft, validation, save, reset and both report scopes.
+- BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
 - BOARD SUMMARY shows only A:D and I:J within rows 11–29, retaining all eighteen stock rows, three source-total cards, the live qualification and notes A31/A35. EXTRA BOARDS hides N while retaining all forty rows and editable A:I. Saving an unrelated visible edit preserves existing N6:N45 evidence and advanced input values. Complete API results, pooled quantities and PDF contents remain unchanged.
 - Board CALCULATOR retains Y6 and every prepared input row after its introductory omissions; its SUMMARY section does not replace the three BOARD SUMMARY cards. Duct CALCULATOR's column order keeps header/value identities aligned, retains the underlying quantity holds and approved AL correction, and changes no source formula or report. A1 title aliases do not rename worksheet/input keys.
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
@@ -545,11 +566,13 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Independent presentation tables and every SETTINGS/PRODUCT SETTINGS table use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five listed blank PRODUCT SETTINGS J:Q rows render as gray spans with only outside borders; BAGS H10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
 - Vermiculite SCHEDULE uses the explicit m²/m³ summary labels and full-width PRODUCT SUMMARY; the board SUMMARY uses the same independent placement. BAGS omits G only in manual-form rows 6–15, preserving G19:G24 and all pooled order values. The confirmed A28:I30 period table is centered. Duct reference labels are bold only at the declared anchors, leaving adjacent explanatory prose unchanged.
 - Factor-helper D:G spans remove only blank dividers; collapsing A371:G371 retains H371:N374 notes and every helper input/result. The Published thickness row renders L6 before left-aligned H6 with source identities and original row spans intact. Pink technical-rule headings, normal reference/support prose and bold exposure/product labels apply only to the listed anchors. Board overview title/notes fill their rows while all three summary cards remain; BOARD SUMMARY and EXTRA BOARDS are browser title aliases only.
+- Vermiculite CALCULATOR/BAGS and board START omit contents links; START uses page scrolling. BAGS orders its product table before the manual form without duplicate IDs or inputs and uses bold A20:A24 names. MEMBER SCHEDULE, PUBLISHED VALUE, numeric-only H6 mm and the shorter J94 title are display changes. Generic success subtitles and only the exact duct copied-fixing notice are hidden; errors, other warnings, source/API text, PDF and Excel-register values remain intact.
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.
 
-The detail-layout checkpoint now has 25 targeted Python tests, 75 calculator UI
+The earlier detail-layout checkpoint had 25 targeted Python tests, 75 calculator UI
 checks and 20 original UI checks passing, plus browser, unchanged worksheet/PDF
 and refreshed-runtime evidence. Exact checks and retained artifacts are recorded
-in the current SESSION_HANDOFF.md entry; publication and exact-head CI/merge are
-still pending at that checkpoint.
+in its dated SESSION_HANDOFF.md entry. Current section-navigation validation and
+publication belong in the latest entry; this mapping does not claim those checks
+are complete.

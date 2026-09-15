@@ -16,7 +16,7 @@ function element(tag = 'div') {
     select() { this.selectionStart=0;this.selectionEnd=String(this.value).length; },
     blur() { this.blurred=true;return this.emit('blur'); },
     addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
-    async emit(name) { const list = [...this.listeners[name] || []]; this.listeners[name] = (this.listeners[name] || []).filter(item => !item.once); for (const item of list) await item.fn(); },
+    async emit(name, event) { const list = [...this.listeners[name] || []]; this.listeners[name] = (this.listeners[name] || []).filter(item => !item.once); for (const item of list) await item.fn(event); },
     showModal() { assert.ok(!this.open); this.open = true; },
     async close(value) { this.returnValue = value; this.open = false; await this.emit('close'); },
     click() { this.clicked = true; }, remove() {},
@@ -348,12 +348,15 @@ let passed = 0;
 
   // Product bag totals are authoritative, preserve withheld blanks and refresh without losing schedule controls.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
-  entry.definition.sheets=[{name:'SCHEDULE',header_rows:[8],merges:[],hidden_columns:[]}];
+  entry.definition.sheets=[{name:'SCHEDULE',header_rows:[8],merges:[],hidden_columns:[],schedule_heading:'MEMBER SCHEDULE'}];
   const totalsResult=(net,whole)=>result({}, {sheet:'SCHEDULE',product_totals:[{product:'CAFCO 300',net_bags:net,whole_bags:whole,status:whole==null?'REVIEW YIELD':'QUANTITY COMPLETE'}],
     rows:[{row:4,cells:[{column:1,address:'A4',value:'Spray area'}]},{row:5,cells:[{column:1,address:'A5',value:20}]},{row:9,cells:[{column:2,address:'B9',value:1,editable:true,type:'number'}]}]});
   entry.result=totalsResult(2.3456789,null);realRender(entry);const bagInput=renderedControls()[0],totalsNode=entry.productTotalsElement;
   assert.equal(totalsNode.children[0].textContent,'PRODUCT SUMMARY');
   assert.ok(byId('calculator-grid').children.includes(totalsNode));
+  const memberSection=byId('calculator-grid').children.find(node=>node.className==='calculator-schedule-section');
+  assert.ok(memberSection);assert.equal(memberSection.children[0].textContent,'MEMBER SCHEDULE');assert.ok(descendants(memberSection).includes(bagInput));
+  assert.ok(byId('calculator-grid').children.indexOf(totalsNode)<byId('calculator-grid').children.indexOf(memberSection));
   const bagOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
   assert.ok(!descendants(bagOverview).includes(totalsNode));assert.ok(descendants(bagOverview).some(node=>node.calculatorValueCard));
   assert.ok(descendants(byId('calculator-grid')).filter(node=>node.className?.includes('calculator-table-scroll')).every(node=>!node.classList.contains('calculator-section-scroll')));
@@ -435,11 +438,13 @@ let passed = 0;
   // Removed review controls cannot reappear from definition data; the five stored basis values remain readonly.
   entry=setup({SETTINGS:{D42:'Stored basis\nExisting project qualification'}});entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
   entry.definition.defaults={SETTINGS:{D36:20}};entry.definition.yield_review={products:[{product:'CAFCO 300'}]};
-  entry.result=result(copy(entry.inputs),{sheet:'SETTINGS',max_column:4,rows:[42,75,107,184,240].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Material basis / reference',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row===42?entry.inputs.SETTINGS.D42:'Retained source basis',editable:false,read_only:true,output:true,type:'text',presentation:{role:'note'}}]}))});
+  entry.definition.sheets.find(sheet=>sheet.name==='SETTINGS').display_cells={D42:{bold:false}};
+  entry.result=result(copy(entry.inputs),{sheet:'SETTINGS',max_column:4,rows:[42,75,107,184,240].map(row=>({row,cells:[{column:1,address:`A${row}`,value:'Material basis / reference',presentation:{role:'label'}},{column:4,address:`D${row}`,value:row===42?entry.inputs.SETTINGS.D42:'Retained source basis',editable:false,read_only:true,output:true,type:'text',presentation:{role:'note',bold:true}}]}))});
   realRender(entry);assert.equal(renderedControls().length,0);
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.tagName==='button'||node.tagName==='details'));
   const basisCell=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='D42');
   assert.equal(basisCell.textContent,'Stored basis\nExisting project qualification');assert.equal(basisCell.classList.contains('calculator-value-present'),true);
+  assert.equal(basisCell.classList.contains('calculator-normal'),true);assert.equal(basisCell.classList.contains('calculator-bold'),false);
   assert.deepEqual(copy(entry.inputs),{SETTINGS:{D42:'Stored basis\nExisting project qualification'}});
   assert.doesNotMatch(source,/function (?:useReviewedDefaults|renderYieldReview)|calculator-reviewed-defaults/);passed++;
 
@@ -816,7 +821,7 @@ let passed = 0;
     {first_row:5,last_row:24,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),width_mode:'fit',table_kind:'form',title_address:'H5',label:'Thickness and quantities'},
     {first_row:26,last_row:30,columns:[1,2,3,4,5,6,7,8,9],column_widths:[100,...Array(8).fill(88)],table_kind:'comparison',title_address:'A26',header_row:28,label:'Published periods'},
   ];
-  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:vermProjections,header_rows:[28],section_cells:['A5','H5','A26'],display_cells:Object.fromEntries([28,29,30].flatMap(row=>[...'ABCDEFGHI'].map(column=>[`${column}${row}`,{align:'center'}]))),omitted_ranges:['J28:N30'],merges:['A1:N1','A5:F5','H5:N5','H10:J10','H20:N20','A26:N26','J28:N30']}];
+  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',navigation_mode:'hidden',presentation_tables:vermProjections,header_rows:[28],section_cells:['A5','H5','A26'],display_cells:Object.fromEntries([28,29,30].flatMap(row=>[...'ABCDEFGHI'].map(column=>[`${column}${row}`,{align:'center'}]))),omitted_ranges:['J28:N30'],merges:['A1:N1','A5:F5','H5:N5','H10:J10','H20:N20','A26:N26','J28:N30']}];
   const vermRows=new Map(),pushVerm=(row,cell)=>{if(!vermRows.has(row))vermRows.set(row,{row,cells:[]});vermRows.get(row).cells.push(cell);};
   for(const [row,column,value] of [[1,1,'Vermiculite calculator'],[3,1,'Source introduction'],[5,1,'01 INPUTS'],[5,8,'02 OUTPUTS'],[13,7,'Keep the unprojected note'],[20,1,'Input note'],[25,1,'Between the forms and periods'],[26,1,'03 PUBLISHED PERIODS'],[28,10,'Omitted matrix narrative']])pushVerm(row,{column,address:`${String.fromCharCode(64+column)}${row}`,value,presentation:{role:[1,5,26].includes(row)?'section':'note'}});
   for(const row of [6,7,8,9,10,11,12,14,15,16,17])pushVerm(row,{column:4,address:`D${row}`,value:row===6?12.3456789:row,editable:true,type:'number'});
@@ -828,7 +833,7 @@ let passed = 0;
   const vermSections=descendants(byId('calculator-grid')).filter(node=>node.className==='calculator-projected-section');
   assert.equal(vermSections.length,3);assert.deepEqual(vermSections.map(node=>node.children[0].dataset.calculatorOutput),['A5','H5','A26']);
   assert.equal(renderedControls().length,11);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,11);
-  for(const section of vermSections){assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===section.children[0].dataset.calculatorOutput).length,1);assert.equal(descendants(byId('calculator-grid')).filter(node=>node.href===`#${section.children[0].id}`).length,1);assert.equal(section.children[0].dataset.calculatorValue,undefined);}
+  for(const section of vermSections){assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===section.children[0].dataset.calculatorOutput).length,1);assert.equal(descendants(byId('calculator-grid')).filter(node=>node.href===`#${section.children[0].id}`).length,0);assert.equal(section.children[0].dataset.calculatorValue,undefined);}
   assert.ok(descendants(vermSections[0]).find(node=>node.tagName==='table').className.includes('calculator-responsive-form'));
   const periodTable=descendants(vermSections[2]).find(node=>node.tagName==='table');assert.equal(periodTable.children[0].children.length,9);assert.ok(periodTable.children[0].children.slice(1).every(col=>col.style.width==='88px'));assert.equal(periodTable.children.at(-1).children[0].children[0].tagName,'th');assert.equal(periodTable.children.at(-1).children[0].dataset.sourceRow,'28');
   for(const periodRow of periodTable.children.at(-1).children)for(const cell of periodRow.children){assert.equal(cell.classList.contains('calculator-align-center'),true);assert.equal(cell.tagName,periodRow.dataset.sourceRow==='28'?'th':'td');}
@@ -840,12 +845,12 @@ let passed = 0;
   assert.ok(orderedVermOutputs.indexOf('H5')<orderedVermOutputs.indexOf('G13'));assert.ok(orderedVermOutputs.indexOf('G13')<orderedVermOutputs.indexOf('A25'));assert.ok(orderedVermOutputs.indexOf('A25')<orderedVermOutputs.indexOf('A26'));
   const retainedVermInput=renderedControls()[0],vermUpdate=copy(entry.result);vermUpdate.rows.find(row=>row.row===6).cells.find(cell=>cell.column===8).value=0.987654;audit.setRequest(async()=>vermUpdate);await audit.calculate();
   assert.equal(renderedControls()[0],retainedVermInput);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').textContent,'0.99');
-  vermUpdate.rows.find(row=>row.row===5).cells.find(cell=>cell.column===1).value='Updated input section';await audit.calculate();assert.ok(descendants(byId('calculator-grid')).some(node=>node.href&&node.textContent==='Updated input section'));assert.equal(entry.inputs.CALCULATOR.D6,12.3456789);passed++;
+  vermUpdate.rows.find(row=>row.row===5).cells.find(cell=>cell.column===1).value='Updated input section';await audit.calculate();assert.ok(descendants(byId('calculator-grid')).some(node=>node.dataset?.calculatorOutput==='A5'&&node.textContent==='Updated input section'));assert.equal(entry.inputs.CALCULATOR.D6,12.3456789);passed++;
 
   // A presentation row can swap the published caption/value while retaining source IDs, vertical merges and controls.
   entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
   const publishedLayout={first_row:5,last_row:9,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),title_address:'H5',table_kind:'comparison',label:'Thickness and quantities',row_layouts:{6:[{address:'L6',span:3},{address:'H6',span:4}],9:[{address:'H9',span:7}]}};
-  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:[publishedLayout],header_rows:[],display_cells:{H6:{align:'left'},H9:{bold:false}},merges:['H5:N5','H6:K8','L6:N8','H9:J9','K9:N9']}];
+  entry.definition.sheets=[{name:'CALCULATOR',table_layout:'projected',presentation_tables:[publishedLayout],header_rows:[],display_text:{L6:'PUBLISHED VALUE'},display_cells:{H6:{align:'left',suffix:' mm'},H9:{bold:false}},merges:['H5:N5','H6:K8','L6:N8','H9:J9','K9:N9']}];
   entry.result=result({}, {max_column:14,rows:[
     {row:5,cells:[{column:8,address:'H5',value:'Thickness and quantities',presentation:{role:'section'}}]},
     {row:6,cells:[{column:4,address:'D6',value:12.3456789,editable:true,type:'number',label:'Member length'},{column:8,address:'H6',value:26,calculated:true},{column:12,address:'L6',value:'mm / PUBLISHED VALUE',presentation:{role:'note'}}]},
@@ -856,14 +861,16 @@ let passed = 0;
   const publishedTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Thickness and quantities');
   const publishedRow=publishedTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='6');
   assert.deepEqual(publishedRow.children.map(cell=>cell.dataset.calculatorOutput),['L6','H6']);assert.deepEqual(publishedRow.children.map(cell=>cell.colSpan),[3,4]);assert.deepEqual(publishedRow.children.map(cell=>cell.rowSpan),[3,3]);
-  assert.equal(publishedRow.children[1].textContent,'26.00');assert.equal(publishedRow.children[1].classList.contains('calculator-align-left'),true);
+  assert.equal(publishedRow.children[0].textContent,'PUBLISHED VALUE');assert.equal(publishedRow.children[1].textContent,'26.00 mm');assert.equal(publishedRow.children[1].classList.contains('calculator-align-left'),true);
   const belowPublishedRow=publishedTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='9');assert.equal(belowPublishedRow.children.length,2);assert.deepEqual(belowPublishedRow.children.map(cell=>cell.colSpan),[3,4]);
   assert.equal(belowPublishedRow.children[0].classList.contains('calculator-normal'),true);assert.equal(belowPublishedRow.children[0].classList.contains('calculator-bold'),false);
   assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell).sort(),['D6','K9']);
   const referenceControl=renderedControls().find(control=>control.dataset.calculatorCell==='K9');assert.equal(referenceControl.getAttribute('aria-label'),'Reference quantity');
   assert.equal(JSON.stringify(entry.result),rawPublishedLayout);
   const updatedPublishedLayout=copy(entry.result);updatedPublishedLayout.rows.find(row=>row.row===6).cells.find(cell=>cell.address==='H6').value=27.123456789;audit.setRequest(async()=>updatedPublishedLayout);await audit.calculate();
-  assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='K9'),referenceControl);assert.equal(publishedRow.children[1].textContent,'27.12');assert.equal(publishedRow.children[1].dataset.calculatorOutput,'H6');assert.equal(publishedRow.children[1].rowSpan,3);passed++;
+  assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='K9'),referenceControl);assert.equal(publishedRow.children[1].textContent,'27.12 mm');assert.equal(publishedRow.children[1].dataset.calculatorOutput,'H6');assert.equal(publishedRow.children[1].rowSpan,3);
+  for(const [value,error] of [[null,false],['',false],['HOLD',false],[NaN,false],[Infinity,false],[26,true]]){audit.updateOutputCell(publishedRow.children[1],{address:'H6',value,error});assert.ok(!publishedRow.children[1].textContent.endsWith(' mm'));}
+  assert.equal(entry.result.rows.find(row=>row.row===6).cells.find(cell=>cell.address==='H6').value,27.123456789);passed++;
 
   // Collapsing a blank factor-helper row leaves its neighbouring merged source note and later inputs intact.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
@@ -878,7 +885,7 @@ let passed = 0;
 
   // BAGS keeps its exact yield while merging the adjacent decorative cells into one gold spacer.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';
-  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',header_rows:[19],section_cells:['A17'],display_cells:{H10:{merge:'H10:N10',role:'spacer'}},merges:['A1:N1','A17:N17'],presentation_tables:[
+  entry.definition.sheets=[{name:'BAGS',table_layout:'projected',navigation_mode:'hidden',display_table_order:[1,0],header_rows:[19],section_cells:['A17'],display_cells:{H10:{merge:'H10:N10',role:'spacer'},...Object.fromEntries([20,21,22,23,24].map(row=>[`A${row}`,{bold:true}]))},merges:['A1:N1','A17:N17'],presentation_tables:[
     {first_row:6,last_row:15,columns:[1,2,3,4,5,6,8,9,10,11,12,13,14],column_widths:Array(13).fill(1),width_mode:'fit',table_kind:'form',label:'Manual quantity'},
     {first_row:17,last_row:24,columns:Array.from({length:9},(_,i)=>i+1),column_widths:[19,7,9,10,8,7,11,9,20],width_mode:'fit',table_kind:'order',title_address:'A17',header_row:19,label:'Product order summary'},
   ]}];
@@ -892,6 +899,9 @@ let passed = 0;
   assert.equal(renderedControls().length,3);const projectedOrder=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-projected-section');assert.equal(projectedOrder.children[0].textContent,'PRODUCT ORDER SUMMARY');
   const projectedOrderTable=descendants(projectedOrder).find(node=>node.tagName==='table');assert.equal(projectedOrderTable.style.width,'100%');assert.equal(projectedOrderTable.children.at(-1).children.length,6);assert.equal(projectedOrderTable.children[0].children[8].style.width,'20%');
   const manualTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Manual quantity');assert.ok(manualTable.children.at(-1).children[0].children.every(node=>node.tagName==='td'));
+  assert.ok(descendants(byId('calculator-grid')).indexOf(projectedOrderTable)<descendants(byId('calculator-grid')).indexOf(manualTable));assert.match(projectedOrder.children[0].id,/-1$/);
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
+  for(const row of [20,21,22,23,24])assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===`A${row}`).classList.contains('calculator-bold'));
   const yieldRow=manualTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='10');
   assert.equal(yieldRow.children.length,7);const yieldSpacer=yieldRow.children.at(-1);
   assert.equal(yieldSpacer.dataset.calculatorOutput,'H10');assert.equal(yieldSpacer.colSpan,7);assert.match(yieldSpacer.className,/calculator-role-spacer/);
@@ -964,6 +974,117 @@ let passed = 0;
     realRender(entry);const plainSettingsScroll=byId('calculator-grid').children.find(node=>node.className?.includes('calculator-table-scroll'));
     assert.ok(plainSettingsScroll.classList.contains('calculator-section-scroll'));assert.equal(renderedControls().length,1);
   }passed++;
+
+  // START expands all instructions without internal table scrolling or an extra contents list.
+  entry=setup();entry.sheet='START';entry.definition.schedule.sheet='CALCULATOR';
+  entry.definition.sheets=[{name:'START',navigation_mode:'hidden',expand_tables:true,header_rows:[],section_cells:['A8'],merges:['A1:C1','A8:C8']}];
+  entry.result=result({}, {sheet:'START',rows:[{row:1,cells:[{column:1,address:'A1',value:'Start',presentation:{role:'title'}}]},
+    {row:8,cells:[{column:1,address:'A8',value:'Getting started',presentation:{role:'section'}}]},
+    {row:12,cells:[{column:1,address:'A12',value:'Source instructions'},{column:3,address:'C12',value:'Keep this qualification'}]}]});
+  const startRaw=JSON.stringify(entry.result);realRender(entry);
+  assert.equal(byId('calculator-grid').classList.contains('calculator-grid-expanded'),true);
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
+  assert.ok(descendants(byId('calculator-grid')).filter(node=>node.className?.includes('calculator-table-scroll')).every(node=>node.classList.contains('calculator-section-scroll')));
+  assert.ok(descendants(byId('calculator-grid')).some(node=>node.textContent==='Keep this qualification'));assert.equal(JSON.stringify(entry.result),startRaw);
+  entry.result.expand_tables=false;realRender(entry);assert.equal(byId('calculator-grid').classList.contains('calculator-grid-expanded'),false);passed++;
+
+  // All settings choosers start closed, partition overlapping source columns once, and retain drafts/errors/selection.
+  const chooserBounds=[[9,16],[17,30],[31,63],[64,95],[96,172],[173,228],[229,269],[270,340],[341,355],[356,369],[370,374]];
+  const chooserCases=[
+    {id:'steel_vermiculite',sheet:'SETTINGS',sections:chooserBounds.map(([first,last],index)=>({id:`A${first}`,label:`Section ${index+1}`,ranges:[`A${first}:N${last}`]})),metadata:{section_cells:chooserBounds.map(([first])=>`A${first}`),merges:chooserBounds.map(([first])=>`A${first}:N${first}`)},rows:[
+      {row:1,cells:[{column:1,address:'A1',value:'Vermiculite settings',presentation:{role:'title'}}]},
+      ...chooserBounds.flatMap(([first],index)=>[{row:first,cells:[{column:1,address:`A${first}`,value:`Section ${index+1}`,presentation:{role:'section'}}]},{row:first+1,cells:[{column:1,address:`A${first+1}`,value:'Setting'},{column:4,address:`D${first+1}`,value:index+0.123456789,editable:true,type:'number'}]}]),
+      {row:42,cells:[{column:4,address:'D42',value:'Saved reference basis',read_only:true,presentation:{role:'note'}}]},
+    ]},
+    {id:'steel_board',sheet:'SETTINGS',sections:[{id:'table-0',label:'General settings',ranges:['A5:C34']},{id:'table-1',label:'Fire periods and temperatures',ranges:['G5:N10']},{id:'table-2',label:'Diagnostic messages',ranges:['P5:Q51']}],metadata:{table_layout:'stacked',presentation_tables:boardSettingTables,header_rows:[5]},rows:[
+      {row:1,cells:[{column:1,address:'A1',value:'Board settings',presentation:{role:'title'}}]},
+      {row:5,cells:[{column:1,address:'A5',value:'Setting'},{column:7,address:'G5',value:'Fire period'},{column:16,address:'P5',value:'Diagnostic code'},{column:17,address:'Q5',value:'Message'}]},
+      {row:6,cells:[{column:1,address:'A6',value:'Allowance'},{column:2,address:'B6',value:0.1,editable:true,type:'number'},{column:7,address:'G6',value:90},{column:16,address:'P6',value:'REVIEW'},{column:17,address:'Q6',value:'Source diagnostic message'}]},
+    ]},
+    {id:'ductwork',sheet:'PRODUCT SETTINGS',sections:[{id:'A6',label:'CAFCO',ranges:['A6:H46']},{id:'A48',label:'MONOKOTE',ranges:['A48:H92']},{id:'A94',label:'FYREWRAP',ranges:['A94:H151']},{id:'J94',label:'FYREWRAP APPLICATION TABLE',ranges:['J94:Q113']},{id:'J115',label:'PENETRATION',ranges:['J115:Q149']}],metadata:{table_layout:'projected',header_rows:[95,116],section_cells:['A6','A48','A94','J94','J115'],display_text:{J94:'FYREWRAP APPLICATION TABLE'},merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
+      {first_row:94,last_row:151,columns:[1,2,3,4,5,6,7,8],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'form',title_address:'A94',label:'FYREWRAP'},
+      {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application'},
+      {first_row:115,last_row:149,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'comparison',title_address:'J115',header_row:116,label:'Penetration'},
+    ]},rows:[
+      {row:1,cells:[{column:1,address:'A1',value:'Duct settings',presentation:{role:'title'}}]},
+      {row:6,cells:[{column:1,address:'A6',value:'CAFCO',presentation:{role:'section'}}]},{row:8,cells:[{column:2,address:'B8',value:25,editable:true,type:'number'}]},
+      {row:48,cells:[{column:1,address:'A48',value:'MONOKOTE',presentation:{role:'section'}}]},{row:65,cells:[{column:2,address:'B65',value:1,editable:true,type:'number'}]},
+      {row:94,cells:[{column:1,address:'A94',value:'FYREWRAP',presentation:{role:'section'}},{column:10,address:'J94',value:'Original application title',presentation:{role:'section'}}]},
+      {row:95,cells:[{column:10,address:'J95',value:'Application header'}]},
+      {row:100,cells:[{column:2,address:'B100',value:0.005,editable:true,type:'number'},{column:10,address:'J100',value:'Application source record'}]},
+      {row:115,cells:[{column:1,address:'A115',value:'FyreWrap settings note'},{column:10,address:'J115',value:'PENETRATION',presentation:{role:'section'}}]},
+      {row:116,cells:[{column:10,address:'J116',value:'Penetration header'}]},
+      {row:117,cells:[{column:1,address:'A117',value:'Another FyreWrap setting'},{column:10,address:'J117',value:'Penetration source record'}]},
+    ]},
+  ];
+  for(const scenario of chooserCases) {
+    entry=setup();audit.state.entries.delete('steel_board');audit.state.entries.set(scenario.id,entry);audit.state.current=scenario.id;
+    entry.definition.id=scenario.id;entry.sheet=scenario.sheet;entry.definition.pages=[scenario.sheet,'CALCULATOR'];entry.definition.schedule.sheet='CALCULATOR';
+    entry.definition.sheets=[{name:scenario.sheet,header_rows:[],merges:[],...copy(scenario.metadata),navigation_mode:'select',settings_sections:copy(scenario.sections)},{name:'CALCULATOR',header_rows:[8],merges:[]}];
+    const sectionResult=inputs=>result(copy(inputs),{sheet:scenario.sheet,max_column:17,rows:copy(scenario.rows)});
+    entry.result=sectionResult(entry.inputs);const rawChooser=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+    const chooserButtons=()=>descendants(byId('calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
+    const chooserPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
+    const openPanels=()=>chooserPanels().filter(panel=>!panel.hidden);
+    assert.equal(chooserButtons().length,scenario.sections.length);assert.equal(chooserPanels().length,scenario.sections.length);assert.equal(openPanels().length,0);
+    assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
+    for(const [index,button] of chooserButtons().entries()){assert.equal(button.tagName,'button');assert.equal(button.type,'button');assert.equal(button.getAttribute('aria-expanded'),'false');assert.equal(button.getAttribute('aria-controls'),chooserPanels()[index].id);assert.equal(chooserPanels()[index].getAttribute('aria-labelledby'),button.id);}
+    const sourceControls=scenario.rows.flatMap(row=>row.cells.filter(cell=>cell.editable).map(cell=>cell.address)).sort();
+    assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell).sort(),sourceControls);
+    for(const control of renderedControls())assert.equal(chooserPanels().filter(panel=>descendants(panel).includes(control)).length,1);
+    if(scenario.id==='ductwork') {
+      const panelById=id=>chooserPanels().find(panel=>panel.id.endsWith(`-${id}`));
+      for(const address of ['A94','A115','A117'])assert.ok(descendants(panelById('A94')).some(node=>node.dataset?.calculatorOutput===address));
+      assert.ok(descendants(panelById('J94')).some(node=>node.dataset?.calculatorOutput==='J94'&&node.textContent==='FYREWRAP APPLICATION TABLE'));
+      assert.ok(descendants(panelById('J115')).some(node=>node.dataset?.calculatorOutput==='J117'));
+    }
+    assert.equal(JSON.stringify(entry.result),rawChooser);assert.deepEqual(copy(entry.inputs),{});
+    await chooserButtons()[0].emit('click');assert.equal(openPanels().length,1);assert.equal(chooserButtons()[0].getAttribute('aria-expanded'),'true');
+    const firstControl=descendants(openPanels()[0]).find(node=>node.dataset?.calculatorCell),controlAddress=firstControl.dataset.calculatorCell;
+    await firstControl.emit('focus');firstControl.value='12.3456789';await firstControl.emit('input');await firstControl.emit('blur');
+    const draftBeforeChoice=JSON.stringify(entry.inputs),savedBeforeChoice=entry.saved;
+    firstControl.value='invalid';await firstControl.emit('input');assert.equal(entry.invalid.size,1);
+    await chooserButtons()[1].emit('click');assert.equal(openPanels().length,1);assert.equal(chooserButtons()[0].getAttribute('aria-expanded'),'false');assert.equal(entry.invalid.size,1);
+    assert.equal(JSON.stringify(entry.inputs),draftBeforeChoice);assert.equal(entry.saved,savedBeforeChoice);
+    await chooserButtons()[0].emit('click');firstControl.value='12.3456789';await firstControl.emit('input');await firstControl.emit('blur');await chooserButtons()[1].emit('click');
+    audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);return body.sheet===scenario.sheet?sectionResult(body.inputs):result(body.inputs,{sheet:body.sheet,rows:[]});});
+    await audit.calculate();assert.equal(renderedControls().find(control=>control.dataset.calculatorCell===controlAddress),firstControl);assert.equal(openPanels().length,1);assert.equal(chooserButtons()[1].getAttribute('aria-expanded'),'true');
+    entry.needsRender=true;await audit.calculate();assert.equal(openPanels().length,1);assert.equal(chooserButtons()[1].getAttribute('aria-expanded'),'true');
+    await chooserButtons()[0].emit('click');const pendingControl=renderedControls().find(control=>control.dataset.calculatorCell===controlAddress);
+    context.document.activeElement=pendingControl;await pendingControl.emit('focus');
+    audit.setRequest(async(path,options)=>({...sectionResult(JSON.parse(options.body).inputs),display_text:{A1:'Updated settings title'}}));
+    await audit.calculate();assert.ok(entry.pendingResult);assert.equal(renderedControls().find(control=>control.dataset.calculatorCell===controlAddress),pendingControl);
+    const pendingButton=chooserButtons()[1];await pendingControl.emit('blur',{relatedTarget:pendingButton});context.document.activeElement=pendingButton;
+    assert.ok(entry.pendingResult);assert.equal(chooserButtons()[1],pendingButton);
+    await pendingButton.emit('click');assert.equal(entry.pendingResult,null);assert.equal(chooserButtons()[1].getAttribute('aria-expanded'),'true');assert.notEqual(chooserButtons()[1],pendingButton);assert.equal(openPanels().length,1);
+    assert.equal(entry.inputs[scenario.sheet][controlAddress],12.3456789);context.document.activeElement=null;
+    audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);return body.sheet===scenario.sheet?sectionResult(body.inputs):result(body.inputs,{sheet:body.sheet,rows:[]});});
+    await audit.selectPage('CALCULATOR');await audit.selectPage(scenario.sheet);assert.equal(chooserButtons()[1].getAttribute('aria-expanded'),'true');
+    const otherId=scenario.id==='ductwork'?'steel_board':'ductwork',other={...entry,definition:{...entry.definition,id:otherId,title:'Other calculator'},inputs:{CALCULATOR:{B9:99}},saved:'{}',invalid:new Map(),settingsSelection:{},sheet:'CALCULATOR',result:null};
+    audit.state.entries.set(otherId,other);await audit.selectCalculator(otherId);await audit.selectCalculator(scenario.id);
+    assert.equal(chooserButtons()[1].getAttribute('aria-expanded'),'true');assert.equal(entry.inputs[scenario.sheet][controlAddress],12.3456789);assert.equal(entry.saved,savedBeforeChoice);assert.equal(other.inputs.CALCULATOR.B9,99);
+    await chooserButtons()[1].emit('click');assert.equal(openPanels().length,0);
+  }passed++;
+
+  // Successful generic subtitles disappear; calculating/errors remain, and only the exact approved duct banner is hidden.
+  const approvedFixingBanner='The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.';
+  for(const sheet of ['CALCULATOR','SUMMARY','PRODUCT SETTINGS']) {
+    entry=setup();entry.definition.id='ductwork';entry.sheet=sheet;
+    const warningPayload=result({}, {sheet,warnings:[approvedFixingBanner,`${approvedFixingBanner} Updated source.`,{message:'Keep the technical qualification.'}]});
+    const calculating=deferred();audit.setRequest(()=>calculating.promise);const runningCalculation=audit.calculate();
+    assert.equal(byId('calculator-calculation-status').hidden,false);assert.equal(byId('calculator-calculation-status').textContent,'Calculating…');
+    calculating.resolve(warningPayload);await runningCalculation;
+    assert.equal(byId('calculator-calculation-status').hidden,true);assert.equal(byId('calculator-calculation-status').textContent,'');
+    assert.deepEqual(byId('calculator-warnings').textContent.split('\n'),[`${approvedFixingBanner} Updated source.`,'Keep the technical qualification.']);
+    assert.equal(entry.result.warnings[0],approvedFixingBanner);assert.equal(entry.result.warnings.length,3);
+    audit.setRequest(async()=>result({}, {sheet,warnings:[approvedFixingBanner]}));await audit.calculate();assert.equal(byId('calculator-warnings').hidden,true);
+  }
+  entry=setup();audit.setRequest(async()=>result({}, {warnings:[approvedFixingBanner]}));await audit.calculate();
+  assert.equal(byId('calculator-warnings').textContent,approvedFixingBanner);assert.equal(byId('calculator-warnings').hidden,false);
+  audit.setRequest(async()=>{throw new Error('Server unavailable');});await audit.calculate();
+  assert.equal(byId('calculator-calculation-status').hidden,false);assert.equal(byId('calculator-calculation-status').textContent,'Calculation needs attention');
+  const invalidStatusControl=audit.makeControl({column:2,type:'number',value:1},9,entry,'Length');invalidStatusControl.value='invalid';await invalidStatusControl.emit('input');
+  assert.equal(byId('calculator-calculation-status').hidden,false);assert.match(byId('calculator-calculation-status').textContent,/valid number/);passed++;
 
   // Cell-specific bold and centred text are presentation only and survive ordinary result refreshes.
   entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';

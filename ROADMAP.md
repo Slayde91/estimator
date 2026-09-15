@@ -1,18 +1,20 @@
 # Roadmap
 
-Current increment: add an Excel register download to each calculator beside its
-schedule PDF. The existing report projection supplies Summary, Schedule and
-board Extra boards sheets, preserving exact numeric values, incomplete statuses,
-pooled quantities and source identity. Downloads capture the draft without saving;
-the workbook is a calculated snapshot, separate from schedule input templates.
-No new production dependency, formula engine or storage migration is introduced.
-Validation and publication belong in SESSION_HANDOFF.md.
+Current increment: select one section at a time on each SETTINGS & RULES page,
+initially showing none, while keeping the full draft and report scope. Existing
+metadata also reorders BAGS, scopes the requested navigation/text cleanup,
+refines headings/units/weights and removes the board START vertical pane.
+No dependency, calculation rule or storage migration is introduced. Six section
+tests, 28 API/cleanup tests, 84 calculator UI checks, 20 original UI checks,
+syntax/diff checks and the 35-file build passed. All worksheet cells, PDF text and
+register values matched before/after. Browser selection/layout checks and
+independent review passed; the refreshed service preserved saved data.
+Commit/publication and exact-head CI/merge remain pending in SESSION_HANDOFF.md.
 
-Current local checks passed seven register tests, 14 API tests, 81 calculator UI
-checks, 20 original UI checks, syntax and the 35-file build. The refreshed service
-returned all three registers correctly and preserved saved data. Seven sheets
-were visually reviewed and final shared table styling passed review. Publication
-and exact-head CI/merge remain pending.
+The preceding Excel-register increment merged in PR #17 as `364a024`. Both
+exact-head CI runs passed 220 Python tests (216 passed, four skipped) and 101 UI
+checks. Its local checks, seven-sheet visual review, live downloads and saved-state
+comparison are recorded separately; they do not validate this new increment.
 
 Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
 recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
@@ -27,6 +29,7 @@ not verify this subsequent presentation increment or its publication status.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
 - Two-decimal presentation while retaining raw calculation precision.
 - Three workbook Calculators, every visible tab, board SETTINGS/EXTRA BOARDS and adjustable settings.
+- Client-only section selection on all three Settings pages, with eleven/five/three source-bounded choices and full calculation/save/report scope. Scoped navigation, subtitle and copied-notice cleanup; order-first BAGS, MEMBER SCHEDULE, published-value units and expanded board START.
 - Permanent technical databases, original formulas and dependent dropdowns.
 - Schedule templates/import, separate drafts/saved states and source-version guards.
 - Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.

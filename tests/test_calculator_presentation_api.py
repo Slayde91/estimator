@@ -116,6 +116,38 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 self.assertEqual(result["inputs"][sheet][address], precision)
         self.assertEqual(self.stored_rows(), before)
 
+    def test_section_controls_and_text_aliases_leave_raw_worksheet_values_intact(self):
+        before = self.stored_rows()
+        calculator = self.worksheet('steel_vermiculite', 'CALCULATOR')
+        cells = self.cells(calculator)
+        self.assertEqual(calculator['navigation_mode'], 'hidden')
+        self.assertEqual(calculator['display_text']['L6'], 'PUBLISHED VALUE')
+        self.assertIn('mm', cells['L6']['value'])
+        self.assertIsInstance(cells['H6']['value'], (int, float))
+        self.assertEqual(calculator['display_cells']['H6']['suffix'], ' mm')
+        bags = self.worksheet('steel_vermiculite', 'BAGS')
+        self.assertEqual(bags['display_table_order'], [1, 0])
+        self.assertEqual(bags['navigation_mode'], 'hidden')
+        for row in range(20, 25):
+            self.assertTrue(bags['display_cells'][f'A{row}']['bold'])
+        for identity, sheet, count, field in (
+                ('steel_vermiculite', 'SETTINGS', 11, 'D42'),
+                ('ductwork', 'PRODUCT SETTINGS', 5, 'B96'),
+                ('steel_board', 'SETTINGS', 3, 'B34')):
+            page = self.worksheet(identity, sheet)
+            self.assertEqual(page['navigation_mode'], 'select')
+            self.assertEqual(len(page['settings_sections']), count)
+            self.assertEqual(len(page['rows']), page['max_row'])
+            self.assertIn(field, self.cells(page))
+            if identity == 'steel_vermiculite':
+                self.assertFalse(page['display_cells']['D42']['bold'])
+                self.assertFalse(self.cells(page)['D42']['editable'])
+            elif identity == 'ductwork':
+                self.assertEqual(page['display_text']['J94'], 'FYREWRAP APPLICATION TABLE')
+                self.assertIn('MANUAL', self.cells(page)['J94']['value'])
+                self.assertTrue(any('copied fixing instructions' in warning for warning in page['warnings']))
+        self.assertEqual(self.stored_rows(), before)
+
     def test_dropdowns_share_full_lists_and_keep_dependent_numeric_choices(self):
         inputs = {"CALCULATOR": {"C9": "TRAFALGAR COREX", "C10": "PROMATECT 250", "I9": "Beam", "I10": "Column"}}
         result = self.worksheet("steel_board", "CALCULATOR", inputs=inputs)

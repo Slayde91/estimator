@@ -2,6 +2,35 @@
 
 Date: 2026-09-15. Executable code and checked results take precedence over this document.
 
+Current increment: the three **SETTINGS & RULES** pages use section buttons.
+They begin with no section open and show only the selected section: eleven
+choices for vermiculite, five for ductwork and three for board. The browser
+retains the selection while recalculating or switching pages; all settings stay
+in the complete draft, validation, save/reset and PDF/Excel-register scope.
+
+Vermiculite CALCULATOR/BAGS and board START omit contents navigation. BAGS shows
+the product order summary before its manual form and uses bold product names.
+Vermiculite gains the MEMBER SCHEDULE heading and shows numeric published values
+with mm beside the value. CAFCO review prose uses normal weight, the FyreWrap
+application heading is shorter, and board START uses page scrolling. Generic
+completed-calculation subtitles and the exact duct copied-fixing notice are
+hidden in the browser; errors, other warnings and the source/API content remain.
+
+These changes extend existing presentation metadata and the renderer, with no
+new dependency, schema, formula or technical-rule change. Exact ranges are in
+[the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Six new section
+tests, 28 API/cleanup tests, 84 calculator UI checks, 20 original UI checks,
+syntax/diff checks and the 35-file build passed. All 104,068 cells across twelve
+API worksheets, three PDF text projections and three register worksheet-value
+sets match before/after. The source audit retains 73 editable Settings controls
+and five read-only material references exactly once.
+
+Browser checks verified section selection, retained drafts/hidden controls,
+headings, units, weights and board START scrolling. Independent review found no
+issues. The main service refreshed successfully and preserved every saved record
+and schema version 2. Commit/publication and exact-head CI/merge remain pending;
+current evidence belongs at the top of SESSION_HANDOFF.md.
+
 Each calculator now has **Download Excel register** beside its schedule PDF.
 The workbook contains Summary and Schedule sheets, plus Extra boards for board
 protection. It captures the same calculated draft as the PDF: used items,
@@ -15,12 +44,14 @@ and Import schedule retain their separate input-only workflow.
 
 The export reuses the existing report projection, openpyxl dependency and exact
 number serializer. No source formulas, business rules or storage schema change.
-Current local checks passed seven register tests, 14 API tests, 81 calculator UI
+The Excel-register checkpoint passed seven register tests, 14 API tests, 81 calculator UI
 checks, 20 original UI checks, syntax and a 35-file build. Representative renders
 cover all seven default workbook sheets, with final shared table styling verified.
 The refreshed service returned all three registers correctly, served matching
-assets and preserved saved data. Publication and CI are pending; current evidence
-belongs in SESSION_HANDOFF.md.
+assets and preserved saved data. PR #17 merged as `364a024`; both exact-head CI
+runs passed 220 Python tests (216 passed, four skipped) and 101 UI checks. Its
+publication receipt is under `.runtime/excel-register-qa`; those prior checks
+do not validate the current section-navigation increment.
 
 The preceding 23 browser comments refine calculator detail layout. Vermiculite
 factor helpers absorb blank dividers and collapse one blank left-side row while
@@ -50,9 +81,9 @@ no application errors. Independent diff review was clean.
 The main service was refreshed successfully: four served assets match the current
 files and the new presentation metadata is active. Database state retained two
 quotes, no settings or calculator-state records and schema version 2 exactly.
-Commit/publication and current-head CI/merge remain pending. Detailed evidence
-belongs at the top of SESSION_HANDOFF.md and in `.runtime/detail-layout-qa`;
-local/runtime checks do not establish a published or merged change.
+Publication and exact-head CI/merge were pending at that earlier documentation
+checkpoint. Its evidence belongs in the dated SESSION_HANDOFF.md entry and
+`.runtime/detail-layout-qa`; it does not verify the current increment.
 
 The shared calculator settings banner now displays **SETTINGS & RULES**. This is
 a browser title change only; worksheet names, source values and calculations are unchanged.

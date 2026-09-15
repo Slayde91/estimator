@@ -51,25 +51,28 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
 _DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]}}
 _DISPLAY_TEXT = {
     'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
+                         'CALCULATOR': {'L6': 'PUBLISHED VALUE'},
                          'SCHEDULE': {'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
                     'BOARD SUMMARY': {'A1': 'BOARD SUMMARY'},
                     'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
     'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
-                 'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'}},
+                 'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'},
+                 'PRODUCT SETTINGS': {'J94': 'FYREWRAP APPLICATION TABLE'}},
 }
 # Browser-only spans and semantic corrections. Merged children are decorative
 # blanks; source formulas, input identities and source merge records stay intact.
 _DISPLAY_CELLS = {
     'steel_vermiculite': {
-        'BAGS': {'H10': {'merge': 'H10:N10', 'role': 'spacer'}},
-        'CALCULATOR': {'H6': {'align': 'left'},
+        'BAGS': {'H10': {'merge': 'H10:N10', 'role': 'spacer'},
+                 **{f'A{row}': {'bold': True} for row in range(20, 25)}},
+        'CALCULATOR': {'H6': {'align': 'left', 'suffix': ' mm'},
                        **{f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'}},
         'SCHEDULE': {f'C{row}': {'bold': True} for row in range(10, 1010)},
         'SETTINGS': {
             **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246)},
-            **{f'D{row}': {'bold': False} for row in (75, 107, 184, 240)},
+            **{f'D{row}': {'bold': False} for row in (42, 75, 107, 184, 240)},
             **{f'A{row}': {'bold': True} for row in (
                 *range(55, 59), *range(87, 91), *range(124, 168), *range(197, 224), *range(260, 265))},
             **{f'D{row}': {'merge': f'D{row}:G{row}'} for row in (
@@ -93,6 +96,26 @@ _DISPLAY_CELLS = {
             **{f'J{row}': {'bold': True} for row in (*range(96, 105), *range(117, 131), *range(137, 150))},
         },
     },
+}
+# Sections are browser panels, not alternate calculation/input scopes. Their
+# rectangles follow the original merged cells, including side-by-side tables.
+_SETTINGS_SECTIONS = {
+    ('steel_vermiculite', 'SETTINGS'): [
+        {'id': f'A{first}', 'title_address': f'A{first}', 'ranges': [f'A{first}:N{last}']}
+        for first, last in ((9, 16), (17, 30), (31, 63), (64, 95), (96, 172),
+                            (173, 228), (229, 269), (270, 340), (341, 355), (356, 369), (370, 374))
+    ],
+    ('ductwork', 'PRODUCT SETTINGS'): [
+        {'id': address, 'title_address': address, 'ranges': [region]}
+        for address, region in (('A6', 'A6:H46'), ('A48', 'A48:H92'), ('A94', 'A94:H151'),
+                                ('J94', 'J94:Q113'), ('J115', 'J115:Q149'))
+    ],
+    ('steel_board', 'SETTINGS'): [
+        {'id': f'table-{index}', 'label': label, 'ranges': [region]}
+        for index, (label, region) in enumerate((('General settings', 'A5:C34'),
+                                               ('Fire periods and temperatures', 'G5:N10'),
+                                               ('Diagnostic messages', 'P5:Q51')))
+    ],
 }
 # SUMMARY has independent tables sharing source column letters. Their browser
 # columns must be scoped to each table so hiding prose cannot hide quantities
@@ -331,7 +354,20 @@ def _sheet_metadata(model, sheet):
                 hidden.append(column)
     schedule = model['schedule']
     labels = [{'column': column_number(field['column']), 'label': field['label']} for field in schedule['columns']] if sheet['name'] == schedule['sheet'] else []
+    page = (model['id'], sheet['name'])
+    settings_sections = deepcopy(_SETTINGS_SECTIONS.get(page, []))
+    for section in settings_sections:
+        address = section.get('title_address')
+        if address:
+            section['label'] = _DISPLAY_TEXT.get(model['id'], {}).get(sheet['name'], {}).get(
+                address, sheet['cells'][address].get('value', ''))
     return {'name': sheet['name'], 'max_row': r2, 'max_column': c2,
+            'navigation_mode': 'select' if settings_sections else 'hidden' if page in {
+                ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'), ('steel_board', 'START')} else 'links',
+            'settings_sections': settings_sections,
+            'display_table_order': [1, 0] if page == ('steel_vermiculite', 'BAGS') else [],
+            'schedule_heading': 'MEMBER SCHEDULE' if page == ('steel_vermiculite', 'SCHEDULE') else '',
+            'expand_tables': page == ('steel_board', 'START'),
             'omitted_rows': list(_OMITTED_ROWS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_columns': list(_OMITTED_COLUMNS.get(model['id'], {}).get(sheet['name'], [])),
             'omitted_ranges': list(_OMITTED_RANGES.get(model['id'], {}).get(sheet['name'], [])),

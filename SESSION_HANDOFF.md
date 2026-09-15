@@ -1,5 +1,64 @@
 # Session handoff
 
+## Calculator section navigation — 2026-09-15
+
+Work on `fix/calculator-section-navigation` starts from merged main `364a024`
+(PR #17). The latest 21 browser comments are implemented through existing
+presentation metadata and browser rendering:
+
+- All three SETTINGS & RULES pages initially hide their sections. Native buttons
+  select exactly one of eleven vermiculite, five duct or three board sections.
+  Client selection is retained during recalculation and page switching; hidden
+  settings remain part of the full draft, validation, save/reset and both reports.
+- Vermiculite CALCULATOR/BAGS and board START omit contents navigation. BAGS
+  displays its existing product-order table before the manual form, retaining
+  stable source/table identities and using bold A20:A24 product names.
+- Vermiculite SCHEDULE adds MEMBER SCHEDULE above its prepared rows. CALCULATOR
+  L6 displays PUBLISHED VALUE; only numeric H6 results receive the mm suffix.
+  CAFCO SETTINGS D42 review prose uses normal weight. Duct PRODUCT SETTINGS J94
+  displays FYREWRAP APPLICATION TABLE.
+- Generic completed-calculation subtitles disappear. Duct CALCULATOR, SUMMARY
+  and PRODUCT SETTINGS omit only the exact copied-fixing explanatory notice in
+  the browser. Loading, invalid-input and calculation-error feedback, all other
+  warnings, API/source evidence and the approved fixing correction remain.
+- Board START content expands with page scrolling instead of a nested vertical
+  pane. The existing schedule scrollers retain their behavior.
+
+The exact Settings rectangles and retained source boundaries are recorded in
+`docs/CALCULATOR_PRESENTATION_MAPPING.md`. There is no new dependency, storage
+schema, input scope, formula engine or technical rule. Six section-specific tests
+passed in 25.867 seconds and all 28 API/cleanup tests passed in 168.515 seconds.
+All 84 calculator UI checks, 20 original UI checks, syntax/diff checks and the
+35-file distribution build passed. Before/after API snapshots match all 104,068 cells
+across twelve worksheets, including values, editability and dropdown choices;
+the cell digest remains
+`482e389f0498903ce98d921e6dfacf82fa72ac490ebf615e981e9d42d03a4a90`.
+The source audit found all 73 editable Settings controls and five read-only
+material references in exactly one declared section each.
+
+All three PDF text projections and all three Excel-register worksheet values
+match the preceding main version. Browser review confirmed all eleven/five/three
+Settings sections initially hidden with 34/11/28 controls retained, and exactly
+one selected section visible. An unsaved vermiculite draft value survived section
+switching; the hidden board general-settings B6 control remained present when
+Diagnostic messages was selected.
+
+The browser also confirmed CALCULATOR's PUBLISHED VALUE and 26.00 mm display,
+MEMBER SCHEDULE with all 1,000 prepared rows, five bold BAGS product names, normal
+CAFCO review prose and the shorter independent FyreWrap application heading.
+Requested contents navigation and success/copy notices were absent. Board START
+had no nested vertical scroll: table client and scroll heights both measured
+1,430 px, with no grid/table maximum height. Independent final diff review found
+no actionable issues.
+
+The main service refreshed successfully on port 8765. Saved state matched the
+baseline exactly: schema version 2, two quotes, zero settings and zero calculator
+states, with quote/settings digest
+`c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
+Commit/push, PR, exact-head CI/review and merge remain pending at this checkpoint.
+Record their verified outcome separately; earlier entries do not establish
+publication of this increment.
+
 ## Calculator Excel registers — 2026-09-15
 
 Every calculator has Download Excel register beside Download schedule PDF.
@@ -42,8 +101,11 @@ samples, with correct MIME types, filenames and no-store headers. All four serve
 asset hashes matched disk. Before/after saved data remained two quotes, zero
 settings and zero calculator states, schema version 2, with digest
 `c541e453134d10e4a014ac26b330745fa0113988d140c3274c57d61102902ce4`.
-Commit/push, exact-head CI/review and merge remain pending. Record publication
-results separately when available; prior entries below describe earlier changes.
+Publication verified: PR #17 merged commit `89d29b7` into main as `364a024`.
+Both exact-head push and PR CI runs passed 220 Python tests (216 passed, four
+private-source skips) and 101 UI checks. The retained publication receipt
+confirmed the upstream feature HEAD, merged main tree and clean tracked/untracked
+state at that checkpoint: `.runtime/excel-register-qa/publication.json`.
 
 ## Calculator detail layout — 2026-09-15
 

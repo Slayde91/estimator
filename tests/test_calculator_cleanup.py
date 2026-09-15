@@ -191,6 +191,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertEqual(sheet["omitted_columns"], [22, 23, 24] if sheet["name"] == "SCHEDULE" else [])
             self.assertEqual(sheet["omitted_ranges"], ["J28:N30"] if sheet["name"] == "CALCULATOR" else [])
             aliases = {"BAGS": {"A1": "MATERIAL QUANTITIES"},
+                       "CALCULATOR": {"L6": "PUBLISHED VALUE"},
                        "SCHEDULE": {"A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
             self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))
             for address in editable_cells(IDENTITY, sheet["name"]):
@@ -218,7 +219,10 @@ class CalculatorCleanupTests(unittest.TestCase):
                                    ("ductwork", "CALCULATOR"): "DUCT PROTECTION CALCULATOR",
                                    ("ductwork", "SUMMARY"): "DUCT PROTECTION SUMMARY"}
                 title = expected_titles.get((identity, sheet["name"]))
-                self.assertEqual(sheet["display_text"], {"A1": title} if title else {})
+                aliases = {"A1": title} if title else {}
+                if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
+                    aliases["J94"] = "FYREWRAP APPLICATION TABLE"
+                self.assertEqual(sheet["display_text"], aliases)
                 expected_order = [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else []
                 self.assertEqual(sheet["display_column_order"], expected_order)
                 self.assertEqual(len(sheet["display_column_order"]), len(set(sheet["display_column_order"])))

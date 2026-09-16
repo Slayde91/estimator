@@ -1,5 +1,7 @@
 # Calculator presentation mapping
 
+Current schedule extension: [1,000-row mapping and exchange](SCHEDULE_EXTENSION.md). Source-coordinate evidence below retains original capacities; runtime duct rows extend through 1010, board through 1008, and spray exposes Z Line plus AA Location through 1009. Board prepends a generated Line without shifting its existing fields. New action labels are documented in README.
+
 Date: 2026-09-15. This is a source-backed presentation and reporting map, not a new calculation specification. Source cell addresses below are developer traceability keys; user labels use the workbook's meaningful headings. Source packages, formulas and original workbooks remain unchanged. The separately authorized reviewed material defaults populate existing editable inputs; their boundary is recorded below and in [CALCULATOR_EXCEPTIONS.md](CALCULATOR_EXCEPTIONS.md).
 
 ## Evidence and implementation boundary

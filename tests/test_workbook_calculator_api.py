@@ -25,8 +25,8 @@ from estimator.storage import Store
 
 PAGES = {
     "steel_vermiculite": ["CALCULATOR", "SCHEDULE", "BAGS", "SETTINGS"],
-    "ductwork": ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"],
     "steel_board": ["START", "CALCULATOR", "BOARD SUMMARY", "EXTRA BOARDS", "SETTINGS"],
+    "ductwork": ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"],
 }
 
 
@@ -105,6 +105,8 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
     def test_definitions_expose_exact_twelve_pages_and_official_documents(self):
         listing = self.json_request("GET", "/api/calculators")
         self.assertEqual([item["id"] for item in listing["calculators"]], list(PAGES))
+        self.assertEqual([item['title'] for item in listing['calculators']],
+                         ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'])
         total_pages = 0
         for identity, pages in PAGES.items():
             with self.subTest(identity=identity):
@@ -198,8 +200,10 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(int(headers["Content-Length"]), len(payload))
         workbook = load_workbook(BytesIO(payload))
         self.assertEqual(workbook.sheetnames, ["CALCULATOR", "Instructions"])
-        self.assertEqual(workbook["CALCULATOR"].max_column, 8)
-        self.assertEqual(workbook["CALCULATOR"].max_row, 301)
+        self.assertEqual(workbook["CALCULATOR"].max_column, 9)
+        self.assertEqual(workbook["CALCULATOR"].max_row, 1001)
+        self.assertEqual(workbook["CALCULATOR"]["A1"].value, 'Line')
+        self.assertEqual(workbook["CALCULATOR"]["A1001"].value, 1000)
         self.assertFalse(any(cell.data_type == "f" for sheet in workbook for row in sheet for cell in row))
         workbook.close()
         self.assertEqual(self.stored_rows(), [])
@@ -210,10 +214,10 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         before = self.stored_rows()
         workbook = load_workbook(BytesIO(self.exported()))
         sheet = workbook["CALCULATOR"]
-        for column, value in enumerate(["250x250", "CAFCO 300", 0.12345678901234566, "120/120/120", 0, 0, "External", "Horizontal"], 1):
+        for column, value in enumerate(["250x250", "CAFCO 300", 0.12345678901234566, "120/120/120", 0, 0, "External", "Horizontal"], 2):
             sheet.cell(2, column, value)
-        sheet["A301"] = "500x250"
-        sheet.row_dimensions[301].hidden = True
+        sheet["B1001"] = "500x250"
+        sheet.row_dimensions[1001].hidden = True
         payload = _serialize_exact(workbook)
         workbook.close()
         proposed = self.json_request("POST", "/api/calculators/ductwork/import", self.upload(payload))
@@ -221,7 +225,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(proposed["source_sha256"], hashlib.sha256(payload).hexdigest())
         self.assertEqual(proposed["inputs"]["CALCULATOR"]["D11"], 0.12345678901234566)
         self.assertEqual(proposed["inputs"]["CALCULATOR"]["F11"], 0)
-        self.assertEqual(proposed["inputs"]["CALCULATOR"]["B310"], "500x250")
+        self.assertEqual(proposed["inputs"]["CALCULATOR"]["B1010"], "500x250")
         self.assertIsNone(proposed["inputs"]["CALCULATOR"]["B12"])
         self.assertEqual(proposed["inputs"]["PRODUCT SETTINGS"], old["PRODUCT SETTINGS"])
         self.assertEqual(self.stored_rows(), before)
@@ -254,7 +258,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         before = self.stored_rows()
         protected = [("ductwork", {"CALCULATOR": {"K11": 999}}),
                      ("ductwork", {"PRODUCT SETTINGS": {"J137": "Invented"}}),
-                     ("ductwork", {"CALCULATOR": {"B311": "Outside capacity"}}),
+                     ("ductwork", {"CALCULATOR": {"B1011": "Outside capacity"}}),
                      ("steel_vermiculite", {"SECTIONS": {"A6": "Invented"}}),
                      ("steel_board", {"STEEL LIBRARY": {"A6": "Invented"}}),
                      ("steel_board", {"CALCULATOR": {"AI9": "Invented"}})]
@@ -282,7 +286,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), before)
 
     def test_page_bounds_and_hidden_database_pages_are_rejected(self):
-        invalid = [{"start_row": 0}, {"start_row": 311}, {"start_row": True}, {"start_row": "11"},
+        invalid = [{"start_row": 0}, {"start_row": 1011}, {"start_row": True}, {"start_row": "11"},
                    {"row_count": 0}, {"row_count": 51}, {"row_count": 1.5}, {"sheet": []},
                    {"sheet": {}}, {"sheet": False}, {"sheet": 0}, {"sheet": "DATABASE"}]
         for body in invalid:
@@ -290,7 +294,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
             with self.subTest(body=body):
                 self.json_request("POST", "/api/calculators/ductwork/calculate", request, expected=400)
         self.json_request("POST", "/api/calculators/steel_board/calculate", {"sheet": "STEEL LIBRARY"}, expected=400)
-        self.assertEqual(self.calculate(row=310, count=50)["end_row"], 310)
+        self.assertEqual(self.calculate(row=1010, count=50)["end_row"], 1010)
 
     def test_unknown_payload_fields_methods_identifiers_and_json_are_rejected(self):
         for action, method, body in [("calculate", "POST", {"formulas": {}}), ("state", "PUT", {}),

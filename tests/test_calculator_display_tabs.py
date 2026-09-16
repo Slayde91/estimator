@@ -200,8 +200,8 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertNotIn('Y9', schedule)
         for identity, sheet, column, first, last in (
                 ('steel_vermiculite', 'SCHEDULE', 'C', 10, 1009),
-                ('steel_board', 'CALCULATOR', 'M', 9, 208),
-                ('ductwork', 'CALCULATOR', 'H', 11, 310)):
+                ('steel_board', 'CALCULATOR', 'M', 9, 1008),
+                ('ductwork', 'CALCULATOR', 'H', 11, 1010)):
             with self.subTest(identity=identity):
                 display = self.metadata(identity, sheet)['display_cells']
                 source = source_model(identity)
@@ -213,11 +213,11 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
                 self.assertNotIn('bold', display.get(f'{column}{last + 1}', {}))
         duct_display = self.metadata('ductwork', 'CALCULATOR')['display_cells']
         self.assertEqual({address for address, display in duct_display.items() if display.get('bold') is False},
-                         {f'{column}{row}' for column in ('H', 'AM') for row in range(11, 311)})
-        self.assertTrue(all(duct_display[f'H{row}']['control'] == 'select' for row in range(11, 311)))
+                         {f'{column}{row}' for column in ('H', 'AM') for row in range(11, 1011)})
+        self.assertTrue(all(duct_display[f'H{row}']['control'] == 'select' for row in range(11, 1011)))
         board_display = self.metadata('steel_board', 'CALCULATOR')['display_cells']
         self.assertEqual({address for address, display in board_display.items() if display.get('bold') is False},
-                         {f'M{row}' for row in range(9, 209)})
+                         {f'M{row}' for row in range(9, 1009)})
         self.assertTrue(self.metadata('steel_vermiculite', 'SETTINGS')['display_cells']['A55']['bold'])
         self.assertTrue(self.metadata('ductwork', 'PRODUCT SETTINGS')['display_cells']['J137']['bold'])
         calculator = self.metadata('steel_vermiculite', 'CALCULATOR')

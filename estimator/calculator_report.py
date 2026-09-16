@@ -22,7 +22,7 @@ from .workbook_calculators import source_model, normalize_calculator_inputs, app
 _WIDTH, _HEIGHT = landscape(A4)
 _MARGIN = 32
 _CONTENT = _WIDTH - 2 * _MARGIN
-_OUTPUT_LAST = {'ductwork': 43, 'steel_vermiculite': 25, 'steel_board': 48}
+_OUTPUT_LAST = {'ductwork': 43, 'steel_vermiculite': 27, 'steel_board': 48}
 _BOARD_DIRECTIONS = (
     ('Family (K)', 'Family (ESA input)'), ('Clear K to use', 'Clear Family (ESA input) to use'),
     ('Thickness lookup (P)', 'Thickness lookup'),
@@ -219,7 +219,7 @@ class _ScheduleReport(_Report):
         rows = []
         for item in data['rows']:
             v = item['values']
-            identity = str(item['line']) + (('\n' + str(v['A'])) if data['id'] != 'ductwork' and _has_value(v['A']) else '')
+            identity = str(item['line'])
             if data['id'] == 'ductwork':
                 thickness = self.display(item['wrap_layer_mm']) + ' per layer' if item['wrap'] else self.display(v['L'])
                 rows.append([self.p(identity, 'cell'), self.detail(v['C'] or 'Product missing', v['B']), self.numeric(v['D']),
@@ -227,24 +227,24 @@ class _ScheduleReport(_Report):
                     self.numeric('N/A' if item['wrap'] else v['M']), self.numeric(v['N'] if item['wrap'] else 'N/A'),
                     self.numeric(v['O'] if item['wrap'] else 'N/A'), self.p(v['J'] or 'No calculated status returned', 'cell')])
             elif data['id'] == 'steel_vermiculite':
-                rows.append([self.p(identity, 'cell'), self.detail(v['B'] or 'Product missing', v['F']),
+                rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'), self.detail(v['B'] or 'Product missing', v['F']),
                     self.p(self.display(v['I']) + ' x ' + self.display(v['J']) + ' m', 'numeric'),
                     self.numeric(v['O']), self.numeric(v['P']), self.numeric(v['R']), self.numeric(v['T']), self.numeric(v['U']),
                     self.p('\n'.join(str(value) for value in (v['V'], v['W']) if _has_value(value)) or 'No calculated status returned', 'cell')])
             else:
-                rows.append([self.p(identity, 'cell'), self.detail(v['C'] or 'Product missing', v['D']),
+                rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'), self.detail(v['C'] or 'Product missing', v['D']),
                     self.p(self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),
                     self.numeric(v['AB']), self.numeric(v['AD']), self.numeric(v['AE']), self.numeric(v['AF']), self.numeric(v['AG']),
                     self.p('\n'.join(str(value) for value in (v['AR'], v['AS']) if _has_value(value)) or 'No calculated status returned', 'cell')])
         if data['id'] == 'ductwork':
-            heads = ['Item', 'Product / duct mm', 'Length m', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
+            heads = ['Line', 'Product / duct mm', 'Length m', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
             fractions = [.05, .16, .065, .085, .08, .085, .085, .085, .075, .23]
         elif data['id'] == 'steel_vermiculite':
-            heads = ['Item / mark', 'Product / section', 'Quantity x length', 'Published mm', 'Estimate mm', 'Spray m²', 'Net bags', 'Whole bags / line', 'Status']
-            fractions = [.07, .19, .1, .08, .08, .1, .09, .09, .2]
+            heads = ['Line', 'Location', 'Item / mark', 'Product / section', 'Quantity x length', 'Published mm', 'Estimate mm', 'Spray m²', 'Net bags', 'Whole bags / line', 'Status']
+            fractions = [.055, .09, .095, .13, .085, .07, .07, .08, .075, .085, .165]
         else:
-            heads = ['Item / mark', 'Product / section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
-            fractions = [.06, .17, .08, .08, .07, .09, .09, .09, .08, .19]
+            heads = ['Line', 'Item / mark', 'Location', 'Product / section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
+            fractions = [.055, .065, .08, .125, .065, .07, .08, .07, .075, .075, .075, .165]
         self.story.append(self.table(heads, rows, [_CONTENT * size for size in fractions], compact=True))
 
     def extras(self):

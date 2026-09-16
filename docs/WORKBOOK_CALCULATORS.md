@@ -1,5 +1,7 @@
 # Workbook calculators
 
+The current application names are **Steel (spray)**, **Steel (board)** and **Ductwork (spray/wrap)**. Each main schedule supports 1,000 items through the documented [application extension](SCHEDULE_EXTENSION.md). The source capacities and formula counts below describe the preserved original workbooks, not the current UI limit. New templates include Line and spray Location; exact legacy templates remain accepted.
+
 The three new workbooks are separate estimating specifications. The existing
 Quote estimator, pricing library and quote PDF continue to use `Quote.xlsm` and
 `Inventory_list.xlsm`. Calculator material quantities are not automatically

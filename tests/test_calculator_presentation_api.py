@@ -20,9 +20,9 @@ from estimator.workbook_calculators import source_model
 
 
 EXTENTS = {
-    "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 25), "BAGS": (29, 14), "SETTINGS": (558, 65)},
-    "ductwork": {"CALCULATOR": (310, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (160, 17)},
-    "steel_board": {"START": (100, 12), "CALCULATOR": (208, 35), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
+    "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (558, 65)},
+    "ductwork": {"CALCULATOR": (1010, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (160, 17)},
+    "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 35), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
 }
 
 
@@ -104,7 +104,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
     def test_final_prepared_rows_remain_editable_and_preserve_raw_precision(self):
         before = self.stored_rows()
         precision = 12.345678901234567
-        cases = [("ductwork", "CALCULATOR", "D310"), ("steel_board", "CALCULATOR", "F208"),
+        cases = [("ductwork", "CALCULATOR", "D1010"), ("steel_board", "CALCULATOR", "F1008"),
                  ("steel_vermiculite", "SCHEDULE", "J1009"), ("steel_board", "EXTRA BOARDS", "G45")]
         for identity, sheet, address in cases:
             with self.subTest(identity=identity, sheet=sheet):
@@ -114,6 +114,35 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 self.assertFalse(last["calculated"])
                 self.assertEqual(last["value"], precision)
                 self.assertEqual(result["inputs"][sheet][address], precision)
+        self.assertEqual(self.stored_rows(), before)
+
+    def test_thousandth_row_and_location_survive_save_reopen_without_draft_writes(self):
+        precision = 0.12345678901234566
+        cases = {
+            'steel_vermiculite': {'SCHEDULE': {'AA1009': 'Level 9 / East wing - grid A.1000', 'J1009': precision}},
+            'steel_board': {'CALCULATOR': {'B1008': 'Level 9 / West wing', 'F1008': precision}},
+            'ductwork': {'CALCULATOR': {'B1010': '400x200', 'D1010': precision}},
+        }
+        for identity, inputs in cases.items():
+            with self.subTest(calculator=identity):
+                sheet = next(iter(inputs))
+                before = self.stored_rows()
+                self.assertEqual(self.worksheet(identity, sheet, inputs=inputs)['inputs'], inputs)
+                self.assertEqual(self.stored_rows(), before)
+                saved = self.json_request('PUT', f'/api/calculators/{identity}/state', {'inputs': inputs})
+                self.assertEqual(saved['inputs'], inputs)
+                self.assertEqual(Store(self.database).calculator_state(identity)['inputs'], inputs)
+                self.assertEqual(self.json_request('GET', f'/api/calculators/{identity}')['inputs'], inputs)
+                after_save = self.stored_rows()
+                self.worksheet(identity, sheet, inputs={})
+                self.assertEqual(self.stored_rows(), after_save)
+        before = self.stored_rows()
+        for identity, sheet, address in [('steel_vermiculite', 'SCHEDULE', 'AA1010'),
+                                          ('steel_vermiculite', 'SCHEDULE', 'Z1009'),
+                                          ('steel_board', 'CALCULATOR', 'F1009'),
+                                          ('ductwork', 'CALCULATOR', 'D1011')]:
+            self.json_request('PUT', f'/api/calculators/{identity}/state',
+                              {'inputs': {sheet: {address: 2}}}, expected=400)
         self.assertEqual(self.stored_rows(), before)
 
     def test_section_controls_and_text_aliases_leave_raw_worksheet_values_intact(self):
@@ -174,8 +203,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         cells = self.cells(result)
         choices = lambda address: result["option_sets"][cells[address]["options_ref"]]
         self.assertEqual(choices("C9"), ["TRAFALGAR COREX", "PROMATECT 250", "PROMATECT 100", "PROMATECT-XS"])
-        self.assertEqual(cells["C9"]["options_ref"], cells["C208"]["options_ref"])
-        self.assertEqual(cells["D9"]["options_ref"], cells["D208"]["options_ref"])
+        self.assertEqual(cells["C9"]["options_ref"], cells["C1008"]["options_ref"])
+        self.assertEqual(cells["D9"]["options_ref"], cells["D1008"]["options_ref"])
         self.assertEqual(len(choices("D9")), 1342)
         self.assertEqual(choices("H9"), [30, 60, 90, 120, 180])
         self.assertEqual(choices("H10"), [60, 90, 120, 180])
@@ -192,14 +221,14 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         normal = self.worksheet("steel_board", "CALCULATOR")
         advanced = self.worksheet("steel_board", "CALCULATOR", include_advanced=True)
         self.assertNotIn("M9", self.cells(normal))
-        self.assertNotIn("X208", self.cells(normal))
+        self.assertNotIn("X1008", self.cells(normal))
         self.assertEqual(advanced["visible_columns"], list(range(1, 36)))
-        self.assertTrue(self.cells(advanced)["X208"]["editable"])
-        self.assertFalse(self.cells(advanced)["AI208"]["editable"])
+        self.assertTrue(self.cells(advanced)["X1008"]["editable"])
+        self.assertFalse(self.cells(advanced)["AI1008"]["editable"])
         duct = self.worksheet("ductwork", "CALCULATOR", include_advanced=True)
         self.assertEqual(duct["visible_columns"], list(range(1, 91)))
-        self.assertFalse(self.cells(duct)["CL310"]["editable"])
-        self.assertTrue(self.cells(duct)["CL310"]["calculated"])
+        self.assertFalse(self.cells(duct)["CL1010"]["editable"])
+        self.assertTrue(self.cells(duct)["CL1010"]["calculated"])
 
     def test_current_draft_and_saved_inputs_are_separate(self):
         saved = self.store.save_calculator_state("ductwork", {"CALCULATOR": {"D11": 3}})

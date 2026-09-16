@@ -103,8 +103,8 @@ class CalculatorReportTests(unittest.TestCase):
                 self.assertEqual(data['source']['sha256'], read_fixture(identity, 'variations')['source_sha256'])
 
     def test_used_row_detection_retains_blank_product_zero_and_last_row(self):
-        for identity, cell, value in [('ductwork', 'D310', 0), ('steel_vermiculite', 'A1009', 'Last incomplete member'),
-                                      ('steel_board', 'X208', 'Last design reference')]:
+        for identity, cell, value in [('ductwork', 'D1010', 0), ('steel_vermiculite', 'A1009', 'Last incomplete member'),
+                                      ('steel_board', 'X1008', 'Last design reference')]:
             inputs = cleared_inputs(identity)
             sheet = source_model(identity)['schedule']['sheet']
             self.assertEqual(project_calculator_report(identity, inputs)['rows'], [])
@@ -222,7 +222,7 @@ class CalculatorReportTests(unittest.TestCase):
     def test_pdf_preserves_long_free_text_and_identifier_precision(self):
         inputs = cleared_inputs('steel_board')
         note = 'R3 P250 M12 report 1.2345 <literal> ' + 'Design reference ' * 80
-        inputs['CALCULATOR'].update({'A208': 'Last member R3 P250 M12 1.2345', 'X208': 'Private calculation detail'})
+        inputs['CALCULATOR'].update({'A1008': 'Last member R3 P250 M12 1.2345', 'X1008': 'Private calculation detail'})
         inputs['EXTRA BOARDS'].update({'A45': 'Last allowance', 'G45': -1.005, 'H45': 0.14505, 'N45': note})
         before = deepcopy(inputs)
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_report('steel_board', inputs))).pages)
@@ -243,7 +243,7 @@ class CalculatorReportTests(unittest.TestCase):
     def test_wrap_only_has_no_invented_bag_order_and_blank_reports_are_supported(self):
         inputs = cleared_inputs('ductwork')
         original = next(sheet for sheet in source_model('ductwork')['sheets'] if sheet['name'] == 'CALCULATOR')
-        inputs['CALCULATOR'].update({column + '310': original['cells'][column + '13'].get('value') for column in 'BCDEFGHI'})
+        inputs['CALCULATOR'].update({column + '1010': original['cells'][column + '13'].get('value') for column in 'BCDEFGHI'})
         data = project_calculator_report('ductwork', inputs)
         self.assertEqual(dict(data['totals'])['Available net spray bags'], 'N/A')
         self.assertEqual(data['rows'][0]['values']['M'], '')
@@ -258,9 +258,9 @@ class CalculatorReportTests(unittest.TestCase):
 
     def test_removed_details_do_not_remove_incomplete_last_items_from_pdf(self):
         for identity, cell, value, expected in [
-            ('ductwork', 'D310', 0, 'Product missing'),
+            ('ductwork', 'D1010', 0, 'Product missing'),
             ('steel_vermiculite', 'A1009', 'Final incomplete spray member', 'Final incomplete spray member'),
-            ('steel_board', 'A208', 'Final incomplete board member', 'Final incomplete board member'),
+            ('steel_board', 'A1008', 'Final incomplete board member', 'Final incomplete board member'),
         ]:
             with self.subTest(identity=identity):
                 inputs = cleared_inputs(identity)
@@ -293,6 +293,44 @@ class CalculatorReportTests(unittest.TestCase):
         for row in data['rows']:
             for column in 'OPRSTU':
                 self.assertTrue(excel_equal(row['values'][column], native[column + '10']))
+
+    def test_steel_locations_and_distinct_line_columns_reach_schedule_only(self):
+        for identity, sheet, row, location in [('steel_vermiculite', 'SCHEDULE', 1009, 'AA'),
+                                               ('steel_board', 'CALCULATOR', 1008, 'B')]:
+            with self.subTest(identity=identity):
+                inputs = cleared_inputs(identity)
+                inputs[sheet][f'{location}{row}'] = 'North building / level 12 - zone B'
+                inputs[sheet][f'A{row}'] = 'LAST-MARK-1000'
+                before = deepcopy(inputs)
+                data = project_calculator_report(identity, inputs)
+                self.assertEqual(len(data['rows']), 1)
+                self.assertEqual(data['rows'][0]['line'], 1000)
+                self.assertEqual(data['rows'][0]['values'][location], inputs[sheet][f'{location}{row}'])
+                text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_report(identity, inputs))).pages)
+                self.assertIn('Location', text)
+                self.assertIn('1000', text)
+                self.assertIn('LAST-MARK-1000', ''.join(text.split()))
+                self.assertIn('Northbuilding/level12-zoneB', ''.join(text.split()))
+                summary = ' '.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report(identity, inputs))).pages)
+                self.assertNotIn('LAST-MARK-1000', summary)
+                self.assertEqual(inputs, before)
+
+    def test_numeric_marks_and_locations_keep_identifier_digits_in_pdf(self):
+        for identity, location in [('steel_vermiculite', 'AA'), ('steel_board', 'B')]:
+            with self.subTest(identity=identity):
+                inputs = cleared_inputs(identity)
+                schedule = source_model(identity)['schedule']
+                row, sheet = schedule['last_row'], schedule['sheet']
+                inputs[sheet][f'A{row}'] = 123.456789
+                inputs[sheet][f'{location}{row}'] = 987.654321
+                before = deepcopy(inputs)
+                payload = build_calculator_report(identity, inputs)
+                text = ''.join(''.join(page.extract_text().split()) for page in PdfReader(BytesIO(payload)).pages)
+                self.assertIn('123.456789', text)
+                self.assertIn('987.654321', text)
+                self.assertNotIn('123.46', text)
+                self.assertNotIn('987.65', text.replace('987.654321', ''))
+                self.assertEqual(inputs, before)
 
     def test_invalid_input_types_and_reference_cell_writes_fail_before_reporting(self):
         for inputs in [{'CALCULATOR': {'K11': 3}}, {'CALCULATOR': {'D11': True}}, {'CALCULATOR': {'D11': 10 ** 400}}]:

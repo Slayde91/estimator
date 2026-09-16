@@ -11,7 +11,7 @@ from openpyxl.formula.translate import Translator
 
 from .catalog import ROOT, ValidationError
 from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula
-from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, editable_cells
+from .workbook_runtime import _application_catalog, list_application_catalogs, application_editable_cells as editable_cells
 from .calculator_defaults import default_calculator_inputs, yield_review
 
 
@@ -49,7 +49,8 @@ _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
                     'ductwork': {'CALCULATOR': [37, 38, 42, 43, 44]}}
 # Duct AJ is followed by the still-calculated AN/AO volume and yield outputs.
 # Column identities remain source coordinates; this order is browser-only.
-_DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]}}
+_DISPLAY_COLUMN_ORDER = {'ductwork': {'CALCULATOR': [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44]},
+                         'steel_vermiculite': {'SCHEDULE': [26, 27, *range(1, 26)]}}
 _DISPLAY_TEXT = {
     'steel_vermiculite': {'BAGS': {'A1': 'MATERIAL QUANTITIES'},
                          'CALCULATOR': {'A1': 'QUICK CALCULATOR', 'L6': 'PUBLISHED VALUE'},
@@ -60,9 +61,12 @@ _DISPLAY_TEXT = {
                               'MONOKOTE MK-6 HY', 'COMPLETE WORKBOOK OPERATING RULES'))),
                                       'A356': 'IDEALISED HOLLOW GEOMETRY',
                                       'A370': 'FENDOLITE CASTELLATED SECTION'},
-                         'SCHEDULE': {'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
+                         'SCHEDULE': {'Z9': 'Line', 'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
-    'steel_board': {'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
+    'steel_board': {'START': {
+                        'D9': 'Replace or clear the demonstration rows. Enter one member, or one group of identical members, per row. 1,000 prepared rows: 9-1008. Enter the TOTAL lineal length for that row.',
+                        'A28': 'Capacity is 1,000 prepared rows. All prepared rows are included in the calculation formulas, dropdowns and purchasing totals.'},
+                    'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
                     'BOARD SUMMARY': {'A1': 'BOARD SUMMARY'},
                     'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
     'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
@@ -93,8 +97,8 @@ _DISPLAY_CELLS = {
         },
     },
     'steel_board': {'CALCULATOR': {**{f'{column}{row}': {'control': 'select'}
-                                    for row in range(9, 209) for column in 'CDHJ'},
-                                  **{f'M{row}': {'bold': False} for row in range(9, 209)}},
+                                    for row in range(9, 1009) for column in 'CDHJ'},
+                                  **{f'M{row}': {'bold': False} for row in range(9, 1009)}},
                     'EXTRA BOARDS': {f'{column}{row}': {'control': 'select'}
                                      for row in range(6, 46) for column in 'BC'},
                     'BOARD SUMMARY': {**{f'A{row}': {'bold': True} for row in range(12, 30)},
@@ -104,10 +108,10 @@ _DISPLAY_CELLS = {
                     'SETTINGS': {**{f'A{row}': {'bold': True} for row in range(6, 35)},
                                  **{f'P{row}': {'bold': True} for row in range(6, 52)}}},
     'ductwork': {
-        'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 311)},
+        'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 1011)},
                        **{f'{column}{row}': {'control': 'select'}
-                          for row in range(11, 311) for column in 'CEI'},
-                       **{f'H{row}': {'control': 'select', 'bold': False} for row in range(11, 311)}},
+                          for row in range(11, 1011) for column in 'CEI'},
+                       **{f'H{row}': {'control': 'select', 'bold': False} for row in range(11, 1011)}},
         'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
                     **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
         'PRODUCT SETTINGS': {
@@ -229,7 +233,7 @@ _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
 @lru_cache(maxsize=3)
 def source_model(calculator_id):
     # Caller-owned model is private to this module and never mutated or exposed.
-    return load_workbook_catalog(calculator_id)
+    return _application_catalog(calculator_id)
 
 
 @lru_cache(maxsize=3)
@@ -242,11 +246,11 @@ def approved_formula_overrides(calculator_id):
     # Explicit user-approved exception: translated references, unchanged fixed
     # wording. Original formulas stay intact in the imported source package.
     return {'CALCULATOR': {f'AL{row}': Translator(master, origin='AL11').translate_formula(f'AL{row}').lstrip('=')
-                           for row in range(12, 311)}}
+                           for row in range(12, model['schedule']['last_row'] + 1)}}
 
 
 def calculator_list():
-    return {'calculators': list_workbook_catalogs()}
+    return {'calculators': list_application_catalogs()}
 
 
 def _bounds(reference):
@@ -387,12 +391,14 @@ def validation_options(engine, sheet, address, validation, cache=None):
 
 def _sheet_metadata(model, sheet):
     r1, c1, r2, c2 = _bounds(sheet['page_range'])
-    widths, hidden = {}, []
+    widths, hidden = {}, set()
     for item in sheet['columns']:
         for column in range(int(item['min']), min(int(item['max']), c2) + 1):
             widths[column] = float(item.get('width', 12))
             if item.get('hidden') in ('1', True) or widths[column] <= 0:
-                hidden.append(column)
+                hidden.add(column)
+            else:
+                hidden.discard(column)
     schedule = model['schedule']
     labels = [{'column': column_number(field['column']), 'label': field['label']} for field in schedule['columns']] if sheet['name'] == schedule['sheet'] else []
     page = (model['id'], sheet['name'])
@@ -421,7 +427,7 @@ def _sheet_metadata(model, sheet):
             'table_layout': ('projected' if (model['id'], sheet['name']) in {
                 ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'), ('ductwork', 'PRODUCT SETTINGS')}
                 else 'stacked' if model['id'] == 'steel_board' and sheet['name'] == 'SETTINGS' else 'inline'),
-            'hidden_columns': hidden, 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
+            'hidden_columns': sorted(hidden), 'hidden_rows': [int(row) for row, data in sheet['rows'].items()
                 if data.get('hidden') in ('1', True) or float(data.get('ht', 15)) <= 0],
             'column_widths': widths, 'columns': labels, 'merges': sheet['merges'],
             'header_rows': [schedule['header_row']] if sheet['name'] == schedule['sheet'] else
@@ -518,6 +524,7 @@ def _board_product_totals(engine):
     same semantics as the workbook. These expressions do not alter its graph.
     """
     products = list(dict.fromkeys(engine.value('BOARD SUMMARY', f'A{row}') for row in range(12, 30)))
+    first, last = engine.model['schedule']['first_row'], engine.model['schedule']['last_row']
 
     def evaluate(formula):
         try:
@@ -532,10 +539,10 @@ def _board_product_totals(engine):
         criterion = '"' + product.replace('~', '~~').replace('*', '~*').replace('?', '~?').replace('"', '""') + '"'
         totals.append({
             'product': product,
-            'box_reference_area': evaluate(f'SUMIF(CALCULATOR!$C$9:$C$208,{criterion},CALCULATOR!$AD$9:$AD$208)'),
+            'box_reference_area': evaluate(f'SUMIF(CALCULATOR!$C${first}:$C${last},{criterion},CALCULATOR!$AD${first}:$AD${last})'),
             'net_board_area': evaluate(f'SUMIF(\'BOARD SUMMARY\'!$A$12:$A$29,{criterion},\'BOARD SUMMARY\'!$G$12:$G$29)'),
             'whole_sheets': evaluate(f'SUMIF(\'BOARD SUMMARY\'!$A$12:$A$29,{criterion},\'BOARD SUMMARY\'!$I$12:$I$29)'),
-            'incomplete_rows': evaluate(f'COUNTIFS(CALCULATOR!$C$9:$C$208,{criterion},CALCULATOR!$BD$9:$BD$208,1,CALCULATOR!$AR$9:$AR$208,"<>CLADDING ESTIMATE")'),
+            'incomplete_rows': evaluate(f'COUNTIFS(CALCULATOR!$C${first}:$C${last},{criterion},CALCULATOR!$BD${first}:$BD${last},1,CALCULATOR!$AR${first}:$AR${last},"<>CLADDING ESTIMATE")'),
             'incomplete_extra_rows': evaluate(f'COUNTIFS(\'EXTRA BOARDS\'!$B$6:$B$45,{criterion},\'EXTRA BOARDS\'!$M$6:$M$45,"<>ENTERED ALLOWANCE",\'EXTRA BOARDS\'!$M$6:$M$45,"<>")'),
         })
     return totals

@@ -1,5 +1,29 @@
 # Project state
 
+## Current: 1,000-row schedules and calculator controls
+
+Branch `feat/thousand-row-schedules` starts from verified PR #28 merge
+`ef4518a`. This increment renames/reorders calculator cards and actions, moves
+Recalculate before Save calculator, extends duct and board schedules to 1,000
+items, and adds spray Location plus steel Line columns. Templates and schedule
+PDF/XLSX outputs carry the updated fields; legacy templates remain accepted.
+
+See [the capacity and exchange contract](SCHEDULE_EXTENSION.md) for runtime versus original-source
+boundaries. Original packages, technical lookup rules, saved coordinate mappings
+and pricing remain intact. Focused checks cover fully populated 1,000-row schedules,
+independent purchasing totals, legacy and new templates, row-1,000 API save/reopen,
+and rendered browser controls. All 132 UI checks pass. Generated schedule PDFs
+and XLSX templates/registers have been inspected. Full regression and publication
+results belong to the current Git/CI state and `.runtime/thousand-row-schedules-qa`
+receipts; earlier checkpoints do not establish those results.
+
+## Historical checkpoint: appendix downloads and board summary
+
+PR #28 merged at `ef4518a` after both exact-head CI runs passed (282 Python
+passes, four optional source skips, 131 UI checks and build). The live app and
+both saved quotes were verified. Its older pending statements below are
+historical and do not describe the current increment.
+
 Date: 2026-09-16. Executable code and checked results take precedence over this document.
 
 Current increment: appendix download and board-summary polish on

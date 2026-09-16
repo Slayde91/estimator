@@ -197,9 +197,8 @@
   }
   function updateStatus(entry = current()) {
     if (!entry || entry !== current()) return;
-    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes" : "Saved calculator inputs · defaults where unchanged";
+    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save Project" : "Project calculator inputs · use Save Project to save all calculators";
     const hasErrors = entry.invalid.size > 0;
-    $("calculator-save").disabled = state.action || hasErrors;
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
     $("calculator-excel").disabled = state.action || hasErrors;
@@ -1006,7 +1005,7 @@
         if (serial !== state.loadRevision) return;
         const inputs = clone(definition.inputs || {});
         const page = displayPages(definition)[0];
-        entry = { definition, inputs, saved: JSON.stringify(inputs), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
+        entry = state.entries.get(id) || { definition, inputs, saved: JSON.stringify(inputs), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
         state.entries.set(id, entry);
       }
       if (serial !== state.loadRevision) return;
@@ -1050,10 +1049,10 @@
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
       const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and supplied workbook example rows" : "supplied workbook defaults, including its example rows";
-      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save calculator to keep the reset.`, "Reset draft")) return;
+      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save Project to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
-      message("Calculator defaults restored in this draft. Save calculator to keep them."); await calculate();
+      message("Calculator defaults restored in this draft. Save Project to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 
@@ -1073,10 +1072,10 @@
       const content = await readFile(file);
       const result = await request(endpoint(entry.definition.id, "import"), { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, inputs: snapshot }) });
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
-      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save calculator.`, "Apply to draft")) return;
+      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save Project.`, "Apply to draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
       entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
-      message(`Imported ${result.imported_rows} schedule rows into the draft. Save calculator to keep them.`); await calculate();
+      message(`Imported ${result.imported_rows} schedule rows into the draft. Save Project to keep them.`); await calculate();
     } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
   }
@@ -1140,7 +1139,6 @@
     return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", filename: "materials-summary.pdf", label: "PDF Summary", mimeType: "application/pdf", fileDescription: "a PDF report" });
   }
 
-  $("calculator-save").addEventListener("click", save);
   $("calculator-reset").addEventListener("click", reset);
   $("calculator-recalculate").addEventListener("click", calculate);
   $("calculator-template").addEventListener("click", exportTemplate);
@@ -1182,5 +1180,38 @@
     $("calculator-workspace").hidden = true; renderChoices(); message();
   }
 
+  async function prepareDefaults() {
+    if (state.action) throw new Error("Wait for the current calculator action to finish.");
+    const list = state.list || (await request("/api/calculators")).calculators;
+    const definitions = await Promise.all(list.map(async ({ id }) => state.entries.get(id)?.definition || await request(endpoint(id))));
+    const calculators = Object.fromEntries(definitions.map(definition => [definition.id, { inputs: clone(definition.defaults || {}) }]));
+    const prepared = await prepareProject(calculators);
+    for (const [, entry] of prepared.entries) entry.saved = JSON.stringify(entry.inputs);
+    return prepared;
+  }
+
+  function markProjectSaved(calculators) {
+    for (const [id, entry] of state.entries) {
+      if (calculators[id]?.inputs) entry.saved = JSON.stringify(calculators[id].inputs);
+    }
+    updateStatus();
+  }
+  function hasUnsavedChanges() { return [...state.entries.values()].some(entry => dirty(entry) || entry.invalid.size); }
+
+  async function completeProjectSnapshot() {
+    const list = state.list || (await request("/api/calculators")).calculators;
+    const context = state.entries;
+    const definitions = await Promise.all(list.filter(({ id }) => !context.has(id)).map(async ({ id }) => request(endpoint(id))));
+    if (state.entries !== context) throw new Error("The project changed while reading calculator inputs. Save it again when ready.");
+    state.list = list;
+    for (const definition of definitions) {
+      if (context.has(definition.id)) continue;
+      const inputs = clone(definition.inputs || {}), page = displayPages(definition)[0];
+      context.set(definition.id, { definition, inputs, saved: JSON.stringify(inputs), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() });
+    }
+    return projectSnapshot();
+  }
+
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
+  Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
 })();

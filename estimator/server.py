@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .calculator import calculate, fields, labour_breakdown
-from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, ValidationError
+from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, validate_configuration, ValidationError
 from .presentation import calculation_error_details
 from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
@@ -21,8 +21,10 @@ MAX_PRICING_FILE = 5 * 1_048_576
 LOGGER = logging.getLogger(__name__)
 
 
-def create_server(port=8765, database=None):
+def create_server(port=8765, database=None, project_dialogs=None):
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
+    from .project_library import ProjectLibrary
+    projects = ProjectLibrary(store, project_dialogs)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "CeasefireEstimator"
@@ -103,6 +105,8 @@ def create_server(port=8765, database=None):
                                             "catalog": configuration_catalog(config), "workflows": WORKFLOWS})
                 elif route == "/api/configuration":
                     self.send_payload(200, store.configuration())
+                elif route == "/api/projects":
+                    self.send_payload(200, projects.listing())
                 elif route == "/api/quotes":
                     self.send_payload(200, {"quotes": store.list_quotes()})
                 elif route.startswith("/api/quotes/") and route.endswith("/report.pdf"):
@@ -120,10 +124,26 @@ def create_server(port=8765, database=None):
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
                 if route == '/api/project/export' and self.command == 'POST':
-                    from .project_file import PROJECT_FILENAME, export_project
+                    from .project_file import export_project, project_filename, project_download_header
                     project = export_project(store, body)
+                    filename = project_filename(json.loads(project)['estimate']['title'])
                     self.send_payload(200, project, 'application/octet-stream',
-                                      {'Content-Disposition': f'attachment; filename="{PROJECT_FILENAME}"'})
+                                      {'Content-Disposition': project_download_header(filename)})
+                elif route == '/api/project/save-as' and self.command == 'POST':
+                    self.send_payload(200, projects.save_as(body))
+                elif route == '/api/projects/link-folder' and self.command == 'POST':
+                    if body:
+                        raise ValidationError('Link folder does not accept a folder path or other fields.')
+                    self.send_payload(200, projects.link_folder())
+                elif route == '/api/projects/load' and self.command == 'POST':
+                    if set(body) != {'id'}:
+                        raise ValidationError('Choose a project file from the linked folder.')
+                    self.send_payload(200, projects.load(body['id']))
+                elif route == '/api/configuration/preview' and self.command == 'POST':
+                    if set(body) != {'configuration'}:
+                        raise ValidationError('Include the draft pricing configuration only.')
+                    config = validate_configuration(body['configuration'])
+                    self.send_payload(200, {'configuration': config, 'fields': fields(effective_catalog(config))})
                 elif route == '/api/project/import' and self.command == 'POST':
                     from .project_file import import_project
                     if set(body) != {'filename', 'content_base64'}:

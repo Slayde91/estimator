@@ -1,0 +1,339 @@
+import copy
+import http.client
+import json
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+import tempfile
+import threading
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+from estimator.catalog import ValidationError, baseline
+from estimator.native_dialogs import NativeDialogs, SaveSelection
+from estimator.project_file import export_project, project_filename, project_download_header
+from estimator.project_library import ProjectLibrary, file_fingerprint, _DIALOG_LOCK
+from estimator.server import create_server
+from estimator.storage import Store
+
+
+class Chooser:
+    folder = None
+    selection = None
+
+    def __init__(self):
+        self.calls = []
+
+    def choose_folder(self, initial_directory):
+        self.calls.append(("folder", initial_directory))
+        return self.folder
+
+    def choose_save(self, initial_directory, filename):
+        self.calls.append(("save", initial_directory, filename))
+        return self.selection
+
+
+def database_rows(store):
+    with store.connect() as db:
+        return {table: db.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+                for table in ("settings", "quotes", "calculator_states", "app_preferences")}
+
+
+class ProjectLibraryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as temporary:
+            cls.payload = export_project(Store(Path(temporary) / "source.sqlite3"), {
+                "estimate": {"project_no": "Project 17", "client": "A client", "measurements": "Keep this note"},
+                "calculators": {"steel_vermiculite": {"inputs": {"SCHEDULE": {"AA1009": "Last location", "A1009": "LAST"}}}},
+            })
+        snapshot = json.loads(cls.payload)
+        cls.request = {"estimate": snapshot["estimate"],
+                       "calculators": {key: {"inputs": value["inputs"]} for key, value in snapshot["calculators"].items()}}
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name).resolve()
+        self.folder = self.root / "Estimates"
+        self.folder.mkdir()
+        self.store = Store(self.root / "state.sqlite3")
+        self.dialogs = Chooser()
+        self.library = ProjectLibrary(self.store, self.dialogs)
+
+    def test_schema_upgrade_adds_preference_without_rewriting_existing_data(self):
+        database = self.root / "old.sqlite3"
+        with sqlite3.connect(database) as db:
+            db.executescript("CREATE TABLE settings(id INTEGER PRIMARY KEY,data TEXT);"
+                             "CREATE TABLE quotes(id TEXT PRIMARY KEY,title TEXT,updated_at TEXT,data TEXT);"
+                             "CREATE TABLE calculator_states(id TEXT PRIMARY KEY,data TEXT,updated_at TEXT);"
+                             "INSERT INTO settings VALUES(1,'original settings bytes');"
+                             "INSERT INTO quotes VALUES('old','Original','date','original quote bytes');"
+                             "INSERT INTO calculator_states VALUES('ductwork','original calculator bytes','date');"
+                             "PRAGMA user_version=2;")
+        db.close()
+        upgraded = Store(database)
+        upgraded.set_project_folder(self.folder)
+        self.assertEqual(Store(database).project_folder(), str(self.folder))
+        rows = database_rows(upgraded)
+        self.assertEqual(rows["settings"], [(1, "original settings bytes")])
+        self.assertEqual(rows["quotes"], [("old", "Original", "date", "original quote bytes")])
+        self.assertEqual(rows["calculator_states"], [("ductwork", "original calculator bytes", "date")])
+        with upgraded.connect() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 3)
+
+    def test_cancel_and_invalid_snapshot_never_write_or_open_unnecessary_dialog(self):
+        before = database_rows(self.store)
+        self.assertEqual(self.library.save_as(self.request), {"cancelled": True})
+        self.assertEqual(self.library.link_folder(), {"cancelled": True})
+        calls = len(self.dialogs.calls)
+        malformed = copy.deepcopy(self.request)
+        malformed["calculators"]["steel_vermiculite"]["inputs"] = {"SCHEDULE": {"Z1009": "forged"}}
+        with self.assertRaises(ValidationError):
+            self.library.save_as(malformed)
+        self.assertEqual(len(self.dialogs.calls), calls)
+        self.assertEqual(database_rows(self.store), before)
+        self.assertEqual(list(self.folder.iterdir()), [])
+
+    def test_save_load_and_initial_link_preserve_complete_snapshot_and_other_storage(self):
+        self.store.save_quote({"title": "Legacy quote", "inputs": {"B15": 17.25}})
+        spray = baseline()["rate_groups"]["sprays"][1]["id"]
+        self.store.save_configuration({"rates": {spray: {"price": 987.65}}})
+        self.store.save_calculator_state("ductwork", {"CALCULATOR": {"B1010": "Existing local mark"}})
+        before = database_rows(self.store)
+        target = self.folder / "Project 17.ceasefire-project.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        result = self.library.save_as(self.request)
+        self.assertFalse(result["cancelled"])
+        self.assertTrue(result["file"]["in_linked_folder"])
+        self.assertEqual(result["folder"], str(self.folder))
+        self.assertEqual(self.dialogs.calls, [("save", None, "Project 17- A client.ceasefire-project.json")])
+        self.assertEqual(json.loads(target.read_bytes()), json.loads(self.payload))
+        self.assertEqual(result["project"]["estimate"]["id"], None)
+        listing = self.library.listing()
+        self.assertEqual(len(listing["files"]), 1)
+        loaded = self.library.load(listing["files"][0]["id"])
+        self.assertEqual(loaded["calculators"]["steel_vermiculite"]["inputs"]["SCHEDULE"]["AA1009"], "Last location")
+        self.assertEqual(loaded["estimate"]["configuration"], result["project"]["estimate"]["configuration"])
+        after = database_rows(self.store)
+        for table in ("settings", "quotes", "calculator_states"):
+            self.assertEqual(after[table], before[table])
+
+    def test_link_persists_but_later_save_elsewhere_does_not_relink(self):
+        self.dialogs.folder = str(self.folder)
+        self.assertEqual(self.library.link_folder()["folder"], str(self.folder))
+        outside = self.root / "Outside.json"
+        self.dialogs.selection = SaveSelection(str(outside), None)
+        result = self.library.save_as(self.request)
+        self.assertFalse(result["file"]["in_linked_folder"])
+        self.assertIsNone(result["file"]["id"])
+        self.assertEqual(result["folder"], str(self.folder))
+        self.assertEqual(self.dialogs.calls[-1][1], str(self.folder))
+        self.assertEqual(Store(self.store.path).project_folder(), str(self.folder))
+        self.assertEqual(self.library.listing()["files"], [])
+
+    def test_successful_file_save_is_reported_when_initial_folder_preference_fails(self):
+        target = self.folder / "Saved.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        before = database_rows(self.store)
+        with patch.object(self.store, "set_project_folder", side_effect=sqlite3.OperationalError("locked")):
+            result = self.library.save_as(self.request)
+        self.assertFalse(result["cancelled"])
+        self.assertIn("saved", result["warning"])
+        self.assertIsNone(result["folder"])
+        self.assertFalse(result["file"]["in_linked_folder"])
+        self.assertEqual(json.loads(target.read_bytes()), json.loads(self.payload))
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_overwrite_requires_unchanged_confirmed_target_and_is_atomic_on_failure(self):
+        target = self.folder / "Existing.json"
+        target.write_bytes(self.payload)
+        self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+        target.write_text("Changed by another process", encoding="utf-8")
+        with self.assertRaisesRegex(ValidationError, "changed"):
+            self.library.save_as(self.request)
+        self.assertEqual(target.read_text(), "Changed by another process")
+        self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+        before = database_rows(self.store)
+        with patch("estimator.project_library.os.replace", side_effect=PermissionError("locked")):
+            with self.assertRaisesRegex(ValidationError, "could not be saved"):
+                self.library.save_as(self.request)
+        self.assertEqual(target.read_text(), "Changed by another process")
+        self.assertEqual([path.name for path in self.folder.iterdir()], [target.name])
+        self.assertEqual(database_rows(self.store), before)
+        saved = self.library.save_as(self.request)
+        self.assertFalse(saved["cancelled"])
+        self.assertEqual(json.loads(target.read_bytes()), json.loads(self.payload))
+
+    def test_new_target_appearing_during_write_is_not_overwritten(self):
+        target = self.folder / "Collision.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        original_fsync = os.fsync
+        def collision(descriptor):
+            original_fsync(descriptor)
+            target.write_text("Someone else's file", encoding="utf-8")
+        with patch("estimator.project_library.os.fsync", side_effect=collision):
+            with self.assertRaisesRegex(ValidationError, "changed"):
+                self.library.save_as(self.request)
+        self.assertEqual(target.read_text(), "Someone else's file")
+        self.assertIsNone(self.store.project_folder())
+        self.assertEqual([path.name for path in self.folder.iterdir()], [target.name])
+
+    def test_listing_errors_limits_unavailable_folder_and_opaque_ids(self):
+        (self.folder / "valid.json").write_bytes(self.payload)
+        (self.folder / "broken.json").write_text("{}", encoding="utf-8")
+        (self.folder / "ignored.txt").write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        listing = self.library.listing()
+        self.assertEqual([item["name"] for item in listing["files"]], ["valid.json"])
+        self.assertEqual([item["name"] for item in listing["errors"]], ["broken.json"])
+        identifier = listing["files"][0]["id"]
+        for value in ("../valid.json", str(self.folder / "valid.json"), "0" * 64, [], None):
+            with self.assertRaises(ValidationError):
+                self.library.load(value)
+        with patch("estimator.project_library.MAX_PROJECT_FILES", 1):
+            self.assertTrue(self.library.listing()["truncated"])
+        with patch("estimator.project_library.MAX_LIST_BYTES", 1):
+            self.assertTrue(self.library.listing()["truncated"])
+        other = self.root / "Other"
+        other.mkdir()
+        (other / "valid.json").write_bytes(self.payload)
+        self.store.set_project_folder(other)
+        with self.assertRaises(ValidationError):
+            self.library.load(identifier)
+        self.store.set_project_folder(self.root / "missing")
+        self.assertEqual(len(self.library.listing()["errors"]), 1)
+
+    def test_loading_revalidates_changed_source_and_file_size(self):
+        target = self.folder / "valid.json"
+        target.write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        identifier = self.library.listing()["files"][0]["id"]
+        changed = json.loads(self.payload)
+        changed["calculators"]["ductwork"]["source_sha256"] = "other source"
+        target.write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(ValidationError, "different calculator source"):
+            self.library.load(identifier)
+        with patch("estimator.project_library.MAX_PROJECT_FILE", 100):
+            with self.assertRaisesRegex(ValidationError, "16 MB"):
+                self.library.load(identifier)
+
+    def test_reparse_files_and_directories_are_rejected(self):
+        target = self.folder / "valid.json"
+        target.write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        original_lstat = Path.lstat
+        for linked in (target, self.folder):
+            def reparse(path, *args, **kwargs):
+                info = original_lstat(path, *args, **kwargs)
+                return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=0x400, st_size=info.st_size) if path == linked else info
+            with patch.object(Path, "lstat", reparse):
+                listing = self.library.listing()
+                self.assertEqual(listing["files"], [])
+                self.assertEqual(len(listing["errors"]), 1)
+                self.dialogs.folder = str(self.folder)
+                if linked == self.folder:
+                    with self.assertRaisesRegex(ValidationError, "symbolic link or junction"):
+                        self.library.link_folder()
+                else:
+                    self.dialogs.selection = SaveSelection(str(target), None)
+                    with self.assertRaisesRegex(ValidationError, "not links"):
+                        self.library.save_as(self.request)
+
+    def test_dialog_lock_and_native_adapter_do_not_invoke_shell_or_accept_bad_results(self):
+        with _DIALOG_LOCK:
+            with self.assertRaisesRegex(ValidationError, "open file dialog"):
+                self.library.link_folder()
+        self.assertEqual(self.dialogs.calls, [])
+        native = NativeDialogs()
+        with patch("estimator.native_dialogs.subprocess.run", return_value=SimpleNamespace(stdout='null')) as run:
+            self.assertIsNone(native.choose_save(str(self.folder), '$(bad); title.json'))
+            self.assertNotIn("shell", run.call_args.kwargs)
+            self.assertEqual(json.loads(run.call_args.kwargs["input"])["filename"], '$(bad); title.json')
+            self.assertNotIn('$(bad)', ' '.join(run.call_args.args[0]))
+        with patch("estimator.native_dialogs.subprocess.run", side_effect=subprocess.TimeoutExpired("dialog", 600)):
+            with self.assertRaisesRegex(ValidationError, "native file dialog"):
+                native.choose_folder()
+
+    def test_filename_sanitization_retains_names_without_paths_or_header_injection(self):
+        self.assertEqual(project_filename("CON"), "_CON.ceasefire-project.json")
+        self.assertEqual(project_filename('  A/B: quote?  '), "A-B- quote-.ceasefire-project.json")
+        filename = project_filename('A\r\n"é/quote')
+        header = project_download_header(filename)
+        self.assertNotIn("\r", header)
+        self.assertNotIn("\n", header)
+        self.assertIn("filename*=UTF-8''A---%C3%A9-quote", header)
+        self.assertLessEqual(len(project_filename("😀" * 400).encode("utf-16-le")) // 2, 255)
+
+
+class ProjectLibraryApiTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name).resolve()
+        self.store = Store(self.root / "state.sqlite3")
+        self.dialogs = Chooser()
+        self.server = create_server(0, self.store.path, self.dialogs)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
+        self.temporary.cleanup()
+
+    def request(self, method, path, body=None, headers=None):
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=60)
+        try:
+            connection.request(method, path, json.dumps(body) if body is not None else None,
+                               {"Content-Type": "application/json", **(headers or {})})
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+
+    def test_native_routes_cancel_validate_methods_and_origins_without_writes(self):
+        before = database_rows(self.store)
+        self.assertEqual(self.request("GET", "/api/projects")[1]["folder"], None)
+        self.assertEqual(self.request("POST", "/api/projects/link-folder", {}), (200, {"cancelled": True}))
+        self.assertEqual(self.request("POST", "/api/project/save-as", {"estimate": {}}), (200, {"cancelled": True}))
+        calls = len(self.dialogs.calls)
+        for method, route, body in (("GET", "/api/projects/link-folder", None), ("PUT", "/api/project/save-as", {"estimate": {}}),
+                                    ("POST", "/api/projects/link-folder", {"path": str(self.root)}),
+                                    ("POST", "/api/projects/load", {"path": "../file.json"})):
+            self.assertGreaterEqual(self.request(method, route, body)[0], 400)
+        self.assertEqual(self.request("POST", "/api/project/save-as", {"estimate": {}}, {"Origin": "https://evil.example"})[0], 403)
+        self.assertEqual(self.request("POST", "/api/projects/link-folder", {}, {"Host": "evil.example"})[0], 403)
+        self.assertEqual(len(self.dialogs.calls), calls)
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_full_native_save_folder_list_and_load_preserve_storage(self):
+        target = self.root / "Saved.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        before = database_rows(self.store)
+        status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Saved native"}})
+        self.assertEqual(status, 200, saved)
+        self.assertEqual(saved["project"]["estimate"]["project_no"], "Saved native")
+        status, listing = self.request("GET", "/api/projects")
+        self.assertEqual(status, 200)
+        status, loaded = self.request("POST", "/api/projects/load", {"id": listing["files"][0]["id"]})
+        self.assertEqual(status, 200, loaded)
+        self.assertEqual(loaded["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
+        for table in ("settings", "quotes", "calculator_states"):
+            self.assertEqual(database_rows(self.store)[table], before[table])
+
+    def test_project_pricing_preview_is_read_only_and_validates_configuration(self):
+        before = database_rows(self.store)
+        status, response = self.request("POST", "/api/configuration/preview", {"configuration": {"inventory": {}, "rates": {}}})
+        self.assertEqual(status, 200)
+        self.assertIn("fields", response)
+        self.assertEqual(response["configuration"], {"inventory": {}, "rates": {}})
+        self.assertEqual(self.request("POST", "/api/configuration/preview", {"configuration": {"rates": {"missing": {"price": 1}}}})[0], 400)
+        self.assertEqual(self.request("POST", "/api/configuration/preview", {"configuration": {}, "path": "bad"})[0], 400)
+        self.assertEqual(database_rows(self.store), before)
+
+
+if __name__ == "__main__":
+    unittest.main()

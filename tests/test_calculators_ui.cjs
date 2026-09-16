@@ -101,7 +101,7 @@ let passed = 0;
   // Invalid numeric text neither overwrites valid input nor permits saving.
   waste.value = '12x'; await waste.emit('input');
   assert.equal(entry.invalid.size, 1); assert.equal(entry.inputs.CALCULATOR.B10, 0.13456789);
-  assert.equal(byId('calculator-save').disabled, true);
+  assert.equal(byId('calculator-recalculate').disabled, true);
   let requests = 0; audit.setRequest(async () => { requests++; }); await audit.save(); assert.equal(requests, 0);
   waste.value = ''; await waste.emit('input'); assert.equal(entry.invalid.size, 0); assert.equal(entry.inputs.CALCULATOR.B10, ''); passed++;
 
@@ -1428,7 +1428,7 @@ let passed = 0;
     const pendingRegister=deferred();let registerBody,registerPath,registerHeaders;
     audit.setFetch((path,options)=>{registerPath=path;registerBody=JSON.parse(options.body);registerHeaders=options.headers;return pendingRegister.promise;});
     const registerRun=audit.downloadExcelRegister();
-    assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-save').disabled,true);
+    assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-template').disabled,true);
     assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').textContent,'Preparing XLSX Schedule…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pendingRegister.resolve({ok:true,headers:{get:()=>`${registerMime}; charset=binary`},blob:async()=>new Blob(['PK register'])});await registerRun;
@@ -1490,7 +1490,7 @@ let passed = 0;
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
   assert.match(registerMarkup,/id="calculator-template"[^>]*>Export XLSX Template<\/button><button id="calculator-excel"[^>]*>Download XLSX Schedule<\/button><button id="calculator-pdf"[^>]*>Download PDF Schedule<\/button><button id="calculator-summary-pdf"[^>]*>Download PDF Summary<\/button>/);
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"[^>]*>Export XLSX Template<\/button>/);
-  assert.match(registerMarkup,/class="calculator-workspace-heading".*id="calculator-reset"[^>]*>Reset Calc<\/button><button id="calculator-recalculate"[^>]*>Recalculate<\/button><button id="calculator-save"/);
+  assert.match(registerMarkup,/class="calculator-workspace-heading".*id="calculator-reset"[^>]*>Reset Calc<\/button><button id="calculator-recalculate"[^>]*>Recalculate<\/button><\/div>/);
   assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
   assert.match(registerMarkup,/id="calculator-import"[^>]*>Import XLSX Schedule<\/button>/);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
@@ -1499,11 +1499,11 @@ let passed = 0;
   }
   const sharedButtonCss=fs.readFileSync('static/styles.css','utf8');
   assert.match(registerMarkup,/id="calculator-import"[^>]*class="button excel-button"/);
-  assert.match(registerMarkup,/id="calculator-save"[^>]*class="button save-button"/);
+  assert.doesNotMatch(registerMarkup,/id="calculator-save"/);
   assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:#217346;'));
   assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
-  for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-reset','calculator-recalculate','calculator-save'])assert.equal(byId(id).listeners.click.length,1);passed++;
+  for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-reset','calculator-recalculate'])assert.equal(byId(id).listeners.click.length,1);passed++;
 
   // Cancelled file pickers and oversized workbooks do not read or submit content.
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });

@@ -60,6 +60,8 @@
 .calculator-grid td,.calculator-grid th{padding:12px 14px;line-height:1.6}
 .calculator-grid thead th{background:#7f1320;color:#fff;border-color:#000;font-size:11px;font-weight:750;letter-spacing:.1px;padding:14px;line-height:1.5}
 /* Column headers can remain visible vertically; every column scrolls horizontally. */
+.calculator-grid .calculator-schedule-table th,.calculator-grid .calculator-schedule-table td{vertical-align:middle;text-align:center!important}
+.calculator-grid .calculator-schedule-table input,.calculator-grid .calculator-schedule-table select,.calculator-grid .calculator-schedule-table textarea{text-align:center!important;text-align-last:center}
 .calculator-grid .calculator-schedule-table tbody td:first-child{background:#fffaf5;font-weight:700}
 .calculator-grid .calculator-form-table td{border-right:1px solid #000;border-bottom:1px solid #000;padding:12px 15px}
 .calculator-grid .calculator-form-table td:empty{background:#fff}

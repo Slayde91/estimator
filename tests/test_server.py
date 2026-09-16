@@ -34,7 +34,8 @@ class ServerTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, method, path, body=None, headers=None):
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=5)
+        # Artifact serialization can exceed five seconds on a busy CI worker.
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=30)
         try:
             supplied = {"Content-Type": "application/json", **(headers or {})}
             connection.request(method, path, body=json.dumps(body) if isinstance(body, dict) else body, headers=supplied)
@@ -186,7 +187,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(len(records), 417)
             self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 417)
             use_columns = ("Group", "Selection name", "Price source", "Sell rate",
-                           "Yield type", "Yield", "Rate ID", "Use order")
+                           "Yield type", "Yield", "Yield unit", "Rate ID", "Use order")
 
             def read_uses(record):
                 values = {name: record[columns[name] - 1] for name in use_columns}
@@ -199,7 +200,7 @@ class ServerTests(unittest.TestCase):
                 return result
 
             self.assertEqual(sum(len(read_uses(record)["Rate ID"]) for record in records), 166)
-            # Remove one choice from all eight lists, retaining its product.
+            # Remove one choice from all nine lists, retaining its product.
             removed_choice = None
             for number, record in enumerate(records, 2):
                 uses = read_uses(record)

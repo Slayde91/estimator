@@ -9,7 +9,9 @@ import base64
 import binascii
 import json
 import math
+import re
 import unicodedata
+from urllib.parse import quote
 
 from .calculator import fields
 from .catalog import ValidationError, effective_catalog
@@ -23,6 +25,24 @@ PROJECT_FILENAME = "CEASEFIRE-Project.ceasefire-project.json"
 MAX_PROJECT_FILE = 16 * 1_048_576
 CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
 ESTIMATE_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
+
+
+def project_filename(title):
+    """Use the quote name without allowing path components or Windows devices."""
+    name = unicodedata.normalize("NFC", str(title or "Untitled quote"))
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', "-", name).strip(" .")
+    # Leave ample room for the extension, including supplementary Unicode chars.
+    name = name.encode("utf-16-le")[:240].decode("utf-16-le", errors="ignore").rstrip(" .")
+    if not name:
+        name = "Untitled quote"
+    if re.fullmatch(r"(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?", name):
+        name = "_" + name
+    return name + ".ceasefire-project.json"
+
+
+def project_download_header(filename):
+    fallback = filename.encode("ascii", errors="replace").decode("ascii").replace('"', "-")
+    return f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(filename, safe="")}'
 
 
 def project_details(value=None):
@@ -121,6 +141,11 @@ def import_project(store, filename, content_base64):
         payload = base64.b64decode(content_base64, validate=True)
     except (ValueError, binascii.Error) as error:
         raise ValidationError("The project file upload is invalid.") from error
+    return load_project_bytes(store, payload)
+
+
+def load_project_bytes(store, payload):
+    """Validate a portable snapshot from either an upload or the linked folder."""
     if not payload or len(payload) > MAX_PROJECT_FILE:
         raise ValidationError("Choose a nonempty project file of at most 16 MB.")
     try:

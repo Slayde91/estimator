@@ -27,22 +27,29 @@ the steel schedule PDF and XLSX register.
 
 ## XLSX exchange
 
-New templates contain 1,000 prepared rows and a generated Line column. Spray
-templates put Location second; board retains Member mark followed by Location. The remaining headings map explicitly to source
-input coordinates, including dependent dropdown formulas. Numbers remain typed
-and retain their precision. The legacy templates with the original exact input
-headings remain accepted.
+New **Export XLSX Template** files contain 1,000 prepared rows and no Line
+column. Spray has 13 input columns with Location first, followed by Item / mark;
+board retains its 24 inputs starting with Member mark then Location, and duct
+retains its eight inputs. Headings map explicitly to source input coordinates,
+including dependent dropdown formulas. Numbers remain typed and retain their
+precision. Table headings and cells are centred.
 
-Line is informational: physical worksheet row order determines the imported
-schedule position, and the application regenerates its line numbers. It is not
-stored as an editable input and does not make an otherwise empty row populated.
+Previous application templates with a generated Line column and legacy
+templates with the original exact input headings remain accepted. Line in an
+older template is informational: physical worksheet row order determines the
+imported schedule position, and the application regenerates its line numbers.
+It is not stored as an editable input and does not make an otherwise empty row
+populated. New templates omit it entirely; the UI and full schedule reports
+continue to display line numbers.
 Import remains a draft replacement of the entire schedule, preserving settings
-and separate extra-board allowances. Save calculator is still required to
-persist imported values.
+and separate extra-board allowances. **Save Project** persists the estimate,
+its pricing and all three calculator drafts together; no separate Save
+calculator action is required.
 
 Schedule PDF and XLSX filenames remain `APPENDIX A.pdf` and `APPENDIX A.xlsx`.
 Summary PDFs remain separate, and their established content exclusions remain
-in force. Downloads capture the current draft without saving it.
+in force. All PDF/XLSX table headings and data are centred. Downloads capture the
+current draft without saving it.
 
 ## Evidence boundary
 
@@ -54,6 +61,9 @@ round trips. Merely displaying 1,000 blank rows is not proof that totals include
 them. Runtime saved-state checks use disposable databases; the user's saved
 quotes and pricing are preserved.
 
-Validation and publication receipts for this increment are recorded in
-`.runtime/thousand-row-schedules-qa`. Earlier documentation checkpoints describe
-their own revisions and do not establish completion of this extension.
+The original capacity-extension evidence is recorded in
+`.runtime/thousand-row-schedules-qa`. Current template/export checks and rendered
+PDF/XLSX evidence are in `.runtime/project-library-qa`, including first/final
+physical-row identity when importing previous numbered templates. Earlier
+documentation checkpoints describe their own revisions and do not establish
+current publication status.

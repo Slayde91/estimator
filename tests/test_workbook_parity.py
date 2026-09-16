@@ -92,7 +92,12 @@ class NativeFixtureIntegrityTests(unittest.TestCase):
                     self.assertTrue(all(scenario.get("coverage") for scenario in fixture["scenarios"]))
                 for scenario in fixture["scenarios"]:
                     if scenario.get("formula_overrides"):
-                        self.assertEqual(scenario["formula_overrides"], approved_formula_overrides(identifier))
+                        runtime_overrides = approved_formula_overrides(identifier)
+                        # Immutable captures cover the original source capacity;
+                        # runtime applies the same approved translation to new rows.
+                        self.assertEqual(scenario["formula_overrides"], {
+                            sheet: {address: runtime_overrides[sheet][address] for address in formulas}
+                            for sheet, formulas in scenario["formula_overrides"].items()})
         self.assertEqual(counts, {"default": 161566 + 300, "variations": 258039})
         self.assertEqual(len(manifest["fixtures"]), 6)
 

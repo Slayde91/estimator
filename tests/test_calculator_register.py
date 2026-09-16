@@ -26,11 +26,11 @@ VARIATIONS = {
 SCHEDULE_COLUMNS = {
     'ductwork': {'Product': 'C', 'Duct dimensions (mm)': 'B', 'Length (m)': 'D',
                  'FRL': 'E', 'Duct surface (m²)': 'K'},
-    'steel_vermiculite': {'Mark': 'A', 'Product': 'B', 'Section': 'F', 'Quantity': 'I',
+    'steel_vermiculite': {'Location': 'AA', 'Mark': 'A', 'Product': 'B', 'Section': 'F', 'Quantity': 'I',
                          'Length (m)': 'J', 'Published thickness (mm)': 'O',
                          'Estimating thickness (mm)': 'P', 'Spray surface (m²)': 'R',
                          'Net bags': 'T', 'Whole bags per line': 'U'},
-    'steel_board': {'Mark': 'A', 'Product': 'C', 'Section': 'D', 'Design period (min)': 'AN',
+    'steel_board': {'Mark': 'A', 'Location': 'B', 'Product': 'C', 'Section': 'D', 'Design period (min)': 'AN',
                     'Critical temperature (°C)': 'AO', 'Board stack (mm)': 'Z',
                     'Total thickness (mm)': 'AB', 'Box reference area (m²)': 'AD',
                     'Net board area (m²)': 'AE', 'Area with waste (m²)': 'AF', 'Sheets per line': 'AG'},
@@ -74,7 +74,7 @@ class CalculatorRegisterTests(unittest.TestCase):
         self.assertEqual(sheet.max_row, 5 + len(data['rows']))
         comparisons = 0
         for target_row, item in enumerate(data['rows'], 6):
-            self.assert_cell_value(sheet.cell(target_row, headers['Item']), item['line'])
+            self.assert_cell_value(sheet.cell(target_row, headers['Line']), item['line'])
             for label, column in SCHEDULE_COLUMNS[identity].items():
                 cell = sheet.cell(target_row, headers[label])
                 self.assert_cell_value(cell, item['values'][column])
@@ -191,9 +191,9 @@ class CalculatorRegisterTests(unittest.TestCase):
         self.assertNotEqual(workbook['Schedule']['I6'].value, round(workbook['Schedule']['I6'].value))
 
     def test_last_rows_zero_and_hidden_input_only_items_remain_incomplete(self):
-        for identity, address, value in [('ductwork', 'D310', 0),
+        for identity, address, value in [('ductwork', 'D1010', 0),
                                          ('steel_vermiculite', 'A1009', 'Last incomplete spray member'),
-                                         ('steel_board', 'X208', 'Hidden design reference')]:
+                                         ('steel_board', 'X1008', 'Hidden design reference')]:
             with self.subTest(identity=identity):
                 inputs = cleared_inputs(identity)
                 schedule = source_model(identity)['schedule']
@@ -208,9 +208,32 @@ class CalculatorRegisterTests(unittest.TestCase):
                     self.assert_cell_value(sheet['D6'], 0)
                     self.assertIsNone(sheet['B6'].value)
                 elif identity == 'steel_vermiculite':
-                    self.assertEqual(sheet['B6'].value, value)
+                    self.assertEqual(sheet['C6'].value, value)
                 else:
                     self.assertNotIn(value, sheet_text(sheet))  # Match the compact PDF scope.
+
+    def test_steel_location_line_and_mark_are_separate_and_keep_final_row(self):
+        for identity, source_location, first in [('steel_vermiculite', 'AA', 10), ('steel_board', 'B', 9)]:
+            with self.subTest(identity=identity):
+                inputs = cleared_inputs(identity)
+                schedule = source_model(identity)['schedule']
+                cells = inputs[schedule['sheet']]
+                for row, text in ((first, 'First location'), (first + 999, '=literal location <west>')):
+                    cells[f'{source_location}{row}'] = text
+                    cells[f'A{row}'] = f'MARK-{row}'
+                before = deepcopy(inputs)
+                book = load_workbook(BytesIO(build_calculator_register(identity, inputs)))
+                sheet = book['Schedule']
+                leading = ['Line', 'Location', 'Mark'] if identity == 'steel_vermiculite' else ['Line', 'Mark', 'Location']
+                self.assertEqual([cell.value for cell in sheet[5]][:3], leading)
+                headers = {cell.value: cell.column for cell in sheet[5]}
+                self.assert_cell_value(sheet.cell(6, headers['Line']), 1)
+                self.assert_cell_value(sheet.cell(7, headers['Line']), 1000)
+                self.assert_cell_value(sheet.cell(7, headers['Location']), '=literal location <west>')
+                self.assert_cell_value(sheet.cell(7, headers['Mark']), f'MARK-{first + 999}')
+                self.assertEqual(sheet.max_row, 7)
+                self.assertEqual(inputs, before)
+                book.close()
 
     def test_literal_text_precision_and_no_executable_workbook_content(self):
         inputs = cleared_inputs('steel_board')

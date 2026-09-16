@@ -59,8 +59,8 @@ function setup(inputs = {}) {
   audit.state.entries.set('steel_board', entry);
   context.document.activeElement = null;
   byId('calculator-confirm-dialog').open = false;
-  byId('calculator-pdf').textContent='Download schedule PDF';byId('calculator-excel').textContent='Download Excel register';
-  byId('calculator-summary-pdf').textContent='Download materials & summary PDF';
+  byId('calculator-pdf').textContent='Download PDF Schedule';byId('calculator-excel').textContent='Download XLSX Schedule';
+  byId('calculator-summary-pdf').textContent='Download PDF Summary';
   audit.setRender(() => {});
   return entry;
 }
@@ -308,6 +308,11 @@ let passed = 0;
   // Only explicit directions in their identified source cells receive business labels.
   entry=setup();const warning='No quantity: wastage must be between 0% and 100%. Check L, or the default on SETTINGS when L is blank.';
   assert.match(audit.sourceDisplayText(warning,entry,'AI9'),/Check Waste \(%\).*Default wastage/);
+  entry.definition.schedule.last_row=1008;
+  assert.match(audit.sourceDisplayText(warning,entry,'AI1008'),/Check Waste \(%\).*Default wastage/);
+  assert.equal(audit.sourceDisplayText(warning,entry,'AI1009'),warning);
+  const lastRowStatus=element();audit.updateOutputCell(lastRowStatus,{address:'AI1008',column:35,value:warning,calculated:true});
+  assert.equal(lastRowStatus.classList.contains('calculator-row-status'),true);
   assert.equal(audit.sourceDisplayText(warning,entry,'A9'),warning); // user member mark is untouched
   const identifiers='P250 p.16 / P100 / M12 / FAS200445 R2.0 / R3 / B + 2D';
   assert.equal(audit.sourceDisplayText(identifiers,entry,'AI9'),identifiers);
@@ -342,7 +347,7 @@ let passed = 0;
   entry.definition.id='steel_vermiculite';entry.sheet='CALCULATOR';
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A20'),'Edit the input fields. Check the result.');
   assert.equal(audit.sourceDisplayText('Edit the blue cells. Check the result.',entry,'A21'),'Edit the blue cells. Check the result.');
-  entry.sheet='SCHEDULE';assert.match(audit.sourceDisplayText('INPUTS  |  Paste your steel schedule here; blue cells are editable.',entry,'A8'),/use Import schedule/);passed++;
+  entry.sheet='SCHEDULE';assert.match(audit.sourceDisplayText('INPUTS  |  Paste your steel schedule here; blue cells are editable.',entry,'A8'),/use Import XLSX Schedule/);passed++;
 
   // A zero or negative source width is hidden even without an explicit hidden flag.
   assert.deepEqual([...audit.hiddenColumns({hidden_columns:[3],column_widths:{1:12,2:0,4:-1,5:9}})].sort(),[2,3,4]);passed++;
@@ -375,13 +380,24 @@ let passed = 0;
   assert.equal(output.textContent, '#VALUE!'); assert.equal(output.classList.contains('calculator-error'), true);
   assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='B9'), renderedControl); passed++;
 
-  // The complete 1,000-row schedule is rendered at once; large choices share one datalist.
-  entry=setup();entry.definition.schedule.last_row=1008;entry.definition.sheets[0].max_column=12;
+  // Board Line numbers are display-only; Location remains source B through all 1,000 rows.
+  entry=setup();Object.assign(entry.definition.schedule,{last_row:1008,line_numbers:true,columns:[{column:'A',label:'Member mark'},{column:'B',label:'Location'}]});
+  entry.definition.sheets[0].max_column=12;
   const choices=Array.from({length:553},(_,index)=>`Section ${index}`);
   entry.result=result({}, {max_row:1008,max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),option_sets:{steel:choices},
-    rows:Array.from({length:1000},(_,index)=>({row:index+9,cells:Array.from({length:12},(_,column)=>({column:column+1,address:String.fromCharCode(65+column)+(index+9),value:column?1:null,editable:true,type:column?'number':'select',...(column?{}:{options_ref:'steel'})}))}))});
+    rows:Array.from({length:1000},(_,index)=>({row:index+9,cells:Array.from({length:12},(_,column)=>({column:column+1,address:String.fromCharCode(65+column)+(index+9),value:column===1?`Zone ${index+1}`:column?1:null,editable:true,type:column===1?'text':column?'number':'select',...(column?{}:{options_ref:'steel'})}))}))});
+  const boardSourceRows=JSON.stringify(entry.result.rows);
   realRender(entry);
+  assert.equal(JSON.stringify(entry.result.rows),boardSourceRows);
   assert.equal(renderedTable().children.at(-1).children.length,1000);
+  assert.deepEqual(renderedTable().children[1].children[0].children.slice(0,3).map(cell=>cell.textContent),['Line','Member mark','Location']);
+  assert.equal(renderedTable().children[0].children.length,13);
+  for(const [index,line] of [[0,'1'],[999,'1000']]){
+    const row=renderedTable().children.at(-1).children[index];
+    assert.equal(row.children[0].textContent,line);assert.equal(row.children[0].dataset.calculatorOutput,undefined);
+    assert.equal(row.children[2].children[0].dataset.calculatorCell,`B${index+9}`);
+    assert.equal(row.children.length,13);
+  }
   assert.equal(renderedControls().length,12000);
   assert.equal(byId('calculator-option-lists').children.length,1);
   assert.equal(byId('calculator-option-lists').children[0].children.length,553);
@@ -392,11 +408,39 @@ let passed = 0;
   assert.doesNotMatch(source,/Show advanced columns|calculator-advanced|entry\.advanced|renderedAdvanced/);
   assert.match(html,/Edit input fields · All schedule rows are available on this page/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
 
-  // Ordinary value edits refresh outputs without rebuilding thousands of inputs.
-  const retainedControl=renderedControls()[0];
-  audit.setRender(realRender);audit.setRequest(async()=>copy(entry.result));
+  // A Location edit on the final row survives recalculation without rebuilding 12,000 controls.
+  const retainedControl=renderedControls()[0],lastBoardLocation=renderedControls().find(control=>control.dataset.calculatorCell==='B1008');
+  lastBoardLocation.value=' Level 10 / final bay ';await lastBoardLocation.emit('input');
+  const boardLocationInputs=copy(entry.inputs);let boardLocationRequest;
+  audit.setRender(realRender);audit.setRequest(async(path,options)=>{boardLocationRequest=JSON.parse(options.body);return {...copy(entry.result),inputs:boardLocationInputs};});
   context.document.activeElement=null;await audit.calculate();
-  assert.equal(renderedControls()[0],retainedControl);passed++;
+  assert.equal(renderedControls()[0],retainedControl);assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='B1008'),lastBoardLocation);
+  assert.equal(boardLocationRequest.inputs.CALCULATOR.B1008,' Level 10 / final bay ');assert.deepEqual(copy(entry.inputs),{CALCULATOR:{B1008:' Level 10 / final bay '}});
+  assert.equal(renderedTable().children.at(-1).children[999].children[0].textContent,'1000');passed++;
+
+  // Spray uses its existing Z Line plus independent AA Location before unchanged calculation columns.
+  entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
+  entry.definition.schedule={sheet:'SCHEDULE',first_row:10,last_row:1009,header_row:9,line_id_column:'Z',columns:[{column:'Z',label:'Line'},{column:'AA',label:'Location'},{column:'A',label:'Item mark'}]};
+  entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],display_column_order:[26,27,1],merges:[]}];
+  entry.result=result({}, {sheet:'SCHEDULE',max_row:1009,max_column:27,visible_columns:[1,26,27],rows:Array.from({length:1000},(_,index)=>({row:index+10,cells:[
+    {column:1,address:`A${index+10}`,value:`Beam ${index+1}`,editable:true,type:'text'},
+    {column:26,address:`Z${index+10}`,value:index+1,calculated:true},
+    {column:27,address:`AA${index+10}`,value:null,editable:true,type:'text'},
+  ]}))});
+  const spraySourceRows=JSON.stringify(entry.result.rows);realRender(entry);assert.equal(JSON.stringify(entry.result.rows),spraySourceRows);
+  assert.deepEqual(renderedTable().children[1].children[0].children.map(cell=>cell.textContent),['Line','Location','Item mark']);
+  assert.equal(renderedControls().length,2000);assert.equal(renderedTable().children.at(-1).children.length,1000);
+  assert.equal(renderedTable().children.at(-1).children[0].children[0].textContent,'1');
+  const finalSprayRow=renderedTable().children.at(-1).children[999];assert.equal(finalSprayRow.children[0].textContent,'1000');
+  assert.equal(finalSprayRow.children[0].dataset.calculatorOutput,'Z1009');
+  const sprayLocation=renderedControls().find(control=>control.dataset.calculatorCell==='AA1009');
+  assert.equal(sprayLocation.getAttribute('aria-label'),'Location, item 1000');sprayLocation.value=' Roof / Zone 0 ';await sprayLocation.emit('input');
+  let sprayLocationRequest;const sprayLocationInputs=copy(entry.inputs);audit.setRequest(async(path,options)=>{sprayLocationRequest=JSON.parse(options.body);return {...copy(entry.result),inputs:sprayLocationInputs};});
+  await audit.calculate();assert.equal(sprayLocationRequest.inputs.SCHEDULE.AA1009,' Roof / Zone 0 ');
+  assert.deepEqual(copy(entry.inputs),{SCHEDULE:{AA1009:' Roof / Zone 0 '}});assert.equal(renderedControls().find(control=>control.dataset.calculatorCell==='AA1009'),sprayLocation);
+  assert.equal(finalSprayRow.children[0].textContent,'1000');assert.equal(finalSprayRow.children[2].children[0].dataset.calculatorCell,'A1009');
+  let savedSprayLocation;audit.setRequest(async(path,options)=>{assert.match(path,/\/state$/);savedSprayLocation=JSON.parse(options.body);return savedSprayLocation;});
+  await audit.save();assert.deepEqual(savedSprayLocation,{inputs:{SCHEDULE:{AA1009:' Roof / Zone 0 '}}});assert.equal(audit.dirty(entry),false);passed++;
 
   // Formula-backed editable defaults refresh after dependencies change, keeping exact focus values.
   entry=setup();entry.result=result({}, {rows:[{row:9,cells:[{column:2,address:'B9',value:2,editable:true,type:'number',calculated:true}]}]});
@@ -1364,7 +1408,7 @@ let passed = 0;
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-summary-pdf').disabled,true);
     assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-excel').disabled,true);
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),'true');
-    assert.equal(byId('calculator-summary-pdf').textContent,'Preparing materials & summary PDF…');
+    assert.equal(byId('calculator-summary-pdf').textContent,'Preparing PDF Summary…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pending.resolve({ok:true,headers:{get:()=> 'application/pdf; charset=binary'},blob:async()=>new Blob(['%PDF-1.4'])});await run;
     assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/pdf');
@@ -1372,7 +1416,7 @@ let passed = 0;
     assert.equal(context.document.body.children.at(-1).download,`ceasefire-${id}-materials-summary.pdf`);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-summary-pdf').disabled,false);
-    assert.equal(byId('calculator-summary-pdf').textContent,'Download materials & summary PDF');
+    assert.equal(byId('calculator-summary-pdf').textContent,'Download PDF Summary');
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),undefined);
     assert.match(byId('calculator-message').textContent,/later edits are not included/);
   }passed++;
@@ -1385,7 +1429,7 @@ let passed = 0;
     audit.setFetch((path,options)=>{registerPath=path;registerBody=JSON.parse(options.body);registerHeaders=options.headers;return pendingRegister.promise;});
     const registerRun=audit.downloadExcelRegister();
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-save').disabled,true);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').textContent,'Preparing Excel register…');
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').textContent,'Preparing XLSX Schedule…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pendingRegister.resolve({ok:true,headers:{get:()=>`${registerMime}; charset=binary`},blob:async()=>new Blob(['PK register'])});await registerRun;
     assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,registerMime);
@@ -1393,7 +1437,7 @@ let passed = 0;
     const registerLink=context.document.body.children.at(-1);assert.equal(registerLink.download,'APPENDIX A.xlsx');assert.equal(registerLink.clicked,true);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').textContent,'Download Excel register');
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').textContent,'Download XLSX Schedule');
   }passed++;
 
   // Focused numeric edits are validated before either export and retain exact draft precision.
@@ -1425,7 +1469,7 @@ let passed = 0;
   }passed++;
 
   // Generation/network failures, wrong MIME and empty files never start a download or leave either button busy.
-  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Download Excel register'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Download schedule PDF'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Download materials & summary PDF']]) {
+  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Download XLSX Schedule'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Download PDF Schedule'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Download PDF Summary']]) {
     const failures=[
       {response:{ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Source validation detail'})},message:/Source validation detail/},
       {response:{ok:false,status:500,headers:{get:()=> 'text/html'},json:async()=>{throw new Error('Must not parse HTML');}},message:/\(500\)/},
@@ -1444,8 +1488,11 @@ let passed = 0;
 
   // Import and the four distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
-  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button><button id="calculator-pdf"[^>]*>Download schedule PDF<\/button><button id="calculator-summary-pdf"[^>]*>Download materials &amp; summary PDF<\/button><button id="calculator-recalculate"/);
-  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"[^>]*>Export template<\/button>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export XLSX Template<\/button><button id="calculator-excel"[^>]*>Download XLSX Schedule<\/button><button id="calculator-pdf"[^>]*>Download PDF Schedule<\/button><button id="calculator-summary-pdf"[^>]*>Download PDF Summary<\/button>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"[^>]*>Export XLSX Template<\/button>/);
+  assert.match(registerMarkup,/class="calculator-workspace-heading".*id="calculator-reset"[^>]*>Reset Calc<\/button><button id="calculator-recalculate"[^>]*>Recalculate<\/button><button id="calculator-save"/);
+  assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
+  assert.match(registerMarkup,/id="calculator-import"[^>]*>Import XLSX Schedule<\/button>/);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
   for(const [className,background,color] of [['calculator-export-excel','#217346','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
@@ -1456,7 +1503,7 @@ let passed = 0;
   assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:#217346;'));
   assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
-  for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf'])assert.equal(byId(id).listeners.click.length,1);passed++;
+  for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-reset','calculator-recalculate','calculator-save'])assert.equal(byId(id).listeners.click.length,1);passed++;
 
   // Cancelled file pickers and oversized workbooks do not read or submit content.
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });

@@ -26,6 +26,7 @@
 .calculator-grid thead .calculator-row-label{z-index:4;background:#f3edef}
 .calculator-grid td.calculator-editable{background:#fffcf2;padding:6px;vertical-align:middle}
 .calculator-grid td.calculator-number{text-align:right;font-variant-numeric:tabular-nums}
+.calculator-grid td.calculator-line-number,.calculator-grid th.calculator-line-number{text-align:center;font-variant-numeric:tabular-nums}
 .calculator-grid input,.calculator-grid select{min-width:105px;padding:8px 9px;font-size:11px;line-height:1.5;background:white;border-color:#dfd2b5;border-radius:5px}
 .calculator-grid input.calculator-number{text-align:right;font-variant-numeric:tabular-nums}
 .calculator-native-custom{display:grid;gap:7px}

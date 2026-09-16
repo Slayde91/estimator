@@ -7,6 +7,7 @@ from estimator.workbook_calculators import (
     _validation, calculate_page, calculator_definition, normalize_calculator_inputs, source_model,
 )
 from estimator.workbook_catalog import DATA_DIRECTORY, editable_cells, load_workbook_catalog
+from estimator.workbook_runtime import application_editable_cells
 from tests.test_calculator_section_navigation import digest, visible
 from tests.test_workbook_parity import read_fixture
 
@@ -14,9 +15,9 @@ from tests.test_workbook_parity import read_fixture
 IDENTITIES = ('steel_vermiculite', 'steel_board', 'ductwork')
 BOARD_PRODUCTS = ['TRAFALGAR COREX', 'PROMATECT 250', 'PROMATECT 100', 'PROMATECT-XS']
 NATIVE_RANGES = (
-    ('steel_board', 'CALCULATOR', 'CDHJ', 9, 208),
+    ('steel_board', 'CALCULATOR', 'CDHJ', 9, 1008),
     ('steel_board', 'EXTRA BOARDS', 'BC', 6, 45),
-    ('ductwork', 'CALCULATOR', 'CEHI', 11, 310),
+    ('ductwork', 'CALCULATOR', 'CEHI', 11, 1010),
 )
 
 
@@ -105,7 +106,7 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
                 expected = {f'{column}{row}' for column in columns for row in range(first, last + 1)}
                 self.assertEqual({address for address, display in metadata['display_cells'].items()
                                   if display.get('control') == 'select'}, expected)
-                self.assertTrue(expected <= editable_cells(identity, name))
+                self.assertTrue(expected <= application_editable_cells(identity, name))
                 for address in expected:
                     self.assertTrue(visible(metadata, address), address)
                     self.assertEqual(_validation(source, address)['type'], 'list', address)
@@ -115,7 +116,7 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
         steel_ids = [library[f'A{row}']['value'] for row in range(6, 1348)]
         self.assertEqual(len(steel_ids), 1342)
         source = source_sheet('steel_board', 'CALCULATOR')
-        for row in (9, 208):
+        for row in (9, 208, 1008):
             cells = page_cells('steel_board', 'CALCULATOR', row)
             self.assertEqual(cells[f'C{row}']['options'], BOARD_PRODUCTS)
             self.assertEqual(cells[f'D{row}']['options'], steel_ids)
@@ -166,8 +167,8 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
                     self.assertEqual(cell['value'], source['cells'].get(cell['address'], {}).get('value'))
         cases = (
             ('steel_board', 'EXTRA BOARDS', 45, {'B45': 'Custom board', 'C45': 13.75}),
-            ('ductwork', 'CALCULATOR', 310, {'C310': 'Custom product', 'E310': '75/75/75',
-                                          'H310': 'Custom application', 'I310': 'Custom orientation'}),
+            ('ductwork', 'CALCULATOR', 1010, {'C1010': 'Custom product', 'E1010': '75/75/75',
+                                           'H1010': 'Custom application', 'I1010': 'Custom orientation'}),
         )
         for identity, name, row, custom in cases:
             inputs = {name: custom}

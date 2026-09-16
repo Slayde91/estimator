@@ -17,7 +17,7 @@ from estimator.schedule_workbook import export_schedule_template
 from estimator.server import create_server
 from estimator.storage import Store
 from estimator.workbook_calculators import _contains, source_model, validate_calculator_edits
-from estimator.workbook_catalog import editable_cells
+from estimator.workbook_runtime import application_editable_cells as editable_cells
 
 
 IDENTITY = "steel_vermiculite"
@@ -200,7 +200,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                                     "A173": "PERLIFOC HP ECO+", "A229": "MONOKOTE MK-6 HY",
                                     "A270": "COMPLETE WORKBOOK OPERATING RULES",
                                     "A356": "IDEALISED HOLLOW GEOMETRY", "A370": "FENDOLITE CASTELLATED SECTION"},
-                       "SCHEDULE": {"A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
+                       "SCHEDULE": {"Z9": "Line", "A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
             self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))
             for address in editable_cells(IDENTITY, sheet["name"]):
                 row, column = coordinates(address)
@@ -228,6 +228,11 @@ class CalculatorCleanupTests(unittest.TestCase):
                                    ("ductwork", "SUMMARY"): "DUCT PROTECTION SUMMARY"}
                 title = expected_titles.get((identity, sheet["name"]))
                 aliases = {"A1": title} if title else {}
+                if identity == "steel_board" and sheet["name"] == "START":
+                    aliases = {
+                        "D9": "Replace or clear the demonstration rows. Enter one member, or one group of identical members, per row. 1,000 prepared rows: 9-1008. Enter the TOTAL lineal length for that row.",
+                        "A28": "Capacity is 1,000 prepared rows. All prepared rows are included in the calculation formulas, dropdowns and purchasing totals.",
+                    }
                 if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
                     aliases["J94"] = "FYREWRAP APPLICATION TABLE"
                 self.assertEqual(sheet["display_text"], aliases)

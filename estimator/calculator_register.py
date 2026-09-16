@@ -93,7 +93,7 @@ def _table(sheet, row, labels, records, widths, *, formats=None, filtered=False)
 def _schedule(data, workbook):
     identity = data['id']
     if identity == 'ductwork':
-        labels = ['Item', 'Product', 'Duct dimensions (mm)', 'Length (m)', 'FRL', 'Thickness (mm)',
+        labels = ['Line', 'Product', 'Duct dimensions (mm)', 'Length (m)', 'FRL', 'Thickness (mm)',
                   'Thickness basis', 'Duct surface (m²)', 'Net spray bags', 'Wrap material (m²)', 'Roll equivalents', 'Status']
         widths = [9, 26, 23, 16, 18, 17, 19, 19, 18, 20, 18, 65]
         records = [[item['line'], v['C'], v['B'], v['D'], v['E'],
@@ -102,18 +102,18 @@ def _schedule(data, workbook):
                     v['O'] if item['wrap'] else 'N/A', v['J'] or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     elif identity == 'steel_vermiculite':
-        labels = ['Item', 'Mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Published thickness (mm)',
+        labels = ['Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity', 'Length (m)', 'Published thickness (mm)',
                   'Estimating thickness (mm)', 'Spray surface (m²)', 'Net bags', 'Whole bags per line', 'Status']
-        widths = [9, 25, 26, 24, 14, 16, 21, 21, 19, 18, 18, 65]
-        records = [[item['line'], v['A'], v['B'], v['F'], v['I'], v['J'], v['O'], v['P'], v['R'], v['T'], v['U'],
+        widths = [9, 28, 25, 26, 24, 14, 16, 21, 21, 19, 18, 18, 65]
+        records = [[item['line'], v['AA'], v['A'], v['B'], v['F'], v['I'], v['J'], v['O'], v['P'], v['R'], v['T'], v['U'],
                     '\n'.join(str(value) for value in (v['V'], v['W']) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     else:
-        labels = ['Item', 'Mark', 'Product', 'Section', 'Design period (min)', 'Critical temperature (°C)', 'Board stack (mm)',
+        labels = ['Line', 'Mark', 'Location', 'Product', 'Section', 'Design period (min)', 'Critical temperature (°C)', 'Board stack (mm)',
                   'Total thickness (mm)', 'Box reference area (m²)', 'Net board area (m²)', 'Area with waste (m²)',
                   'Sheets per line', 'Status']
-        widths = [9, 25, 26, 24, 19, 21, 20, 20, 21, 20, 20, 17, 65]
-        records = [[item['line'], v['A'], v['C'], v['D'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
+        widths = [9, 25, 28, 26, 24, 19, 21, 20, 20, 21, 20, 20, 17, 65]
+        records = [[item['line'], v['A'], v['B'], v['C'], v['D'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
                     '\n'.join(str(value) for value in (v['AR'], v['AS']) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)

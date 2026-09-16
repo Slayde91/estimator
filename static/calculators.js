@@ -59,7 +59,7 @@
     },
     steel_vermiculite: {
       CALCULATOR: { A20: [["Edit the blue cells.", "Edit the input fields."]] },
-      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the schedule inputs, or use Import schedule."]] },
+      SCHEDULE: { A3: [["filter or sort the complete table", "all rows are available on this page"]], A8: [["Paste your steel schedule here; blue cells are editable.", "Enter the schedule inputs, or use Import XLSX Schedule."]] },
       BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
@@ -191,7 +191,8 @@
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
     const position = parseAddress(address);
-    if (id === "steel_board" && position && ((entry.sheet === "CALCULATOR" && position.column === 35 && position.row >= 9 && position.row <= 208) || (entry.sheet === "SETTINGS" && position.column === 17 && position.row >= 6 && position.row <= 51))) replacements = boardStatusDirections;
+    const schedule = entry.definition.schedule;
+    if (id === "steel_board" && position && ((entry.sheet === schedule?.sheet && position.column === 35 && position.row >= schedule.first_row && position.row <= schedule.last_row) || (entry.sheet === "SETTINGS" && position.column === 17 && position.row >= 6 && position.row <= 51))) replacements = boardStatusDirections;
     return replacements.reduce((text, [from, to]) => text.split(from).join(to), value);
   }
   function updateStatus(entry = current()) {
@@ -407,7 +408,9 @@
   function updateOutputCell(element, cell) {
     const address = cell.address || element.dataset.calculatorOutput, entry = current();
     const value = sourceDisplayText(cell.value, entry, address), suffix = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.suffix;
-    element.textContent = displayValue(value, cell) + (isNumber(value) && !cell.error && typeof suffix === "string" ? suffix : "");
+    const schedule = entry?.definition.schedule, position = parseAddress(address);
+    const lineNumber = schedule && entry.sheet === schedule.sheet && position?.column === columnNumber(schedule.line_id_column) && position.row >= schedule.first_row && position.row <= schedule.last_row;
+    element.textContent = (lineNumber && Number.isInteger(value) ? String(value) : displayValue(value, cell)) + (isNumber(value) && !cell.error && typeof suffix === "string" ? suffix : "");
     if (entry?.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["J32", "J65", "J97", "J174", "J230"].includes(address) && cell.value === "BACK TO TOP") {
       const link = node("a", "calculator-inline-link", "Back to worksheet controls"); link.href = "#calculator-sheet-title"; element.replaceChildren(link);
     }
@@ -415,8 +418,7 @@
     element.classList.toggle("calculator-error", Boolean(cell.error) || (typeof cell.value === "string" && /^#(?:N\/A|VALUE!|REF!|DIV\/0!|NUM!|NAME\?|CALC!)/.test(cell.value)));
     const highlight = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.highlight;
     element.classList.toggle("calculator-published-thickness", highlight === "published-thickness" && isNumber(cell.value) && !cell.error);
-    const position = parseAddress(address);
-    element.classList.toggle("calculator-row-status", Boolean(entry?.definition.id === "steel_board" && entry.sheet === "CALCULATOR" && position?.column === 35 && position.row >= 9 && position.row <= 208));
+    element.classList.toggle("calculator-row-status", Boolean(entry?.definition.id === "steel_board" && entry.sheet === schedule?.sheet && position?.column === 35 && position.row >= schedule.first_row && position.row <= schedule.last_row));
     if (element.dataset.calculatorValue === "true") {
       outputState(element, cell.value);
       if (element.calculatorValueCard) outputState(element.calculatorValueCard, cell.value);
@@ -618,6 +620,7 @@
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
+    const syntheticLine = Boolean(schedule?.line_numbers), lineColumn = columnNumber(schedule?.line_id_column), lineWidth = 70;
     const exposureColumns = new Set((schedule?.columns || []).filter((column) => column.editable && /exposure/i.test(column.label)).map((column) => columnNumber(column.column)));
     const presentationTables = metadata.presentation_tables;
     const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
@@ -747,10 +750,11 @@
       }
     }
     const headRow = node("tr");
+    if (syntheticLine) { const heading = node("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
     for (const column of columns) {
       const label = String(labels[column] || "");
       const minimum = !schedule ? 24 : /notes?|status|requirements|basis|sources?/i.test(label) ? 360 : /product|steel id|section|member mark|item.*mark|location|duct use/i.test(label) ? 220 : 125;
-      const width = Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
+      const width = schedule && column === lineColumn ? lineWidth : Math.max(minimum, Math.min(schedule ? 420 : 320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
       const heading = node("th", "", labels[column] || ""); heading.scope = "col"; headRow.append(heading);
     }
@@ -761,6 +765,7 @@
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
+      if (syntheticLine) tr.append(node("td", "calculator-line-number", item));
       const requestedLayout = renderedGroup.definition?.row_layouts?.[row.row];
       let rowLayout = null;
       if (Array.isArray(requestedLayout) && requestedLayout.length) {
@@ -788,6 +793,7 @@
         const explicitHeading = matrixHeading || sourceHeading || Boolean(section) || role === "title";
         if (!explicitHeading && (cell.calculated || cell.output || cell.read_only)) role = "output";
         const td = node(matrixHeading ? "th" : "td", `calculator-role-${role}`);
+        if (schedule && column === lineColumn) td.classList.add("calculator-line-number");
         if (matrixHeading) td.scope = "col";
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
         applyCellDisplay(td, display, cell.presentation?.bold);
@@ -861,6 +867,7 @@
       if (fitContent) table.classList.add("calculator-content-table");
       if (definition) table.classList.add("calculator-projection-table");
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
+      if (syntheticLine) groupWidths.unshift(lineWidth);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
@@ -1084,7 +1091,7 @@
       if (!String(response.headers.get("Content-Type") || "").includes("spreadsheetml.sheet")) throw new Error("The server did not return an Excel workbook.");
       const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `ceasefire-${entry.definition.id}-schedule.xlsx`;
       document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-      message("Schedule template exported. Complete its input columns, then use Import schedule.");
+      message("Schedule template exported. Complete its input columns, then use Import XLSX Schedule.");
     } catch (error) { message(`Could not export the template. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
   }
@@ -1121,19 +1128,18 @@
   }
 
   function downloadSchedulePdf() {
-    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", filename: "APPENDIX A.pdf", fixedFilename: true, label: "schedule PDF", mimeType: "application/pdf", fileDescription: "a PDF report" });
+    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", filename: "APPENDIX A.pdf", fixedFilename: true, label: "PDF Schedule", mimeType: "application/pdf", fileDescription: "a PDF report" });
   }
 
   function downloadExcelRegister() {
-    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "APPENDIX A.xlsx", fixedFilename: true, label: "Excel register", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
+    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "APPENDIX A.xlsx", fixedFilename: true, label: "XLSX Schedule", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
   }
 
   function downloadMaterialsSummaryPdf() {
-    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", filename: "materials-summary.pdf", label: "materials & summary PDF", mimeType: "application/pdf", fileDescription: "a PDF report" });
+    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", filename: "materials-summary.pdf", label: "PDF Summary", mimeType: "application/pdf", fileDescription: "a PDF report" });
   }
 
   $("calculator-save").addEventListener("click", save);
-  $("calculator-reset").textContent = "Reset calculator defaults";
   $("calculator-reset").addEventListener("click", reset);
   $("calculator-recalculate").addEventListener("click", calculate);
   $("calculator-template").addEventListener("click", exportTemplate);

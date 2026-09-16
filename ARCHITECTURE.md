@@ -129,7 +129,9 @@ duplicating thousands of lookup rules while retaining source-cell traceability.
 The existing Quote calculation engine, pricing semantics and PDF path are reused
 unchanged; there is no new server, database, framework or runtime dependency.
 
-`workbook_catalog.py` loads immutable source packages and input allowlists;
+`workbook_runtime.py` derives the 1,000-row application models, titles and optional spray Location from immutable source packages. It extends copied formulas, validations, table bounds and summary ranges without shifting existing input coordinates; see [the schedule extension contract](docs/SCHEDULE_EXTENSION.md).
+
+`workbook_catalog.py` continues to load the original source packages and original input allowlists;
 `excel_engine.py` evaluates their original formulas without eval/exec or cached
 answers. `workbook_calculators.py` validates typed overlays, resolves dependent
 dropdowns and serves exact worksheet pages. `schedule_workbook.py` extends the

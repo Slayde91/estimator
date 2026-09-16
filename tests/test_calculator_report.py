@@ -7,7 +7,7 @@ import unittest
 
 from pypdf import PdfReader
 
-from estimator.calculator_report import build_calculator_report, project_calculator_report, _source_text
+from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, _source_text
 from estimator.catalog import ValidationError
 from estimator.workbook_calculators import source_model
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
@@ -131,46 +131,58 @@ class CalculatorReportTests(unittest.TestCase):
             self.assertTrue(excel_equal(totals[label], expected[cell]))
         self.assertNotEqual(totals['Pooled whole sheets'], sum(row['values']['AG'] for row in data['rows'] if type(row['values']['AG']) in (int, float)))
 
-    def test_each_pdf_has_official_logo_only_requested_sections_and_two_decimal_numbers(self):
+    def test_both_pdfs_preserve_branding_precision_and_separate_schedule_from_materials(self):
         for identity in ['ductwork', 'steel_vermiculite', 'steel_board']:
             with self.subTest(identity=identity):
-                payload = build_calculator_report(identity, {})
-                reader = PdfReader(BytesIO(payload))
-                texts = [page.extract_text() for page in reader.pages]
-                text = '\n'.join(texts)
-                self.assertTrue(payload.startswith(b'%PDF'))
-                self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height) for page in reader.pages))
-                self.assertTrue(all('CALCULATORS | FULL SCHEDULE' in content for content in texts))
-                self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
-                self.assertTrue(all(page.images for page in reader.pages))
-                self.assertIn('Current calculator snapshot', text)
+                reports = []
+                for builder, header in [(build_calculator_report, 'FULL SCHEDULE'),
+                                        (build_calculator_summary_report, 'MATERIALS & SUMMARY')]:
+                    payload = builder(identity, {})
+                    reader = PdfReader(BytesIO(payload))
+                    texts = [page.extract_text() for page in reader.pages]
+                    text = '\n'.join(texts)
+                    reports.append(text)
+                    self.assertTrue(payload.startswith(b'%PDF'))
+                    self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height) for page in reader.pages))
+                    self.assertTrue(all('CALCULATORS | ' + header in content for content in texts))
+                    self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
+                    self.assertTrue(all(page.images for page in reader.pages))
+                    self.assertIn('Current calculator snapshot', text)
+                    self.assertIn(source_model(identity)['source']['sha256'], text)
+                    for heading in REMOVED_SECTIONS:
+                        self.assertNotIn(heading, text)
+                    self.assertNotIn('Schedule item 1', text)
+                    self.assertNotIn('CALCULATOR column AI', text)
+                    self.assertNotIn('CALCULATOR column AD', text)
+                    self.assertNotIn('header comment', text)
+                text, summary = reports
                 self.assertIn('Full schedule', text)
-                self.assertIn('Final product and material summary', text)
-                self.assertIn('Overall schedule totals', texts[-1])
-                for heading in REMOVED_SECTIONS:
+                self.assertNotIn('Full schedule', summary)
+                for heading in ('Material quantities and summary', 'Final product and material summary', 'Overall schedule totals'):
                     self.assertNotIn(heading, text)
-                self.assertNotIn('Schedule item 1', text)
-                self.assertNotIn('CALCULATOR column AI', text)
-                self.assertNotIn('CALCULATOR column AD', text)
-                self.assertNotIn('header comment', text)
+                    self.assertIn(heading, summary)
+                self.assertNotIn('EXTRA BOARDS', text)
                 if identity == 'ductwork':
                     self.assertIn('11.70', text)
                     self.assertIn('38.00 per layer', ' '.join(text.split()))
                     self.assertIn('27.81', text)
                     for heading in ('Product totals', 'Penetration angles by size and location', 'Working spray yields',
                                     'Maxilite 60 mm boards and cut strips'):
-                        self.assertIn(heading, text)
+                        self.assertNotIn(heading, text)
+                        self.assertIn(heading, summary)
                 elif identity == 'steel_vermiculite':
                     self.assertIn('430.73', text)
                     self.assertIn('218.38', text)
                     self.assertIn('219.00', text)
-                    self.assertIn('Product order totals', text)
+                    self.assertNotIn('Product order totals', text)
+                    self.assertIn('Product order totals', summary)
                 else:
-                    self.assertIn('74.40', text)
+                    self.assertIn('74.40', summary)
+                    self.assertIn('30.00', text)
                     self.assertIn('Total thickness mm', ' '.join(text.split()))
-                    self.assertIn('EXTRA BOARDS', text)
-                    self.assertIn('Board stock totals by product and thickness', text)
-                    self.assertIn('Bags are not applicable', text)
+                    self.assertIn('EXTRA BOARDS', summary)
+                    self.assertIn('Board stock totals by product and thickness', summary)
+                    self.assertIn('Bags are not applicable', summary)
 
     def test_pdf_preserves_long_free_text_and_identifier_precision(self):
         inputs = cleared_inputs('steel_board')
@@ -179,12 +191,16 @@ class CalculatorReportTests(unittest.TestCase):
         inputs['EXTRA BOARDS'].update({'A45': 'Last allowance', 'G45': -1.005, 'H45': 0.14505, 'N45': note})
         before = deepcopy(inputs)
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_report('steel_board', inputs))).pages)
+        summary = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report('steel_board', inputs))).pages)
         self.assertIn('Last member R3 P250 M12 1.2345', ' '.join(text.split()))
-        self.assertIn('Extra-board item 40', text)
-        self.assertIn('R3 P250 M12 report 1.2345 <literal>', ' '.join(text.split()))
-        self.assertIn('14.51%', text)
-        self.assertIn('-1.01', text)
+        self.assertNotIn('Last member', summary)
+        self.assertNotIn('Extra-board item', text)
+        self.assertIn('Extra-board item 40', summary)
+        self.assertIn('R3 P250 M12 report 1.2345 <literal>', ' '.join(summary.split()))
+        self.assertIn('14.51%', summary)
+        self.assertIn('-1.01', summary)
         self.assertNotIn('Private calculation detail', text)
+        self.assertNotIn('Private calculation detail', summary)
         self.assertEqual(inputs, before)
         self.assertEqual(_source_text('steel_board', 'CALCULATOR', 'AI9', 'Ask Promat for P250, report 1.2345 and M12 fixings.'), 'Ask Promat for P250, report 1.2345 and M12 fixings.')
         self.assertIn('Box girth override', _source_text('steel_board', 'CALCULATOR', 'AV9', 'Check V is the INSIDE box girth'))
@@ -200,6 +216,10 @@ class CalculatorReportTests(unittest.TestCase):
         for identity in ['ductwork', 'steel_vermiculite', 'steel_board']:
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_report(identity, cleared_inputs(identity)))).pages)
             self.assertIn('No schedule inputs are entered.', text)
+            summary = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report(identity, cleared_inputs(identity)))).pages)
+            self.assertIn('0 used schedule items. 0 item(s)', ' '.join(summary.split()))
+            self.assertIn('Overall schedule totals', summary)
+            self.assertNotIn('Full schedule', summary)
 
     def test_removed_details_do_not_remove_incomplete_last_items_from_pdf(self):
         for identity, cell, value, expected in [
@@ -241,8 +261,9 @@ class CalculatorReportTests(unittest.TestCase):
 
     def test_invalid_input_types_and_reference_cell_writes_fail_before_reporting(self):
         for inputs in [{'CALCULATOR': {'K11': 3}}, {'CALCULATOR': {'D11': True}}, {'CALCULATOR': {'D11': 10 ** 400}}]:
-            with self.assertRaises(ValidationError):
-                build_calculator_report('ductwork', inputs)
+            for builder in (build_calculator_report, build_calculator_summary_report):
+                with self.assertRaises(ValidationError):
+                    builder('ductwork', inputs)
 
 
 if __name__ == '__main__':

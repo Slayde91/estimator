@@ -226,28 +226,36 @@ the CALCULATOR third notes section, and gives BAGS compact independent widths.
 These browser omissions do not change PDF content or pooled ordering values.
 
 `calculator_report.py` projects a normalized input snapshot through the same
-workbook engine and approved exception. `POST /api/calculators/<id>/report.pdf`
-uses the existing ReportLab/fonts/logo pipeline and never writes saved state.
-Documents retain the main full schedule, including unresolved rows, additional
-board allowances, product/ancillary tables and closing totals. At the user's
-request, the duplicate detailed-item appendix, separate single-member and manual
-bag sections, and settings appendix are omitted. Settings still affect the
-snapshot's calculation; removing an appendix does not change its values. Bag,
-sheet, roll, surface-area and reference-box semantics remain distinct.
+workbook engine and approved exception. The former combined PDF is now two
+renderings over the complete `project_calculator_report` result:
+`POST /api/calculators/<id>/report.pdf` calls `build_calculator_report` for
+**Full schedule**, retaining every populated main-schedule row and its status;
+`POST /api/calculators/<id>/summary.pdf` calls `build_calculator_summary_report`
+for **Material quantities and summary**, with **Final product and material
+summary**, ancillary tables, closing totals and board **EXTRA BOARDS**.
+The existing ReportLab/fonts/logo pipeline, captured-draft validation and
+read-only/source guards apply to both endpoints; neither writes saved state.
 
-The Excel register is a second output adapter over that same report projection.
+This output split follows the requested separate downloads without splitting
+the calculation model. Settings and extra-board inputs remain in the complete
+snapshot, even when a PDF omits their detail table. The duplicate detailed-item,
+single-member/manual-bag and settings appendices remain excluded. Bag, sheet,
+roll, surface-area and reference-box semantics remain distinct. No dependency,
+API input schema or saved-data migration is introduced.
+
+The Excel register remains another output adapter over that same complete projection.
 `calculator_register.py` calls `project_calculator_report` and writes a values-only
 XLSX through the existing openpyxl dependency and `_serialize_exact` helper from
 `pricing_workbook.py`. This adds an Excel view of the calculated register without
 creating another formula engine or redefining the PDF's quantity/ordering rules.
 `POST /api/calculators/<id>/register.xlsx` accepts the same captured input payload
-and read-only/source validation as the PDF endpoint and does not write state.
+and read-only/source validation as both PDF endpoints and does not write state.
 
 Every register has Summary and Schedule sheets; board registers also have Extra
 boards, including an explicit empty message when no extra rows are entered.
 Summary contains the overview totals, existing product/material tables, notes,
 qualifications and source filename/SHA-256. Schedule retains all used report
-items and incomplete statuses. Extra boards retains the PDF's A:K/M:N values and
+items and incomplete statuses. Extra boards retains the summary PDF's A:K/M:N values and
 item number, excluding internal column L. Populated detail tables have filters,
 repeated print headings and C6 freeze panes; Summary uses B5. These are workbook
 view settings, separate from the browser's horizontal scrolling behavior.

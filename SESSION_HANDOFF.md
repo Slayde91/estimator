@@ -1,6 +1,45 @@
 # Session handoff
 
-## Compact pricing workbook and restored use details — 2026-09-16
+## Separate calculator PDFs and normal Exposure text - 2026-09-16
+
+Branch: `feat/separate-calculator-pdfs`, based on verified PR #25 merge
+`c4e1a79` (its post-merge CI also passed).
+
+The existing `report.pdf` route now contains Full schedule only. New
+`summary.pdf` serves Material quantities and summary: product and ancillary
+tables, pooled orders, overall quantities and board EXTRA BOARDS. Both use the
+complete draft and unchanged calculation projection; XLSX registers keep all
+Summary/Schedule/Extra boards data. Neither PDF download saves the draft.
+The toolbar puts schedule PDF before Excel register, then materials & summary
+PDF. Editable Exposure schedule values use normal weight; headers retain bold.
+
+Classification: report/presentation change and additive read-only export API.
+No calculation, pricing, source-workbook, dependency or schema migration.
+
+Verified before publication: 30 API/cleanup tests, all 11 PDF/projection tests
+(including the corrected summary-only quantity assertion), nine display-metadata
+tests, 128 UI checks (33 Estimator and 95 Calculator), JavaScript syntax and
+scoped diff checks. Six HTTP-generated PDF scopes pass; the 1,000-item spray
+schedule retains every unique mark across 67 pages, including the final item.
+Rendered pages from every report type were reviewed, including repeating headers
+and page breaks. Distribution build and isolated package wiring checks pass.
+The full Python regression run is in progress. Exact-head CI/review, runtime
+refresh and merge remain pending; later results belong in the local receipt.
+
+Evidence is in `.runtime/calculator-pdf-split-qa`, including PDF render/checks,
+API/UI logs, distribution checks, main-state backup and comparison records.
+The user's 8765 browser tab has not been reloaded or edited. Browser QA uses
+18787 with an isolated database. Preserve all open drafts and saved data.
+
+Continue from current Git/checks. Finish the full regression run and current
+head CI; record verified push/PR/merge in `publication.json`. Refresh only the
+verified estimator server process, check both PDF routes and compare protected
+saved data. Do not infer publication from this pre-publication checkpoint.
+
+The pricing section below records the preceding work. PR #25 subsequently
+merged at `c4e1a79`; its final receipt supersedes earlier pending statements.
+
+## Historical: compact pricing workbook and restored use details — 2026-09-16
 
 Current branch: `feat/compact-pricing-workbook`, based on PR #24 merge
 `7408276`. That preceding release and its post-merge CI are verified; they do

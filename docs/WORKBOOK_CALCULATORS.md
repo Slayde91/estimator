@@ -5,20 +5,43 @@ Quote estimator, pricing library and quote PDF continue to use `Quote.xlsm` and
 `Inventory_list.xlsm`. Calculator material quantities are not automatically
 inserted into a priced quote: the supplied files do not specify that mapping.
 
+## Calculator downloads
+
+Each calculator captures its complete current draft for three report downloads:
+
+- **Download schedule PDF** (`report.pdf`) contains the **Full schedule** and
+  used-row statuses, without product summaries or EXTRA BOARDS.
+- **Download Excel register** (`register.xlsx`) retains the complete Summary
+  and Schedule sheets plus board Extra boards.
+- **Download materials & summary PDF** (`summary.pdf`) contains **Material
+  quantities and summary**, final product/ancillary tables, closing totals and
+  board **EXTRA BOARDS**.
+
+Both PDFs and the Excel register reuse `project_calculator_report`; the split
+does not remove settings or extra-board quantities from the calculation. The
+existing source exclusions, incomplete statuses and pooled purchasing rules
+remain. Downloads neither save inputs nor alter saved quotes. The separate
+input-only template/import workflow is unchanged.
+
+Editable Exposure cells use normal browser font weight only within vermiculite
+SCHEDULE C10:C1009, board CALCULATOR M9:M208 and duct CALCULATOR H11:H310.
+Header cells, technical reference labels, choices and source values are unchanged.
+
 ## Source inventory and pages
 
-| Section | Source workbook | Application pages | Schedule capacity | Source formulas |
+| Section | Source workbook | Source pages | Schedule capacity | Source formulas |
 | --- | --- | --- | --- | ---: |
 | Structural Steel (vermiculite) | Ceasefire_Steel_Vermiculite_Estimator_NEW.xlsx | CALCULATOR, SCHEDULE, BAGS, SETTINGS | 1,000 rows | 120,973 |
 | Structural Steel (board) | Ceasefire_Structural_Steel_Board_Estimator_NEW.xlsx | START, CALCULATOR, BOARD SUMMARY, SETTINGS, EXTRA BOARDS | 200 rows | 16,534 |
 | Ductwork | Ceasefire_Duct_Estimator_NEW.xlsx | CALCULATOR, SUMMARY, PRODUCT SETTINGS | 300 rows | 24,059 |
 
-Every visible source tab is exposed with its original name. The board workbook's
-hidden SETTINGS page is exposed to make its settings adjustable; EXTRA BOARDS is
-also exposed because it supplies editable additional quantities to BOARD SUMMARY.
-Other hidden reference tables remain private calculation data. Hidden and
-zero-width columns remain hidden initially and can be shown with Advanced.
-Pages are split into bounded row ranges with a direct range selector.
+Source worksheet identities remain unchanged. Vermiculite also has browser
+START and FACTOR CALCS tabs projected from SETTINGS. The board workbook's hidden
+SETTINGS page is exposed to make its settings adjustable; EXTRA BOARDS is also
+exposed because it supplies editable additional quantities to BOARD SUMMARY.
+Other hidden reference tables remain private calculation data. All prepared
+schedule rows are available on a continuous page. The browser has no Advanced
+checkbox; the complete worksheet API still supports `include_advanced`.
 
 Source hashes are recorded in `data/calculators/index.json`, each packaged model
 and the independent Excel fixtures. Originals are never changed. No new source

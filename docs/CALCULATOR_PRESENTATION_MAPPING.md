@@ -199,8 +199,9 @@ Updating these totals does not rebuild the schedule controls.
 
 Input groups: A item; B:F product/case/temperature/method/section; G:H factor/period; I:L quantity/length/girth/area. Output groups: M:N lookup factors; O:P published/usable thickness; Q:U geometry/volume/bags. Source V/W/X status/source columns are explicitly hidden in the browser; Y notes remain wide and wrapped. V/W/X stay in API/source results and the existing report projection. In particular, W continues to gate incomplete purchasing totals. Source width emphasis remains B25/C29/F22, compact numeric I9 and J:Q12, status V:W31, source X26 and notes Y64; these source widths do not require hidden columns to be displayed.
 
-Exposure/Case cells C10:C1009 use bold browser text, including their existing
-selection controls. Labels, choices, input identities and calculations remain
+Exposure/Case cells C10:C1009 use normal-weight browser text, including their
+existing selection controls. The C9 header and technical reference labels keep
+their emphasis. Labels, choices, input identities and calculations remain
 unchanged. All prepared rows remain present even though 999 original example
 slots return blank formulas. The original workbook has one active example,
 not 1,000 completed estimates.
@@ -357,6 +358,10 @@ The support-instruction prose in AM11:AM310 explicitly uses normal font weight.
 Its AM10 column heading retains its existing heading style, and neither the
 instruction text nor the quantity qualifications are changed.
 
+Editable fire-exposure/application cells H11:H310 also use normal weight,
+preserving their native select controls. H10 and PRODUCT SETTINGS reference
+exposure labels retain their heading/label emphasis.
+
 Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to long notes. Widths for omitted columns remain source evidence rather than visible layout requirements. Keep the remaining status/support text wrapped at readable widths. A 300-row table may scroll vertically and horizontally on this one page without changing row identities.
 
 ### SUMMARY
@@ -468,6 +473,10 @@ The board CALCULATOR, BOARD SUMMARY and EXTRA BOARDS overviews use full-width
 title and note rows. The BOARD SUMMARY cards remain within that expanded layout.
 
 Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
+
+Exposure layout M9:M208 uses normal-weight body text when rendered; the M8
+heading remains unchanged. This advanced source input stays hidden in the
+normal browser projection, with its values retained by the API and saved draft.
 
 The required output distinctions are stack Z, layer count AA, total thickness AB, box girth AC, reference box area AD, actual net board AE, board with waste AF, standalone sheets AG, standalone purchase area AH and row notes AI. Do not relabel reference box area as board requirement. Hidden AJ:CI are retained calculation dependencies; the current source page extent intentionally presents only through AI.
 
@@ -583,10 +592,15 @@ keys, calculations, source packages or persistence.
 
 Reports must evaluate the current draft inputs, including settings, and present existing calculated values. Selecting a different page must not switch or reset the report's calculation state. No report projection should silently price these geometry workbooks; they contain no authoritative automatic transfer into Quote pricing.
 
-The current PDF retains the main Full schedule, EXTRA BOARDS where applicable,
-product and ancillary summary tables, and closing totals. Every populated
-schedule row remains, including incomplete rows and the final prepared row when
-entered. At the user's request, these four sections are removed:
+The complete projection is shared by two PDFs and the unchanged Excel register.
+`report.pdf` / `build_calculator_report` renders **Full schedule** only, retaining
+every populated main-schedule row, including incomplete rows and the final
+prepared row when entered. `summary.pdf` / `build_calculator_summary_report`
+renders **Material quantities and summary**, including **Final product and
+material summary**, product/ancillary tables, closing totals and board
+**EXTRA BOARDS**. Those summary sections do not appear in the schedule PDF.
+The Excel register retains Summary/Schedule and board Extra boards sheets.
+These four sections remain excluded from both PDFs:
 
 - Schedule inputs, calculations and complete notes (the duplicate per-item
   detail appendix).
@@ -631,7 +645,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - The browser has no advanced-column checkbox or instructions to use it. The worksheet API still returns advanced inputs when `include_advanced` is requested; source hidden databases and calculated cells remain readonly. Normal-view editing, recalculation and saving preserve existing hidden advanced input values.
 - Forms display unchanged formula-backed settings without saving scalar overrides. Rendering, report generation and importing a draft do not persist inputs.
 - Reset changes its declared draft scope, leaves saved records untouched until Save calculator, and retains later edits if a calculation response arrives late. The removed reviewed-yield action/panel must not reappear. An explicit empty engine overlay still matches original defaults.
-- Calculator reports retain every populated main schedule item, applicable extras, product tables and closing totals; the four removed appendix/helper sections stay absent. They preserve invalid/withheld quantities and source ordering rules and never add manual BAGS results to schedule totals.
+- The schedule PDF retains every populated main-schedule item and its status; the materials & summary PDF retains applicable extras, product/ancillary tables and closing totals. The four removed appendix/helper sections stay absent from both. The complete shared projection and Excel register retain all quantities, invalid/withheld states and source ordering rules; manual BAGS results are never added to schedule totals.
 - Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
 - Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits the explicitly listed introductory rows, Both/Mixed block J6:Q21 and USE NOTES rows 153–159, including that section's contents link. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
@@ -644,7 +658,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Projected Inputs, Thickness and quantities, period comparison, product ordering and FyreWrap sections keep their own source headings with their data. Each original editable field occurs once; residual notes and unprojected source content remain available except for explicit omissions. BAGS displays MATERIAL QUANTITIES while retaining its original worksheet identity.
 - Independent presentation tables and every SETTINGS/PRODUCT SETTINGS table use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five listed blank PRODUCT SETTINGS J:Q rows render as gray spans with only outside borders; BAGS H10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
 - Vermiculite SCHEDULE uses the explicit m²/m³ summary labels and full-width PRODUCT SUMMARY; the board CALCULATED SUMMARY uses the same independent placement. BAGS omits G only in manual-form rows 6–15, preserving G19:G24 and all pooled order values. The confirmed A28:I30 period table is centered. Duct reference labels are bold only at the declared anchors, leaving adjacent explanatory prose unchanged.
-- Factor-helper D:G spans remove only blank dividers; collapsing A371:G371 retains H371:N374 notes and every helper input/result. The Published thickness row renders L6 before left-aligned H6 with source identities and original row spans intact. Pink technical-rule headings, normal reference/support prose and bold exposure/product labels apply only to the listed anchors. Board overview title/notes fill their rows while all three summary cards remain; BOARD SUMMARY and EXTRA BOARDS are browser title aliases only.
+- Factor-helper D:G spans remove only blank dividers; collapsing A371:G371 retains H371:N374 notes and every helper input/result. The Published thickness row renders L6 before left-aligned H6 with source identities and original row spans intact. Pink technical-rule headings, normal reference/support prose and bold reference exposure/product labels apply only to the listed anchors. Editable schedule Exposure cells use normal weight within vermiculite C10:C1009, board M9:M208 and duct H11:H310; headers remain unchanged. Board overview title/notes fill their rows while all three summary cards remain; BOARD SUMMARY and EXTRA BOARDS are browser title aliases only.
 - Vermiculite CALCULATOR/BAGS, board START and duct SUMMARY omit contents links; board START uses page scrolling. BAGS orders its product table before the MATERIAL QUANTITIES heading, subtitle and manual form without duplicate IDs or inputs and uses bold A20:A24 names. MEMBER SCHEDULE, PUBLISHED VALUE, numeric-only H6 mm/highlight, normal schedule Y notes and the shorter J94 title are display changes. Generic success subtitles and only the exact duct copied-fixing notice are hidden; errors, other warnings, source/API text, PDF and Excel-register values remain intact.
 - Native Section ID controls retain all 553 active source choices, saved values and blank behavior, including after recalculation. Opening a control materializes its options without changing input state. All 1,000 rows remain available.
 - New-estimate B12 is blank; loading/saving explicit historical notes remains exact. The removed Work summary DOM element is never referenced by rendering or error paths, while API and stored/PDF summaries remain available.

@@ -78,7 +78,7 @@ _DISPLAY_CELLS = {
         'CALCULATOR': {'D10': {'control': 'select'},
                        'H6': {'align': 'left', 'suffix': ' mm', 'highlight': 'published-thickness'},
                        **{f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'}},
-        'SCHEDULE': {**{f'C{row}': {'bold': True} for row in range(10, 1010)},
+        'SCHEDULE': {**{f'C{row}': {'bold': False} for row in range(10, 1010)},
                      **{f'Y{row}': {'bold': False} for row in range(10, 1010)},
                      **{f'F{row}': {'control': 'select'} for row in range(10, 1010)}},
         'SETTINGS': {
@@ -92,8 +92,9 @@ _DISPLAY_CELLS = {
             'A371': {'merge': 'A371:G371', 'role': 'collapsed_spacer'},
         },
     },
-    'steel_board': {'CALCULATOR': {f'{column}{row}': {'control': 'select'}
-                                  for row in range(9, 209) for column in 'CDHJ'},
+    'steel_board': {'CALCULATOR': {**{f'{column}{row}': {'control': 'select'}
+                                    for row in range(9, 209) for column in 'CDHJ'},
+                                  **{f'M{row}': {'bold': False} for row in range(9, 209)}},
                     'EXTRA BOARDS': {f'{column}{row}': {'control': 'select'}
                                      for row in range(6, 46) for column in 'BC'},
                     'BOARD SUMMARY': {**{f'A{row}': {'bold': True} for row in range(12, 30)},
@@ -105,7 +106,8 @@ _DISPLAY_CELLS = {
     'ductwork': {
         'CALCULATOR': {'A3': {'role': 'note'}, **{f'AM{row}': {'bold': False} for row in range(11, 311)},
                        **{f'{column}{row}': {'control': 'select'}
-                          for row in range(11, 311) for column in 'CEHI'}},
+                          for row in range(11, 311) for column in 'CEI'},
+                       **{f'H{row}': {'control': 'select', 'bold': False} for row in range(11, 311)}},
         'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
                     **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
         'PRODUCT SETTINGS': {

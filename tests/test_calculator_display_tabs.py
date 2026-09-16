@@ -196,9 +196,30 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
     def test_display_only_weight_and_thickness_highlight_have_exact_scopes(self):
         schedule = self.metadata('steel_vermiculite', 'SCHEDULE')['display_cells']
         self.assertEqual({address for address, display in schedule.items() if display.get('bold') is False},
-                         {f'Y{row}' for row in range(10, 1010)})
+                         {f'{column}{row}' for column in 'CY' for row in range(10, 1010)})
         self.assertNotIn('Y9', schedule)
-        self.assertTrue(all(schedule[f'C{row}']['bold'] for row in range(10, 1010)))
+        for identity, sheet, column, first, last in (
+                ('steel_vermiculite', 'SCHEDULE', 'C', 10, 1009),
+                ('steel_board', 'CALCULATOR', 'M', 9, 208),
+                ('ductwork', 'CALCULATOR', 'H', 11, 310)):
+            with self.subTest(identity=identity):
+                display = self.metadata(identity, sheet)['display_cells']
+                source = source_model(identity)
+                field = next(field for field in source['schedule']['columns'] if field['column'] == column)
+                self.assertTrue(field['editable'])
+                self.assertIn('exposure', field['label'].lower())
+                self.assertTrue(all(display[f'{column}{row}']['bold'] is False for row in range(first, last + 1)))
+                self.assertNotIn('bold', display.get(f'{column}{first - 1}', {}))
+                self.assertNotIn('bold', display.get(f'{column}{last + 1}', {}))
+        duct_display = self.metadata('ductwork', 'CALCULATOR')['display_cells']
+        self.assertEqual({address for address, display in duct_display.items() if display.get('bold') is False},
+                         {f'{column}{row}' for column in ('H', 'AM') for row in range(11, 311)})
+        self.assertTrue(all(duct_display[f'H{row}']['control'] == 'select' for row in range(11, 311)))
+        board_display = self.metadata('steel_board', 'CALCULATOR')['display_cells']
+        self.assertEqual({address for address, display in board_display.items() if display.get('bold') is False},
+                         {f'M{row}' for row in range(9, 209)})
+        self.assertTrue(self.metadata('steel_vermiculite', 'SETTINGS')['display_cells']['A55']['bold'])
+        self.assertTrue(self.metadata('ductwork', 'PRODUCT SETTINGS')['display_cells']['J137']['bold'])
         calculator = self.metadata('steel_vermiculite', 'CALCULATOR')
         self.assertEqual(calculator['display_cells']['H6'],
                          {'align': 'left', 'suffix': ' mm', 'highlight': 'published-thickness'})

@@ -1,31 +1,43 @@
 # Roadmap
 
-Current increment: Estimator PDF cleanup on `feat/estimator-pdf-cleanup`, based
-on PR #26 merge `3d3e1ed`. Remove the requested Work summary, material-pricing
-explanation, masking explanation and duplicate Estimator notes subsection;
-retain every financial table and generated material note. Main NOTES remains,
-while the Job and access B12 editor is hidden without deleting its values.
-Draft and saved PDFs download as `CEASEFIRE-Estimate.pdf`.
+Current increment: appendix download and board-summary polish on
+`feat/appendix-download-polish` in
+`C:/ESTIMATOR/worktrees/appendix-download-polish`, based on PR #27 merge
+`700b471`.
 
-All 25 focused report/server tests pass (30.421 seconds), together with 36
-Estimator UI checks and JavaScript syntax checks. Content and visual review
-passed all 12 PDF pages (five complete-estimate and seven incomplete/long-note
-pages). The 35-file package and 13 HTTP checks pass. The isolated browser journey
-passed after a transient review-capacity interruption: a legacy quote's main
-NOTES was edited, saved and reopened; no B12 editor appeared, and generated
-notes retained the historical Job and access text. API checks confirmed the
-original B12 value, pricing snapshot and calculated cells are unchanged.
-Independent diff review found no issues.
+All three calculator schedule PDFs download as `APPENDIX A.pdf`, and their
+Excel registers as `APPENDIX A.xlsx`. The register button moves before schedule
+PDF. Import schedule is Excel green; Save calculator and Save quote are yellow;
+the Estimator Download PDF button is red. Existing draft, validation, precision
+and save behavior remains unchanged.
 
-Code is committed as `567f200` (Trim Estimator PDF sections and simplify notes
-entry). After two transient automatic-review capacity rejections, the third
-authorized push succeeded; the branch now tracks `origin/feat/estimator-pdf-cleanup`
-at `567f200`. PR, CI and merge remain pending. The main app
-remains at PR #26 merge `3d3e1ed`. A broader local packaged regression is running,
-explicitly excluding two external `WorkbookSourceRegressionTests` because the
-native board original differs from the package; no pass is claimed yet. The
-earlier aborted comparison belonged to PR #26. Current Git evidence and
-`.runtime/estimator-pdf-cleanup-qa/publication.json` govern the final outcome.
+Only the board materials & summary PDF omits the rounding paragraph, the two
+pictured paragraphs in BOARD SUMMARY A8, EXTRA BOARDS heading/introduction/empty
+message and source filename/hash paragraph. It retains populated extra-board
+items, all tables and totals, other warnings and the A31/A35 guidance. The
+complete calculation projection and Excel contents remain intact. Other PDF
+content and the materials/summary and Estimator filenames remain unchanged.
+
+Validation checkpoint: all 33 focused Python tests pass (12 report/projection
+tests in 92.310 seconds and 21 API tests in 77.768 seconds). The 36 Estimator and
+95 calculator UI checks passed again after the final CSS cleanup. Visual review
+passed all eight board-summary pages: default and cleared cases each use two
+pages instead of three; the advanced case uses four
+instead of five and retains all 18 extra-board items. Five unaffected PDF scopes
+match baseline `700b471` after text normalization, and all three board raw
+projections match exactly.
+
+Browser checks confirm the Estimator's red PDF and yellow Save buttons, plus
+green Import, yellow Save and Excel-before-PDF order for all three calculators.
+The board Excel action confirmed that its download started. Independent code
+review found no unintended scope, calculation or persistence change.
+Build, full-suite CI,
+runtime refresh and publication are pending; no full-suite pass is claimed.
+Evidence is in `.runtime/appendix-download-polish-qa`; current Git and its
+publication receipt govern the final outcome.
+
+The preceding Estimator PDF cleanup merged through PR #27 at `700b471`.
+Its implementation is retained; earlier checkpoint claims below are historical.
 
 Historical PR #26 merged at `3d3e1ed`; both CI runs passed with 283 tests
 (four optional source skips), 128 UI checks and build. Its checkpoint below is

@@ -4,6 +4,7 @@ from copy import deepcopy
 from functools import lru_cache
 from io import BytesIO
 import unittest
+from unittest.mock import patch
 
 from pypdf import PdfReader
 
@@ -148,7 +149,13 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
                     self.assertTrue(all(page.images for page in reader.pages))
                     self.assertIn('Current calculator snapshot', text)
-                    self.assertIn(source_model(identity)['source']['sha256'], text)
+                    board_summary = identity == 'steel_board' and builder is build_calculator_summary_report
+                    if board_summary:
+                        self.assertNotIn(source_model(identity)['source']['sha256'], text)
+                        self.assertNotIn('Display rounding is limited', text)
+                    else:
+                        self.assertIn(source_model(identity)['source']['sha256'], text)
+                        self.assertIn('Display rounding is limited', text)
                     for heading in REMOVED_SECTIONS:
                         self.assertNotIn(heading, text)
                     self.assertNotIn('Schedule item 1', text)
@@ -181,8 +188,36 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('30.00', text)
                     self.assertIn('Total thickness mm', ' '.join(text.split()))
                     self.assertIn('EXTRA BOARDS', summary)
+                    self.assertNotIn('EXTRA BOARDS', summary.splitlines())
                     self.assertIn('Board stock totals by product and thickness', summary)
                     self.assertIn('Bags are not applicable', summary)
+
+    def test_board_summary_omits_only_requested_text_and_retains_extra_items_and_guidance(self):
+        scenario = next(s for s in read_fixture('steel_board', 'variations')['scenarios']
+                        if s['id'] == 'advanced_choices_boundaries_and_all_stock')
+        for inputs in ({}, cleared_inputs('steel_board'), scenario_inputs(scenario)):
+            with self.subTest(extra_inputs=inputs.get('EXTRA BOARDS', {})):
+                data = project_calculator_report('steel_board', inputs)
+                before = deepcopy(data)
+                with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+                    text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(
+                        build_calculator_summary_report('steel_board', inputs))).pages)
+                normalized = ' '.join(text.split())
+                for omitted in ('Display rounding is limited', 'Valid allowances are already included',
+                                'No extra-board inputs are entered.', 'Report generated from the complete',
+                                'Authoritative workbook:', 'Source SHA-256:', data['source']['sha256']):
+                    self.assertNotIn(omitted, text)
+                self.assertNotIn('EXTRA BOARDS', text.splitlines())
+                for paragraph in data['summary_notes'][0].splitlines():
+                    self.assertNotIn(' '.join(_source_text('steel_board', 'BOARD SUMMARY', 'A8', paragraph).split()), normalized)
+                for note in data['summary_notes'][1:]:
+                    self.assertIn(' '.join(_source_text('steel_board', 'BOARD SUMMARY', 'A31', note).split()), normalized)
+                for heading in ('Board stock totals by product and thickness', 'Overall schedule totals',
+                                'Pooled whole sheets', 'incomplete or unavailable primary quantities'):
+                    self.assertIn(heading, normalized)
+                for item in data['extra_rows']:
+                    self.assertIn(f"Extra-board item {item['line']}", text)
+                self.assertEqual(data, before)
 
     def test_pdf_preserves_long_free_text_and_identifier_precision(self):
         inputs = cleared_inputs('steel_board')

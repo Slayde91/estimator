@@ -142,14 +142,14 @@ def create_server(port=8765, database=None):
                         from .calculator_report import build_calculator_report, build_calculator_summary_report
                         builder = build_calculator_report if action == 'report.pdf' else build_calculator_summary_report
                         report = builder(calculator_id, inputs)
-                        suffix = 'schedule' if action == 'report.pdf' else 'materials-summary'
+                        filename = 'APPENDIX A.pdf' if action == 'report.pdf' else f'ceasefire-{calculator_id}-materials-summary.pdf'
                         self.send_payload(200, report, 'application/pdf',
-                                          {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-{suffix}.pdf"'})
+                                          {'Content-Disposition': f'attachment; filename="{filename}"'})
                     elif action == 'register.xlsx':
                         from .calculator_register import build_calculator_register
                         workbook = build_calculator_register(calculator_id, inputs)
                         self.send_payload(200, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                          {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-register.xlsx"'})
+                                          {'Content-Disposition': 'attachment; filename="APPENDIX A.xlsx"'})
                     elif action == 'state':
                         if 'inputs' not in body:
                             raise ValidationError('Include the calculator inputs to save.')

@@ -1,62 +1,49 @@
 # Session handoff
 
-## Estimator PDF cleanup - 2026-09-16
+## Appendix downloads and board-summary polish - 2026-09-16
 
-Current worktree: `C:/ESTIMATOR/worktrees/estimator-pdf-cleanup`, branch
-`feat/estimator-pdf-cleanup`, based on PR #26 merge `3d3e1ed`.
+Current increment: appendix download and board-summary polish on
+`feat/appendix-download-polish` in
+`C:/ESTIMATOR/worktrees/appendix-download-polish`, based on PR #27 merge
+`700b471`.
 
-The user confirmed hiding the Job and access Notes editor (B12) in the browser.
-The main measurements NOTES field remains. Stored B12 values, draft/save/report
-payloads and generated `result.notes` are preserved, so historical B12 text may
-still appear within generated material notes.
+All three calculator schedule PDFs download as `APPENDIX A.pdf`, and their
+Excel registers as `APPENDIX A.xlsx`. The register button moves before schedule
+PDF. Import schedule is Excel green; Save calculator and Save quote are yellow;
+the Estimator Download PDF button is red. Existing draft, validation, precision
+and save behavior remains unchanged.
 
-The Estimator PDF omits Work summary, the Material pricing and quantities
-heading and three explanatory paragraphs, the masking-allowance explanation
-and duplicate Estimator notes/B12 subsection. The measurements heading becomes
-NOTES. Every material/labour/cost table remains. Draft and saved exports use
-`CEASEFIRE-Estimate.pdf`, including the browser's safe fallback. Calculator PDFs,
-calculation rules, pricing and storage schemas are unchanged.
+Only the board materials & summary PDF omits the rounding paragraph, the two
+pictured paragraphs in BOARD SUMMARY A8, EXTRA BOARDS heading/introduction/empty
+message and source filename/hash paragraph. It retains populated extra-board
+items, all tables and totals, other warnings and the A31/A35 guidance. The
+complete calculation projection and Excel contents remain intact. Other PDF
+content and the materials/summary and Estimator filenames remain unchanged.
 
-Validation checkpoint: all 25 focused tests passed in 30.421 seconds (ten PDF
-and 15 server tests). All 36 Estimator UI checks and JavaScript syntax checks
-pass. Content and visual review passed all 12 PDF pages: five for the complete
-estimate and seven for incomplete/long-note coverage. The 35-file distribution
-and 13 packaged HTTP checks pass. Independent code review found no unintended
-changes to tables, shared calculator formatting, calculations or B12 persistence.
+Validation checkpoint: all 33 focused Python tests pass (12 report/projection
+tests in 92.310 seconds and 21 API tests in 77.768 seconds). The 36 Estimator and
+95 calculator UI checks passed again after the final CSS cleanup. Visual review
+passed all eight board-summary pages: default and cleared cases each use two
+pages instead of three; the advanced case uses four
+instead of five and retains all 18 extra-board items. Five unaffected PDF scopes
+match baseline `700b471` after text normalization, and all three board raw
+projections match exactly.
 
-The browser journey on isolated port 18788 passed after a transient approval-
-review capacity interruption. A legacy quote was opened, its main NOTES edited,
-saved and reopened. The DOM retained `Main notes after browser edit`, showed
-zero duplicate B12 editors, and generated notes retained historical Job and
-access text. API verification confirmed the original B12 value, pricing snapshot
-and calculated cells are unchanged.
+Browser checks confirm the Estimator's red PDF and yellow Save buttons, plus
+green Import, yellow Save and Excel-before-PDF order for all three calculators.
+The board Excel action confirmed that its download started. Independent code
+review found no unintended scope, calculation or persistence change.
+Build, full-suite CI,
+runtime refresh and publication are pending; no full-suite pass is claimed.
+Evidence is in `.runtime/appendix-download-polish-qa`; current Git and its
+publication receipt govern the final outcome.
 
-Commit `567f200ef225cd2f2ee641baf2399c39338fe275` is
-`Trim Estimator PDF sections and simplify notes entry`. Two earlier automatic
-approval-review capacity rejections were transient: the third authorized push
-succeeded. The branch tracks `origin/feat/estimator-pdf-cleanup` at `567f200`.
-PR, CI and merge remain pending at this checkpoint. The main app
-still runs PR #26 merge `3d3e1ed`; it has not received this cleanup.
+The preceding Estimator PDF cleanup merged through PR #27 at `700b471`.
+Its implementation is retained; earlier checkpoint claims below are historical.
 
-The aborted local full-suite attempt belonged to the preceding PR #26 run:
-optional native board reconstruction encountered a native/package mismatch and
-a large comparison diff. That aborted run is not a claimed pass. A new broader
-local packaged regression is now running with the two external
-`WorkbookSourceRegressionTests` explicitly excluded because the native board
-original differs from the package. Its result is pending.
-Evidence belongs in `.runtime/estimator-pdf-cleanup-qa`; current Git evidence
-and `publication.json` are authoritative for the final publication outcome.
-
-Next action: commit/push these checkpoint documents, record the packaged
-regression result, create the PR and merge only after exact-head CI passes.
-Finish API preservation checks and verify saved state when refreshing the
-main runtime. These three
-checkpoint-document edits are the remaining tracked changes; implementation
-and tests are committed. QA artifacts and test databases remain ignored.
-
-Resume from this worktree and current Git/check evidence. Preserve the user's
-main checkout, live database and browser drafts. Record the actual merge and
-remaining local changes in the final publication receipt.
+Next action: build the package and publish with exact-head CI evidence. Keep
+saved state unchanged when refreshing the runtime. Implementation and documentation edits are ready for commit;
+ignored QA files are evidence, not production changes.
 
 ## Historical: separate calculator PDFs and normal Exposure text - 2026-09-16
 

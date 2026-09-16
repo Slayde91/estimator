@@ -41,9 +41,11 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}
 .secondary:hover{color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .button.excel-button{color:#fff;background:#217346;border:1px solid #195c37}
-.button.excel-button:hover:not(:disabled){filter:brightness(.92)}
-.button.excel-button:focus-visible{outline:3px solid #222;outline-offset:3px}
-.button.excel-button:disabled{opacity:.5;filter:none;cursor:not-allowed}
+.button.save-button{color:#332600;background:#ffdb66;border:1px solid #d0a72c}
+.button.pdf-button{color:#fff;background:#c5221f;border:1px solid #a11b18}
+.button:is(.excel-button,.save-button,.pdf-button):hover:not(:disabled){filter:brightness(.92)}
+.button:is(.excel-button,.save-button,.pdf-button):focus-visible{outline:3px solid #222;outline-offset:3px}
+.button:is(.excel-button,.save-button,.pdf-button):disabled{opacity:.5;filter:none;cursor:not-allowed}
 .text-button{background:none;color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-weight:600;padding:2px}
 .estimate-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:26px;align-items:start}
 .estimate-main{min-width:0}

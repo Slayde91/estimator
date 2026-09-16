@@ -1345,13 +1345,15 @@ let passed = 0;
   assert.equal(back.children[0].textContent,'Back to worksheet controls');passed++;
 
   // Schedule PDF downloads capture the clicked draft without saving or including later edits.
-  entry=setup({CALCULATOR:{B9:2.3456789}});const pdfResponse=deferred();let pdfBody,pdfPath;
+  for(const id of ['steel_vermiculite','steel_board','ductwork']) {
+  entry=setup({CALCULATOR:{B9:2.3456789}});entry.definition.id=id;const pdfResponse=deferred();let pdfBody,pdfPath;
   audit.setFetch((path,options)=>{pdfPath=path;pdfBody=JSON.parse(options.body);return pdfResponse.promise;});
   const downloading=audit.downloadSchedulePdf();audit.setInput(entry,'CALCULATOR','B9',9);
   pdfResponse.resolve({ok:true,headers:{get:()=> 'application/pdf'},blob:async()=>new Blob(['%PDF-1.4'])});await downloading;
-  assert.match(pdfPath,/\/steel_board\/report\.pdf$/);assert.equal(pdfBody.inputs.CALCULATOR.B9,2.3456789);
+  assert.equal(pdfPath,`/api/calculators/${id}/report.pdf`);assert.equal(pdfBody.inputs.CALCULATOR.B9,2.3456789);
   assert.equal(entry.inputs.CALCULATOR.B9,9);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
-  assert.equal(context.document.body.children.at(-1).download,'ceasefire-steel_board-schedule.pdf');assert.match(byId('calculator-message').textContent,/later edits are not included/);passed++;
+  assert.equal(context.document.body.children.at(-1).download,'APPENDIX A.pdf');assert.match(byId('calculator-message').textContent,/later edits are not included/);
+  }passed++;
 
   // Materials/summary PDFs use their separate endpoint for all calculators and capture every exact draft input.
   for(const id of ['steel_vermiculite','steel_board','ductwork']) {
@@ -1388,7 +1390,7 @@ let passed = 0;
     pendingRegister.resolve({ok:true,headers:{get:()=>`${registerMime}; charset=binary`},blob:async()=>new Blob(['PK register'])});await registerRun;
     assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,registerMime);
     assert.deepEqual(registerBody,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}}});
-    const registerLink=context.document.body.children.at(-1);assert.equal(registerLink.download,`ceasefire-${id}-register.xlsx`);assert.equal(registerLink.clicked,true);
+    const registerLink=context.document.body.children.at(-1);assert.equal(registerLink.download,'APPENDIX A.xlsx');assert.equal(registerLink.clicked,true);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
     assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').textContent,'Download Excel register');
@@ -1411,15 +1413,15 @@ let passed = 0;
   assert.equal(blockedDownloads,0);assert.equal(entry.invalid.size,1);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-summary-pdf').disabled,true);
   entry=setup();audit.state.action=true;await audit.downloadExcelRegister();await audit.downloadSchedulePdf();await audit.downloadMaterialsSummaryPdf();assert.equal(blockedDownloads,0);audit.state.action=false;passed++;
 
-  // Switching calculators during export keeps both drafts and names the file for its captured calculator.
-  for(const [download,mime,suffix] of [[audit.downloadExcelRegister,registerMime,'register.xlsx'],[audit.downloadMaterialsSummaryPdf,'application/pdf','materials-summary.pdf']]) {
+  // Switching calculators during export keeps both drafts and names the captured document correctly.
+  for(const [download,mime,filename] of [[audit.downloadExcelRegister,registerMime,'APPENDIX A.xlsx'],[audit.downloadMaterialsSummaryPdf,'application/pdf','ceasefire-steel_board-materials-summary.pdf']]) {
   entry=setup({CALCULATOR:{B9:4.1234567}});const switchedRegister=deferred();let switchedBody;
   audit.setFetch((path,options)=>{switchedBody=JSON.parse(options.body);return switchedRegister.promise;});const switchedRun=download();
   const switchedEntry={...entry,definition:{...entry.definition,id:'ductwork',title:'Ductwork'},inputs:{CALCULATOR:{B9:99}},saved:'{}',invalid:new Map()};
   audit.state.entries.set('ductwork',switchedEntry);audit.state.current='ductwork';
   switchedRegister.resolve({ok:true,headers:{get:()=>mime},blob:async()=>new Blob(['file contents'])});await switchedRun;
   assert.equal(audit.current(),switchedEntry);assert.equal(switchedEntry.inputs.CALCULATOR.B9,99);assert.equal(entry.inputs.CALCULATOR.B9,4.1234567);assert.equal(switchedBody.inputs.CALCULATOR.B9,4.1234567);
-  assert.equal(context.document.body.children.at(-1).download,`ceasefire-steel_board-${suffix}`);assert.match(byId('calculator-message').textContent,/current draft was kept/);
+  assert.equal(context.document.body.children.at(-1).download,filename);assert.match(byId('calculator-message').textContent,/current draft was kept/);
   }passed++;
 
   // Generation/network failures, wrong MIME and empty files never start a download or leave either button busy.
@@ -1442,12 +1444,17 @@ let passed = 0;
 
   // Import and the four distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
-  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button><button id="calculator-pdf"[^>]*>Download schedule PDF<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button><button id="calculator-summary-pdf"[^>]*>Download materials &amp; summary PDF<\/button><button id="calculator-recalculate"/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export template<\/button><button id="calculator-excel"[^>]*>Download Excel register<\/button><button id="calculator-pdf"[^>]*>Download schedule PDF<\/button><button id="calculator-summary-pdf"[^>]*>Download materials &amp; summary PDF<\/button><button id="calculator-recalculate"/);
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"[^>]*>Export template<\/button>/);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
-  for(const [className,background,color] of [['calculator-import-button','#ffdb66','#332600'],['calculator-export-excel','#217346','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
+  for(const [className,background,color] of [['calculator-export-excel','#217346','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
   }
+  const sharedButtonCss=fs.readFileSync('static/styles.css','utf8');
+  assert.match(registerMarkup,/id="calculator-import"[^>]*class="button excel-button"/);
+  assert.match(registerMarkup,/id="calculator-save"[^>]*class="button save-button"/);
+  assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:#217346;'));
+  assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
   for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf'])assert.equal(byId(id).listeners.click.length,1);passed++;
 

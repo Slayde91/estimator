@@ -207,7 +207,8 @@ class _ScheduleReport(_Report):
         self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
         if materials:
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
-        self.story.append(self.p('Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
+        if not (materials and data['id'] == 'steel_board'):
+            self.story.append(self.p('Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
 
     def schedule(self):
         data = self.data
@@ -248,11 +249,8 @@ class _ScheduleReport(_Report):
 
     def extras(self):
         data = self.data
-        if data['id'] == 'steel_board':
-            self.story += [PageBreak(), self.p('EXTRA BOARDS', 'section')]
-            self.story.append(self.p('Valid allowances are already included in the final board stock totals. Incomplete entries remain listed and are excluded by the workbook rules.', 'small'))
-            if not data['extra_rows']:
-                self.story.append(self.p('No extra-board inputs are entered.'))
+        if data['id'] == 'steel_board' and data['extra_rows']:
+            self.story.append(PageBreak())
             for item in data['extra_rows']:
                 self.story.append(self.p(f"Extra-board item {item['line']}", 'subheading'))
                 self.story.append(self.pairs([(item['labels'][column], self.display(value, blank='Blank', percent=column == 'H'))
@@ -261,7 +259,10 @@ class _ScheduleReport(_Report):
     def product_totals(self):
         data = self.data
         self.story.append(self.p('Final product and material summary', 'section'))
-        for value in data.get('summary_notes', []):
+        for index, value in enumerate(data.get('summary_notes', [])):
+            # Only the pictured A8 note is omitted; A31/A35 guidance remains.
+            if data['id'] == 'steel_board' and index == 0:
+                continue
             self.note_block(_source_text(data['id'], 'BOARD SUMMARY', 'A8', value))
         for summary in data['summaries']:
             self.story.append(self.p(summary['title'], 'subheading'))
@@ -321,7 +322,8 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials):
         report.extras()
     else:
         report.schedule()
-    report.provenance()
+    if not (materials and calculator_id == 'steel_board'):
+        report.provenance()
     report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,

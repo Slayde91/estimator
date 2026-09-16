@@ -187,9 +187,8 @@
 .calculator-settings-panel .calculator-stacked-section,.calculator-settings-panel .calculator-projected-section{margin-top:0}
 .calculator-schedule-section>h4{margin:0;padding:16px 22px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);border-bottom:4px solid var(--orange);font-size:15px;font-weight:750}
 @media(max-width:760px){.calculator-settings-chooser{gap:8px;padding:16px}.calculator-settings-choice{padding:10px 12px}}
-.calculator-tools .calculator-import-button{background:#ffdb66;color:#332600;border-color:#d0a72c}
 .calculator-tools .calculator-export-excel{background:#217346;color:#fff;border-color:#195c37}
 .calculator-tools .calculator-export-pdf{background:#c5221f;color:#fff;border-color:#a11b18}
-.calculator-tools :is(.calculator-import-button,.calculator-export-excel,.calculator-export-pdf):hover:not(:disabled){filter:brightness(.92)}
-.calculator-tools :is(.calculator-import-button,.calculator-export-excel,.calculator-export-pdf):focus-visible{outline:3px solid #222;outline-offset:3px}
-.calculator-tools :is(.calculator-import-button,.calculator-export-excel,.calculator-export-pdf):disabled{opacity:.5;filter:none;cursor:not-allowed}
+.calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):hover:not(:disabled){filter:brightness(.92)}
+.calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):focus-visible{outline:3px solid #222;outline-offset:3px}
+.calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):disabled{opacity:.5;filter:none;cursor:not-allowed}

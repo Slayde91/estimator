@@ -26,19 +26,31 @@ remain. Downloads neither save project files nor alter older saved estimates.
 Input-only XLSX templates remain separate from the calculated Excel register.
 
 Every PDF includes Project No., Client and Site Address plus Ceasefire's ABN,
-phone and email. Material-summary PDFs place
-**CALCULATORS | MATERIALS & SUMMARY** beneath the logo on each page, with
-contacts on the right. Source workbook/hash footnotes are omitted from PDFs.
+phone and email. Schedule PDFs place **CALCULATORS | FULL SCHEDULE** beneath
+the logo on each page; material-summary PDFs use
+**CALCULATORS | MATERIALS & SUMMARY** there, with contacts on the right.
+Source workbook/hash footnotes are omitted from PDFs.
 All PDF and XLSX table headers and data are centred.
 
 Steel (spray)'s summary omits the requested headings and the available-results,
 display-rounding and pooled-bag explanation paragraphs. Ductwork's summary
 omits the CAFCO/MONOKOTE calibration/example notes, FyreWrap interpretation note
-and Working spray yields section. Board's summary omits the display-rounding
+and Working spray yields section. Ductwork's schedule also omits the
+display-rounding sentence. Board's summary omits the display-rounding
 paragraph, the two selected A8 ordering paragraphs, the EXTRA BOARDS heading,
 introduction and empty message. Populated extra-board tables, other material
 tables, quantities and statuses remain. These display exclusions do not remove
 data from `project_calculator_report` or the complete Excel register.
+
+Material-summary PDFs filter product and stock rows using the relevant raw
+demand quantities, rather than counting visually zero cells or looking at stock
+dimensions. Rows with confirmed zero demand and no unresolved quantity are
+omitted; empty material tables and their headings are also omitted. Unknown,
+failed, withheld, negative and tiny nonzero quantities remain visible. Unresolved
+schedule products are identified separately where a stock thickness cannot be
+established. The full schedule, source projection and XLSX register remain
+complete. This is a presentation change and does not change pooled purchasing,
+yield, geometry, thickness or material-calculation rules.
 
 Editable Exposure cells use normal browser font weight only within vermiculite
 SCHEDULE C10:C1009, board CALCULATOR M9:M1008 and duct CALCULATOR H11:H1010.
@@ -113,12 +125,23 @@ are materialized, including unopened calculators, without replacing open edits.
 Reset Calc restores the application examples/defaults as a draft and requires
 Save Project to persist.
 
-Save Project opens a native Save As dialog with a quote-derived filename.
-Saved projects lists complete files in the linked estimates folder; Load Project
-can also open a received file. Validation finishes before any calculator or
+Save Project opens a native Save As dialog with a quote-derived `Quote name.json`
+filename and automatic `.json` extension. Earlier `.ceasefire-project.json`
+filenames remain supported. The Windows dialog uses foreground window ownership
+and raises the actual dialog and overwrite prompts; native helper compilation
+was checked, but visual foreground verification remains a manual check after a
+desktop automation initialization failure.
+
+Saved projects lists complete files in the linked estimates folder and its
+subfolders, with relative paths, search, sort and pagination. Large scans continue
+in bounded batches with cached metadata and visible progress; full project
+validation still occurs when opening a file. Load Project can also open a
+received file. The persistent Current project area shows filename, known path,
+last save and whether any calculator or estimate has unsaved changes.
+Validation finishes before any calculator or
 estimate draft is replaced. A future incompatible source hash is rejected
-instead of silently changing the interpretation of saved inputs. Older
-estimate-only records remain in SQLite and open with calculator defaults.
+instead of silently changing the interpretation of saved inputs. The older
+estimate-only section is removed from the UI; its records remain in SQLite.
 Historical separate calculator saves remain compatible initial state for an
 unopened calculator; new project saves use the combined file workflow. The
 shared pricing library is separate from project pricing and is not overwritten

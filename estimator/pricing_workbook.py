@@ -17,7 +17,7 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Font, PatternFill, Protection
 from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
@@ -319,6 +319,10 @@ def export_pricing_workbook(configuration):
             for header in USE_VECTOR_HEADERS:
                 vectors[header].append(use[header])
         values = {**product, **{header: _pack_uses(values) for header, values in vectors.items()}}
+        # This derived display is not one of the editable positional vectors.
+        # A product with two area-based uses only needs one unit label.
+        units = dict.fromkeys(unit for unit in vectors["Yield unit"] if unit)
+        values["Yield unit"] = "; ".join(units) or None
         sheet.append([values.get(header) for header in COMPACT_HEADERS])
 
     for item in data["inventory"]:
@@ -336,23 +340,42 @@ def export_pricing_workbook(configuration):
     widths.update({get_column_letter(column): 19 for column in range(18, 29)})
     _format_sheet(sheet, COMPACT_HEADERS, widths, numeric_columns=(3, 4, 5, 9, 11, *range(18, 29)), percent_columns=(4,), freeze_panes="C2")
     sheet.sheet_properties.outlinePr.summaryRight = False
-    # Optional dimensions are retained once on each product and can be expanded.
-    sheet.column_dimensions.group("R", "AB", outline_level=1, hidden=True)
-    sheet.column_dimensions["Q"].collapsed = True
     use_fill = PatternFill("solid", fgColor="F0F5FA")
     inventory_fill = PatternFill("solid", fgColor="FFF0DE")
     unused_fill = PatternFill("solid", fgColor="ECECEC")
     product_fonts = {bold: Font(name="Calibri", size=11, color="174D8D", bold=bold) for bold in (True, False)}
+    editable = Protection(locked=False)
+    readonly = Protection(locked=True)
+    unit_font = Font(name="Calibri", size=11, color="536271")
+    # Column defaults also unlock cells in new product rows. Existing cells
+    # have explicit styles, so apply their protection individually below.
+    for column, header in enumerate(COMPACT_HEADERS, 1):
+        sheet.column_dimensions[get_column_letter(column)].protection = readonly if header == "Yield unit" else editable
+    # Optional dimensions share one editable column style, including new rows.
+    sheet.column_dimensions.group("R", "AB", outline_level=1, hidden=True)
+    sheet.column_dimensions["Q"].collapsed = True
+    sheet.protection.sheet = True
+    sheet.protection.autoFilter = False
+    sheet.protection.sort = False
+    sheet.protection.insertRows = False
+    sheet.protection.deleteRows = False
+    sheet.protection.formatRows = False
+    sheet.protection.formatColumns = False
+    sheet.protection.selectLockedCells = False
+    sheet.protection.selectUnlockedCells = False
     for row in sheet.iter_rows(min_row=2):
         inventory = row[14].value is not None
         has_uses = row[5].value is not None
         for header, cell in zip(COMPACT_HEADERS, row):
+            cell.protection = readonly if header == "Yield unit" else editable
             use_cell = header in USE_VECTOR_HEADERS
             cell.fill = use_fill if use_cell else inventory_fill
             if use_cell and not has_uses or not use_cell and not inventory:
                 cell.fill = unused_fill
             if header == "Product name":
                 cell.font = product_fonts[inventory]
+            if header == "Yield unit":
+                cell.font = unit_font
         # Multi-use CSV remains visible at normal zoom; account for explicit
         # newlines and conservative text width without changing stored values.
         lines = max(sum(max(1, math.ceil(len(line) / max(1, widths[cell.column_letter] - 3)))
@@ -361,11 +384,11 @@ def export_pricing_workbook(configuration):
         sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
         sheet.cell(row[0].row, 17).number_format = "0"
     comments = {
-        "F": "The nine use columns are parallel semicolon-separated lists. First entries belong together, then second entries, and so on. Keep every list the same length, including empty slots.",
+        "F": "The eight editable use columns are parallel semicolon-separated lists. First entries belong together, then second entries, and so on. Keep every editable list the same length, including empty slots. Yield unit is read-only.",
         "G": 'Quote entries containing semicolons, quotes or newlines. Double quotes inside quoted entries: "Name; with ""quotes""". Spaces are significant; do not add separator padding.',
         "I": "Editing a sell rate creates an Override. Set its matching Price source to Inventory to restore the linked product price.",
         "J": "Number requires its matching Yield. Blank and Empty text preserve distinct empty-value behavior. Not used applies to groups without yields. Two empty yield slots are a single semicolon.",
-        "L": "Yield units describe coverage per purchased unit. Changing this label does not convert the yield or change a category's calculation.",
+        "L": "Read-only calculation unit: m² / unit for area coverage, m / unit for mastic, and blank for groups without yields. Repeated units appear once. This is not a positional use list; units follow Group on import.",
         "O": "Keep existing Inventory IDs. A new product with a blank ID receives one shared by its uses in this row. Standalone rates leave all product fields, including Inventory ID, blank.",
         "P": "Keep existing Rate IDs in their matching positions. An empty slot creates a new use identity; row order does not identify rates.",
         "Q": "Use unique positive integers within each Group. Empty slots append new choices; clear or update the matching slot when moving a use to another Group.",
@@ -378,13 +401,13 @@ def export_pricing_workbook(configuration):
     for row in [
         ["CEASEFIRE INVENTORY & RATES", "How to update the combined pricing library"],
         ["Save changes", "Import previews this entire workbook. Review additions, removals and updates, then Save pricing in ESTIMATOR. Existing saved quotes retain their own products and prices."],
-        ["One row per product", "Product fields appear once. Group, Selection name, Price source, Sell rate, Yield type, Yield, Yield unit, Rate ID and Use order contain parallel semicolon-separated use lists. All nine lists must have the same number of entries. Optional product properties are in columns R:AB."],
+        ["One row per product", "Product fields appear once. Group, Selection name, Price source, Sell rate, Yield type, Yield, Rate ID and Use order contain eight editable parallel semicolon-separated use lists. Keep their entry counts aligned. Yield unit is read-only and follows Group on import. Optional product properties are in columns R:AB."],
         ["Editing use lists", 'First entries belong to the first use, second entries to the second use. Preserve empty slots: two blank yields are ; . Quote entries containing semicolons, quotes or newlines, and double quotes inside quoted entries. Example: "Name; with ""quotes""";Second name. Spaces are preserved; do not add padding.'],
-        ["Complete replacement", "Keep the sheet and exact headers. To remove a use, remove its entry from all nine lists. Delete a product row to remove that product and its uses. Filtered or manually hidden rows still import. Keep existing IDs; Use order preserves each Group's dropdown order after sorting."],
+        ["Complete replacement", "Keep the sheet and exact headers. To remove a use, remove its entry from all eight editable lists. To remove a product, clear its editable cells in A:K and M:AB; leave the locked unit cell. Filtered or hidden rows still import. Keep existing IDs; Use order preserves dropdown order."],
         ["Add products and uses", "Add a product row with its pricing and aligned use lists. Blank Inventory ID allocates one product identity linked to all uses on that row; blank Rate ID slots allocate new uses. For standalone rates leave every product field blank and use Override pricing. Selection name supplies the standalone label."],
         ["Supplier markup", "On product rows enter supplier price and markup (30% means 0.30). Changing either recalculates sell price as supplier × (1 + markup). Unchanged inputs retain the existing stored sell price exactly."],
         ["Manual pricing", "Choose Manual to enter the product Sell price directly. Supplier price may be blank; markup remains information. Each use's Price source is Inventory for its linked price or Override for an independent price."],
-        ["Rates and yields", "Price source is Inventory or Override per entry. Editing a Sell rate creates an Override; choose Inventory to restore its link. Yield type Number requires a nonnegative Yield; Blank and Empty text retain distinct empty values; Not used applies to groups without yields. Yield unit labels describe coverage per purchased unit; editing labels does not convert values."],
+        ["Rates and yields", "Price source is Inventory or Override per entry. Editing a Sell rate creates an Override; choose Inventory to restore its link. Yield type Number requires a nonnegative Yield; Blank and Empty text retain distinct empty values; Not used applies to groups without yields. Yield unit is locked, shows each distinct calculation unit once and follows Group on import."],
         ["Names and groups", "Selection name is the Estimator dropdown choice. Group places it in the existing calculation category. Names must be unique within a Group. These categories reproduce the original selections; they do not establish technical suitability."],
         ["Values only", "Use values, not formulas, macros or external links. Single numeric entries are numbers; multiple entries use exact numeric text separated by semicolons. Prices are a snapshot; ESTIMATOR evaluates edits on import. Earlier Inventory/Use-row and separate Inventory/Rates templates remain supported."],
         ["Limits", f"Maximum {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion, 5 MB file, 32,767 characters per cell and numeric magnitude up to 1 trillion. Prices/yields cannot be negative; markup cannot be below -100%. All use cells blank means no uses."],
@@ -625,7 +648,9 @@ def _pricing_rows(workbook, text_cells):
 
 def _compact_rows(sheet, text_cells, headers=COMPACT_HEADERS):
     inventory, uses, orders = [], [], set()
-    vector_headers = USE_VECTOR_HEADERS if "Yield unit" in headers else LEGACY_USE_VECTOR_HEADERS
+    # Yield unit is an output column, including in older editable-unit files.
+    # Ignore it rather than requiring edits to locked cells when uses change.
+    vector_headers = LEGACY_USE_VECTOR_HEADERS
     for number, row in _rows(sheet, headers, max_rows=2 * MAX_ROWS, text_cells=text_cells):
         label = f"{COMBINED_SHEET} row {number}"
         has_product = any(row[header] not in (None, "") for header in INVENTORY_HEADERS)
@@ -642,8 +667,6 @@ def _compact_rows(sheet, text_cells, headers=COMPACT_HEADERS):
         if not has_uses:
             continue
         vectors = {header: _unpack_uses(row[header], f"{label} {header}") for header in vector_headers}
-        if "Yield unit" in vectors and row["Yield unit"] in (None, ""):
-            vectors["Yield unit"] = [""] * len(vectors["Group"])
         counts = {header: len(values) for header, values in vectors.items()}
         if len(set(counts.values())) != 1:
             details = ", ".join(f"{header}={count}" for header, count in counts.items())
@@ -654,8 +677,6 @@ def _compact_rows(sheet, text_cells, headers=COMPACT_HEADERS):
         for index in range(count):
             use_label = f"{label} use {index + 1}"
             use = {header: vectors[column][index] for header, column in _COMPACT_USE_COLUMNS.items()}
-            if "Yield unit" in vectors:
-                use["Yield unit"] = vectors["Yield unit"][index]
             for header in ("Group", "Price source", "Yield type", "Rate ID"):
                 if isinstance(use[header], str):
                     use[header] = use[header].strip()
@@ -823,12 +844,10 @@ def import_pricing_workbook(payload, filename, current_configuration):
             rate.update({"id": identity, "name": name, "inventory_id": linked_id,
                          "price": price, "price_mode": price_mode,
                          "yield": yield_value, "uses_yield": uses_yield})
-            if "Yield unit" in row:
-                unit = _text(row["Yield unit"] or "", f"{label} Yield unit", optional=True, limit=100) or ""
-                if not uses_yield and unit:
-                    raise ValidationError(f"{label}: clear Yield unit for a group without yields.")
-                if unit != yield_unit(group, rate) or "yield_unit" in rate:
-                    rate["yield_unit"] = unit
+            if not uses_yield:
+                # A use can move out of a yield category. Older descriptive
+                # metadata is then inapplicable, while numeric rules stay put.
+                rate.pop("yield_unit", None)
             if old and old["name"] != name:
                 rate.pop("display_name", None)
             proposed["rate_groups"][group].append(rate)

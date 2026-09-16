@@ -677,7 +677,11 @@ class CompactPricingWorkbookTests(unittest.TestCase):
                 self.assertTrue(all(data[header] is None for header in VECTOR_HEADERS))
                 continue
             count = len(vector_values(data["Group"]))
-            self.assertTrue(all(len(vector_values(data[header])) == count for header in VECTOR_HEADERS))
+            self.assertTrue(all(len(vector_values(data[header])) == count for header in VECTOR_HEADERS if header != "Yield unit"))
+            if data["Yield unit"] is not None:
+                units = data["Yield unit"].split("; ")
+                self.assertEqual(len(units), len(set(units)))
+                self.assertTrue(set(units).issubset({"m² / unit", "m / unit"}))
             if count == 1:
                 self.assertIsInstance(data["Sell rate"], (int, float))
             uses += count

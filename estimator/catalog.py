@@ -41,10 +41,15 @@ def has_yield(rate):
 
 
 def yield_unit(group, rate):
-    """Display unit for the existing coverage-per-unit lookup; no conversion."""
+    """Calculation unit, independent of descriptive labels in older snapshots.
+
+    Calculator B16:B22 are square-metre coverage (except quantity-only B18),
+    while B23 is linear metres. Each yield lookup divides that coverage into
+    purchased units. Product packaging does not change these dimensions.
+    """
     if not has_yield(rate):
         return ""
-    return rate.get("yield_unit", "m / unit" if group == "mastic" else "m² / unit")
+    return "m / unit" if group == "mastic" else "m² / unit"
 
 
 def _text(value, label, maximum=1000, empty=False):

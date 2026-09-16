@@ -8,7 +8,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from .calculator import calculate, fields, labour_breakdown
 from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, validate_configuration, ValidationError
@@ -106,7 +106,10 @@ def create_server(port=8765, database=None, project_dialogs=None):
                 elif route == "/api/configuration":
                     self.send_payload(200, store.configuration())
                 elif route == "/api/projects":
-                    self.send_payload(200, projects.listing())
+                    query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                    if set(query) - {'search', 'sort', 'offset', 'limit', 'refresh'} or any(len(values) != 1 for values in query.values()):
+                        raise ValidationError('Use one supported value per project search or page option.')
+                    self.send_payload(200, projects.listing(**{key: values[0] for key, values in query.items()}))
                 elif route == "/api/quotes":
                     self.send_payload(200, {"quotes": store.list_quotes()})
                 elif route.startswith("/api/quotes/") and route.endswith("/report.pdf"):
@@ -281,7 +284,14 @@ def create_server(port=8765, database=None, project_dialogs=None):
         def log_message(self, format_string, *args):
             LOGGER.info("%s", format_string % args)
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    class Server(ThreadingHTTPServer):
+        def server_close(self):
+            try:
+                super().server_close()
+            finally:
+                projects.close()
+
+    return Server(("127.0.0.1", port), Handler)
 
 
 def main():

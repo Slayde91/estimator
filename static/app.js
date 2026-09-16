@@ -9,7 +9,7 @@
     result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectsRevision: 0, initialized: false,
+    projectFile: null, projectsRevision: 0, initialized: false, currentView: "estimate", projectsOffset: 0, projectsTimer: null,
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -137,6 +137,20 @@
   function updateDirty(value = true) {
     state.dirty = value;
     $("quote-status").textContent = `${state.projectFile ? "Project file" : state.quote ? "Older saved estimate" : "New project"}${value ? " · Unsaved changes" : ""}`;
+    updateProjectStatus();
+  }
+
+  function updateProjectStatus() {
+    const file = state.projectFile, changed = !!projectHasChanges();
+    const status = $("project-save-state");
+    status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
+    status.classList.toggle("unsaved", changed || !file);
+    $("project-file-name").textContent = file?.name || "No project file selected";
+    $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Loaded from file picker · choose a folder with Save Project" : "Choose a folder with Save Project");
+    const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
+    $("project-last-saved").textContent = savedAt && !Number.isNaN(savedAt.getTime()) ? `File saved ${savedAt.toLocaleString("en-AU")}` : "File save time unavailable";
+    $("project-last-saved").hidden = !file;
+    $("project-pricing-source").textContent = state.quoteConfiguration ? "Pricing: project snapshot" : "Pricing: current saved library";
   }
 
   function isPercent(field) {
@@ -501,13 +515,15 @@
   }
 
   function showView(view) {
+    state.currentView = view;
+    clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
     for (const button of document.querySelectorAll("[data-view]")) {
       const active = button.dataset.view === view;
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
-    if (view === "quotes") { loadProjects(); loadQuotes(); }
+    if (view === "quotes") loadProjects();
     if (view === "pricing") renderPricing();
     if (view === "calculators") window.CeasefireCalculators?.open();
     // Each section starts with its heading and actions visible below the sticky
@@ -522,6 +538,7 @@
     if (state.pricingScope === "project") state.projectPricingDraft = state.draft;
     else state.libraryDraft = state.draft;
     $("pricing-status").textContent = state.pricingDirty ? "Unsaved pricing changes" : state.pricingScope === "project" ? "Project pricing" : "Saved library";
+    updateProjectStatus();
   }
 
   function pricingBaseline() { return state.pricingScope === "project" ? state.quoteConfiguration || state.configuration : state.configuration; }
@@ -716,7 +733,7 @@
     values.push(quotedField ? value : value.trim()); return values;
   }
   function pricingYieldUnit(group, rate) {
-    return (rate.uses_yield ?? !!rate.source?.yield) ? (rate.yield_unit ?? (group === "mastic" ? "m / unit" : "m² / unit")) : "";
+    return (rate.uses_yield ?? !!rate.source?.yield) ? (group === "mastic" ? "m / unit" : "m² / unit") : "";
   }
   function editPricingCatalog(edit) {
     const catalog = clone(state.draft.catalog || state.catalog);
@@ -791,6 +808,7 @@
     for (const id of removed) if (!Object.values(state.catalog.rate_groups).some((rates) => rates.some((rate) => rate.id === id))) delete state.draft.rates[id];
   }
   function setPricingUseValues(record, values, field) {
+    if (field === "Yield unit") throw new Error("Yield units are determined by the calculation and cannot be edited.");
     if (!values.length && record.uses.length === 1) values = [""];
     if (values.length !== record.uses.length) throw new Error(`Enter ${record.uses.length} semicolon-separated ${field} values, in the same order as Used in Estimator.`);
     const updates = record.uses.map(({ group, item }, index) => {
@@ -799,10 +817,6 @@
         if (!value || value.length > 1000) throw new Error("Selection names must contain 1 to 1,000 characters.");
         if (state.catalog.rate_groups[group].some((rate) => rate.id !== item.id && rate.name.toLowerCase() === value.toLowerCase())) throw new Error(`Selection name already exists in ${groups[group] || group}.`);
         return { group, item, value };
-      }
-      if (field === "Yield unit") {
-        if (value.length > 100 || (!usesYield && value && value !== "—")) throw new Error("Yield units must be at most 100 characters and blank for a use without yield.");
-        return { group, item, value: value === "—" ? "" : value };
       }
       if (field === "Yield") {
         if (!usesYield) {
@@ -832,7 +846,6 @@
       for (const { group, item, value } of updates) {
         const rate = catalog.rate_groups[group].find((entry) => entry.id === item.id);
         if (field === "Selection name") { rate.name = value; delete rate.display_name; }
-        else if (field === "Yield unit") { if (rate.uses_yield ?? !!rate.source?.yield) rate.yield_unit = value; }
         else {
           rate.price_mode = value === null ? "inventory" : "override";
           rate.price = value === null ? inventorySellPrice(state.catalog.inventory.find((entry) => entry.id === item.inventory_id)) : value;
@@ -874,7 +887,7 @@
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "One row per item. Used in Estimator, selection names, rate overrides, yields and units use matching semicolon-separated entries. A blank rate override follows the item sell price. Saved project rates may be fixed overrides; clear an override to follow the item sell price. Yield accepts a number, blank or empty text. Unit labels describe coverage per purchased unit; editing labels does not convert values.";
+    $("pricing-help").textContent = "One row per item. Uses, selection names, rate overrides and yields use matching semicolon-separated entries. A blank rate override follows the item sell price. Saved project rates may be fixed overrides; clear an override to follow the item sell price. Yield accepts a number, blank or empty text. Yield units are fixed by the calculation and are read-only.";
     const heading = node("tr");
     for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Sell price", "Used in Estimator", "Selection name", "Sell rate override", "Yield", "Yield unit", "Sales description", ""]) heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
@@ -927,11 +940,12 @@
           const patch = getOverride("rates", rate.id), value = Object.hasOwn(patch, "yield") ? patch.yield : rate.yield;
           return value === null ? "blank" : value === "" ? "empty text" : value;
         })],
-        ["Yield unit", uses.map(({ group, item: rate }) => pricingYieldUnit(group, rate) || "—")],
+        ["Yield unit", [...new Set(uses.map(({ group, item: rate }) => pricingYieldUnit(group, rate)).filter(Boolean))]],
       ];
       for (const [field, values] of definitions) {
         const cell = node("td");
-        if (uses.length) cell.append(pricingListInput(record, field, values, (entries) => setPricingUseValues(record, entries, field), field === "Sell rate override" ? "Uses item sell price" : ""));
+        if (field === "Yield unit") { cell.className = "pricing-yield-unit"; cell.textContent = values.join("; "); }
+        else if (uses.length) cell.append(pricingListInput(record, field, values, (entries) => setPricingUseValues(record, entries, field), field === "Sell rate override" ? "Uses item sell price" : ""));
         else cell.textContent = "—";
         if (field === "Sell rate override" && uses.length) {
           const status = node("small", "subtext pricing-rate-source");
@@ -1129,6 +1143,7 @@
   function projectBusy(value) {
     state.projectBusy = value;
     for (const id of ["save-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
+    updateProjectStatus();
   }
 
   async function saveProject() {
@@ -1171,7 +1186,7 @@
       const captured = projectStamp();
       const content_base64 = await fileBase64(file);
       const project = await request("/api/project/import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64 }) });
-      await reviewAndLoadProject(project, { name: file.name }, captured);
+      await reviewAndLoadProject(project, { name: file.name, ...(file.lastModified ? { modified_at: new Date(file.lastModified).toISOString() } : {}) }, captured);
     } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
@@ -1201,24 +1216,48 @@
       message("Project loaded with its original pricing and all three calculators. Save Project stores the complete project together.");
   }
 
-  async function loadProjects() {
+  async function loadProjects({ refresh = false, offset = state.projectsOffset } = {}) {
+    clearTimeout(state.projectsTimer);
     const revision = ++state.projectsRevision;
-    const list = $("project-list"); list.textContent = "Reading project files…";
+    const list = $("project-list"); list.setAttribute("aria-busy", "true");
+    const search = $("project-search").value.trim(), sort = $("project-sort").value || "modified_desc";
+    const query = [];
+    if (search) query.push(`search=${encodeURIComponent(search)}`);
+    if (sort !== "modified_desc") query.push(`sort=${encodeURIComponent(sort)}`);
+    if (offset) query.push(`offset=${offset}`);
+    if (refresh) query.push("refresh=1");
     try {
-      const data = await request("/api/projects");
+      const data = await request(`/api/projects${query.length ? `?${query.join("&")}` : ""}`);
       if (revision !== state.projectsRevision) return;
+      if (!data.scan_pending && offset > 0 && data.matched !== undefined && offset >= data.matched) {
+        return loadProjects({ offset: data.matched ? Math.floor((data.matched - 1) / 100) * 100 : 0 });
+      }
       $("project-folder").textContent = data.folder || "Link your estimates folder to list its project files and use it as the default Save As location.";
+      state.projectsOffset = data.offset ?? offset;
       const items = (data.files || []).map(file => {
         const item = node("article", "quote-item"), description = node("div");
-        description.append(node("h3", "", file.title || file.name), node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper", `${file.name} · ${new Date(file.modified_at).toLocaleString("en-AU")}`));
+        description.append(node("h3", "", file.title || file.name), node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), node("p", "helper", `Saved ${new Date(file.modified_at).toLocaleString("en-AU")}`));
         const button = node("button", "button secondary", "Open project"); button.type = "button";
         button.addEventListener("click", () => openProjectFile(file, button)); item.append(description, button); return item;
       });
-      list.replaceChildren(...(items.length ? items : [node("p", "empty-state", "No project files in the linked folder yet. Use Save Project or link another folder.")]));
+      list.replaceChildren(...(items.length ? items : [node("p", "empty-state", data.scan_pending ? "Scanning the linked folder and subfolders…" : search ? "No projects match this search." : "No project files in the linked folder or its subfolders yet.")]));
+      const matched = data.matched ?? items.length, total = data.total ?? matched, first = items.length ? state.projectsOffset + 1 : 0;
+      $("project-list-status").textContent = `${first}–${items.length ? state.projectsOffset + items.length : 0} of ${matched} matching projects · ${total} found${data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""}`;
+      $("project-previous").disabled = !state.projectsOffset;
+      $("project-next").disabled = state.projectsOffset + items.length >= matched;
+      $("project-continue").hidden = !data.scan_pending;
       const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
-      if (data.truncated) problems.push("The folder is too large to list completely. Use a smaller estimates folder.");
+      if (data.error_count > problems.length) problems.push(`${data.error_count - problems.length} additional entries could not be listed.`);
+      if (data.truncated && !data.scan_pending) problems.push("Some entries could not be listed. Refresh to try again; details are shown below.");
       $("project-file-errors").textContent = problems.join("\n"); $("project-file-errors").hidden = !problems.length;
-    } catch (error) { if (revision === state.projectsRevision) list.replaceChildren(node("p", "message error", error.message)); }
+      if (data.scan_pending && state.currentView === "quotes") state.projectsTimer = setTimeout(() => { if (revision === state.projectsRevision && state.currentView === "quotes") loadProjects(); }, 250);
+    } catch (error) {
+      if (revision === state.projectsRevision) {
+        list.replaceChildren(node("p", "message error", error.message));
+        $("project-list-status").textContent = "Project list unavailable · use Refresh to retry";
+        $("project-continue").hidden = true;
+      }
+    } finally { if (revision === state.projectsRevision) list.setAttribute("aria-busy", "false"); }
   }
 
   async function linkProjectFolder() {
@@ -1227,6 +1266,7 @@
     try {
       const data = await request("/api/projects/link-folder", { method: "POST", body: "{}" });
       if (data.cancelled) { message("Folder selection cancelled."); return; }
+      state.projectsOffset = 0;
       await loadProjects(); message(`Estimates folder linked: ${data.folder}`);
     } catch (error) { message(`Folder was not linked. ${error.message}`, true); }
     finally { projectBusy(false); }
@@ -1306,7 +1346,15 @@
   $("load-project").addEventListener("click", () => { if (!state.projectBusy) $("project-import-file").click(); });
   $("project-import-file").addEventListener("change", loadProject);
   $("edit-project-details").addEventListener("click", () => { showView("estimate"); $("project-no").focus(); });
-  $("refresh-quotes").addEventListener("click", () => { loadProjects(); loadQuotes(); });
+  $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));
+  $("project-search").addEventListener("input", () => {
+    clearTimeout(state.projectsTimer); ++state.projectsRevision;
+    state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
+  });
+  $("project-sort").addEventListener("change", () => loadProjects({ offset: 0 }));
+  $("project-previous").addEventListener("click", () => loadProjects({ offset: Math.max(0, state.projectsOffset - 100) }));
+  $("project-next").addEventListener("click", () => loadProjects({ offset: state.projectsOffset + 100 }));
+  $("project-continue").addEventListener("click", () => loadProjects());
   $("link-project-folder").addEventListener("click", linkProjectFolder);
   $("use-current-pricing").addEventListener("click", useCurrentPricing);
   $("pricing-scope").addEventListener("change", () => switchPricingScope($("pricing-scope").value));
@@ -1325,6 +1373,6 @@
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
   window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration)) { event.preventDefault(); event.returnValue = ""; } });
-  window.CeasefireProject = { details: quoteDetails };
+  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus };
   bootstrap();
 })();

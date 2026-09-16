@@ -189,9 +189,17 @@ dialog .actions{justify-content:flex-end}
 .pricing-scope-field { max-width: 26rem; margin-bottom: 1rem; }
 .pricing-table .pricing-use-list { min-width: 15rem; width: 100%; }
 .pricing-table td { vertical-align: middle; }
-.pricing-table input[data-price-field="yield"],
-.pricing-table input[data-price-field="yield_unit"] { min-width: 11rem; }
+.pricing-table input[data-price-field="yield"] { min-width: 11rem; }
+.pricing-yield-unit { min-width: 8rem; color: var(--muted); white-space: pre-wrap; }
 #project-folder { overflow-wrap: anywhere; }
 #project-file-errors { white-space: pre-wrap; overflow-wrap: anywhere; }
-.legacy-quotes { margin-top: 2rem; }
-.legacy-quotes > summary { cursor: pointer; font-weight: 700; margin-bottom: 1rem; }
+.project-identity { min-width: 0; }
+.project-identity .status-label { display: inline-block; margin: .35rem 0 .35rem .75rem; background: #e6f4ec; color: #1b653c; }
+.project-identity .status-label.unsaved { background: #fff1bf; color: #775300; }
+.project-identity .helper { margin: .25rem 0; overflow-wrap: anywhere; }
+.project-file-name { margin: .6rem 0 .25rem; font-size: .9rem; overflow-wrap: anywhere; }
+.project-list-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }
+.project-search-field { flex: 1; min-width: 14rem; }
+.project-relative-path { overflow-wrap: anywhere; }
+.project-pagination { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+@media (max-width: 570px) { .project-identity .status-label { margin-left: 0; display: table; } .project-list-controls > .field { width: 100%; min-width: 0; } }

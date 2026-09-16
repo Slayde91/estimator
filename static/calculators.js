@@ -196,6 +196,7 @@
     return replacements.reduce((text, [from, to]) => text.split(from).join(to), value);
   }
   function updateStatus(entry = current()) {
+    window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
     $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save Project" : "Project calculator inputs · use Save Project to save all calculators";
     const hasErrors = entry.invalid.size > 0;

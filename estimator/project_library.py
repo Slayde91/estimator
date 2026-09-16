@@ -1,29 +1,38 @@
-"""Complete project files in one explicitly linked local folder."""
+"""Complete project files under one explicitly linked local folder."""
 
+from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
-import itertools
 import os
 from pathlib import Path
 import re
 import stat
 import tempfile
 import threading
+import time
 
 from .catalog import ValidationError
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import MAX_PROJECT_FILE, export_project, load_project_bytes, project_filename
+from .project_file import MAX_PROJECT_FILE, export_project, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
 MAX_SCAN_ENTRIES = 2000
 MAX_LIST_BYTES = 64 * 1_048_576
+SCAN_CACHE_SECONDS = 5
 _DIALOG_LOCK = threading.Lock()
 
 
 def _linked(info):
-    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & 0x400)
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    if not getattr(info, "st_file_attributes", 0) & 0x400:
+        return False
+    # OneDrive cloud placeholders do not redirect names. Reject junctions,
+    # symlinks and unknown reparse providers; allow only the documented cloud
+    # tag family (CLOUD and CLOUD_1 through CLOUD_F).
+    return getattr(info, "st_reparse_tag", 0) & 0xFFFF0FFF != 0x9000001A
 
 
 def _directory(value):
@@ -86,8 +95,11 @@ def _file_id(folder, name):
 
 def _metadata(path, info, project, folder):
     estimate = project["estimate"]
-    inside = folder is not None and path.parent == folder
-    return {"id": _file_id(folder, path.name) if inside else None, "name": path.name,
+    inside = folder is not None and path.is_relative_to(folder)
+    relative = path.relative_to(folder).as_posix() if inside else path.name
+    return {"id": _file_id(folder, relative) if inside else None, "name": path.name,
+            "path": str(path), "relative_path": relative,
+            "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
             "modified_at": datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(), "size": info.st_size}
@@ -146,39 +158,152 @@ class ProjectLibrary:
     def __init__(self, store, dialogs=None):
         self.store = store
         self.dialogs = dialogs if dialogs is not None else NativeDialogs()
+        self._lock = threading.RLock()
+        self._cache = {}
+        self._scan = None
 
-    def _entries(self, folder):
-        with os.scandir(folder) as iterator:
-            entries = list(itertools.islice(iterator, MAX_SCAN_ENTRIES + 1))
-        truncated = len(entries) > MAX_SCAN_ENTRIES
-        paths = sorted((Path(entry.path) for entry in entries[:MAX_SCAN_ENTRIES]
-                        if entry.name.lower().endswith(".json")), key=lambda path: path.name.casefold())
-        return paths[:MAX_PROJECT_FILES], truncated or len(paths) > MAX_PROJECT_FILES
+    def close(self):
+        """Release a partially scanned directory when the server shuts down."""
+        with self._lock:
+            if self._scan is not None and self._scan["iterator"] is not None:
+                self._scan["iterator"].close()
+                self._scan["iterator"] = None
 
-    def listing(self):
+    def _start_scan(self, folder):
+        if self._scan is not None and self._scan["folder"] != folder:
+            self._cache.clear()
+        else:
+            # Availability failures (including cloud hydration) can recover
+            # without changing size/mtime. Never make a cached error permanent.
+            self._cache = {key: value for key, value in self._cache.items() if "error" not in value[1]}
+        self.close()
+        self._scan = {"folder": folder, "directories": deque([folder]), "iterator": None,
+                      "current": None, "deferred": None, "files": {}, "errors": [], "seen": set(),
+                      "entries": 0, "json_files": 0, "completed": None, "scanned_at": None}
+
+    def _scan_batch(self):
+        """Bound each request, retaining traversal state so no total cap hides files."""
+        scan = self._scan
+        consumed = processed = inspected = 0
+        while inspected < MAX_SCAN_ENTRIES and processed < MAX_PROJECT_FILES:
+            path = scan["deferred"]
+            if path is not None:
+                # Consume before inspecting: a file can become a directory,
+                # link or non-JSON entry between continuation requests.
+                scan["deferred"] = None
+                inspected += 1
+            if path is None:
+                if scan["iterator"] is None:
+                    if not scan["directories"]:
+                        scan["completed"] = time.monotonic()
+                        # Prune removed files and folders from the identity cache.
+                        self._cache = {key: value for key, value in self._cache.items() if key in scan["seen"]}
+                        break
+                    directory = scan["directories"].popleft()
+                    inspected += 1
+                    try:
+                        _directory(directory)
+                        scan["iterator"] = os.scandir(directory)
+                        scan["current"] = directory
+                    except (OSError, ValidationError) as error:
+                        scan["errors"].append({"name": directory.relative_to(scan["folder"]).as_posix(), "error": str(error)})
+                        continue
+                try:
+                    entry = next(scan["iterator"])
+                except StopIteration:
+                    scan["iterator"].close()
+                    scan["iterator"] = None
+                    continue
+                except OSError as error:
+                    scan["errors"].append({"name": str(scan["current"].relative_to(scan["folder"])), "error": str(error)})
+                    scan["iterator"].close()
+                    scan["iterator"] = None
+                    continue
+                path = Path(entry.path)
+                inspected += 1
+                scan["entries"] += 1
+            relative = path.relative_to(scan["folder"]).as_posix()
+            try:
+                info = path.lstat()
+                if _linked(info):
+                    raise ValidationError("Linked files and folders are not followed. Move the project into this estimates folder to include it.")
+                if stat.S_ISDIR(info.st_mode):
+                    scan["directories"].append(path)
+                    continue
+                if not path.name.lower().endswith(".json"):
+                    continue
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValidationError("Project files must be regular files, not links.")
+                key = (str(scan["folder"]), str(path))
+                identity = _identity(info)
+                cached = self._cache.get(key)
+                if cached is None or cached[0] != identity:
+                    if consumed + min(info.st_size, MAX_PROJECT_FILE) > MAX_LIST_BYTES:
+                        scan["deferred"] = path
+                        break
+                    consumed += min(info.st_size, MAX_PROJECT_FILE)
+                    try:
+                        payload, info = _read_file(path)
+                        value = _metadata(path, info, project_summary(payload), scan["folder"])
+                    except (OSError, ValidationError) as error:
+                        value = {"name": relative, "error": str(error)}
+                    cached = (identity, value)
+                    self._cache[key] = cached
+                scan["seen"].add(key)
+                value = cached[1]
+                if "error" in value:
+                    scan["errors"].append(value)
+                else:
+                    scan["files"][value["id"]] = value
+                processed += 1
+                scan["json_files"] += 1
+            except (OSError, ValidationError) as error:
+                scan["errors"].append({"name": relative, "error": str(error)})
+            scan["deferred"] = None
+        scan["scanned_at"] = datetime.now(timezone.utc).isoformat()
+
+    def listing(self, search="", sort="modified_desc", offset=0, limit=100, refresh=False):
+        if not isinstance(search, str) or len(search) > 500 or sort not in {"modified_desc", "modified_asc", "name_asc", "name_desc"}:
+            raise ValidationError("Choose a valid project search and sort order.")
+        try:
+            if isinstance(offset, bool) or isinstance(limit, bool):
+                raise ValueError
+            offset, limit = int(offset), int(limit)
+            if offset < 0 or not 1 <= limit <= 200:
+                raise ValueError
+        except (TypeError, ValueError) as error:
+            raise ValidationError("Choose a nonnegative project offset and a page size between 1 and 200.") from error
+        if refresh not in (True, False, "0", "1"):
+            raise ValidationError("Refresh must be 0 or 1.")
+        refresh = refresh in (True, "1")
         selected = self.store.project_folder()
-        result = {"folder": selected, "files": [], "errors": [], "truncated": False}
+        result = {"folder": selected, "files": [], "errors": [], "truncated": False,
+                  "total": 0, "matched": 0, "offset": offset, "limit": limit, "scan_pending": False,
+                  "scanned_entries": 0, "scanned_files": 0, "scanned_at": None, "cached": False, "error_count": 0}
         if selected is None:
             return result
         try:
             folder = _directory(selected)
-            paths, result["truncated"] = self._entries(folder)
-            total = 0
-            for path in paths:
-                try:
-                    size = path.lstat().st_size
-                    if total + min(size, MAX_PROJECT_FILE) > MAX_LIST_BYTES:
-                        result["truncated"] = True
-                        break
-                    total += min(size, MAX_PROJECT_FILE)
-                    payload, info = _read_file(path)
-                    project = load_project_bytes(self.store, payload)
-                    result["files"].append(_metadata(path, info, project, folder))
-                except (OSError, ValidationError) as error:
-                    result["errors"].append({"name": path.name, "error": str(error)})
-            result["files"].sort(key=lambda item: (item["modified_at"], item["name"]), reverse=True)
+            with self._lock:
+                if self._scan is None or self._scan["folder"] != folder or refresh or (
+                        self._scan["completed"] is not None and time.monotonic() - self._scan["completed"] > SCAN_CACHE_SECONDS):
+                    self._start_scan(folder)
+                result["cached"] = self._scan["completed"] is not None
+                if not result["cached"]:
+                    self._scan_batch()
+                scan = self._scan
+                needle = search.strip().casefold()
+                files = [value for value in scan["files"].values() if not needle or needle in " ".join(
+                    value[key] for key in ("title", "name", "relative_path", "project_no", "client", "site_address")).casefold()]
+                field = "modified_at" if sort.startswith("modified") else "title"
+                files.sort(key=lambda value: (value[field].casefold(), value["relative_path"].casefold()), reverse=sort.endswith("desc"))
+                pending = scan["completed"] is None
+                result.update(files=files[offset:offset + limit], total=len(scan["files"]), matched=len(files),
+                              errors=scan["errors"][:200], error_count=len(scan["errors"]), scan_pending=pending,
+                              truncated=pending, scanned_at=scan["scanned_at"], scanned_entries=scan["entries"], scanned_files=scan["json_files"])
         except (OSError, ValidationError) as error:
             result["errors"].append({"name": "Estimates folder", "error": str(error)})
+            result["error_count"] = len(result["errors"])
         return result
 
     def link_folder(self):
@@ -188,7 +313,7 @@ class ProjectLibrary:
                 return {"cancelled": True}
             folder = _directory(selected)
             self.store.set_project_folder(folder)
-        return {"cancelled": False, **self.listing()}
+        return {"cancelled": False, **self.listing(refresh=True)}
 
     def load(self, identifier):
         if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{64}", identifier):
@@ -197,13 +322,13 @@ class ProjectLibrary:
         if selected is None:
             raise ValidationError("Link an estimates folder first.")
         folder = _directory(selected)
-        try:
-            paths, _ = self._entries(folder)
-        except OSError as error:
-            raise ValidationError("The estimates folder cannot be read.") from error
-        path = next((path for path in paths if _file_id(folder, path.name) == identifier), None)
-        if path is None:
+        with self._lock:
+            value = self._scan["files"].get(identifier) if self._scan is not None and self._scan["folder"] == folder else None
+        if value is None:
             raise ValidationError("The project is no longer in the linked folder. Refresh the list.")
+        path = Path(value["path"])
+        if not path.is_relative_to(folder) or _file_id(folder, path.relative_to(folder).as_posix()) != identifier:
+            raise ValidationError("Choose a project from the linked estimates folder.")
         payload, info = _read_file(path)
         project = load_project_bytes(self.store, payload)
         return {**project, "file": _metadata(path, info, project, folder)}
@@ -231,7 +356,15 @@ class ProjectLibrary:
             except ValidationError:
                 folder = None
             metadata = _metadata(path, saved_info, project, folder)
-            metadata.update({"path": str(path), "in_linked_folder": folder is not None and path.parent == folder})
+            metadata.update({"path": str(path), "in_linked_folder": folder is not None and path.is_relative_to(folder)})
+            with self._lock:
+                self.close()
+                if folder is not None:
+                    self._start_scan(folder)
+                    if metadata["in_linked_folder"]:
+                        self._scan["files"][metadata["id"]] = metadata
+                else:
+                    self._scan = None
         response = {"cancelled": False, "file": metadata, "folder": selected_folder, "project": project}
         if warning:
             response["warning"] = warning

@@ -25,7 +25,10 @@
   <main id="main" tabindex="-1">
     <div id="app-message" class="message" role="status" hidden></div>
     <div id="loading-state" class="empty-state">Loading the estimator and pricing library…</div>
-    <section id="project-tools" class="project-tools" aria-label="Project file" hidden><div><p class="eyebrow">CURRENT PROJECT</p><strong id="project-name">Untitled project</strong><p class="helper">Save As stores the estimate, its pricing library and all three calculators in one project file.</p></div><div class="actions"><button id="edit-project-details" type="button" class="button secondary">Edit project details</button><button id="load-project" type="button" class="button secondary">Load Project</button><input id="project-import-file" type="file" accept=".ceasefire-project.json,.json,application/json" hidden><button id="save-project" type="button" class="button save-button">Save Project</button></div></section>
+    <section id="project-tools" class="project-tools" aria-label="Project file" hidden>
+      <div class="project-identity"><p class="eyebrow">CURRENT PROJECT</p><strong id="project-name">Untitled project</strong><span id="project-save-state" class="status-label unsaved" role="status">Not saved to a file</span><p id="project-file-name" class="project-file-name">No project file selected</p><p id="project-file-location" class="helper">Choose a folder with Save Project</p><p id="project-last-saved" class="helper" hidden></p><p id="project-pricing-source" class="helper">Pricing: current saved library</p></div>
+      <div class="actions"><button id="edit-project-details" type="button" class="button secondary">Edit project details</button><button id="load-project" type="button" class="button secondary">Load Project</button><input id="project-import-file" type="file" accept=".json,application/json" hidden><button id="save-project" type="button" class="button save-button">Save Project</button></div>
+    </section>
     <section id="view-estimate" class="view" aria-labelledby="estimate-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h1 id="estimate-heading">Build an estimate</h1><p class="subtitle">From project details to a complete material and labour quote.</p></div><div class="actions"><button id="new-quote" type="button" class="button secondary">New project</button><button id="download-quote-pdf" type="button" class="button pdf-button">Download PDF</button></div></div>
       <div class="estimate-layout">
@@ -63,8 +66,12 @@
     </section>
     <section id="view-quotes" class="view" aria-labelledby="quotes-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="quotes-heading">Saved projects</h1><p class="subtitle">Open a complete estimate, its original prices and all three calculators.</p></div><div class="actions"><button id="link-project-folder" type="button" class="button secondary">Link estimates folder</button><button id="refresh-quotes" type="button" class="button secondary">Refresh</button></div></div>
-      <p id="project-folder" class="message info"></p><section class="card"><div id="project-list" class="quote-list">Reading project files�</div></section><pre id="project-file-errors" class="message error" hidden></pre>
-      <details class="legacy-quotes"><summary>Older estimate-only saves</summary><p class="helper">These records contain estimate inputs and pricing only. Opening one starts the calculators from defaults. Use Save Project to keep your future work together.</p><section class="card"><div id="quote-list" class="quote-list"></div></section></details>
+      <p id="project-folder" class="message info"></p>
+      <section class="card">
+        <div class="project-list-controls"><label class="field project-search-field"><span>Search projects</span><input id="project-search" type="search" placeholder="Project, client, address or folder…" maxlength="400"></label><label class="field"><span>Sort by</span><select id="project-sort"><option value="modified_desc">Most recently saved</option><option value="modified_asc">Oldest saved first</option><option value="name_asc">Project name A–Z</option><option value="name_desc">Project name Z–A</option></select></label></div>
+        <p id="project-list-status" class="helper" role="status"></p><div id="project-list" class="quote-list" aria-busy="false">Reading project files…</div>
+        <div class="project-pagination"><button id="project-previous" type="button" class="button secondary" disabled>Previous</button><button id="project-next" type="button" class="button secondary" disabled>Next</button><button id="project-continue" type="button" class="button secondary" hidden>Continue folder scan</button></div>
+      </section><pre id="project-file-errors" class="message error" hidden></pre>
     </section>
   </main>
   <footer>CEASEFIRE ESTIMATOR <span>Quote calculations · Editable pricing library · Local project files</span><p class="estimating-notice">This is an estimating product developed by CEASEFIRE PFP. Information and results are a guide only and should not be relied upon without consulting the manufacturer and relevant project authority.</p></footer>

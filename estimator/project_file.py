@@ -21,7 +21,7 @@ from .workbook_calculators import source_model, validate_calculator_edits
 
 PROJECT_FORMAT = "ceasefire-project"
 PROJECT_VERSION = 1
-PROJECT_FILENAME = "CEASEFIRE-Project.ceasefire-project.json"
+PROJECT_FILENAME = "CEASEFIRE-Project.json"
 MAX_PROJECT_FILE = 16 * 1_048_576
 CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
 ESTIMATE_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
@@ -37,7 +37,32 @@ def project_filename(title):
         name = "Untitled quote"
     if re.fullmatch(r"(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?", name):
         name = "_" + name
-    return name + ".ceasefire-project.json"
+    return name + ".json"
+
+
+def project_summary(payload):
+    """Read display metadata without calculating or applying a project.
+
+    Browsing a folder must remain cheap. Full pricing, source and calculator
+    validation still runs in load_project_bytes immediately before opening.
+    """
+    if not payload or len(payload) > MAX_PROJECT_FILE:
+        raise ValidationError("Choose a nonempty project file of at most 16 MB.")
+    try:
+        snapshot = json.loads(payload.decode("utf-8-sig"), object_pairs_hook=_unique_object, parse_constant=_reject_constant)
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        raise ValidationError("The project file must contain valid JSON.") from error
+    _check_tree(snapshot)
+    if not isinstance(snapshot, dict) or snapshot.get("format") != PROJECT_FORMAT or type(snapshot.get("version")) is not int or snapshot["version"] != PROJECT_VERSION:
+        raise ValidationError("This project file format or version is not supported.")
+    estimate = snapshot.get("estimate")
+    if not isinstance(estimate, dict) or not isinstance(snapshot.get("calculators"), dict):
+        raise ValidationError("The project must contain its estimate and calculators.")
+    details = project_details({key: estimate.get(key, "") for key in QUOTE_DETAIL_LIMITS})
+    title = estimate.get("title")
+    if not isinstance(title, str) or len(title) > 1000:
+        raise ValidationError("The project quote name is invalid.")
+    return {"estimate": {"title": title, **details}}
 
 
 def project_download_header(filename):

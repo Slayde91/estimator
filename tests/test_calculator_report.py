@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from pypdf import PdfReader
 
-from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, _source_text
+from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, _material_rows, _source_text
 from estimator.catalog import ValidationError
 from estimator.workbook_calculators import source_model
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
@@ -36,6 +36,11 @@ def cleared_inputs(identity):
 @lru_cache(maxsize=3)
 def default_projection(identity):
     return project_calculator_report(identity, {})
+
+
+@lru_cache(maxsize=3)
+def blank_projection(identity):
+    return project_calculator_report(identity, cleared_inputs(identity))
 
 
 class CalculatorReportTests(unittest.TestCase):
@@ -152,25 +157,27 @@ class CalculatorReportTests(unittest.TestCase):
                         self.assertIn(field, text)
                     self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
                     self.assertTrue(all(page.images for page in reader.pages))
-                    if builder is build_calculator_summary_report:
-                        for page in reader.pages:
-                            positions = {}
-                            def located(value, cm, tm, font, size):
-                                for token in ('CALCULATORS | MATERIALS & SUMMARY', 'ABN: 50 612 231 562'):
-                                    if token in value:
-                                        positions[token] = (tm[4], tm[5])
-                            page.extract_text(visitor_text=located)
-                            label = positions['CALCULATORS | MATERIALS & SUMMARY']
-                            contact = positions['ABN: 50 612 231 562']
-                            self.assertAlmostEqual(label[0], 32)
-                            self.assertLess(label[1], contact[1])
-                            self.assertGreater(contact[0], float(page.mediabox.width) / 2)
+                    if builder is build_calculator_report:
+                        self.assertTrue(all(sum(line.strip() == 'Line' for line in content.splitlines()) == 1
+                                            for content in texts))
+                    for page in reader.pages:
+                        positions = {}
+                        def located(value, cm, tm, font, size):
+                            for token in ('CALCULATORS | ' + header, 'ABN: 50 612 231 562'):
+                                if token in value:
+                                    positions[token] = (tm[4], tm[5])
+                        page.extract_text(visitor_text=located)
+                        label = positions['CALCULATORS | ' + header]
+                        contact = positions['ABN: 50 612 231 562']
+                        self.assertAlmostEqual(label[0], 32)
+                        self.assertLess(label[1], contact[1])
+                        self.assertGreater(contact[0], float(page.mediabox.width) / 2)
                     self.assertIn('Current calculator snapshot', text)
                     abbreviated_summary = identity in {'steel_board', 'steel_vermiculite'} and builder is build_calculator_summary_report
                     for removed in ('Report generated from the complete', 'Authoritative workbook',
                                     'Source SHA-256', source_model(identity)['source']['sha256']):
                         self.assertNotIn(removed, text)
-                    if abbreviated_summary:
+                    if abbreviated_summary or (identity == 'ductwork' and builder is build_calculator_report):
                         self.assertNotIn('Display rounding is limited', text)
                     else:
                         self.assertIn('Display rounding is limited', text)
@@ -213,9 +220,10 @@ class CalculatorReportTests(unittest.TestCase):
                     for removed in ('Totals use available source results', 'Display rounding is limited',
                                     'Whole bags per product are pooled from net bags'):
                         self.assertNotIn(removed, summary)
-                    for retained in ('CAFCO 300',
-                                     'MONOKOTE MK-6 HY', 'Order status', 'Overall schedule totals'):
+                    for retained in ('CAFCO 300', 'Order status', 'Overall schedule totals'):
                         self.assertIn(retained, summary)
+                    for unused in ('MONOKOTE MK-6 HY', 'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+'):
+                        self.assertNotIn(unused, summary)
                 else:
                     self.assertIn('74.40', summary)
                     self.assertIn('30.00', text)
@@ -245,12 +253,148 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertNotIn(' '.join(_source_text('steel_board', 'BOARD SUMMARY', 'A8', paragraph).split()), normalized)
                 for note in data['summary_notes'][1:]:
                     self.assertIn(' '.join(_source_text('steel_board', 'BOARD SUMMARY', 'A31', note).split()), normalized)
-                for heading in ('Board stock totals by product and thickness', 'Overall schedule totals',
-                                'Pooled whole sheets', 'incomplete or unavailable primary quantities'):
+                if data['rows'] or data['extra_rows']:
+                    self.assertIn('Board stock totals by product and thickness', normalized)
+                else:
+                    self.assertNotIn('Board stock totals by product and thickness', normalized)
+                for heading in ('Overall schedule totals', 'Pooled whole sheets', 'incomplete or unavailable primary quantities'):
                     self.assertIn(heading, normalized)
                 for item in data['extra_rows']:
                     self.assertIn(f"Extra-board item {item['line']}", text)
                 self.assertEqual(data, before)
+
+    def test_summary_filters_default_material_stock_without_changing_projection(self):
+        expected = {
+            'ductwork': [[9, 10, 11], [19, 23, 25], [40]],
+            'steel_vermiculite': [[20]],
+            'steel_board': [[12, 13, 14, 15, 18, 23, 25, 26, 27, 28]],
+        }
+        for identity, wanted in expected.items():
+            data = default_projection(identity)
+            before = deepcopy(data)
+            tables = [summary for summary in data['summaries'] if summary['title'] != 'Working spray yields']
+            self.assertEqual([[row['row'] for row in _material_rows(identity, table)] for table in tables], wanted)
+            with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+                text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                    build_calculator_summary_report(identity))).pages)
+            self.assertIn('Overall schedule totals', text)
+            self.assertEqual(data, before)
+
+    def test_schedule_header_stays_with_body_when_a_long_cell_spans_pages(self):
+        data = deepcopy(default_projection('ductwork'))
+        data['rows'] = data['rows'][:1]
+        literal = 'Long product identifier ' * 90 + 'END OF IDENTIFIER'
+        data['rows'][0]['values']['C'] = literal
+        with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+            reader = PdfReader(BytesIO(build_calculator_report('ductwork')))
+        texts = [page.extract_text() for page in reader.pages]
+        self.assertGreater(len(texts), 1)
+        compact = ''.join(''.join(texts).split())
+        self.assertEqual(compact.count('Longproductidentifier'), 90)
+        self.assertIn('ENDOFIDENTIFIER', compact)
+        self.assertTrue(all(sum(line.strip() == 'Line' for line in text.splitlines()) == 1 for text in texts))
+
+    def test_blank_material_summaries_have_no_product_stock_or_empty_table_headings(self):
+        for identity in ('ductwork', 'steel_vermiculite', 'steel_board'):
+            data = blank_projection(identity)
+            before = deepcopy(data)
+            with self.subTest(identity=identity), patch('estimator.calculator_report.project_calculator_report', return_value=data):
+                text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                    build_calculator_summary_report(identity))).pages)
+            self.assertIn('No materials are required by the current inputs.', text)
+            self.assertNotIn('Final product and material summary', text)
+            for summary in data['summaries']:
+                self.assertNotIn(summary['title'], text)
+                for row in summary['rows']:
+                    if isinstance(row['values']['A'], str) and row['values']['A'] not in data['basis']:
+                        self.assertNotIn(row['values']['A'], text)
+            self.assertEqual(data, before)
+
+    def test_one_used_product_does_not_publish_unused_stock(self):
+        for identity, product, original_row in [('ductwork', 'FyreWrap', 13),
+                                                 ('steel_vermiculite', 'CAFCO 300', 10),
+                                                 ('steel_board', 'TRAFALGAR COREX', 10)]:
+            model = source_model(identity)
+            schedule = model['schedule']
+            source = next(sheet for sheet in model['sheets'] if sheet['name'] == schedule['sheet'])
+            inputs = cleared_inputs(identity)
+            inputs[schedule['sheet']].update({field['column'] + str(schedule['first_row']):
+                source['cells'].get(field['column'] + str(original_row), {}).get('value')
+                for field in schedule['columns'] if field['editable']})
+            data = project_calculator_report(identity, inputs)
+            before = deepcopy(data)
+            with self.subTest(identity=identity), patch('estimator.calculator_report.project_calculator_report', return_value=data):
+                text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                    build_calculator_summary_report(identity))).pages)
+            self.assertIn(product, text)
+            for table in data['summaries'][:1]:
+                for row in table['rows']:
+                    if row['values']['A'] != product:
+                        self.assertNotIn(row['values']['A'], text)
+            self.assertEqual(data, before)
+
+    def test_material_summary_preserves_tiny_negative_and_unknown_demand(self):
+        # Distinct names prove the PDF includes each row, even though a normal
+        # two-decimal display could have hidden a small quantity as zero.
+        cases = [('steel_vermiculite', 0, 'E'), ('steel_board', 0, 'F'),
+                 ('ductwork', 0, 'D'), ('ductwork', 1, 'D'), ('ductwork', 3, 'G')]
+        for identity, table_index, column in cases:
+            for demand in (0.0000001, -0.0000001, '#N/A', None):
+                data = deepcopy(blank_projection(identity))
+                table = data['summaries'][table_index]
+                table['rows'][0]['values']['A'] = 'REQUIRED-MATERIAL'
+                table['rows'][0]['values'][column] = demand
+                with self.subTest(identity=identity, table=table_index, demand=demand), patch(
+                        'estimator.calculator_report.project_calculator_report', return_value=data):
+                    text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                        build_calculator_summary_report(identity))).pages)
+                    compact = ''.join(text.split())
+                    self.assertIn('REQUIRED-MATERIAL', compact)
+                    if demand == '#N/A':
+                        self.assertIn('Unavailable:#N/A', compact)
+                    elif isinstance(demand, float):
+                        self.assertIn('1.00E-7', compact)
+
+    def test_unresolved_products_and_withheld_quantities_are_not_treated_as_unused(self):
+        for identity, column, product in [('steel_vermiculite', 'B', 'MANDOLITE CP2'),
+                                          ('steel_board', 'C', 'PROMATECT 100'),
+                                          ('ductwork', 'C', 'CAFCO 300')]:
+            schedule = source_model(identity)['schedule']
+            inputs = cleared_inputs(identity)
+            inputs[schedule['sheet']][column + str(schedule['first_row'])] = product
+            data = project_calculator_report(identity, inputs)
+            self.assertEqual(data['incomplete_rows'], 1)
+            with self.subTest(identity=identity), patch('estimator.calculator_report.project_calculator_report', return_value=data):
+                text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                    build_calculator_summary_report(identity))).pages)
+            self.assertIn('Unresolved material requirements:', text)
+            self.assertIn(product + ' (1 schedule item(s))', ' '.join(text.split()))
+            self.assertNotIn('No materials are required', text)
+        data = deepcopy(blank_projection('ductwork'))
+        data['summaries'][0]['rows'][1]['values']['J'] = 1
+        with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+            text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                build_calculator_summary_report('ductwork'))).pages)
+        self.assertIn('MONOKOTE', text)
+        self.assertIn('Steel rows withheld', text)
+        self.assertNotIn('Penetration angles by size and location', text)
+
+    def test_extra_only_board_quantities_and_incomplete_extra_evidence_survive_filtering(self):
+        inputs = cleared_inputs('steel_board')
+        inputs['EXTRA BOARDS'].update({'A6': 'Extra stock only', 'B6': 'PROMATECT 250', 'C6': 15,
+                                       'G6': 0.0000001, 'N7': 'Allowance still under review'})
+        data = project_calculator_report('steel_board', inputs)
+        self.assertEqual(data['rows'], [])
+        self.assertGreater(data['summaries'][0]['rows'][4]['values']['F'], 0)
+        with patch('estimator.calculator_report.project_calculator_report', return_value=data):
+            text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
+                build_calculator_summary_report('steel_board'))).pages)
+        self.assertIn('PROMATECT 250', text)
+        self.assertNotIn('TRAFALGAR COREX', text)
+        self.assertIn('Extra-board item 1', text)
+        self.assertIn('Extra-board item 2', text)
+        self.assertIn('Allowance still under review', text)
+        self.assertIn('1.00E-7', text)
 
     def test_pdf_preserves_long_free_text_and_identifier_precision(self):
         inputs = cleared_inputs('steel_board')

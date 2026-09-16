@@ -12,7 +12,7 @@ import re
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import KeepTogether, PageBreak, SimpleDocTemplate, Spacer
+from reportlab.platypus import KeepTogether, PageBreak, SimpleDocTemplate, Spacer, TableStyle
 
 from .excel_engine import WorkbookEngine, column_name
 from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
@@ -81,6 +81,47 @@ def _sum_values(values):
     # Excel SUM ignores unavailable text. Labels explicitly describe these as
     # available totals; source product-order error/status text is kept intact.
     return sum(value for value in values if _numeric(value))
+
+
+def _zero_quantities(values, columns):
+    """Only confirmed raw numeric zero is empty; unknown and tiny values remain."""
+    return all(_numeric(values.get(column)) and values[column] == 0 for column in columns)
+
+
+def _material_rows(identity, summary):
+    """Filter PDF stock rows using demand, never stock sizes or display rounding.
+
+    This is deliberately separate from the source projection shared with Excel.
+    Withheld quantities remain in product totals; unresolved schedule products
+    are also named separately, without suggesting a stock thickness or quantity.
+    """
+    retained = []
+    for item in summary['rows']:
+        values = item['values']
+        unused = False
+        if identity == 'steel_vermiculite':
+            status = values.get('I')
+            # The source leaves whole bags blank when there are no lines.
+            empty_order = (status == 'NO SCHEDULE LINES' and
+                           _zero_quantities(values, 'B') and values.get('G') == '')
+            unused = (_zero_quantities(values, 'CDEH') and
+                      (empty_order or (status == 'ESTIMATING QUANTITY COMPLETE' and
+                                       _zero_quantities(values, 'G'))))
+        elif identity == 'steel_board':
+            unused = _zero_quantities(values, 'EFGHIJ')
+        elif summary['title'] == 'Product totals':
+            # Spray E:G and wrap D are intentionally not applicable, not errors.
+            demand = 'CDH' if item['row'] < 11 else 'CEFGH'
+            unused = (_zero_quantities(values, demand + 'IJ') and
+                      _numeric(values.get('B')))
+        elif summary['title'] == 'Penetration angles by size and location':
+            # Withheld steel counts remain in the product totals above.
+            unused = _zero_quantities(values, 'D')
+        elif summary['title'] == 'Maxilite 60 mm boards and cut strips':
+            unused = _zero_quantities(values, 'BCDEFG') and values.get('H') == 'Matches'
+        if not unused:
+            retained.append(item)
+    return retained
 
 
 def project_calculator_report(calculator_id, inputs=None):
@@ -214,7 +255,8 @@ class _ScheduleReport(_Report):
         self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
         if materials and data['id'] != 'steel_vermiculite':
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
-        if not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
+        if not ((materials and data['id'] in {'steel_board', 'steel_vermiculite'}) or
+                (not materials and data['id'] == 'ductwork')):
             self.story.append(self.p('Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
 
     def schedule(self):
@@ -252,7 +294,19 @@ class _ScheduleReport(_Report):
         else:
             heads = ['Line', 'Item / mark', 'Location', 'Product / section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
             fractions = [.055, .065, .08, .125, .065, .07, .08, .07, .075, .075, .075, .165]
-        self.story.append(self.table(heads, rows, [_CONTENT * size for size in fractions], compact=True))
+        table = self.table(heads, rows, [_CONTENT * size for size in fractions], compact=True)
+        # Allow long cells to split, but require space for a body line with its
+        # padding. A one-point fragment can otherwise leave a header alone at
+        # the bottom of the previous page before the row continues.
+        table.splitInRow = 20
+        # Centre ordinary cells. For a cell taller than a complete page, start
+        # at the top so ReportLab does not carry centring padding into otherwise
+        # empty continuation pages. Horizontal alignment remains centred.
+        for row_index, row in enumerate(rows, 1):
+            if any(cell.wrap(_CONTENT * fractions[index] - 12, _HEIGHT)[1] > _HEIGHT - 180
+                   for index, cell in enumerate(row)):
+                table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
+        self.story.append(table)
 
     def extras(self):
         data = self.data
@@ -265,7 +319,10 @@ class _ScheduleReport(_Report):
 
     def product_totals(self):
         data = self.data
-        if data['id'] != 'steel_vermiculite':
+        summaries = [(summary, _material_rows(data['id'], summary)) for summary in data['summaries']
+                     if not (data['id'] == 'ductwork' and summary['title'] == 'Working spray yields')]
+        summaries = [(summary, rows) for summary, rows in summaries if rows]
+        if summaries and data['id'] != 'steel_vermiculite':
             heading = self.p('Final product and material summary', 'section')
             heading.keepWithNext = True
             self.story.append(heading)
@@ -274,9 +331,20 @@ class _ScheduleReport(_Report):
             if data['id'] == 'steel_board' and index == 0:
                 continue
             self.note_block(_source_text(data['id'], 'BOARD SUMMARY', 'A8', value))
-        for summary in data['summaries']:
-            if data['id'] == 'ductwork' and summary['title'] == 'Working spray yields':
-                continue
+        unresolved = {}
+        product_column = 'B' if data['id'] == 'steel_vermiculite' else 'C'
+        for item in data['rows']:
+            if not item['complete']:
+                product = _text(item['values'].get(product_column) or 'Product missing')
+                unresolved[product] = unresolved.get(product, 0) + 1
+        if unresolved:
+            products = '; '.join(f'{product} ({count} schedule item(s))' for product, count in unresolved.items())
+            self.story.append(self.p('Unresolved material requirements: ' + products +
+                                     '. Review the schedule statuses for the missing quantities.', 'alert'))
+        if not summaries:
+            self.story.append(self.p('No quantified material requirements are available.' if unresolved or data['extra_rows'] else
+                                     'No materials are required by the current inputs.'))
+        for summary, material_rows in summaries:
             if not (data['id'] == 'steel_vermiculite' and summary['title'] == 'Product order totals'):
                 self.story.append(self.p(summary['title'], 'subheading'))
             if summary['note'] and data['id'] != 'steel_vermiculite':
@@ -293,7 +361,7 @@ class _ScheduleReport(_Report):
             # Normalize explicit width weights to avoid accumulated layout drift.
             widths = [_CONTENT * value / sum(fractions) for value in fractions]
             rows = []
-            for item in summary['rows']:
+            for item in material_rows:
                 formatted = []
                 for column in columns:
                     value = item['values'][column]
@@ -343,7 +411,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         canvas.saveState()
         _company_header(canvas, logo, _WIDTH, _HEIGHT, _MARGIN,
                         'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'),
-                        label_below_logo=materials)
+                        label_below_logo=True)
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, _WIDTH - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)

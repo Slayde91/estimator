@@ -62,7 +62,7 @@ function harness() {
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, projectStamp, saveQuote, openQuote, calculate,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,
       setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -300,6 +300,49 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     await h.app.loadProjects();assert.match(h.byId('project-folder').textContent,/C:\/estimates/);assert.equal(h.byId('project-list').children.length,1);
     const opening=h.app.openProjectFile({id:'opaque',name:'project.json'},h.element('button'));await flush();await h.byId('discard-dialog').close('confirm');await opening;
     assert.deepEqual(paths,['/api/projects','/api/projects/load']);assert.equal(h.app.state.dirty,false);assert.equal(h.calc.state.entries.size,3);
+  });
+  await check('Persistent project status reflects saved path, file time and calculator-only edits', async h => {
+    h.app.state.dirty=false;h.app.state.projectPricingDraft=copy(h.app.state.quoteConfiguration);
+    h.app.state.projectFile={name:'Quote.json',path:'C:/Estimates/Client/Quote.json',modified_at:'2026-09-17T01:23:00Z'};
+    h.bridgeApi.markProjectSaved(h.bridgeApi.projectSnapshot());h.app.updateProjectStatus();
+    assert.equal(h.byId('project-save-state').textContent,'Saved project');assert.equal(h.byId('project-file-location').textContent,'C:/Estimates/Client/Quote.json');
+    assert.match(h.byId('project-last-saved').textContent,/File saved/);assert.match(h.byId('project-pricing-source').textContent,/project snapshot/);
+    h.calc.setInput(h.calc.current(),'CALCULATOR','A9','Changed calculator');
+    assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
+  });
+  await check('Project status includes project pricing edits but excludes shared library edits', async h => {
+    h.app.state.dirty=false;h.app.state.projectFile={name:'saved.json'};h.app.state.projectPricingDraft=copy(h.app.state.quoteConfiguration);
+    h.bridgeApi.markProjectSaved(h.bridgeApi.projectSnapshot());h.app.updateProjectStatus();
+    assert.equal(h.byId('project-save-state').textContent,'Saved project');
+    h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=200;h.app.updateProjectStatus();
+    assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
+    h.app.state.draft.rates.frozen.price=17.12345;h.app.updateProjectStatus();
+    assert.equal(h.byId('project-save-state').textContent,'Saved project');
+  });
+  await check('Folder search and paging retain relative paths and never fetch older estimate saves', async h => {
+    const calls=[];h.byId('project-search').value='Client & north';h.byId('project-sort').value='name_asc';
+    h.app.setRequest(async path=>{calls.push(path);return {folder:'C:/Estimates',files:[{id:'nested',name:'Quote.json',relative_path:'Client/north/Quote.json',title:'Quote',modified_at:'2026-09-17T00:00:00Z'}],total:500,matched:120,offset:100,errors:[],scan_pending:true,scanned_entries:2000};});
+    await h.app.loadProjects({offset:100});
+    assert.equal(calls[0],'/api/projects?search=Client%20%26%20north&sort=name_asc&offset=100');
+    assert.equal(h.byId('project-list').children[0].children[0].children[2].textContent,'Client/north/Quote.json');
+    assert.match(h.byId('project-list-status').textContent,/101–101 of 120/);assert.equal(h.byId('project-continue').hidden,false);
+    assert.equal(h.byId('project-previous').disabled,false);assert.equal(h.byId('project-next').disabled,false);
+  });
+  await check('Late folder search cannot replace a newer search result', async h => {
+    const pending=deferred();let count=0;h.app.setRequest(()=>++count===1?pending.promise:Promise.resolve({files:[],folder:'New folder',total:0,matched:0,errors:[]}));
+    const first=h.app.loadProjects();h.byId('project-search').value='new';await h.app.loadProjects({offset:0});
+    pending.resolve({folder:'Old folder',files:[],errors:[]});await first;assert.equal(h.byId('project-folder').textContent,'New folder');
+    assert.match(h.byId('project-list').children[0].textContent,/No projects match/);
+  });
+  await check('Saved projects view has no request or control for older estimate-only records', async h => {
+    const calls=[];h.app.setRequest(async path=>{calls.push(path);return {files:[],errors:[]};});h.app.showView('quotes');await flush();
+    assert.deepEqual(calls,['/api/projects']);const html=fs.readFileSync('static/index.html','utf8');
+    assert.ok(!html.includes('Older estimate-only saves'));assert.ok(!html.includes('id="quote-list"'));
+  });
+  await check('Completed folder rescan returns an out-of-range page to existing projects', async h => {
+    const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:paths.length===1?[]:[{id:'remaining',name:'Remaining.json',modified_at:'2026-09-17T00:00:00Z'}],offset:paths.length===1?200:0,total:20,matched:20,scan_pending:false,errors:[]};});
+    await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects?offset=200','/api/projects']);
+    assert.equal(h.app.state.projectsOffset,0);assert.match(h.byId('project-list-status').textContent,/1–1 of 20/);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

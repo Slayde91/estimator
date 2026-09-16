@@ -1,6 +1,63 @@
 # Project state
 
-## Current: project files, scoped pricing and export presentation
+## Current: recursive project library, dialog foreground and report polish
+
+Date: 2026-09-17. Branch `feat/project-library-polish` starts from PR #31 merge
+`95429c1` in `C:/ESTIMATOR/worktrees/project-library-polish`. This section records
+the implementation scope. Current Git, CI and publication receipts determine
+whether publication and local activation have finished.
+
+Save Project now suggests `Quote name.json`; the native dialog adds `.json`
+automatically. Existing `.ceasefire-project.json` files remain supported, and
+portable format version 1 and database schema version 3 are unchanged. Save As
+and folder dialogs use the foreground application's HWND as their owner. A
+thread-local Windows activation hook raises the actual dialog and overwrite
+prompts, replacing the invisible helper form. C# compilation and real regular
+file/directory reparse checks passed. The desktop automation runtime could not
+initialize, so visible foreground behavior is not claimed as visually verified.
+
+Saved projects includes descendants of the linked estimates folder. Opaque IDs
+incorporate relative paths; duplicate basenames remain independent. The API
+supports search, sorting and pagination, returning full paths and relative
+folders for display. Metadata reads are cached by file identity without running
+calculator evaluation. Reads and traversal are bounded per request, with retained
+continuation state rather than a permanent project-count or cumulative-byte cap.
+The page continues scan batches while open and shows progress, errors and a
+manual continuation action. Opening a project always validates its full current
+contents. Symbolic links, junctions and unknown reparse providers are rejected;
+documented OneDrive cloud tags are permitted when readable.
+
+The persistent Current project area shows the selected filename, known location,
+last-saved time and unsaved changes across the estimate, project pricing and
+calculators. Browser file uploads do not reveal an original full path. The Older
+estimate-only saves section is removed from the UI, while historical SQLite
+records and compatibility APIs are retained. Shared-library pricing remains
+separate from project snapshots; no stored prices or calculations are migrated.
+
+Yield unit is read-only in the pricing page and protected XLSX column L. It
+shows distinct calculation units only: `m² / unit`, or `m / unit` for mastic;
+uses without yields show no unit. Historical descriptive labels remain compatible
+data but cannot override displayed calculation dimensions. Eight editable XLSX
+use vectors remain positional. The locked unit column is informational and is
+ignored when importing edited or older files; units are derived from the uses.
+Headers are protected and all ordinary input cells remain editable, including
+new rows. Pricing values and arithmetic are unchanged.
+
+Schedule PDFs place `CALCULATORS | FULL SCHEDULE` underneath the logo; material
+summaries retain `CALCULATORS | MATERIALS & SUMMARY`. The duct schedule's
+display-rounding sentence is removed. Material-summary PDFs omit only confirmed
+zero-demand product/stock rows and empty tables. Unknown, withheld or failed
+quantities and tiny nonzero values remain visible; unresolved products are
+reported without inventing stock thicknesses. Full calculation projections and
+XLSX registers retain their complete material rows and existing rules.
+
+Focused project-library/API and portable-file tests cover nested folders,
+duplicate names, continuation budgets, search/page validation, cache reuse,
+file changes, legacy filenames and unchanged storage. Final integrated test,
+browser, PDF/XLSX, CI and publication results belong to this branch's receipts;
+historical results below do not establish the current increment's completion.
+
+## Historical checkpoint: project files, scoped pricing and export presentation
 
 Date: 2026-09-16. Branch `feat/project-library-workflow` starts from `fcd90b9`
 in `C:/ESTIMATOR/worktrees/project-library-workflow`. This section describes the

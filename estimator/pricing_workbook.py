@@ -509,7 +509,7 @@ def export_pricing_workbook(configuration):
         ["Yield", "Enter one nonnegative number for every yield-bearing use of the product. Leave an unchanged blank, Empty text or Mixed value as exported to preserve existing behavior. Mixed indicates differing yields or incompatible units; a shared numeric edit is accepted only when all units match."],
         ["Yield unit", "Read-only calculation unit: m² / unit for area coverage and m / unit for mastic. Groups without a yield remain blank."],
         ["Group", "Uses are separated by semicolons. Existing uses retain their names, order, prices and yields. New uses inherit Product/Service and product price; the shared yield is copied only when its unit matches. Names must be unique in a group."],
-        ["Add or remove", "Add a new product with Product/Service, Supplier price, Markup, Sell price and Group. Manual products can leave Supplier price blank. To remove an entry, clear all its editable cells, including hidden columns, or remove it in the app. Keep hidden values on retained rows."],
+        ["Add or remove", "Add a new product with Product/Service, Supplier price, Markup, Sell price and Group. Manual products can leave Supplier price blank. To remove an entry, clear all its editable cells, including hidden columns. Keep hidden values on retained rows."],
         ["Compatibility", "The hidden columns retain per-use identities, overrides and exact saved values. Earlier pricing workbook formats remain supported. Use values only: formulas, macros and external links are rejected."],
         ["Group keys", "Use the exact supported group keys below."],
         *[[group, "Yield required" if rule["yield_column"] else "Yield not used"]
@@ -926,7 +926,9 @@ def _product_service_rows(sheet, text_cells):
                         raise ValidationError(f"{label}: Enter a shared Yield before adding a yield-bearing use.")
                     values = {"Group": group, "Selection name": product_label,
                               "Price source": "Override" if standalone else "Inventory",
-                              "Sell rate": row["Sell price"], "Yield type": _yield_type(
+                              # Linked uses inherit the product's recalculated
+                              # price, not the exported Sell price snapshot.
+                              "Sell rate": row["Sell price"] if standalone else None, "Yield type": _yield_type(
                                   "" if scalar == "Empty text" else scalar, needs_yield),
                               "Yield": scalar if needs_yield and isinstance(scalar, (int, float)) else None,
                               "Rate ID": None, "Use order": None}

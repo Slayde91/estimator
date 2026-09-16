@@ -206,6 +206,44 @@ class ProductServicePricingTests(unittest.TestCase):
         new = next(rate for rate in rates['boards'] if rate['inventory_id'] == '204')
         self.assertEqual((new['price'], new['yield']), (384.93, 142))
 
+    def test_new_linked_use_inherits_recalculated_price_and_future_supplier_changes(self):
+        payload = edit(self.exported, [('204', {'Supplier price': 300, 'Markup': .2,
+                                               'Group': 'primers;topcoats;boards'})])
+        first = self.imported(payload)['configuration']
+        rates = effective_catalog(first)['rate_groups']
+        board = next(rate for rate in rates['boards'] if rate['inventory_id'] == '204')
+        for rate in (rates['primers'][0], rates['topcoats'][0], board):
+            self.assertEqual((rate['price'], rate['price_mode']), (360, 'inventory'))
+        # A subsequent ordinary supplier edit must keep the new use linked.
+        second_payload = edit(export_pricing_workbook(first), [('204', {'Supplier price': 400})])
+        second = self.imported(second_payload, first)['configuration']
+        rates = effective_catalog(second)['rate_groups']
+        board_again = next(rate for rate in rates['boards'] if rate['id'] == board['id'])
+        for rate in (rates['primers'][0], rates['topcoats'][0], board_again):
+            self.assertEqual((rate['price'], rate['price_mode']), (480, 'inventory'))
+
+    def test_new_uses_inherit_manual_edits_and_new_products_calculated_price(self):
+        manual = self.imported(edit(self.exported, [('915', {'Sell price': 2222,
+                                                           'Group': 'labour_rates;access_hire'})]))['configuration']
+        rates = effective_catalog(manual)['rate_groups']
+        self.assertEqual(next(rate['price'] for rate in rates['labour_rates'] if rate['inventory_id'] == '915'), 2222)
+        new = next(rate for rate in rates['access_hire'] if rate['inventory_id'] == '915')
+        self.assertEqual((new['price'], new['price_mode']), (2222, 'inventory'))
+        book = load_workbook(BytesIO(self.exported))
+        sheet = book[COMBINED_SHEET]
+        values = {'Product/Service': 'New shared coating', 'Item code': 'new-coating',
+                  'Supplier price': 100, 'Markup': .25, 'Sell price': None,
+                  'Group': 'primers;topcoats', 'Yield': 25}
+        sheet.append([values.get(header) for header in PRODUCT_SERVICE_HEADERS])
+        payload = _serialize_exact(book, escape_text=True)
+        book.close()
+        added = effective_catalog(self.imported(payload)['configuration'])
+        product = next(item for item in added['inventory'] if item['item_code'] == 'new-coating')
+        self.assertEqual(product['sales_price'], 125)
+        for group in ('primers', 'topcoats'):
+            rate = next(rate for rate in added['rate_groups'][group] if rate['inventory_id'] == product['id'])
+            self.assertEqual((rate['price'], rate['price_mode'], rate['yield']), (125, 'inventory', 25))
+
     def test_malformed_snapshot_or_scalar_yield_is_rejected(self):
         for field, value in [('Saved values', '{bad'), ('Saved values', '[]'),
                              ('Saved values', json.dumps({'product': []})), ('Yield', '142;142'), ('Yield', -1)]:

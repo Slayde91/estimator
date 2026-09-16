@@ -200,10 +200,10 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(int(headers["Content-Length"]), len(payload))
         workbook = load_workbook(BytesIO(payload))
         self.assertEqual(workbook.sheetnames, ["CALCULATOR", "Instructions"])
-        self.assertEqual(workbook["CALCULATOR"].max_column, 9)
+        self.assertEqual(workbook["CALCULATOR"].max_column, 8)
         self.assertEqual(workbook["CALCULATOR"].max_row, 1001)
-        self.assertEqual(workbook["CALCULATOR"]["A1"].value, 'Line')
-        self.assertEqual(workbook["CALCULATOR"]["A1001"].value, 1000)
+        self.assertNotIn('Line', [cell.value for cell in workbook["CALCULATOR"][1]])
+        self.assertIsNone(workbook["CALCULATOR"]["A1001"].value)
         self.assertFalse(any(cell.data_type == "f" for sheet in workbook for row in sheet for cell in row))
         workbook.close()
         self.assertEqual(self.stored_rows(), [])
@@ -214,9 +214,9 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         before = self.stored_rows()
         workbook = load_workbook(BytesIO(self.exported()))
         sheet = workbook["CALCULATOR"]
-        for column, value in enumerate(["250x250", "CAFCO 300", 0.12345678901234566, "120/120/120", 0, 0, "External", "Horizontal"], 2):
+        for column, value in enumerate(["250x250", "CAFCO 300", 0.12345678901234566, "120/120/120", 0, 0, "External", "Horizontal"], 1):
             sheet.cell(2, column, value)
-        sheet["B1001"] = "500x250"
+        sheet["A1001"] = "500x250"
         sheet.row_dimensions[1001].hidden = True
         payload = _serialize_exact(workbook)
         workbook.close()

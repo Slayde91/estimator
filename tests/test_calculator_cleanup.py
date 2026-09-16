@@ -88,6 +88,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             ("POST", "/calculate", {"sheet": "SETTINGS", "start_row": 40, "row_count": 3, "inputs": inputs}),
             ("POST", "/worksheet", {"sheet": "SETTINGS", "inputs": inputs}),
             ("POST", "/report.pdf", {"inputs": inputs}),
+            ("POST", "/summary.pdf", {"inputs": inputs}),
             ("POST", "/import", {"filename": "schedule.xlsx", "content_base64": self.template, "inputs": inputs}),
             ("PUT", "/state", {"inputs": inputs}),
         )
@@ -149,6 +150,7 @@ class CalculatorCleanupTests(unittest.TestCase):
         preview = self.request("POST", "/calculate", {"sheet": "SETTINGS", "start_row": 40, "row_count": 3})
         self.assertEqual(self.cells(preview)["D42"]["value"], legacy["SETTINGS"]["D42"])
         self.assertTrue(self.request("POST", "/report.pdf", {"inputs": legacy}).startswith(b"%PDF-"))
+        self.assertTrue(self.request("POST", "/summary.pdf", {"inputs": legacy}).startswith(b"%PDF-"))
         imported = self.request("POST", "/import", {"filename": "schedule.xlsx", "content_base64": self.template, "inputs": legacy})
         self.assertEqual(imported["inputs"]["SETTINGS"], legacy["SETTINGS"])
         self.assertEqual(self.rows(), before)

@@ -1,34 +1,32 @@
 # Roadmap
 
-Current increment: compact pricing workbook and restored expandable Used in
-details on `feat/compact-pricing-workbook`. The exchange has one row per product
-with separate product Sell price and use Sell rate, eight aligned semicolon CSV
-use lists, preserved empty positions and strict count validation. Existing
-combined-row and two-list imports remain supported. The browser restores
-expand/collapse while retaining shared pricing and independent use edits.
-No calculation model, commercial rule or SQL migration is added.
+Current increment: separate calculator schedule and materials/summary PDFs on
+`feat/separate-calculator-pdfs`, based on PR #25 merge `c4e1a79`.
+The existing report endpoint now contains Full schedule only; the new summary
+endpoint contains Material quantities and summary, including final material
+orders, ancillary tables and board EXTRA BOARDS. Excel retains the complete
+Summary/Schedule/Extra boards projection. Exposure inputs use normal weight
+only in the three source-backed schedule columns; headings and reference
+labels remain emphasized. The toolbar orders schedule PDF before Excel register
+and the new materials & summary PDF.
 
-Initial local checks passed 34 unique workbook tests across runs (ten compact and 24 legacy),
-including three 216-scenario parity routes. Five API integration tests and all
-126 UI checks (33 Estimator and 93 Calculator) pass, as do JavaScript syntax and
-scoped diff checks. The 417-row export retains all 166 uses and exact
-catalog values, links and order. Native Excel opened both old/new layouts
-normally; its saved copy reimported without catalog changes. Both sheets were
-rendered, and browser filters/expanders preserved independent yields.
+Verified before publication: 30 API/cleanup tests, all 11 PDF/projection tests
+(including the corrected summary-only quantity assertion), nine display-metadata
+tests, 128 UI checks (33 Estimator and 95 Calculator), JavaScript syntax and
+scoped diff checks. Six HTTP-generated PDF scopes pass; the 1,000-item spray
+schedule retains every unique mark across 67 pages, including the final item.
+Rendered pages from every report type were reviewed, including repeating headers
+and page breaks. Distribution build and isolated package wiring checks pass.
+The full Python regression run is in progress. Exact-head CI/review, runtime
+refresh and merge remain pending; later results belong in the local receipt.
+Evidence: `.runtime/calculator-pdf-split-qa`.
 
-Initial CI at `ba98894` caught the shared board-schedule column limit, an old
-server-test layout assumption and no-lxml CRLF normalization. The corrections
-pass 13 schedule, 14 server and seven no-lxml serializer/precision/security
-checks, including wrong-format upload validation for all three calculators.
-That correction audit found no issues, and both `b0b058a` CI runs passed 274
-Python tests plus four optional source skips, 126 UI checks and build.
-
-A later native Excel probe exposed escaped CRLF text. The final pricing-only
-decoder/export correction passes five API tests, eight focused workbook tests
-and the native three-use text/rate/yield/ID probe. Native SaveCopyAs/reimport
-preserves CRLF/LF, quoted names and literal escape-looking text with zero
-changes. Fresh corrected-head CI, final runtime rechecks and
-publication remain pending. Evidence belongs in `.runtime/compact-pricing-qa`.
+Historical PR #25 merged at `c4e1a79` with verified successful post-merge CI.
+It restored expandable pricing uses and introduced compact one-row product
+exports with eight aligned use lists, both older import formats and native
+Excel text preservation. Its final receipt is
+`.runtime/compact-pricing-qa/publication.json`; those checks do not validate
+the current PDF split.
 
 Historical PR #24 merged at `7408276` with successful post-merge CI. It repaired
 freeze-pane metadata and temporarily used an inline browser table with separate
@@ -81,7 +79,7 @@ not verify this subsequent presentation increment or its publication status.
 - Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
 - Populated/blank output highlights, plus a scoped published-thickness highlight; zero remains populated. Vermiculite Section ID uses the source-backed native list without duplicating every option across the initial 1,000-row DOM.
 - Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; reset remains a draft until Save calculator. Numeric material settings stay adjustable.
-- Schedule PDF downloads with thicknesses, areas, applicable quantities, additional boards, product/ancillary tables and closing totals. Duplicate detail, standalone helper and settings appendices are removed.
+- Schedule-only PDF downloads retain used items, thicknesses, areas, applicable quantities and statuses. A separate materials & summary PDF retains product/ancillary tables, closing totals and board extras; both use the same complete calculation. Duplicate detail, standalone helper and settings appendices remain excluded.
 - Excel register downloads from the same draft/report projection, with typed exact values, Summary/Schedule and board Extra boards sheets, filters and retained statuses/qualifications. No state save or live Excel calculation is implied.
 - Original exclusions/withheld quantities and the approved duct text correction.
 - Australian manuals, PDS/SDS and clearly labelled report/request links.
@@ -90,8 +88,8 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-SESSION_HANDOFF.md records the current compact-pricing checkpoint.
-Use current Git/checks and `.runtime/compact-pricing-qa/publication.json` for later
+SESSION_HANDOFF.md records the current PDF-split checkpoint.
+Use current Git/checks and `.runtime/calculator-pdf-split-qa/publication.json` for later
 validation and publication outcomes. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 
@@ -105,8 +103,8 @@ and display checks; source expectations stay unchanged. See
 
 ## Meaningful remaining work
 
-Validate the current compact workbook and restored browser details, verify the
-refreshed runtime and saved state, then publish the increment.
+Validate both PDF scopes and preserved Excel results, verify the refreshed
+runtime and saved state, then publish the increment.
 Verify the current PR's exact-head CI/review state before merging and confirm
 the resulting merge commit. Earlier CI or billing results do not establish the
 current outcome. Never bypass or relabel a failed check.

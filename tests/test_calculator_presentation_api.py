@@ -49,11 +49,11 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         with self.store.connect() as db:
             db.execute("DELETE FROM calculator_states")
 
-    def request(self, method, path, body=None):
+    def request(self, method, path, body=None, headers=None):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=120)
         try:
             connection.request(method, path, body=json.dumps(body) if isinstance(body, dict) else body,
-                               headers={"Content-Type": "application/json"})
+                               headers={"Content-Type": "application/json", **(headers or {})})
             response = connection.getresponse()
             return response.status, dict(response.getheaders()), response.read()
         finally:
@@ -277,48 +277,99 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             cells[f"F{row}" if identity == "steel_board" else f"J{row}"] = 12.345678901234567
         return {schedule["sheet"]: cells}
 
-    def test_all_three_pdf_downloads_use_the_current_draft_without_saving(self):
+    def test_both_pdf_downloads_for_all_three_calculators_isolate_content_and_use_the_draft(self):
         for identity in EXTENTS:
             with self.subTest(identity=identity):
                 draft = self.single_row_draft(identity, f"CURRENT DRAFT {identity}")
+                extra_marker = "MATERIALS ONLY EXTRA ALLOWANCE"
+                if identity == "steel_vermiculite":
+                    draft['SCHEDULE']['L10'] = 987.654321
+                if identity == "steel_board":
+                    draft['EXTRA BOARDS'] = {'A45': extra_marker, 'B45': 'TRAFALGAR COREX',
+                                             'C45': 12.5, 'G45': 1.25}
                 pristine = deepcopy(draft)
                 model = source_model(identity)
                 sheet = model["schedule"]["sheet"]
                 marker_cell = "B11" if identity == "ductwork" else "A9" if identity == "steel_board" else "A10"
                 self.store.save_calculator_state(identity, {sheet: {marker_cell: "SAVED VALUE EXCLUDED FROM DRAFT"}})
                 before = self.stored_rows()
-                status, headers, payload = self.request("POST", f"/api/calculators/{identity}/report.pdf", {"inputs": draft})
-                self.assertEqual(status, 200, payload[:300])
-                self.assertEqual(headers["Content-Type"], "application/pdf")
-                self.assertEqual(headers["Content-Disposition"], f'attachment; filename="ceasefire-{identity}-schedule.pdf"')
-                self.assertEqual(headers["Cache-Control"], "no-store")
-                self.assertEqual(int(headers["Content-Length"]), len(payload))
-                reader = PdfReader(BytesIO(payload))
-                text = "\n".join(page.extract_text() for page in reader.pages)
-                self.assertIn("Full schedule", text)
-                self.assertIn("Current calculator snapshot", text)
-                for heading in ("Schedule inputs, calculations and complete notes",
-                                "Single-member calculator - separate from the schedule",
-                                "Manual bag calculation - separate from the schedule",
-                                "Settings used for this report"):
-                    self.assertNotIn(heading, text)
-                self.assertIn("Final product and material summary", text)
-                self.assertIn("Overall schedule totals", reader.pages[-1].extract_text())
-                if identity != "steel_board":
-                    self.assertIn("12.35", text)
-                else:
-                    # Board length was shown in the removed input-detail
-                    # section; its retained schedule reports calculated areas.
-                    self.assertIn("Net board", text)
-                    self.assertIn("EXTRA BOARDS", text)
                 marker = "333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}"
-                self.assertIn("".join(marker.split()), "".join(text.split()))
-                self.assertNotIn("SAVED VALUE EXCLUDED FROM DRAFT", text)
-                self.assertGreaterEqual(len(reader.pages), 3)
-                self.assertTrue(any(obj.get_object().get("/Subtype") == "/Image"
-                                    for obj in reader.pages[0]["/Resources"]["/XObject"].values()))
+                for route, filename in (("report.pdf", "schedule"), ("summary.pdf", "materials-summary")):
+                    with self.subTest(route=route):
+                        status, headers, payload = self.request("POST", f"/api/calculators/{identity}/{route}", {"inputs": draft})
+                        self.assertEqual(status, 200, payload[:300])
+                        self.assertEqual(headers["Content-Type"], "application/pdf")
+                        self.assertEqual(headers["Content-Disposition"], f'attachment; filename="ceasefire-{identity}-{filename}.pdf"')
+                        self.assertEqual(headers["Cache-Control"], "no-store")
+                        self.assertEqual(int(headers["Content-Length"]), len(payload))
+                        reader = PdfReader(BytesIO(payload))
+                        text = "\n".join(page.extract_text() for page in reader.pages)
+                        compact_text = "".join(text.split())
+                        self.assertIn("Current calculator snapshot", text)
+                        self.assertIn(model['source']['filename'], compact_text)
+                        self.assertIn(model['source']['sha256'], compact_text)
+                        for heading in ("Schedule inputs, calculations and complete notes",
+                                        "Single-member calculator - separate from the schedule",
+                                        "Manual bag calculation - separate from the schedule",
+                                        "Settings used for this report"):
+                            self.assertNotIn(heading, text)
+                        if route == "report.pdf":
+                            self.assertIn("Full schedule", text)
+                            self.assertIn("".join(marker.split()), compact_text)
+                            for heading in ("Final product and material summary", "Overall schedule totals",
+                                            "Product totals", "Product order totals", "Board stock totals by product and thickness",
+                                            "Extra-board item"):
+                                self.assertNotIn(heading, text)
+                            self.assertNotIn("".join(extra_marker.split()), compact_text)
+                            if identity != "steel_board":
+                                self.assertIn("12.35", text)
+                            else:
+                                self.assertIn("Net board", text)
+                        else:
+                            self.assertNotIn("Full schedule", text)
+                            self.assertNotIn("".join(marker.split()), compact_text)
+                            self.assertIn("Material quantities and summary", text)
+                            self.assertIn("Final product and material summary", text)
+                            self.assertIn("Overall schedule totals", text)
+                            if identity == "steel_board":
+                                self.assertIn("".join(extra_marker.split()), compact_text)
+                                self.assertIn("Extra-board item 40", text)
+                            elif identity == "ductwork":
+                                # Surface is perimeter (1.11 m) × draft length.
+                                self.assertIn("13.70", text)
+                            else:
+                                self.assertIn("987.65", text)
+                        self.assertNotIn("SAVED VALUE EXCLUDED FROM DRAFT", text)
+                        self.assertGreaterEqual(len(reader.pages), 1)
+                        self.assertTrue(any(obj.get_object().get("/Subtype") == "/Image"
+                                            for obj in reader.pages[0]["/Resources"]["/XObject"].values()))
+                        self.assertEqual(self.stored_rows(), before)
                 self.assertEqual(self.stored_rows(), before)
                 self.assertEqual(draft, pristine)
+        self.assertEqual({path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                          for path in (ROOT / "data/calculators").glob("*.json.gz")}, self.source_hashes)
+
+    def test_both_pdf_routes_use_saved_fallback_but_explicit_empty_inputs_use_source_values(self):
+        saved = self.single_row_draft('ductwork', 'unused')
+        saved['CALCULATOR'].update({'B11': '777x444', 'D11': 987.654321})
+        self.store.save_calculator_state('ductwork', saved)
+        before = self.stored_rows()
+        for route in ('report.pdf', 'summary.pdf'):
+            with self.subTest(route=route):
+                status, _, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {})
+                self.assertEqual(status, 200, payload[:300])
+                saved_text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+                # The schedule shows length; its summary shows surface area.
+                expected_value = '987.65' if route == 'report.pdf' else '2,411.85'
+                self.assertIn(expected_value, saved_text)
+                status, _, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {'inputs': {}})
+                self.assertEqual(status, 200, payload[:300])
+                source_text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+                self.assertNotIn(expected_value, source_text)
+                self.assertNotIn('777x444', source_text)
+                self.assertNotEqual(source_text, saved_text)
+                self.assertEqual(self.stored_rows(), before)
+        self.assertEqual(self.store.calculator_state('ductwork')['inputs'], saved)
 
     def test_pdf_request_boundaries_reject_invalid_inputs_without_writes(self):
         self.store.save_calculator_state("ductwork", {"CALCULATOR": {"D11": 5}})
@@ -326,11 +377,15 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         invalid = [{"sheet": "SUMMARY"}, {"include_advanced": True}, {"title": "Unsupported"},
                    {"inputs": []}, {"inputs": True}, {"inputs": {"CALCULATOR": {"M11": 123}}},
                    {"inputs": {"CALCULATOR": {"D11": float("inf")}}}]
-        for body in invalid:
-            with self.subTest(body=body):
-                self.json_request("POST", "/api/calculators/ductwork/report.pdf", body, expected=400)
-        self.json_request("PUT", "/api/calculators/ductwork/report.pdf", {}, expected=405)
-        self.json_request("POST", "/api/calculators/missing/report.pdf", {}, expected=400)
+        for route in ('report.pdf', 'summary.pdf'):
+            for body in invalid:
+                with self.subTest(route=route, body=body):
+                    self.json_request("POST", f"/api/calculators/ductwork/{route}", body, expected=400)
+            self.json_request("PUT", f"/api/calculators/ductwork/{route}", {}, expected=405)
+            self.json_request("POST", f"/api/calculators/missing/{route}", {}, expected=400)
+            for headers in ({'Origin': 'https://attacker.example'}, {'Host': 'attacker.example'}):
+                with self.subTest(route=route, headers=headers):
+                    self.assertEqual(self.request('POST', f'/api/calculators/ductwork/{route}', {}, headers)[0], 403)
         self.assertEqual(self.stored_rows(), before)
 
     def test_all_excel_registers_use_the_current_draft_without_saving(self):
@@ -399,7 +454,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         with self.store.connect() as db:
             db.execute("INSERT INTO calculator_states VALUES(?,?,?)", ("ductwork", json.dumps(stale), "original-time"))
         before = self.stored_rows()
-        for route in ("worksheet", "report.pdf", "register.xlsx"):
+        for route in ("worksheet", "report.pdf", "summary.pdf", "register.xlsx"):
             with self.subTest(route=route):
                 error = self.json_request("POST", f"/api/calculators/ductwork/{route}", {"inputs": {}}, expected=400)
                 self.assertIn("version", error["error"])

@@ -197,18 +197,21 @@ class _ScheduleReport(_Report):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')
 
-    def overview(self):
+    def overview(self, *, materials=False):
         data = self.data
-        self.story += [self.p('Current calculator snapshot', 'small'), self.p(data['title'], 'title'),
-                       self.p('Full schedule and material quantities', 'section'), self.p(data['basis'])]
-        self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. Every used item remains in this report.", 'alert' if data['incomplete_rows'] else 'body'))
-        self.story.append(self.table(['Schedule measure', 'Total'],
-            [[self.p(label, 'cell'), self.numeric(value)] for label, value in data['totals']], [_CONTENT * .68, _CONTENT * .32]))
-        self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the final product order summary before ordering. Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
+        self.story += [self.p('Current calculator snapshot', 'small'), self.p(data['title'], 'title')]
+        if materials:
+            self.story += [self.p('Material quantities and summary', 'section'), self.p(data['basis'])]
+        coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
+                    'Every used item remains in this report.')
+        self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
+        if materials:
+            self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
+        self.story.append(self.p('Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
 
     def schedule(self):
         data = self.data
-        self.story += [PageBreak(), self.p('Full schedule', 'section')]
+        self.story.append(self.p('Full schedule', 'section'))
         if not data['rows']:
             self.story.append(self.p('No schedule inputs are entered.'))
             return
@@ -257,7 +260,7 @@ class _ScheduleReport(_Report):
 
     def product_totals(self):
         data = self.data
-        self.story += [PageBreak(), self.p('Final product and material summary', 'section')]
+        self.story.append(self.p('Final product and material summary', 'section'))
         for value in data.get('summary_notes', []):
             self.note_block(_source_text(data['id'], 'BOARD SUMMARY', 'A8', value))
         for summary in data['summaries']:
@@ -291,24 +294,39 @@ class _ScheduleReport(_Report):
             self.table(['Schedule measure', 'Total'], [[self.p(label, 'cell'), self.numeric(value)] for label, value in data['totals']],
                        [_CONTENT * .68, _CONTENT * .32])]))
         self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
+    def provenance(self):
+        data = self.data
         self.story.append(self.p('Report generated from the complete current calculator input snapshot. Authoritative workbook: ' + data['source']['filename'] + '. Source SHA-256: ' + data['source']['sha256'] + '.', 'small'))
 
 
 def build_calculator_report(calculator_id, inputs=None):
-    """Return a branded landscape PDF; reading a draft never saves it."""
+    """Return the full schedule only; reading a draft never saves it."""
+    return _build_calculator_pdf(calculator_id, inputs, materials=False)
+
+
+def build_calculator_summary_report(calculator_id, inputs=None):
+    """Return material quantities, pooled summaries and extra-board allowances."""
+    return _build_calculator_pdf(calculator_id, inputs, materials=True)
+
+
+def _build_calculator_pdf(calculator_id, inputs, *, materials):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
     logo_width, logo_height = logo.getSize()
     report = _ScheduleReport(data)
-    report.overview()
-    report.schedule()
-    report.extras()
-    report.product_totals()
+    report.overview(materials=materials)
+    if materials:
+        report.product_totals()
+        report.extras()
+    else:
+        report.schedule()
+    report.provenance()
+    report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,
-        topMargin=73, bottomMargin=43, pageCompression=1, title='Ceasefire - ' + data['title'],
-        author='Ceasefire', subject='Full estimating schedule and product quantities')
+        topMargin=73, bottomMargin=43, pageCompression=1, title='Ceasefire - ' + data['title'] + ' - ' + report_title,
+        author='Ceasefire', subject=report_title)
 
     def decorate(canvas, doc):
         canvas.saveState()
@@ -317,7 +335,8 @@ def build_calculator_report(calculator_id, inputs=None):
                          width=logo_width * scale, height=logo_height * scale, mask='auto')
         canvas.setFillColor(_MUTED)
         canvas.setFont('CeasefireVera', 8)
-        canvas.drawRightString(_WIDTH - _MARGIN, _HEIGHT - 34, 'CALCULATORS | FULL SCHEDULE')
+        canvas.drawRightString(_WIDTH - _MARGIN, _HEIGHT - 34,
+                               'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'))
         canvas.setStrokeColor(_RED)
         canvas.line(_MARGIN, _HEIGHT - 61, _WIDTH - _MARGIN, _HEIGHT - 61)
         canvas.setStrokeColor(_LINE)

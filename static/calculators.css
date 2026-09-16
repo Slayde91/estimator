@@ -171,6 +171,7 @@
 .calculator-grid .calculator-normal{font-weight:400!important}
 .calculator-grid input,.calculator-grid textarea{font-weight:400}
 .calculator-grid .calculator-bold select{font-weight:inherit}
+.calculator-grid td.calculator-exposure-input,.calculator-grid td.calculator-exposure-input :is(input,select,textarea){font-weight:400!important}
 .calculator-grid tr:has(>.calculator-role-collapsed_spacer){height:0}
 .calculator-grid td.calculator-role-collapsed_spacer{padding:0!important;height:0;border-block:0!important}
 .calculator-overview-full .calculator-summary-cards{width:calc(100% - 52px);margin:22px 26px}

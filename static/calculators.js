@@ -202,6 +202,7 @@
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
     $("calculator-excel").disabled = state.action || hasErrors;
+    $("calculator-summary-pdf").disabled = state.action || hasErrors;
     if (hasErrors) calculationStatus("Enter a valid number to recalculate.");
     $("calculator-reset").disabled = state.action;
     $("calculator-import").disabled = state.action;
@@ -617,6 +618,7 @@
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
+    const exposureColumns = new Set((schedule?.columns || []).filter((column) => column.editable && /exposure/i.test(column.label)).map((column) => columnNumber(column.column)));
     const presentationTables = metadata.presentation_tables;
     const stackedTables = metadata.table_layout === "stacked" && presentationTables.length > 0;
     const projectedTables = metadata.table_layout === "projected" && presentationTables.length > 0;
@@ -789,6 +791,7 @@
         if (matrixHeading) td.scope = "col";
         if (section) { td.id = section.id; td.classList.add("calculator-section-anchor", `calculator-section-theme-${section.theme}`); }
         applyCellDisplay(td, display, cell.presentation?.bold);
+        if (schedule && !explicitHeading && exposureColumns.has(column)) td.classList.add("calculator-exposure-input");
         if (rowLayout) {
           td.colSpan = placement.span; td.rowSpan = merge ? renderedGroup.rows.filter((visible) => visible >= row.row && visible <= merge.end.row).length || 1 : 1;
           if (placement.span > 1) td.classList.add("calculator-merged");
@@ -1089,7 +1092,7 @@
   async function downloadCalculatedFile({ action, buttonId, filename, label, mimeType, fileDescription }) {
     const entry = current(); if (!entry || entry.invalid.size || state.action) return;
     // Input events retain exact edits; blur completes dropdown validation before
-    // the server calculates the captured draft for the downloaded register.
+    // the server calculates the captured draft for the downloaded file.
     const focused = document.activeElement;
     if ((focused?.dataset?.calculatorCell || focused?.dataset?.calculatorCustomCell) && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
     if (current() !== entry || entry.invalid.size) return;
@@ -1125,6 +1128,10 @@
     return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "register.xlsx", label: "Excel register", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
   }
 
+  function downloadMaterialsSummaryPdf() {
+    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", filename: "materials-summary.pdf", label: "materials & summary PDF", mimeType: "application/pdf", fileDescription: "a PDF report" });
+  }
+
   $("calculator-save").addEventListener("click", save);
   $("calculator-reset").textContent = "Reset calculator defaults";
   $("calculator-reset").addEventListener("click", reset);
@@ -1134,6 +1141,7 @@
   $("calculator-import-file").addEventListener("change", importSchedule);
   $("calculator-pdf").addEventListener("click", downloadSchedulePdf);
   $("calculator-excel").addEventListener("click", downloadExcelRegister);
+  $("calculator-summary-pdf").addEventListener("click", downloadMaterialsSummaryPdf);
   window.addEventListener("beforeunload", (event) => { if ([...state.entries.values()].some((entry) => dirty(entry) || entry.invalid.size)) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireCalculators = { open };
 })();

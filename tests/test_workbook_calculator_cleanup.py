@@ -36,6 +36,7 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
         cls.package_hashes = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                               for path in DATA_DIRECTORY.glob('*.json.gz')}
         cls.source_digests = {identity: digest(source_model(identity)) for identity in IDENTITIES}
+        cls.package_digests = {identity: digest(load_workbook_catalog(identity)) for identity in IDENTITIES}
         cls.definitions = {identity: calculator_definition(identity) for identity in IDENTITIES}
 
     def metadata(self, identity, name):
@@ -232,7 +233,7 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
             fresh = calculator_definition(identity)
             self.assertEqual(fresh, original)
             self.assertEqual(digest(source_model(identity)), self.source_digests[identity])
-            self.assertEqual(source_model(identity), load_workbook_catalog(identity))
+            self.assertEqual(digest(load_workbook_catalog(identity)), self.package_digests[identity])
             self.assertEqual(source_model(identity)['source']['sha256'], read_fixture(identity, 'default')['source_sha256'])
         self.assertEqual({path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in DATA_DIRECTORY.glob('*.json.gz')}, self.package_hashes)

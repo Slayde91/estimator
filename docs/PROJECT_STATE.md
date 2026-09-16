@@ -14,15 +14,27 @@ Draft and saved PDFs both use `CEASEFIRE-Estimate.pdf`, with a safe browser
 fallback. Calculator PDFs, calculations, pricing and storage remain unchanged.
 
 All 25 focused tests pass in 30.421 seconds (ten PDF and 15 server), plus all 36
-Estimator UI checks and JavaScript syntax checks. Two PDF QA cases produced
-five/seven pages with content guards passing; visual review is underway.
-Independent code review found no unintended scope or persistence changes.
-Runtime, exact-head CI and publication remain pending; evidence belongs in
-`.runtime/estimator-pdf-cleanup-qa`.
+Estimator UI checks and JavaScript syntax checks. All 12 PDF pages passed content
+and visual review (five complete-estimate and seven incomplete/long-note pages).
+The 35-file build and 13 packaged HTTP checks pass. The isolated browser journey
+on port 18788 passed: a legacy quote's main NOTES was edited, saved and reopened,
+with the new text retained and no B12 editor. Generated notes retain historical
+Job and access text. API verification confirmed the original B12 value, pricing
+snapshot and calculated cells are unchanged. The review interruption was transient. Independent
+code review found no unintended scope or persistence changes.
+
+Implementation is committed as `567f200` (Trim Estimator PDF sections and
+simplify notes entry). Two earlier automatic-review capacity rejections were
+transient; the third authorized push succeeded. The branch now tracks
+`origin/feat/estimator-pdf-cleanup` at `567f200`. PR, CI and merge remain pending.
+The main app remains on PR #26 merge `3d3e1ed`. Current Git evidence and
+`.runtime/estimator-pdf-cleanup-qa/publication.json` govern the final outcome.
 
 The optional native-board reconstruction mismatch and large diff aborted the
-preceding PR #26 local full-suite run. No new full-suite run was attempted for
-this cleanup at this checkpoint, and the aborted run is not a claimed pass.
+preceding PR #26 local full-suite run. A broader local packaged regression is
+now running with two external `WorkbookSourceRegressionTests` excluded because
+the native board original differs from the package. Its result is pending;
+neither that run nor the preceding aborted run is claimed as a pass.
 
 Historical PR #26 merged at `3d3e1ed` with both CI runs green: 283 tests
 (four optional source skips), 128 UI checks and build. The older checkpoint

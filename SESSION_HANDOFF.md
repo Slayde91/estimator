@@ -19,22 +19,40 @@ calculation rules, pricing and storage schemas are unchanged.
 
 Validation checkpoint: all 25 focused tests passed in 30.421 seconds (ten PDF
 and 15 server tests). All 36 Estimator UI checks and JavaScript syntax checks
-pass. Two PDF QA cases produced five/seven pages with content guards passing;
-visual review is underway. Independent code review found no unintended changes
-to tables, shared calculator formatting, calculation rules or B12 persistence.
-Runtime refresh, exact-head CI and publication remain pending.
+pass. Content and visual review passed all 12 PDF pages: five for the complete
+estimate and seven for incomplete/long-note coverage. The 35-file distribution
+and 13 packaged HTTP checks pass. Independent code review found no unintended
+changes to tables, shared calculator formatting, calculations or B12 persistence.
+
+The browser journey on isolated port 18788 passed after a transient approval-
+review capacity interruption. A legacy quote was opened, its main NOTES edited,
+saved and reopened. The DOM retained `Main notes after browser edit`, showed
+zero duplicate B12 editors, and generated notes retained historical Job and
+access text. API verification confirmed the original B12 value, pricing snapshot
+and calculated cells are unchanged.
+
+Commit `567f200ef225cd2f2ee641baf2399c39338fe275` is
+`Trim Estimator PDF sections and simplify notes entry`. Two earlier automatic
+approval-review capacity rejections were transient: the third authorized push
+succeeded. The branch tracks `origin/feat/estimator-pdf-cleanup` at `567f200`.
+PR, CI and merge remain pending at this checkpoint. The main app
+still runs PR #26 merge `3d3e1ed`; it has not received this cleanup.
 
 The aborted local full-suite attempt belonged to the preceding PR #26 run:
 optional native board reconstruction encountered a native/package mismatch and
-a large comparison diff. It was not a new full-suite attempt for this cleanup,
-and is not reported as a pass for either change.
-Evidence belongs in `.runtime/estimator-pdf-cleanup-qa`.
+a large comparison diff. That aborted run is not a claimed pass. A new broader
+local packaged regression is now running with the two external
+`WorkbookSourceRegressionTests` explicitly excluded because the native board
+original differs from the package. Its result is pending.
+Evidence belongs in `.runtime/estimator-pdf-cleanup-qa`; current Git evidence
+and `publication.json` are authoritative for the final publication outcome.
 
-Next action: finish visual checks, verify preserved saved state,
-then commit/push/PR/merge after exact-head CI passes. Keep CI in the background
-while completing independent review; do not rerun the unresolved optional
-source comparison as proof of success. Classify tracked edits as presentation
-and regressions; QA PDFs, screenshots, logs and test databases remain ignored.
+Next action: commit/push these checkpoint documents, record the packaged
+regression result, create the PR and merge only after exact-head CI passes.
+Finish API preservation checks and verify saved state when refreshing the
+main runtime. These three
+checkpoint-document edits are the remaining tracked changes; implementation
+and tests are committed. QA artifacts and test databases remain ignored.
 
 Resume from this worktree and current Git/check evidence. Preserve the user's
 main checkout, live database and browser drafts. Record the actual merge and

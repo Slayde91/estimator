@@ -8,12 +8,24 @@ while the Job and access B12 editor is hidden without deleting its values.
 Draft and saved PDFs download as `CEASEFIRE-Estimate.pdf`.
 
 All 25 focused report/server tests pass (30.421 seconds), together with 36
-Estimator UI checks and JavaScript syntax checks. Five/seven-page PDF QA cases
-pass their content guards; visual review is underway. Independent diff review
-found no issues. CI, runtime verification and publication remain pending.
-The aborted optional native-board comparison was in the preceding PR #26 local
-full-suite run, not a new full-suite attempt for this cleanup. Evidence belongs
-in `.runtime/estimator-pdf-cleanup-qa`.
+Estimator UI checks and JavaScript syntax checks. Content and visual review
+passed all 12 PDF pages (five complete-estimate and seven incomplete/long-note
+pages). The 35-file package and 13 HTTP checks pass. The isolated browser journey
+passed after a transient review-capacity interruption: a legacy quote's main
+NOTES was edited, saved and reopened; no B12 editor appeared, and generated
+notes retained the historical Job and access text. API checks confirmed the
+original B12 value, pricing snapshot and calculated cells are unchanged.
+Independent diff review found no issues.
+
+Code is committed as `567f200` (Trim Estimator PDF sections and simplify notes
+entry). After two transient automatic-review capacity rejections, the third
+authorized push succeeded; the branch now tracks `origin/feat/estimator-pdf-cleanup`
+at `567f200`. PR, CI and merge remain pending. The main app
+remains at PR #26 merge `3d3e1ed`. A broader local packaged regression is running,
+explicitly excluding two external `WorkbookSourceRegressionTests` because the
+native board original differs from the package; no pass is claimed yet. The
+earlier aborted comparison belonged to PR #26. Current Git evidence and
+`.runtime/estimator-pdf-cleanup-qa/publication.json` govern the final outcome.
 
 Historical PR #26 merged at `3d3e1ed`; both CI runs passed with 283 tests
 (four optional source skips), 128 UI checks and build. Its checkpoint below is

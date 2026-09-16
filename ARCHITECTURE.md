@@ -26,6 +26,39 @@ The measurements heading is NOTES. All financial tables, generated `result.notes
 stored inputs and calculation errors remain. Shared PDF formatting helpers and
 the separate calculator schedule/summary PDFs are unchanged.
 
+## Portable project files and shared report identity
+
+The existing estimate and calculator workflows remain separate local saves. A
+versioned, values-only JSON project file combines one active estimate, its full
+pricing snapshot and the three calculator input maps for transfer between users.
+`estimator/project_file.py` validates the exchange; `POST /api/project/export`
+captures supplied browser drafts and falls back to local saved/default inputs for
+unopened calculators. `POST /api/project/import` returns validated new drafts and
+field metadata. Neither endpoint writes SQLite or replaces global pricing.
+
+Files are limited to 16 MB and reject duplicate fields, unsupported versions,
+unexpected/calculated inputs, nonfinite values and mismatched calculator source
+hashes. Imported files cannot nominate trusted reference exceptions. Results are
+recalculated through the existing quote and calculator engines; imported quote
+IDs and computed results are not accepted. The browser prepares all calculator
+definitions before applying the replacement and rejects stale loads if any draft
+changes during validation or confirmation. Imported drafts require ordinary
+explicit saves to persist locally. No database migration or dependency is added.
+
+The project bar shares the active estimate's Project No., Client and Site Address
+with both PDF actions for each calculator. Requests capture those details with
+the input snapshot. All PDF pages use the company contact header, and all PDF
+families include the three identity labels. Source filename/hash footnotes are
+omitted only from PDF presentation; internal lineage and XLSX contents remain.
+The Steel (spray) summary additionally omits the two requested summary headings.
+
+Whole-number entry applies only to the named Estimator fields: B4, B8, B9,
+B15:B23, E15:E23, B26, B27, F27 and F28. B28 displays as currency. This is an
+editing constraint, not a calculation or data migration: untouched historical
+fractions remain exact, invalid edits block saves/downloads, and other quantities
+retain their previous precision. Calculator settings choosers retain their
+existing disclosure behavior with folder-tab presentation.
+
 ## Components
 
 On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It reuses a healthy local app or starts the existing server as a hidden, detached process, waits for readiness, and opens the browser. Runtime discovery checks Python 3.11+ and every package pin in `requirements.txt`, currently ReportLab 4.4.9 and openpyxl 3.1.5; it can use an already-installed Codex runtime as a fallback. Startup logs remain in `.runtime`. There is no Windows service, login task or automatic package installation. After restarting Windows, the user runs the launcher again.
@@ -37,6 +70,7 @@ On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It r
 | `data/calculator.json` | Original editable-field metadata, formulas, default inputs and cached expected values |
 | `estimator/catalog.py` | Immutable baseline, validated replacement catalogs, separate overrides, supplier/markup propagation and explicit rate precedence |
 | `estimator/pricing_workbook.py` | Values-only XLSX export/import, complete-list validation, stable IDs and replacement preview; no persistence |
+| `estimator/project_file.py` | Versioned JSON project exchange, complete pricing snapshots and three calculator input maps; no persistence |
 | `estimator/calculator.py` | Explicit cell-addressed formula evaluation, dependency/error propagation and unrounded binary floating-point results |
 | `estimator/presentation.py` | Named business labels and error descriptions shared by the UI API and PDF presentation |
 | `estimator/quote_details.py` | Bounded project/client/site metadata, deterministic quote naming and work-summary formatting over existing calculated values |

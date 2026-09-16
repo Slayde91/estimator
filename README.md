@@ -33,7 +33,17 @@ The estimator and PDF present business labels instead of raw worksheet cell addr
 
 The quote name is read-only: for example, project `CF-1042`, client `Example Client` and site `10 High Street` produce `CF-1042- Example Client- 10 High Street`. Partial details use only the populated parts. Older quotes retain their manual names until details are entered; a new estimate without details is called `Untitled quote`. Details and the generated work summary are saved with the quote. The summary describes recorded work only; it is produced locally from the existing calculation, with no external AI or inferred technical rules.
 
-Amounts and quantities display two decimal places in the app, PDF and exported Excel formats. Existing raw values and unrounded calculation results are retained when you merely view or save them. Deliberately editing an original Quote numeric control records two displayed decimal places; the separate Calculators controls retain all entered digits. Percentage controls convert percentages to stored fractions. Excel number formatting does not round exported values. Product names, item codes and free-text notes keep their original text.
+The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/cleaning (%), Coverage required, Wastage %, Global Material Adjustment (%), Global Labour Adjustment (%), Mobilisation count and Administration count. Fractional entries show an error and must be corrected before saving or downloading. Global Adjustment ($) displays currency, including negative deductions. Daily output and extra labour days still accept decimals. Existing fractional values in saved quotes or project files remain exact until deliberately edited; viewing or saving them does not round them. Calculated amounts, PDF values and Excel numeric formats retain two-decimal presentation without rounding the underlying calculations. The separate Calculators controls retain all entered digits. Percentage controls convert percentages to stored fractions. Product names, item codes and free-text notes keep their original text.
+
+## Save and load a project
+
+**Save quote** stores individual estimates, including their pricing snapshots, in the local database. **Save calculator** stores one current state for each calculator in that same database. With the standard installation, it is `C:\ESTIMATOR\app\.runtime\estimator.sqlite3`; a custom `--database` option changes that location. Unsaved browser edits are not stored there. Saved quotes and calculator saves are independent.
+
+Use **Save Project** in the project bar to download `CEASEFIRE-Project.ceasefire-project.json`. It contains the active estimate, its complete pricing snapshot, project details and notes, and all three calculator input sets, including settings and extra boards. Open calculator drafts are captured as they stand; calculators not opened in this session use their local saved state or defaults. It does not include the entire Saved quotes collection or a separate unsaved pricing-library draft. The browser saves the file to its configured download folder, or the location you choose in its save dialog.
+
+To receive somebody else's project, choose **Load Project**, select their JSON file and review the project details before loading. The app validates the whole file and calculator source versions, then replaces the current estimate and calculator drafts together. Existing saved quotes, saved calculators and the global pricing library stay intact. Imported estimates retain the sender's pricing snapshot; results are recalculated locally. Use **Save quote** or **Save calculator** to keep individual local copies, or **Save Project** to download an updated shared file. Keep the project file if you want to restore all three calculators together later. Files from an incompatible calculator source version are rejected rather than silently reinterpreted.
+
+The shared Project No., Client and Site Address come from the active estimate. **Edit project details** takes you to those fields from any page. All PDF downloads include those details and the Ceasefire ABN, phone and email header; empty details are shown as not recorded. Workbook filenames and source-hash footnotes are omitted from PDFs while internal calculation provenance remains available.
 
 The original Quote estimator uses assessed coverage/product quantities, as its Excel Calculator does. The separate Calculators section now derives the geometry, thickness and material quantities specified in the three new workbooks. These remain separate workflows; there is no automatic, unspecified transfer into a priced quote.
 
@@ -43,8 +53,8 @@ Choose **Calculators**, then **Steel (spray)**, **Steel (board)** or **Ductwork 
 
 Vermiculite **START** shows the operating rules directly. **SETTINGS** has seven
 global/product sections, and **FACTOR CALCS** has three helper sections. Choose a
-section to open it; only that section is shown. Duct and board Settings use the
-same selection behavior. Other settings still affect calculations and are
+folder tab to open a section; only that section is shown. Duct and board Settings
+use the same folder-tab presentation and selection behavior. Other settings still affect calculations and are
 retained when you save or download. The browser remembers the open section while
 you switch tabs. In vermiculite SCHEDULE, Section ID opens a native list of source
 sections. BAGS shows product ordering first, then the **MATERIAL QUANTITIES**
@@ -92,7 +102,7 @@ Each section has Australian technical-document links with clearly identified man
 - `data/calculators/`: permanently packaged literals, databases, metadata and all 161,566 formulas from the three new workbooks. Runtime recalculates formulas; it never uses their cached answers.
 - `data/calculator_documents.json`: Australian technical-document links and availability descriptions.
 - `data/vermiculite_yield_defaults.json`: reviewed commercial starting inputs and evidence, separate from the original source graph and existing saves.
-- `.runtime/estimator.sqlite3`: local settings and saved quotes; excluded from Git. Back this file up while the app is stopped.
+- `.runtime/estimator.sqlite3`: local pricing/settings, saved quotes and one saved state per calculator; excluded from Git. Back this file up while the app is stopped.
 
 The original Calculator reads stored inventory selling prices. Those imported values remain exact until a pricing input is edited. Supplier/markup edits calculate `supplier × (1 + markup)`; explicit lookup-rate overrides take priority. The original baseline stays immutable. The active library, its separate overrides and each saved quote's complete catalog/pricing snapshot live in SQLite. Existing saved quotes keep their products and prices after library replacements; **Use current pricing** explicitly adopts the new library and flags removed selections for review.
 
@@ -117,6 +127,7 @@ node --check static/app.js
 node --check static/calculators.js
 node tests/test_ui.cjs
 node tests/test_calculators_ui.cjs
+node tests/test_project_ui.cjs
 python scripts/build.py
 ```
 

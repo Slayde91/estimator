@@ -7,12 +7,13 @@
     configuration: { inventory: {}, rates: {} }, draft: { inventory: {}, rates: {} },
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
     result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
-    workflow: "", defaultWorkflow: "Intumescent spray to ductwork",
+    workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const percentCells = new Set(["B9", "B26", "B27", ...Array.from({ length: 9 }, (_, i) => `E${i + 15}`)]);
+  const wholeCells = new Set(["B4", "B8", "B9", "B26", "B27", "F27", "F28", ...Array.from({ length: 9 }, (_, i) => `B${i + 15}`), ...Array.from({ length: 9 }, (_, i) => `E${i + 15}`)]);
   const materialNames = [
     ["Spraying", "Bags / drums"], ["Meshing", "m²"], ["Pins / clips", "m²"],
     ["Access panels", "Number of panels"], ["PromaMesh / fan enclosures", "m²"],
@@ -42,6 +43,7 @@
   function updateQuoteTitle() {
     const details = quoteDetails();
     $("quote-title").value = [details.project_no, details.client, details.site_address].filter(Boolean).join("- ") || state.legacyTitle || "Untitled quote";
+    $("project-name").textContent = $("quote-title").value;
   }
 
   function controlValue(value, percent = false) {
@@ -58,6 +60,35 @@
     // edit is limited to the two decimal places the estimator can see.
     if (Number(displayed) !== numeric) control.value = displayed;
     return Number(percent ? shiftDecimal(displayed, -2) : displayed);
+  }
+
+  function estimateControlValue(field, value) {
+    if (field.cell === "B28") return isNumber(value) ? money.format(value) : value ?? "";
+    // Existing fractional snapshots stay visible and exact until deliberately edited.
+    if (wholeCells.has(field.cell)) return isNumber(value) ? String(isPercent(field) ? shiftDecimal(value, 2) : value) : value ?? "";
+    return controlValue(value, isPercent(field));
+  }
+
+  function editedEstimateNumber(control, field) {
+    if (field.cell === "B28") {
+      const raw = control.value.trim().replace(/^(-?)\$\s*/, "$1").replace(/,/g, "");
+      if (!raw) return "";
+      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw) || !Number.isFinite(Number(raw))) return "Invalid currency amount";
+      return Number(controlNumber.format(Number(raw)));
+    }
+    if (wholeCells.has(field.cell)) {
+      if (control.validity.badInput || control.value !== "" && !Number.isInteger(Number(control.value))) return "Enter a whole number with no decimal places";
+      return control.value === "" ? "" : Number(isPercent(field) ? shiftDecimal(control.value, -2) : control.value);
+    }
+    return editedNumber(control, isPercent(field));
+  }
+
+  function inputProblem() { return [...state.inputErrors.values()][0] || ""; }
+
+  function showInputProblems() {
+    clearResults("Check inputs");
+    const box = $("calculation-errors"); box.textContent = [...state.inputErrors.values()].join("\n"); box.hidden = false;
+    for (const cell of state.inputErrors.keys()) $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
   }
 
   // Move the decimal point in its text representation, retaining all entered digits.
@@ -129,26 +160,39 @@
       control.value = state.inputs[field.cell] ?? "";
     } else {
       control = node("input");
-      control.type = field.type === "number" ? "number" : "text";
+      control.type = field.type === "number" && field.cell !== "B28" ? "number" : "text";
       const value = state.inputs[field.cell] ?? "";
-      control.value = controlValue(value, isPercent(field));
+      control.value = state.inputDrafts.has(field.cell) ? state.inputDrafts.get(field.cell) : estimateControlValue(field, value);
       if (control.type === "number") {
-        control.step = "0.01";
-        control.inputMode = "decimal";
+        control.step = wholeCells.has(field.cell) ? "1" : "0.01";
+        control.inputMode = wholeCells.has(field.cell) ? "numeric" : "decimal";
       }
+      if (field.cell === "B28") control.inputMode = "decimal";
     }
     control.id = `input-${field.cell}`;
     control.dataset.cell = field.cell;
     control.setAttribute("aria-label", `${field.label || "Estimate input"}${isPercent(field) ? " in percent" : ""}`);
+    if (state.inputErrors.has(field.cell)) {
+      control.setAttribute("aria-invalid", "true"); control.setCustomValidity?.(state.inputErrors.get(field.cell));
+    }
     control.addEventListener("input", () => {
+      state.inputRevision++;
       let value = control.value;
-      if (field.type === "number") value = editedNumber(control, isPercent(field));
+      if (field.type === "number") value = editedEstimateNumber(control, field);
+      if (field.type === "number" && typeof value === "string" && value !== "") {
+        state.inputErrors.set(field.cell, `${field.label}: ${value}.`);
+        state.inputDrafts.set(field.cell, control.value);
+        control.setAttribute("aria-invalid", "true"); control.setCustomValidity?.(value);
+        updateDirty(); scheduleCalculation(); return;
+      }
+      state.inputErrors.delete(field.cell); state.inputDrafts.delete(field.cell);
+      control.removeAttribute("aria-invalid"); control.setCustomValidity?.("");
       state.inputs[field.cell] = value;
       updateDirty();
       scheduleCalculation();
     });
     if (field.type === "number") control.addEventListener("blur", () => {
-      if (isNumber(state.inputs[field.cell]) || state.inputs[field.cell] === "") control.value = controlValue(state.inputs[field.cell], isPercent(field));
+      if (!state.inputErrors.has(field.cell) && (isNumber(state.inputs[field.cell]) || state.inputs[field.cell] === "")) control.value = estimateControlValue(field, state.inputs[field.cell]);
     });
     if (compact) return control;
     const label = node("label", "field");
@@ -237,6 +281,7 @@
     state.result = null;
     clearTimeout(state.timer);
     if (state.controller) state.controller.abort();
+    if (state.inputErrors.size) { showInputProblems(); return; }
     clearResults("Calculating…");
     state.timer = setTimeout(() => { calculate(); }, 180);
   }
@@ -245,6 +290,7 @@
     clearTimeout(state.timer);
     const revision = ++state.revision;
     if (state.controller) state.controller.abort();
+    if (state.inputErrors.size) { showInputProblems(); return null; }
     state.controller = new AbortController();
     clearResults("Calculating…");
     try {
@@ -343,6 +389,7 @@
     if (state.dirty && !await confirmReplace("Start a new estimate?", "Your current unsaved estimate changes will be replaced with the default estimate inputs.", "Start new estimate")) return;
     state.quoteContext++;
     state.quoteLoadRevision++;
+    state.inputErrors.clear(); state.inputDrafts.clear();
     state.quote = null; state.quoteConfiguration = null;
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
@@ -357,6 +404,7 @@
   }
 
   async function saveQuote() {
+    if (inputProblem()) { message(inputProblem(), true); return; }
     updateQuoteTitle();
     const title = $("quote-title").value.trim();
     const button = $("save-quote"); button.disabled = true;
@@ -366,6 +414,7 @@
       const measurements = $("measurements").value;
       const configuration = clone(state.quoteConfiguration || state.configuration);
       const quoteContext = state.quoteContext;
+      const inputRevision = state.inputRevision;
       const details = quoteDetails();
       const payload = { title, inputs, workflow, measurements, configuration, ...details };
       const saved = await request(state.quote ? `/api/quotes/${encodeURIComponent(state.quote.id)}` : "/api/quotes", { method: state.quote ? "PUT" : "POST", body: JSON.stringify(payload) });
@@ -378,7 +427,7 @@
       if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
       if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      const changedDuringSave = pricingChangedDuringSave || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
+      const changedDuringSave = pricingChangedDuringSave || state.inputRevision !== inputRevision || state.inputErrors.size > 0 || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
       message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
     } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
@@ -413,6 +462,7 @@
       if (state.dirty && !await confirmReplace("Open this saved quote?", "Your current unsaved estimate changes will be replaced by the saved quote.", "Open saved quote")) return;
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
+      state.inputErrors.clear(); state.inputDrafts.clear();
       state.quote = quote;
       state.quoteConfiguration = clone(quote.configuration || state.configuration);
       state.fields = clone(quote.fields || state.currentFields);
@@ -744,6 +794,7 @@
       refreshPricingCatalog();
       $("loading-state").hidden = true;
       await newQuote();
+      $("project-tools").hidden = false;
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
   }
 
@@ -767,7 +818,75 @@
     return /^[a-z0-9][a-z0-9._-]{0,180}\.pdf$/i.test(filename) ? filename : "CEASEFIRE-Estimate.pdf";
   }
 
+  function projectEstimate() {
+    const payload = reportPayload(); delete payload.source_quote_id; return payload;
+  }
+
+  function projectStamp() {
+    return JSON.stringify({ estimate: projectEstimate(), quoteContext: state.quoteContext,
+      quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
+      errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
+      calculators: window.CeasefireCalculators.projectFingerprint() });
+  }
+
+  function projectBusy(value) {
+    state.projectBusy = value;
+    for (const id of ["save-project", "load-project"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
+  }
+
+  async function saveProject() {
+    if (state.projectBusy) return;
+    projectBusy(true);
+    try {
+      if (inputProblem()) throw new Error(inputProblem());
+      const payload = { estimate: projectEstimate(), calculators: window.CeasefireCalculators.projectSnapshot() };
+      const captured = projectStamp();
+      const response = await fetch("/api/project/export", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/octet-stream" }, body: JSON.stringify(payload) });
+      if (!response.ok) { const data = await response.json().catch(() => null); throw new Error(data?.error || "The project file could not be created."); }
+      if ((response.headers.get("Content-Type") || "").split(";")[0].trim() !== "application/octet-stream") throw new Error("The server did not return a project file.");
+      const blob = await response.blob(); if (!blob.size) throw new Error("The project file is empty.");
+      downloadFile(blob, "CEASEFIRE-Project.ceasefire-project.json");
+      const changed = captured !== projectStamp();
+      message(`Project file download started. It includes the estimate, its pricing snapshot and all three calculators.${changed ? " Later edits are not included." : ""}`);
+    } catch (error) { message(`Project was not saved. ${error.message}`, true); }
+    finally { projectBusy(false); }
+  }
+
+  async function loadProject() {
+    const input = $("project-import-file"), file = input.files?.[0]; input.value = "";
+    if (!file || state.projectBusy) return;
+    projectBusy(true);
+    try {
+      if (!/\.json$/i.test(file.name) || !file.size || file.size > 16 * 1024 * 1024) throw new Error("Choose a project JSON file up to 16 MB.");
+      const captured = projectStamp();
+      const content_base64 = await fileBase64(file);
+      const project = await request("/api/project/import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64 }) });
+      const prepared = await window.CeasefireCalculators.prepareProject(project.calculators);
+      if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
+      const detail = project.project_details || {};
+      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the current estimate and all three calculator drafts. Saved quotes and the pricing library stay unchanged.`, "Load Project");
+      if (!accepted) { message("Project load cancelled. Your current drafts were kept."); return; }
+      if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
+      const estimate = project.estimate;
+      // All validation and definition loading finish before either workspace changes.
+      const inputs = clone(estimate.inputs), configuration = clone(estimate.configuration), fields = clone(project.fields);
+      window.CeasefireCalculators.applyProject(prepared);
+      ++state.quoteContext; ++state.quoteLoadRevision;
+      state.inputErrors.clear(); state.inputDrafts.clear();
+      state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
+      state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
+      $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
+      state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
+      updateQuoteTitle(); renderInputs(); updateDirty();
+      $("snapshot-message").hidden = false; $("snapshot-message").querySelector("span").textContent = "This project uses the pricing snapshot from its file.";
+      showView("estimate"); scheduleCalculation();
+      message("Project loaded as a draft. Save Project downloads a complete copy; Save quote and Save calculator keep individual records on this computer.");
+    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+    finally { projectBusy(false); }
+  }
+
   async function downloadQuotePdf() {
+    if (inputProblem()) { message(inputProblem(), true); return; }
     const button = $("download-quote-pdf");
     if (button.disabled) return;
     const payload = reportPayload();
@@ -826,6 +945,10 @@
   $("new-quote").addEventListener("click", newQuote);
   $("save-quote").addEventListener("click", saveQuote);
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
+  $("save-project").addEventListener("click", saveProject);
+  $("load-project").addEventListener("click", () => { if (!state.projectBusy) $("project-import-file").click(); });
+  $("project-import-file").addEventListener("change", loadProject);
+  $("edit-project-details").addEventListener("click", () => { showView("estimate"); $("project-no").focus(); });
   $("refresh-quotes").addEventListener("click", loadQuotes);
   $("use-current-pricing").addEventListener("click", () => { state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields); renderInputs(); $("snapshot-message").querySelector("span").textContent = "Current pricing applied. Save to replace this quote's pricing snapshot."; updateDirty(); scheduleCalculation(); message("Current pricing applied to this estimate. Check any removed product selections, then save the quote to retain its new pricing snapshot."); });
   $("pricing-search").addEventListener("input", renderPricing);
@@ -839,5 +962,6 @@
     state.draft = clone(state.configuration); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
   window.addEventListener("beforeunload", (event) => { if (state.dirty || state.pricingDirty) { event.preventDefault(); event.returnValue = ""; } });
+  window.CeasefireProject = { details: quoteDetails };
   bootstrap();
 })();

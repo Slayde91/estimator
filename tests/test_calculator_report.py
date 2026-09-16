@@ -146,15 +146,20 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertTrue(payload.startswith(b'%PDF'))
                     self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height) for page in reader.pages))
                     self.assertTrue(all('CALCULATORS | ' + header in content for content in texts))
+                    for contact in ('ABN: 50 612 231 562', 'Phone: 1300 92 62 88', 'Email: sales@ceasefire.com.au'):
+                        self.assertTrue(all(contact in content for content in texts))
+                    for field in ('Project No.', 'Client', 'Site Address', 'Not recorded'):
+                        self.assertIn(field, text)
                     self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
                     self.assertTrue(all(page.images for page in reader.pages))
                     self.assertIn('Current calculator snapshot', text)
                     board_summary = identity == 'steel_board' and builder is build_calculator_summary_report
+                    for removed in ('Report generated from the complete', 'Authoritative workbook',
+                                    'Source SHA-256', source_model(identity)['source']['sha256']):
+                        self.assertNotIn(removed, text)
                     if board_summary:
-                        self.assertNotIn(source_model(identity)['source']['sha256'], text)
                         self.assertNotIn('Display rounding is limited', text)
                     else:
-                        self.assertIn(source_model(identity)['source']['sha256'], text)
                         self.assertIn('Display rounding is limited', text)
                     for heading in REMOVED_SECTIONS:
                         self.assertNotIn(heading, text)
@@ -165,9 +170,14 @@ class CalculatorReportTests(unittest.TestCase):
                 text, summary = reports
                 self.assertIn('Full schedule', text)
                 self.assertNotIn('Full schedule', summary)
-                for heading in ('Material quantities and summary', 'Final product and material summary', 'Overall schedule totals'):
+                for heading in ('Material quantities and summary', 'Overall schedule totals'):
                     self.assertNotIn(heading, text)
                     self.assertIn(heading, summary)
+                self.assertNotIn('Final product and material summary', text)
+                if identity == 'steel_vermiculite':
+                    self.assertNotIn('Final product and material summary', summary)
+                else:
+                    self.assertIn('Final product and material summary', summary)
                 self.assertNotIn('EXTRA BOARDS', text)
                 if identity == 'ductwork':
                     self.assertIn('11.70', text)
@@ -182,7 +192,10 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('218.38', text)
                     self.assertIn('219.00', text)
                     self.assertNotIn('Product order totals', text)
-                    self.assertIn('Product order totals', summary)
+                    self.assertNotIn('Product order totals', summary)
+                    for retained in ('Whole bags per product are pooled from net bags', 'CAFCO 300',
+                                     'MONOKOTE MK-6 HY', 'Order status', 'Overall schedule totals'):
+                        self.assertIn(retained, summary)
                 else:
                     self.assertIn('74.40', summary)
                     self.assertIn('30.00', text)
@@ -337,6 +350,25 @@ class CalculatorReportTests(unittest.TestCase):
             for builder in (build_calculator_report, build_calculator_summary_report):
                 with self.assertRaises(ValidationError):
                     builder('ductwork', inputs)
+
+    def test_project_details_are_literal_complete_and_do_not_change_report_data(self):
+        details = {'project_no': 'CF-1000 <reference> & ' + 'P' * 70 + ' PROJECT END',
+                   'client': 'Client <b>literal</b> & ' + 'C' * 160 + ' CLIENT END',
+                   'site_address': 'Site address <literal> & ' + 'S' * 260 + ' ADDRESS END'}
+        original = deepcopy(details)
+        for identity in ('steel_vermiculite', 'steel_board', 'ductwork'):
+            data = project_calculator_report(identity, {})
+            before = deepcopy(data)
+            for builder in (build_calculator_report, build_calculator_summary_report):
+                with self.subTest(identity=identity, builder=builder.__name__), patch(
+                        'estimator.calculator_report.project_calculator_report', return_value=data):
+                    reader = PdfReader(BytesIO(builder(identity, {}, project_details=details)))
+                    text = ''.join(''.join(page.extract_text().split()) for page in reader.pages)
+                    for value in details.values():
+                        self.assertIn(''.join(value.split()), text)
+                    self.assertNotIn('Notrecorded', text)
+                    self.assertEqual(data, before)
+                    self.assertEqual(details, original)
 
 
 if __name__ == '__main__':

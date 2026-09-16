@@ -1104,11 +1104,12 @@
     if ((focused?.dataset?.calculatorCell || focused?.dataset?.calculatorCustomCell) && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
     if (current() !== entry || entry.invalid.size) return;
     const id = entry.definition.id, snapshot = clone(entry.inputs), revision = entry.revision;
+    const projectDetails = mimeType === "application/pdf" ? clone(window.CeasefireProject?.details() || {}) : null;
     const button = $(buttonId), previousLabel = button.textContent;
     state.action = true; updateStatus();
     button.textContent = `Preparing ${label}…`; button.setAttribute("aria-busy", "true");
     try {
-      const response = await fetch(endpoint(id, action), { method: "POST", headers: { "Content-Type": "application/json", Accept: mimeType }, body: JSON.stringify({ inputs: snapshot }) });
+      const response = await fetch(endpoint(id, action), { method: "POST", headers: { "Content-Type": "application/json", Accept: mimeType }, body: JSON.stringify({ inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) }) });
       const contentType = String(response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
       if (!response.ok) {
         let detail = `The server could not create the ${label} (${response.status}).`;
@@ -1121,7 +1122,7 @@
       const url = URL.createObjectURL(blob), link = node("a");
       link.href = url; link.download = fixedFilename ? filename : `ceasefire-${id}-${filename}`; document.body.append(link);
       try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
-      const changed = current() !== entry || entry.revision !== revision;
+      const changed = current() !== entry || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
       message(`${label} download started using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
     } catch (error) { message(`Could not download the ${label}. ${error.message}`, true); }
     finally { button.textContent = previousLabel; button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
@@ -1149,5 +1150,37 @@
   $("calculator-excel").addEventListener("click", downloadExcelRegister);
   $("calculator-summary-pdf").addEventListener("click", downloadMaterialsSummaryPdf);
   window.addEventListener("beforeunload", (event) => { if ([...state.entries.values()].some((entry) => dirty(entry) || entry.invalid.size)) { event.preventDefault(); event.returnValue = ""; } });
-  window.CeasefireCalculators = { open };
+  function projectSnapshot() {
+    document.activeElement?.blur?.();
+    if (state.action) throw new Error("Wait for the current calculator action to finish.");
+    if ([...state.entries.values()].some((entry) => entry.invalid.size)) throw new Error("Correct the invalid calculator inputs before saving a project.");
+    return Object.fromEntries([...state.entries].map(([id, entry]) => [id, { inputs: clone(entry.inputs) }]));
+  }
+
+  function projectFingerprint() {
+    return JSON.stringify({ action: state.action, entries: [...state.entries].map(([id, entry]) => [id, entry.inputs, entry.saved, [...entry.invalid]]) });
+  }
+
+  async function prepareProject(calculators) {
+    if (state.action) throw new Error("Wait for the current calculator action to finish.");
+    const list = state.list || (await request("/api/calculators")).calculators;
+    const entries = await Promise.all(list.map(async ({ id }) => {
+      const definition = state.entries.get(id)?.definition || await request(endpoint(id));
+      if (!calculators[id]?.inputs) throw new Error("The project is missing a calculator.");
+      const page = displayPages(definition)[0];
+      return [id, { definition, inputs: clone(calculators[id].inputs), saved: null, revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() }];
+    }));
+    return { list, entries };
+  }
+
+  function applyProject(prepared) {
+    if (state.action) throw new Error("Wait for the current calculator action to finish.");
+    ++state.loadRevision; ++state.requestRevision; clearTimeout(state.timer);
+    state.entries = new Map(prepared.entries); state.list = prepared.list; state.current = null;
+    state.optionLists.clear(); state.optionKeys = new WeakMap(); state.nextListId = 0;
+    $("calculator-option-lists").replaceChildren(); $("calculator-grid").replaceChildren();
+    $("calculator-workspace").hidden = true; renderChoices(); message();
+  }
+
+  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
 })();

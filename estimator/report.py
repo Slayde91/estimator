@@ -44,6 +44,26 @@ _PAGE_WIDTH, _PAGE_HEIGHT = A4
 _MARGIN = 36
 _WIDTH = _PAGE_WIDTH - 2 * _MARGIN
 
+
+def _company_header(canvas, logo, page_width, page_height, margin, report_label):
+    """Draw the same contact header within the reserved space on every PDF page."""
+    logo_width, logo_height = logo.getSize()
+    scale = min(146 / logo_width, 35 / logo_height)
+    canvas.drawImage(logo, margin, page_height - 22 - logo_height * scale,
+                     width=logo_width * scale, height=logo_height * scale, mask="auto")
+    canvas.setFillColor(_MUTED)
+    canvas.setFont("CeasefireVera", 7.5)
+    for offset, text in (
+        (27, report_label),
+        (40, "ABN: 50 612 231 562"),
+        (51, "Phone: 1300 92 62 88"),
+        (62, "Email: sales@ceasefire.com.au"),
+    ):
+        canvas.drawRightString(page_width - margin, page_height - offset, text)
+    canvas.setStrokeColor(_RED)
+    canvas.setLineWidth(1.1)
+    canvas.line(margin, page_height - 78, page_width - margin, page_height - 78)
+
 # label, input row, hidden material row, requirements row, labour row, team cell
 _LINES = (
     ("Spray / wrap", 15, 63, 35, 65, "D2"),
@@ -275,8 +295,8 @@ class _Report:
         self.story.append(self.p(self.quote.get("workflow", "Workflow not recorded")))
         identity = [
             [self.p("Client", "cell"), self.p(self.quote.get("client") or "Not recorded", "cell")],
-            [self.p("Site address", "cell"), self.p(self.quote.get("site_address") or "Not recorded", "cell")],
-            [self.p("Project number", "cell"), self.p(self.quote.get("project_no") or "Not recorded", "cell")],
+            [self.p("Site Address", "cell"), self.p(self.quote.get("site_address") or "Not recorded", "cell")],
+            [self.p("Project No.", "cell"), self.p(self.quote.get("project_no") or "Not recorded", "cell")],
             [self.p("Quote reference", "cell"), self.p(self.quote.get("id") or "Current unsaved estimate", "cell")],
             [self.p("Snapshot updated", "cell"), self.p(_date(self.quote.get("updated_at")), "cell")],
         ]
@@ -451,24 +471,15 @@ def render_quote_pdf(quote: dict) -> bytes:
     destination = BytesIO()
     document = SimpleDocTemplate(
         destination, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN,
-        topMargin=75, bottomMargin=47, pageCompression=1,
+        topMargin=91, bottomMargin=47, pageCompression=1,
         title=_text(quote.get("title", "Ceasefire estimate")),
         author="Ceasefire", subject="Complete estimating material and labour breakdown",
     )
 
     def decorate(canvas, doc):
         canvas.saveState()
-        max_width, max_height = 142, 34
-        scale = min(max_width / logo_width, max_height / logo_height)
-        width, height = logo_width * scale, logo_height * scale
-        canvas.drawImage(logo, _MARGIN, _PAGE_HEIGHT - 22 - height,
-                         width=width, height=height, mask="auto")
-        canvas.setFillColor(_MUTED)
-        canvas.setFont("CeasefireVera", 7.5)
-        canvas.drawRightString(_PAGE_WIDTH - _MARGIN, _PAGE_HEIGHT - 35, "ESTIMATE | COMPLETE BREAKDOWN")
-        canvas.setStrokeColor(_RED)
-        canvas.setLineWidth(1.1)
-        canvas.line(_MARGIN, _PAGE_HEIGHT - 62, _PAGE_WIDTH - _MARGIN, _PAGE_HEIGHT - 62)
+        _company_header(canvas, logo, _PAGE_WIDTH, _PAGE_HEIGHT, _MARGIN,
+                        "ESTIMATE | COMPLETE BREAKDOWN")
         canvas.setStrokeColor(_LINE)
         canvas.setLineWidth(.5)
         canvas.line(_MARGIN, 34, _PAGE_WIDTH - _MARGIN, 34)

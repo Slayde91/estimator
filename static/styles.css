@@ -34,6 +34,14 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .eyebrow{font-size:10px;font-weight:800;letter-spacing:2.3px;color:var(--accent);margin-bottom:9px}
 .subtitle{margin-top:9px;font-size:13px;color:var(--muted)}
 .actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.project-tools{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;margin-bottom:28px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:12px;background:#fff}
+.project-tools[hidden]{display:none}
+.project-tools>div:first-child{min-width:0}
+.project-tools strong{display:block;overflow-wrap:anywhere}
+.project-tools .eyebrow{margin-bottom:3px}
+.project-tools .helper{margin-top:4px}
+.project-tools .actions{flex-shrink:0}
+@media(max-width:1000px){.project-tools{align-items:flex-start;flex-direction:column}.project-tools .actions{width:100%}}
 .button{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:650;white-space:nowrap;line-height:1.5;transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
 .button:active:not(:disabled){transform:translateY(1px)}
 .primary{color:white;background:var(--accent);border:1px solid var(--accent);box-shadow:0 3px 8px #b90a151a}

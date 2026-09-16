@@ -30,8 +30,8 @@ vm.createContext(context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,saveQuote,openQuote,newQuote,confirmReplace,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,reportFilename,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,
-    setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;}};
+    quoteDetails,updateQuoteTitle,reportPayload,reportFilename,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,
+    setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
 })();`);
@@ -45,7 +45,7 @@ const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New s
 const oldConfig={inventory:{},rates:{},version:'old'};
 const newConfig={inventory:{},rates:{},version:'new'};
 function setup(){
-  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork'});
+  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0});
   for(const id of ['project-no','client','site-address','measurements'])byId(id).value='';
 }
 let passed=0;
@@ -194,14 +194,73 @@ let passed=0;
   setup();audit.state.inputs.B15=1/3;audit.state.inputs.B9=1/3;
   const quantityControl=audit.makeControl({cell:'B15',label:'Coverage',type:'number'},true);
   const percentControl=audit.makeControl({cell:'B9',label:'Masking',type:'number'},true);
-  assert.equal(quantityControl.value,'0.33');assert.equal(percentControl.value,'33.33');
+  assert.equal(quantityControl.value,String(1/3));assert.equal(percentControl.value,'33.33333333333333');
   await quantityControl.emit('blur');await percentControl.emit('blur');
   assert.equal(audit.state.inputs.B15,1/3);assert.equal(audit.state.inputs.B9,1/3);
   quantityControl.value='12.345';await quantityControl.emit('input');await quantityControl.emit('blur');
-  assert.equal(quantityControl.value,'12.35');assert.equal(audit.state.inputs.B15,12.35);
+  assert.equal(quantityControl.value,'12.345');assert.equal(audit.state.inputs.B15,1/3);assert.ok(audit.state.inputErrors.has('B15'));
   percentControl.value='12.345';await percentControl.emit('input');await percentControl.emit('blur');
-  assert.equal(percentControl.value,'12.35');assert.equal(audit.state.inputs.B9,0.1235);
+  assert.equal(percentControl.value,'12.345');assert.equal(audit.state.inputs.B9,1/3);assert.ok(audit.state.inputErrors.has('B9'));
+  quantityControl.value='12';await quantityControl.emit('input');await quantityControl.emit('blur');
+  percentControl.value='13';await percentControl.emit('input');await percentControl.emit('blur');
+  assert.equal(quantityControl.value,'12');assert.equal(percentControl.value,'13');assert.equal(audit.state.inputs.B15,12);assert.equal(audit.state.inputs.B9,.13);assert.equal(audit.state.inputErrors.size,0);
   assert.equal(audit.formatNumber(2.345),'2.35');assert.equal(audit.formatNumber(-2.345),'-2.35');assert.equal(audit.formatMoney(-2.345),'-$2.35');passed++;
+
+  // Restrict only the explicitly named controls, in their displayed units.
+  for(const cell of ['B4','B8','B9','B26','B27','F27','F28',...Array.from({length:9},(_,i)=>`B${i+15}`),...Array.from({length:9},(_,i)=>`E${i+15}`)]){
+    setup();audit.state.inputs[cell]=0;const control=audit.makeControl({cell,label:cell,type:'number'},true);
+    assert.equal(control.step,'1');assert.equal(control.value,'0');
+    control.value='2.5';await control.emit('input');await control.emit('blur');assert.equal(audit.state.inputs[cell],0);assert.ok(audit.state.inputErrors.has(cell));
+    control.value='3';await control.emit('input');await control.emit('blur');assert.equal(audit.state.inputs[cell],(['B9','B26','B27'].includes(cell)||cell.startsWith('E')) ? .03 : 3);assert.equal(control.value,'3');assert.equal(audit.state.inputErrors.size,0);
+    control.value='';await control.emit('input');assert.equal(audit.state.inputs[cell],'');
+  }passed++;
+  setup();for(const cell of ['C15','C22','F26']){audit.state.inputs[cell]=1.5;const control=audit.makeControl({cell,label:cell,type:'number'},true);assert.equal(control.step,'0.01');control.value='2.75';await control.emit('input');assert.equal(audit.state.inputs[cell],2.75);}passed++;
+
+  // Global adjustment looks like money at rest and accepts signed currency edits.
+  setup();audit.state.inputs.B28=1234.56789;const currency=audit.makeControl({cell:'B28',label:'Global Adjustment ($)',type:'number'},true);
+  assert.equal(currency.type,'text');assert.equal(currency.value,'$1,234.57');await currency.emit('blur');assert.equal(audit.state.inputs.B28,1234.56789);
+  await currency.emit('focus');assert.equal(currency.value,'$1,234.57');currency.value='-$50.25';await currency.emit('input');await currency.emit('blur');assert.equal(audit.state.inputs.B28,-50.25);assert.equal(currency.value,'-$50.25');
+  currency.value='$invalid';await currency.emit('input');let invalidSaveCalls=0;audit.setRequest(async()=>{invalidSaveCalls++;});await audit.saveQuote();assert.equal(invalidSaveCalls,0);assert.equal(audit.state.inputs.B28,-50.25);
+  currency.value='';await currency.emit('input');assert.equal(audit.state.inputs.B28,'');assert.equal(audit.state.inputErrors.size,0);passed++;
+
+  // Filling a currency field may clear it before focus; focus must not insert the old amount.
+  setup();audit.state.inputs.B28=0;const clearedCurrency=audit.makeControl({cell:'B28',label:'Global Adjustment ($)',type:'number'},true);
+  clearedCurrency.value='';await clearedCurrency.emit('focus');assert.equal(clearedCurrency.value,'');
+  clearedCurrency.value='-1234.56';await clearedCurrency.emit('input');await clearedCurrency.emit('blur');
+  assert.equal(audit.state.inputs.B28,-1234.56);assert.equal(clearedCurrency.value,'-$1,234.56');passed++;
+
+  // A save response or pricing refresh must retain later invalid numeric text and the dirty state.
+  setup();const numericFields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.fields=copy(numericFields);audit.state.currentFields=copy(numericFields);
+  audit.state.inputs=Object.fromEntries(numericFields.map(field=>[field.cell,field.default??'']));audit.state.inputs.B15=12;audit.state.inputs.B28=0;
+  audit.setRenderInputs(audit.renderInputs);
+  const pendingNumericSave=deferred();let numericSaveBody;
+  audit.setRequest((path,options)=>{numericSaveBody=JSON.parse(options.body);return pendingNumericSave.promise;});
+  const savingNumbers=audit.saveQuote();
+  const invalidQuantity=audit.makeControl(numericFields.find(field=>field.cell==='B15'),true),invalidCurrency=audit.makeControl(numericFields.find(field=>field.cell==='B28'),true);
+  invalidQuantity.value='1.5';await invalidQuantity.emit('input');invalidCurrency.value='$invalid';await invalidCurrency.emit('input');
+  pendingNumericSave.resolve({id:'numeric-save',...numericSaveBody,fields:numericFields});await savingNumbers;
+  const numericNodes=node=>[node,...(node.children||[]).flatMap(numericNodes)];
+  const renderedNumeric=cell=>['input-sections','adjustment-sections','material-inputs'].flatMap(id=>numericNodes(byId(id))).find(node=>node.dataset?.cell===cell);
+  assert.equal(renderedNumeric('B15').value,'1.5');assert.equal(renderedNumeric('B28').value,'$invalid');
+  assert.equal(renderedNumeric('B15').getAttribute('aria-invalid'),'true');assert.equal(audit.state.inputs.B15,12);assert.equal(audit.state.inputs.B28,0);
+  assert.equal(audit.state.inputErrors.size,2);assert.equal(audit.state.dirty,true);assert.match(byId('app-message').textContent,/still need to be saved/);
+  await byId('use-current-pricing').emit('click');assert.equal(renderedNumeric('B15').value,'1.5');assert.equal(renderedNumeric('B28').value,'$invalid');assert.equal(audit.state.inputErrors.size,2);passed++;
+
+  // Identical validation messages cannot hide later invalid edits from a project-load guard.
+  context.window.CeasefireCalculators={projectFingerprint:()=>''};
+  const invalidStamp=audit.projectStamp(),firstError=audit.state.inputErrors.get('B15');
+  renderedNumeric('B15').value='1.6';await renderedNumeric('B15').emit('input');
+  assert.equal(audit.state.inputErrors.get('B15'),firstError);assert.equal(audit.state.inputs.B15,12);
+  assert.notEqual(audit.projectStamp(),invalidStamp);assert.equal(audit.state.inputDrafts.get('B15'),'1.6');
+  delete context.window.CeasefireCalculators;passed++;
+
+  // Explicit replacement clears invalid drafts after confirmation; editing a value validly clears only its own error.
+  const fixedQuantity=renderedNumeric('B15');fixedQuantity.value='14';await fixedQuantity.emit('input');
+  assert.equal(audit.state.inputDrafts.has('B15'),false);assert.equal(audit.state.inputErrors.has('B15'),false);assert.equal(audit.state.inputErrors.has('B28'),true);
+  const replaceInvalid=audit.newQuote();await flush();await dialog.close('confirm');await replaceInvalid;
+  assert.equal(audit.state.inputErrors.size,0);assert.equal(audit.state.inputDrafts.size,0);assert.equal(audit.state.dirty,false);
+  audit.setRenderInputs(()=>{});passed++;
 
   // Merely viewing or leaving a displayed pricing value must not create an override.
   setup();const item={id:'precise',name:'Precise product',supplier_price:123.456789,markup:.333333333,sales_price:164.609051};

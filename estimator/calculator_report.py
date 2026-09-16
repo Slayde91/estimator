@@ -15,7 +15,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.platypus import KeepTogether, PageBreak, SimpleDocTemplate, Spacer
 
 from .excel_engine import WorkbookEngine, column_name
-from .report import ROOT, _Report, _register_fonts, _number, _numeric, _text, _RED, _LINE, _MUTED
+from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
 from .workbook_calculators import source_model, normalize_calculator_inputs, approved_formula_overrides
 
 
@@ -169,9 +169,10 @@ def project_calculator_report(calculator_id, inputs=None):
 
 
 class _ScheduleReport(_Report):
-    def __init__(self, data):
+    def __init__(self, data, project_details=None):
         super().__init__({})
         self.data = data
+        self.project_details = project_details or {}
 
     def p(self, text, style='body'):
         text = _text(text).translate({ord(character): '-' for character in '\u2010\u2011\u2012\u2013\u2014'})
@@ -200,6 +201,12 @@ class _ScheduleReport(_Report):
     def overview(self, *, materials=False):
         data = self.data
         self.story += [self.p('Current calculator snapshot', 'small'), self.p(data['title'], 'title')]
+        details = [[self.p(label, 'cell'), self.p(self.project_details.get(key) or 'Not recorded', 'cell')]
+                   for key, label in (('project_no', 'Project No.'), ('client', 'Client'),
+                                      ('site_address', 'Site Address'))]
+        self.story.append(self.table(['Project details', 'Recorded value'], details,
+                                     [_CONTENT * .20, _CONTENT * .80]))
+        self.story.append(Spacer(1, 10))
         if materials:
             self.story += [self.p('Material quantities and summary', 'section'), self.p(data['basis'])]
         coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
@@ -258,16 +265,22 @@ class _ScheduleReport(_Report):
 
     def product_totals(self):
         data = self.data
-        self.story.append(self.p('Final product and material summary', 'section'))
+        if data['id'] != 'steel_vermiculite':
+            heading = self.p('Final product and material summary', 'section')
+            heading.keepWithNext = True
+            self.story.append(heading)
         for index, value in enumerate(data.get('summary_notes', [])):
             # Only the pictured A8 note is omitted; A31/A35 guidance remains.
             if data['id'] == 'steel_board' and index == 0:
                 continue
             self.note_block(_source_text(data['id'], 'BOARD SUMMARY', 'A8', value))
         for summary in data['summaries']:
-            self.story.append(self.p(summary['title'], 'subheading'))
+            if not (data['id'] == 'steel_vermiculite' and summary['title'] == 'Product order totals'):
+                self.story.append(self.p(summary['title'], 'subheading'))
             if summary['note']:
-                self.story.append(self.p(summary['note'], 'small'))
+                note = self.p(summary['note'], 'small')
+                note.keepWithNext = True
+                self.story.append(note)
             columns = summary['columns']
             fractions = ([.17, .065, .085, .085, .09, .07, .09, .065, .065, .105, .11]
                          if data['id'] == 'steel_board' else
@@ -295,55 +308,42 @@ class _ScheduleReport(_Report):
             self.table(['Schedule measure', 'Total'], [[self.p(label, 'cell'), self.numeric(value)] for label, value in data['totals']],
                        [_CONTENT * .68, _CONTENT * .32])]))
         self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
-    def provenance(self):
-        data = self.data
-        self.story.append(self.p('Report generated from the complete current calculator input snapshot. Authoritative workbook: ' + data['source']['filename'] + '. Source SHA-256: ' + data['source']['sha256'] + '.', 'small'))
 
-
-def build_calculator_report(calculator_id, inputs=None):
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None):
     """Return the full schedule only; reading a draft never saves it."""
-    return _build_calculator_pdf(calculator_id, inputs, materials=False)
+    return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details)
 
 
-def build_calculator_summary_report(calculator_id, inputs=None):
+def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None):
     """Return material quantities, pooled summaries and extra-board allowances."""
-    return _build_calculator_pdf(calculator_id, inputs, materials=True)
+    return _build_calculator_pdf(calculator_id, inputs, materials=True, project_details=project_details)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
-    logo_width, logo_height = logo.getSize()
-    report = _ScheduleReport(data)
+    report = _ScheduleReport(data, project_details)
     report.overview(materials=materials)
     if materials:
         report.product_totals()
         report.extras()
     else:
         report.schedule()
-    if not (materials and calculator_id == 'steel_board'):
-        report.provenance()
     report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=_MARGIN, rightMargin=_MARGIN,
-        topMargin=73, bottomMargin=43, pageCompression=1, title='Ceasefire - ' + data['title'] + ' - ' + report_title,
+        topMargin=91, bottomMargin=43, pageCompression=1, title='Ceasefire - ' + data['title'] + ' - ' + report_title,
         author='Ceasefire', subject=report_title)
 
     def decorate(canvas, doc):
         canvas.saveState()
-        scale = min(146 / logo_width, 35 / logo_height)
-        canvas.drawImage(logo, _MARGIN, _HEIGHT - 20 - logo_height * scale,
-                         width=logo_width * scale, height=logo_height * scale, mask='auto')
-        canvas.setFillColor(_MUTED)
-        canvas.setFont('CeasefireVera', 8)
-        canvas.drawRightString(_WIDTH - _MARGIN, _HEIGHT - 34,
-                               'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'))
-        canvas.setStrokeColor(_RED)
-        canvas.line(_MARGIN, _HEIGHT - 61, _WIDTH - _MARGIN, _HEIGHT - 61)
+        _company_header(canvas, logo, _WIDTH, _HEIGHT, _MARGIN,
+                        'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'))
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, _WIDTH - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)
+        canvas.setFillColor(_MUTED)
         canvas.drawString(_MARGIN, 20, 'Ceasefire ESTIMATOR | ' + data['title'])
         canvas.drawRightString(_WIDTH - _MARGIN, 20, f'Page {doc.page}')
         canvas.restoreState()

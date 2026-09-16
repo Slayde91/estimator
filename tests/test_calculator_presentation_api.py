@@ -323,10 +323,12 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 self.store.save_calculator_state(identity, {sheet: {marker_cell: "SAVED VALUE EXCLUDED FROM DRAFT"}})
                 before = self.stored_rows()
                 marker = "333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}"
+                project_details = {"project_no": "CF-908", "client": "Draft client", "site_address": "8 Current Street"}
                 for route, filename in (("report.pdf", "APPENDIX A.pdf"),
                                         ("summary.pdf", f"ceasefire-{identity}-materials-summary.pdf")):
                     with self.subTest(route=route):
-                        status, headers, payload = self.request("POST", f"/api/calculators/{identity}/{route}", {"inputs": draft})
+                        status, headers, payload = self.request("POST", f"/api/calculators/{identity}/{route}",
+                                                                {"inputs": draft, "project_details": project_details})
                         self.assertEqual(status, 200, payload[:300])
                         self.assertEqual(headers["Content-Type"], "application/pdf")
                         self.assertEqual(headers["Content-Disposition"], f'attachment; filename="{filename}"')
@@ -336,12 +338,18 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                         text = "\n".join(page.extract_text() for page in reader.pages)
                         compact_text = "".join(text.split())
                         self.assertIn("Current calculator snapshot", text)
-                        if identity == 'steel_board' and route == 'summary.pdf':
-                            self.assertNotIn(model['source']['filename'], compact_text)
-                            self.assertNotIn(model['source']['sha256'], compact_text)
-                        else:
-                            self.assertIn(model['source']['filename'], compact_text)
-                            self.assertIn(model['source']['sha256'], compact_text)
+                        self.assertNotIn(model['source']['filename'], compact_text)
+                        self.assertNotIn(model['source']['sha256'], compact_text)
+                        self.assertNotIn('Authoritative workbook', text)
+                        self.assertNotIn('SHA-256', text)
+                        for label in ('Project No.', 'Client', 'Site Address'):
+                            self.assertIn(label, text)
+                        for value in project_details.values():
+                            self.assertIn(value, text)
+                        for page in reader.pages:
+                            page_text = page.extract_text()
+                            for contact in ('ABN: 50 612 231 562', 'Phone: 1300 92 62 88', 'sales@ceasefire.com.au'):
+                                self.assertIn(contact, page_text)
                         for heading in ("Schedule inputs, calculations and complete notes",
                                         "Single-member calculator - separate from the schedule",
                                         "Manual bag calculation - separate from the schedule",
@@ -363,7 +371,11 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                             self.assertNotIn("Full schedule", text)
                             self.assertNotIn("".join(marker.split()), compact_text)
                             self.assertIn("Material quantities and summary", text)
-                            self.assertIn("Final product and material summary", text)
+                            if identity == "steel_vermiculite":
+                                self.assertNotIn("Final product and material summary", text)
+                                self.assertNotIn("Product order totals", text)
+                            else:
+                                self.assertIn("Final product and material summary", text)
                             self.assertIn("Overall schedule totals", text)
                             if identity == "steel_board":
                                 self.assertIn("".join(extra_marker.split()), compact_text)

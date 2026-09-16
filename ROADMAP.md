@@ -1,6 +1,37 @@
 # Roadmap
 
-Current increment: separate calculator schedule and materials/summary PDFs on
+Current increment: Estimator PDF cleanup on `feat/estimator-pdf-cleanup`, based
+on PR #26 merge `3d3e1ed`. Remove the requested Work summary, material-pricing
+explanation, masking explanation and duplicate Estimator notes subsection;
+retain every financial table and generated material note. Main NOTES remains,
+while the Job and access B12 editor is hidden without deleting its values.
+Draft and saved PDFs download as `CEASEFIRE-Estimate.pdf`.
+
+All 25 focused report/server tests pass (30.421 seconds), together with 36
+Estimator UI checks and JavaScript syntax checks. Content and visual review
+passed all 12 PDF pages (five complete-estimate and seven incomplete/long-note
+pages). The 35-file package and 13 HTTP checks pass. The isolated browser journey
+passed after a transient review-capacity interruption: a legacy quote's main
+NOTES was edited, saved and reopened; no B12 editor appeared, and generated
+notes retained the historical Job and access text. API checks confirmed the
+original B12 value, pricing snapshot and calculated cells are unchanged.
+Independent diff review found no issues.
+
+Code is committed as `567f200` (Trim Estimator PDF sections and simplify notes
+entry). After two transient automatic-review capacity rejections, the third
+authorized push succeeded; the branch now tracks `origin/feat/estimator-pdf-cleanup`
+at `567f200`. PR, CI and merge remain pending. The main app
+remains at PR #26 merge `3d3e1ed`. A broader local packaged regression is running,
+explicitly excluding two external `WorkbookSourceRegressionTests` because the
+native board original differs from the package; no pass is claimed yet. The
+earlier aborted comparison belonged to PR #26. Current Git evidence and
+`.runtime/estimator-pdf-cleanup-qa/publication.json` govern the final outcome.
+
+Historical PR #26 merged at `3d3e1ed`; both CI runs passed with 283 tests
+(four optional source skips), 128 UI checks and build. Its checkpoint below is
+historical and does not validate this Estimator-only change.
+
+Previous increment: separate calculator schedule and materials/summary PDFs on
 `feat/separate-calculator-pdfs`, based on PR #25 merge `c4e1a79`.
 The existing report endpoint now contains Full schedule only; the new summary
 endpoint contains Material quantities and summary, including final material
@@ -61,8 +92,8 @@ not verify this subsequent presentation increment or its publication status.
 
 - Original Quote Calculator inputs, formulas, editable pricing and saved snapshots.
 - Labour-days breakdown from stored result cells, with correct pinning exclusion, source F10 total, explicit error/missing states and read-only enrichment for older saved-quote responses.
-- Official Ceasefire logo, complete material/labour PDFs, Project No./Client/Site Address, automatic names and saved/PDF work summaries.
-- Estimator NOTES label on the existing measurement field, blank B12 notes for new estimates, and no generated-summary panel. Saved notes, summary data and internal workflow behavior remain intact.
+- Official Ceasefire logo, complete material/labour tables in PDFs, Project No./Client/Site Address, automatic names and saved work-summary data. The PDF omits the requested explanatory blocks and Work summary section.
+- Estimator NOTES label on the existing measurement field; Job and access B12 editor and duplicate PDF subsection hidden. Saved notes, generated material notes, summary data and internal workflow behavior remain intact.
 - Whole-library Excel export/import with additions/removals, review and Save pricing.
 - Unified Inventory & Rates with a use filter, expandable category/rate/yield details, one shared product-price editor and separate resets. Compact one-row product exports retain independent uses through aligned lists, valid freeze panes and both previous template formats on import.
 - Two-decimal presentation while retaining raw calculation precision.
@@ -88,8 +119,8 @@ not verify this subsequent presentation increment or its publication status.
 
 ## Verification and publication
 
-SESSION_HANDOFF.md records the current PDF-split checkpoint.
-Use current Git/checks and `.runtime/calculator-pdf-split-qa/publication.json` for later
+SESSION_HANDOFF.md records the current Estimator PDF-cleanup checkpoint.
+Use current Git/checks and `.runtime/estimator-pdf-cleanup-qa/publication.json` for later
 validation and publication outcomes. Do not infer CI success from local checks
 or treat a previous implementation checkpoint as verification of this change.
 
@@ -103,7 +134,7 @@ and display checks; source expectations stay unchanged. See
 
 ## Meaningful remaining work
 
-Validate both PDF scopes and preserved Excel results, verify the refreshed
+Validate the cleaned Estimator PDF and hidden B12 field, verify the refreshed
 runtime and saved state, then publish the increment.
 Verify the current PR's exact-head CI/review state before merging and confirm
 the resulting merge commit. Earlier CI or billing results do not establish the

@@ -30,7 +30,7 @@ vm.createContext(context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,saveQuote,openQuote,newQuote,confirmReplace,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,controlValue,formatNumber,formatMoney,calculate,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,
+    quoteDetails,updateQuoteTitle,reportPayload,reportFilename,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -133,6 +133,41 @@ let passed=0;
   assert.equal(exportBody.configuration.rates.concurrent,undefined);
   assert.equal(audit.state.draft.rates.concurrent.price,45);
   assert.match(byId('app-message').textContent,/Later edits are not included/);passed++;
+
+  // Missing or unsafe PDF filenames use the same Estimator name as the server.
+  for(const disposition of [null,'','attachment','attachment; filename="../report.pdf"',
+    'attachment; filename="C:\\report.pdf"','attachment; filename="report.html"','attachment; filename="<unsafe>.pdf"']) {
+    assert.equal(audit.reportFilename(disposition),'CEASEFIRE-Estimate.pdf');
+  }
+  assert.equal(audit.reportFilename('attachment; filename="CEASEFIRE-Estimate.pdf"'),'CEASEFIRE-Estimate.pdf');
+  assert.equal(audit.reportFilename('attachment; filename=Safe-123.pdf'),'Safe-123.pdf');passed++;
+
+  // Both draft and saved downloads retain snapshots and later edits with the common filename.
+  for(const saved of [false,true]) {
+    setup();audit.state.quote=saved?{id:'saved-report'}:null;audit.state.quoteConfiguration=saved?copy(oldConfig):null;
+    audit.state.inputs.B12='Preserved workbook note';byId('measurements').value='Captured general note';
+    const beforeInputs=copy(audit.state.inputs),beforeConfig=copy(audit.state.quoteConfiguration||audit.state.configuration);
+    const pending=deferred();let reportPath,reportOptions;
+    audit.setFetch((path,options)=>{reportPath=path;reportOptions=options;return pending.promise;});
+    const download=audit.downloadQuotePdf();
+    assert.equal(byId('download-quote-pdf').disabled,true);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),'true');
+    audit.state.inputs.B12='Later workbook note';byId('measurements').value='Later general note';audit.state.dirty=true;
+    pending.resolve({ok:true,headers:{get:name=>name==='Content-Type'?'application/pdf':saved?'attachment; filename="CEASEFIRE-Estimate.pdf"':null},blob:async()=>({size:100})});
+    await download;
+    assert.equal(reportPath,saved?'/api/quotes/saved-report/report.pdf':'/api/quote-report');
+    assert.equal(reportOptions.method,saved?'GET':'POST');
+    if(saved)assert.equal(reportOptions.body,undefined);
+    else {
+      const captured=JSON.parse(reportOptions.body);
+      assert.deepEqual(captured.inputs,beforeInputs);assert.deepEqual(captured.configuration,beforeConfig);
+      assert.equal(captured.measurements,'Captured general note');
+    }
+    const link=context.document.body.children.at(-1);assert.equal(link.download,'CEASEFIRE-Estimate.pdf');assert.equal(link.clicked,true);
+    assert.equal(audit.state.inputs.B12,'Later workbook note');assert.equal(byId('measurements').value,'Later general note');
+    assert.deepEqual(copy(audit.state.quoteConfiguration||audit.state.configuration),beforeConfig);assert.equal(audit.state.dirty,true);
+    assert.match(byId('app-message').textContent,/Later edits are not included/);
+    assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);
+  }passed++;
 
   // Quote naming is derived in the requested order and reaches report payloads.
   setup(); byId('project-no').value=' P-104 ';byId('client').value=' Client One ';byId('site-address').value=' 10 Example Street ';
@@ -296,6 +331,20 @@ let passed=0;
   assert.equal(JSON.stringify(currentNotesFields),sourceNotesFields);assert.equal(audit.state.currentFields.find(field=>field.cell==='B12').default,'Allowances');
   audit.renderResults({});passed++;
 
+  // B12 has no second editor anywhere in the form; all other inputs and the main NOTES remain.
+  setup();audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.inputs=Object.fromEntries(audit.state.fields.map(field=>[field.cell,field.default??'']));
+  audit.state.inputs.B12='Historical workbook note';byId('measurements').value='Visible main note';
+  const hiddenNotesInputs=JSON.stringify(audit.state.inputs),hiddenNotesFields=JSON.stringify(audit.state.fields);
+  audit.renderInputs();
+  const inputDescendants=node=>[node,...(node.children||[]).flatMap(inputDescendants)];
+  const visibleCells=['input-sections','adjustment-sections','material-inputs'].flatMap(id=>inputDescendants(byId(id))).filter(node=>node.dataset?.cell).map(node=>node.dataset.cell);
+  assert.ok(!visibleCells.includes('B12'));assert.equal(visibleCells.length,audit.state.fields.length-1);
+  assert.deepEqual(visibleCells.slice().sort(),audit.state.fields.filter(field=>field.cell!=='B12').map(field=>field.cell).sort());
+  assert.equal(JSON.stringify(audit.state.inputs),hiddenNotesInputs);assert.equal(JSON.stringify(audit.state.fields),hiddenNotesFields);
+  assert.equal(audit.reportPayload().inputs.B12,'Historical workbook note');assert.equal(audit.reportPayload().measurements,'Visible main note');
+  assert.match(fs.readFileSync('static/index.html','utf8'),/<textarea[^>]*id="measurements"/);passed++;
+
   // Labour rows display source-projected days, preserve literal labels, and read the authoritative total.
   setup();const labourResult={summary:{days:16.987654321},cells:{},errors:{},materials:[],labour:{
     tasks:[{name:'Spray / wrap',days:1.23456789},{name:'Mesh <literal>',days:2},{name:'Access panels',days:0},{name:'Fan enclosure mesh',days:3},{name:'Primer',days:0},{name:'Topcoat',days:0},{name:'Board',days:1},{name:'Mastic',days:0}],
@@ -321,16 +370,19 @@ let passed=0;
   assert.equal(labourRows().at(-1).children[1].textContent,'22.50');assert.equal(audit.state.result.labour.total_days,22.5);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');
   audit.setRequest(async()=>{throw new Error('Calculation offline');});await audit.calculate();assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'No current calculation is available.');assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
 
-  // Explicit saved notes, including the former default and deliberate blanks, survive opening, editing and saving.
+  // Hidden saved B12 notes survive editing the main NOTES, saving, and reopening unchanged.
   for(const savedNotes of ['Allowances','Measured project note','']) {
     setup();audit.state.currentFields=copy(currentNotesFields);
     audit.setRequest(async()=>({id:'notes-quote',title:'Saved notes',configuration:oldConfig,fields:currentNotesFields,inputs:{D15:'New spray',B12:savedNotes},workflow:'Fire wrap to ductwork'}));
     await audit.openQuote('notes-quote',element('button'));assert.equal(audit.state.inputs.B12,savedNotes);
-    const savedNotesControl=audit.makeControl(audit.state.fields.find(field=>field.cell==='B12'),true);assert.equal(savedNotesControl.value,savedNotes);
-    savedNotesControl.value=`${savedNotes}\nAdded detail`;await savedNotesControl.emit('input');
+    audit.renderInputs();
+    assert.ok(!['input-sections','adjustment-sections','material-inputs'].flatMap(id=>inputDescendants(byId(id))).some(node=>node.dataset?.cell==='B12'));
+    byId('measurements').value='Edited main note';await byId('measurements').emit('input');assert.equal(audit.state.dirty,true);
     let notesBody;audit.setRequest(async(path,options)=>{notesBody=JSON.parse(options.body);return {id:'notes-quote',...notesBody,fields:currentNotesFields};});
-    await audit.saveQuote();assert.equal(notesBody.inputs.B12,`${savedNotes}\nAdded detail`);assert.equal(audit.reportPayload().inputs.B12,`${savedNotes}\nAdded detail`);
+    await audit.saveQuote();assert.equal(notesBody.inputs.B12,savedNotes);assert.equal(audit.reportPayload().inputs.B12,savedNotes);assert.equal(notesBody.measurements,'Edited main note');
     assert.equal(audit.state.fields.find(field=>field.cell==='B12').default,'Allowances');
+    audit.setRequest(async()=>({id:'notes-quote',...notesBody,fields:currentNotesFields}));
+    await audit.openQuote('notes-quote',element('button'));assert.equal(audit.state.inputs.B12,savedNotes);assert.equal(byId('measurements').value,'Edited main note');
     await audit.newQuote();assert.equal(audit.state.inputs.B12,'');assert.equal(audit.state.inputs.D15,'New spray');
   }passed++;
 

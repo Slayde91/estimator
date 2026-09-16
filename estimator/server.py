@@ -43,10 +43,8 @@ def create_server(port=8765, database=None):
 
         def send_report(self, quote, report_kind):
             from .report import render_quote_pdf
-            # Restrict the filename to safe ASCII; the full title is inside the PDF.
-            name = re.sub(r"[^a-zA-Z0-9]+", "-", quote["title"]).strip("-")[:80] or "ceasefire-quote"
             report = render_quote_pdf({**quote, "report_kind": report_kind})
-            self.send_payload(200, report, "application/pdf", {"Content-Disposition": f'attachment; filename="{name}.pdf"'})
+            self.send_payload(200, report, "application/pdf", {"Content-Disposition": 'attachment; filename="CEASEFIRE-Estimate.pdf"'})
 
         def send_quote(self, status, quote):
             # Dropdown metadata belongs to the quote's own pricing snapshot.

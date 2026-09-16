@@ -104,7 +104,7 @@ class ServerTests(unittest.TestCase):
         status, headers, payload = self.request("POST", "/api/quote-report", {"title": 'Duct "/..\\\r\nreport', "inputs": {"B15": 12.25}})
         self.assertEqual(status, 200)
         self.assertEqual(headers["Content-Type"], "application/pdf")
-        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="Duct-report.pdf"')
+        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="CEASEFIRE-Estimate.pdf"')
         self.assertEqual(int(headers["Content-Length"]), len(payload))
         self.assertEqual(headers["Cache-Control"], "no-store")
         text = pdf_text(payload)
@@ -116,14 +116,45 @@ class ServerTests(unittest.TestCase):
     def test_saved_pdf_uses_its_snapshot_even_when_catalogue_changes(self):
         _, _, body = self.request("POST", "/api/quotes", {"title": "Historical PDF", "inputs": {"B15": 19.75}})
         quote = json.loads(body)
+        quotes_before = self.request("GET", "/api/quotes")[2]
+        pricing_before = self.request("GET", "/api/configuration")[2]
         with patch("estimator.catalog.baseline", side_effect=AssertionError("Saved report read today's catalogue")), patch("estimator.storage.calculate", side_effect=AssertionError("Saved report recalculated")):
-            status, _, payload = self.request("GET", f'/api/quotes/{quote["id"]}/report.pdf')
+            status, headers, payload = self.request("GET", f'/api/quotes/{quote["id"]}/report.pdf')
         self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="CEASEFIRE-Estimate.pdf"')
+        self.assertEqual(headers["Content-Type"], "application/pdf")
+        self.assertEqual(int(headers["Content-Length"]), len(payload))
+        self.assertEqual(headers["Cache-Control"], "no-store")
         text = pdf_text(payload)
         self.assertIn("Saved quote", text)
+        self.assertIn("Historical PDF", text)
         self.assertIn(quote["id"], text)
         self.assertIn(f'${quote["result"]["summary"]["total"]:,.2f}', text)
         self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], body)
+        self.assertEqual(self.request("GET", "/api/quotes")[2], quotes_before)
+        self.assertEqual(self.request("GET", "/api/configuration")[2], pricing_before)
+
+    def test_pdf_filename_is_independent_of_unicode_and_header_like_titles(self):
+        for title in ("\u4e2d\u6587 \U0001f9ef", '../../"\r\nX-Injected: yes'):
+            with self.subTest(title=title):
+                status, _, saved = self.request("POST", "/api/quotes", {"title": title})
+                self.assertEqual(status, 201)
+                quote = json.loads(saved)
+                self.assertEqual(quote["title"], title)
+                quotes_before = self.request("GET", "/api/quotes")[2]
+                pricing_before = self.request("GET", "/api/configuration")[2]
+                for method, path, body in (("POST", "/api/quote-report", {"title": title}),
+                                           ("GET", f'/api/quotes/{quote["id"]}/report.pdf', None)):
+                    with self.subTest(method=method), patch("estimator.report.render_quote_pdf", return_value=b"%PDF-test") as renderer:
+                        status, headers, payload = self.request(method, path, body)
+                    self.assertEqual(status, 200)
+                    self.assertEqual(headers["Content-Disposition"], 'attachment; filename="CEASEFIRE-Estimate.pdf"')
+                    self.assertNotIn("X-Injected", headers)
+                    self.assertEqual(renderer.call_args.args[0]["title"], title)
+                    self.assertEqual(payload, b"%PDF-test")
+                self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], saved)
+                self.assertEqual(self.request("GET", "/api/quotes")[2], quotes_before)
+                self.assertEqual(self.request("GET", "/api/configuration")[2], pricing_before)
 
     def test_edited_saved_preview_preserves_source_lineage_without_saving(self):
         _, _, body = self.request("POST", "/api/quotes", {"title": "Original PDF pricing", "inputs": {"B15": 10}})
@@ -131,8 +162,9 @@ class ServerTests(unittest.TestCase):
         changed = baseline()
         changed["sources"]["quote"]["sha256"] = "later-source-hash"
         with patch("estimator.catalog.baseline", return_value=changed), patch("estimator.report.render_quote_pdf", wraps=render_quote_pdf) as renderer:
-            status, _, payload = self.request("POST", "/api/quote-report", {"source_quote_id": quote["id"], "title": "Unsaved changes", "inputs": {"B15": 12}, "configuration": quote["configuration"]})
+            status, headers, payload = self.request("POST", "/api/quote-report", {"source_quote_id": quote["id"], "title": "Unsaved changes", "inputs": {"B15": 12}, "configuration": quote["configuration"]})
         self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="CEASEFIRE-Estimate.pdf"')
         self.assertEqual(renderer.call_args.args[0]["source_hashes"], quote["source_hashes"])
         self.assertNotIn("later-source-hash", pdf_text(payload))
         self.assertEqual(self.request("GET", f'/api/quotes/{quote["id"]}')[2], body)
@@ -258,8 +290,9 @@ class ServerTests(unittest.TestCase):
         status, _, pdf = self.request("GET", f'/api/quotes/{quote["id"]}/report.pdf')
         self.assertEqual(status, 200)
         content = pdf_text(pdf)
-        for text in ("CF-123", "Example Client", "42 Test Street", "Work summary", "Trafalgar FyreWRAP 610"):
+        for text in ("CF-123", "Example Client", "42 Test Street", "Trafalgar FyreWRAP 610"):
             self.assertIn(text, content)
+        self.assertNotIn("Work summary", content)
         status, _, edited = self.request("PUT", f'/api/quotes/{quote["id"]}', {
             "client": "Updated Client", "inputs": quote["inputs"], "workflow": quote["workflow"],
         })

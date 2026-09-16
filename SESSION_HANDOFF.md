@@ -1,6 +1,68 @@
 # Session handoff
 
-## Separate calculator PDFs and normal Exposure text - 2026-09-16
+## Estimator PDF cleanup - 2026-09-16
+
+Current worktree: `C:/ESTIMATOR/worktrees/estimator-pdf-cleanup`, branch
+`feat/estimator-pdf-cleanup`, based on PR #26 merge `3d3e1ed`.
+
+The user confirmed hiding the Job and access Notes editor (B12) in the browser.
+The main measurements NOTES field remains. Stored B12 values, draft/save/report
+payloads and generated `result.notes` are preserved, so historical B12 text may
+still appear within generated material notes.
+
+The Estimator PDF omits Work summary, the Material pricing and quantities
+heading and three explanatory paragraphs, the masking-allowance explanation
+and duplicate Estimator notes/B12 subsection. The measurements heading becomes
+NOTES. Every material/labour/cost table remains. Draft and saved exports use
+`CEASEFIRE-Estimate.pdf`, including the browser's safe fallback. Calculator PDFs,
+calculation rules, pricing and storage schemas are unchanged.
+
+Validation checkpoint: all 25 focused tests passed in 30.421 seconds (ten PDF
+and 15 server tests). All 36 Estimator UI checks and JavaScript syntax checks
+pass. Content and visual review passed all 12 PDF pages: five for the complete
+estimate and seven for incomplete/long-note coverage. The 35-file distribution
+and 13 packaged HTTP checks pass. Independent code review found no unintended
+changes to tables, shared calculator formatting, calculations or B12 persistence.
+
+The browser journey on isolated port 18788 passed after a transient approval-
+review capacity interruption. A legacy quote was opened, its main NOTES edited,
+saved and reopened. The DOM retained `Main notes after browser edit`, showed
+zero duplicate B12 editors, and generated notes retained historical Job and
+access text. API verification confirmed the original B12 value, pricing snapshot
+and calculated cells are unchanged.
+
+Commit `567f200ef225cd2f2ee641baf2399c39338fe275` is
+`Trim Estimator PDF sections and simplify notes entry`. Two earlier automatic
+approval-review capacity rejections were transient: the third authorized push
+succeeded. The branch tracks `origin/feat/estimator-pdf-cleanup` at `567f200`.
+PR, CI and merge remain pending at this checkpoint. The main app
+still runs PR #26 merge `3d3e1ed`; it has not received this cleanup.
+
+The aborted local full-suite attempt belonged to the preceding PR #26 run:
+optional native board reconstruction encountered a native/package mismatch and
+a large comparison diff. That aborted run is not a claimed pass. A new broader
+local packaged regression is now running with the two external
+`WorkbookSourceRegressionTests` explicitly excluded because the native board
+original differs from the package. Its result is pending.
+Evidence belongs in `.runtime/estimator-pdf-cleanup-qa`; current Git evidence
+and `publication.json` are authoritative for the final publication outcome.
+
+Next action: commit/push these checkpoint documents, record the packaged
+regression result, create the PR and merge only after exact-head CI passes.
+Finish API preservation checks and verify saved state when refreshing the
+main runtime. These three
+checkpoint-document edits are the remaining tracked changes; implementation
+and tests are committed. QA artifacts and test databases remain ignored.
+
+Resume from this worktree and current Git/check evidence. Preserve the user's
+main checkout, live database and browser drafts. Record the actual merge and
+remaining local changes in the final publication receipt.
+
+## Historical: separate calculator PDFs and normal Exposure text - 2026-09-16
+
+PR #26 merged at `3d3e1ed`; both CI runs passed with 283 tests (four optional
+source skips), 128 UI checks and build. This supersedes its pending statements
+below; the current Estimator cleanup requires its own validation.
 
 Branch: `feat/separate-calculator-pdfs`, based on verified PR #25 merge
 `c4e1a79` (its post-merge CI also passed).

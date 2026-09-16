@@ -40,6 +40,13 @@ def has_yield(rate):
     return rate.get("uses_yield", bool(rate.get("source", {}).get("yield")))
 
 
+def yield_unit(group, rate):
+    """Display unit for the existing coverage-per-unit lookup; no conversion."""
+    if not has_yield(rate):
+        return ""
+    return rate.get("yield_unit", "m / unit" if group == "mastic" else "m² / unit")
+
+
 def _text(value, label, maximum=1000, empty=False):
     if not isinstance(value, str) or len(value) > maximum or (not empty and not value.strip()):
         raise ValidationError(f"{label} must be {'text' if empty else 'nonempty text'} of at most {maximum} characters.")
@@ -144,7 +151,7 @@ def validate_catalog(value):
         if not isinstance(item.setdefault("source", {}), dict):
             raise ValidationError(f"Inventory {key} source must be an object.")
     rate_ids = set()
-    rate_fields = {"id", "name", "display_name", "price", "yield", "inventory_id", "source", "uses_yield", "price_mode"}
+    rate_fields = {"id", "name", "display_name", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode"}
     for group, rows in groups.items():
         if not isinstance(rows, list):
             raise ValidationError(f"Rate group {group} must be a list.")
@@ -176,6 +183,10 @@ def validate_catalog(value):
             if "uses_yield" in rate and (type(rate["uses_yield"]) is not bool or rate["uses_yield"] != uses_yield):
                 raise ValidationError(f"Rate {key} cannot change whether its category uses a yield.")
             rate["uses_yield"] = uses_yield
+            if "yield_unit" in rate:
+                _text(rate["yield_unit"], f"Rate {key} yield unit", 100, empty=True)
+                if not uses_yield and rate["yield_unit"]:
+                    raise ValidationError(f"Rate {key} does not use a yield unit.")
             if uses_yield:
                 _amount(rate.get("yield"), f"Rate {key} yield", blank=True)
             elif rate.get("yield") is not None:

@@ -8,6 +8,8 @@
     quote: null, quoteConfiguration: null, quoteContext: 0, quoteLoadRevision: 0, dirty: false, pricingDirty: false,
     result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
+    pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
+    projectFile: null, projectsRevision: 0, initialized: false,
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -134,7 +136,7 @@
 
   function updateDirty(value = true) {
     state.dirty = value;
-    $("quote-status").textContent = `${state.quote ? "Saved quote" : "New estimate"}${value ? " · Unsaved changes" : ""}`;
+    $("quote-status").textContent = `${state.projectFile ? "Project file" : state.quote ? "Older saved estimate" : "New project"}${value ? " · Unsaved changes" : ""}`;
   }
 
   function isPercent(field) {
@@ -386,11 +388,21 @@
   }
 
   async function newQuote() {
-    if (state.dirty && !await confirmReplace("Start a new estimate?", "Your current unsaved estimate changes will be replaced with the default estimate inputs.", "Start new estimate")) return;
+    if (state.projectBusy) return;
+    if (projectHasChanges() && !await confirmReplace("Start a new project?", "The current estimate, project pricing and all three calculator drafts will be replaced with defaults using your saved pricing library.", "New project")) return;
+    if (state.initialized) {
+      try {
+        const captured = projectStamp();
+        const prepared = await window.CeasefireCalculators.prepareDefaults();
+        if (captured !== projectStamp()) throw new Error("The current project changed while preparing defaults. Try again when ready.");
+        window.CeasefireCalculators.applyProject(prepared);
+      } catch (error) { message(error.message, true); return; }
+    }
     state.quoteContext++;
     state.quoteLoadRevision++;
     state.inputErrors.clear(); state.inputDrafts.clear();
-    state.quote = null; state.quoteConfiguration = null;
+    state.quote = null; state.quoteConfiguration = null; state.projectFile = null;
+    resetProjectPricing();
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
     state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.cell === "B12" ? "" : field.default ?? ""]));
@@ -438,14 +450,14 @@
     const list = $("quote-list"); list.textContent = "Loading saved quotes…";
     try {
       const data = await request("/api/quotes");
-      if (!(data.quotes || []).length) { list.replaceChildren(node("p", "empty-state", "No saved quotes yet. Create an estimate and save it here.")); return; }
+      if (!(data.quotes || []).length) { list.replaceChildren(node("p", "empty-state", "No older estimate-only saves.")); return; }
       list.replaceChildren(...data.quotes.map((quote) => {
         const item = node("article", "quote-item");
         const description = node("div");
         description.append(node("h3", "", quote.title || "Untitled quote"));
         const date = new Date(quote.updated_at);
         description.append(node("p", "", Number.isNaN(date.getTime()) ? "Saved locally" : `Updated ${date.toLocaleString("en-AU")}`));
-        const button = node("button", "button secondary", "Open quote");
+        const button = node("button", "button secondary", "Open older estimate");
         button.type = "button";
         button.addEventListener("click", () => openQuote(quote.id, button));
         item.append(description, button); return item;
@@ -454,17 +466,24 @@
   }
 
   async function openQuote(id, button) {
+    if (state.projectBusy) return;
     button.disabled = true;
     const loadRevision = ++state.quoteLoadRevision;
     try {
       const quote = await request(`/api/quotes/${encodeURIComponent(id)}`);
       if (loadRevision !== state.quoteLoadRevision) return;
-      if (state.dirty && !await confirmReplace("Open this saved quote?", "Your current unsaved estimate changes will be replaced by the saved quote.", "Open saved quote")) return;
+      const captured = projectStamp();
+      const prepared = await window.CeasefireCalculators.prepareDefaults();
+      if (!await confirmReplace("Open this older estimate?", "This record contains the estimate and its original pricing only. The current estimate will be replaced and all three calculators will start from defaults. Save Project can then save them together.", "Open older estimate")) return;
+      if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
       state.inputErrors.clear(); state.inputDrafts.clear();
       state.quote = quote;
+      state.projectFile = null;
+      window.CeasefireCalculators.applyProject(prepared);
       state.quoteConfiguration = clone(quote.configuration || state.configuration);
+      resetProjectPricing("project");
       state.fields = clone(quote.fields || state.currentFields);
       state.inputs = { ...Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""])), ...quote.inputs };
       state.legacyTitle = [quote.project_no, quote.client, quote.site_address].some((value) => typeof value === "string" && value.trim()) ? "" : quote.title || "";
@@ -488,7 +507,7 @@
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
-    if (view === "quotes") loadQuotes();
+    if (view === "quotes") { loadProjects(); loadQuotes(); }
     if (view === "pricing") renderPricing();
     if (view === "calculators") window.CeasefireCalculators?.open();
     // Each section starts with its heading and actions visible below the sticky
@@ -499,15 +518,72 @@
   function getOverride(kind, id) { return state.draft[kind]?.[id] || {}; }
 
   function markPricingDirty() {
-    state.pricingDirty = JSON.stringify(state.draft) !== JSON.stringify(state.configuration);
-    $("pricing-status").textContent = state.pricingDirty ? "Unsaved pricing changes" : "Saved configuration";
+    state.pricingDirty = draftChanged(state.draft, pricingBaseline());
+    if (state.pricingScope === "project") state.projectPricingDraft = state.draft;
+    else state.libraryDraft = state.draft;
+    $("pricing-status").textContent = state.pricingDirty ? "Unsaved pricing changes" : state.pricingScope === "project" ? "Project pricing" : "Saved library";
+  }
+
+  function pricingBaseline() { return state.pricingScope === "project" ? state.quoteConfiguration || state.configuration : state.configuration; }
+  function draftChanged(draft, baseline) { return !!draft && (pricingHasPendingInput(draft) || JSON.stringify(draft) !== JSON.stringify(baseline)); }
+  function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
+  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges(); }
+  function pricingScopeUi() {
+    $("pricing-scope").value = state.pricingScope;
+    $("save-pricing").textContent = state.pricingScope === "project" ? "Apply project pricing" : "Save pricing";
+    $("pricing-context").textContent = state.pricingScope === "project"
+      ? "These prices belong to the current project. Apply project pricing updates its estimate; Save Project stores them in the project file. The shared library stays unchanged."
+      : "Save pricing stores the shared library on this computer for future estimates. Discard changes returns to its last save. Existing projects keep their own pricing.";
+  }
+  function switchPricingScope(scope) {
+    document.activeElement?.blur?.();
+    if (scope === state.pricingScope) return;
+    if (state.pricingScope === "project") state.projectPricingDraft = state.draft; else state.libraryDraft = state.draft;
+    state.pricingScope = scope; ++state.pricingRevision;
+    state.draft = scope === "project" ? state.projectPricingDraft ||= clone(state.quoteConfiguration || state.configuration) : state.libraryDraft ||= clone(state.configuration);
+    pricingScopeUi(); refreshPricingCatalog(); renderPricing();
+  }
+  function resetProjectPricing(scope = state.pricingScope) {
+    if (state.pricingScope === "library") state.libraryDraft = state.draft;
+    state.projectPricingDraft = clone(state.quoteConfiguration || state.configuration);
+    state.pricingScope = scope; ++state.pricingRevision;
+    state.draft = scope === "project" ? state.projectPricingDraft : state.libraryDraft ||= clone(state.configuration);
+    pricingScopeUi(); refreshPricingCatalog(); renderPricing();
+  }
+
+  async function applyProjectPricing() {
+    document.activeElement?.blur?.();
+    const draft = state.pricingScope === "project" ? state.draft : state.projectPricingDraft;
+    if (!draft) return;
+    if (pricingInputProblem(draft)) throw new Error(pricingInputProblem(draft));
+    if (!draftChanged(draft, state.quoteConfiguration || state.configuration)) return;
+    const captured = JSON.stringify(draft), context = state.quoteContext;
+    const data = await request("/api/configuration/preview", { method: "POST", body: JSON.stringify({ configuration: clone(draft) }) });
+    const currentDraft = state.pricingScope === "project" ? state.draft : state.projectPricingDraft;
+    if (context !== state.quoteContext || currentDraft !== draft || captured !== JSON.stringify(draft) || pricingHasPendingInput(draft)) throw new Error("Project pricing changed while being checked. Apply it again when ready.");
+    state.quoteConfiguration = clone(data.configuration); state.fields = clone(data.fields);
+    state.projectPricingDraft = clone(data.configuration);
+    if (state.pricingScope === "project") { state.draft = state.projectPricingDraft; refreshPricingCatalog(); renderPricing(); }
+    renderInputs(); updateDirty(); scheduleCalculation();
+    $("snapshot-message").hidden = false;
+    $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save Project retains these prices in its file.";
+  }
+
+  async function useCurrentPricing() {
+    if (state.projectBusy) return;
+    if (projectPricingChanged() && !await confirmReplace("Use current library prices?", "The project's pricing edits will be replaced with the last saved shared library.", "Use current pricing")) return;
+    state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields);
+    resetProjectPricing(); renderInputs(); updateDirty(); scheduleCalculation();
+    $("snapshot-message").hidden = false;
+    $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save Project to retain these prices.";
+    message("Current saved library applied to this project. Check any removed product selections, then Save Project.");
   }
 
   function setOverride(kind, item, field, value) {
     state.draft[kind] ||= {};
     state.draft[kind][item.id] ||= {};
     const baseValue = kind === "rates" && field === "price" ? rateDefaultPrice(item) : item[field];
-    if (value === "" || value === baseValue) delete state.draft[kind][item.id][field];
+    if ((value === "" && field !== "yield") || value === baseValue) delete state.draft[kind][item.id][field];
     else state.draft[kind][item.id][field] = value;
     if (!Object.keys(state.draft[kind][item.id]).length) delete state.draft[kind][item.id];
     markPricingDirty();
@@ -574,9 +650,211 @@
   function resetButton(kind, item) {
     const button = node("button", "reset-button", "Reset row");
     button.type = "button";
-    button.setAttribute("aria-label", `Restore imported values for ${item.name}`);
-    button.addEventListener("click", () => { delete state.draft[kind][item.id]; markPricingDirty(); renderPricing(); });
+    const saved = pricingBaseline(), savedCatalog = saved.catalog || state.baseline;
+    const ownRate = (rate) => kind === "inventory" ? rate.inventory_id === item.id : rate.id === item.id;
+    const original = kind === "inventory" ? savedCatalog.inventory.find((entry) => entry.id === item.id)
+      : Object.values(savedCatalog.rate_groups).flat().find(ownRate);
+    button.disabled = !original;
+    button.setAttribute("aria-label", `Restore saved values and estimator uses for ${item.name}`);
+    button.addEventListener("click", () => {
+      if (!original) return;
+      const affectedRates = new Set([...Object.values(state.catalog.rate_groups).flat(), ...Object.values(savedCatalog.rate_groups).flat()].filter(ownRate).map((rate) => rate.id));
+      editPricingCatalog((catalog) => {
+        if (kind === "inventory") catalog.inventory[catalog.inventory.findIndex((entry) => entry.id === item.id)] = clone(original);
+        for (const [group, rates] of Object.entries(catalog.rate_groups)) {
+          catalog.rate_groups[group] = rates.filter((rate) => !ownRate(rate));
+          savedCatalog.rate_groups[group].forEach((rate, index) => {
+            if (ownRate(rate)) catalog.rate_groups[group].splice(Math.min(index, catalog.rate_groups[group].length), 0, clone(rate));
+          });
+        }
+      });
+      if (kind === "inventory") {
+        delete state.draft.inventory[item.id];
+        if (saved.inventory?.[item.id]) state.draft.inventory[item.id] = clone(saved.inventory[item.id]);
+      }
+      for (const id of affectedRates) {
+        delete state.draft.rates[id];
+        if (saved.rates?.[id]) state.draft.rates[id] = clone(saved.rates[id]);
+      }
+      if (JSON.stringify(state.draft.catalog) === JSON.stringify(savedCatalog)) {
+        if (!saved.catalog) delete state.draft.catalog;
+        if (saved.catalog_signature) state.draft.catalog_signature = saved.catalog_signature;
+      }
+      for (const key of pricingPendingFields().keys()) if (key.startsWith(`${kind}:${item.id}:`)) pricingPendingFields().delete(key);
+      refreshPricingCatalog(); markPricingDirty(); renderPricing();
+    });
     return button;
+  }
+
+  const pricingFieldDrafts = new WeakMap();
+  function pricingPendingFields(draft = state.draft) {
+    if (!pricingFieldDrafts.has(draft)) pricingFieldDrafts.set(draft, new Map());
+    return pricingFieldDrafts.get(draft);
+  }
+  function pricingInputProblem(draft = state.draft) {
+    return [...pricingPendingFields(draft).values()].find((entry) => entry.error)?.error || "";
+  }
+  function pricingHasPendingInput(draft = state.draft) { return pricingPendingFields(draft).size > 0; }
+  function pricingUseList(values) {
+    return values.map((value) => /[;"\n\r]|^\s|\s$/.test(String(value ?? "")) ? `"${String(value ?? "").replaceAll('"', '""')}"` : String(value ?? "")).join("; ");
+  }
+  function parsePricingUses(text) {
+    if (!text.trim()) return [];
+    const values = []; let value = "", quoted = false, closed = false, quotedField = false;
+    for (let index = 0; index < text.length; index++) {
+      const char = text[index];
+      if (quoted) {
+        if (char === '"' && text[index + 1] === '"') { value += '"'; index++; }
+        else if (char === '"') { quoted = false; closed = true; }
+        else value += char;
+      } else if (char === ";") { values.push(quotedField ? value : value.trim()); value = ""; closed = false; quotedField = false; }
+      else if (char === '"' && !value.trim() && !closed) { quoted = true; quotedField = true; value = ""; }
+      else if (char === '"' || (closed && char.trim())) throw new Error("Use semicolons between values and double quotes around a name containing a semicolon.");
+      else if (!closed) value += char;
+    }
+    if (quoted) throw new Error("Close the quoted value before continuing.");
+    values.push(quotedField ? value : value.trim()); return values;
+  }
+  function pricingYieldUnit(group, rate) {
+    return (rate.uses_yield ?? !!rate.source?.yield) ? (rate.yield_unit ?? (group === "mastic" ? "m / unit" : "m² / unit")) : "";
+  }
+  function editPricingCatalog(edit) {
+    const catalog = clone(state.draft.catalog || state.catalog);
+    edit(catalog);
+    state.draft.catalog = catalog;
+    delete state.draft.catalog_signature;
+    refreshPricingCatalog();
+    markPricingDirty();
+  }
+  function pricingListInput(record, field, values, apply, placeholder = "") {
+    const input = node("input", "pricing-use-list"); input.type = "text";
+    const key = `${record.key}:${field}`, initial = pricingUseList(values);
+    input.dataset.priceField = field;
+    input.value = pricingPendingFields().get(key)?.value ?? initial;
+    input.placeholder = placeholder;
+    input.setAttribute("aria-label", `${record.item.name}: ${field}`);
+    const invalid = pricingPendingFields().get(key)?.error;
+    if (invalid) { input.setCustomValidity?.(invalid); input.setAttribute("aria-invalid", "true"); }
+    input.addEventListener("input", () => {
+      pricingPendingFields().set(key, { value: input.value, error: "Finish editing the pricing field before saving." });
+      markPricingDirty();
+    });
+    input.addEventListener("change", () => {
+      try {
+        if (input.value !== initial) apply(parsePricingUses(input.value));
+        pricingPendingFields().delete(key);
+        input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
+        markPricingDirty(); renderPricing();
+      } catch (error) {
+        const text = `${record.item.name}: ${error.message}`;
+        pricingPendingFields().set(key, { value: input.value, error: text });
+        input.setCustomValidity?.(text); input.setAttribute("aria-invalid", "true"); message(text, true); markPricingDirty();
+      }
+    });
+    return input;
+  }
+  function setPricingUses(record, labels) {
+    const categories = Object.keys(state.catalog.rate_groups);
+    const selected = labels.map((label) => categories.find((key) => key.toLowerCase() === label.toLowerCase() || (groups[key] || key).toLowerCase() === label.toLowerCase()));
+    if (selected.some((group) => !group)) throw new Error(`Choose existing uses: ${categories.map((key) => groups[key] || key).join("; ")}.`);
+    if (record.kind !== "inventory" && selected.length !== 1) throw new Error("A standalone rate needs exactly one use.");
+    const retained = new Set(), removed = [];
+    editPricingCatalog((catalog) => {
+      const old = record.uses.map((use) => ({ group: use.group, item: clone(use.item) }));
+      const matched = selected.map((group) => {
+        const match = old.find((use) => use.group === group && !retained.has(use.item.id));
+        if (match) { retained.add(match.item.id); return match; }
+        return { group, item: null };
+      });
+      for (const use of old) if (!retained.has(use.item.id)) removed.push(use.item.id);
+      for (const group of categories) catalog.rate_groups[group] = catalog.rate_groups[group].filter((rate) => !removed.includes(rate.id));
+      for (const use of matched) {
+        if (use.item) continue;
+        const template = old.find((entry) => removed.includes(entry.item.id));
+        const usesYield = Boolean(catalog.rate_group_rules?.[use.group]?.yield_column) || catalog.rate_groups[use.group].some((rate) => rate.uses_yield);
+        const item = record.kind === "rates" && template ? clone(template.item) : {
+          id: `rate_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(16).slice(2)}`}`,
+          name: getOverride(record.kind, record.item.id).name || record.item.name,
+          inventory_id: record.kind === "inventory" ? record.item.id : null,
+          price: record.kind === "inventory" ? inventorySellPrice(record.item) : rateSellPrice(record.item),
+          price_mode: record.kind === "inventory" ? "inventory" : "override", source: {},
+        };
+        let name = item.name, suffix = 2;
+        while (catalog.rate_groups[use.group].some((rate) => rate.name.toLowerCase() === name.toLowerCase())) name = `${item.name} (${suffix++})`;
+        item.name = name; item.uses_yield = usesYield; item.yield = null;
+        // A new category can use a different coverage basis. Require its own
+        // yield instead of reinterpreting the old category's quantity.
+        delete item.yield_unit;
+        catalog.rate_groups[use.group].push(item);
+      }
+    });
+    for (const id of removed) if (!Object.values(state.catalog.rate_groups).some((rates) => rates.some((rate) => rate.id === id))) delete state.draft.rates[id];
+  }
+  function setPricingUseValues(record, values, field) {
+    if (!values.length && record.uses.length === 1) values = [""];
+    if (values.length !== record.uses.length) throw new Error(`Enter ${record.uses.length} semicolon-separated ${field} values, in the same order as Used in Estimator.`);
+    const updates = record.uses.map(({ group, item }, index) => {
+      const value = values[index], usesYield = item.uses_yield ?? !!item.source?.yield;
+      if (field === "Selection name") {
+        if (!value || value.length > 1000) throw new Error("Selection names must contain 1 to 1,000 characters.");
+        if (state.catalog.rate_groups[group].some((rate) => rate.id !== item.id && rate.name.toLowerCase() === value.toLowerCase())) throw new Error(`Selection name already exists in ${groups[group] || group}.`);
+        return { group, item, value };
+      }
+      if (field === "Yield unit") {
+        if (value.length > 100 || (!usesYield && value && value !== "—")) throw new Error("Yield units must be at most 100 characters and blank for a use without yield.");
+        return { group, item, value: value === "—" ? "" : value };
+      }
+      if (field === "Yield") {
+        if (!usesYield) {
+          if (value && value !== "—") throw new Error(`${groups[group] || group} does not use a yield.`);
+          return { group, item, value: undefined };
+        }
+        if (!value || value.toLowerCase() === "blank") return { group, item, value: null };
+        if (value.toLowerCase() === "empty text") return { group, item, value: "" };
+      } else if (!value) {
+        if (!item.inventory_id) throw new Error("Standalone rates need a sell rate.");
+        return { group, item, value: null };
+      }
+      const number = Number(value);
+      if (!value || !Number.isFinite(number) || number < 0 || number > 1e12) throw new Error(`${field} values must be nonnegative numbers no greater than one trillion.`);
+      return { group, item, value: number };
+    });
+    if (field === "Selection name") {
+      for (const group of new Set(updates.map((entry) => entry.group))) {
+        const names = updates.filter((entry) => entry.group === group).map((entry) => entry.value.toLowerCase());
+        if (new Set(names).size !== names.length) throw new Error(`Selection names must be unique within ${groups[group] || group}.`);
+      }
+    }
+    if (field === "Yield") for (const { item, value } of updates) {
+      if (value !== undefined) setOverride("rates", item, "yield", value);
+    }
+    else editPricingCatalog((catalog) => {
+      for (const { group, item, value } of updates) {
+        const rate = catalog.rate_groups[group].find((entry) => entry.id === item.id);
+        if (field === "Selection name") { rate.name = value; delete rate.display_name; }
+        else if (field === "Yield unit") { if (rate.uses_yield ?? !!rate.source?.yield) rate.yield_unit = value; }
+        else {
+          rate.price_mode = value === null ? "inventory" : "override";
+          rate.price = value === null ? inventorySellPrice(state.catalog.inventory.find((entry) => entry.id === item.inventory_id)) : value;
+        }
+      }
+    });
+    if (field === "Sell rate override") for (const { item } of updates) {
+      const patch = state.draft.rates[item.id];
+      if (patch) { delete patch.price; if (!Object.keys(patch).length) delete state.draft.rates[item.id]; }
+    }
+  }
+
+  async function resetPricingLibrary() {
+    document.activeElement?.blur?.();
+    const scope = state.pricingScope, draft = state.draft, snapshot = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
+    const saveAction = scope === "project" ? "Apply project pricing" : "Save pricing";
+    if (!await confirmReplace(scope === "project" ? "Reset project pricing?" : "Reset Library?", `Replace this pricing draft with the application's original products, rates and yields. Click ${saveAction} to keep these defaults. Existing project files keep their own pricing.`, "Reset Library")) return;
+    if (state.pricingScope !== scope || state.draft !== draft || JSON.stringify(state.draft) !== snapshot || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
+      message("Pricing changed during reset confirmation. Review the current pricing draft and try Reset Library again.", true); return;
+    }
+    state.draft = { inventory: {}, rates: {} }; refreshPricingCatalog(); renderPricing();
+    message(`Original library defaults are ready as a draft. Click ${saveAction} to keep them, or Discard changes to restore the ${scope === "project" ? "last applied project pricing" : "last saved library"}.`);
   }
 
   function renderPricing() {
@@ -596,28 +874,23 @@
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "Supplier price and markup calculate the product sell price. Expand Used in to edit each estimator rate or material yield. Reset rate restores its imported price source; Reset yield restores imported coverage.";
+    $("pricing-help").textContent = "One row per item. Used in Estimator, selection names, rate overrides, yields and units use matching semicolon-separated entries. A blank rate override follows the item sell price. Saved project rates may be fixed overrides; clear an override to follow the item sell price. Yield accepts a number, blank or empty text. Unit labels describe coverage per purchased unit; editing labels does not convert values.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Sell price", ""]) heading.append(node("th", "", title));
+    for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Sell price", "Used in Estimator", "Selection name", "Sell rate override", "Yield", "Yield unit", "Sales description", ""]) heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
-    const resetRateField = (item, field, label, groupLabel) => {
-      const button = node("button", "reset-button", label); button.type = "button";
-      button.setAttribute("aria-label", `${item.name}: ${groupLabel} ${label.toLowerCase()}`);
-      refreshers.push(() => { button.disabled = !Object.hasOwn(getOverride("rates", item.id), field); });
-      button.addEventListener("click", () => {
-        const patch = state.draft.rates?.[item.id];
-        if (patch) { delete patch[field]; if (!Object.keys(patch).length) delete state.draft.rates[item.id]; }
-        markPricingDirty(); renderPricing();
-      });
-      return button;
-    };
     const rows = [];
     for (const record of matches) {
       const { item, kind, uses } = record, inventoryView = kind === "inventory";
       const row = node("tr", state.draft[kind]?.[item.id] ? "edited" : "");
       row.dataset.priceId = item.id; row.dataset.priceKind = kind;
-      row.append(node("td", "", inventoryView ? item.item_code || "—" : "—"));
+      const codeCell = node("td");
+      if (inventoryView) codeCell.append(pricingListInput(record, "Item code", [item.item_code ?? ""], (values) => {
+        if (values.length > 1 || (values[0] || "").length > 200) throw new Error("Enter one item code of at most 200 characters.");
+        editPricingCatalog((catalog) => { catalog.inventory.find((entry) => entry.id === item.id).item_code = values[0] || ""; });
+      }));
+      else codeCell.textContent = "—";
+      row.append(codeCell);
       const nameCell = node("td");
       if (inventoryView) nameCell.append(priceInput(kind, item, "name", { text: true, label: "Name" }));
       else nameCell.append(node("span", "", item.name));
@@ -643,61 +916,76 @@
         const price = node("span", "price-value"); refreshers.push(() => { price.textContent = formatMoney(rateSellPrice(item)); });
         const sell = node("td"); sell.append(price); row.append(node("td", "", "—"), node("td", "", "—"), sell);
       }
-      const reset = node("td"); reset.append(resetButton(kind, item)); row.append(reset);
-      rows.push(row);
-      if (!uses.length) continue;
-      const detailRow = node("tr", "pricing-use-row"), detailCell = node("td"), details = node("details", "pricing-uses");
-      detailCell.colSpan = 6; detailRow.dataset.pricingUsesFor = record.key;
-      const groupNames = [...new Set(uses.map(({ group }) => groups[group] || group))].join(", ");
-      details.append(node("summary", "", `Used in: ${groupNames} · ${uses.length} ${uses.length === 1 ? "selection" : "selections"}`));
-      details.open = state.pricingExpanded.has(record.key) || Boolean(search && !productText(record).includes(search));
-      details.addEventListener("toggle", () => { if (details.open) state.pricingExpanded.add(record.key); else state.pricingExpanded.delete(record.key); });
-      const scroll = node("div", "pricing-uses-scroll"), table = node("table", "pricing-uses-table"), head = node("thead"), titles = node("tr"), body = node("tbody");
-      table.setAttribute("aria-label", `Estimator uses for ${getOverride(kind, item.id).name || item.name}`);
-      for (const title of ["Used in Estimator", "Selection name", "Sell rate", "Price source", "Yield", ""]) { const cell = node("th", "", title); cell.scope = "col"; titles.append(cell); }
-      head.append(titles);
-      for (const { group, item: rate } of uses) {
-        const groupLabel = groups[group] || group;
-        const useRow = node("tr", state.draft.rates?.[rate.id] ? "edited" : ""); useRow.dataset.rateId = rate.id; useRow.dataset.rateGroup = group;
-        const price = node("td"), input = priceInput("rates", rate, "price", { label: `${groupLabel} sell rate`, defaultValue: rateSellPrice(rate), onChange: refreshPrices }); price.append(input);
-        const status = node("td", "pricing-rate-source");
-        refreshers.push(() => {
-          if (input !== document.activeElement) input.value = controlValue(rateSellPrice(rate));
-          status.textContent = Object.hasOwn(getOverride("rates", rate.id), "price") ? "Rate override" : !inventoryView ? "Standalone rate" : rate.price_mode === "override" ? "Imported rate override" : "Follows inventory pricing";
-        });
-        const yieldCell = node("td"), actions = node("td", "pricing-rate-actions");
-        actions.append(resetRateField(rate, "price", "Reset rate", groupLabel));
-        if (rate.uses_yield ?? !!rate.source?.yield) {
-          yieldCell.append(priceInput("rates", rate, "yield", { label: `${groupLabel} material yield`, onChange: refreshPrices }));
-          actions.append(resetRateField(rate, "yield", "Reset yield", groupLabel));
-        } else yieldCell.textContent = "—";
-        useRow.append(node("td", "", groups[group] || group), node("td", "", rate.name), price, status, yieldCell, actions); body.append(useRow);
+      const groupCell = node("td");
+      groupCell.append(pricingListInput(record, "Used in Estimator", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used"));
+      row.append(groupCell);
+      const definitions = [
+        ["Selection name", uses.map(({ item: rate }) => rate.name)],
+        ["Sell rate override", uses.map(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || !rate.inventory_id ? rateSellPrice(rate) : "")],
+        ["Yield", uses.map(({ item: rate }) => {
+          if (!(rate.uses_yield ?? !!rate.source?.yield)) return "—";
+          const patch = getOverride("rates", rate.id), value = Object.hasOwn(patch, "yield") ? patch.yield : rate.yield;
+          return value === null ? "blank" : value === "" ? "empty text" : value;
+        })],
+        ["Yield unit", uses.map(({ group, item: rate }) => pricingYieldUnit(group, rate) || "—")],
+      ];
+      for (const [field, values] of definitions) {
+        const cell = node("td");
+        if (uses.length) cell.append(pricingListInput(record, field, values, (entries) => setPricingUseValues(record, entries, field), field === "Sell rate override" ? "Uses item sell price" : ""));
+        else cell.textContent = "—";
+        if (field === "Sell rate override" && uses.length) {
+          const status = node("small", "subtext pricing-rate-source");
+          refreshers.push(() => { status.textContent = pricingUseList(uses.map(({ item: rate }) => formatMoney(rateSellPrice(rate)))); });
+          cell.append(status);
+        }
+        row.append(cell);
       }
-      table.append(head, body); scroll.append(table); details.append(scroll); detailCell.append(details); detailRow.append(detailCell); rows.push(detailRow);
+      const description = node("td");
+      if (inventoryView) description.append(priceInput(kind, item, "sales_description", { text: true, label: "Sales description" }));
+      else description.textContent = "—";
+      const reset = node("td"); reset.append(resetButton(kind, item)); row.append(description, reset);
+      rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 6; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 12; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
   }
 
   async function savePricing() {
+    document.activeElement?.blur?.();
+    if (pricingInputProblem()) { message(pricingInputProblem(), true); return; }
     const button = $("save-pricing"); button.disabled = true;
     $("use-current-pricing").disabled = true;
     let persisted = false;
     try {
+      if (state.pricingScope === "project") {
+        await applyProjectPricing();
+        message("Project pricing applied. Save Project to store it with the estimate and calculators.");
+        return;
+      }
+      const draftObject = state.draft;
       const draft = clone(state.draft);
       const configuration = await request("/api/configuration", { method: "PUT", body: JSON.stringify(draft) });
       persisted = true;
       const metadata = await request("/api/bootstrap");
       // Keep prices and their dropdown definitions in step. Until both arrive,
       // estimates continue using the previously loaded pricing configuration.
+      const previousConfiguration = state.configuration;
       state.configuration = clone(metadata.configuration || configuration);
       state.currentFields = clone(metadata.fields || state.currentFields);
-      if (JSON.stringify(state.draft) === JSON.stringify(draft)) state.draft = clone(state.configuration);
-      refreshPricingCatalog();
-      renderPricing();
-      if (!state.quoteConfiguration) { state.fields = clone(state.currentFields); renderInputs(); updateDirty(); scheduleCalculation(); }
+      const unchanged = JSON.stringify(draftObject) === JSON.stringify(draft) && !pricingHasPendingInput(draftObject);
+      if (state.libraryDraft === draftObject && unchanged) state.libraryDraft = clone(state.configuration);
+      if (state.pricingScope === "library" && state.draft === draftObject && unchanged) state.draft = state.libraryDraft || clone(state.configuration);
+      if (!state.quoteConfiguration) {
+        state.fields = clone(state.currentFields);
+        if (!draftChanged(state.projectPricingDraft, previousConfiguration)) {
+          state.projectPricingDraft = clone(state.configuration);
+          if (state.pricingScope === "project") state.draft = state.projectPricingDraft;
+        }
+        renderInputs(); updateDirty(); scheduleCalculation();
+      }
+      refreshPricingCatalog(); renderPricing();
       const changedElsewhere = JSON.stringify(state.configuration) !== JSON.stringify(configuration);
       message(changedElsewhere ? "Pricing was saved, then changed in another session. The latest saved library is loaded; any further draft edits are still unsaved."
         : state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing library saved. The saved products, choices and rates now apply to new estimates.");
@@ -715,6 +1003,8 @@
   }
 
   async function exportPricing() {
+    document.activeElement?.blur?.();
+    if (pricingInputProblem()) { message(pricingInputProblem(), true); return; }
     const button = $("export-pricing");
     if (button.disabled) return;
     const draft = JSON.stringify(state.draft);
@@ -750,12 +1040,14 @@
   }
 
   async function importPricing() {
+    document.activeElement?.blur?.();
+    if (pricingInputProblem()) { message(pricingInputProblem(), true); return; }
     const input = $("pricing-import-file");
     const file = input.files?.[0];
     input.value = "";
     if (!file) return;
     const button = $("import-pricing");
-    const draft = JSON.stringify(state.draft);
+    const sourceDraft = state.draft, draft = JSON.stringify(sourceDraft);
     button.disabled = true; button.textContent = "Reading Excel…";
     try {
       if (!/\.xlsx$/i.test(file.name)) throw new Error("Choose an .xlsx workbook exported from this pricing library.");
@@ -764,18 +1056,19 @@
       const preview = await request("/api/pricing/import", {
         method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, configuration: JSON.parse(draft) }),
       });
-      if (draft !== JSON.stringify(state.draft)) throw new Error("Pricing changed while the workbook was being read. Import it again to compare against your latest edits.");
+      if (state.draft !== sourceDraft || draft !== JSON.stringify(state.draft) || pricingInputProblem()) throw new Error("Pricing changed while the workbook was being read. Import it again to compare against your latest edits.");
       const counts = (kind, label) => {
         const count = preview.summary?.[kind] || {};
         return `${label}: ${count.added || 0} added, ${count.removed || 0} removed, ${count.updated || 0} updated.`;
       };
-      const detail = `${file.name}\n${counts("inventory", "Inventory")}\n${counts("rates", "Rates and choices")}\nThis replaces the entire draft library. Deleted workbook rows will be removed. The changes take effect only after you click Save pricing.`;
+      const saveAction = $("save-pricing").textContent || "Save pricing";
+      const detail = `${file.name}\n${counts("inventory", "Inventory")}\n${counts("rates", "Rates and choices")}\nThis replaces the entire draft library. Deleted workbook rows will be removed. The changes take effect only after you click ${saveAction}.`;
       const accepted = await confirmReplace("Review imported pricing", detail, "Apply to draft");
       if (!accepted) { message("Import cancelled. Your pricing draft was kept."); return; }
-      if (draft !== JSON.stringify(state.draft)) throw new Error("Pricing changed during import review. Import again to keep your latest edits safe.");
+      if (state.draft !== sourceDraft || draft !== JSON.stringify(state.draft) || pricingInputProblem()) throw new Error("Pricing changed during import review. Import again to keep your latest edits safe.");
       state.draft = clone(preview.configuration);
       refreshPricingCatalog(); renderPricing();
-      message("Imported pricing is ready to review. Click Save pricing to apply the new products, dropdown choices and rates.");
+      message(`Imported pricing is ready to review. Click ${saveAction} to apply the new products, dropdown choices and rates.`);
     } catch (error) { message(`Pricing was not imported. ${error.message}`, true); }
     finally { button.disabled = false; button.textContent = "Import Excel"; }
   }
@@ -788,12 +1081,14 @@
       state.baseline = data.baseline || { inventory: [], rate_groups: {} };
       state.configuration = data.configuration || { inventory: {}, rates: {} };
       state.draft = clone(state.configuration);
+      state.libraryDraft = state.draft;
       if (Array.isArray(data.workflows) && data.workflows.length) {
         state.defaultWorkflow = data.workflows[0];
       }
       refreshPricingCatalog();
       $("loading-state").hidden = true;
       await newQuote();
+      state.initialized = true;
       $("project-tools").hidden = false;
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
   }
@@ -826,28 +1121,43 @@
     return JSON.stringify({ estimate: projectEstimate(), quoteContext: state.quoteContext,
       quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
+      pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
+      pricingPending: (state.pricingScope === "project" ? state.draft : state.projectPricingDraft) && [...pricingPendingFields(state.pricingScope === "project" ? state.draft : state.projectPricingDraft)],
       calculators: window.CeasefireCalculators.projectFingerprint() });
   }
 
   function projectBusy(value) {
     state.projectBusy = value;
-    for (const id of ["save-project", "load-project"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
+    for (const id of ["save-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
   }
 
   async function saveProject() {
     if (state.projectBusy) return;
     projectBusy(true);
     try {
+      document.activeElement?.blur?.();
       if (inputProblem()) throw new Error(inputProblem());
-      const payload = { estimate: projectEstimate(), calculators: window.CeasefireCalculators.projectSnapshot() };
+      await applyProjectPricing();
+      if (inputProblem()) throw new Error(inputProblem());
+      const calculators = await window.CeasefireCalculators.completeProjectSnapshot();
+      if (inputProblem() || projectPricingChanged()) throw new Error(inputProblem() || "Project pricing changed while preparing the file. Save Project again when ready.");
+      const payload = { estimate: projectEstimate(), calculators };
       const captured = projectStamp();
-      const response = await fetch("/api/project/export", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/octet-stream" }, body: JSON.stringify(payload) });
-      if (!response.ok) { const data = await response.json().catch(() => null); throw new Error(data?.error || "The project file could not be created."); }
-      if ((response.headers.get("Content-Type") || "").split(";")[0].trim() !== "application/octet-stream") throw new Error("The server did not return a project file.");
-      const blob = await response.blob(); if (!blob.size) throw new Error("The project file is empty.");
-      downloadFile(blob, "CEASEFIRE-Project.ceasefire-project.json");
+      const context = state.quoteContext;
+      const saved = await request("/api/project/save-as", { method: "POST", body: JSON.stringify(payload) });
+      if (saved.cancelled) { message("Save As cancelled. Your current project remains open."); return; }
       const changed = captured !== projectStamp();
-      message(`Project file download started. It includes the estimate, its pricing snapshot and all three calculators.${changed ? " Later edits are not included." : ""}`);
+      if (context === state.quoteContext) {
+        state.projectFile = saved.file;
+        window.CeasefireCalculators.markProjectSaved(saved.project.calculators);
+        if (!changed) {
+          state.quote = null; state.quoteConfiguration = clone(saved.project.estimate.configuration);
+          state.fields = clone(saved.project.fields); resetProjectPricing(); renderInputs(); updateDirty(false);
+          $("snapshot-message").hidden = false;
+          $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
+        } else updateDirty();
+      }
+      message(`Project saved to ${saved.file.path}. It includes the estimate, its pricing library and all three calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
     } catch (error) { message(`Project was not saved. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
@@ -861,28 +1171,76 @@
       const captured = projectStamp();
       const content_base64 = await fileBase64(file);
       const project = await request("/api/project/import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64 }) });
+      await reviewAndLoadProject(project, { name: file.name }, captured);
+    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+    finally { projectBusy(false); }
+  }
+
+  async function reviewAndLoadProject(project, file, captured) {
       const prepared = await window.CeasefireCalculators.prepareProject(project.calculators);
       if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the current estimate and all three calculator drafts. Saved quotes and the pricing library stay unchanged.`, "Load Project");
+      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the current estimate, its pricing and all three calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
       if (!accepted) { message("Project load cancelled. Your current drafts were kept."); return; }
       if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
       // All validation and definition loading finish before either workspace changes.
       const inputs = clone(estimate.inputs), configuration = clone(estimate.configuration), fields = clone(project.fields);
       window.CeasefireCalculators.applyProject(prepared);
+      window.CeasefireCalculators.markProjectSaved(project.calculators);
       ++state.quoteContext; ++state.quoteLoadRevision;
       state.inputErrors.clear(); state.inputDrafts.clear();
       state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
+      state.projectFile = file; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
-      updateQuoteTitle(); renderInputs(); updateDirty();
+      updateQuoteTitle(); renderInputs(); updateDirty(false);
       $("snapshot-message").hidden = false; $("snapshot-message").querySelector("span").textContent = "This project uses the pricing snapshot from its file.";
       showView("estimate"); scheduleCalculation();
-      message("Project loaded as a draft. Save Project downloads a complete copy; Save quote and Save calculator keep individual records on this computer.");
-    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+      message("Project loaded with its original pricing and all three calculators. Save Project stores the complete project together.");
+  }
+
+  async function loadProjects() {
+    const revision = ++state.projectsRevision;
+    const list = $("project-list"); list.textContent = "Reading project files…";
+    try {
+      const data = await request("/api/projects");
+      if (revision !== state.projectsRevision) return;
+      $("project-folder").textContent = data.folder || "Link your estimates folder to list its project files and use it as the default Save As location.";
+      const items = (data.files || []).map(file => {
+        const item = node("article", "quote-item"), description = node("div");
+        description.append(node("h3", "", file.title || file.name), node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper", `${file.name} · ${new Date(file.modified_at).toLocaleString("en-AU")}`));
+        const button = node("button", "button secondary", "Open project"); button.type = "button";
+        button.addEventListener("click", () => openProjectFile(file, button)); item.append(description, button); return item;
+      });
+      list.replaceChildren(...(items.length ? items : [node("p", "empty-state", "No project files in the linked folder yet. Use Save Project or link another folder.")]));
+      const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
+      if (data.truncated) problems.push("The folder is too large to list completely. Use a smaller estimates folder.");
+      $("project-file-errors").textContent = problems.join("\n"); $("project-file-errors").hidden = !problems.length;
+    } catch (error) { if (revision === state.projectsRevision) list.replaceChildren(node("p", "message error", error.message)); }
+  }
+
+  async function linkProjectFolder() {
+    if (state.projectBusy) return;
+    projectBusy(true);
+    try {
+      const data = await request("/api/projects/link-folder", { method: "POST", body: "{}" });
+      if (data.cancelled) { message("Folder selection cancelled."); return; }
+      await loadProjects(); message(`Estimates folder linked: ${data.folder}`);
+    } catch (error) { message(`Folder was not linked. ${error.message}`, true); }
     finally { projectBusy(false); }
+  }
+
+  async function openProjectFile(file, button) {
+    if (state.projectBusy) return;
+    projectBusy(true); button.disabled = true;
+    try {
+      const captured = projectStamp();
+      const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify({ id: file.id }) });
+      await reviewAndLoadProject(project, project.file || file, captured);
+    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
+    finally { projectBusy(false); button.disabled = false; }
   }
 
   async function downloadQuotePdf() {
@@ -943,25 +1301,30 @@
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", newQuote);
-  $("save-quote").addEventListener("click", saveQuote);
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
   $("save-project").addEventListener("click", saveProject);
   $("load-project").addEventListener("click", () => { if (!state.projectBusy) $("project-import-file").click(); });
   $("project-import-file").addEventListener("change", loadProject);
   $("edit-project-details").addEventListener("click", () => { showView("estimate"); $("project-no").focus(); });
-  $("refresh-quotes").addEventListener("click", loadQuotes);
-  $("use-current-pricing").addEventListener("click", () => { state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields); renderInputs(); $("snapshot-message").querySelector("span").textContent = "Current pricing applied. Save to replace this quote's pricing snapshot."; updateDirty(); scheduleCalculation(); message("Current pricing applied to this estimate. Check any removed product selections, then save the quote to retain its new pricing snapshot."); });
+  $("refresh-quotes").addEventListener("click", () => { loadProjects(); loadQuotes(); });
+  $("link-project-folder").addEventListener("click", linkProjectFolder);
+  $("use-current-pricing").addEventListener("click", useCurrentPricing);
+  $("pricing-scope").addEventListener("change", () => switchPricingScope($("pricing-scope").value));
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
   $("save-pricing").addEventListener("click", savePricing);
+  $("reset-pricing").addEventListener("click", resetPricingLibrary);
   $("export-pricing").addEventListener("click", exportPricing);
   $("import-pricing").addEventListener("click", () => $("pricing-import-file").click());
   $("pricing-import-file").addEventListener("change", importPricing);
   $("discard-pricing").addEventListener("click", async () => {
-    if (state.pricingDirty && !await confirmReplace("Discard pricing changes?", "Unsaved pricing edits will be replaced with your last saved configuration.", "Discard changes")) return;
-    state.draft = clone(state.configuration); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
+    document.activeElement?.blur?.();
+    const draft = state.draft, revision = state.pricingRevision;
+    if (state.pricingDirty && !await confirmReplace("Discard pricing changes?", state.pricingScope === "project" ? "Project pricing edits will return to the last applied project prices." : "Shared library edits will return to the last saved library.", "Discard changes")) return;
+    if (draft !== state.draft || revision !== state.pricingRevision) return;
+    state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
-  window.addEventListener("beforeunload", (event) => { if (state.dirty || state.pricingDirty) { event.preventDefault(); event.returnValue = ""; } });
+  window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration)) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireProject = { details: quoteDetails };
   bootstrap();
 })();

@@ -212,9 +212,9 @@ class _ScheduleReport(_Report):
         coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
                     'Every used item remains in this report.')
         self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
-        if materials:
+        if materials and data['id'] != 'steel_vermiculite':
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
-        if not (materials and data['id'] == 'steel_board'):
+        if not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
             self.story.append(self.p('Display rounding is limited to two decimal places; stored inputs and calculations retain their full precision.', 'small'))
 
     def schedule(self):
@@ -275,9 +275,11 @@ class _ScheduleReport(_Report):
                 continue
             self.note_block(_source_text(data['id'], 'BOARD SUMMARY', 'A8', value))
         for summary in data['summaries']:
+            if data['id'] == 'ductwork' and summary['title'] == 'Working spray yields':
+                continue
             if not (data['id'] == 'steel_vermiculite' and summary['title'] == 'Product order totals'):
                 self.story.append(self.p(summary['title'], 'subheading'))
-            if summary['note']:
+            if summary['note'] and data['id'] != 'steel_vermiculite':
                 note = self.p(summary['note'], 'small')
                 note.keepWithNext = True
                 self.story.append(note)
@@ -301,8 +303,9 @@ class _ScheduleReport(_Report):
                     formatted.append(self.numeric(value, blank='-', percent=data['id'] == 'steel_vermiculite' and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
                 rows.append(formatted)
             self.story.append(self.table([summary['labels'][column] for column in columns], rows, widths, compact=True))
-            for product, basis, interpretation in summary.get('qualifications', []):
-                self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))
+            if data['id'] != 'ductwork':
+                for product, basis, interpretation in summary.get('qualifications', []):
+                    self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))
             self.story.append(Spacer(1, 9))
         self.story.append(KeepTogether([self.p('Overall schedule totals', 'subheading'),
             self.table(['Schedule measure', 'Total'], [[self.p(label, 'cell'), self.numeric(value)] for label, value in data['totals']],
@@ -339,7 +342,8 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     def decorate(canvas, doc):
         canvas.saveState()
         _company_header(canvas, logo, _WIDTH, _HEIGHT, _MARGIN,
-                        'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'))
+                        'CALCULATORS | ' + ('MATERIALS & SUMMARY' if materials else 'FULL SCHEDULE'),
+                        label_below_logo=materials)
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, _WIDTH - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)

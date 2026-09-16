@@ -62,6 +62,7 @@ function harness() {
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, projectStamp, saveQuote, openQuote, calculate,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,
       setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -91,21 +92,22 @@ function harness() {
 let passed = 0;
 async function check(name, fn) { await fn(harness()); passed++; console.log(`ok - ${name}`); }
 (async () => {
-  await check('Export captures active snapshot and loaded unsaved drafts while leaving unopened calculators for backend fallback', async h => {
+  await check('Save As captures estimate and every loaded calculator, preserving edits made while the dialog is open', async h => {
     const before = h.snapshot(), pending = deferred(); let sent;
-    h.context.fetch = async (path, options) => { sent = { path, body: JSON.parse(options.body), method: options.method }; return pending.promise; };
-    const exporting = h.app.saveProject();
-    assert.equal(sent.path, '/api/project/export'); assert.equal(sent.method, 'POST');
+    h.app.setRequest((path, options) => { sent = { path, body: JSON.parse(options.body), method: options.method }; return pending.promise; });
+    const saving = h.app.saveProject(); await flush();
+    assert.equal(sent.path, '/api/project/save-as'); assert.equal(sent.method, 'POST');
     assert.deepEqual(sent.body.estimate.configuration, before.estimate.configuration);
     assert.equal(sent.body.estimate.project_no, 'CF-1000'); assert.equal(sent.body.estimate.source_quote_id, undefined);
-    assert.deepEqual(sent.body.calculators, before.calculators); assert.equal(sent.body.calculators.ductwork, undefined);
-    assert.deepEqual(h.snapshot(), before); assert.equal(h.app.state.dirty, true);
+    assert.deepEqual(sent.body.calculators.steel_board, before.calculators.steel_board); assert.equal(sent.body.calculators.ductwork.inputs.CALCULATOR.A9,'Local saved value');
+    const saved = { ...project(), estimate: { ...sent.body.estimate }, calculators: { ...project().calculators, ...sent.body.calculators } };
     h.app.state.inputs.B15 = 999; h.calc.setInput(h.calc.current(), 'CALCULATOR', 'A9', 'Later board edit');
-    pending.resolve(fileResponse('application/octet-stream')); await exporting;
-    assert.equal(h.context.document.body.children.at(-1)?.download, projectFilename);
-    assert.match(h.byId('app-message').textContent, /Later edits are not included/);
+    pending.resolve({ cancelled:false, file:{name:projectFilename,path:'C:/estimates/'+projectFilename}, project:saved }); await saving;
     assert.equal(h.app.state.inputs.B15, 999); assert.equal(h.calc.current().inputs.CALCULATOR.A9, 'Later board edit');
-    assert.equal(h.app.state.dirty, true); assert.equal(h.calc.dirty(h.calc.current()), true); assert.equal(h.calls.length, 0);
+    assert.equal(h.app.state.dirty, true); assert.equal(h.calc.dirty(h.calc.current()), true);
+    assert.match(h.byId('app-message').textContent, /Later edits are not included/);
+    assert.equal(h.calc.dirty(h.calc.state.entries.get('steel_vermiculite')),false);
+    assert.equal(h.context.document.body.children.length,0);
   });
 
   await check('Export rejects invalid inputs or an active calculator save without requesting a file', async h => {
@@ -125,19 +127,19 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     assert.ok(h.calls.every(call => !call.options || call.options.method !== 'PUT'));
   });
 
-  await check('Accepted project atomically becomes a new estimate with all three unsaved calculator drafts', async h => {
+  await check('Accepted project atomically restores a clean estimate and all calculators while keeping shared pricing isolated', async h => {
     const pricing = copy(h.app.state.configuration), libraryDraft = copy(h.app.state.draft), currentFields = copy(h.app.state.currentFields);
     const loadRevision = h.calc.state.loadRevision, requestRevision = h.calc.state.requestRevision;
     h.calc.state.optionLists.set('stale', {}); await h.loadAccepted();
-    assert.equal(h.app.state.quote, null); assert.equal(h.app.state.dirty, true);
+    assert.equal(h.app.state.quote, null); assert.equal(h.app.state.dirty, false);
     assert.deepEqual(copy(h.app.state.inputs), project().estimate.inputs);
     assert.deepEqual(copy(h.app.state.quoteConfiguration), project().estimate.configuration);
     assert.deepEqual(copy(h.app.state.fields), project().fields);
-    assert.deepEqual(copy(h.app.state.configuration), pricing); assert.deepEqual(copy(h.app.state.draft), libraryDraft);
+    assert.deepEqual(copy(h.app.state.configuration), pricing); assert.deepEqual(copy(h.app.state.libraryDraft), libraryDraft); assert.deepEqual(copy(h.app.state.draft), project().estimate.configuration);
     assert.deepEqual(copy(h.app.state.currentFields), currentFields);
     assert.deepEqual(copy(h.context.window.CeasefireProject.details()), project().project_details);
     assert.equal(h.byId('measurements').value, 'Imported notes'); assert.equal(h.calc.state.entries.size, 3);
-    for (const id of ids) { const entry = h.calc.state.entries.get(id); assert.equal(entry.saved, null); assert.equal(h.calc.dirty(entry), true); assert.equal(entry.inputs.CALCULATOR.A9, `Imported ${id}`); }
+    for (const id of ids) { const entry = h.calc.state.entries.get(id); assert.equal(entry.saved, JSON.stringify(project().calculators[id].inputs)); assert.equal(h.calc.dirty(entry), false); assert.equal(entry.inputs.CALCULATOR.A9, `Imported ${id}`); }
     assert.equal(h.calc.state.current, null); assert.equal(h.calc.state.optionLists.size, 0);
     assert.equal(h.calc.state.loadRevision, loadRevision + 1); assert.equal(h.calc.state.requestRevision, requestRevision + 1);
     assert.equal(h.byId('calculator-workspace').hidden, true);
@@ -178,7 +180,7 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     const old = deferred(); h.app.setRequest(path => path === '/api/project/import' ? Promise.resolve(project()) : old.promise);
     const savingQuote = h.app.saveQuote(); await h.loadAccepted(); const before = h.snapshot();
     old.resolve({ id: 'old-save', configuration: { old: true }, inputs: { B15: 1 } }); await savingQuote;
-    assert.deepEqual(h.snapshot(), before); assert.equal(h.app.state.quote, null); assert.equal(h.app.state.dirty, true);
+    assert.deepEqual(h.snapshot(), before); assert.equal(h.app.state.quote, null); assert.equal(h.app.state.dirty, false);
   });
 
   await check('Late worksheet result cannot replace imported calculator inputs', async h => {
@@ -228,6 +230,76 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     const downloadAgain = ({ schedule: h.calc.downloadSchedulePdf, summary: h.calc.downloadMaterialsSummaryPdf, xlsx: h.calc.downloadExcelRegister })[action]();
     if (action !== 'xlsx') assert.equal(sent.body.project_details.client, 'Client changed after click');
     next.resolve(fileResponse(action === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf')); await downloadAgain;
+  });
+  await check('Cancelled Save As keeps dirty state and writes no independent quote, calculator or shared pricing record', async h => {
+    h.app.setRequest(async(path)=>{assert.equal(path,'/api/project/save-as');return {cancelled:true};});
+    await h.app.saveProject();assert.equal(h.app.state.dirty,true);assert.equal(h.calc.dirty(h.calc.current()),true);
+    assert.equal(h.app.state.projectFile,null);assert.match(h.byId('app-message').textContent,/cancelled/);
+  });
+  await check('Successful Save As marks every captured calculator saved and freezes project pricing', async h => {
+    const shared=copy(h.app.state.configuration);let captured;
+    h.app.setRequest(async(path,options)=>{assert.equal(path,'/api/project/save-as');captured=JSON.parse(options.body);return {cancelled:false,file:{name:'saved.json',path:'C:/estimates/saved.json'},project:{...project(),estimate:captured.estimate,calculators:captured.calculators}};});
+    await h.app.saveProject();assert.equal(h.app.state.dirty,false);assert.equal(h.app.state.quote,null);
+    assert.equal(h.calc.state.entries.size,3);for(const entry of h.calc.state.entries.values())assert.equal(h.calc.dirty(entry),false);
+    assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.quoteConfiguration),captured.estimate.configuration);
+  });
+  await check('Project pricing changes are validated without changing shared rates and are included by Save Project', async h => {
+    h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=42.75;
+    const shared=copy(h.app.state.configuration),library=copy(h.app.state.libraryDraft),paths=[];let saved;
+    h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);
+      if(path==='/api/configuration/preview')return {configuration:body.configuration,fields:copy(h.app.state.fields)};
+      assert.equal(path,'/api/project/save-as');saved=body;return {cancelled:false,file:{name:'saved.json',path:'C:/estimates/saved.json'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};
+    });
+    await h.app.saveProject();assert.deepEqual(paths,['/api/configuration/preview','/api/project/save-as']);assert.equal(saved.estimate.configuration.rates.frozen.price,42.75);
+    assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),library);assert.equal(h.app.state.dirty,false);
+  });
+  await check('New estimate follows newly saved shared library and Save Project does not restore stale prices', async h => {
+    h.app.state.quote=null;h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=copy(h.app.state.configuration);
+    h.app.state.draft=copy(h.app.state.configuration);h.app.state.draft.rates.local.price=99;h.app.state.libraryDraft=h.app.state.draft;
+    const next=copy(h.app.state.draft);let saved;
+    h.app.setRequest(async(path,options)=>{
+      if(path==='/api/configuration')return next;
+      if(path==='/api/bootstrap')return {configuration:next,fields:copy(h.app.state.currentFields)};
+      assert.equal(path,'/api/project/save-as');saved=JSON.parse(options.body);return {cancelled:true};
+    });
+    await h.app.savePricing();assert.equal(h.app.state.projectPricingDraft.rates.local.price,99);
+    await h.app.saveProject();assert.equal(saved.estimate.configuration.rates.local.price,99);
+  });
+  await check('Invalid estimate edits arriving during pricing preview prevent Save As and stay visible', async h => {
+    h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=123;
+    const pending=deferred();let calls=0;h.app.setRequest(()=>{calls++;return pending.promise;});
+    const saving=h.app.saveProject();await flush();h.app.state.inputRevision++;h.app.state.inputErrors.set('B15','Whole number required');h.app.state.inputDrafts.set('B15','1.5');
+    pending.resolve({configuration:copy(h.app.state.draft),fields:copy(h.app.state.fields)});await saving;
+    assert.equal(calls,1);assert.equal(h.app.state.inputDrafts.get('B15'),'1.5');assert.match(h.byId('app-message').textContent,/Whole number/);
+  });
+  await check('Scope switching retains both unsaved pricing drafts without applying either to the other', async h => {
+    const library=h.app.state.draft;h.app.switchPricingScope('project');const local=h.app.state.draft;local.rates.frozen.price=345;
+    h.app.switchPricingScope('library');assert.equal(h.app.state.draft,library);h.app.switchPricingScope('project');assert.equal(h.app.state.draft,local);
+    assert.equal(h.app.state.quoteConfiguration.rates.frozen.price,17.12345);assert.equal(h.app.state.configuration.rates.local.price,12);
+  });
+  await check('Late shared pricing save updates only its own scope after a project editor is opened', async h => {
+    h.app.state.libraryDraft=h.app.state.draft;const pending=deferred();const draft=copy(h.app.state.draft);
+    h.app.setRequest(path=>path==='/api/configuration'?pending.promise:Promise.resolve({configuration:draft,fields:copy(h.app.state.currentFields)}));
+    const saving=h.app.savePricing();h.app.switchPricingScope('project');const local=h.app.state.draft;local.rates.frozen.price=76;
+    pending.resolve(draft);await saving;assert.equal(h.app.state.draft,local);assert.equal(h.app.state.draft.rates.frozen.price,76);assert.equal(h.app.state.pricingScope,'project');
+  });
+  await check('Switching to unchanged project prices during a shared save follows the new baseline', async h => {
+    h.app.state.quote=null;h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=copy(h.app.state.configuration);
+    h.app.state.draft=copy(h.app.state.configuration);h.app.state.draft.rates.local.price=111;h.app.state.libraryDraft=h.app.state.draft;
+    const next=copy(h.app.state.draft),pending=deferred();
+    h.app.setRequest(path=>path==='/api/configuration'?pending.promise:Promise.resolve({configuration:next,fields:copy(h.app.state.currentFields)}));
+    const saving=h.app.savePricing();h.app.switchPricingScope('project');assert.equal(h.app.state.draft.rates.local.price,12);
+    pending.resolve(next);await saving;assert.equal(h.app.state.draft,h.app.state.projectPricingDraft);assert.equal(h.app.state.draft.rates.local.price,111);assert.equal(h.app.projectPricingChanged(),false);
+  });
+  await check('Save As failure retains estimate and calculator edits for retry', async h => {
+    h.app.setRequest(async()=>{throw new Error('Folder is read only');});await h.app.saveProject();
+    assert.equal(h.app.state.dirty,true);assert.equal(h.calc.dirty(h.calc.current()),true);assert.equal(h.app.state.projectFile,null);assert.equal(h.app.state.projectBusy,false);assert.match(h.byId('app-message').textContent,/Folder is read only/);
+  });
+  await check('Folder library loads the selected opaque file and restores the entire project', async h => {
+    const paths=[];h.app.setRequest(async(path,options)=>{paths.push(path);if(path==='/api/projects')return {folder:'C:/estimates',files:[{id:'opaque',name:'project.json',title:'Project',modified_at:'2026-09-16T00:00:00Z'}],errors:[]};assert.equal(JSON.parse(options.body).id,'opaque');return {...project(),file:{name:'project.json'}};});
+    await h.app.loadProjects();assert.match(h.byId('project-folder').textContent,/C:\/estimates/);assert.equal(h.byId('project-list').children.length,1);
+    const opening=h.app.openProjectFile({id:'opaque',name:'project.json'},h.element('button'));await flush();await h.byId('discard-dialog').close('confirm');await opening;
+    assert.deepEqual(paths,['/api/projects','/api/projects/load']);assert.equal(h.app.state.dirty,false);assert.equal(h.calc.state.entries.size,3);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

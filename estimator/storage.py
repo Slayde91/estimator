@@ -31,7 +31,10 @@ class Store:
                 CREATE TABLE IF NOT EXISTS calculator_states (
                     id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
-                PRAGMA user_version=2;
+                CREATE TABLE IF NOT EXISTS app_preferences (
+                    key TEXT PRIMARY KEY, value TEXT NOT NULL
+                );
+                PRAGMA user_version=3;
             """)
 
     @contextmanager
@@ -47,6 +50,16 @@ class Store:
         with self.connect() as db:
             row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
         return json.loads(row[0]) if row else {"inventory": {}, "rates": {}}
+
+    def project_folder(self):
+        with self.connect() as db:
+            row = db.execute("SELECT value FROM app_preferences WHERE key='project_folder'").fetchone()
+        return row[0] if row else None
+
+    def set_project_folder(self, path):
+        with self.connect() as db:
+            db.execute("INSERT INTO app_preferences(key,value) VALUES('project_folder',?) "
+                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(path),))
 
     def calculator_state(self, calculator_id):
         from .workbook_calculators import source_model

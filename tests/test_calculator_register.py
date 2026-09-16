@@ -155,6 +155,12 @@ class CalculatorRegisterTests(unittest.TestCase):
                     data, workbook, native, _ = snapshot(identity, kind)
                     self.assertEqual(workbook.sheetnames, ['Summary', 'Schedule'] +
                                      (['Extra boards'] if identity == 'steel_board' else []))
+                    for page in workbook:
+                        for row in page:
+                            for cell in row:
+                                if cell.value is not None:
+                                    self.assertEqual(cell.alignment.horizontal, 'center', (page.title, cell.coordinate))
+                                    self.assertEqual(cell.alignment.vertical, 'center', (page.title, cell.coordinate))
                     self.assert_schedule(identity, data, workbook, native)
                     self.assert_summaries(identity, data, workbook, native)
                     if identity == 'steel_board':

@@ -33,7 +33,6 @@ def _schedule(calculator_id):
     location = "AA" if calculator_id == "steel_vermiculite" else None
     if location:
         columns.sort(key=lambda field: field["column"] != location)
-    columns.insert(0, {"label": "Line", "type": "number", "generated": True})
     return catalog, schedule, columns
 
 
@@ -81,7 +80,7 @@ def export_schedule_template(calculator_id):
     instructions = workbook.create_sheet("Instructions")
     instructions.append(["CEASEFIRE SCHEDULE TEMPLATE", catalog["title"]])
     instructions.append(["Import", "Import replaces the complete schedule. Review it before saving the estimate. Settings and other calculator inputs are retained."])
-    instructions.append(["Rows", f"Enter up to {capacity} rows below the headings. Line is informational and regenerated from physical row order on import, including hidden or filtered rows. Blank rows keep their positions."])
+    instructions.append(["Rows", f"Enter up to {capacity} rows below the headings. Schedule line numbers are generated from physical row order on import, including hidden or filtered rows. Blank rows keep their positions."])
     instructions.append(["Values only", "Enter values, not Excel formulas. Do not add worksheets or calculated columns. Keep the headings and worksheet name unchanged."])
     instructions.append(["Numbers", "Keep numbers numeric. Display uses at most two decimal places; stored precision is retained. Enter percentage values as percentages, for example 10%."])
     instructions.append(["Dropdowns", "Lists reproduce the source workbook choices. Source warning dropdowns allow specified intermediate values; the calculator reports unsupported cases."])
@@ -162,7 +161,7 @@ def export_schedule_template(calculator_id):
             cell.fill = PatternFill("solid", fgColor="E7E6E6" if field.get("generated") else "F0F5FA" if row % 2 == 0 else "FFFFFF")
             cell.alignment = Alignment(vertical="center", wrap_text=True)
             cell.number_format = "0" if field.get("generated") else "0.00%" if "%" in field["label"] else "0.##" if field["type"] == "number" else "General"
-    sheet.freeze_panes = "C2" if calculator_id in {"steel_board", "steel_vermiculite"} else "B2"
+    sheet.freeze_panes = "B2"
     sheet.auto_filter.ref = f"A1:{column_name(len(columns))}{capacity + 1}"
     sheet.row_dimensions[1].height = 62
     for target in (sheet, instructions):
@@ -173,6 +172,7 @@ def export_schedule_template(calculator_id):
             cell.alignment = Alignment(vertical="center", wrap_text=True)
         for row in target:
             for cell in row:
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 if isinstance(cell.value, str):
                     cell.data_type = "s"
     return _serialize_exact(workbook)
@@ -254,12 +254,15 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         sheet = workbook[schedule["sheet"]]
         sheet.reset_dimensions()
         sheet.calculate_dimension(force=True)
-        if sheet.max_row > capacity + 1 or sheet.max_column > len(columns):
+        if sheet.max_row > capacity + 1 or sheet.max_column > len(columns) + 1:
             raise ValidationError(f"The schedule must contain at most {capacity} rows and only the exported input columns.")
         legacy_columns = [field for field in load_workbook_catalog(calculator_id)["schedule"]["columns"] if field.get("editable")]
         rows = sheet.iter_rows(max_col=sheet.max_column)
         actual = tuple(cell.value for cell in next(rows, ()))
-        if actual == tuple(field["label"] for field in legacy_columns):
+        numbered_columns = [{"label": "Line", "type": "number", "generated": True}] + columns
+        if actual == tuple(field["label"] for field in numbered_columns):
+            columns = numbered_columns
+        elif actual == tuple(field["label"] for field in legacy_columns):
             columns = legacy_columns
         elif actual != tuple(field["label"] for field in columns):
             raise ValidationError("Schedule headers must match the selected calculator's exported template exactly.")

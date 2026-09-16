@@ -25,8 +25,8 @@ def _cell(sheet, row, column, value, *, heading=False, number_format=_NUMBER):
     if isinstance(value, str):
         cell.data_type = 's'
     cell.font = Font(name='Arial', size=10, color='FFFFFF' if heading else _INK, bold=heading)
-    cell.alignment = Alignment(horizontal='center' if heading else 'right' if type(value) in (int, float) or value == 'N/A' else 'left',
-                               vertical='center', wrap_text=True, indent=0 if heading else 1)
+    cell.alignment = Alignment(horizontal='center',
+                               vertical='center', wrap_text=True)
     cell.number_format = number_format
     if heading:
         cell.fill = PatternFill('solid', fgColor=_RED)
@@ -43,7 +43,7 @@ def _height(sheet, row, values, widths, *, minimum=27):
 def _band(sheet, row, text, last, *, title=False):
     sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=last)
     cell = _cell(sheet, row, 1, text, heading=title)
-    cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     if title:
         cell.font = Font(name='Arial', size=14, color='FFFFFF', bold=True)
     else:

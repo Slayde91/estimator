@@ -17,7 +17,7 @@ from xml.sax.saxutils import escape
 
 import reportlab
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.utils import ImageReader
@@ -45,7 +45,7 @@ _MARGIN = 36
 _WIDTH = _PAGE_WIDTH - 2 * _MARGIN
 
 
-def _company_header(canvas, logo, page_width, page_height, margin, report_label):
+def _company_header(canvas, logo, page_width, page_height, margin, report_label, *, label_below_logo=False):
     """Draw the same contact header within the reserved space on every PDF page."""
     logo_width, logo_height = logo.getSize()
     scale = min(146 / logo_width, 35 / logo_height)
@@ -53,8 +53,11 @@ def _company_header(canvas, logo, page_width, page_height, margin, report_label)
                      width=logo_width * scale, height=logo_height * scale, mask="auto")
     canvas.setFillColor(_MUTED)
     canvas.setFont("CeasefireVera", 7.5)
+    if label_below_logo:
+        canvas.drawString(margin, page_height - 69, report_label)
+    else:
+        canvas.drawRightString(page_width - margin, page_height - 27, report_label)
     for offset, text in (
-        (27, report_label),
         (40, "ABN: 50 612 231 562"),
         (51, "Phone: 1300 92 62 88"),
         (62, "Email: sales@ceasefire.com.au"),
@@ -170,11 +173,11 @@ def _styles():
         "body": ParagraphStyle("QuoteBody", fontSize=9, spaceAfter=7, **base),
         "small": ParagraphStyle("QuoteSmall", fontName="CeasefireVera", fontSize=7.5,
                                  leading=10, spaceAfter=5, textColor=_MUTED, splitLongWords=1),
-        "cell": ParagraphStyle("QuoteCell", fontSize=7.7, **(base | {"leading": 10})),
-        "numeric": ParagraphStyle("QuoteNumeric", fontSize=7.7, alignment=TA_RIGHT,
+        "cell": ParagraphStyle("QuoteCell", fontSize=7.7, alignment=TA_CENTER, **(base | {"leading": 10})),
+        "numeric": ParagraphStyle("QuoteNumeric", fontSize=7.7, alignment=TA_CENTER,
                                    **(base | {"leading": 10})),
         "head": ParagraphStyle("QuoteHead", fontName="CeasefireVeraBold", fontSize=7.5,
-                                leading=10, textColor=colors.white, splitLongWords=1),
+                                leading=10, textColor=colors.white, splitLongWords=1, alignment=TA_CENTER),
         "alert": ParagraphStyle("QuoteAlert", fontName="CeasefireVeraBold", fontSize=10,
                                  leading=14, textColor=_RED, splitLongWords=1),
     }
@@ -225,7 +228,8 @@ class _Report:
         padding = 4 if compact else 6
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), _INK),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
             ("TOPPADDING", (0, 0), (-1, -1), padding),

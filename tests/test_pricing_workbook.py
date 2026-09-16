@@ -578,7 +578,7 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
             self.imported(replace_part(self.exported, "xl/workbook.xml", b'<!DOCTYPE a [<!ENTITY b "x">]><a>&b;</a>'))
 
 
-VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
+VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order", "Yield unit")
 
 
 def vector(values):
@@ -659,9 +659,9 @@ class CompactPricingWorkbookTests(unittest.TestCase):
         sheet = workbook[COMBINED_SHEET]
         self.assertEqual(workbook.sheetnames, [COMBINED_SHEET, "Instructions"])
         self.assertEqual(tuple(cell.value for cell in sheet[1]), COMPACT_HEADERS)
-        self.assertEqual((sheet.max_row, sheet.max_column), (418, 27))
-        self.assertEqual(sheet.auto_filter.ref, "A1:AA418")
-        self.assertTrue(sheet.column_dimensions["Q"].hidden)
+        self.assertEqual((sheet.max_row, sheet.max_column), (418, 28))
+        self.assertEqual(sheet.auto_filter.ref, "A1:AB418")
+        self.assertTrue(sheet.column_dimensions["R"].hidden)
         self.assertEqual(compact_cell(sheet, "204", "Group").value, "primers;topcoats")
         self.assertEqual(compact_cell(sheet, "204", "Rate ID").value, "primers:1;topcoats:1")
         self.assertEqual(compact_cell(sheet, "204", "Sell rate").value, "384.93;384.93")
@@ -908,7 +908,7 @@ workbook.close()
             with self.assertRaisesRegex(ValidationError, "formulas"):
                 self.imported(modify(self.exported, lambda w: setattr(compact_cell(w[COMBINED_SHEET], "204", header), "value", "=1+1")))
         with self.assertRaisesRegex(ValidationError, "provided columns"):
-            self.imported(modify(self.exported, lambda w: setattr(w[COMBINED_SHEET]["AB2"], "value", "extra")))
+            self.imported(modify(self.exported, lambda w: setattr(w[COMBINED_SHEET]["AC2"], "value", "extra")))
         catalog = baseline()
         seed = catalog["rate_groups"]["primers"][0]
         catalog["rate_groups"]["primers"] = [{**deepcopy(seed), "id": f"long:{i}", "name": f"{i}" + "x" * 990} for i in range(40)]

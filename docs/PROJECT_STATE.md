@@ -1,6 +1,80 @@
 # Project state
 
-## Current: portable projects, PDF details and input presentation
+## Current: project files, scoped pricing and export presentation
+
+Date: 2026-09-16. Branch `feat/project-library-workflow` starts from `fcd90b9`
+in `C:/ESTIMATOR/worktrees/project-library-workflow`. This section describes the
+current implementation; it is not a claim that publication or activation has
+finished. Current Git/CI results and publication receipts govern that status.
+
+**Save Project** opens a native Save As dialog with the quote-derived filename
+and captures the estimate, its complete pricing library and all three calculator
+input sets, including settings and extra boards. Valid pending project-pricing
+edits are applied before capture. Unopened calculators are materialized so the
+captured state is complete. The separate Save quote and Save calculator UI
+actions are removed. Downloads, navigation and recalculation do not save.
+
+**Saved projects** reads project files from an explicitly linked estimates
+folder, which is also the default Save As location. The first successful save
+links its folder when none was previously linked. Save As permits another
+folder without changing an existing link. Load Project can also open a received
+file directly. Full-file validation and user review precede replacing estimate
+and calculator drafts together; existing files remain unchanged until saved.
+Older estimate-only SQLite records remain available separately and open with
+all three calculators reset to defaults. They are not presented as complete
+project snapshots.
+
+SQLite remains at `.runtime/estimator.sqlite3`. Schema version 3 adds
+`app_preferences` for the folder link while retaining shared pricing, older
+estimates and historical calculator saves. Portable project format version 1
+is retained. Project writes use a temporary file and atomic replacement, with
+the selected overwrite target checked again before replacement. Cancellation
+does not write a project file. No current project file or existing runtime
+pricing/saves is changed merely by editing source code or opening the editor.
+
+The pricing editor has separate **Shared library** and **Current project
+pricing** drafts. Save pricing persists the shared library for later launches;
+Apply project pricing updates the active estimate, and Save Project stores it
+in its file. Discard restores the last saved shared library or last applied
+project prices. Reset Library loads application defaults into the selected
+draft; saving/applying remains necessary. Use current pricing explicitly
+replaces project prices with the last saved shared library, without rewriting
+the existing project file until Save Project.
+
+Inventory products have one row with matching semicolon lists for uses,
+selection names, rate overrides, yields and editable units. Standalone rates
+retain separate rows. Blank overrides follow the item sell price; historical
+frozen project rates remain explicit overrides until cleared. Units describe
+the yield basis and do not perform a conversion. Pricing XLSX exports add Yield
+unit and retain older workbook import formats.
+
+All PDF/XLSX table headings and data, plus main calculator schedule controls,
+are centred. New XLSX schedule templates omit Line but retain 1,000 rows;
+previous numbered templates and original legacy layouts remain accepted.
+Material-summary PDFs place `CALCULATORS | MATERIALS & SUMMARY` beneath the
+logo. Only the specified spray explanation paragraphs and duct calibration/
+interpretation notes and Working spray yields section are newly omitted from
+summary PDFs. Calculation projections, statuses and complete Excel register
+contents retain their previous meaning.
+
+Evidence is in `.runtime/project-library-qa`. Export/layout checks passed 50
+focused Python tests plus three final alignment/content checks. Visual review
+covered seven PDF families across 24 pages and six calculator XLSX families
+across 13 representative sheet views; receipts include
+`export-layout-review.json`, `export-qa-checks.json` and
+`xlsx-render-checks.json`. The seven browser journeys in
+`browser-roundtrip.json` passed: generated Save As name and cancellation through
+an injected native chooser, all-calculator row-1,000 save/reopen, linked-folder
+opening, shared pricing persistence after reload, Discard/Reset behavior,
+project-pricing isolation and deliberate adoption of current pricing. Four
+screenshots record schedule alignment, the folder library and desktop/mobile
+pricing views. These are focused results, not a full-suite or CI claim.
+Native-dialog script syntax and injected-adapter paths were checked; manual
+operation of the operating-system dialogs was blocked by the UI tool's
+initialization error and is not claimed as verified. Final integration,
+publication and activation results must be recorded from their actual receipts.
+
+## Historical checkpoint: portable projects, PDF details and input presentation
 
 Branch `feat/project-files-and-pdf-details` starts from verified PR #29 merge
 `8e4cb3b`. Save Project / Load Project exchanges the active estimate, its pricing

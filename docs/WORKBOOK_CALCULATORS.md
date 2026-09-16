@@ -1,6 +1,6 @@
 # Workbook calculators
 
-The current application names are **Steel (spray)**, **Steel (board)** and **Ductwork (spray/wrap)**. Each main schedule supports 1,000 items through the documented [application extension](SCHEDULE_EXTENSION.md). The source capacities and formula counts below describe the preserved original workbooks, not the current UI limit. New templates include Line and spray Location; exact legacy templates remain accepted.
+The current application names are **Steel (spray)**, **Steel (board)** and **Ductwork (spray/wrap)**. Each main schedule supports 1,000 items through the documented [application extension](SCHEDULE_EXTENSION.md). The source capacities and formula counts below describe the preserved original workbooks, not the current UI limit. New templates omit Line and include spray Location first; previous numbered templates and exact original legacy templates remain accepted.
 
 The three new workbooks are separate estimating specifications. The existing
 Quote estimator, pricing library and quote PDF continue to use `Quote.xlsm` and
@@ -11,23 +11,39 @@ inserted into a priced quote: the supplied files do not specify that mapping.
 
 Each calculator captures its complete current draft for three report downloads:
 
-- **Download schedule PDF** (`report.pdf`) contains the **Full schedule** and
+- **Download PDF Schedule** (`APPENDIX A.pdf`) contains the **Full schedule** and
   used-row statuses, without product summaries or EXTRA BOARDS.
-- **Download Excel register** (`register.xlsx`) retains the complete Summary
+- **Download XLSX Schedule** (`APPENDIX A.xlsx`) retains the complete Summary
   and Schedule sheets plus board Extra boards.
-- **Download materials & summary PDF** (`summary.pdf`) contains **Material
+- **Download PDF Summary** contains **Material
   quantities and summary**, final product/ancillary tables, closing totals and
-  board **EXTRA BOARDS**.
+  populated extra-board details.
 
 Both PDFs and the Excel register reuse `project_calculator_report`; the split
 does not remove settings or extra-board quantities from the calculation. The
 existing source exclusions, incomplete statuses and pooled purchasing rules
-remain. Downloads neither save inputs nor alter saved quotes. The separate
-input-only template/import workflow is unchanged.
+remain. Downloads neither save project files nor alter older saved estimates.
+Input-only XLSX templates remain separate from the calculated Excel register.
+
+Every PDF includes Project No., Client and Site Address plus Ceasefire's ABN,
+phone and email. Material-summary PDFs place
+**CALCULATORS | MATERIALS & SUMMARY** beneath the logo on each page, with
+contacts on the right. Source workbook/hash footnotes are omitted from PDFs.
+All PDF and XLSX table headers and data are centred.
+
+Steel (spray)'s summary omits the requested headings and the available-results,
+display-rounding and pooled-bag explanation paragraphs. Ductwork's summary
+omits the CAFCO/MONOKOTE calibration/example notes, FyreWrap interpretation note
+and Working spray yields section. Board's summary omits the display-rounding
+paragraph, the two selected A8 ordering paragraphs, the EXTRA BOARDS heading,
+introduction and empty message. Populated extra-board tables, other material
+tables, quantities and statuses remain. These display exclusions do not remove
+data from `project_calculator_report` or the complete Excel register.
 
 Editable Exposure cells use normal browser font weight only within vermiculite
-SCHEDULE C10:C1009, board CALCULATOR M9:M208 and duct CALCULATOR H11:H310.
-Header cells, technical reference labels, choices and source values are unchanged.
+SCHEDULE C10:C1009, board CALCULATOR M9:M1008 and duct CALCULATOR H11:H1010.
+Main schedule headings, cells and controls are centred. Technical reference
+labels, choices and source values are unchanged.
 
 ## Source inventory and pages
 
@@ -89,11 +105,24 @@ unchanged; both original and corrected text have independent Excel evidence.
 ## Inputs, persistence and schedule exchange
 
 Runtime source packages are immutable. Each calculator has a separate draft
-input overlay and a saved state in the existing SQLite database. Recalculation,
-navigation and import never save. Save calculator persists exact typed inputs,
-the source hash and update time. A future incompatible source hash is rejected
-instead of silently changing the interpretation of saved inputs. Reset restores
-the source examples/defaults as a draft, and requires Save to persist.
+input overlay. **Save Project** captures all three overlays, their source hashes,
+the active estimate and its complete pricing snapshot in one project file.
+There is no separate Save calculator button. Recalculation, navigation, import
+and report downloads never save. Before saving, all three calculator input sets
+are materialized, including unopened calculators, without replacing open edits.
+Reset Calc restores the application examples/defaults as a draft and requires
+Save Project to persist.
+
+Save Project opens a native Save As dialog with a quote-derived filename.
+Saved projects lists complete files in the linked estimates folder; Load Project
+can also open a received file. Validation finishes before any calculator or
+estimate draft is replaced. A future incompatible source hash is rejected
+instead of silently changing the interpretation of saved inputs. Older
+estimate-only records remain in SQLite and open with calculator defaults.
+Historical separate calculator saves remain compatible initial state for an
+unopened calculator; new project saves use the combined file workflow. The
+shared pricing library is separate from project pricing and is not overwritten
+when a project is loaded.
 
 Only source input/setting anchors can be edited. Database and calculated cells
 are read-only. Clearing a source input produces a real blank. Formula-backed
@@ -102,13 +131,18 @@ at rest, while numeric editing retains full precision. This is necessary for
 small yields, tolerances and rounding-sensitive inputs; display formatting must
 not change a workbook calculation.
 
-Export template produces a values-only `.xlsx` with the exact editable schedule
+Export XLSX Template produces a values-only `.xlsx` with the exact editable schedule
 columns and an Instructions sheet containing reference choices. Duct templates
 have eight input columns, board 24 (including advanced inputs), and vermiculite
-12. Templates are blank, not exports of the current estimate. Import replaces the
+13 including Location first. Every template has 1,000 prepared rows and omits
+Line; physical row order supplies generated line numbers during import.
+Templates are blank, not exports of the current estimate. Import replaces the
 entire schedule, clearing any remaining previous rows, while preserving other
 calculator inputs and settings. Source rows, including hidden/filtered rows, keep
-their order. The file must use the template headers and fit the source capacity.
+their order. The file must use supported template headers and fit the 1,000-row
+application capacity. Previous templates with Line and the original legacy
+source layouts remain importable; dependent dropdowns in new exports use the
+shifted input-column positions.
 
 Import rejects formula/macro/external-link workbooks, invalid or duplicate
 headers/cells, malformed archives and nonfinite/out-of-range numbers. The existing

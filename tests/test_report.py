@@ -14,7 +14,7 @@ from pypdf import PdfReader
 
 from estimator.calculator import calculate
 from estimator.catalog import ROOT
-from estimator.report import render_quote_pdf, _number
+from estimator.report import render_quote_pdf, _number, _Report
 from estimator.presentation import calculation_error_details
 from estimator.storage import Store
 
@@ -28,6 +28,15 @@ def money_text(amount):
 
 
 class ReportTests(unittest.TestCase):
+    def test_pdf_table_headers_text_and_numbers_are_centered(self):
+        report = _Report({})
+        table = report.table(['Description', 'Amount'], [[report.p('Material', 'cell'), report.p('123.45', 'numeric')]], [200, 100])
+        for row in table._cellvalues:
+            for paragraph in row:
+                self.assertEqual(paragraph.style.alignment, 1)
+        self.assertTrue(all(style.alignment == 'CENTER' and style.valign == 'MIDDLE'
+                            for row in table._cellStyles for style in row))
+
     @classmethod
     def setUpClass(cls):
         oracle = json.loads((ROOT / "tests/fixtures/excel-calculator-oracle.json").read_text(encoding="utf-8-sig"))

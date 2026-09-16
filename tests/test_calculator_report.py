@@ -152,12 +152,25 @@ class CalculatorReportTests(unittest.TestCase):
                         self.assertIn(field, text)
                     self.assertTrue(all(f'Page {number}' in content for number, content in enumerate(texts, 1)))
                     self.assertTrue(all(page.images for page in reader.pages))
+                    if builder is build_calculator_summary_report:
+                        for page in reader.pages:
+                            positions = {}
+                            def located(value, cm, tm, font, size):
+                                for token in ('CALCULATORS | MATERIALS & SUMMARY', 'ABN: 50 612 231 562'):
+                                    if token in value:
+                                        positions[token] = (tm[4], tm[5])
+                            page.extract_text(visitor_text=located)
+                            label = positions['CALCULATORS | MATERIALS & SUMMARY']
+                            contact = positions['ABN: 50 612 231 562']
+                            self.assertAlmostEqual(label[0], 32)
+                            self.assertLess(label[1], contact[1])
+                            self.assertGreater(contact[0], float(page.mediabox.width) / 2)
                     self.assertIn('Current calculator snapshot', text)
-                    board_summary = identity == 'steel_board' and builder is build_calculator_summary_report
+                    abbreviated_summary = identity in {'steel_board', 'steel_vermiculite'} and builder is build_calculator_summary_report
                     for removed in ('Report generated from the complete', 'Authoritative workbook',
                                     'Source SHA-256', source_model(identity)['source']['sha256']):
                         self.assertNotIn(removed, text)
-                    if board_summary:
+                    if abbreviated_summary:
                         self.assertNotIn('Display rounding is limited', text)
                     else:
                         self.assertIn('Display rounding is limited', text)
@@ -183,17 +196,24 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('11.70', text)
                     self.assertIn('38.00 per layer', ' '.join(text.split()))
                     self.assertIn('27.81', text)
-                    for heading in ('Product totals', 'Penetration angles by size and location', 'Working spray yields',
+                    for heading in ('Product totals', 'Penetration angles by size and location',
                                     'Maxilite 60 mm boards and cut strips'):
                         self.assertNotIn(heading, text)
                         self.assertIn(heading, summary)
+                    for removed in ('Working spray yields', 'Calibrated estimate', 'Original example: 11.7 bags',
+                                    'Based on duct use', 'Duct use sets the full-length layers',
+                                    'Confirm penetration steel sizes and layout'):
+                        self.assertNotIn(removed, summary)
                 elif identity == 'steel_vermiculite':
                     self.assertIn('430.73', text)
                     self.assertIn('218.38', text)
                     self.assertIn('219.00', text)
                     self.assertNotIn('Product order totals', text)
                     self.assertNotIn('Product order totals', summary)
-                    for retained in ('Whole bags per product are pooled from net bags', 'CAFCO 300',
+                    for removed in ('Totals use available source results', 'Display rounding is limited',
+                                    'Whole bags per product are pooled from net bags'):
+                        self.assertNotIn(removed, summary)
+                    for retained in ('CAFCO 300',
                                      'MONOKOTE MK-6 HY', 'Order status', 'Overall schedule totals'):
                         self.assertIn(retained, summary)
                 else:

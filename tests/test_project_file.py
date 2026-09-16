@@ -214,7 +214,7 @@ class ProjectFileApiTests(unittest.TestCase):
         before = stored_rows(self.store)
         status, headers, payload = self.request("/api/project/export", {"estimate": {"project_no": "Project 17"}})
         self.assertEqual(status, 200)
-        self.assertEqual(headers["Content-Disposition"], f'attachment; filename="{PROJECT_FILENAME}"')
+        self.assertIn('filename="Project 17.ceasefire-project.json"', headers["Content-Disposition"])
         status, _, loaded = self.request("/api/project/import", upload(payload))
         self.assertEqual(status, 200, loaded)
         self.assertEqual(json.loads(loaded)["estimate"]["project_no"], "Project 17")

@@ -22,7 +22,7 @@ from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_co
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
 
-from .catalog import ValidationError, effective_catalog, validate_configuration
+from .catalog import ValidationError, effective_catalog, validate_configuration, yield_unit
 
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -52,12 +52,14 @@ COMBINED_HEADERS = (
     "Sell price / rate", "Price source", "Yield type", "Yield", "Pricing mode",
     "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
 )
-COMPACT_HEADERS = (
+LEGACY_COMPACT_HEADERS = (
     "Item code", "Product name", "Supplier price", "Markup", "Sell price",
     "Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield",
     "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
 )
-USE_VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
+COMPACT_HEADERS = (*LEGACY_COMPACT_HEADERS[:11], "Yield unit", *LEGACY_COMPACT_HEADERS[11:])
+LEGACY_USE_VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
+USE_VECTOR_HEADERS = (*LEGACY_USE_VECTOR_HEADERS, "Yield unit")
 # All layouts feed the same existing pricing parser. Product values have one
 # owner; a use links to that owner explicitly, never by its physical position.
 _INVENTORY_COLUMNS = {name: {"Product name": "Name", "Sell price": "Sell price / rate"}.get(name, name)
@@ -200,18 +202,25 @@ def _format_sheet(sheet, headers, widths, numeric_columns=(), percent_columns=()
     sheet.auto_filter.ref = sheet.dimensions
     sheet.sheet_view.showGridLines = False
     sheet.row_dimensions[1].height = 36
+    # Styles are immutable once assigned. Reuse them across cells instead of
+    # constructing tens of thousands of identical validated style objects.
+    header_fill = PatternFill("solid", fgColor="8D1726")
+    header_font = Font(name="Calibri", bold=True, color="FFFFFF")
+    body_font = Font(name="Calibri", size=11, color="174D8D")
+    centred = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    band_fills = {0: PatternFill("solid", fgColor="F0F5FA"), 1: PatternFill("solid", fgColor="FFFFFF")}
     for cell in sheet[1]:
-        cell.fill = PatternFill("solid", fgColor="8D1726")
-        cell.font = Font(name="Calibri", bold=True, color="FFFFFF")
-        cell.alignment = Alignment(vertical="center", wrap_text=True)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = centred
     for column, width in widths.items():
         sheet.column_dimensions[column].width = width
     for row in sheet.iter_rows(min_row=2):
         sheet.row_dimensions[row[0].row].height = 31
         for cell in row:
-            cell.font = Font(name="Calibri", size=11, color="174D8D")
-            cell.alignment = Alignment(vertical="center", wrap_text=True)
-            cell.fill = PatternFill("solid", fgColor="F0F5FA" if cell.row % 2 == 0 else "FFFFFF")
+            cell.font = body_font
+            cell.alignment = centred
+            cell.fill = band_fills[cell.row % 2]
             if cell.column in numeric_columns:
                 cell.number_format = '#,##0.00;[Red](#,##0.00);0.00'
             if cell.column in percent_columns:
@@ -305,6 +314,7 @@ def export_pricing_workbook(configuration):
                    "Sell rate": rate["price"], "Price source": _rate_mode(rate, configuration).title(),
                    "Yield type": _yield_type(value, bool(data["rate_group_rules"][group]["yield_column"])),
                    "Yield": value if isinstance(value, (int, float)) else None,
+                   "Yield unit": yield_unit(group, rate),
                    "Rate ID": rate["id"], "Use order": order}
             for header in USE_VECTOR_HEADERS:
                 vectors[header].append(use[header])
@@ -322,54 +332,59 @@ def export_pricing_workbook(configuration):
     for group, order, rate in uses.get(None, []):
         append({}, [(group, order, rate)])
 
-    widths = dict(zip("ABCDEFGHIJKLMNOP", (15, 43, 17, 14, 19, 26, 43, 20, 20, 21, 20, 21, 48, 21, 28, 18)))
-    widths.update({get_column_letter(column): 19 for column in range(17, 28)})
-    _format_sheet(sheet, COMPACT_HEADERS, widths, numeric_columns=(3, 4, 5, 9, 11, *range(17, 28)), percent_columns=(4,), freeze_panes="C2")
+    widths = dict(zip("ABCDEFGHIJKLMNOPQ", (15, 43, 17, 14, 19, 26, 43, 20, 20, 21, 20, 24, 21, 48, 21, 28, 18)))
+    widths.update({get_column_letter(column): 19 for column in range(18, 29)})
+    _format_sheet(sheet, COMPACT_HEADERS, widths, numeric_columns=(3, 4, 5, 9, 11, *range(18, 29)), percent_columns=(4,), freeze_panes="C2")
     sheet.sheet_properties.outlinePr.summaryRight = False
     # Optional dimensions are retained once on each product and can be expanded.
-    sheet.column_dimensions.group("Q", "AA", outline_level=1, hidden=True)
-    sheet.column_dimensions["P"].collapsed = True
+    sheet.column_dimensions.group("R", "AB", outline_level=1, hidden=True)
+    sheet.column_dimensions["Q"].collapsed = True
+    use_fill = PatternFill("solid", fgColor="F0F5FA")
+    inventory_fill = PatternFill("solid", fgColor="FFF0DE")
+    unused_fill = PatternFill("solid", fgColor="ECECEC")
+    product_fonts = {bold: Font(name="Calibri", size=11, color="174D8D", bold=bold) for bold in (True, False)}
     for row in sheet.iter_rows(min_row=2):
-        inventory = row[13].value is not None
+        inventory = row[14].value is not None
         has_uses = row[5].value is not None
         for header, cell in zip(COMPACT_HEADERS, row):
             use_cell = header in USE_VECTOR_HEADERS
-            cell.fill = PatternFill("solid", fgColor="F0F5FA" if use_cell else "FFF0DE")
+            cell.fill = use_fill if use_cell else inventory_fill
             if use_cell and not has_uses or not use_cell and not inventory:
-                cell.fill = PatternFill("solid", fgColor="ECECEC")
+                cell.fill = unused_fill
             if header == "Product name":
-                cell.font = Font(name="Calibri", size=11, color="174D8D", bold=inventory)
+                cell.font = product_fonts[inventory]
         # Multi-use CSV remains visible at normal zoom; account for explicit
         # newlines and conservative text width without changing stored values.
         lines = max(sum(max(1, math.ceil(len(line) / max(1, widths[cell.column_letter] - 3)))
                         for line in str(cell.value or "").splitlines() or [""])
-                    for cell in row[:16])
+                    for cell in row[:17])
         sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
-        sheet.cell(row[0].row, 16).number_format = "0"
+        sheet.cell(row[0].row, 17).number_format = "0"
     comments = {
-        "F": "The eight use columns are parallel semicolon-separated lists. First entries belong together, then second entries, and so on. Keep every list the same length, including empty slots.",
+        "F": "The nine use columns are parallel semicolon-separated lists. First entries belong together, then second entries, and so on. Keep every list the same length, including empty slots.",
         "G": 'Quote entries containing semicolons, quotes or newlines. Double quotes inside quoted entries: "Name; with ""quotes""". Spaces are significant; do not add separator padding.',
         "I": "Editing a sell rate creates an Override. Set its matching Price source to Inventory to restore the linked product price.",
         "J": "Number requires its matching Yield. Blank and Empty text preserve distinct empty-value behavior. Not used applies to groups without yields. Two empty yield slots are a single semicolon.",
-        "N": "Keep existing Inventory IDs. A new product with a blank ID receives one shared by its uses in this row. Standalone rates leave all product fields, including Inventory ID, blank.",
-        "O": "Keep existing Rate IDs in their matching positions. An empty slot creates a new use identity; row order does not identify rates.",
-        "P": "Use unique positive integers within each Group. Empty slots append new choices; clear or update the matching slot when moving a use to another Group.",
+        "L": "Yield units describe coverage per purchased unit. Changing this label does not convert the yield or change a category's calculation.",
+        "O": "Keep existing Inventory IDs. A new product with a blank ID receives one shared by its uses in this row. Standalone rates leave all product fields, including Inventory ID, blank.",
+        "P": "Keep existing Rate IDs in their matching positions. An empty slot creates a new use identity; row order does not identify rates.",
+        "Q": "Use unique positive integers within each Group. Empty slots append new choices; clear or update the matching slot when moving a use to another Group.",
     }
     for column, text in comments.items():
         sheet[f"{column}1"].comment = Comment(text, "Ceasefire")
-    _validation(sheet, "L", ("Supplier markup", "Manual"), max_rows=2 * MAX_ROWS, allow_blank=True)
+    _validation(sheet, "M", ("Supplier markup", "Manual"), max_rows=2 * MAX_ROWS, allow_blank=True)
 
     instructions = workbook.create_sheet("Instructions")
     for row in [
         ["CEASEFIRE INVENTORY & RATES", "How to update the combined pricing library"],
         ["Save changes", "Import previews this entire workbook. Review additions, removals and updates, then Save pricing in ESTIMATOR. Existing saved quotes retain their own products and prices."],
-        ["One row per product", "Product fields appear once. Group, Selection name, Price source, Sell rate, Yield type, Yield, Rate ID and Use order contain parallel semicolon-separated use lists. All eight lists must have the same number of entries. Optional product properties are in columns Q:AA."],
+        ["One row per product", "Product fields appear once. Group, Selection name, Price source, Sell rate, Yield type, Yield, Yield unit, Rate ID and Use order contain parallel semicolon-separated use lists. All nine lists must have the same number of entries. Optional product properties are in columns R:AB."],
         ["Editing use lists", 'First entries belong to the first use, second entries to the second use. Preserve empty slots: two blank yields are ; . Quote entries containing semicolons, quotes or newlines, and double quotes inside quoted entries. Example: "Name; with ""quotes""";Second name. Spaces are preserved; do not add padding.'],
-        ["Complete replacement", "Keep the sheet and exact headers. To remove a use, remove its entry from all eight lists. Delete a product row to remove that product and its uses. Filtered or manually hidden rows still import. Keep existing IDs; Use order preserves each Group's dropdown order after sorting."],
+        ["Complete replacement", "Keep the sheet and exact headers. To remove a use, remove its entry from all nine lists. Delete a product row to remove that product and its uses. Filtered or manually hidden rows still import. Keep existing IDs; Use order preserves each Group's dropdown order after sorting."],
         ["Add products and uses", "Add a product row with its pricing and aligned use lists. Blank Inventory ID allocates one product identity linked to all uses on that row; blank Rate ID slots allocate new uses. For standalone rates leave every product field blank and use Override pricing. Selection name supplies the standalone label."],
         ["Supplier markup", "On product rows enter supplier price and markup (30% means 0.30). Changing either recalculates sell price as supplier × (1 + markup). Unchanged inputs retain the existing stored sell price exactly."],
         ["Manual pricing", "Choose Manual to enter the product Sell price directly. Supplier price may be blank; markup remains information. Each use's Price source is Inventory for its linked price or Override for an independent price."],
-        ["Rates and yields", "Price source is Inventory or Override per entry. Editing a Sell rate creates an Override; choose Inventory to restore its link. Yield type Number requires a nonnegative Yield; Blank and Empty text retain distinct empty values; Not used applies to groups without yields. Use an empty Yield slot for these three types."],
+        ["Rates and yields", "Price source is Inventory or Override per entry. Editing a Sell rate creates an Override; choose Inventory to restore its link. Yield type Number requires a nonnegative Yield; Blank and Empty text retain distinct empty values; Not used applies to groups without yields. Yield unit labels describe coverage per purchased unit; editing labels does not convert values."],
         ["Names and groups", "Selection name is the Estimator dropdown choice. Group places it in the existing calculation category. Names must be unique within a Group. These categories reproduce the original selections; they do not establish technical suitability."],
         ["Values only", "Use values, not formulas, macros or external links. Single numeric entries are numbers; multiple entries use exact numeric text separated by semicolons. Prices are a snapshot; ESTIMATOR evaluates edits on import. Earlier Inventory/Use-row and separate Inventory/Rates templates remain supported."],
         ["Limits", f"Maximum {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion, 5 MB file, 32,767 characters per cell and numeric magnitude up to 1 trillion. Prices/yields cannot be negative; markup cannot be below -100%. All use cells blank means no uses."],
@@ -572,8 +587,8 @@ def _pricing_rows(workbook, text_cells):
     sheet.reset_dimensions()
     sheet_text = text_cells.get(COMBINED_SHEET, {})
     headers = tuple(next(_text_rows(sheet, sheet_text), ()))
-    if headers == COMPACT_HEADERS:
-        return _compact_rows(sheet, sheet_text)
+    if headers in (COMPACT_HEADERS, LEGACY_COMPACT_HEADERS):
+        return _compact_rows(sheet, sheet_text, headers)
     inventory, uses, orders = [], [], set()
     for number, row in _rows(workbook[COMBINED_SHEET], COMBINED_HEADERS, max_rows=2 * MAX_ROWS, text_cells=sheet_text):
         kind = row["Row type"]
@@ -608,12 +623,13 @@ def _pricing_rows(workbook, text_cells):
     return inventory, [(number, row) for _, number, row in uses]
 
 
-def _compact_rows(sheet, text_cells):
+def _compact_rows(sheet, text_cells, headers=COMPACT_HEADERS):
     inventory, uses, orders = [], [], set()
-    for number, row in _rows(sheet, COMPACT_HEADERS, max_rows=2 * MAX_ROWS, text_cells=text_cells):
+    vector_headers = USE_VECTOR_HEADERS if "Yield unit" in headers else LEGACY_USE_VECTOR_HEADERS
+    for number, row in _rows(sheet, headers, max_rows=2 * MAX_ROWS, text_cells=text_cells):
         label = f"{COMBINED_SHEET} row {number}"
         has_product = any(row[header] not in (None, "") for header in INVENTORY_HEADERS)
-        has_uses = any(row[header] not in (None, "") for header in USE_VECTOR_HEADERS)
+        has_uses = any(row[header] not in (None, "") for header in vector_headers)
         record = {header: row[header] for header in INVENTORY_HEADERS}
         if has_product:
             # A compact row declares this product and its own uses together;
@@ -625,17 +641,21 @@ def _compact_rows(sheet, text_cells):
             raise ValidationError(f"The library must have at most {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion.")
         if not has_uses:
             continue
-        vectors = {header: _unpack_uses(row[header], f"{label} {header}") for header in USE_VECTOR_HEADERS}
+        vectors = {header: _unpack_uses(row[header], f"{label} {header}") for header in vector_headers}
+        if "Yield unit" in vectors and row["Yield unit"] in (None, ""):
+            vectors["Yield unit"] = [""] * len(vectors["Group"])
         counts = {header: len(values) for header, values in vectors.items()}
         if len(set(counts.values())) != 1:
             details = ", ".join(f"{header}={count}" for header, count in counts.items())
-            raise ValidationError(f"{label}: all eight use lists must have the same number of entries, including empty slots ({details}).")
+            raise ValidationError(f"{label}: all use lists must have the same number of entries, including empty slots ({details}).")
         count = counts["Group"]
         if len(uses) + count > MAX_ROWS:
             raise ValidationError(f"The library must have at most {MAX_ROWS:,} products and {MAX_ROWS:,} uses after expansion.")
         for index in range(count):
             use_label = f"{label} use {index + 1}"
             use = {header: vectors[column][index] for header, column in _COMPACT_USE_COLUMNS.items()}
+            if "Yield unit" in vectors:
+                use["Yield unit"] = vectors["Yield unit"][index]
             for header in ("Group", "Price source", "Yield type", "Rate ID"):
                 if isinstance(use[header], str):
                     use[header] = use[header].strip()
@@ -665,7 +685,7 @@ def _inventory_comparison(item):
 
 def _rate_comparison(group, item, configuration):
     return {"group": group, **{key: item.get(key) for key in ("name", "inventory_id", "price", "yield")},
-            "price_mode": _rate_mode(item, configuration)}
+            "price_mode": _rate_mode(item, configuration), "yield_unit": yield_unit(group, item)}
 
 
 def _changes(before, after):
@@ -803,6 +823,12 @@ def import_pricing_workbook(payload, filename, current_configuration):
             rate.update({"id": identity, "name": name, "inventory_id": linked_id,
                          "price": price, "price_mode": price_mode,
                          "yield": yield_value, "uses_yield": uses_yield})
+            if "Yield unit" in row:
+                unit = _text(row["Yield unit"] or "", f"{label} Yield unit", optional=True, limit=100) or ""
+                if not uses_yield and unit:
+                    raise ValidationError(f"{label}: clear Yield unit for a group without yields.")
+                if unit != yield_unit(group, rate) or "yield_unit" in rate:
+                    rate["yield_unit"] = unit
             if old and old["name"] != name:
                 rate.pop("display_name", None)
             proposed["rate_groups"][group].append(rate)

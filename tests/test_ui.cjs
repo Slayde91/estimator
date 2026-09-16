@@ -342,7 +342,7 @@ let passed=0;
   assert.ok(!audit.state.catalog.rate_groups.labour_rates.some(rate=>rate.inventory_id==='coat'));
   await editList('unused','Used in Estimator','Primers');assert.equal(audit.state.catalog.rate_groups.primers[0].inventory_id,'unused');passed++;
 
-  // Names containing semicolons, item codes and units are editable, with no interpretation as markup or conversion.
+  // Names containing semicolons and item codes are editable; units remain derived.
   await editList('coat','Selection name','"Topcoat; <literal> "');await editList('coat','Item code','NEW-204');
   assert.equal(audit.state.catalog.rate_groups.topcoats[0].name,'Topcoat; <literal> ');assert.equal(productInput('coat','Selection name').value,'"Topcoat; <literal> "');assert.equal(audit.state.catalog.rate_groups.topcoats[0].yield_unit,undefined);
   assert.equal(audit.state.catalog.inventory[0].item_code,'NEW-204');assert.equal(audit.state.draft.rates.topcoat.yield,142);

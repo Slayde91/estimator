@@ -1,6 +1,31 @@
 # Project state
 
-## Current: recursive project library, dialog foreground and report polish
+## Current: Product/Service pricing view and scalar yield
+
+The branch `feat/product-service-pricing` starts from PR #32 merge `0deea0e`.
+The pricing table reconciles its visible name, selection-name and description
+fields into one editable Product/Service label. Optional display metadata keeps
+the original rate names as stable Calculator lookup keys; dropdown label maps
+use the edited display text while selected values and catalog signatures retain
+their identities. No stored pricing data or project file is migrated on startup.
+
+Sell rate overrides remain supported internally and behind Show rate overrides.
+Saved projects intentionally freeze those rates. The simplified row identifies
+retained estimator rates, while standalone services have an editable Sell price.
+One scalar yield updates only the item's yield-bearing uses with matching units.
+Conflicting existing values remain Mixed until edited; mixed dimensions cannot
+receive one shared scalar. Blank, empty text and zero remain distinct.
+
+The new Excel layout exposes eight columns and preserves legacy names, rates,
+per-use yields and identities in hidden columns. Old export layouts still import.
+Validation and publication results are recorded in this branch's runtime receipts;
+earlier checkpoints below do not establish this increment's completion.
+
+Windows executable packaging was researched only. No executable or installer was
+created. A future package must relocate writable app data outside its installation
+folder and preserve the existing project-file and pricing-snapshot contracts.
+
+## Historical checkpoint: recursive project library, dialog foreground and report polish
 
 Date: 2026-09-17. Branch `feat/project-library-polish` starts from PR #31 merge
 `95429c1` in `C:/ESTIMATOR/worktrees/project-library-polish`. This section records

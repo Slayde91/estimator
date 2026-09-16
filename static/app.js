@@ -165,7 +165,8 @@
       const current = String(state.inputs[field.cell] ?? "");
       if (!options.includes(current)) options.unshift(current);
       for (const value of options) {
-        const option = node("option", "", value || "(blank)");
+        const label = Object.hasOwn(field.option_labels || {}, value) ? field.option_labels[value] : value;
+        const option = node("option", "", value ? label : "(blank)");
         option.value = value;
         control.append(option);
       }
@@ -743,9 +744,10 @@
     refreshPricingCatalog();
     markPricingDirty();
   }
-  function pricingListInput(record, field, values, apply, placeholder = "") {
-    const input = node("input", "pricing-use-list"); input.type = "text";
-    const key = `${record.key}:${field}`, initial = pricingUseList(values);
+  function pricingFieldInput(record, field, initial, apply, placeholder = "", multiline = false) {
+    const input = node(multiline ? "textarea" : "input", "pricing-use-list");
+    if (multiline) input.rows = 2; else input.type = "text";
+    const key = `${record.key}:${field}`;
     input.dataset.priceField = field;
     input.value = pricingPendingFields().get(key)?.value ?? initial;
     input.placeholder = placeholder;
@@ -758,7 +760,7 @@
     });
     input.addEventListener("change", () => {
       try {
-        if (input.value !== initial) apply(parsePricingUses(input.value));
+        if (input.value !== initial) apply(input.value);
         pricingPendingFields().delete(key);
         input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
         markPricingDirty(); renderPricing();
@@ -770,8 +772,46 @@
     });
     return input;
   }
+  function pricingListInput(record, field, values, apply, placeholder = "") {
+    return pricingFieldInput(record, field, pricingUseList(values), (text) => apply(parsePricingUses(text)), placeholder);
+  }
+  function productServiceName(record) {
+    const product = { ...record.item, ...getOverride(record.kind, record.item.id) };
+    if (product.product_service) return product.product_service;
+    const rates = record.uses.map(({ item }) => ({ ...item, ...getOverride("rates", item.id) }));
+    const explicit = rates.find((rate) => rate.product_service);
+    if (explicit) return explicit.product_service;
+    const candidates = [...(record.kind === "inventory" ? [product.sales_description, product.name] : []), ...rates.flatMap((rate) => [rate.display_name, rate.name])].filter((text) => typeof text === "string" && text.trim());
+    return candidates.reduce((best, text) => text.trim().length > best.trim().length ? text : best, "");
+  }
+  function setProductService(record, text) {
+    if (!text.trim() || text.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) throw new Error("Product/Service must contain 1 to 1,000 characters without unsupported control characters.");
+    setOverride(record.kind, record.item, "product_service", text);
+  }
+  function sharedPricingYield(record) {
+    const uses = record.uses.filter(({ item }) => item.uses_yield ?? !!item.source?.yield);
+    const values = uses.map(({ item }) => Object.hasOwn(getOverride("rates", item.id), "yield") ? getOverride("rates", item.id).yield : item.yield);
+    const units = [...new Set(uses.map(({ group, item }) => pricingYieldUnit(group, item)))];
+    const mixed = values.some((value) => value !== values[0]);
+    const value = !values.length ? "" : mixed ? "Mixed" : values[0] === null ? "blank" : values[0] === "" ? "empty text" : String(values[0]);
+    return { uses, values, units, mixed, value };
+  }
+  function setSharedPricingYield(record, text) {
+    const shared = sharedPricingYield(record), token = text.trim().toLowerCase();
+    if (!shared.uses.length) throw new Error("This item does not use a yield.");
+    if (shared.units.length > 1) throw new Error("This item has different yield units. Its individual yields must be retained; edit them separately in the workbook's hidden Use yields fields.");
+    let value;
+    if (!token || token === "blank") value = null;
+    else if (token === "empty text") value = "";
+    else {
+      if (!/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/.test(token) || !Number.isFinite(Number(token)) || Number(token) > 1e12) throw new Error("Yield must be one nonnegative number, blank or empty text. Semicolon lists are not needed.");
+      value = Number(token);
+    }
+    for (const { item } of shared.uses) setOverride("rates", item, "yield", value);
+  }
   function setPricingUses(record, labels) {
     const categories = Object.keys(state.catalog.rate_groups);
+    const sharedYield = sharedPricingYield(record);
     const selected = labels.map((label) => categories.find((key) => key.toLowerCase() === label.toLowerCase() || (groups[key] || key).toLowerCase() === label.toLowerCase()));
     if (selected.some((group) => !group)) throw new Error(`Choose existing uses: ${categories.map((key) => groups[key] || key).join("; ")}.`);
     if (record.kind !== "inventory" && selected.length !== 1) throw new Error("A standalone rate needs exactly one use.");
@@ -798,9 +838,9 @@
         };
         let name = item.name, suffix = 2;
         while (catalog.rate_groups[use.group].some((rate) => rate.name.toLowerCase() === name.toLowerCase())) name = `${item.name} (${suffix++})`;
-        item.name = name; item.uses_yield = usesYield; item.yield = null;
-        // A new category can use a different coverage basis. Require its own
-        // yield instead of reinterpreting the old category's quantity.
+        item.name = name; item.uses_yield = usesYield;
+        item.yield = usesYield && !sharedYield.mixed && sharedYield.units.length === 1 && sharedYield.units[0] === pricingYieldUnit(use.group, item) ? sharedYield.values[0] : null;
+        // Reuse a single compatible yield, never reinterpret area as length.
         delete item.yield_unit;
         catalog.rate_groups[use.group].push(item);
       }
@@ -880,16 +920,20 @@
       if (product) product.uses.push(use);
       else records.push({ kind: "rates", item, uses: [use], key: `rates:${item.id}` });
     }
-    const productText = ({ kind, item }) => `${item.name} ${item.item_code || ""} ${getOverride(kind, item.id).name || ""}`.toLocaleLowerCase();
+    const productText = (record) => `${productServiceName(record)} ${record.item.name} ${record.item.sales_description || ""} ${record.item.item_code || ""}`.toLocaleLowerCase();
     const matches = records.filter((record) => {
       const groupMatch = !selectedGroup || (selectedGroup === "not-used" ? !record.uses.length : record.uses.some((use) => use.group === selectedGroup));
       const useText = record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ").toLocaleLowerCase();
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "One row per item. Uses, selection names, rate overrides and yields use matching semicolon-separated entries. A blank rate override follows the item sell price. Saved project rates may be fixed overrides; clear an override to follow the item sell price. Yield accepts a number, blank or empty text. Yield units are fixed by the calculation and are read-only.";
+    $("pricing-help").textContent = "Edit Product/Service without changing existing estimate selections. One yield applies to all uses with the same unit; Mixed preserves differing saved values until you edit it. Uses remain separated by semicolons. Saved rate overrides are retained; select Show rate overrides to review or change them.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product / standalone rate", "Supplier price", "Markup %", "Sell price", "Used in Estimator", "Selection name", "Sell rate override", "Yield", "Yield unit", "Sales description", ""]) heading.append(node("th", "", title));
+    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Used in Estimator", "Yield", "Yield unit", "Sell rate override", ""]) {
+      const cell = node("th", "", title);
+      if (title === "Sell rate override") cell.hidden = !$("show-rate-overrides").checked;
+      heading.append(cell);
+    }
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
     const rows = [];
@@ -905,8 +949,7 @@
       else codeCell.textContent = "—";
       row.append(codeCell);
       const nameCell = node("td");
-      if (inventoryView) nameCell.append(priceInput(kind, item, "name", { text: true, label: "Name" }));
-      else nameCell.append(node("span", "", item.name));
+      nameCell.append(pricingFieldInput(record, "Product/Service", productServiceName(record), (text) => setProductService(record, text), "", true));
       const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : "Standalone rate · no inventory link";
       nameCell.append(node("small", "subtext", detail));
       if (!uses.length) nameCell.append(node("small", "subtext", "Not used in Estimator"));
@@ -924,43 +967,39 @@
         const sell = node("td");
         if (item.pricing_mode === "manual") sell.append(priceInput(kind, item, "sales_price", { label: "Manual sell price", onChange: refreshPrices }));
         else { const output = node("span", "price-value", formatMoney(inventorySellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output); }
-        row.append(supplier, markup, sell);
+        const rateNotice = node("small", "subtext pricing-rate-notice");
+        refreshers.push(() => {
+          const separate = uses.filter(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || rateSellPrice(rate) !== inventorySellPrice(item));
+          rateNotice.hidden = !separate.length;
+          rateNotice.textContent = separate.length ? `Saved estimator rates: ${separate.map(({ group, item: rate }) => `${groups[group] || group} ${formatMoney(rateSellPrice(rate))}`).join("; ")}. Show rate overrides to review.` : "";
+        });
+        sell.append(rateNotice); row.append(supplier, markup, sell);
       } else {
-        const price = node("span", "price-value"); refreshers.push(() => { price.textContent = formatMoney(rateSellPrice(item)); });
-        const sell = node("td"); sell.append(price); row.append(node("td", "", "—"), node("td", "", "—"), sell);
+        const sell = node("td"); sell.append(priceInput(kind, item, "price", { defaultValue: rateSellPrice(item), label: "Sell price", onChange: refreshPrices }));
+        row.append(node("td", "", "—"), node("td", "", "—"), sell);
       }
       const groupCell = node("td");
       groupCell.append(pricingListInput(record, "Used in Estimator", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used"));
       row.append(groupCell);
-      const definitions = [
-        ["Selection name", uses.map(({ item: rate }) => rate.name)],
-        ["Sell rate override", uses.map(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || !rate.inventory_id ? rateSellPrice(rate) : "")],
-        ["Yield", uses.map(({ item: rate }) => {
-          if (!(rate.uses_yield ?? !!rate.source?.yield)) return "—";
-          const patch = getOverride("rates", rate.id), value = Object.hasOwn(patch, "yield") ? patch.yield : rate.yield;
-          return value === null ? "blank" : value === "" ? "empty text" : value;
-        })],
-        ["Yield unit", [...new Set(uses.map(({ group, item: rate }) => pricingYieldUnit(group, rate)).filter(Boolean))]],
-      ];
-      for (const [field, values] of definitions) {
-        const cell = node("td");
-        if (field === "Yield unit") { cell.className = "pricing-yield-unit"; cell.textContent = values.join("; "); }
-        else if (uses.length) cell.append(pricingListInput(record, field, values, (entries) => setPricingUseValues(record, entries, field), field === "Sell rate override" ? "Uses item sell price" : ""));
-        else cell.textContent = "—";
-        if (field === "Sell rate override" && uses.length) {
-          const status = node("small", "subtext pricing-rate-source");
-          refreshers.push(() => { status.textContent = pricingUseList(uses.map(({ item: rate }) => formatMoney(rateSellPrice(rate)))); });
-          cell.append(status);
-        }
-        row.append(cell);
-      }
-      const description = node("td");
-      if (inventoryView) description.append(priceInput(kind, item, "sales_description", { text: true, label: "Sales description" }));
-      else description.textContent = "—";
-      const reset = node("td"); reset.append(resetButton(kind, item)); row.append(description, reset);
+      const shared = sharedPricingYield(record), yieldCell = node("td");
+      if (shared.uses.length) {
+        const input = pricingFieldInput(record, "Yield", shared.value, (text) => setSharedPricingYield(record, text));
+        input.readOnly = shared.units.length > 1;
+        yieldCell.append(input);
+        if (shared.mixed || shared.units.length > 1) yieldCell.append(node("small", "subtext", shared.units.length > 1 ? "Different units: individual yields retained." : "Different saved yields: enter one value to apply it to all uses."));
+      } else yieldCell.textContent = "—";
+      row.append(yieldCell, node("td", "pricing-yield-unit", shared.units.join("; ")));
+      const overrides = node("td"); overrides.hidden = !$("show-rate-overrides").checked;
+      if (uses.length && inventoryView) {
+        overrides.append(pricingListInput(record, "Sell rate override", uses.map(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || !rate.inventory_id ? rateSellPrice(rate) : ""), (entries) => setPricingUseValues(record, entries, "Sell rate override"), "Uses item sell price"));
+        const status = node("small", "subtext pricing-rate-source");
+        refreshers.push(() => { status.textContent = pricingUseList(uses.map(({ item: rate }) => formatMoney(rateSellPrice(rate)))); });
+        overrides.append(status);
+      } else overrides.textContent = inventoryView ? "—" : "Uses Sell price";
+      const reset = node("td"); reset.append(resetButton(kind, item)); row.append(overrides, reset);
       rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 12; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = $("show-rate-overrides").checked ? 10 : 9; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
@@ -1360,6 +1399,7 @@
   $("pricing-scope").addEventListener("change", () => switchPricingScope($("pricing-scope").value));
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
+  $("show-rate-overrides").addEventListener("change", renderPricing);
   $("save-pricing").addEventListener("click", savePricing);
   $("reset-pricing").addEventListener("click", resetPricingLibrary);
   $("export-pricing").addEventListener("click", exportPricing);

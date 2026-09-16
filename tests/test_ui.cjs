@@ -275,7 +275,7 @@ let passed=0;
   priceControl.value='125.555';await priceControl.emit('input');await priceControl.emit('blur');
   assert.equal(priceControl.value,'125.56');assert.equal(audit.state.draft.inventory.precise.supplier_price,125.56);passed++;
 
-  // One visible inventory row owns editable semicolon use fields; distinct prices/yields survive.
+  // One editable display label and scalar yield; distinct saved values survive viewing.
   const pricingFixture={inventory:[
     {id:'coat',item_code:'P-1',name:'Coating <literal>',sales_description:'Coating',supplier_price:100.123456,markup:.2,sales_price:120.1481472,pricing_mode:'supplier_markup'},
     {id:'unused',item_code:'P-2',name:'Unused Primers product',sales_description:'Unused',supplier_price:20,markup:.1,sales_price:22,pricing_mode:'supplier_markup'},
@@ -294,16 +294,28 @@ let passed=0;
   const originalPricing=JSON.stringify(pricingFixture);
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
-  assert.equal(byId('pricing-head').children[0].children.length,12);
+  assert.equal(byId('pricing-head').children[0].children.length,10);
+  assert.deepEqual(byId('pricing-head').children[0].children.filter(cell=>!cell.hidden).map(cell=>cell.textContent),['Item code','Product/Service','Supplier price','Markup %','Sell price','Used in Estimator','Yield','Yield unit','']);
+  assert.equal(productInput('coat','Product/Service').value,'Coating <literal>');assert.equal(productInput('coat','Selection name'),undefined);
   assert.equal(productInput('coat','Used in Estimator').value,'Primers; Topcoats');
-  assert.equal(productInput('coat','Yield').value,'10.123456; 8');assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productRows()[0].children[9].textContent,'m² / unit');
-  assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');assert.equal(productInput('team','Yield').value,'—');
+  assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productRows()[0].children[7].textContent,'m² / unit');
+  assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');assert.equal(productInput('team','Yield'),undefined);
+  assert.equal(productRows()[0].children[8].hidden,true);assert.match(productRows()[0].children[4].children[1].textContent,/Topcoats \$180.12/);
   assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
+
+  // Display labels never change the option value used by Calculator lookups.
+  audit.state.inputs.D15='Old spray';
+  const relabelled=audit.makeControl({...oldFields[0],option_labels:{'Old spray':'Descriptive product; 20 kg'}},true);
+  assert.equal(relabelled.value,'Old spray');assert.equal(relabelled.options.find(option=>option.value==='Old spray').textContent,'Descriptive product; 20 kg');passed++;
+  audit.state.inputs.D15='constructor';
+  const unmatched=audit.makeControl({...oldFields[0],option_labels:{}},true);
+  assert.equal(unmatched.options.find(option=>option.value==='constructor').textContent,'constructor');
+  audit.state.inputs.D15='Old spray';passed++;
 
   // Viewing or leaving precise values alone never produces rounding overrides.
   const initialPricing=JSON.stringify(audit.state.draft);
   await productInput('coat','supplier_price').emit('blur');await productInput('coat','Yield').emit('change');
-  assert.equal(JSON.stringify(audit.state.draft),initialPricing);assert.equal(productInput('coat','Yield').value,'10.123456; 8');passed++;
+  assert.equal(JSON.stringify(audit.state.draft),initialPricing);assert.equal(productInput('coat','Yield').value,'Mixed');passed++;
 
   // Filters find every use, standalone rate and unused inventory item without changing membership.
   byId('rate-group').value='primers';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
@@ -317,21 +329,25 @@ let passed=0;
   // Supplier edits update shared price while each explicit use override remains independent.
   productInput('coat','supplier_price').value='200';await productInput('coat','supplier_price').emit('input');
   assert.equal(productRows()[0].querySelector('[data-sell-preview]').textContent,'$240.00');
-  assert.equal(productRows()[0].children[7].children[1].textContent,'$240.00; $180.12');
-  await editList('coat','Sell rate override','250; 199');await editList('coat','Yield','12.75; 8');
+  byId('show-rate-overrides').checked=true;await byId('show-rate-overrides').emit('change');assert.equal(productRows()[0].children[8].hidden,false);
+  assert.equal(productInput('team','Sell rate override'),undefined);
+  assert.equal(productRows()[0].children[8].children[1].textContent,'$240.00; $180.12');
+  await editList('coat','Sell rate override','250; 199');await editList('coat','Yield','12.75');
   productInput('coat','supplier_price').value='210';await productInput('coat','supplier_price').emit('input');
-  assert.equal(productRows()[0].children[7].children[1].textContent,'$250.00; $199.00');
+  assert.equal(productRows()[0].children[8].children[1].textContent,'$250.00; $199.00');
   assert.equal(audit.state.draft.catalog.rate_groups.primers[0].price_mode,'override');assert.equal(audit.state.draft.rates.primer.yield,12.75);
   await editList('coat','Sell rate override','; 199');
-  assert.equal(productRows()[0].children[7].children[1].textContent,'$252.00; $199.00');assert.equal(audit.state.draft.rates.primer.yield,12.75);passed++;
+  assert.equal(productRows()[0].children[8].children[1].textContent,'$252.00; $199.00');assert.equal(audit.state.draft.rates.primer.yield,12.75);assert.equal(audit.state.draft.rates.topcoat.yield,12.75);passed++;
 
-  // Parallel lists validate atomically; malformed input stays visible and cannot export old accepted data.
-  const beforeBadList=JSON.stringify(audit.state.draft);const bad=await editList('coat','Yield','99');
+  // A scalar yield validates atomically; malformed input cannot export stale accepted data.
+  const beforeBadList=JSON.stringify(audit.state.draft);const bad=await editList('coat','Yield','99; 100');
   assert.equal(bad.getAttribute('aria-invalid'),'true');assert.equal(JSON.stringify(audit.state.draft),beforeBadList);
-  audit.renderPricing();assert.equal(productInput('coat','Yield').value,'99');
+  audit.renderPricing();assert.equal(productInput('coat','Yield').value,'99; 100');
   let invalidExport=false;audit.setFetch(async()=>{invalidExport=true;throw new Error('unexpected');});await audit.exportPricing();assert.equal(invalidExport,false);
-  await editList('coat','Yield','blank; empty text');assert.equal(audit.state.draft.rates.primer.yield,null);assert.equal(audit.state.draft.rates.topcoat.yield,'');
-  await editList('coat','Yield','0; 142');assert.equal(audit.state.draft.rates.primer.yield,0);assert.equal(audit.state.draft.rates.topcoat.yield,142);passed++;
+  await editList('coat','Yield','blank');assert.equal(audit.state.draft.rates.primer.yield,null);assert.equal(audit.state.draft.rates.topcoat.yield,null);
+  await editList('coat','Yield','empty text');assert.equal(audit.state.draft.rates.primer.yield,'');assert.equal(audit.state.draft.rates.topcoat.yield,'');
+  await editList('coat','Yield','0');assert.equal(audit.state.draft.rates.primer.yield,0);assert.equal(audit.state.draft.rates.topcoat.yield,0);
+  await editList('coat','Yield','142');assert.equal(audit.state.draft.rates.topcoat.yield,142);passed++;
 
   // Group edits retain matched identities and their values, and can add or remove uses on the same row.
   await editList('coat','Used in Estimator','Topcoats; Primers; Labour');
@@ -341,21 +357,23 @@ let passed=0;
   assert.equal(audit.state.catalog.rate_groups.topcoats[0].id,'topcoat');assert.equal(audit.state.draft.rates.topcoat.yield,142);assert.equal(audit.state.draft.rates.primer,undefined);
   assert.ok(!audit.state.catalog.rate_groups.labour_rates.some(rate=>rate.inventory_id==='coat'));
   await editList('unused','Used in Estimator','Primers');assert.equal(audit.state.catalog.rate_groups.primers[0].inventory_id,'unused');passed++;
+  await editList('unused','Yield','44');await editList('unused','Used in Estimator','Primers; Topcoats');
+  assert.equal(audit.state.catalog.rate_groups.topcoats.find(rate=>rate.inventory_id==='unused').yield,44);assert.equal(productInput('unused','Yield').value,'44');passed++;
 
-  // Names containing semicolons and item codes are editable; units remain derived.
-  await editList('coat','Selection name','"Topcoat; <literal> "');await editList('coat','Item code','NEW-204');
-  assert.equal(audit.state.catalog.rate_groups.topcoats[0].name,'Topcoat; <literal> ');assert.equal(productInput('coat','Selection name').value,'"Topcoat; <literal> "');assert.equal(audit.state.catalog.rate_groups.topcoats[0].yield_unit,undefined);
+  // Product/Service accepts literal semicolons and preserves existing lookup keys.
+  await editList('coat','Product/Service','Topcoat; <literal> ');await editList('coat','Item code','NEW-204');
+  assert.equal(audit.state.catalog.rate_groups.topcoats[0].name,'Topcoat choice');assert.equal(productInput('coat','Product/Service').value,'Topcoat; <literal> ');assert.equal(audit.state.draft.inventory.coat.product_service,'Topcoat; <literal> ');assert.equal(audit.state.catalog.rate_groups.topcoats[0].yield_unit,undefined);
   assert.equal(audit.state.catalog.inventory[0].item_code,'NEW-204');assert.equal(audit.state.draft.rates.topcoat.yield,142);
-  assert.equal(productInput('team','Yield unit'),undefined);assert.equal(productRows().find(row=>row.dataset.priceId==='team').children[9].textContent,'');
+  assert.equal(productInput('team','Yield unit'),undefined);assert.equal(productRows().find(row=>row.dataset.priceId==='team').children[7].textContent,'');
   // Legacy descriptive labels cannot misrepresent the unit used by the calculation.
   audit.state.catalog.rate_groups.topcoats[0].yield_unit='m² / drum; explanatory text';audit.renderPricing();
-  assert.equal(productRows()[0].children[9].textContent,'m² / unit');delete audit.state.catalog.rate_groups.topcoats[0].yield_unit;passed++;
+  assert.equal(productRows()[0].children[7].textContent,'m² / unit');delete audit.state.catalog.rate_groups.topcoats[0].yield_unit;passed++;
 
   // Export includes every product and use, irrespective of current search; the saved configuration is untouched.
-  productInput('manual','sales_price').value='450';await productInput('manual','sales_price').emit('input');await editList('team','Sell rate override','1050');
+  productInput('manual','sales_price').value='450';await productInput('manual','sales_price').emit('input');productInput('team','price').value='1050';await productInput('team','price').emit('input');
   byId('pricing-search').value='Topcoat;';await byId('pricing-search').emit('input');let unifiedExport;
   audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return {ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:100})};});await audit.exportPricing();
-  assert.equal(unifiedExport.inventory.manual.sales_price,450);assert.equal(unifiedExport.catalog.rate_groups.labour_rates[0].price,1050);
+  assert.equal(unifiedExport.inventory.manual.sales_price,450);assert.equal(unifiedExport.rates.team.price,1050);
   assert.equal(unifiedExport.catalog.rate_groups.topcoats[0].yield_unit,undefined);assert.equal(audit.state.configuration.inventory.manual,undefined);
   assert.equal(JSON.stringify(pricingFixture),originalPricing);assert.match(byId('app-message').textContent,/all inventory and rate groups/);passed++;
 
@@ -364,10 +382,23 @@ let passed=0;
   const unaffected=JSON.stringify(audit.state.draft.inventory.manual);
   await productRows().find(row=>row.dataset.priceId==='coat').children.at(-1).children[0].emit('click');
   assert.equal(productInput('coat','Item code').value,'P-1');assert.equal(productInput('coat','Used in Estimator').value,'Primers; Topcoats');
-  assert.equal(productInput('coat','Yield').value,'10.123456; 8');assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');
-  assert.equal(productRows()[0].children[9].textContent,'m² / unit');assert.equal(audit.state.draft.rates.topcoat,undefined);
+  assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');
+  assert.equal(productRows()[0].children[7].textContent,'m² / unit');assert.equal(audit.state.draft.rates.topcoat,undefined);
   assert.equal(audit.state.draft.inventory.coat,undefined);assert.equal(JSON.stringify(audit.state.draft.inventory.manual),unaffected);
-  assert.equal(audit.state.catalog.rate_groups.labour_rates[0].price,1050);passed++;
+  assert.equal(audit.state.draft.rates.team.price,1050);passed++;
+
+  // A new use without a yield does not receive a yield override.
+  await editList('coat','Used in Estimator','Primers; Topcoats; Labour');
+  const noYieldRate=audit.state.catalog.rate_groups.labour_rates.find(rate=>rate.inventory_id==='coat');
+  await editList('coat','Yield','10.123456789');
+  assert.equal(audit.state.draft.rates.primer.yield,10.123456789);assert.equal(audit.state.draft.rates.topcoat.yield,10.123456789);
+  assert.equal(audit.state.draft.rates[noYieldRate.id],undefined);passed++;
+
+  // An item spanning area and length units cannot silently share one scalar.
+  audit.state.draft.catalog.rate_groups.mastic=[{id:'linear-use',name:'Linear use',inventory_id:'coat',price:120,price_mode:'inventory',yield:3,uses_yield:true}];
+  audit.refreshPricingCatalog();audit.renderPricing();const beforeMixedUnits=JSON.stringify(audit.state.draft);
+  assert.equal(productInput('coat','Yield').readOnly,true);
+  const mixedEdit=await editList('coat','Yield','5');assert.equal(mixedEdit.getAttribute('aria-invalid'),'true');assert.equal(JSON.stringify(audit.state.draft),beforeMixedUnits);passed++;
 
   // The same row reset restores the project's frozen overrides, never shared-library prices.
   const frozenPricing={catalog:copy(pricingFixture),inventory:{coat:{supplier_price:333}},rates:{primer:{price:555,yield:71}}};

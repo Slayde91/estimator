@@ -187,7 +187,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(len(records), 417)
             self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 417)
             use_columns = ("Group", "Selection name", "Price source", "Sell rate",
-                           "Yield type", "Yield", "Rate ID", "Use order")
+                           "Yield type", "Use yields", "Rate ID", "Use order")
 
             def read_uses(record):
                 values = {name: record[columns[name] - 1] for name in use_columns}
@@ -222,7 +222,7 @@ class ServerTests(unittest.TestCase):
                     break
             self.assertIsNotNone(removed_choice)
             record = {"Inventory ID": "qa-new-product", "Item code": "QA-001",
-                      "Product name": "Replacement spray", "Sales description": "Replacement spray",
+                      "Product/Service": "Replacement spray", "Product name": "Replacement spray", "Sales description": "Replacement spray",
                       "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
                       "Sell price": 125, "Rate ID": "qa-new-rate", "Group": "sprays",
                       "Selection name": "Replacement spray", "Price source": "Inventory", "Sell rate": 125,

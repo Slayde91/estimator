@@ -188,6 +188,12 @@ dialog .actions{justify-content:flex-end}
 /* Project files and the two independently saved pricing contexts. */
 .pricing-scope-field { max-width: 26rem; margin-bottom: 1rem; }
 .pricing-table .pricing-use-list { min-width: 15rem; width: 100%; }
+.pricing-table textarea[data-price-field="Product/Service"] { min-width: 20rem; font-size: 12px; padding: 9px; resize: vertical; }
+.pricing-table input[data-price-field="Yield"] { min-width: 8rem; width: 8rem; }
+.pricing-table input[data-price-field="Item code"] { min-width: 6rem; width: 8rem; }
+.pricing-advanced-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
+.pricing-advanced-toggle input { width: auto; }
+.pricing-table .pricing-rate-notice { max-width: 15rem; }
 .pricing-table td { vertical-align: middle; }
 .pricing-table input[data-price-field="yield"] { min-width: 11rem; }
 .pricing-yield-unit { min-width: 8rem; color: var(--muted); white-space: pre-wrap; }

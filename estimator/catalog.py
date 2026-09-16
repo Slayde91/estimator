@@ -52,6 +52,25 @@ def yield_unit(group, rate):
     return "m / unit" if group == "mastic" else "m² / unit"
 
 
+def product_service_name(product=None, records=()):
+    """One descriptive label, without changing any estimator lookup identity.
+
+    Explicit labels win. Otherwise choose the longest existing label, retaining
+    the first candidate on ties (description, product name, then rate labels).
+    """
+    product = product or {}
+    rates = [record[-1] if isinstance(record, tuple) else record for record in records]
+    for record in (product, *rates):
+        value = record.get("product_service")
+        if isinstance(value, str) and value.strip():
+            return value
+    candidates = [product.get("sales_description"), product.get("name")]
+    for rate in rates:
+        candidates.extend((rate.get("display_name"), rate.get("name")))
+    candidates = [value for value in candidates if isinstance(value, str) and value.strip()]
+    return max(candidates, key=lambda value: len(value.strip()), default="")
+
+
 def _text(value, label, maximum=1000, empty=False):
     if not isinstance(value, str) or len(value) > maximum or (not empty and not value.strip()):
         raise ValidationError(f"{label} must be {'text' if empty else 'nonempty text'} of at most {maximum} characters.")
@@ -113,7 +132,7 @@ def validate_catalog(value):
             raise ValidationError(f"Library cannot change the calculation rules for {group}.")
     data["rate_group_rules"] = deepcopy(reference["rate_group_rules"])
     inventory_ids = set()
-    inventory_fields = {"id", "item_code", "name", "sales_description", "supplier_price", "supplier_price_raw",
+    inventory_fields = {"id", "item_code", "name", "sales_description", "product_service", "supplier_price", "supplier_price_raw",
                         "sales_price", "calculated_sell_price", "pricing_mode", "markup", "status", "inventory_type", "properties", "source"}
     for item in data["inventory"]:
         if not isinstance(item, dict) or set(item) - inventory_fields:
@@ -124,6 +143,8 @@ def validate_catalog(value):
         inventory_ids.add(key)
         for field in ("name", "sales_description"):
             _text(item.get(field), f"Inventory {key} {field}", empty=field == "sales_description")
+        if "product_service" in item:
+            _text(item["product_service"], f"Inventory {key} Product/Service")
         if not isinstance(item.get("pricing_mode"), str) or item["pricing_mode"] not in {"supplier_markup", "manual"}:
             raise ValidationError(f"Inventory {key} has an unsupported pricing mode.")
         _amount(item.get("sales_price"), f"Inventory {key} sales price")
@@ -156,7 +177,7 @@ def validate_catalog(value):
         if not isinstance(item.setdefault("source", {}), dict):
             raise ValidationError(f"Inventory {key} source must be an object.")
     rate_ids = set()
-    rate_fields = {"id", "name", "display_name", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode"}
+    rate_fields = {"id", "name", "display_name", "product_service", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode"}
     for group, rows in groups.items():
         if not isinstance(rows, list):
             raise ValidationError(f"Rate group {group} must be a list.")
@@ -177,6 +198,8 @@ def validate_catalog(value):
             names.add(name.casefold())
             if "display_name" in rate:
                 _text(rate["display_name"], f"Rate {key} display name")
+            if "product_service" in rate:
+                _text(rate["product_service"], f"Rate {key} Product/Service")
             linked = rate.get("inventory_id")
             if linked is not None and (not isinstance(linked, str) or linked not in inventory_ids):
                 raise ValidationError(f"Rate {key} refers to an unknown inventory product.")
@@ -238,7 +261,8 @@ def validate_configuration(value, data=None):
         edits = value.get(category, {})
         if not isinstance(edits, dict):
             raise ValidationError(f"{category} overrides must be an object.")
-        allowed = {"supplier_price", "markup", "sales_price", "name", "sales_description"} if category == "inventory" else {"price", "yield"}
+        allowed = ({"supplier_price", "markup", "sales_price", "name", "sales_description", "product_service"}
+                   if category == "inventory" else {"price", "yield", "product_service"})
         for key, changes in edits.items():
             if key not in records[category] or not isinstance(changes, dict) or set(changes) - allowed:
                 raise ValidationError(f"Unknown {category} item or field: {key}.")
@@ -246,9 +270,8 @@ def validate_configuration(value, data=None):
             for field, field_value in changes.items():
                 if field == "yield" and not has_yield(record):
                     raise ValidationError(f"{key} does not use a material yield.")
-                if field in {"name", "sales_description"}:
-                    if not isinstance(field_value, str) or not field_value.strip() or len(field_value) > 1000:
-                        raise ValidationError(f"{key}.{field} must be nonempty text of at most 1000 characters.")
+                if field in {"name", "sales_description", "product_service"}:
+                    _text(field_value, f"{key}.{field}")
                 else:
                     if field == "yield" and (field_value is None or field_value == ""):
                         # VLOOKUP distinguishes a genuinely blank cell (zero) from
@@ -290,6 +313,11 @@ def effective_catalog(configuration=None, data=None):
                     rate["price"] = linked["sales_price"]
                 # Selection keys remain stable when the catalog display text is edited.
                 name_field = "sales_description" if data["rate_group_rules"][group]["name_column"] == "G" else "name"
-                rate["display_name"] = patch.get(name_field, rate["name"])
+                rate["display_name"] = patch.get(name_field, rate.get("display_name", rate["name"]))
             rate.update(edits["rates"].get(rate["id"], {}))
+            # A single product label is presentation metadata. Raw rate names,
+            # IDs, prices and yields remain the calculator's stable inputs.
+            label = (linked or {}).get("product_service") or rate.get("product_service")
+            if label:
+                rate["display_name"] = label
     return data

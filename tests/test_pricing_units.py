@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 
 from estimator.calculator import calculate
 from estimator.catalog import baseline, effective_catalog, validate_catalog, ValidationError, yield_unit
-from estimator.pricing_workbook import export_pricing_workbook, import_pricing_workbook, _serialize_exact
+from estimator.pricing_workbook import export_pricing_workbook, import_pricing_workbook, _serialize_exact, _legacy_pricing_workbook
 from estimator.storage import Store
 
 
@@ -71,11 +71,12 @@ class PricingUnitTests(unittest.TestCase):
         sheet = book['Inventory & Rates']
         self.assertTrue(sheet.protection.sheet)
         self.assertFalse(sheet.protection.autoFilter)
+        headers = {cell.value: cell.column for cell in sheet[1]}
         for row in sheet.iter_rows(min_row=2):
             for cell in row:
-                self.assertEqual(cell.protection.locked, cell.column == 12, cell.coordinate)
-        self.assertTrue(sheet.column_dimensions['L'].protection.locked)
-        self.assertFalse(sheet.column_dimensions['K'].protection.locked)
+                self.assertEqual(cell.protection.locked, cell.column == headers['Yield unit'], cell.coordinate)
+        self.assertTrue(sheet.column_dimensions['H'].protection.locked)
+        self.assertFalse(sheet.column_dimensions['G'].protection.locked)
         self.assertFalse(sheet.column_dimensions['R'].protection.locked)
         self.assertTrue(all(cell.protection.locked for cell in sheet[1]))
         book.close()
@@ -99,15 +100,14 @@ class PricingUnitTests(unittest.TestCase):
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
         product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
-        values = {'Group': 'boards', 'Selection name': 'Extra area coverage use', 'Price source': 'Inventory',
-                  'Sell rate': '161', 'Yield type': 'Number', 'Yield': '7.125', 'Rate ID': '', 'Use order': ''}
-        for name, entry in values.items():
-            cell = sheet.cell(product, headers[name])
-            cell.value = str(cell.value) + ';' + entry
+        cell = sheet.cell(product, headers['Group'])
+        cell.value += ';boards'
         result = import_pricing_workbook(_serialize_exact(book), 'extra-use.xlsx', {})
         self.assertEqual(result['summary']['rates']['added'], 1)
-        added = next(rate for rate in result['configuration']['catalog']['rate_groups']['boards'] if rate['name'] == 'Extra area coverage use')
-        self.assertEqual(added['yield'], 7.125)
+        added = next(rate for rate in result['configuration']['catalog']['rate_groups']['boards'] if rate['inventory_id'] == '204')
+        # The new visible Group editor creates the use with the shared yield;
+        # it does not require parallel hidden-column edits.
+        self.assertEqual(added['yield'], 142)
         self.assertEqual(yield_unit('boards', added), 'm² / unit')
         book.close()
 
@@ -126,25 +126,28 @@ class PricingUnitTests(unittest.TestCase):
         catalog['rate_groups']['mastic'][0]['inventory_id'] = '204'
         book = load_workbook(BytesIO(export_pricing_workbook({'catalog': catalog})))
         sheet = book['Inventory & Rates']
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, 15).value == '204')
-        self.assertEqual(sheet.cell(product, 12).value, 'm / unit; m² / unit')
+        headers = {cell.value: cell.column for cell in sheet[1]}
+        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        self.assertEqual(sheet.cell(product, headers['Yield unit']).value, 'm / unit; m² / unit')
+        self.assertEqual(sheet.cell(product, headers['Yield']).value, 'Mixed')
         book.close()
 
     def test_clearing_editable_cells_removes_a_product_without_touching_locked_units(self):
         book = load_workbook(BytesIO(self.payload))
         sheet = book['Inventory & Rates']
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, 15).value == '204')
+        headers = {cell.value: cell.column for cell in sheet[1]}
+        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
         for cell in sheet[product]:
             if not cell.protection.locked:
                 cell.value = None
-        self.assertEqual(sheet.cell(product, 12).value, 'm² / unit')
+        self.assertEqual(sheet.cell(product, headers['Yield unit']).value, 'm² / unit')
         result = import_pricing_workbook(_serialize_exact(book), 'removed.xlsx', {})
         self.assertEqual(result['summary']['inventory']['removed'], 1)
         self.assertEqual(result['summary']['rates']['removed'], 2)
         book.close()
 
     def test_earlier_compact_workbook_without_unit_column_still_imports(self):
-        book = load_workbook(BytesIO(self.payload))
+        book = _legacy_pricing_workbook({})
         book['Inventory & Rates'].delete_cols(12)
         book['Inventory & Rates'].auto_filter.ref = 'A1:AA418'
         result = import_pricing_workbook(_serialize_exact(book), 'older-pricing.xlsx', {})

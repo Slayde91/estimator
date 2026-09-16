@@ -132,8 +132,12 @@ class Store:
         # the live library may remove or rename products without rewriting it.
         if "catalog" not in configuration:
             configuration["catalog"] = validate_catalog(configuration_catalog(configuration))
+        # Standalone services keep their edited display label alongside frozen
+        # rates; rebuilding this mapping must not discard presentation edits.
         configuration["rates"] = {
-            rate["id"]: {"price": rate["price"], **({"yield": rate["yield"]} if has_yield(rate) else {})}
+            rate["id"]: {"price": rate["price"],
+                         **({"yield": rate["yield"]} if has_yield(rate) else {}),
+                         **({"product_service": rate["product_service"]} if "product_service" in rate else {})}
             for rates in catalog["rate_groups"].values() for rate in rates
         }
         configuration["catalog_signature"] = catalog_signature(catalog)

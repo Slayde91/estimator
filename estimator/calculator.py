@@ -40,7 +40,9 @@ def fields(catalog=None):
     for field in specification()["fields"]:
         field = dict(field)
         if field["cell"] in GROUPS:
-            field["options"] = [r["name"] for r in catalog["rate_groups"][GROUPS[field["cell"]]]]
+            rates = catalog["rate_groups"][GROUPS[field["cell"]]]
+            field["options"] = [r["name"] for r in rates]
+            field["option_labels"] = {r["name"]: r.get("display_name", r["name"]) for r in rates}
         output.append(field)
     return output
 

@@ -7,6 +7,7 @@ the caller; parsing never writes configuration or saved quotes.
 from copy import deepcopy
 import csv
 import hashlib
+import json
 from io import BytesIO, StringIO
 import math
 import posixpath
@@ -22,7 +23,7 @@ from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_co
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
 
-from .catalog import ValidationError, effective_catalog, validate_configuration, yield_unit
+from .catalog import ValidationError, effective_catalog, validate_catalog, validate_configuration, yield_unit, product_service_name
 
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -58,6 +59,10 @@ LEGACY_COMPACT_HEADERS = (
     "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
 )
 COMPACT_HEADERS = (*LEGACY_COMPACT_HEADERS[:11], "Yield unit", *LEGACY_COMPACT_HEADERS[11:])
+PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Supplier price", "Markup", "Sell price", "Group", "Yield", "Yield unit")
+PRODUCT_SERVICE_HEADERS = (*PRODUCT_SERVICE_VISIBLE_HEADERS,
+    "Product name", "Selection name", "Price source", "Sell rate", "Yield type", "Use yields",
+    "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS, "Saved values")
 LEGACY_USE_VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
 USE_VECTOR_HEADERS = (*LEGACY_USE_VECTOR_HEADERS, "Yield unit")
 # All layouts feed the same existing pricing parser. Product values have one
@@ -294,7 +299,7 @@ def _serialize_exact(workbook, *, escape_text=False):
     return output.getvalue()
 
 
-def export_pricing_workbook(configuration):
+def _legacy_pricing_workbook(configuration):
     """Export one row per product with parallel use lists, including draft edits."""
     data = effective_catalog(configuration)
     workbook = Workbook()
@@ -426,6 +431,100 @@ def export_pricing_workbook(configuration):
             for cell in row:
                 if isinstance(cell.value, str):
                     cell.data_type = "s"
+    return workbook
+
+
+def _shared_yield(records):
+    applicable = [(group, rate) for group, _, rate in records if yield_unit(group, rate)]
+    if not applicable:
+        return None
+    values = [rate.get("yield") for _, rate in applicable]
+    if len({yield_unit(group, rate) for group, rate in applicable}) > 1 or any(value != values[0] for value in values[1:]):
+        return "Mixed"
+    return "Empty text" if values[0] == "" else values[0]
+
+
+def export_pricing_workbook(configuration):
+    """Expose one product label and yield while retaining stable lookup data."""
+    data = effective_catalog(configuration)
+    workbook = _legacy_pricing_workbook(configuration)
+    old_sheet = workbook[COMBINED_SHEET]
+    legacy_rows = list(old_sheet.values)[1:]
+    workbook.remove(old_sheet)
+    sheet = workbook.create_sheet(COMBINED_SHEET, 0)
+    sheet.append(PRODUCT_SERVICE_HEADERS)
+    products = {item["id"]: item for item in data["inventory"]}
+    uses = {}
+    for group, rates in data["rate_groups"].items():
+        for order, source in enumerate(rates, 1):
+            rate = deepcopy(source)
+            rate["price_mode"] = _rate_mode(rate, configuration)
+            uses[rate["id"]] = (group, order, rate)
+    for row in legacy_rows:
+        values = dict(zip(COMPACT_HEADERS, row))
+        product = products.get(values["Inventory ID"])
+        records = [uses[identity] for identity in _unpack_uses(values["Rate ID"], "Rate ID") if identity]
+        label = product_service_name(product, records)
+        scalar_yield = _shared_yield(records)
+        sell_price = product["sales_price"] if product else records[0][2]["price"]
+        snapshot = {"product": product, "uses": [{"group": group, "order": order, "rate": rate}
+                    for group, order, rate in records], "label": label, "yield": scalar_yield,
+                    "sell_price": sell_price}
+        saved = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        if len(saved) > 32767:
+            raise ValidationError("A product's saved use data exceeds Excel's cell limit; reduce its number of uses before exporting.")
+        values.update({"Product/Service": label, "Use yields": values["Yield"],
+                       "Yield": scalar_yield, "Sell price": sell_price, "Saved values": saved})
+        sheet.append([values.get(header) for header in PRODUCT_SERVICE_HEADERS])
+    widths = {get_column_letter(index): width for index, width in enumerate(
+        (16, 64, 18, 16, 18, 29, 18, 18), 1)}
+    widths.update({get_column_letter(index): 24 for index in range(9, len(PRODUCT_SERVICE_HEADERS) + 1)})
+    _format_sheet(sheet, PRODUCT_SERVICE_HEADERS, widths, numeric_columns=(3, 5, 7), percent_columns=(4,), freeze_panes="C2")
+    sheet.auto_filter.ref = f"A1:H{sheet.max_row}"
+    sheet.print_area = f"A1:H{sheet.max_row}"
+    editable, readonly = Protection(locked=False), Protection(locked=True)
+    sheet.protection.sheet = True
+    for flag in ("autoFilter", "sort", "insertRows", "deleteRows", "formatRows", "formatColumns", "selectLockedCells", "selectUnlockedCells"):
+        setattr(sheet.protection, flag, False)
+    for column, header in enumerate(PRODUCT_SERVICE_HEADERS, 1):
+        dimension = sheet.column_dimensions[get_column_letter(column)]
+        dimension.protection = readonly if header == "Yield unit" else editable
+        dimension.hidden = column > len(PRODUCT_SERVICE_VISIBLE_HEADERS)
+    for row in sheet.iter_rows(min_row=2):
+        for header, cell in zip(PRODUCT_SERVICE_HEADERS, row):
+            cell.protection = readonly if header == "Yield unit" else editable
+        row[1].font = Font(name="Calibri", size=11, color="174D8D", bold=True)
+        # Stored snapshots do not affect the visible row height.
+        lines = max(sum(max(1, math.ceil(len(line) / max(1, widths[cell.column_letter] - 3)))
+                        for line in str(cell.value or "").splitlines() or [""])
+                    for cell in row[:8])
+        sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
+    instructions = workbook["Instructions"]
+    instructions.delete_rows(1, instructions.max_row)
+    for row in [
+        ["CEASEFIRE PRICING LIBRARY", "Edit products and services"],
+        ["Save changes", "Import previews this complete library. Review the changes, then Save pricing. Saved projects retain their own prices."],
+        ["Product/Service", "One editable description supplies the displayed product and Estimator selection label. Existing lookup identities are retained in hidden columns."],
+        ["Prices", "Supplier price and Markup recalculate product Sell price. Manual products and standalone services use Sell price directly. Existing per-use overrides are retained in hidden columns."],
+        ["Yield", "Enter one nonnegative number for every yield-bearing use of the product. Leave an unchanged blank, Empty text or Mixed value as exported to preserve existing behavior. Mixed indicates differing yields or incompatible units; a shared numeric edit is accepted only when all units match."],
+        ["Yield unit", "Read-only calculation unit: m² / unit for area coverage and m / unit for mastic. Groups without a yield remain blank."],
+        ["Group", "Uses are separated by semicolons. Existing uses retain their names, order, prices and yields. New uses inherit Product/Service and product price; the shared yield is copied only when its unit matches. Names must be unique in a group."],
+        ["Add or remove", "Add a new product with Product/Service, Supplier price, Markup, Sell price and Group. Manual products can leave Supplier price blank. To remove an entry, clear all its editable cells, including hidden columns. Keep hidden values on retained rows."],
+        ["Compatibility", "The hidden columns retain per-use identities, overrides and exact saved values. Earlier pricing workbook formats remain supported. Use values only: formulas, macros and external links are rejected."],
+        ["Group keys", "Use the exact supported group keys below."],
+        *[[group, "Yield required" if rule["yield_column"] else "Yield not used"]
+          for group, rule in data["rate_group_rules"].items()],
+    ]:
+        instructions.append(row)
+    _format_sheet(instructions, (), {"A": 29, "B": 115}, freeze_panes="A2")
+    for row in range(2, 10):
+        instructions.row_dimensions[row].height = 61
+    instructions.auto_filter.ref = None
+    for page in workbook:
+        for row in page:
+            for cell in row:
+                if isinstance(cell.value, str):
+                    cell.data_type = "s"
     return _serialize_exact(workbook, escape_text=True)
 
 
@@ -488,7 +587,7 @@ def _preflight(payload, filename):
                         # Schedule imports share this ZIP/XML check and can use
                         # columns through Z. Each importer validates its own
                         # exact headers after this broad resource bound.
-                        max_columns = len(COMPACT_HEADERS) if COMBINED_SHEET in sheet_names else 26
+                        max_columns = len(PRODUCT_SERVICE_HEADERS) if COMBINED_SHEET in sheet_names else 26
                         if not match or int(match.group(2)) > max_rows + 1 or column_index_from_string(match.group(1)) > max_columns:
                             raise ValidationError(f"A pricing sheet must have at most {max_rows:,} rows and only the provided columns.")
     except ValidationError:
@@ -610,6 +709,8 @@ def _pricing_rows(workbook, text_cells):
     sheet.reset_dimensions()
     sheet_text = text_cells.get(COMBINED_SHEET, {})
     headers = tuple(next(_text_rows(sheet, sheet_text), ()))
+    if headers == PRODUCT_SERVICE_HEADERS:
+        return _product_service_rows(sheet, sheet_text)
     if headers in (COMPACT_HEADERS, LEGACY_COMPACT_HEADERS):
         return _compact_rows(sheet, sheet_text, headers)
     inventory, uses, orders = [], [], set()
@@ -647,11 +748,15 @@ def _pricing_rows(workbook, text_cells):
 
 
 def _compact_rows(sheet, text_cells, headers=COMPACT_HEADERS):
+    return _expand_compact_rows(_rows(sheet, headers, max_rows=2 * MAX_ROWS, text_cells=text_cells))
+
+
+def _expand_compact_rows(rows):
     inventory, uses, orders = [], [], set()
     # Yield unit is an output column, including in older editable-unit files.
     # Ignore it rather than requiring edits to locked cells when uses change.
     vector_headers = LEGACY_USE_VECTOR_HEADERS
-    for number, row in _rows(sheet, headers, max_rows=2 * MAX_ROWS, text_cells=text_cells):
+    for number, row in rows:
         label = f"{COMBINED_SHEET} row {number}"
         has_product = any(row[header] not in (None, "") for header in INVENTORY_HEADERS)
         has_uses = any(row[header] not in (None, "") for header in vector_headers)
@@ -697,15 +802,189 @@ def _compact_rows(sheet, text_cells, headers=COMPACT_HEADERS):
     return inventory, [(number, row) for _, number, _, row in uses]
 
 
+def _saved_values_object(pairs):
+    value = {}
+    for key, child in pairs:
+        if key in value:
+            raise ValidationError("Saved pricing values contain duplicate JSON fields.")
+        value[key] = child
+    return value
+
+
+def _validate_saved_tree(value):
+    # Leave room for the surrounding estimate/configuration in a portable
+    # project, whose total nesting is bounded at 32 levels.
+    pending = [(value, 0)]
+    while pending:
+        item, depth = pending.pop()
+        if depth > 24:
+            raise ValidationError("Saved pricing values contain excessively nested data.")
+        if isinstance(item, dict):
+            pending.extend((child, depth + 1) for child in item.values())
+            pending.extend((key, depth + 1) for key in item)
+        elif isinstance(item, list):
+            pending.extend((child, depth + 1) for child in item)
+        elif isinstance(item, float) and not math.isfinite(item):
+            raise ValidationError("Saved pricing values must contain finite numbers.")
+        elif isinstance(item, str) and any(0xD800 <= ord(character) <= 0xDFFF for character in item):
+            raise ValidationError("Saved pricing values contain invalid Unicode.")
+
+
+def _product_service_rows(sheet, text_cells):
+    """Expand the simple view using hidden per-use data as its lossless base."""
+    prepared, metadata = [], {}
+    reference = effective_catalog({})
+    rules = reference["rate_group_rules"]
+    snapshots = {**reference, "inventory": [], "rate_groups": {group: [] for group in rules}}
+    rows = []
+    for number, row in _rows(sheet, PRODUCT_SERVICE_HEADERS, max_rows=2 * MAX_ROWS, text_cells=text_cells):
+        if all(value in (None, "") for header, value in row.items() if header != "Yield unit"):
+            continue
+        label = f"{COMBINED_SHEET} row {number}"
+        raw_saved = row["Saved values"]
+        if raw_saved not in (None, ""):
+            if not isinstance(raw_saved, str) or len(raw_saved) > 32767:
+                raise ValidationError(f"{label}: Invalid saved values.")
+            try:
+                saved = json.loads(raw_saved, object_pairs_hook=_saved_values_object)
+            except (ValueError, RecursionError) as error:
+                raise ValidationError(f"{label}: Invalid saved values.") from error
+            _validate_saved_tree(saved)
+            if (not isinstance(saved, dict) or set(saved) != {"product", "uses", "label", "yield", "sell_price"}
+                    or saved["product"] is not None and not isinstance(saved["product"], dict)
+                    or not isinstance(saved["uses"], list) or len(saved["uses"]) > MAX_ROWS
+                    or any(not isinstance(use, dict) or set(use) != {"group", "order", "rate"}
+                           or not isinstance(use["rate"], dict) for use in saved["uses"])):
+                raise ValidationError(f"{label}: Invalid saved product or use data.")
+        else:
+            saved = {"product": None, "uses": [], "label": None, "yield": None, "sell_price": None}
+        if raw_saved not in (None, ""):
+            _text(saved["label"], f"{label} saved Product/Service")
+            _number(saved["sell_price"], f"{label} saved Sell price")
+            if saved["yield"] not in (None, "Empty text", "Mixed"):
+                _number(saved["yield"], f"{label} saved Yield")
+            if saved["product"] is not None:
+                snapshots["inventory"].append(saved["product"])
+            for use in saved["uses"]:
+                if not isinstance(use["group"], str) or use["group"] not in rules:
+                    raise ValidationError(f"{label}: Invalid saved Group.")
+                order = _number(use["order"], f"{label} saved Use order", minimum=1)
+                if order != int(order) or order > MAX_ROWS:
+                    raise ValidationError(f"{label}: Invalid saved Use order.")
+                snapshots["rate_groups"][use["group"]].append(use["rate"])
+        rows.append((number, row, saved))
+    # Source snapshots are untrusted file data too. Validate the complete set
+    # before accessing nested properties or reconciling any visible edits.
+    validate_catalog(snapshots)
+    for number, row, saved in rows:
+        label = f"{COMBINED_SHEET} row {number}"
+        source_product = saved["product"]
+        existing_uses = saved["uses"]
+        legacy = {header: row.get(header) for header in COMPACT_HEADERS}
+        legacy["Yield"] = row["Use yields"]
+        product_label = _text(row["Product/Service"] or product_service_name(source_product,
+                    [use["rate"] for use in existing_uses]) or row["Product name"], f"{label} Product/Service")
+        standalone = bool(existing_uses) and source_product is None
+        if standalone:
+            # Its single visible price belongs to the rate, not to a new product.
+            legacy["Sell price"] = None
+        elif source_product is None and all(row[key] in (None, "") for key in ("Product name", "Inventory ID", "Pricing mode")):
+            legacy.update({"Product name": product_label, "Sales description": product_label,
+                           "Pricing mode": "Supplier markup" if row["Supplier price"] is not None else "Manual",
+                           "Markup": 0 if row["Markup"] is None else row["Markup"]})
+        groups = [value.strip() if isinstance(value, str) else value
+                  for value in _unpack_uses(row["Group"], f"{label} Group")]
+        if groups == [None] or groups == [""]:
+            groups = []
+        if any(group not in rules for group in groups):
+            raise ValidationError(f"{label}: Unknown Group; use an exact group key from Instructions.")
+        prior_groups = [use["group"] for use in existing_uses]
+        hidden_uses = any(row[key] not in (None, "") for key in ("Selection name", "Rate ID", "Price source"))
+        if existing_uses and groups != prior_groups or not hidden_uses:
+            remaining = list(existing_uses)
+            vectors = {header: [] for header in LEGACY_USE_VECTOR_HEADERS}
+            for group in groups:
+                original = next((use for use in remaining if use["group"] == group), None)
+                if original:
+                    remaining.remove(original)
+                    rate = original["rate"]
+                    values = {"Group": group, "Selection name": rate["name"], "Price source": rate["price_mode"].title(),
+                              "Sell rate": rate["price"], "Yield type": _yield_type(rate.get("yield"), bool(rules[group]["yield_column"])),
+                              "Yield": rate.get("yield") if isinstance(rate.get("yield"), (int, float)) else None,
+                              "Rate ID": rate["id"], "Use order": original["order"]}
+                else:
+                    scalar = row["Yield"]
+                    needs_yield = bool(rules[group]["yield_column"])
+                    existing_units = {yield_unit(use["group"], use["rate"]) for use in existing_uses}
+                    existing_units.discard("")
+                    new_unit = yield_unit(group, {"uses_yield": needs_yield})
+                    if needs_yield and existing_units and new_unit not in existing_units:
+                        # Area coverage cannot become linear coverage merely
+                        # because the user adds a new estimator category.
+                        scalar = None
+                    if needs_yield and scalar == "Mixed":
+                        raise ValidationError(f"{label}: Enter a shared Yield before adding a yield-bearing use.")
+                    values = {"Group": group, "Selection name": product_label,
+                              "Price source": "Override" if standalone else "Inventory",
+                              # Linked uses inherit the product's recalculated
+                              # price, not the exported Sell price snapshot.
+                              "Sell rate": row["Sell price"] if standalone else None, "Yield type": _yield_type(
+                                  "" if scalar == "Empty text" else scalar, needs_yield),
+                              "Yield": scalar if needs_yield and isinstance(scalar, (int, float)) else None,
+                              "Rate ID": None, "Use order": None}
+                for header in LEGACY_USE_VECTOR_HEADERS:
+                    vectors[header].append(values[header])
+            for header in LEGACY_USE_VECTOR_HEADERS:
+                legacy[header] = _pack_uses(vectors[header])
+        scalar = row["Yield"]
+        unchanged_yield = _excel_precision(scalar, saved["yield"]) == saved["yield"]
+        if not unchanged_yield:
+            if scalar == "Mixed":
+                raise ValidationError(f"{label}: Mixed preserves existing differing yields; enter a number or clear Yield to change it.")
+            units = {yield_unit(group, {"uses_yield": bool(rules[group]["yield_column"])}) for group in groups}
+            units.discard("")
+            if len(units) > 1:
+                raise ValidationError(f"{label}: These uses have incompatible yield units. Edit their individual yields in the hidden Use yields columns.")
+            if not units and scalar not in (None, ""):
+                raise ValidationError(f"{label}: These groups do not use a yield.")
+            if scalar not in (None, "", "Empty text"):
+                _number(scalar, f"{label} Yield")
+        metadata[number] = {"saved": saved, "product_label": product_label,
+                            "rename": product_label != saved["label"], "standalone": standalone,
+                            "yield_changed": not unchanged_yield, "yield": scalar, "sell_price": row["Sell price"]}
+        prepared.append((number, legacy))
+    inventory, rates = _expand_compact_rows(prepared)
+    for number, item in inventory:
+        meta = metadata[number]
+        source = meta["saved"]["product"]
+        item["_original"] = source if source and source.get("id") == item["Inventory ID"] else None
+        item["_product_service"] = (meta["product_label"] if meta["rename"] else
+                                    (source or {}).get("product_service"))
+    for number, rate in rates:
+        meta = metadata[number]
+        source = next((use for use in meta["saved"]["uses"] if use["rate"].get("id") == rate["Rate ID"]), None)
+        rate["_original"] = source["rate"] if source else None
+        rate["_original_product"] = meta["saved"]["product"]
+        rate["_product_service"] = (meta["product_label"] if meta["standalone"] and meta["rename"] else
+                                    (source["rate"] if source else {}).get("product_service"))
+        if meta["yield_changed"] and rules[rate["Group"]]["yield_column"]:
+            scalar = meta["yield"]
+            rate["Yield type"] = "Empty text" if scalar == "Empty text" else "Blank" if scalar in (None, "") else "Number"
+            rate["Yield"] = scalar if rate["Yield type"] == "Number" else None
+        if meta["standalone"] and _excel_precision(meta["sell_price"], meta["saved"]["sell_price"]) != meta["saved"]["sell_price"]:
+            rate["Unit sell rate"] = _number(meta["sell_price"], f"{COMBINED_SHEET} row {number} Sell price")
+    return inventory, rates
+
+
 def _inventory_comparison(item):
     return {key: item.get(key) for key in (
         "id", "item_code", "name", "sales_description", "pricing_mode", "supplier_price",
-        "markup", "sales_price", "properties",
+        "markup", "sales_price", "properties", "product_service",
     )}
 
 
 def _rate_comparison(group, item, configuration):
-    return {"group": group, **{key: item.get(key) for key in ("name", "inventory_id", "price", "yield")},
+    return {"group": group, **{key: item.get(key) for key in ("name", "inventory_id", "price", "yield", "product_service")},
             "price_mode": _rate_mode(item, configuration), "yield_unit": yield_unit(group, item)}
 
 
@@ -740,7 +1019,7 @@ def import_pricing_workbook(payload, filename, current_configuration):
         for row_number, row in inventory_rows:
             label = f"Inventory row {row_number}"
             identity = _identifier(row["Inventory ID"], "Inventory ID", "inv", inventory_ids)
-            old = previous_inventory.get(identity)
+            old = row["_original"] if "_original" in row else previous_inventory.get(identity)
             mode = {"Supplier markup": "supplier_markup", "Manual": "manual"}.get(row["Pricing mode"])
             if mode is None:
                 raise ValidationError(f"{label}: Pricing mode must be Supplier markup or Manual.")
@@ -767,6 +1046,11 @@ def import_pricing_workbook(payload, filename, current_configuration):
                          "markup": _number(row["Markup"], f"{label} Markup", minimum=-1),
                          "properties": {key: _property(row[header], f"{label} {header}")
                                         for header, key in PROPERTY_HEADERS.items()}})
+            if "_product_service" in row:
+                if row["_product_service"] is None:
+                    item.pop("product_service", None)
+                else:
+                    item["product_service"] = row["_product_service"]
             entered_sell = _number(row["Sell price"], f"{label} Sell price", optional=mode == "supplier_markup")
             if old:
                 for field in ("supplier_price", "markup"):
@@ -812,15 +1096,18 @@ def import_pricing_workbook(payload, filename, current_configuration):
                 raise ValidationError(f"{label}: Choose Inventory with a valid Inventory ID, or Override for an independent rate.")
             entered_price = _number(row["Unit sell rate"], f"{label} Unit sell rate", optional=price_mode == "inventory")
             old_pair = previous_rates.get(identity)
-            old = old_pair[1] if old_pair else None
+            old = row["_original"] if "_original" in row else old_pair[1] if old_pair else None
             if old:
                 entered_price = _excel_precision(entered_price, old["price"])
             if price_mode == "inventory":
                 price = inventory[linked_id]["sales_price"]
-                if old and _rate_mode(old, current_configuration) == "inventory":
+                old_mode = (old.get("price_mode") if "_original" in row else _rate_mode(old, current_configuration)) if old else None
+                old_product = row.get("_original_product") if "_original" in row else previous_inventory.get(linked_id)
+                if old and old_mode == "inventory":
                     if entered_price is not None and entered_price != old["price"]:
                         price_mode, price = "override", entered_price
-                    elif linked_id == old.get("inventory_id") and inventory[linked_id]["sales_price"] == previous_inventory[linked_id]["sales_price"]:
+                    elif (linked_id == old.get("inventory_id") and old_product
+                          and inventory[linked_id]["sales_price"] == old_product["sales_price"]):
                         price = old["price"]
                 elif not old and entered_price is not None and entered_price != price:
                     price_mode, price = "override", entered_price
@@ -844,6 +1131,11 @@ def import_pricing_workbook(payload, filename, current_configuration):
             rate.update({"id": identity, "name": name, "inventory_id": linked_id,
                          "price": price, "price_mode": price_mode,
                          "yield": yield_value, "uses_yield": uses_yield})
+            if "_product_service" in row:
+                if row["_product_service"] is None:
+                    rate.pop("product_service", None)
+                else:
+                    rate["product_service"] = row["_product_service"]
             if not uses_yield:
                 # A use can move out of a yield category. Older descriptive
                 # metadata is then inapplicable, while numeric rules stay put.

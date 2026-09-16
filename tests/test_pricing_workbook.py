@@ -21,9 +21,18 @@ from estimator.calculator import calculate
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.pricing_workbook import (
     INVENTORY_HEADERS, RATE_HEADERS, PROPERTY_HEADERS, COMBINED_HEADERS, COMPACT_HEADERS, COMBINED_SHEET,
-    export_pricing_workbook as export_compact_pricing_workbook,
+    _legacy_pricing_workbook,
     import_pricing_workbook, _format_sheet, _serialize_exact,
 )
+
+
+def export_compact_pricing_workbook(configuration):
+    """Retained earlier compact-file fixture; new layout has dedicated tests."""
+    workbook = _legacy_pricing_workbook(configuration)
+    try:
+        return _serialize_exact(workbook, escape_text=True)
+    finally:
+        workbook.close()
 
 
 def export_pricing_workbook(configuration):
@@ -911,7 +920,7 @@ workbook.close()
         for header in ("Selection name", "Sell rate"):
             with self.assertRaisesRegex(ValidationError, "formulas"):
                 self.imported(modify(self.exported, lambda w: setattr(compact_cell(w[COMBINED_SHEET], "204", header), "value", "=1+1")))
-        with self.assertRaisesRegex(ValidationError, "provided columns"):
+        with self.assertRaisesRegex(ValidationError, "provided columns|unexpected columns"):
             self.imported(modify(self.exported, lambda w: setattr(w[COMBINED_SHEET]["AC2"], "value", "extra")))
         catalog = baseline()
         seed = catalog["rate_groups"]["primers"][0]

@@ -4,10 +4,28 @@ from pathlib import Path
 import unittest
 
 from estimator.calculator import calculate, fields, labour_breakdown, masking_breakdown, specification
-from estimator.catalog import baseline, ValidationError
+from estimator.catalog import baseline, effective_catalog, catalog_signature, ValidationError
 
 
 class CalculatorTests(unittest.TestCase):
+    def test_product_service_labels_keep_existing_selections_and_calculations(self):
+        original = effective_catalog()
+        primer = next(rate for rate in original["rate_groups"]["primers"] if rate["inventory_id"] == "204")
+        standalone = original["rate_groups"]["labour_rates"][0]
+        standalone.update(inventory_id=None, price_mode="override")
+        inputs = {"D20": primer["name"], "B20": 142, "E26": standalone["name"], "F26": 1}
+        configuration = {"catalog": original, "inventory": {"204": {"product_service": "Promat SBR Latex primer / topcoat, 20 kg"}},
+                         "rates": {standalone["id"]: {"product_service": "Existing labour service, relabelled"}}}
+        changed = effective_catalog(configuration)
+        self.assertEqual(catalog_signature(changed), catalog_signature(original))
+        before, after = calculate(inputs, {"catalog": original}), calculate(inputs, configuration)
+        self.assertEqual(after["cells"], before["cells"])
+        self.assertEqual(after["errors"], before["errors"])
+        metadata = {field["cell"]: field for field in fields(changed)}
+        self.assertIn(primer["name"], metadata["D20"]["options"])
+        self.assertEqual(metadata["D20"]["option_labels"][primer["name"]], configuration["inventory"]["204"]["product_service"])
+        self.assertEqual(metadata["E26"]["option_labels"][standalone["name"]], configuration["rates"][standalone["id"]]["product_service"])
+
     def test_all_saved_excel_formula_caches(self):
         result = calculate()
         self.assertEqual(result["errors"], {})

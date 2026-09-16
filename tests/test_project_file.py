@@ -102,6 +102,42 @@ class ProjectFileTests(unittest.TestCase):
         self.assertNotIn("result", snapshot["estimate"])
         self.assertNotIn("id", snapshot["estimate"])
 
+    def test_standalone_product_service_survives_quote_and_project_snapshots(self):
+        catalog = baseline()
+        service = catalog["rate_groups"]["primers"][0]
+        service.update(inventory_id=None, price_mode="override")
+        identity, lookup_name = service["id"], service["name"]
+        label = "Standalone primer service; <literal>"
+        patch = {"product_service": label, "price": 401.1234567890123, "yield": 71.9876543210987}
+        configuration = {"catalog": catalog, "inventory": {}, "rates": {identity: patch}}
+        self.sender.save_configuration(configuration)
+        estimate = {"title": "Standalone service project", "inputs": {"D20": lookup_name, "B20": 142}}
+        saved_quote = self.sender.save_quote(estimate)
+        reopened_quote = self.sender.quote(saved_quote["id"])
+        self.assertEqual(reopened_quote["configuration"]["rates"][identity], patch)
+        self.assertEqual(reopened_quote["inputs"]["D20"], lookup_name)
+        self.assertEqual(reopened_quote["result"]["cells"]["A87"], patch["price"])
+        self.assertEqual(reopened_quote["result"]["cells"]["F20"], patch["yield"])
+        before_sender = stored_rows(self.sender)
+        payload = export_project(self.sender, {"estimate": {key: reopened_quote[key] for key in ESTIMATE_FIELDS}})
+        self.receiver.save_configuration({"rates": {identity: {"price": 22, "product_service": "Current shared label"}}})
+        before_receiver = stored_rows(self.receiver)
+        loaded = self.load(payload)
+        self.assertEqual(stored_rows(self.sender), before_sender)
+        self.assertEqual(stored_rows(self.receiver), before_receiver)
+        self.assertEqual(loaded["estimate"]["configuration"]["rates"][identity], patch)
+        self.assertEqual(loaded["estimate"]["result"], reopened_quote["result"])
+        loaded_rate = next(rate for rate in effective_catalog(loaded["estimate"]["configuration"])["rate_groups"]["primers"]
+                           if rate["id"] == identity)
+        self.assertEqual((loaded_rate["name"], loaded_rate["display_name"], loaded_rate["inventory_id"]),
+                         (lookup_name, label, None))
+        primer_field = next(field for field in loaded["fields"] if field["cell"] == "D20")
+        self.assertEqual(primer_field["option_labels"][lookup_name], label)
+        second = export_project(self.receiver, {"estimate": {key: loaded["estimate"][key] for key in ESTIMATE_FIELDS},
+                                               "calculators": {key: {"inputs": value["inputs"]}
+                                                               for key, value in loaded["calculators"].items()}})
+        self.assertEqual(json.loads(second), json.loads(payload))
+
     def test_import_rejects_tampering_before_any_database_write(self):
         cases = {
             "format": lambda data: data.update(format="other"),

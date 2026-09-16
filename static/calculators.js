@@ -1089,7 +1089,7 @@
     finally { state.action = false; updateStatus(); }
   }
 
-  async function downloadCalculatedFile({ action, buttonId, filename, label, mimeType, fileDescription }) {
+  async function downloadCalculatedFile({ action, buttonId, filename, fixedFilename = false, label, mimeType, fileDescription }) {
     const entry = current(); if (!entry || entry.invalid.size || state.action) return;
     // Input events retain exact edits; blur completes dropdown validation before
     // the server calculates the captured draft for the downloaded file.
@@ -1112,7 +1112,7 @@
       const blob = await response.blob();
       if (!blob.size) throw new Error("The server returned an empty file.");
       const url = URL.createObjectURL(blob), link = node("a");
-      link.href = url; link.download = `ceasefire-${id}-${filename}`; document.body.append(link);
+      link.href = url; link.download = fixedFilename ? filename : `ceasefire-${id}-${filename}`; document.body.append(link);
       try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
       const changed = current() !== entry || entry.revision !== revision;
       message(`${label} download started using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
@@ -1121,11 +1121,11 @@
   }
 
   function downloadSchedulePdf() {
-    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", filename: "schedule.pdf", label: "schedule PDF", mimeType: "application/pdf", fileDescription: "a PDF report" });
+    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", filename: "APPENDIX A.pdf", fixedFilename: true, label: "schedule PDF", mimeType: "application/pdf", fileDescription: "a PDF report" });
   }
 
   function downloadExcelRegister() {
-    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "register.xlsx", label: "Excel register", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
+    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "APPENDIX A.xlsx", fixedFilename: true, label: "Excel register", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
   }
 
   function downloadMaterialsSummaryPdf() {

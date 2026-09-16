@@ -294,20 +294,25 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 self.store.save_calculator_state(identity, {sheet: {marker_cell: "SAVED VALUE EXCLUDED FROM DRAFT"}})
                 before = self.stored_rows()
                 marker = "333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}"
-                for route, filename in (("report.pdf", "schedule"), ("summary.pdf", "materials-summary")):
+                for route, filename in (("report.pdf", "APPENDIX A.pdf"),
+                                        ("summary.pdf", f"ceasefire-{identity}-materials-summary.pdf")):
                     with self.subTest(route=route):
                         status, headers, payload = self.request("POST", f"/api/calculators/{identity}/{route}", {"inputs": draft})
                         self.assertEqual(status, 200, payload[:300])
                         self.assertEqual(headers["Content-Type"], "application/pdf")
-                        self.assertEqual(headers["Content-Disposition"], f'attachment; filename="ceasefire-{identity}-{filename}.pdf"')
+                        self.assertEqual(headers["Content-Disposition"], f'attachment; filename="{filename}"')
                         self.assertEqual(headers["Cache-Control"], "no-store")
                         self.assertEqual(int(headers["Content-Length"]), len(payload))
                         reader = PdfReader(BytesIO(payload))
                         text = "\n".join(page.extract_text() for page in reader.pages)
                         compact_text = "".join(text.split())
                         self.assertIn("Current calculator snapshot", text)
-                        self.assertIn(model['source']['filename'], compact_text)
-                        self.assertIn(model['source']['sha256'], compact_text)
+                        if identity == 'steel_board' and route == 'summary.pdf':
+                            self.assertNotIn(model['source']['filename'], compact_text)
+                            self.assertNotIn(model['source']['sha256'], compact_text)
+                        else:
+                            self.assertIn(model['source']['filename'], compact_text)
+                            self.assertIn(model['source']['sha256'], compact_text)
                         for heading in ("Schedule inputs, calculations and complete notes",
                                         "Single-member calculator - separate from the schedule",
                                         "Manual bag calculation - separate from the schedule",
@@ -356,14 +361,17 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         before = self.stored_rows()
         for route in ('report.pdf', 'summary.pdf'):
             with self.subTest(route=route):
-                status, _, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {})
+                status, headers, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {})
                 self.assertEqual(status, 200, payload[:300])
+                filename = 'APPENDIX A.pdf' if route == 'report.pdf' else 'ceasefire-ductwork-materials-summary.pdf'
+                self.assertEqual(headers['Content-Disposition'], f'attachment; filename="{filename}"')
                 saved_text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
                 # The schedule shows length; its summary shows surface area.
                 expected_value = '987.65' if route == 'report.pdf' else '2,411.85'
                 self.assertIn(expected_value, saved_text)
-                status, _, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {'inputs': {}})
+                status, headers, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {'inputs': {}})
                 self.assertEqual(status, 200, payload[:300])
+                self.assertEqual(headers['Content-Disposition'], f'attachment; filename="{filename}"')
                 source_text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
                 self.assertNotIn(expected_value, source_text)
                 self.assertNotIn('777x444', source_text)
@@ -400,7 +408,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 status, headers, payload = self.request('POST', f'/api/calculators/{identity}/register.xlsx', {'inputs': draft})
                 self.assertEqual(status, 200, payload[:300])
                 self.assertEqual(headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                self.assertEqual(headers['Content-Disposition'], f'attachment; filename="ceasefire-{identity}-register.xlsx"')
+                self.assertEqual(headers['Content-Disposition'], 'attachment; filename="APPENDIX A.xlsx"')
                 self.assertEqual(headers['Cache-Control'], 'no-store')
                 self.assertEqual(int(headers['Content-Length']), len(payload))
                 workbook = load_workbook(BytesIO(payload))
@@ -417,8 +425,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
     def test_excel_register_saved_fallback_and_request_boundaries(self):
         self.store.save_calculator_state('ductwork', {'CALCULATOR': {'B11': '700x500', 'D11': 5}})
         before = self.stored_rows()
-        status, _, payload = self.request('POST', '/api/calculators/ductwork/register.xlsx', {})
+        status, headers, payload = self.request('POST', '/api/calculators/ductwork/register.xlsx', {})
         self.assertEqual(status, 200, payload[:300])
+        self.assertEqual(headers['Content-Disposition'], 'attachment; filename="APPENDIX A.xlsx"')
         workbook = load_workbook(BytesIO(payload))
         self.assertEqual(workbook['Schedule']['C6'].value, '700x500')
         self.assertEqual(workbook['Schedule']['D6'].value, 5)

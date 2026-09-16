@@ -244,9 +244,23 @@ renderings over the complete `project_calculator_report` result:
 **Full schedule**, retaining every populated main-schedule row and its status;
 `POST /api/calculators/<id>/summary.pdf` calls `build_calculator_summary_report`
 for **Material quantities and summary**, with **Final product and material
-summary**, ancillary tables, closing totals and board **EXTRA BOARDS**.
+summary**, ancillary tables, closing totals and populated extra-board details.
 The existing ReportLab/fonts/logo pipeline, captured-draft validation and
 read-only/source guards apply to both endpoints; neither writes saved state.
+
+All three schedule endpoints download as `APPENDIX A.pdf`; all three register
+endpoints download as `APPENDIX A.xlsx`, with matching fixed browser filenames.
+The materials/summary PDF filename and `CEASEFIRE-Estimate.pdf` are unchanged.
+The toolbar places Excel register before schedule PDF; shared button styles
+make schedule import Excel green, calculator/quote saves yellow and the Estimator
+PDF action red. These changes reuse the existing routes and action handlers.
+
+Only the board materials/summary PDF renderer omits the rounding explanation,
+BOARD SUMMARY A8's two pictured paragraphs, EXTRA BOARDS heading/introduction/
+empty message, and filename/SHA provenance paragraph. The A31/A35 notes, other
+warnings, populated extra-board items, tables and totals remain. The shared
+projection is untouched, so Excel retains every note, source field and extra
+item. Schedule PDFs and the other materials/summary PDFs keep their content.
 
 This output split follows the requested separate downloads without splitting
 the calculation model. Settings and extra-board inputs remain in the complete

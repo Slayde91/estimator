@@ -443,6 +443,12 @@ let passed=0;
   assert.deepEqual(copy(scrollCalls),Array.from({length:3},()=>({top:0,left:0,behavior:'instant'})));passed++;
 
   const markup=fs.readFileSync('static/index.html','utf8');
+  const actionCss=fs.readFileSync('static/styles.css','utf8');
+  assert.match(markup,/id="save-quote"[^>]*class="button save-button"/);
+  assert.match(markup,/id="download-quote-pdf"[^>]*class="button pdf-button"/);
+  assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
+  assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));
+  for(const state of [':hover:not(:disabled)',':focus-visible',':disabled'])assert.ok(actionCss.includes(`.button:is(.excel-button,.save-button,.pdf-button)${state}`));
   assert.doesNotMatch(markup,/id="print-quote"/);assert.doesNotMatch(source,/function printQuote|window\.print/);
   assert.doesNotMatch(markup,/Estimating workflow|id="workflow"|Choose a workflow|Dimensions and takeoff notes/);
   assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);

@@ -2,39 +2,44 @@
 
 Date: 2026-09-16. Executable code and checked results take precedence over this document.
 
-Current increment: Estimator PDF cleanup on `feat/estimator-pdf-cleanup` in
-`C:/ESTIMATOR/worktrees/estimator-pdf-cleanup`, based on PR #26 merge `3d3e1ed`.
+Current increment: appendix download and board-summary polish on
+`feat/appendix-download-polish` in
+`C:/ESTIMATOR/worktrees/appendix-download-polish`, based on PR #27 merge
+`700b471`.
 
-The PDF removes the pictured Work summary, material-pricing heading and three
-paragraphs, masking-allowance paragraph and duplicate Estimator notes block.
-Main measurements use the NOTES heading. All material/labour/cost tables and
-generated material notes remain. The Job and access B12 editor is hidden in the
-browser, with its stored text and complete draft/save/report payload preserved.
-Draft and saved PDFs both use `CEASEFIRE-Estimate.pdf`, with a safe browser
-fallback. Calculator PDFs, calculations, pricing and storage remain unchanged.
+All three calculator schedule PDFs download as `APPENDIX A.pdf`, and their
+Excel registers as `APPENDIX A.xlsx`. The register button moves before schedule
+PDF. Import schedule is Excel green; Save calculator and Save quote are yellow;
+the Estimator Download PDF button is red. Existing draft, validation, precision
+and save behavior remains unchanged.
 
-All 25 focused tests pass in 30.421 seconds (ten PDF and 15 server), plus all 36
-Estimator UI checks and JavaScript syntax checks. All 12 PDF pages passed content
-and visual review (five complete-estimate and seven incomplete/long-note pages).
-The 35-file build and 13 packaged HTTP checks pass. The isolated browser journey
-on port 18788 passed: a legacy quote's main NOTES was edited, saved and reopened,
-with the new text retained and no B12 editor. Generated notes retain historical
-Job and access text. API verification confirmed the original B12 value, pricing
-snapshot and calculated cells are unchanged. The review interruption was transient. Independent
-code review found no unintended scope or persistence changes.
+Only the board materials & summary PDF omits the rounding paragraph, the two
+pictured paragraphs in BOARD SUMMARY A8, EXTRA BOARDS heading/introduction/empty
+message and source filename/hash paragraph. It retains populated extra-board
+items, all tables and totals, other warnings and the A31/A35 guidance. The
+complete calculation projection and Excel contents remain intact. Other PDF
+content and the materials/summary and Estimator filenames remain unchanged.
 
-Implementation is committed as `567f200` (Trim Estimator PDF sections and
-simplify notes entry). Two earlier automatic-review capacity rejections were
-transient; the third authorized push succeeded. The branch now tracks
-`origin/feat/estimator-pdf-cleanup` at `567f200`. PR, CI and merge remain pending.
-The main app remains on PR #26 merge `3d3e1ed`. Current Git evidence and
-`.runtime/estimator-pdf-cleanup-qa/publication.json` govern the final outcome.
+Validation checkpoint: all 33 focused Python tests pass (12 report/projection
+tests in 92.310 seconds and 21 API tests in 77.768 seconds). The 36 Estimator and
+95 calculator UI checks passed again after the final CSS cleanup. Visual review
+passed all eight board-summary pages: default and cleared cases each use two
+pages instead of three; the advanced case uses four
+instead of five and retains all 18 extra-board items. Five unaffected PDF scopes
+match baseline `700b471` after text normalization, and all three board raw
+projections match exactly.
 
-The optional native-board reconstruction mismatch and large diff aborted the
-preceding PR #26 local full-suite run. A broader local packaged regression is
-now running with two external `WorkbookSourceRegressionTests` excluded because
-the native board original differs from the package. Its result is pending;
-neither that run nor the preceding aborted run is claimed as a pass.
+Browser checks confirm the Estimator's red PDF and yellow Save buttons, plus
+green Import, yellow Save and Excel-before-PDF order for all three calculators.
+The board Excel action confirmed that its download started. Independent code
+review found no unintended scope, calculation or persistence change.
+Build, full-suite CI,
+runtime refresh and publication are pending; no full-suite pass is claimed.
+Evidence is in `.runtime/appendix-download-polish-qa`; current Git and its
+publication receipt govern the final outcome.
+
+The preceding Estimator PDF cleanup merged through PR #27 at `700b471`.
+Its implementation is retained; earlier checkpoint claims below are historical.
 
 Historical PR #26 merged at `3d3e1ed` with both CI runs green: 283 tests
 (four optional source skips), 128 UI checks and build. The older checkpoint

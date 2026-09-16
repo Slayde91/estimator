@@ -67,14 +67,16 @@ The templates contain only expected input columns and reference instructions: ei
 
 Calculator numbers display two decimals at rest. Selecting a numeric input reveals its exact value, and editing retains full precision so small yields and tolerances cannot be rounded into different results. The source databases, calculated cells and material-basis text are read-only. Numeric settings remain adjustable, including formula-backed yields. Hiding the requested worksheet commentary does not remove exclusions, errors or withheld-quantity rules from calculation, purchasing totals or PDF reports.
 
-**Download schedule PDF** creates a branded **Full schedule** from the current calculator draft without saving it. It contains every populated main-schedule item, with thicknesses, protection/material areas, applicable bag, sheet or wrap quantities and main statuses. Unused blank slots are omitted; incomplete entries stay visible.
+**Download schedule PDF** creates a branded **Full schedule** named **APPENDIX A.pdf** for any of the three calculators, from the current draft without saving it. It contains every populated main-schedule item, with thicknesses, protection/material areas, applicable bag, sheet or wrap quantities and main statuses. Unused blank slots are omitted; incomplete entries stay visible.
 
-**Download materials & summary PDF** creates the separate **Material quantities and summary** document. It contains the final product/material tables, ancillary quantities, closing totals and board **EXTRA BOARDS**. These sections are no longer appended to the schedule PDF. Both downloads use the same complete calculation, including editable settings and source limitations. The duplicate item-detail, single-member/manual-bag and settings appendices remain excluded. Spray and board ordering retain their pooled workbook rules; manual helpers are not added to schedule totals. Board and wrap do not use spray bags, and board reference box area remains distinct from actual board material area.
+**Download materials & summary PDF** creates the separate **Material quantities and summary** document. It contains the final product/material tables, ancillary quantities, closing totals and populated extra-board details. These sections are no longer appended to the schedule PDF. Both downloads use the same complete calculation, including editable settings and source limitations. The duplicate item-detail, single-member/manual-bag and settings appendices remain excluded. Spray and board ordering retain their pooled workbook rules; manual helpers are not added to schedule totals. Board and wrap do not use spray bags, and board reference box area remains distinct from actual board material area.
 
-The calculator toolbar places schedule PDF before Excel register, followed by materials & summary PDF. Editable schedule Exposure values use normal-weight text; headings and technical reference labels keep their emphasis.
+The board materials & summary PDF omits the display-rounding paragraph, the two pictured A8 ordering paragraphs, the EXTRA BOARDS heading/introduction/empty message and the source filename/hash paragraph. Populated extra-board items, all tables and totals, other warnings and the A31/A35 guidance remain. The full Excel register retains those notes and source details.
 
-**Download Excel register** captures the same calculated draft in an `.xlsx`
-file without saving it. Summary contains totals, material tables and source
+The calculator toolbar places Excel register before schedule PDF, followed by materials & summary PDF. Import schedule is Excel green; Save calculator and Save quote are yellow, and the Estimator Download PDF button is red. Editable schedule Exposure values use normal-weight text; headings and technical reference labels keep their emphasis.
+
+**Download Excel register** captures the same calculated draft as **APPENDIX A.xlsx**
+for any of the three calculators, without saving it. Summary contains totals, material tables and source
 qualifications; Schedule contains the used items with filters and statuses.
 Board registers also include Extra boards. Numbers retain their exact values
 and display two decimals. The register contains calculated values, not live

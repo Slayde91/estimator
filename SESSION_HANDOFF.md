@@ -1,6 +1,50 @@
 # Session handoff
 
-## Separate calculator PDFs and normal Exposure text - 2026-09-16
+## Estimator PDF cleanup - 2026-09-16
+
+Current worktree: `C:/ESTIMATOR/worktrees/estimator-pdf-cleanup`, branch
+`feat/estimator-pdf-cleanup`, based on PR #26 merge `3d3e1ed`.
+
+The user confirmed hiding the Job and access Notes editor (B12) in the browser.
+The main measurements NOTES field remains. Stored B12 values, draft/save/report
+payloads and generated `result.notes` are preserved, so historical B12 text may
+still appear within generated material notes.
+
+The Estimator PDF omits Work summary, the Material pricing and quantities
+heading and three explanatory paragraphs, the masking-allowance explanation
+and duplicate Estimator notes/B12 subsection. The measurements heading becomes
+NOTES. Every material/labour/cost table remains. Draft and saved exports use
+`CEASEFIRE-Estimate.pdf`, including the browser's safe fallback. Calculator PDFs,
+calculation rules, pricing and storage schemas are unchanged.
+
+Validation checkpoint: all 25 focused tests passed in 30.421 seconds (ten PDF
+and 15 server tests). All 36 Estimator UI checks and JavaScript syntax checks
+pass. Two PDF QA cases produced five/seven pages with content guards passing;
+visual review is underway. Independent code review found no unintended changes
+to tables, shared calculator formatting, calculation rules or B12 persistence.
+Runtime refresh, exact-head CI and publication remain pending.
+
+The aborted local full-suite attempt belonged to the preceding PR #26 run:
+optional native board reconstruction encountered a native/package mismatch and
+a large comparison diff. It was not a new full-suite attempt for this cleanup,
+and is not reported as a pass for either change.
+Evidence belongs in `.runtime/estimator-pdf-cleanup-qa`.
+
+Next action: finish visual checks, verify preserved saved state,
+then commit/push/PR/merge after exact-head CI passes. Keep CI in the background
+while completing independent review; do not rerun the unresolved optional
+source comparison as proof of success. Classify tracked edits as presentation
+and regressions; QA PDFs, screenshots, logs and test databases remain ignored.
+
+Resume from this worktree and current Git/check evidence. Preserve the user's
+main checkout, live database and browser drafts. Record the actual merge and
+remaining local changes in the final publication receipt.
+
+## Historical: separate calculator PDFs and normal Exposure text - 2026-09-16
+
+PR #26 merged at `3d3e1ed`; both CI runs passed with 283 tests (four optional
+source skips), 128 UI checks and build. This supersedes its pending statements
+below; the current Estimator cleanup requires its own validation.
 
 Branch: `feat/separate-calculator-pdfs`, based on verified PR #25 merge
 `c4e1a79` (its post-merge CI also passed).

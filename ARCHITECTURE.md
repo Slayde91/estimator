@@ -18,6 +18,14 @@ Consequences: install `requirements.txt` before running PDF generation; `require
 
 `POST /api/quote-report` builds a report from captured current inputs and pricing without saving a quote. Edited saved quotes include their source quote ID so the server can preserve the original source hashes when pricing is unchanged. `GET /api/quotes/<id>/report.pdf` renders the stored quote's result and source lineage directly, so an unchanged saved report remains available after catalogue changes. The UI selects the saved endpoint only when a saved quote has no unsaved edits. It captures its request before awaiting the response, validates the PDF response and starts a file download through a temporary blob URL.
 
+Both Estimator PDF routes use `CEASEFIRE-Estimate.pdf`; the browser uses the same
+safe fallback when a valid filename is absent. Quote-only rendering omits Work
+summary, the Material pricing and quantities heading/three paragraphs, the
+masking-allowance explanation and the duplicate B12 Estimator notes subsection.
+The measurements heading is NOTES. All financial tables, generated `result.notes`,
+stored inputs and calculation errors remain. Shared PDF formatting helpers and
+the separate calculator schedule/summary PDFs are unchanged.
+
 ## Components
 
 On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It reuses a healthy local app or starts the existing server as a hidden, detached process, waits for readiness, and opens the browser. Runtime discovery checks Python 3.11+ and every package pin in `requirements.txt`, currently ReportLab 4.4.9 and openpyxl 3.1.5; it can use an already-installed Codex runtime as a fallback. Startup logs remain in `.runtime`. There is no Windows service, login task or automatic package installation. After restarting Windows, the user runs the launcher again.
@@ -33,7 +41,7 @@ On Windows, `Start-Estimator.cmd` invokes the adjacent PowerShell launcher. It r
 | `estimator/presentation.py` | Named business labels and error descriptions shared by the UI API and PDF presentation |
 | `estimator/quote_details.py` | Bounded project/client/site metadata, deterministic quote naming and work-summary formatting over existing calculated values |
 | `estimator/storage.py` | Current library/settings, quote metadata/work summaries, saved full inputs, complete catalog/rate/yield snapshots, result evidence and source hashes |
-| `estimator/report.py` | Branded PDF presentation of quote details, generated work summaries, existing results and inputs using business labels |
+| `estimator/report.py` | Branded PDF presentation of quote details, financial tables, retained notes and existing results using business labels |
 | `estimator/server.py` | Loopback-only allowlisted HTTP/JSON interface and request validation |
 | `static/` | Accessible estimate-details controls, automatic quote names, draft pricing editor/import review, Excel export, quote persistence, named cost breakdown, original logo and PDF download |
 
@@ -79,13 +87,17 @@ Previous architecture: quote JSON stored a manual title, workflow, notes, calcul
 
 Metadata is trimmed and bounded to 100 characters for project number, 200 for client and 400 for site address; control characters are rejected. The quote name joins nonempty project/client/site values with the exact separator `- `, giving `Project No.- Client- Site Address` and a maximum of 704 characters. The server derives the name rather than trusting a manually supplied title when metadata is present. Omitted metadata retains previous values during updates; explicit empty strings clear them. Legacy manual names remain available for records without metadata, and a new empty record uses `Untitled quote`.
 
-`compile_work_summary(workflow, result)` reads only the given workflow, inputs and calculated cells. It describes active products and coverage, quantities/yields/wastage, labour teams and days, masking, selected services, extra labour and adjustments. It shares existing material and addition labels and reads calculated values without reimplementing their formulas. Calculation responses and quote saves retain the summary, and PDFs still include it; the Estimator's generated-summary panel is removed. Older reports can derive a summary from their saved snapshot without changing the stored record or consulting current prices. A summary is a description of entered estimating facts, not technical product approval or geometry inference.
+`compile_work_summary(workflow, result)` reads only the given workflow, inputs and calculated cells. It describes active products and coverage, quantities/yields/wastage, labour teams and days, masking, selected services, extra labour and adjustments. It shares existing material and addition labels and reads calculated values without reimplementing their formulas. Calculation responses and quote saves retain the summary; the Estimator browser panel and PDF section omit it. PDF rendering does not regenerate a missing summary. A summary is a description of entered estimating facts, not technical product approval or geometry inference.
 
 New-estimate initialization explicitly sets the existing Notes input B12 to an
 empty string. The immutable workbook field default remains `Allowances`;
 backend normalization and saved-quote loading keep their existing semantics.
 Explicit saved notes, including `Allowances` and blank text, are preserved.
-The separate measurement textarea retains its NOTES label and stored identity.
+The Job and access B12 editor is omitted from browser field rendering, and its
+duplicate PDF subsection is omitted. B12 remains in draft/save/report payloads
+and in unchanged generated material notes. The separate measurement textarea
+retains its NOTES label and stored identity. This presentation change requires
+no stored-data migration or pricing/calculation change.
 
 The Estimator's Labour breakdown is an additive `result.labour` projection of
 stored calculation cells, produced by `labour_breakdown(result)`. It reuses the

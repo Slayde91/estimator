@@ -2,7 +2,33 @@
 
 Date: 2026-09-16. Executable code and checked results take precedence over this document.
 
-Current increment: separate calculator PDFs on `feat/separate-calculator-pdfs`,
+Current increment: Estimator PDF cleanup on `feat/estimator-pdf-cleanup` in
+`C:/ESTIMATOR/worktrees/estimator-pdf-cleanup`, based on PR #26 merge `3d3e1ed`.
+
+The PDF removes the pictured Work summary, material-pricing heading and three
+paragraphs, masking-allowance paragraph and duplicate Estimator notes block.
+Main measurements use the NOTES heading. All material/labour/cost tables and
+generated material notes remain. The Job and access B12 editor is hidden in the
+browser, with its stored text and complete draft/save/report payload preserved.
+Draft and saved PDFs both use `CEASEFIRE-Estimate.pdf`, with a safe browser
+fallback. Calculator PDFs, calculations, pricing and storage remain unchanged.
+
+All 25 focused tests pass in 30.421 seconds (ten PDF and 15 server), plus all 36
+Estimator UI checks and JavaScript syntax checks. Two PDF QA cases produced
+five/seven pages with content guards passing; visual review is underway.
+Independent code review found no unintended scope or persistence changes.
+Runtime, exact-head CI and publication remain pending; evidence belongs in
+`.runtime/estimator-pdf-cleanup-qa`.
+
+The optional native-board reconstruction mismatch and large diff aborted the
+preceding PR #26 local full-suite run. No new full-suite run was attempted for
+this cleanup at this checkpoint, and the aborted run is not a claimed pass.
+
+Historical PR #26 merged at `3d3e1ed` with both CI runs green: 283 tests
+(four optional source skips), 128 UI checks and build. The older checkpoint
+below is historical and does not validate this Estimator-only change.
+
+Previous increment: separate calculator PDFs on `feat/separate-calculator-pdfs`,
 based on verified PR #25 merge `c4e1a79`.
 
 Download schedule PDF retains Full schedule only. Download materials & summary

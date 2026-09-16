@@ -92,19 +92,28 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn(quote["source_hashes"]["quote"]["sha256"], "".join(text.split()))
         self.assertEqual(quote, before)
 
-    def test_client_site_project_and_work_summary_preserve_literal_details(self):
+    def test_requested_pdf_blocks_are_omitted_but_quote_details_and_notes_remain(self):
         quote = deepcopy(self.quote)
         quote.update({"client": "Example Client 12.3456", "site_address": "18 Example Road, Suite 3.4567",
                       "project_no": "CF-2026.12345", "work_summary": "Stored work summary: 12.35 m² of coating."})
         text = pdf_text(render_quote_pdf(quote))
-        for token in ("Client", "Site address", "Project number", "Work summary",
-                      quote["client"], quote["site_address"], quote["project_no"], quote["work_summary"]):
+        for token in ("Client", "Site address", "Project number", "NOTES",
+                      quote["client"], quote["site_address"], quote["project_no"], quote["measurements"]):
+            self.assertIn(token, text)
+        for token in ("Work summary", quote["work_summary"], "Material pricing and quantities",
+                      "The material category total on the summary also contains",
+                      "Project area / items:", "Coverage and units are entered by the estimator.",
+                      "Masking allowance:", "Measurement / technical notes", "Estimator notes"):
+            self.assertNotIn(token, text)
+        for token in ("Material breakdown", "Material / yield", "Line amount", "Labour and masking",
+                      "Masking / cleaning", "Masking labour", "Masking materials", "Masking material adjustment",
+                      "Additions and project costs", "Generated material and allowance notes"):
             self.assertIn(token, text)
         quote.pop("work_summary")
         before = deepcopy(quote)
         with patch("estimator.calculator.calculate", side_effect=AssertionError("Report recalculated")), patch("estimator.catalog.baseline", side_effect=AssertionError("Report consulted current prices")):
             fallback = pdf_text(render_quote_pdf(quote))
-        self.assertIn("Work summary", fallback)
+        self.assertNotIn("Work summary", fallback)
         self.assertIn("Spray", fallback)
         self.assertEqual(quote, before)
 
@@ -114,17 +123,30 @@ class ReportTests(unittest.TestCase):
         quote["inputs"]["D15"] = "Special coating 12.34567"
         quote["result"]["inputs"]["D15"] = quote["inputs"]["D15"]
         quote["inputs"]["B12"] = "User measurement 98.76543 remains literal."
-        quote["measurements"] = "Plan reference 123.456789"
+        quote["measurements"] = "Plan reference 123.456789; user measurement 98.76543 remains literal."
         quote["result"]["cells"].update({"A63": 2.675, "F63": 12.34567, "B35": 1.234567,
                                           "D27": -2.675, "F7": 100.12345})
         before = deepcopy(quote)
         text = pdf_text(render_quote_pdf(quote))
         for token in ("$2.68", "$12.35", "1.23", "$-2.68", "$100.12"):
             self.assertIn(token, text)
-        for literal in ("Special coating 12.34567", "User measurement 98.76543 remains literal.", "Plan reference 123.456789"):
+        self.assertNotIn("User measurement 98.76543 remains literal.", text)
+        for literal in ("Special coating 12.34567", "Plan reference 123.456789; user measurement 98.76543 remains literal."):
             self.assertIn(literal, text)
             text = text.replace(literal, "literal")
         self.assertNotRegex(text, r"\b\d[\d,]*\.\d{3,}\b")
+        self.assertEqual(quote, before)
+
+    def test_removing_duplicate_notes_field_preserves_generated_notes_and_saved_inputs(self):
+        quote = deepcopy(self.quote)
+        quote['inputs']['B12'] = 'Retained allowance note'
+        quote['result']['notes'] = 'Retained allowance note\n\nGenerated board requirement: 7 sheets.'
+        before = deepcopy(quote)
+        text = pdf_text(render_quote_pdf(quote))
+        self.assertNotIn('Estimator notes', text)
+        self.assertEqual(text.count('Retained allowance note'), 1)
+        self.assertIn('Generated board requirement: 7 sheets.', text)
+        self.assertIn('NOTES', text)
         self.assertEqual(quote, before)
 
     def test_numeric_formatter_handles_rounding_negatives_tiny_and_large_values(self):

@@ -30,7 +30,6 @@ from reportlab.platypus import (
 
 from .calculator import masking_breakdown
 from .presentation import calculation_error_details
-from .quote_details import compile_work_summary
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -325,9 +324,6 @@ class _Report:
                    "Very large detail values use scientific notation. The quote total uses the original unrounded results; adding individually rounded line amounts "
                    "can differ by a few cents. No rounding adjustment has been added.", "small"),
         ])
-        self.story.extend([PageBreak(), self.p("Work summary", "section")])
-        summary = self.quote.get("work_summary") or compile_work_summary(self.quote.get("workflow", ""), self.result)
-        self.note_block(summary)
 
     def materials(self):
         self.story.extend([PageBreak(), self.p("Material breakdown", "section")])
@@ -353,18 +349,6 @@ class _Report:
         self.story.append(self.table(
             ["Material / yield", "Coverage", "Adjusted base units", "Wastage % / units", "Priced units", "Unit sell rate", "Line amount"],
             rows, widths))
-        self.story.append(self.p("Material pricing and quantities", "subheading"))
-        self.story.append(self.p(
-            "The material category total on the summary also contains material freight and masking materials "
-            "shown in the labour and additions sections. Rounded purchasing counts appear only in the generated material notes; "
-            "they do not replace the fractional quantities priced here.", "small"))
-        self.story.append(self.p(
-            "Project area / items: " + self.input("B8") +
-            ". Global material adjustment: " + self.input("B26", percent=True) +
-            ". Global labour adjustment: " + self.input("B27", percent=True) + ".", "small"))
-        self.story.append(self.p(
-            "Coverage and units are entered by the estimator. Measurement notes and workflow labels "
-            "do not automatically calculate coverage, fire-rating suitability or required coating thickness.", "small"))
 
     def labour_and_additions(self):
         self.story.extend([PageBreak(), self.p("Labour and masking", "section")])
@@ -404,11 +388,6 @@ class _Report:
         ]
         self.story.append(self.table(["Component", "Days", "Rate per day", "Amount"], masking_rows,
                                      [221, 70, 108, _WIDTH - 399], compact=True))
-        self.story.append(self.p(
-            "Masking allowance: " + self.input("B9", percent=True) +
-            " of spray days. The masking material rate includes the global material adjustment; "
-            "the separate masking material adjustment applies that percentage to the base masking material amount. "
-            "Masking costs are included in the labour and material summary categories.", "small"))
 
         self.story.extend([PageBreak(), self.p("Additions and project costs", "section")])
         rows = []
@@ -432,9 +411,7 @@ class _Report:
 
     def notes(self):
         self.story.extend([PageBreak(), self.p("Quote notes", "section")])
-        self.story.append(self.p("Estimator notes", "subheading"))
-        self.note_block(self.inputs.get("B12"))
-        self.story.append(self.p("Measurement / technical notes", "subheading"))
+        self.story.append(self.p("NOTES", "subheading"))
         self.note_block(self.quote.get("measurements"))
         self.story.append(self.p("Generated material and allowance notes", "subheading"))
         notes = self.result.get("notes")

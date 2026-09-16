@@ -180,8 +180,10 @@
     before.replaceChildren(); after.replaceChildren(); materials.replaceChildren();
     const job = [], labour = [], adjustments = [], additions = [], remainder = [];
     for (const field of state.fields) {
+      // Keep historical workbook notes in the snapshot without a second editor.
+      if (field.cell === "B12") continue;
       if (/^[BCDE](1[5-9]|2[0-3])$/.test(field.cell)) continue;
-      if (/^B([2-9]|10|12)$/.test(field.cell)) job.push(field);
+      if (/^B([2-9]|10)$/.test(field.cell)) job.push(field);
       else if (/^D[2-9]$/.test(field.cell) || field.cell === "D10") labour.push(field);
       else if (/^B2[6-8]$/.test(field.cell)) adjustments.push(field);
       else if (/^[EF]2[6-8]$/.test(field.cell)) additions.push({ ...field, label: additionLabels[field.cell] });
@@ -761,8 +763,8 @@
   function reportFilename(disposition) {
     const match = /(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;]*))/i.exec(disposition || "");
     const filename = (match?.[1] ?? match?.[2] ?? "").trim();
-    // The server supplies an ASCII slug. Ignore paths or unexpected filenames.
-    return /^[a-z0-9][a-z0-9._-]{0,180}\.pdf$/i.test(filename) ? filename : "ceasefire-quote.pdf";
+    // Accept only safe ASCII filenames; ignore paths or unexpected values.
+    return /^[a-z0-9][a-z0-9._-]{0,180}\.pdf$/i.test(filename) ? filename : "CEASEFIRE-Estimate.pdf";
   }
 
   async function downloadQuotePdf() {

@@ -1,6 +1,24 @@
 # Project state
 
-## Current: 1,000-row schedules and calculator controls
+## Current: portable projects, PDF details and input presentation
+
+Branch `feat/project-files-and-pdf-details` starts from verified PR #29 merge
+`8e4cb3b`. Save Project / Load Project exchanges the active estimate, its pricing
+snapshot and all three calculators as a validated JSON file. Imports open drafts
+without changing existing local saves or the global pricing library. SQLite
+remains at `.runtime/estimator.sqlite3`; no migration is required.
+
+All PDFs include company contacts and project identity, with source workbook/hash
+footnotes removed. Only the two highlighted Steel (spray) summary headings are
+removed. Settings/helper choices use folder tabs. The exact requested Estimator
+fields accept whole-number edits; Global Adjustment displays currency. Historical
+fractional values and calculation precision remain intact.
+
+Validation and publication receipts are in `.runtime/project-files-qa` and PDF
+rendering evidence in `.runtime/pdf-details-qa`. Git/CI and the publication receipt
+govern the final status; older checkpoints below are historical.
+
+## Historical checkpoint: 1,000-row schedules and calculator controls
 
 Branch `feat/thousand-row-schedules` starts from verified PR #28 merge
 `ef4518a`. This increment renames/reorders calculator cards and actions, moves

@@ -32,7 +32,7 @@ const context = {
 };
 vm.createContext(context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
-source = source.replace('  window.CeasefireCalculators = { open };', `
+source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
     exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
@@ -1276,7 +1276,7 @@ let passed = 0;
   await audit.save();assert.deepEqual(virtualRequests.at(-1).body,{inputs:fullVirtualDraft});assert.equal(entry.saved,JSON.stringify(fullVirtualDraft));
   for(const [download,action,mime] of [[audit.downloadSchedulePdf,'report.pdf','application/pdf'],[audit.downloadExcelRegister,'register.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']]) {
     let capturedVirtualDownload;audit.setFetch(async(path,options)=>{assert.ok(path.endsWith('/'+action));capturedVirtualDownload=JSON.parse(options.body);return {ok:true,headers:{get:()=>mime},blob:async()=>new Blob(['download'])};});
-    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
+    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft,...(mime==='application/pdf'?{project_details:{}}:{})});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
   }
   entry.definition.defaults={SETTINGS:{D10:9.123456789,D342:8.987654321},SCHEDULE:{A1009:'Reset schedule'}};
   const savedBeforeVirtualReset=entry.saved,virtualReset=audit.reset();await byId('calculator-confirm-dialog').close('confirm');await virtualReset;
@@ -1412,7 +1412,7 @@ let passed = 0;
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pending.resolve({ok:true,headers:{get:()=> 'application/pdf; charset=binary'},blob:async()=>new Blob(['%PDF-1.4'])});await run;
     assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/pdf');
-    assert.deepEqual(body,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789},'EXTRA BOARDS':{D6:7.654321987}}});
+    assert.deepEqual(body,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789},'EXTRA BOARDS':{D6:7.654321987}},project_details:{}});
     assert.equal(context.document.body.children.at(-1).download,`ceasefire-${id}-materials-summary.pdf`);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-summary-pdf').disabled,false);

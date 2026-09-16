@@ -65,6 +65,8 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(sha256((ROOT / "static/ceasefire-logo.png").read_bytes()).hexdigest(), "b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7")
         self.assertGreaterEqual(len(self.reader.pages), 4)
         for page in self.reader.pages:
+            for contact in ("ABN: 50 612 231 562", "Phone: 1300 92 62 88", "Email: sales@ceasefire.com.au"):
+                self.assertIn(contact, page.extract_text())
             images = [obj.get_object() for obj in page["/Resources"]["/XObject"].values()]
             self.assertTrue(any(obj.get("/Subtype") == "/Image" and obj.get("/Width") == 5375 and obj.get("/Height") == 1790 for obj in images))
             fonts = [obj.get_object() for obj in page["/Resources"]["/Font"].values()]
@@ -97,7 +99,7 @@ class ReportTests(unittest.TestCase):
         quote.update({"client": "Example Client 12.3456", "site_address": "18 Example Road, Suite 3.4567",
                       "project_no": "CF-2026.12345", "work_summary": "Stored work summary: 12.35 m² of coating."})
         text = pdf_text(render_quote_pdf(quote))
-        for token in ("Client", "Site address", "Project number", "NOTES",
+        for token in ("Client", "Site Address", "Project No.", "NOTES",
                       quote["client"], quote["site_address"], quote["project_no"], quote["measurements"]):
             self.assertIn(token, text)
         for token in ("Work summary", quote["work_summary"], "Material pricing and quantities",

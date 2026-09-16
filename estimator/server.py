@@ -119,7 +119,17 @@ def create_server(port=8765, database=None):
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if calculator_route:
+                if route == '/api/project/export' and self.command == 'POST':
+                    from .project_file import PROJECT_FILENAME, export_project
+                    project = export_project(store, body)
+                    self.send_payload(200, project, 'application/octet-stream',
+                                      {'Content-Disposition': f'attachment; filename="{PROJECT_FILENAME}"'})
+                elif route == '/api/project/import' and self.command == 'POST':
+                    from .project_file import import_project
+                    if set(body) != {'filename', 'content_base64'}:
+                        raise ValidationError('Include the project filename and file content only.')
+                    self.send_payload(200, import_project(store, body['filename'], body['content_base64']))
+                elif calculator_route:
                     from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs, validate_calculator_edits
                     calculator_id, action = calculator_route.groups()
                     expected_method = 'PUT' if action == 'state' else 'POST'
@@ -127,7 +137,7 @@ def create_server(port=8765, database=None):
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs'},
-                               'worksheet': {'inputs', 'sheet', 'include_advanced'}, 'report.pdf': {'inputs'}, 'summary.pdf': {'inputs'}, 'register.xlsx': {'inputs'},
+                               'worksheet': {'inputs', 'sheet', 'include_advanced'}, 'report.pdf': {'inputs', 'project_details'}, 'summary.pdf': {'inputs', 'project_details'}, 'register.xlsx': {'inputs'},
                                'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
@@ -140,8 +150,9 @@ def create_server(port=8765, database=None):
                         self.send_payload(200, calculate_worksheet(calculator_id, inputs, body.get('sheet'), body.get('include_advanced', False)))
                     elif action in {'report.pdf', 'summary.pdf'}:
                         from .calculator_report import build_calculator_report, build_calculator_summary_report
+                        from .project_file import project_details
                         builder = build_calculator_report if action == 'report.pdf' else build_calculator_summary_report
-                        report = builder(calculator_id, inputs)
+                        report = builder(calculator_id, inputs, project_details=project_details(body.get('project_details')))
                         filename = 'APPENDIX A.pdf' if action == 'report.pdf' else f'ceasefire-{calculator_id}-materials-summary.pdf'
                         self.send_payload(200, report, 'application/pdf',
                                           {'Content-Disposition': f'attachment; filename="{filename}"'})

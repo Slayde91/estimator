@@ -19,4 +19,5 @@ jobs:
       - run: node --check static/calculators.js
       - run: node tests/test_ui.cjs
       - run: node tests/test_calculators_ui.cjs
+      - run: node tests/test_project_ui.cjs
       - run: python scripts/build.py

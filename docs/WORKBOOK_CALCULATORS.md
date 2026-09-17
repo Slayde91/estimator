@@ -175,6 +175,11 @@ import remains its separate reviewed whole-library replacement workflow.
 
 ## Independent Excel verification
 
+The [17 September integrity audit](CALCULATOR_INTEGRITY_AUDIT.md) reconciles the
+current board workbook with the preserved original and records fresh native
+Excel parity. Use `scripts/check_calculator_integrity.py` for a strict, read-only
+comparison with bounded diagnostics; a changed source is never silently accepted.
+
 Committed fixtures in `tests/fixtures/calculators` come from Microsoft Excel
 16.0 build 20326 recalculating disposable copies of the original XLSX workbooks.
 Links, events and macros were disabled; each copy was rebuilt fully and closed

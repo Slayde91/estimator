@@ -809,7 +809,9 @@
     const values = uses.map(({ item }) => Object.hasOwn(getOverride("rates", item.id), "yield") ? getOverride("rates", item.id).yield : item.yield);
     const units = [...new Set(uses.map(({ group, item }) => pricingYieldUnit(group, item)))];
     const mixed = values.some((value) => value !== values[0]);
-    const value = !values.length ? "" : mixed ? "Mixed" : values[0] === null ? "blank" : values[0] === "" ? "empty text" : String(values[0]);
+    // Both stored blank kinds look empty; retain their distinct calculation
+    // values until the user actually edits the yield.
+    const value = !values.length ? "" : mixed ? "Mixed" : values[0] === null || values[0] === "" ? "" : String(values[0]);
     return { uses, values, units, mixed, value };
   }
   function setSharedPricingYield(record, text) {
@@ -820,7 +822,7 @@
     if (!token || token === "blank") value = null;
     else if (token === "empty text") value = "";
     else {
-      if (!/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/.test(token) || !Number.isFinite(Number(token)) || Number(token) > 1e12) throw new Error("Yield must be one nonnegative number, blank or empty text. Semicolon lists are not needed.");
+      if (!/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/.test(token) || !Number.isFinite(Number(token)) || Number(token) > 1e12) throw new Error("Yield must be one nonnegative number or left blank. Semicolon lists are not needed.");
       value = Number(token);
     }
     for (const { item } of shared.uses) setOverride("rates", item, "yield", value);

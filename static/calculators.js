@@ -235,10 +235,27 @@
       const focused = document.activeElement;
       if (focused?.dataset?.calculatorSheet === entry.sheet && (focused.dataset.calculatorCell || focused.dataset.calculatorCustomCell)) focused.blur?.();
       if (entry.invalid.size) {
-        // Stay where the user was editing, rather than jumping to the first
-        // buffered row and leaving the invalid editor far below the viewport.
-        scroll.scrollTop = previousTop; scroll.scrollLeft = previousLeft;
-        viewport.top = previousTop; viewport.left = previousLeft;
+        // A user may have scrolled within this window since entering the
+        // invalid value. Reveal its actual editor, not just that later scroll
+        // position. Prefer a visible custom editor to its accompanying select.
+        const controls = [...scroll.querySelectorAll("[data-calculator-custom-cell]"), ...scroll.querySelectorAll("[data-calculator-cell]")];
+        const invalid = controls.find((control) => !control.hidden && control.getClientRects?.().length &&
+          (typeof getComputedStyle !== "function" || getComputedStyle(control).visibility !== "hidden") &&
+          entry.invalid.has(`${control.dataset.calculatorSheet}!${control.dataset.calculatorCustomCell || control.dataset.calculatorCell}`));
+        let top = previousTop, left = previousLeft;
+        if (invalid) {
+          const box = scroll.getBoundingClientRect(), rect = invalid.getBoundingClientRect();
+          const headerHeight = scroll.querySelector?.("thead")?.getBoundingClientRect().height || 0;
+          const y = scroll.scrollTop + rect.top - box.top - (scroll.clientTop || 0), x = scroll.scrollLeft + rect.left - box.left - (scroll.clientLeft || 0);
+          if (rect.height > Math.max(0, scroll.clientHeight - headerHeight - 16)) top = Math.max(0, y - headerHeight - 8);
+          else if (y < top + headerHeight + 8) top = Math.max(0, y - headerHeight - 8);
+          else if (y + rect.height > top + scroll.clientHeight - 8) top = Math.max(0, y + rect.height - scroll.clientHeight + 8);
+          if (rect.width > Math.max(0, scroll.clientWidth - 16)) left = Math.max(0, x - 8);
+          else if (x < left + 8) left = Math.max(0, x - 8);
+          else if (x + rect.width > left + scroll.clientWidth - 8) left = Math.max(0, x + rect.width - scroll.clientWidth + 8);
+        }
+        scroll.scrollTop = top; scroll.scrollLeft = left;
+        viewport.top = scroll.scrollTop; viewport.left = scroll.scrollLeft;
         message("Correct the invalid input before scrolling to another group of rows.", true); return;
       }
       timer = setTimeout(() => {

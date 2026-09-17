@@ -1710,6 +1710,39 @@ let passed = 0;
   assert.equal(tailViewport.scrollTop,95200);assert.equal(tailViewport.scrollLeft,333);assert.equal(entry.scheduleViewport.top,95200);assert.equal(blockedTailRequests,0);
   assert.equal(entry.invalid.get('CALCULATOR!B1008'),'broken');assert.equal(entry.inputs.CALCULATOR.B1008,3.123456789);passed++;
 
+  // Invalid Line 1 can leave view during permitted interior scrolling. A later
+  // distant jump must reveal that editor below the header, rather than merely
+  // returning to Line 30. Hidden custom controls must never become the target.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B9:3.123456789}});await audit.calculate();
+  const interiorViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];
+  interiorViewport.clientHeight=600;interiorViewport.clientWidth=700;interiorViewport.getBoundingClientRect=()=>({top:100,left:0,width:700,height:600});
+  interiorViewport.querySelector=()=>({getBoundingClientRect:()=>({height:64})});
+  const invalidFirst=renderedControls().find(control=>control.dataset.calculatorCell==='B9');
+  invalidFirst.getClientRects=()=>[{}];invalidFirst.getBoundingClientRect=()=>({top:100+84-interiorViewport.scrollTop,left:1100-interiorViewport.scrollLeft,width:120,height:40});
+  const hiddenCustom=element('input');hiddenCustom.hidden=true;hiddenCustom.dataset={calculatorCustomCell:'B9',calculatorSheet:'CALCULATOR'};hiddenCustom.getClientRects=()=>[{}];hiddenCustom.getBoundingClientRect=()=>{throw Error('Hidden custom editor must not be revealed');};interiorViewport.append(hiddenCustom);
+  entry.invalid.set('CALCULATOR!B9','broken');let interiorRequests=0;audit.setRequest(async()=>{interiorRequests++;});
+  interiorViewport.scrollTop=29*96;await interiorViewport.emit('scroll');assert.equal(entry.scheduleViewport.top,29*96);
+  interiorViewport.scrollTop=900*96;await interiorViewport.emit('scroll');
+  assert.equal(interiorRequests,0);assert.equal(interiorViewport.scrollTop,12);assert.equal(interiorViewport.scrollLeft,528);
+  assert.equal(entry.invalid.get('CALCULATOR!B9'),'broken');assert.equal(entry.inputs.CALCULATOR.B9,3.123456789);passed++;
+
+  // A narrow viewport cannot fit an oversized editor between both margins.
+  // Repeated native scroll events must keep its start aligned, not alternate
+  // between its start and end edges and create a scroll-event loop.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B209:3.123456789}});
+  entry.scheduleViewport={offset:200,top:220*96,left:333};await audit.calculate();
+  const narrowViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];
+  narrowViewport.clientHeight=90;narrowViewport.clientWidth=100;narrowViewport.getBoundingClientRect=()=>({top:100,left:0,width:100,height:90});
+  narrowViewport.querySelector=()=>({getBoundingClientRect:()=>({height:64})});
+  const oversized=renderedControls().find(control=>control.dataset.calculatorCell==='B209');
+  oversized.getClientRects=()=>[{}];oversized.getBoundingClientRect=()=>({top:100+200*96+84-narrowViewport.scrollTop,left:1100-narrowViewport.scrollLeft,width:120,height:40});
+  entry.invalid.set('CALCULATOR!B209','broken');let narrowRequests=0;audit.setRequest(async()=>{narrowRequests++;});
+  narrowViewport.scrollTop=900*96;
+  for(let repeat=0;repeat<4;repeat++){
+    await narrowViewport.emit('scroll');assert.equal(narrowViewport.scrollTop,200*96+12);assert.equal(narrowViewport.scrollLeft,1092);
+  }
+  assert.equal(narrowRequests,0);assert.equal(entry.invalid.get('CALCULATOR!B209'),'broken');assert.equal(entry.inputs.CALCULATOR.B209,3.123456789);passed++;
+
   // Project saving acknowledges row metadata independently of inputs. Later
   // row additions remain dirty when an earlier save completes.
   entry=dynamicSetup([9]);const captured=audit.projectSnapshot();entry.scheduleRows=[9,10];audit.markProjectSaved(captured);assert.equal(audit.dirty(entry),true);

@@ -75,7 +75,8 @@ def legacy_exhaust_frl(product, exposure, value):
 def application_frl(product, exposure, value):
     """Use the highest supported application rating, retaining direction.
 
-    External is a requested fire rating rather than a named exhaust use.
+    Internal, External and Both are exhaust applications; the displayed maximum
+    does not turn External into a full-insulation pressurisation requirement.
     Unknown and blank ratings remain visible for correction. Higher ratings
     remain unsupported instead of being silently reduced to 120 minutes.
     """
@@ -83,7 +84,7 @@ def application_frl(product, exposure, value):
     exposure = canonical_exposure(exposure)
     if canonical_ductwork_value('C', product) != 'FyreWrap':
         return rating
-    if exposure in ('Internal', 'Both', 'Stair pressurisation', 'Other pressurisation'):
+    if exposure in ('Internal', 'External', 'Both', 'Stair pressurisation', 'Other pressurisation'):
         if rating in ('60/60/60', '90/90/90'):
             return '120/120/120'
         if exposure in ('Internal', 'Both') and isinstance(rating, str) and ''.join(rating.split()) == '-/30/30':

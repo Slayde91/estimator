@@ -10,7 +10,7 @@
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "estimate", projectsOffset: 0, projectsTimer: null,
-    pricingRender: null,
+    pricingRender: null, estimatorKind: "estimate",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -414,13 +414,14 @@
 
   async function newQuote() {
     if (state.projectBusy) return;
-    if (projectHasChanges() && !await confirmReplace("Start a new project?", "The current estimate, project pricing and all three calculator drafts will be replaced with defaults using your saved pricing library.", "New project")) return;
+    if (projectHasChanges() && !await confirmReplace("Start a new project?", "Both estimates, project pricing and all three calculator drafts will be replaced with defaults using your saved pricing library.", "New project")) return;
     if (state.initialized) {
       try {
         const captured = projectStamp();
-        const prepared = await window.CeasefireCalculators.prepareDefaults();
+        const [prepared, penetration] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), window.CeasefirePenetrations?.prepareDefaults(state.configuration)]);
         if (captured !== projectStamp()) throw new Error("The current project changed while preparing defaults. Try again when ready.");
         window.CeasefireCalculators.applyProject(prepared);
+        if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       } catch (error) { message(error.message, true); return; }
     }
     state.quoteContext++;
@@ -437,7 +438,8 @@
     state.workflow = state.defaultWorkflow;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
-    renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
+    selectEstimator("estimate"); renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
+    window.CeasefirePenetrations?.pricingChanged();
   }
 
   async function saveQuote() {
@@ -498,8 +500,8 @@
       const quote = await request(`/api/quotes/${encodeURIComponent(id)}`);
       if (loadRevision !== state.quoteLoadRevision) return;
       const captured = projectStamp();
-      const prepared = await window.CeasefireCalculators.prepareDefaults();
-      if (!await confirmReplace("Open this older estimate?", "This record contains the estimate and its original pricing only. The current estimate will be replaced and all three calculators will start from defaults. Save As can then save them together.", "Open older estimate")) return;
+      const [prepared, penetration] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration)]);
+      if (!await confirmReplace("Open this older estimate?", "This record contains the estimate and its original pricing only. The current estimate will be replaced; the penetration schedule and all three calculators will start from defaults. Save As can then save them together.", "Open older estimate")) return;
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
@@ -507,6 +509,7 @@
       state.quote = quote;
       state.projectFile = null;
       window.CeasefireCalculators.applyProject(prepared);
+      if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       state.quoteConfiguration = clone(quote.configuration || state.configuration);
       resetProjectPricing("project");
       state.fields = clone(quote.fields || state.currentFields);
@@ -520,9 +523,19 @@
       $("measurements").value = typeof quote.measurements === "string" ? quote.measurements : JSON.stringify(quote.measurements || "");
       $("snapshot-message").hidden = false;
       $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
+      selectEstimator("estimate"); renderInputs(); updateDirty(false); message(""); showView("estimate"); scheduleCalculation();
+      window.CeasefirePenetrations?.pricingChanged();
     } catch (error) { message(`Could not open the quote. ${error.message}`, true); }
     finally { button.disabled = false; }
+  }
+
+  function selectEstimator(kind) {
+    if (!["estimate", "penetration"].includes(kind)) return;
+    state.estimatorKind = kind;
+    $("estimator-main").hidden = kind !== "estimate";
+    $("estimator-penetration").hidden = kind !== "penetration";
+    for (const button of document.querySelectorAll("[data-estimator-kind]")) button.setAttribute("aria-pressed", String(button.dataset.estimatorKind === kind));
+    if (kind === "penetration") window.CeasefirePenetrations?.open();
   }
 
   function showView(view) {
@@ -537,6 +550,7 @@
     if (view === "quotes") loadProjects();
     if (view === "pricing" && !pricingViewCurrent()) renderPricing();
     if (view === "calculators") window.CeasefireCalculators?.open();
+    if (view === "estimate") selectEstimator(state.estimatorKind);
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -555,7 +569,7 @@
   function pricingBaseline() { return state.pricingScope === "project" ? state.quoteConfiguration || state.configuration : state.configuration; }
   function draftChanged(draft, baseline) { return !!draft && (pricingHasPendingInput(draft) || JSON.stringify(draft) !== JSON.stringify(baseline)); }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges(); }
+  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     $("save-pricing").textContent = state.pricingScope === "project" ? "Apply project pricing" : "Save pricing";
@@ -599,6 +613,7 @@
     state.projectPricingDraft = clone(data.configuration);
     if (state.pricingScope === "project") { state.draft = state.projectPricingDraft; refreshPricingCatalog(); renderPricing(); }
     renderInputs(); updateDirty(); scheduleCalculation();
+    window.CeasefirePenetrations?.pricingChanged();
     $("snapshot-message").hidden = false;
     $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save or Save As retains these prices in its file.";
   }
@@ -608,6 +623,7 @@
     if (projectPricingChanged() && !await confirmReplace("Use current library prices?", "The project's pricing edits will be replaced with the last saved shared library.", "Use current pricing")) return;
     state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields);
     resetProjectPricing(); renderInputs(); updateDirty(); scheduleCalculation();
+    window.CeasefirePenetrations?.pricingChanged();
     $("snapshot-message").hidden = false;
     $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save or Save As to retain these prices.";
     message("Current saved library applied to this project. Check any removed product selections, then Save or Save As.");
@@ -1073,6 +1089,7 @@
           if (state.pricingScope === "project") state.draft = state.projectPricingDraft;
         }
         renderInputs(); updateDirty(); scheduleCalculation();
+        window.CeasefirePenetrations?.pricingChanged();
       }
       refreshPricingCatalog(); renderPricing();
       const changedElsewhere = JSON.stringify(state.configuration) !== JSON.stringify(configuration);
@@ -1184,7 +1201,7 @@
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
       pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
       pricingPending: (state.pricingScope === "project" ? state.draft : state.projectPricingDraft) && [...pricingPendingFields(state.pricingScope === "project" ? state.draft : state.projectPricingDraft)],
-      calculators: window.CeasefireCalculators.projectFingerprint() });
+      calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint() });
   }
 
   function projectBusy(value) {
@@ -1214,9 +1231,11 @@
         return JSON.stringify([state.quoteConfiguration || state.configuration, draft, draft ? [...pricingPendingFields(draft)] : []]);
       };
       const preparedPricing = pricingStamp();
-      const calculators = await window.CeasefireCalculators.completeProjectSnapshot();
+      const [calculators, penetration] = await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations?.completeProjectSnapshot()]);
+      if (window.CeasefirePenetrations?.inputProblem()) throw new Error(window.CeasefirePenetrations.inputProblem());
       if (context !== state.quoteContext || target !== state.projectFile || inputProblem() || preparedPricing !== pricingStamp()) throw new Error(inputProblem() || "The project changed while preparing the file. Save again when ready.");
-      const payload = { estimate: projectEstimate(), calculators };
+      if (JSON.stringify(calculators) !== JSON.stringify(window.CeasefireCalculators.projectSnapshot()) || penetration && JSON.stringify(penetration) !== JSON.stringify(window.CeasefirePenetrations.projectSnapshot())) throw new Error("The calculator drafts changed while preparing the file. Save again when ready.");
+      const payload = { estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}) };
       if (pricing) payload.estimate.configuration = clone(pricing.configuration);
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
@@ -1226,14 +1245,16 @@
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
         window.CeasefireCalculators.markProjectSaved(saved.project.calculators, calculators);
+        if (penetration) window.CeasefirePenetrations.markProjectSaved(saved.project.penetration, penetration);
         if (!changed) {
           state.quote = null; state.quoteConfiguration = clone(saved.project.estimate.configuration);
           state.fields = clone(saved.project.fields); resetProjectPricing(); renderInputs(); updateDirty(false); scheduleCalculation();
+          window.CeasefirePenetrations?.pricingChanged();
           $("snapshot-message").hidden = false;
           $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
         } else updateDirty();
       }
-      message(`Project saved to ${saved.file.path}. It includes the estimate, its pricing library and all three calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
+      message(`Project saved to ${saved.file.path}. It includes both estimates, the pricing library and all three calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
     } catch (error) { message(`Project was not saved. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
@@ -1265,10 +1286,10 @@
   }
 
   async function reviewAndLoadProject(project, file, captured) {
-      const prepared = await window.CeasefireCalculators.prepareProject(project.calculators);
+      const [prepared, penetration] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration)]);
       if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the current estimate, its pricing and all three calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
+      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces both estimates, their pricing and all three calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
       if (!accepted) { message("Project load cancelled. Your current drafts were kept."); return; }
       if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
@@ -1276,6 +1297,7 @@
       const inputs = clone(estimate.inputs), configuration = clone(estimate.configuration), fields = clone(project.fields);
       window.CeasefireCalculators.applyProject(prepared);
       window.CeasefireCalculators.markProjectSaved(project.calculators);
+      if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       ++state.quoteContext; ++state.quoteLoadRevision;
       state.inputErrors.clear(); state.inputDrafts.clear();
       state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
@@ -1285,10 +1307,11 @@
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
       updateQuoteTitle(); renderInputs(); updateDirty(false);
       $("snapshot-message").hidden = false; $("snapshot-message").querySelector("span").textContent = "This project uses the pricing snapshot from its file.";
-      showView("estimate"); scheduleCalculation();
+      selectEstimator("estimate"); showView("estimate"); scheduleCalculation();
+      window.CeasefirePenetrations?.pricingChanged();
       message(file.save_token
-        ? "Project loaded with its original pricing and all three calculators. Save updates this file; Save As stores the complete project in another file."
-        : "Project imported with its original pricing and all three calculators. Use Save As to choose its project file.");
+        ? "Project loaded with both estimates, its original pricing and all three calculators. Save updates this file; Save As stores the complete project in another file."
+        : "Project imported with both estimates, its original pricing and all three calculators. Use Save As to choose its project file.");
   }
 
   async function loadProjects({ refresh = false, offset = state.projectsOffset } = {}) {
@@ -1385,6 +1408,7 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
+  for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", newQuote);
@@ -1393,7 +1417,7 @@
   $("save-current-project").addEventListener("click", () => saveProject(false));
   $("load-project").addEventListener("click", openNativeProject);
   $("project-import-file").addEventListener("change", loadProject);
-  $("edit-project-details").addEventListener("click", () => { showView("estimate"); $("project-no").focus(); });
+  $("edit-project-details").addEventListener("click", () => { selectEstimator("estimate"); showView("estimate"); $("project-no").focus(); });
   $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));
   $("project-search").addEventListener("input", () => {
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
@@ -1423,6 +1447,7 @@
   });
   window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration)) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus,
+    configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   bootstrap();
 })();

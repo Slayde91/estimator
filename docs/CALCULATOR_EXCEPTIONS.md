@@ -20,16 +20,22 @@ continues to identify the original workbook, not equivalence to its old rules.
 - Kitchen inside/outside, diesel and other exhaust map to Internal. Combined
   kitchen/smoke, smoke and stair pressure relief map to Both. Mixed maps to Both
   for exposure and orientation. Stair/Other pressurisation remain separate.
-- FyreWrap Internal/Both denote the manual's exhaust applications. Known lower
+- FyreWrap Internal/External/Both denote the manual's exhaust applications. Known lower
   ratings are raised to 120/120/120, including the old kitchen -/30/30 case.
   The retained pressurisation applications use the same displayed maximum;
   their actual external requirements remain 120/120/60 and 120/120/120.
-  Generic External continues to require its selected full external FRL.
-- Internal/Both exhaust uses one continuous layer plus eligible local layers.
+  External means the external exposure of an exhaust system, with actual
+  external 120/120/-; its displayed application maximum does not request full
+  external insulation. On 18 September 2026 the user rejected the previous
+  generic-full-FRL interpretation of External and confirmed that continuous
+  layers two and three belong only to the named pressurisation applications.
+- Internal/External/Both exhaust uses one continuous layer plus eligible local layers.
   Stair/Other pressurisation retains two/three continuous layers. The existing
   area, overlap, local-length cap, board and angle arithmetic is unchanged.
-- The current manual and assessment do not establish one universal external
-  penetration rule. Those complete wrap totals remain withheld. The final wall
+- The current manual and assessment do not establish one universal multilayer
+  pressurisation penetration rule. Those complete wrap totals remain withheld.
+  The one-layer External exhaust application uses the p8 local-layer footnote,
+  with the same eligible wall/floor tables as Internal/Both. The final wall
   band above 2400mm in both dimensions is now also withheld because the manual
   and detailed assessment disagree at its upper end.
 - The four duct schedule dropdowns have closed lists. Unknown historic values

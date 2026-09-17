@@ -72,16 +72,16 @@ _DISPLAY_TEXT = {
                     'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
     'ductwork': {'CALCULATOR': {
                     'A1': 'DUCT PROTECTION CALCULATOR',
-                    'A3': 'For FyreWrap, Internal and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.'},
+                    'A3': 'For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'},
                  'PRODUCT SETTINGS': {
                      'J94': 'FYREWRAP APPLICATION TABLE',
                      'J95': 'Source application',
-                     'J109': 'Schedule mapping: kitchen, diesel and other exhaust use Internal. Smoke, combined kitchen/smoke and stair relief use Both. Pressurisation remains separate. External means the full selected external FRL.',
-                     'J112': 'Internal/Both exhaust uses calculate local wrap from Tables 4-5. External and pressurisation penetrations require a matching detail; their wrap totals remain withheld. The highest wall-size band also requires review.',
+                     'J109': 'Schedule mapping: kitchen, diesel and other exhaust use Internal. Smoke, combined kitchen/smoke and stair relief use Both. External means exhaust external exposure, requiring 120/120/- in that direction. Pressurisation remains separate.',
+                     'J112': 'Internal/External/Both exhaust uses calculate local wrap from Tables 4-5. Pressurisation penetrations require a matching detail; their wrap totals remain withheld. The highest wall-size band also requires review.',
                      'K137': 'Schedule choices are Internal, External, Both, Stair pressurisation and Other pressurisation. The full application FRL does not replace the actual directional requirements.',
-                     'B145': 'Table 5 covers internal fire. External and multi-layer penetration guidance differs between the manual and assessment; a matching detail is required before a complete wrap quantity is shown.',
-                     'B150': 'Internal/Both exhaust uses one continuous layer; stair pressurisation uses two and other pressurisation three. Generic External uses the selected full external FRL. Local layers are separate from continuous-layer selection.'}},
+                     'B145': 'Table 5 is referenced by the exhaust application footnote for local layers. Pressurisation/multilayer penetration guidance differs between the manual and assessment; those wrap totals require a matching detail. The highest wall-size band also remains unresolved.',
+                     'B150': 'Internal/External/Both exhaust uses one continuous layer; External requires 120/120/- in that direction. Stair pressurisation uses two continuous layers and other pressurisation three. Local layers are separate from continuous-layer selection.'}},
 }
 # Browser-only spans and semantic corrections. Merged children are decorative
 # blanks; source formulas, input identities and source merge records stay intact.
@@ -594,7 +594,7 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
     if calculator_id == 'ductwork':
-        warnings.append('FyreWrap application FRLs preserve directional requirements: Both means internal 120/120/120 and external 120/120/-. Stair pressurisation means external 120/120/60. Unresolved penetration wrap totals are withheld.')
+        warnings.append('FyreWrap application FRLs preserve directional requirements: External exhaust means external 120/120/-; Both adds internal 120/120/120. Stair pressurisation means external 120/120/60. Unresolved penetration wrap totals are withheld.')
     with lock:
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []

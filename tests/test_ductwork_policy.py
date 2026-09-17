@@ -81,15 +81,13 @@ class DuctworkPolicyTests(unittest.TestCase):
                 normalize_calculator_inputs('ductwork', {'CALCULATOR': {'E11': value}})
 
     def test_application_rating_uses_highest_case_without_filling_or_downgrading(self):
-        for exposure in ('Internal', 'Both', 'Stair pressurisation', 'Other pressurisation', 'Smoke exhaust'):
+        for exposure in ('Internal', 'External', 'Both', 'Stair pressurisation', 'Other pressurisation', 'Smoke exhaust'):
             for rating in (60, 90, '60/60/60', '90/90/90', '120/120/-', '120/120/60'):
                 self.assertEqual(application_frl('FyreWrap', exposure, rating), '120/120/120')
             for rating in (None, '', '75/75/75', '180/180/180', '240/240/180', 120.1):
                 self.assertEqual(application_frl('FyreWrap', exposure, rating), rating)
         for exposure in ('Internal', 'Both', 'Kitchen exhaust - inside'):
             self.assertEqual(application_frl('FyreWrap', exposure, ' - / 30 / 30 '), '120/120/120')
-        self.assertEqual(application_frl('FyreWrap', 'External', 60), '60/60/60')
-        self.assertEqual(application_frl('FyreWrap', 'External', '90/90/90'), '90/90/90')
         self.assertEqual(application_frl('MONOKOTE', 'Internal', 60), '60/60/60')
         self.assertEqual(application_frl('FyreWrap', 'Unknown use', 60), '60/60/60')
 
@@ -100,7 +98,7 @@ class DuctworkPolicyTests(unittest.TestCase):
         self.assertEqual(result, {'CALCULATOR': {'E13': '120/120/120', 'I13': 'Both'}})
         # A product-only edit must evaluate the effective source exposure.
         result = normalize_calculator_inputs('ductwork', {'CALCULATOR': {'C11': 'FyreWrap', 'E11': 60}})
-        self.assertEqual(result['CALCULATOR']['E11'], '60/60/60')
+        self.assertEqual(result['CALCULATOR']['E11'], '120/120/120')
         result = normalize_calculator_inputs('ductwork', {'CALCULATOR': {'C11': 'FyreWrap', 'E11': 60, 'H11': 'Smoke exhaust'}})
         self.assertEqual(result['CALCULATOR']['E11'], '120/120/120')
         self.assertEqual(result['CALCULATOR']['H11'], 'Both')
@@ -133,7 +131,7 @@ class DuctworkPolicyTests(unittest.TestCase):
         self.assertEqual(imported['schedule_rows'], [11, 12, 13])
         cells = imported['inputs']['CALCULATOR']
         self.assertEqual((cells['E11'], cells['H11'], cells['I11']), ('120/120/120', 'Internal', 'Both'))
-        self.assertEqual(cells['E12'], '90/90/90')
+        self.assertEqual(cells['E12'], '120/120/120')
         self.assertEqual((cells['E13'], cells['H13']), ('180/180/180', 'Both'))
         self.assertTrue(all(cells[f'{column}14'] is None for column in 'BCDEFGHI'))
 

@@ -10,6 +10,7 @@
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "estimate", projectsOffset: 0, projectsTimer: null,
+    pricingRender: null,
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -525,7 +526,7 @@
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     if (view === "quotes") loadProjects();
-    if (view === "pricing") renderPricing();
+    if (view === "pricing" && !pricingViewCurrent()) renderPricing();
     if (view === "calculators") window.CeasefireCalculators?.open();
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
@@ -910,6 +911,23 @@
     message(`Original library defaults are ready as a draft. Click ${saveAction} to keep them, or Discard changes to restore the ${scope === "project" ? "last applied project pricing" : "last saved library"}.`);
   }
 
+  function pricingViewState() {
+    // Retain the controls when navigation has changed no pricing data. Include
+    // values, not just object identities: edits and saved baselines can change
+    // in place. Pending field text already belongs to the retained controls.
+    // Replacement objects still need fresh controls: handlers capture records,
+    // and pending field drafts belong to one specific pricing draft object.
+    const references = [state.draft, state.catalog, pricingBaseline(), state.baseline];
+    return { references, key: JSON.stringify([references, state.pricingScope,
+      $("pricing-search").value, $("rate-group").value, !!$("show-rate-overrides").checked]) };
+  }
+
+  function pricingViewCurrent() {
+    if (!state.pricingRender) return false;
+    const current = pricingViewState();
+    return current.key === state.pricingRender.key && current.references.every((value, index) => value === state.pricingRender.references[index]);
+  }
+
   function renderPricing() {
     const search = $("pricing-search").value.trim().toLocaleLowerCase();
     const selectedGroup = $("rate-group").value;
@@ -1003,6 +1021,7 @@
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
+    state.pricingRender = pricingViewState();
   }
 
   async function savePricing() {

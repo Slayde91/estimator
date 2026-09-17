@@ -59,6 +59,8 @@ The original Quote estimator uses assessed coverage/product quantities, as its E
 
 Choose **Calculators**, then **Steel (spray)**, **Steel (board)** or **Ductwork (spray/wrap)**. Every main schedule has 1,000 rows. Steel schedules show a read-only Line column, and the spray schedule now has an editable Location column after it. Vermiculite has START, CALCULATOR, SCHEDULE, BAGS, SETTINGS and FACTOR CALCS tabs. Board SETTINGS and EXTRA BOARDS are also available. All prepared rows are on one continuous page; scroll through the table to reach them. Editable fields have controls; calculated outputs distinguish populated values from blanks, with a separate highlight for published thickness. Zero is a populated value. Main sections use white text on red headings. Single-member forms fit a phone, with comparison tables scrolling separately.
 
+Recently viewed calculator tabs reopen faster while their inputs remain unchanged. Editing inputs, importing a schedule, resetting or loading a project refreshes dependent results; **Recalculate** always requests a fresh calculation. Pricing navigation also retains unchanged controls and pending edits. Initial calculator loads and calculations after edits can still take longer. Saving and report downloads continue to use the complete current inputs.
+
 Vermiculite **START** shows the operating rules directly. **SETTINGS** has seven
 global/product sections, and **FACTOR CALCS** has three helper sections. Choose a
 folder tab to open a section; only that section is shown. Duct and board Settings

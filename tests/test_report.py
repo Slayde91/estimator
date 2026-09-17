@@ -16,7 +16,7 @@ from estimator.calculator import calculate
 from estimator.catalog import ROOT
 from estimator.report import render_quote_pdf, _number, _Report
 from estimator.presentation import calculation_error_details
-from estimator.storage import Store
+from estimator.storage import Store, WORKFLOWS
 
 
 def pdf_text(payload):
@@ -166,6 +166,34 @@ class ReportTests(unittest.TestCase):
                 self.assertIn('NOTES', text)
                 self.assertIn(quote['measurements'], text)
                 self.assertEqual(quote, before)
+
+    def test_current_and_saved_pdfs_omit_workflow_subtitle_without_changing_snapshot(self):
+        for report_kind in ("Current estimate", "Saved quote"):
+            for workflow in (*WORKFLOWS, "Legacy custom workflow", None):
+                with self.subTest(report_kind=report_kind, workflow=workflow):
+                    quote = deepcopy(self.quote)
+                    quote["report_kind"] = report_kind
+                    if workflow is None:
+                        quote.pop("workflow", None)
+                    else:
+                        quote["workflow"] = workflow
+                    before = deepcopy(quote)
+                    with patch("estimator.calculator.calculate", side_effect=AssertionError("Report recalculated")), patch("estimator.catalog.baseline", side_effect=AssertionError("Report consulted current prices")):
+                        text = pdf_text(render_quote_pdf(quote))
+                    self.assertNotIn(workflow or "Workflow not recorded", text)
+                    for retained in (quote["title"], report_kind, "Quote details", quote["measurements"], "$147,070.68"):
+                        self.assertIn(retained, text)
+                    self.assertEqual(quote, before)
+
+    def test_workflow_text_in_authored_notes_is_not_removed(self):
+        quote = deepcopy(self.quote)
+        quote["workflow"] = WORKFLOWS[0]
+        quote["measurements"] = "Authored scope: " + WORKFLOWS[0] + "."
+        before = deepcopy(quote)
+        text = pdf_text(render_quote_pdf(quote))
+        self.assertEqual(text.count(WORKFLOWS[0]), 1)
+        self.assertIn(quote["measurements"], text)
+        self.assertEqual(quote, before)
 
     def test_hidden_automatic_notes_do_not_hide_calculation_errors(self):
         quote = deepcopy(self.quote)

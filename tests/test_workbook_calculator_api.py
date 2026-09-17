@@ -17,7 +17,7 @@ import unittest
 from openpyxl import load_workbook
 
 from estimator.catalog import ROOT
-from estimator.calculator_defaults import default_calculator_inputs
+from estimator.schedule_rows import empty_schedule_inputs
 from estimator.pricing_workbook import _serialize_exact
 from estimator.server import create_server, MAX_BODY
 from estimator.storage import Store
@@ -113,7 +113,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
                 definition = self.definition(identity)
                 self.assertEqual(definition["pages"], pages)
                 self.assertEqual([sheet["name"] for sheet in definition["sheets"]], pages)
-                self.assertEqual(definition["inputs"], default_calculator_inputs(identity))
+                self.assertEqual(definition["inputs"], empty_schedule_inputs(identity))
                 self.assertEqual(len(definition["source"]["sha256"]), 64)
                 self.assertTrue(definition["documents"])
                 self.assertTrue(all(item["url"].startswith("https://") for item in definition["documents"]))
@@ -141,7 +141,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), [])
 
     def test_draft_calculation_changes_expected_outputs_without_saving(self):
-        initial = self.calculate()
+        initial = self.calculate({})
         self.assertAlmostEqual(self.cell(initial, "K11")["value"], 10)
         changed = self.calculate({"CALCULATOR": {"D11": 12.345678901234567}})
         self.assertEqual(self.cell(changed, "D11")["value"], 12.345678901234567)
@@ -149,9 +149,10 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertFalse(self.cell(changed, "K11")["editable"])
         self.assertTrue(self.cell(changed, "K11")["calculated"])
         self.assertTrue(self.cell(changed, "D11")["editable"])
-        self.assertEqual(self.definition()["inputs"], {})
+        self.assertEqual(self.definition()["inputs"], empty_schedule_inputs('ductwork'))
         self.assertEqual(self.stored_rows(), [])
-        self.assertEqual(self.cell(self.calculate(), "K11")["value"], self.cell(initial, "K11")["value"])
+        self.assertIsNone(self.cell(self.calculate(), "B11")["value"])
+        self.assertEqual(self.cell(self.calculate({}), "K11")["value"], self.cell(initial, "K11")["value"])
 
     def test_settings_affect_yield_and_calculations_are_session_isolated(self):
         inputs = {"PRODUCT SETTINGS": {"B44": 10, "B45": 60, "B46": 20}}
@@ -159,7 +160,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertAlmostEqual(self.cell(changed, "M11")["value"], 20)
         original = self.calculate({})
         self.assertAlmostEqual(self.cell(original, "M11")["value"], 11.7)
-        self.assertEqual(self.definition()["inputs"], {})
+        self.assertEqual(self.definition()["inputs"], empty_schedule_inputs('ductwork'))
         self.assertEqual(inputs["PRODUCT SETTINGS"]["B46"], 20)
 
     def test_save_reopen_and_fresh_store_preserve_precision_and_source_hash(self):
@@ -190,6 +191,30 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.save({"CALCULATOR": {"D11": 7}})
         for identity in ("steel_vermiculite", "steel_board"):
             self.assertEqual(self.definition(identity)["inputs"], supplied[identity])
+
+    def test_dynamic_schedule_windows_and_blank_rows_round_trip_without_hidden_data(self):
+        definition = self.definition()
+        self.assertEqual(definition['schedule_rows'], [11])
+        inputs = definition['inputs']
+        inputs['CALCULATOR']['D1010'] = 7.123456789012345
+        rows = [11, 12, 13, 1010]
+        saved = self.json_request('PUT', '/api/calculators/ductwork/state', {'inputs': inputs, 'schedule_rows': rows})
+        self.assertEqual(saved['schedule_rows'], rows)
+        self.assertEqual(self.definition()['schedule_rows'], rows)
+        before = self.stored_rows()
+        page = self.json_request('POST', '/api/calculators/ductwork/worksheet',
+                                 {'sheet': 'CALCULATOR', 'schedule_view': {'rows': [11, 12, 13], 'offset': 3, 'limit': 1}})
+        self.assertEqual(page['schedule_view']['rows'], rows)
+        self.assertEqual(self.cell(page, 'D1010')['value'], 7.123456789012345)
+        self.assertEqual([row['row'] for row in page['rows'] if row['row'] >= 11], [1010])
+        for view in ({'offset': -1}, {'limit': 101}, {'rows': [11, True]}, {'rows': [11, 11]}):
+            self.json_request('POST', '/api/calculators/ductwork/worksheet',
+                              {'sheet': 'CALCULATOR', 'schedule_view': view}, expected=400)
+        self.json_request('POST', '/api/calculators/ductwork/worksheet',
+                          {'sheet': 'SUMMARY', 'schedule_view': {}}, expected=400)
+        self.json_request('PUT', '/api/calculators/ductwork/state',
+                          {'inputs': inputs, 'schedule_rows': [11, True]}, expected=400)
+        self.assertEqual(self.stored_rows(), before)
 
     def test_template_response_is_a_bounded_values_only_excel_download(self):
         status, headers, payload = self.request("POST", "/api/calculators/ductwork/template", {})
@@ -235,7 +260,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(Store(self.database).calculator_state("ductwork"), saved)
         page = self.calculate()
         self.assertAlmostEqual(self.cell(page, "K11")["value"], 0.12345678901234566)
-        self.assertEqual(self.definition("steel_board")["inputs"], {})
+        self.assertEqual(self.definition("steel_board")["inputs"], empty_schedule_inputs('steel_board'))
 
     def test_source_version_guard_preserves_existing_saved_inputs_on_every_write(self):
         stale = {"inputs": {"CALCULATOR": {"D11": 123}}, "source_sha256": "old-workbook-hash", "updated_at": "old-time"}
@@ -252,7 +277,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
                 response = self.json_request(method, route, body, expected=400)
                 self.assertIn("version", response["error"])
                 self.assertEqual(self.stored_rows(), before)
-        self.assertEqual(self.definition("steel_board")["inputs"], {})
+        self.assertEqual(self.definition("steel_board")["inputs"], empty_schedule_inputs('steel_board'))
 
     def test_calculated_cells_reference_databases_and_unknown_cells_cannot_be_written(self):
         before = self.stored_rows()

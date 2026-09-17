@@ -12,7 +12,7 @@ function element(tag = 'div') {
     setAttribute(name, value) { attributes.set(name, value); }, removeAttribute(name) { attributes.delete(name); }, getAttribute(name) { return attributes.get(name); },
     append(...items) { this.children.push(...items); this.options = this.children; },
     replaceChildren(...items) { this.children = items; this.options = items; },
-    querySelectorAll(selector) { const found=[]; const walk=node=>{if(selector==='[data-calculator-output]' && node.dataset?.calculatorOutput)found.push(node);if(selector==='[data-calculator-cell]'&&node.dataset?.calculatorCell)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
+    querySelectorAll(selector) { const found=[]; const match=selector.match(/^\[data-([a-z-]+)\]$/),key=match?.[1].replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase());const walk=node=>{if(key&&node.dataset?.[key]!==undefined)found.push(node);for(const child of node.children||[])walk(child);};this.children.forEach(walk);return found; },
     select() { this.selectionStart=0;this.selectionEnd=String(this.value).length; },
     blur() { this.blurred=true;return this.emit('blur'); },
     addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
@@ -34,6 +34,7 @@ vm.createContext(context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
+     addScheduleRow,removeScheduleRow,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,
      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
@@ -480,7 +481,7 @@ let passed = 0;
   assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);
   assert.doesNotMatch(html,/Show advanced columns|calculator-advanced/);
   assert.doesNotMatch(source,/Show advanced columns|calculator-advanced|entry\.advanced|renderedAdvanced/);
-  assert.match(html,/Edit input fields · All schedule rows are available on this page/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
+  assert.match(html,/Add or remove schedule rows as needed · Imports create their rows automatically/);assert.doesNotMatch(html,/Highlighted fields are editable/);passed++;
 
   // A Location edit on the final row survives recalculation without rebuilding 12,000 controls.
   const retainedControl=renderedControls()[0],lastBoardLocation=renderedControls().find(control=>control.dataset.calculatorCell==='B1008');
@@ -523,10 +524,10 @@ let passed = 0;
   await audit.calculate();assert.equal(renderedControls()[0],derived);assert.equal(derived.value,'3.25');
   await derived.emit('focus');assert.equal(derived.value,'3.24689');assert.deepEqual(copy(entry.inputs),{});passed++;
 
-  // Worksheet calls request all rows in the normal view while retaining saved hidden inputs.
+  // Worksheet calls request a bounded view while retaining saved hidden inputs.
   entry=setup({CALCULATOR:{B9:2,M9:'Saved optional layout'}});let worksheetBody;
   audit.setRender(()=>{});audit.setRequest(async(path,options)=>{assert.match(path,/\/worksheet$/);worksheetBody=JSON.parse(options.body);return result();});
-  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:false});passed++;
+  await audit.calculate();assert.deepEqual(worksheetBody,{inputs:{CALCULATOR:{B9:2,M9:'Saved optional layout'}},sheet:'CALCULATOR',include_advanced:false,schedule_view:{offset:0,limit:60}});passed++;
 
   // Schedule summaries retain relationships and zero values; the scope-block metric is display-only removed.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';
@@ -1617,6 +1618,145 @@ let passed = 0;
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });
   byId('calculator-import-file').files = []; await audit.importSchedule();
   byId('calculator-import-file').files = [{ name: 'large.xlsx', size: 6 * 1024 * 1024 }]; await audit.importSchedule(); assert.equal(requests, 0); passed++;
+
+  // Dynamic schedules keep source addresses, all hidden inputs and precise
+  // values while creating only the bounded set of controls returned by the API.
+  function dynamicSetup(rows=[9], inputs={CALCULATOR:{A9:null,B9:null,M9:null},SETTINGS:{B6:0.123456789012345}}) {
+    const currentEntry=setup(inputs);
+    currentEntry.definition.schedule={sheet:'CALCULATOR',first_row:9,last_row:1008,header_row:8,line_numbers:true,columns:[
+      {column:'A',label:'Member',editable:true},{column:'B',label:'Length',editable:true},{column:'M',label:'Advanced layout',editable:true},{column:'Z',label:'Generated',generated:true,editable:false}]};
+    currentEntry.definition.sheets[0].max_row=1008;
+    currentEntry.scheduleRows=[...rows];currentEntry.savedRows=JSON.stringify(rows);
+    audit.setRender(realRender);
+    audit.setRequest(async(path,options)=>{
+      const body=JSON.parse(options.body),view=body.schedule_view||{rows:currentEntry.scheduleRows,offset:0,limit:60};
+      const scheduleRows=view.rows||currentEntry.scheduleRows;
+      return result(body.inputs,{max_row:1008,visible_columns:[1,2],schedule_view:{...view,rows:scheduleRows,total_rows:scheduleRows.length,capacity:1000},rows:scheduleRows.slice(view.offset,view.offset+view.limit).map(row=>({row,cells:[
+        {column:1,address:`A${row}`,editable:true,type:'text',value:body.inputs.CALCULATOR?.[`A${row}`]??null},
+        {column:2,address:`B${row}`,editable:true,type:'number',value:body.inputs.CALCULATOR?.[`B${row}`]??null}]}))});
+    });
+    return currentEntry;
+  }
+  entry=dynamicSetup();await audit.calculate();
+  assert.equal(renderedControls().length,2);assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-remove]').length,1);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-add]').length,1);assert.equal(audit.dirty(entry),false);
+  assert.match(byId('calculator-page-status').textContent,/1 schedule row · All rows included in calculations/);passed++;
+
+  // Adding creates explicitly blank editable cells, including advanced inputs,
+  // and changing only the displayed row list still marks the project unsaved.
+  await audit.addScheduleRow();assert.deepEqual(copy(entry.scheduleRows),[9,10]);
+  assert.equal(entry.inputs.CALCULATOR.A10,null);assert.equal(entry.inputs.CALCULATOR.B10,null);assert.equal(entry.inputs.CALCULATOR.M10,null);
+  assert.equal(entry.inputs.CALCULATOR.Z10,undefined);assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);assert.equal(audit.dirty(entry),true);
+  assert.deepEqual(copy(audit.projectSnapshot().steel_board.schedule_rows),[9,10]);passed++;
+
+  // Remove/Undo restores both precise values and absent overrides, without
+  // changing settings or moving the other row's formula addresses.
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Original',B9:7.123456789012345,M9:'Optional exact',A10:'Keep',B10:2},SETTINGS:{B6:0.123456789012345}});await audit.calculate();
+  const beforeRemove=JSON.stringify(entry.inputs);await audit.removeScheduleRow(9);
+  assert.deepEqual(copy(entry.scheduleRows),[10]);for(const cell of ['A9','B9','M9'])assert.equal(entry.inputs.CALCULATOR[cell],null);
+  assert.equal(entry.inputs.CALCULATOR.A10,'Keep');assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);
+  await audit.undoScheduleRemove();assert.deepEqual(copy(entry.scheduleRows),[9,10]);assert.equal(JSON.stringify(entry.inputs),beforeRemove);assert.equal(audit.dirty(entry),false);passed++;
+
+  // The final row remains an empty placeholder; Undo must never overwrite a
+  // new value subsequently entered into that same physical row.
+  entry=dynamicSetup([9],{CALCULATOR:{A9:'Deleted',B9:7.123456789012345},SETTINGS:{B6:1}});await audit.calculate();await audit.removeScheduleRow(9);
+  assert.deepEqual(copy(entry.scheduleRows),[9]);assert.equal(entry.inputs.CALCULATOR.A9,null);
+  audit.setInput(entry,'CALCULATOR','A9','Replacement');assert.equal(entry.removedRows.length,0);await audit.undoScheduleRemove();assert.equal(entry.inputs.CALCULATOR.A9,'Replacement');passed++;
+
+  // Removing a sole non-first source row and undoing restores exactly its
+  // original row list rather than leaving an extra empty placeholder behind.
+  entry=dynamicSetup([19],{CALCULATOR:{A19:'Line 11',B19:1.23456789012345}});await audit.calculate();await audit.removeScheduleRow(19);assert.deepEqual(copy(entry.scheduleRows),[9]);
+  await audit.undoScheduleRemove();assert.deepEqual(copy(entry.scheduleRows),[19]);assert.equal(entry.inputs.CALCULATOR.B19,1.23456789012345);passed++;
+
+  // Editing a different remaining row does not destroy the removed-row undo
+  // and the undo restores only its target inputs.
+  entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Restore',A10:'Original other'}});await audit.calculate();await audit.removeScheduleRow(9);
+  audit.setInput(entry,'CALCULATOR','A10','Updated other');await audit.undoScheduleRemove();assert.equal(entry.inputs.CALCULATOR.A9,'Restore');assert.equal(entry.inputs.CALCULATOR.A10,'Updated other');passed++;
+
+  // At full capacity the browser creates only sixty rows. Vertical spacers
+  // retain the complete scroll range; offscreen exact input remains in state.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{A9:'First',B9:7.123456789012345,A1008:'Last',B1008:9.987654321098765}});await audit.calculate();
+  assert.equal(renderedControls().length,120);assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-remove]').length,60);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-add]')[0].disabled,true);
+  const virtualTable=renderedTable(),virtualBody=virtualTable.children.at(-1);
+  assert.equal(virtualTable.classList.contains('calculator-virtual-schedule'),true);assert.equal(virtualTable.getAttribute('aria-rowcount'),'1001');
+  assert.equal(virtualBody.children.at(-1).children[0].style.height,`${940*96}px`);assert.equal(entry.inputs.CALCULATOR.B1008,9.987654321098765);passed++;
+
+  // Scrolling to the end asks for the final bounded window with every draft
+  // input retained, then renders its actual source Line 1000.
+  const nativeSetTimeout=context.setTimeout;let scrollTimer;
+  context.setTimeout=(callback)=>{scrollTimer=callback;return 1;};
+  const viewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];viewport.clientHeight=600;viewport.scrollTop=999*96;viewport.scrollLeft=333;
+  await viewport.emit('scroll');assert.ok(scrollTimer);scrollTimer();await flush();
+  assert.equal(entry.scheduleViewport.offset,940);assert.equal(renderedControls().length,120);
+  assert.equal(renderedControls().at(-1).dataset.calculatorCell,'B1008');assert.equal(renderedControls().at(-1).value,'9.99');
+  assert.equal(entry.inputs.CALCULATOR.B9,7.123456789012345);assert.equal(entry.inputs.CALCULATOR.B1008,9.987654321098765);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0].scrollLeft,333);
+  context.setTimeout=nativeSetTimeout;passed++;
+
+  // Invalid text stays attached to its source field and blocks a distant
+  // viewport change rather than disappearing into an offscreen draft.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B9:3.123456789}});await audit.calculate();
+  entry.invalid.set('CALCULATOR!B9','broken');let invalidScrollRequests=0;audit.setRequest(async()=>{invalidScrollRequests++;});
+  const invalidViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];invalidViewport.scrollTop=900*96;await invalidViewport.emit('scroll');
+  assert.equal(invalidViewport.scrollTop,0);assert.equal(invalidScrollRequests,0);assert.equal(entry.invalid.get('CALCULATOR!B9'),'broken');assert.equal(entry.inputs.CALCULATOR.B9,3.123456789);passed++;
+
+  // An invalid editor at the end of a buffered window remains at its exact
+  // prior viewport, rather than jumping to the first row of that window.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B1008:3.123456789}});
+  entry.scheduleViewport={offset:940,top:95200,left:333};await audit.calculate();
+  entry.invalid.set('CALCULATOR!B1008','broken');let blockedTailRequests=0;audit.setRequest(async()=>{blockedTailRequests++;});
+  const tailViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];tailViewport.scrollTop=0;tailViewport.scrollLeft=100;await tailViewport.emit('scroll');
+  assert.equal(tailViewport.scrollTop,95200);assert.equal(tailViewport.scrollLeft,333);assert.equal(entry.scheduleViewport.top,95200);assert.equal(blockedTailRequests,0);
+  assert.equal(entry.invalid.get('CALCULATOR!B1008'),'broken');assert.equal(entry.inputs.CALCULATOR.B1008,3.123456789);passed++;
+
+  // Invalid Line 1 can leave view during permitted interior scrolling. A later
+  // distant jump must reveal that editor below the header, rather than merely
+  // returning to Line 30. Hidden custom controls must never become the target.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B9:3.123456789}});await audit.calculate();
+  const interiorViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];
+  interiorViewport.clientHeight=600;interiorViewport.clientWidth=700;interiorViewport.getBoundingClientRect=()=>({top:100,left:0,width:700,height:600});
+  interiorViewport.querySelector=()=>({getBoundingClientRect:()=>({height:64})});
+  const invalidFirst=renderedControls().find(control=>control.dataset.calculatorCell==='B9');
+  invalidFirst.getClientRects=()=>[{}];invalidFirst.getBoundingClientRect=()=>({top:100+84-interiorViewport.scrollTop,left:1100-interiorViewport.scrollLeft,width:120,height:40});
+  const hiddenCustom=element('input');hiddenCustom.hidden=true;hiddenCustom.dataset={calculatorCustomCell:'B9',calculatorSheet:'CALCULATOR'};hiddenCustom.getClientRects=()=>[{}];hiddenCustom.getBoundingClientRect=()=>{throw Error('Hidden custom editor must not be revealed');};interiorViewport.append(hiddenCustom);
+  entry.invalid.set('CALCULATOR!B9','broken');let interiorRequests=0;audit.setRequest(async()=>{interiorRequests++;});
+  interiorViewport.scrollTop=29*96;await interiorViewport.emit('scroll');assert.equal(entry.scheduleViewport.top,29*96);
+  interiorViewport.scrollTop=900*96;await interiorViewport.emit('scroll');
+  assert.equal(interiorRequests,0);assert.equal(interiorViewport.scrollTop,12);assert.equal(interiorViewport.scrollLeft,528);
+  assert.equal(entry.invalid.get('CALCULATOR!B9'),'broken');assert.equal(entry.inputs.CALCULATOR.B9,3.123456789);passed++;
+
+  // A narrow viewport cannot fit an oversized editor between both margins.
+  // Repeated native scroll events must keep its start aligned, not alternate
+  // between its start and end edges and create a scroll-event loop.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B209:3.123456789}});
+  entry.scheduleViewport={offset:200,top:220*96,left:333};await audit.calculate();
+  const narrowViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];
+  narrowViewport.clientHeight=90;narrowViewport.clientWidth=100;narrowViewport.getBoundingClientRect=()=>({top:100,left:0,width:100,height:90});
+  narrowViewport.querySelector=()=>({getBoundingClientRect:()=>({height:64})});
+  const oversized=renderedControls().find(control=>control.dataset.calculatorCell==='B209');
+  oversized.getClientRects=()=>[{}];oversized.getBoundingClientRect=()=>({top:100+200*96+84-narrowViewport.scrollTop,left:1100-narrowViewport.scrollLeft,width:120,height:40});
+  entry.invalid.set('CALCULATOR!B209','broken');let narrowRequests=0;audit.setRequest(async()=>{narrowRequests++;});
+  narrowViewport.scrollTop=900*96;
+  for(let repeat=0;repeat<4;repeat++){
+    await narrowViewport.emit('scroll');assert.equal(narrowViewport.scrollTop,200*96+12);assert.equal(narrowViewport.scrollLeft,1092);
+  }
+  assert.equal(narrowRequests,0);assert.equal(entry.invalid.get('CALCULATOR!B209'),'broken');assert.equal(entry.inputs.CALCULATOR.B209,3.123456789);passed++;
+
+  // Project saving acknowledges row metadata independently of inputs. Later
+  // row additions remain dirty when an earlier save completes.
+  entry=dynamicSetup([9]);const captured=audit.projectSnapshot();entry.scheduleRows=[9,10];audit.markProjectSaved(captured);assert.equal(audit.dirty(entry),true);
+  audit.markProjectSaved(audit.projectSnapshot());assert.equal(audit.dirty(entry),false);passed++;
+
+  // Imports use the server's complete row extent (including deliberate gaps)
+  // and reset an old scrolled viewport while keeping non-schedule inputs.
+  entry=dynamicSetup([9]);entry.scheduleViewport={offset:500,top:48000,left:50};let importedWorksheet;
+  audit.setRequest(async(path,options)=>{
+    if(path.endsWith('/import'))return {inputs:{CALCULATOR:{A9:'Start',B11:1.23456789012345},SETTINGS:{B6:0.123456789012345}},imported_rows:2,schedule_rows:[9,10,11]};
+    importedWorksheet=JSON.parse(options.body);return result(importedWorksheet.inputs,{schedule_view:{...importedWorksheet.schedule_view,total_rows:3},rows:[]});
+  });
+  byId('calculator-import-file').files=[{name:'schedule.xlsx',size:600}];const dynamicImport=audit.importSchedule();await flush();await byId('calculator-confirm-dialog').close('confirm');await dynamicImport;
+  assert.deepEqual(copy(entry.scheduleRows),[9,10,11]);assert.equal(importedWorksheet.schedule_view.offset,0);assert.equal(entry.inputs.CALCULATOR.B11,1.23456789012345);assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);passed++;
 
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators".*CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);

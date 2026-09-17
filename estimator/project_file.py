@@ -17,6 +17,7 @@ from .calculator import fields
 from .catalog import ValidationError, effective_catalog
 from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
 from .workbook_calculators import source_model, validate_calculator_edits
+from .schedule_rows import normalize_schedule_rows
 
 
 PROJECT_FORMAT = "ceasefire-project"
@@ -133,14 +134,17 @@ def export_project(store, request):
     for calculator_id in CALCULATOR_IDS:
         draft = drafts.get(calculator_id)
         if calculator_id in drafts:
-            if not isinstance(draft, dict) or set(draft) != {"inputs"}:
-                raise ValidationError("Each calculator draft must contain its input values only.")
+            if not isinstance(draft, dict) or 'inputs' not in draft or set(draft) - {"inputs", "schedule_rows"}:
+                raise ValidationError("Each calculator draft must contain input values and optional schedule rows only.")
             inputs = draft["inputs"]
         else:
-            inputs = store.calculator_state(calculator_id)["inputs"]
+            draft = store.calculator_state(calculator_id)
+            inputs = draft["inputs"]
+        inputs = _portable_inputs(calculator_id, inputs)
         calculators[calculator_id] = {
             "source_sha256": source_model(calculator_id)["source"]["sha256"],
-            "inputs": _portable_inputs(calculator_id, inputs),
+            "inputs": inputs,
+            "schedule_rows": normalize_schedule_rows(calculator_id, inputs, draft.get('schedule_rows')),
         }
     snapshot = {
         "format": PROJECT_FORMAT,
@@ -193,12 +197,15 @@ def load_project_bytes(store, payload):
     normalized = {}
     for calculator_id in CALCULATOR_IDS:
         calculator = calculators[calculator_id]
-        if not isinstance(calculator, dict) or set(calculator) != {"inputs", "source_sha256"}:
-            raise ValidationError("Project calculators must contain input values and source version only.")
+        if (not isinstance(calculator, dict) or not {"inputs", "source_sha256"} <= set(calculator)
+                or set(calculator) - {"inputs", "source_sha256", "schedule_rows"}):
+            raise ValidationError("Project calculators must contain input values, source version and optional schedule rows only.")
         source_hash = source_model(calculator_id)["source"]["sha256"]
         if calculator["source_sha256"] != source_hash:
             raise ValidationError("The project uses a different calculator source workbook version. Update to a compatible application before loading it.")
-        normalized[calculator_id] = {"inputs": _portable_inputs(calculator_id, calculator["inputs"]), "source_sha256": source_hash}
+        inputs = _portable_inputs(calculator_id, calculator["inputs"])
+        normalized[calculator_id] = {"inputs": inputs, "source_sha256": source_hash,
+                                     "schedule_rows": normalize_schedule_rows(calculator_id, inputs, calculator.get('schedule_rows'))}
     prepared = store.prepare_quote(estimate)
     # This is a new active draft, never a reference to a local saved quote.
     prepared["id"] = None

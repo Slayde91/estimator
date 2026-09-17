@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from estimator.calculator import fields
 from estimator.calculator_defaults import default_calculator_inputs
+from estimator.schedule_rows import empty_schedule_inputs
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.project_file import (
     CALCULATOR_IDS, ESTIMATE_FIELDS, PROJECT_FILENAME, export_project, import_project,
@@ -97,7 +98,7 @@ class ProjectFileTests(unittest.TestCase):
         snapshot = json.loads(export_project(self.sender, {"estimate": {}}))
         self.assertEqual(set(snapshot["calculators"]), set(CALCULATOR_IDS))
         self.assertEqual(snapshot["calculators"]["ductwork"]["inputs"], saved)
-        self.assertEqual(snapshot["calculators"]["steel_vermiculite"]["inputs"], default_calculator_inputs("steel_vermiculite"))
+        self.assertEqual(snapshot["calculators"]["steel_vermiculite"]["inputs"], empty_schedule_inputs("steel_vermiculite"))
         self.assertEqual(stored_rows(self.sender), before)
         self.assertNotIn("result", snapshot["estimate"])
         self.assertNotIn("id", snapshot["estimate"])

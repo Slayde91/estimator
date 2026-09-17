@@ -64,8 +64,8 @@ _DISPLAY_TEXT = {
                          'SCHEDULE': {'Z9': 'Line', 'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'START': {
-                        'D9': 'Replace or clear the demonstration rows. Enter one member, or one group of identical members, per row. 1,000 prepared rows: 9-1008. Enter the TOTAL lineal length for that row.',
-                        'A28': 'Capacity is 1,000 prepared rows. All prepared rows are included in the calculation formulas, dropdowns and purchasing totals.'},
+                        'D9': 'Add schedule rows as needed, or import a schedule. Enter one member, or one group of identical members, per row. Enter the TOTAL lineal length for that row.',
+                        'A28': 'Schedules support up to 1,000 rows. Every entered row is included in the calculations and purchasing totals, including rows outside the current view.'},
                     'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
                     'BOARD SUMMARY': {'A1': 'BOARD SUMMARY'},
                     'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
@@ -436,7 +436,8 @@ def _sheet_metadata(model, sheet):
             'source_state': sheet['state']}
 
 
-def calculator_definition(calculator_id, inputs=None):
+def calculator_definition(calculator_id, inputs=None, schedule_rows=None):
+    from .schedule_rows import empty_schedule_inputs, normalize_schedule_rows
     model = source_model(calculator_id)
     documents_path = ROOT / 'data' / 'calculator_documents.json'
     documents = json.loads(documents_path.read_text(encoding='utf-8'))['sections'].get(calculator_id, []) if documents_path.exists() else []
@@ -446,7 +447,8 @@ def calculator_definition(calculator_id, inputs=None):
             'source': model['source'], 'schedule': deepcopy(model['schedule']),
             'sheets': [_sheet_metadata(model, sheet) for sheet in model['sheets'] if sheet['name'] in model['pages']],
             'inputs': normalize_calculator_inputs(calculator_id, inputs), 'documents': documents,
-            'defaults': default_calculator_inputs(calculator_id), 'yield_review': yield_review(calculator_id)}
+            'schedule_rows': normalize_schedule_rows(calculator_id, inputs, schedule_rows),
+            'defaults': empty_schedule_inputs(calculator_id), 'yield_review': yield_review(calculator_id)}
 
 
 def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_count=25):
@@ -469,11 +471,12 @@ def calculate_page(calculator_id, inputs=None, sheet=None, start_row=1, row_coun
                          min(metadata['max_row'], start_row + row_count - 1))
 
 
-def calculate_worksheet(calculator_id, inputs=None, sheet=None, include_advanced=False):
-    """Return one complete source page with bounded, shared dropdown metadata.
+def calculate_worksheet(calculator_id, inputs=None, sheet=None, include_advanced=False, schedule_view=None):
+    """Return a source page, optionally projecting one bounded schedule window.
 
     The extent comes from the imported workbook, never a caller-supplied size.
-    This is a presentation projection; values still come from WorkbookEngine.
+    Projection only limits display cells; the engine retains every input and
+    complete formula ranges, including totals for rows outside the window.
     """
     model = source_model(calculator_id)
     if sheet is not None and not isinstance(sheet, str):
@@ -485,9 +488,24 @@ def calculate_worksheet(calculator_id, inputs=None, sheet=None, include_advanced
         raise ValidationError('Advanced columns must be enabled or disabled.')
     source = next(item for item in model['sheets'] if item['name'] == sheet)
     metadata = _sheet_metadata(model, source)
-    return _render_sheet(calculator_id, inputs, source, metadata, 1,
+    window, selected_rows = None, None
+    if schedule_view is not None:
+        from .schedule_rows import schedule_window
+        if sheet != model['schedule']['sheet']:
+            raise ValidationError('Schedule windows are available only on the schedule worksheet.')
+        window = schedule_window(calculator_id, normalize_calculator_inputs(calculator_id, inputs), schedule_view)
+        selected_rows = [*range(1, window['first_row']),
+                         *window['rows'][window['offset']:window['offset'] + window['limit']],
+                         *range(window['last_row'] + 1, metadata['max_row'] + 1)]
+        selected_set = set(selected_rows)
+        metadata['display_cells'] = {address: value for address, value in metadata['display_cells'].items()
+                                     if coordinates(address)[0] in selected_set}
+    result = _render_sheet(calculator_id, inputs, source, metadata, 1,
                          metadata['max_row'], shared_options=True,
-                         include_advanced=include_advanced)
+                         include_advanced=include_advanced, selected_rows=selected_rows)
+    if window is not None:
+        result['schedule_view'] = window
+    return result
 
 
 def _presentation(style, original, value, row, column, metadata, editable):
@@ -549,7 +567,7 @@ def _board_product_totals(engine):
 
 
 def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
-                  shared_options=False, include_advanced=True):
+                  shared_options=False, include_advanced=True, selected_rows=None):
     model = source_model(calculator_id)
     sheet = source['name']
     normalized, engine, lock = calculator_session(calculator_id, inputs)
@@ -562,7 +580,7 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
     if calculator_id == 'ductwork':
         warnings.append('The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.')
     with lock:
-        for row in range(start_row, end_row + 1):
+        for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []
             for column in columns:
                 address = column_name(column) + str(row)

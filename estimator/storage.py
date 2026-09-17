@@ -63,25 +63,29 @@ class Store:
 
     def calculator_state(self, calculator_id):
         from .workbook_calculators import source_model
-        from .calculator_defaults import default_calculator_inputs
+        from .schedule_rows import empty_schedule_inputs, normalize_schedule_rows
         model = source_model(calculator_id)
         with self.connect() as db:
             row = db.execute('SELECT data FROM calculator_states WHERE id=?', (calculator_id,)).fetchone()
         if row is None:
-            return {'inputs': default_calculator_inputs(calculator_id), 'source_sha256': model['source']['sha256']}
+            inputs = empty_schedule_inputs(calculator_id)
+            return {'inputs': inputs, 'schedule_rows': [model['schedule']['first_row']],
+                    'source_sha256': model['source']['sha256']}
         state = json.loads(row[0])
         if state.get('source_sha256') != model['source']['sha256']:
             raise ValidationError('The saved calculator uses a different source workbook version. Its saved inputs have been retained; an explicit version migration is required.')
-        return state
+        return {**state, 'schedule_rows': normalize_schedule_rows(calculator_id, state['inputs'], state.get('schedule_rows'))}
 
-    def save_calculator_state(self, calculator_id, inputs):
+    def save_calculator_state(self, calculator_id, inputs, schedule_rows=None):
         from .workbook_calculators import validate_calculator_edits, source_model
+        from .schedule_rows import normalize_schedule_rows
         if not isinstance(inputs, dict):
             raise ValidationError('Include a worksheet input object to save the calculator.')
         saved = self.calculator_state(calculator_id)  # Reject different source versions before validation or writes.
         state = {'inputs': validate_calculator_edits(calculator_id, inputs, saved['inputs']),
                  'source_sha256': source_model(calculator_id)['source']['sha256'],
                  'updated_at': datetime.now(timezone.utc).isoformat()}
+        state['schedule_rows'] = normalize_schedule_rows(calculator_id, state['inputs'], schedule_rows)
         with self.connect() as db:
             db.execute('INSERT INTO calculator_states VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at',
                        (calculator_id, json.dumps(state, allow_nan=False), state['updated_at']))

@@ -296,7 +296,6 @@ class _Report:
         # A composed project/client/site title can reach 704 characters. Keep
         # every character, using a readable smaller heading for long details.
         self.story.append(self.p(title, "long_title" if len(_text(title)) > 180 else "title"))
-        self.story.append(self.p(self.quote.get("workflow", "Workflow not recorded")))
         identity = [
             [self.p("Client", "cell"), self.p(self.quote.get("client") or "Not recorded", "cell")],
             [self.p("Site Address", "cell"), self.p(self.quote.get("site_address") or "Not recorded", "cell")],

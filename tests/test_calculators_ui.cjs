@@ -31,6 +31,7 @@ const context = {
   FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,AAAA'; queueMicrotask(() => this.onload()); } },
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
@@ -41,6 +42,7 @@ source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot
 vm.runInContext(source, context);
 const { audit } = context;
 const copy = value => JSON.parse(JSON.stringify(value));
+const fileSaved = (filename='APPENDIX A.pdf', destination='downloads', savedPath) => ({ok:true,headers:{get:()=> 'application/json; charset=utf-8'},json:async()=>({saved:true,path:savedPath||`C:/${destination==='project'?'Projects':'Downloads'}/${filename}`,filename,destination})});
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { resolve, reject, promise }; };
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 const realRender = audit.renderGrid;
@@ -184,7 +186,7 @@ let passed = 0;
   assert.ok(entry.pendingResult);assert.equal(descendants(byId('calculator-grid')).find(node=>node.dataset?.calculatorCustomCell==='B9'),activeCustom);assert.equal(activeCustom.value,'17.123456789');
   await activeCustom.emit('blur',{relatedTarget:activeChoice});assert.ok(entry.pendingResult);activeCustom.value='18.123456789';await activeCustom.emit('input');assert.equal(entry.pendingResult,null);
   let customSaved;context.document.activeElement=null;audit.setRequest(async(path,options)=>{customSaved=JSON.parse(options.body).inputs;return {inputs:customSaved};});await audit.save();assert.deepEqual(customSaved,{SETTINGS:{B6:8.7654321},CALCULATOR:{B9:18.123456789}});
-  const customDownloads=[];audit.setFetch(async(path,options)=>{customDownloads.push({path,inputs:JSON.parse(options.body).inputs});return {ok:true,headers:{get:()=>path.endsWith('.pdf')?'application/pdf':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>new Blob(['download'])};});
+  const customDownloads=[];audit.setFetch(async(path,options)=>{customDownloads.push({path,inputs:JSON.parse(options.body).inputs});return fileSaved(path.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
   await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(customDownloads.length,2);assert.ok(customDownloads[0].path.endsWith('report.pdf'));assert.ok(customDownloads[1].path.endsWith('register.xlsx'));
   for(const download of customDownloads)assert.deepEqual(download.inputs,customSaved);passed++;
 
@@ -271,6 +273,7 @@ let passed = 0;
   assert.equal(byId('calculator-option-lists').children[0],originalNavigationList);assert.equal(originalNavigationChoice.getAttribute('list'),originalNavigationList.id);
   assert.deepEqual(originalNavigationList.children.map(option=>option.value),['Alpha','Beta']);assert.ok([...audit.state.optionLists.values()].includes(originalNavigationList.id));
   assert.equal(byId('calculator-warnings').textContent,'CALCULATOR warning');assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);
+  assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');assert.equal(navigationRequests[0].sheet,'CALCULATOR');
   const unchangedGrid=byId('calculator-grid').children;await audit.selectPage('CALCULATOR');await audit.selectCalculator('steel_board');
   assert.equal(byId('calculator-grid').children,unchangedGrid);assert.equal(navigationRequests.length,2);passed++;
 
@@ -668,12 +671,13 @@ let passed = 0;
   assert.equal(rendered.filter(node=>node.calculatorValueCard).length,3);
   assert.equal(JSON.stringify(entry.result),fullResult);passed++;
 
-  // Every settings title is the same structural red banner; source titles remain unchanged.
+  // Settings banners are omitted from display; source titles and other notes remain unchanged.
   for(const [id,sheet] of [['steel_vermiculite','SETTINGS'],['ductwork','PRODUCT SETTINGS'],['steel_board','SETTINGS']]){
     entry=setup();entry.definition.id=id;entry.sheet=sheet;entry.definition.sheets=[{name:sheet,header_rows:[],merges:['A1:C1']}];
-    entry.result=result({}, {sheet,rows:[{row:1,cells:[{column:1,address:'A1',value:'Original settings title',presentation:{role:'section'}}]}]});
+    entry.result=result({}, {sheet,rows:[{row:1,cells:[{column:1,address:'A1',value:'Original settings title',presentation:{role:'section'}}]},
+      {row:4,cells:[{column:1,address:'A4',value:'Retain the other source note',presentation:{role:'note'}}]}]});
     realRender(entry);const title=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A1');
-    assert.equal(title.textContent,'SETTINGS & RULES');assert.match(title.className,/calculator-role-title/);assert.equal(title.dataset.calculatorValue,undefined);
+    assert.equal(title,undefined);assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(cell=>cell.dataset.calculatorOutput==='A4'));
     assert.equal(entry.result.rows[0].cells[0].value,'Original settings title');
   }passed++;
 
@@ -849,7 +853,7 @@ let passed = 0;
   assert.equal(renderedControls().length,28);assert.equal(new Set(renderedControls().map(node=>node.dataset.calculatorCell)).size,28);
   assert.ok(renderedControls().some(node=>node.dataset.calculatorCell==='B12'));assert.ok(renderedControls().some(node=>node.dataset.calculatorCell==='B13'));
   assert.ok(!descendants(byId('calculator-grid')).some(node=>/Removed basis|Removed dropdown reference/.test(node.textContent||'')));
-  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A1').length,1);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>['A1','A3'].includes(node.dataset.calculatorOutput)).length,0);
   assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Q51'));
   assert.equal(JSON.stringify(entry.result),settingsRaw);assert.deepEqual(copy(entry.inputs),{});
   const primaryControl=renderedControls().find(node=>node.dataset.calculatorCell==='B12');
@@ -977,7 +981,8 @@ let passed = 0;
   changedDuct.display_column_order=['B','C','D','AJ','AO','AN','AN','ZZ'];await audit.calculate();ductTable=renderedTable();
   assert.deepEqual(ductTable.children[1].children[0].children.map(node=>node.textContent),[2,3,4,36,41,40,39,42,43].map(column=>ductLabels[column]));assert.equal(renderedControls().length,900);passed++;
 
-  // Browser text overrides cover titles, headers and contents while raw data and output-state classification stay unchanged.
+  // Browser text overrides cover headers and contents, while omitted titles,
+  // raw data and output-state classification stay unchanged.
   entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
   entry.definition.sheets=[{name:entry.sheet,header_rows:[5],section_cells:['A6'],omitted_rows:[3],display_text:{A1:'Ductwork Settings',A3:'Still omitted',A5:'Option',A6:'Product rules'},merges:['A1:C1']}];
   entry.result=result({}, {sheet:entry.sheet,rows:[
@@ -989,12 +994,12 @@ let passed = 0;
   ]});
   const textSource=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   let overrideNodes=descendants(byId('calculator-grid'));
-  assert.ok(overrideNodes.some(node=>node.textContent==='Ductwork Settings'));assert.ok(overrideNodes.some(node=>node.href&&node.textContent==='Product rules'));
+  assert.ok(!overrideNodes.some(node=>node.textContent==='Ductwork Settings'));assert.ok(overrideNodes.some(node=>node.href&&node.textContent==='Product rules'));
   assert.ok(overrideNodes.some(node=>node.dataset?.calculatorOutput==='A5'&&node.textContent==='Option'));assert.ok(!overrideNodes.some(node=>node.dataset?.calculatorOutput==='A3'));
   assert.equal(JSON.stringify(entry.result),textSource);
   const revisedText=copy(entry.result);revisedText.display_text={A1:'Updated Ductwork Settings',A5:'Updated option',A6:'Updated product rules',C7:'Display-only note'};
   audit.setRequest(async()=>revisedText);await audit.calculate();overrideNodes=descendants(byId('calculator-grid'));
-  assert.ok(overrideNodes.some(node=>node.textContent==='Updated Ductwork Settings'));assert.ok(overrideNodes.some(node=>node.href&&node.textContent==='Updated product rules'));
+  assert.ok(!overrideNodes.some(node=>node.textContent==='Updated Ductwork Settings'));assert.ok(overrideNodes.some(node=>node.href&&node.textContent==='Updated product rules'));
   assert.ok(overrideNodes.some(node=>node.dataset?.calculatorOutput==='A5'&&node.textContent==='Updated option'));
   const overriddenOutput=overrideNodes.find(node=>node.dataset?.calculatorOutput==='C7');assert.equal(overriddenOutput.textContent,'Display-only note');assert.equal(overriddenOutput.classList.contains('calculator-value-present'),true);
   const textControl=renderedControls()[0];revisedText.rows.find(row=>row.row===7).cells[2].value='Updated raw note';await audit.calculate();
@@ -1307,7 +1312,7 @@ let passed = 0;
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   assert.equal(entry.page,'START');assert.equal(entry.sheet,'SETTINGS');assert.equal(byId('calculator-sheet-title').textContent,'START');
-  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','CALCULATOR','SCHEDULE','BAGS','SETTINGS','FACTOR CALCS']);
+  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','LOOKUP','SCHEDULE','BAGS','SETTINGS','FACTOR CALCS']);
   assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);assert.ok(virtualOutputs().includes('A270'));
   assert.equal(virtualOutputs().filter(address=>address==='A7').length,1);
   const startBody=descendants(byId('calculator-grid')).find(node=>node.tagName==='tbody'&&node.children.some(row=>row.dataset.sourceRow==='270'));
@@ -1322,7 +1327,7 @@ let passed = 0;
   // Settings and factor chooser selections are independent; hidden source inputs and invalid drafts survive switching.
   await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,7);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
   assert.equal(virtualRequests.length,virtualNavigationStartRequests); // Both browser tabs use the same unchanged source worksheet.
-  assert.ok(virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
+  assert.ok(!virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D10');
   assert.equal(virtualSetting.dataset.calculatorSheet,'SETTINGS');virtualSetting.value='3.45678912';await virtualSetting.emit('input');
   await audit.selectPage('FACTOR CALCS');assert.equal(virtualButtons().length,3);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,3);
@@ -1354,8 +1359,8 @@ let passed = 0;
   audit.setRequest(serveVirtual);await audit.selectPage('FACTOR CALCS');const fullVirtualDraft=copy(entry.inputs);
   await audit.save();assert.deepEqual(virtualRequests.at(-1).body,{inputs:fullVirtualDraft});assert.equal(entry.saved,JSON.stringify(fullVirtualDraft));
   for(const [download,action,mime] of [[audit.downloadSchedulePdf,'report.pdf','application/pdf'],[audit.downloadExcelRegister,'register.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']]) {
-    let capturedVirtualDownload;audit.setFetch(async(path,options)=>{assert.ok(path.endsWith('/'+action));capturedVirtualDownload=JSON.parse(options.body);return {ok:true,headers:{get:()=>mime},blob:async()=>new Blob(['download'])};});
-    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft,...(mime==='application/pdf'?{project_details:{}}:{})});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
+    let capturedVirtualDownload;audit.setFetch(async(path,options)=>{assert.ok(path.endsWith('/'+action));capturedVirtualDownload=JSON.parse(options.body);return fileSaved(action);});
+    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft,...(mime==='application/pdf'?{project_details:{}}:{}),download:{project_token:null}});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
   }
   entry.definition.defaults={SETTINGS:{D10:9.123456789,D342:8.987654321},SCHEDULE:{A1009:'Reset schedule'}};
   const savedBeforeVirtualReset=entry.saved,virtualReset=audit.reset();await byId('calculator-confirm-dialog').close('confirm');await virtualReset;
@@ -1472,10 +1477,10 @@ let passed = 0;
   entry=setup({CALCULATOR:{B9:2.3456789}});entry.definition.id=id;const pdfResponse=deferred();let pdfBody,pdfPath;
   audit.setFetch((path,options)=>{pdfPath=path;pdfBody=JSON.parse(options.body);return pdfResponse.promise;});
   const downloading=audit.downloadSchedulePdf();audit.setInput(entry,'CALCULATOR','B9',9);
-  pdfResponse.resolve({ok:true,headers:{get:()=> 'application/pdf'},blob:async()=>new Blob(['%PDF-1.4'])});await downloading;
+  pdfResponse.resolve(fileSaved());await downloading;
   assert.equal(pdfPath,`/api/calculators/${id}/report.pdf`);assert.equal(pdfBody.inputs.CALCULATOR.B9,2.3456789);
   assert.equal(entry.inputs.CALCULATOR.B9,9);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
-  assert.equal(context.document.body.children.at(-1).download,'APPENDIX A.pdf');assert.match(byId('calculator-message').textContent,/later edits are not included/);
+  assert.deepEqual(pdfBody.download,{project_token:null});assert.match(byId('calculator-message').textContent,/saved to C:\/Downloads\/APPENDIX A.pdf/);assert.match(byId('calculator-message').textContent,/later edits are not included/);
   }passed++;
 
   // Materials/summary PDFs use their separate endpoint for all calculators and capture every exact draft input.
@@ -1489,10 +1494,10 @@ let passed = 0;
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),'true');
     assert.equal(byId('calculator-summary-pdf').textContent,'Preparing PDF Summary…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
-    pending.resolve({ok:true,headers:{get:()=> 'application/pdf; charset=binary'},blob:async()=>new Blob(['%PDF-1.4'])});await run;
-    assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/pdf');
-    assert.deepEqual(body,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789},'EXTRA BOARDS':{D6:7.654321987}},project_details:{}});
-    assert.equal(context.document.body.children.at(-1).download,`ceasefire-${id}-materials-summary.pdf`);
+    pending.resolve(fileSaved(`ceasefire-${id}-materials-summary.pdf`));await run;
+    assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/json');
+    assert.deepEqual(body,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789},'EXTRA BOARDS':{D6:7.654321987}},project_details:{},download:{project_token:null}});
+    assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/ceasefire-${id}-materials-summary.pdf`));
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-summary-pdf').disabled,false);
     assert.equal(byId('calculator-summary-pdf').textContent,'Download PDF Summary');
@@ -1510,10 +1515,10 @@ let passed = 0;
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-template').disabled,true);
     assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').textContent,'Preparing XLSX Schedule…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
-    pendingRegister.resolve({ok:true,headers:{get:()=>`${registerMime}; charset=binary`},blob:async()=>new Blob(['PK register'])});await registerRun;
-    assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,registerMime);
-    assert.deepEqual(registerBody,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}}});
-    const registerLink=context.document.body.children.at(-1);assert.equal(registerLink.download,'APPENDIX A.xlsx');assert.equal(registerLink.clicked,true);
+    pendingRegister.resolve(fileSaved('APPENDIX A.xlsx'));await registerRun;
+    assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,'application/json');
+    assert.deepEqual(registerBody,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}},download:{project_token:null}});
+    assert.match(byId('calculator-message').textContent,/saved to C:\/Downloads\/APPENDIX A.xlsx/);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
     assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').textContent,'Download XLSX Schedule');
@@ -1523,7 +1528,7 @@ let passed = 0;
   for(const [download,mime] of [[audit.downloadExcelRegister,registerMime],[audit.downloadMaterialsSummaryPdf,'application/pdf']]) {
   entry=setup();const exportInput=audit.makeControl({column:2,address:'B9',value:1,type:'number'},9,entry,'Length');
   await exportInput.emit('focus');exportInput.value='7.654321987';await exportInput.emit('input');context.document.activeElement=exportInput;
-  let focusedExportBody;audit.setFetch(async(path,options)=>{focusedExportBody=JSON.parse(options.body);return {ok:true,headers:{get:()=>mime},blob:async()=>new Blob(['file contents'])};});
+  let focusedExportBody;audit.setFetch(async(path,options)=>{focusedExportBody=JSON.parse(options.body);return fileSaved();});
   await download();assert.equal(exportInput.blurred,true);assert.equal(focusedExportBody.inputs.CALCULATOR.B9,7.654321987);assert.equal(entry.inputs.CALCULATOR.B9,7.654321987);
   }passed++;
 
@@ -1542,18 +1547,56 @@ let passed = 0;
   audit.setFetch((path,options)=>{switchedBody=JSON.parse(options.body);return switchedRegister.promise;});const switchedRun=download();
   const switchedEntry={...entry,definition:{...entry.definition,id:'ductwork',title:'Ductwork'},inputs:{CALCULATOR:{B9:99}},saved:'{}',invalid:new Map()};
   audit.state.entries.set('ductwork',switchedEntry);audit.state.current='ductwork';
-  switchedRegister.resolve({ok:true,headers:{get:()=>mime},blob:async()=>new Blob(['file contents'])});await switchedRun;
+  switchedRegister.resolve(fileSaved(filename));await switchedRun;
   assert.equal(audit.current(),switchedEntry);assert.equal(switchedEntry.inputs.CALCULATOR.B9,99);assert.equal(entry.inputs.CALCULATOR.B9,4.1234567);assert.equal(switchedBody.inputs.CALCULATOR.B9,4.1234567);
-  assert.equal(context.document.body.children.at(-1).download,filename);assert.match(byId('calculator-message').textContent,/current draft was kept/);
+  assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/${filename}`));assert.match(byId('calculator-message').textContent,/current draft was kept/);
   }passed++;
 
-  // Generation/network failures, wrong MIME and empty files never start a download or leave either button busy.
+  // Every calculator export captures its destination at click time. A later
+  // Save As capability or New-project reset cannot redirect an in-flight file;
+  // the next click uses the new target, including the template-only payload.
+  const priorProjectBridge=context.window.CeasefireProject;
+  try {
+    for(const [download,action,filename,withDetails,template] of [
+      [audit.downloadSchedulePdf,'report.pdf','APPENDIX A.pdf',true,false],
+      [audit.downloadExcelRegister,'register.xlsx','APPENDIX A.xlsx',false,false],
+      [audit.downloadMaterialsSummaryPdf,'summary.pdf','materials-summary.pdf',true,false],
+      [audit.exportTemplate,'template','schedule-template.xlsx',false,true],
+    ]) {
+      entry=setup({CALCULATOR:{B9:7.123456789012345},SETTINGS:{B6:.123456789012345}});
+      let projectToken='project-before-save-as',projectNo='CF-before';
+      context.window.CeasefireProject={downloadTarget:()=>({project_token:projectToken}),details:()=>({project_no:projectNo})};
+      let pending=deferred(),sent;
+      audit.setFetch((path,options)=>{sent={path,body:JSON.parse(options.body),method:options.method,headers:options.headers};return pending.promise;});
+      const firstRun=download();
+      assert.equal(sent.path,`/api/calculators/steel_board/${action}`);assert.equal(sent.method,'POST');assert.equal(sent.headers.Accept,'application/json');
+      assert.deepEqual(sent.body.download,{project_token:'project-before-save-as'});
+      if(template)assert.deepEqual(sent.body,{download:{project_token:'project-before-save-as'}});
+      else {assert.equal(sent.body.inputs.CALCULATOR.B9,7.123456789012345);assert.equal(sent.body.inputs.SETTINGS.B6,.123456789012345);}
+      assert.deepEqual(sent.body.project_details,withDetails?{project_no:'CF-before'}:undefined);
+      projectToken='project-after-save-as';projectNo='CF-after';
+      pending.resolve(fileSaved(filename,'project',`C:/Before/${filename}`));await firstRun;
+      assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Before/${filename}`));assert.equal(audit.state.action,false);
+      pending=deferred();const secondRun=download();assert.deepEqual(sent.body.download,{project_token:'project-after-save-as'});
+      projectToken=null;projectNo='';pending.resolve(fileSaved(filename,'project',`C:/After/${filename}`));await secondRun;
+      assert.ok(byId('calculator-message').textContent.includes(`saved to C:/After/${filename}`));
+      audit.setFetch(async(path,options)=>{sent={path,body:JSON.parse(options.body)};return fileSaved(filename);});await download();
+      assert.deepEqual(sent.body.download,{project_token:null});assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/${filename}`));
+      assert.equal(entry.inputs.CALCULATOR.B9,7.123456789012345);assert.equal(entry.inputs.SETTINGS.B6,.123456789012345);
+    }
+  }finally{if(priorProjectBridge===undefined)delete context.window.CeasefireProject;else context.window.CeasefireProject=priorProjectBridge;}
+  passed++;
+
+  // Generation/network failures, wrong MIME and invalid save receipts never
+  // claim a saved file or leave either button busy.
   for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Download XLSX Schedule'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Download PDF Schedule'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Download PDF Summary']]) {
     const failures=[
       {response:{ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Source validation detail'})},message:/Source validation detail/},
       {response:{ok:false,status:500,headers:{get:()=> 'text/html'},json:async()=>{throw new Error('Must not parse HTML');}},message:/\(500\)/},
       {response:{ok:true,headers:{get:()=> 'text/html'}},message:/did not return/},
-      {response:{ok:true,headers:{get:()=>mime},blob:async()=>new Blob([])},message:/empty file/},
+      {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'',filename:'report.pdf',destination:'downloads'})},message:/did not confirm/},
+      {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false,path:'C:/Downloads/report.pdf',filename:'report.pdf',destination:'downloads'})},message:/did not confirm/},
+      {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>{throw new Error('Invalid JSON');}},message:/did not confirm/},
       {error:new Error('Connection unavailable'),message:/Connection unavailable/},
     ];
     for(const failure of failures) {
@@ -1564,6 +1607,13 @@ let passed = 0;
       assert.equal(JSON.stringify(entry.inputs),inputsBefore);assert.equal(entry.saved,savedBefore);
     }
   }passed++;
+
+  // Template failures use the same validated receipt contract and restore the
+  // controls without altering or saving the current calculator draft.
+  entry=setup({CALCULATOR:{B9:8.123456789012345}});const templateBefore=JSON.stringify(entry.inputs);
+  audit.setFetch(async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Downloads/template.xlsx',filename:'template.xlsx',destination:'unrecognized'})}));
+  await audit.exportTemplate();assert.match(byId('calculator-message').textContent,/did not confirm/);assert.equal(audit.state.action,false);
+  assert.equal(byId('calculator-template').disabled,false);assert.equal(JSON.stringify(entry.inputs),templateBefore);passed++;
 
   // Import and the four distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
@@ -1640,6 +1690,7 @@ let passed = 0;
   entry=dynamicSetup();await audit.calculate();
   assert.equal(renderedControls().length,2);assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-remove]').length,1);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-add]').length,1);assert.equal(audit.dirty(entry),false);
+  assert.equal(byId('calculator-grid').children.at(-1).className,'calculator-schedule-tools');
   assert.match(byId('calculator-page-status').textContent,/1 schedule row · All rows included in calculations/);passed++;
 
   // Adding creates explicitly blank editable cells, including advanced inputs,

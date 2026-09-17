@@ -43,10 +43,16 @@ def create_server(port=8765, database=None, project_dialogs=None):
             self.end_headers()
             self.wfile.write(body)
 
-        def send_report(self, quote, report_kind):
+        def send_download(self, payload, content_type, filename, destination=None):
+            if destination is not None:
+                self.send_payload(200, projects.write_download(destination, filename, payload))
+            else:
+                self.send_payload(200, payload, content_type, {'Content-Disposition': f'attachment; filename="{filename}"'})
+
+        def send_report(self, quote, report_kind, destination=None):
             from .report import render_quote_pdf
             report = render_quote_pdf({**quote, "report_kind": report_kind})
-            self.send_payload(200, report, "application/pdf", {"Content-Disposition": 'attachment; filename="CEASEFIRE-Estimate.pdf"'})
+            self.send_download(report, "application/pdf", "CEASEFIRE-Estimate.pdf", destination)
 
         def send_quote(self, status, quote):
             # Dropdown metadata belongs to the quote's own pricing snapshot.
@@ -117,7 +123,7 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/styles.css", "/calculators.js", "/calculators.css", "/ceasefire-logo.png"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png"}[path.suffix]
@@ -159,6 +165,11 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     if set(body) != {'filename', 'content_base64'}:
                         raise ValidationError('Include the project filename and file content only.')
                     self.send_payload(200, import_project(store, body['filename'], body['content_base64']))
+                elif route.startswith('/api/quotes/') and route.endswith('/report.pdf') and self.command == 'POST':
+                    if set(body) - {'download'}:
+                        raise ValidationError('Saved quote report requests accept download options only.')
+                    destination = projects.capture_download(body['download']) if 'download' in body else None
+                    self.send_report(store.quote(route[len('/api/quotes/'):-len('/report.pdf')]), 'Saved quote', destination)
                 elif calculator_route:
                     from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs, validate_calculator_edits
                     calculator_id, action = calculator_route.groups()
@@ -167,10 +178,11 @@ def create_server(port=8765, database=None, project_dialogs=None):
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs', 'schedule_rows'},
-                               'worksheet': {'inputs', 'sheet', 'include_advanced', 'schedule_view'}, 'report.pdf': {'inputs', 'project_details'}, 'summary.pdf': {'inputs', 'project_details'}, 'register.xlsx': {'inputs'},
-                               'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
+                               'worksheet': {'inputs', 'sheet', 'include_advanced', 'schedule_view'}, 'report.pdf': {'inputs', 'project_details', 'download'}, 'summary.pdf': {'inputs', 'project_details', 'download'}, 'register.xlsx': {'inputs', 'download'},
+                               'template': {'download'}, 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
+                    destination = projects.capture_download(body['download']) if 'download' in body else None
                     if action in {'calculate', 'worksheet', 'report.pdf', 'summary.pdf', 'register.xlsx', 'import'}:
                         saved_inputs = store.calculator_state(calculator_id)['inputs']
                         inputs = validate_calculator_edits(calculator_id, body.get('inputs', saved_inputs), saved_inputs)
@@ -184,13 +196,11 @@ def create_server(port=8765, database=None, project_dialogs=None):
                         builder = build_calculator_report if action == 'report.pdf' else build_calculator_summary_report
                         report = builder(calculator_id, inputs, project_details=project_details(body.get('project_details')))
                         filename = 'APPENDIX A.pdf' if action == 'report.pdf' else f'ceasefire-{calculator_id}-materials-summary.pdf'
-                        self.send_payload(200, report, 'application/pdf',
-                                          {'Content-Disposition': f'attachment; filename="{filename}"'})
+                        self.send_download(report, 'application/pdf', filename, destination)
                     elif action == 'register.xlsx':
                         from .calculator_register import build_calculator_register
                         workbook = build_calculator_register(calculator_id, inputs)
-                        self.send_payload(200, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                          {'Content-Disposition': 'attachment; filename="APPENDIX A.xlsx"'})
+                        self.send_download(workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'APPENDIX A.xlsx', destination)
                     elif action == 'state':
                         if 'inputs' not in body:
                             raise ValidationError('Include the calculator inputs to save.')
@@ -198,8 +208,7 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     elif action == 'template':
                         from .schedule_workbook import export_schedule_template
                         workbook = export_schedule_template(calculator_id)
-                        self.send_payload(200, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                          {'Content-Disposition': f'attachment; filename="ceasefire-{calculator_id}-schedule.xlsx"'})
+                        self.send_download(workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', f'ceasefire-{calculator_id}-schedule.xlsx', destination)
                     elif action == 'import':
                         from .schedule_workbook import import_schedule_workbook
                         filename, content = body.get('filename'), body.get('content_base64')
@@ -218,11 +227,11 @@ def create_server(port=8765, database=None, project_dialogs=None):
                         self.send_payload(200, proposed)
                 elif route == "/api/pricing/export" and self.command == "POST":
                     from .pricing_workbook import export_pricing_workbook
-                    if set(body) - {"configuration"}:
+                    if set(body) - {"configuration", "download"}:
                         raise ValidationError("Unknown pricing export fields.")
+                    destination = projects.capture_download(body['download']) if 'download' in body else None
                     workbook = export_pricing_workbook(body.get("configuration", store.configuration()))
-                    self.send_payload(200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                      {"Content-Disposition": 'attachment; filename="ceasefire-pricing.xlsx"'})
+                    self.send_download(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 'ceasefire-pricing.xlsx', destination)
                 elif route == "/api/pricing/import" and self.command == "POST":
                     from .pricing_workbook import import_pricing_workbook
                     if set(body) - {"filename", "content_base64", "configuration"}:
@@ -243,12 +252,13 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     self.send_payload(200, {**proposed, "catalog": configuration_catalog(config),
                                             "fields": fields(effective_catalog(config))})
                 elif route == "/api/quote-report" and self.command == "POST":
+                    destination = projects.capture_download(body.pop('download')) if 'download' in body else None
                     source_quote_id = body.pop("source_quote_id", None)
                     if source_quote_id is not None and (not isinstance(source_quote_id, str) or not 0 < len(source_quote_id) <= 200):
                         raise ValidationError("Source quote reference must contain 1 to 200 characters.")
                     quote = store.prepare_quote(body, source_quote_id)
                     quote["id"] = None
-                    self.send_report(quote, "Current estimate")
+                    self.send_report(quote, "Current estimate", destination)
                 elif route == "/api/calculate" and self.command == "POST":
                     if set(body) - {"inputs", "configuration", "workflow"}:
                         raise ValidationError("Unknown calculation request fields.")

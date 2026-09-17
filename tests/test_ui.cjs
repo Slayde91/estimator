@@ -27,10 +27,11 @@ const context = {
   FileReader:class { readAsDataURL(){this.result='data:application/octet-stream;base64,AAAA';queueMicrotask(()=>this.onload());} },
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,saveQuote,openQuote,newQuote,confirmReplace,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,reportFilename,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,
+    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -40,6 +41,7 @@ const {audit}=context;
 const copy=x=>JSON.parse(JSON.stringify(x));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {resolve,reject,promise};};
 const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
+const savedResponse=(filename='CEASEFIRE-Estimate.pdf')=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Projects/Original/${filename}`,filename,destination:'project'})});
 const oldFields=[{cell:'D15',label:'Spray material',type:'select',default:'Old spray',options:['Old spray']}];
 const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New spray',options:['New spray']}];
 const oldConfig={inventory:{},rates:{},version:'old'};
@@ -133,23 +135,23 @@ let passed=0;
   audit.setFetch((path,options)=>{exportBody=JSON.parse(options.body);return exported.promise;});
   const exportRun=audit.exportPricing();
   audit.state.draft.rates.concurrent={price:45};
-  exported.resolve({ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:100})});
+  exported.resolve(savedResponse('ceasefire-pricing.xlsx'));
   await exportRun;
   assert.equal(exportBody.configuration.rates.concurrent,undefined);
   assert.equal(audit.state.draft.rates.concurrent.price,45);
   assert.match(byId('app-message').textContent,/Later edits are not included/);passed++;
 
-  // Missing or unsafe PDF filenames use the same Estimator name as the server.
-  for(const disposition of [null,'','attachment','attachment; filename="../report.pdf"',
-    'attachment; filename="C:\\report.pdf"','attachment; filename="report.html"','attachment; filename="<unsafe>.pdf"']) {
-    assert.equal(audit.reportFilename(disposition),'CEASEFIRE-Estimate.pdf');
-  }
-  assert.equal(audit.reportFilename('attachment; filename="CEASEFIRE-Estimate.pdf"'),'CEASEFIRE-Estimate.pdf');
-  assert.equal(audit.reportFilename('attachment; filename=Safe-123.pdf'),'Safe-123.pdf');passed++;
+  // Only a selected project capability determines the download destination.
+  setup();assert.deepEqual(copy(context.window.CeasefireProject.downloadTarget()),{project_token:null});
+  audit.state.projectFile={path:'C:/Projects/One.json',save_token:'original-target'};
+  const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target'};
+  assert.equal(originalTarget.project_token,'original-target');assert.equal(context.window.CeasefireProject.downloadTarget().project_token,'new-target');
+  audit.state.projectFile={name:'browser-import.json'};assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);passed++;
 
   // Both draft and saved downloads retain snapshots and later edits with the common filename.
   for(const saved of [false,true]) {
     setup();audit.state.quote=saved?{id:'saved-report'}:null;audit.state.quoteConfiguration=saved?copy(oldConfig):null;
+    audit.state.projectFile={save_token:'original-target'};
     audit.state.inputs.B12='Preserved workbook note';byId('measurements').value='Captured general note';
     const beforeInputs=copy(audit.state.inputs),beforeConfig=copy(audit.state.quoteConfiguration||audit.state.configuration);
     const pending=deferred();let reportPath,reportOptions;
@@ -157,22 +159,31 @@ let passed=0;
     const download=audit.downloadQuotePdf();
     assert.equal(byId('download-quote-pdf').disabled,true);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),'true');
     audit.state.inputs.B12='Later workbook note';byId('measurements').value='Later general note';audit.state.dirty=true;
-    pending.resolve({ok:true,headers:{get:name=>name==='Content-Type'?'application/pdf':saved?'attachment; filename="CEASEFIRE-Estimate.pdf"':null},blob:async()=>({size:100})});
+    audit.state.projectFile={save_token:'new-target'};
+    pending.resolve(savedResponse());
     await download;
     assert.equal(reportPath,saved?'/api/quotes/saved-report/report.pdf':'/api/quote-report');
-    assert.equal(reportOptions.method,saved?'GET':'POST');
-    if(saved)assert.equal(reportOptions.body,undefined);
+    assert.equal(reportOptions.method,'POST');
+    assert.equal(JSON.parse(reportOptions.body).download.project_token,'original-target');
+    if(saved)assert.deepEqual(JSON.parse(reportOptions.body),{download:{project_token:'original-target'}});
     else {
       const captured=JSON.parse(reportOptions.body);
       assert.deepEqual(captured.inputs,beforeInputs);assert.deepEqual(captured.configuration,beforeConfig);
       assert.equal(captured.measurements,'Captured general note');
     }
-    const link=context.document.body.children.at(-1);assert.equal(link.download,'CEASEFIRE-Estimate.pdf');assert.equal(link.clicked,true);
+    assert.match(byId('app-message').textContent,/PDF saved to C:\/Projects\/Original\/CEASEFIRE-Estimate.pdf/);
     assert.equal(audit.state.inputs.B12,'Later workbook note');assert.equal(byId('measurements').value,'Later general note');
     assert.deepEqual(copy(audit.state.quoteConfiguration||audit.state.configuration),beforeConfig);assert.equal(audit.state.dirty,true);
     assert.match(byId('app-message').textContent,/Later edits are not included/);
     assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);
   }passed++;
+
+  // Failed writes never claim success or mutate the current draft, and release
+  // the download control so users can retry after resolving folder access.
+  setup();const failedInputs=copy(audit.state.inputs);
+  audit.setFetch(async()=>({ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Folder is not writable.'})}));
+  await audit.downloadQuotePdf();assert.match(byId('app-message').textContent,/not downloaded.*Folder is not writable/);
+  assert.deepEqual(copy(audit.state.inputs),failedInputs);assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);passed++;
 
   // Quote naming is derived in the requested order and reaches report payloads.
   setup(); byId('project-no').value=' P-104 ';byId('client').value=' Client One ';byId('site-address').value=' 10 Example Street ';
@@ -246,7 +257,7 @@ let passed=0;
   invalidQuantity.value='1.5';await invalidQuantity.emit('input');invalidCurrency.value='$invalid';await invalidCurrency.emit('input');
   pendingNumericSave.resolve({id:'numeric-save',...numericSaveBody,fields:numericFields});await savingNumbers;
   const numericNodes=node=>[node,...(node.children||[]).flatMap(numericNodes)];
-  const renderedNumeric=cell=>['input-sections','adjustment-sections','material-inputs'].flatMap(id=>numericNodes(byId(id))).find(node=>node.dataset?.cell===cell);
+  const renderedNumeric=cell=>['project-input-fields','input-sections','adjustment-sections','material-inputs'].flatMap(id=>numericNodes(byId(id))).find(node=>node.dataset?.cell===cell);
   assert.equal(renderedNumeric('B15').value,'1.5');assert.equal(renderedNumeric('B28').value,'$invalid');
   assert.equal(renderedNumeric('B15').getAttribute('aria-invalid'),'true');assert.equal(audit.state.inputs.B15,12);assert.equal(audit.state.inputs.B28,0);
   assert.equal(audit.state.inputErrors.size,2);assert.equal(audit.state.dirty,true);assert.match(byId('app-message').textContent,/still need to be saved/);
@@ -398,7 +409,7 @@ let passed=0;
   // Export includes every product and use, irrespective of current search; the saved configuration is untouched.
   productInput('manual','sales_price').value='450';await productInput('manual','sales_price').emit('input');productInput('team','price').value='1050';await productInput('team','price').emit('input');
   byId('pricing-search').value='Topcoat;';await byId('pricing-search').emit('input');let unifiedExport;
-  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return {ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:100})};});await audit.exportPricing();
+  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return savedResponse('ceasefire-pricing.xlsx');});await audit.exportPricing();
   assert.equal(unifiedExport.inventory.manual.sales_price,450);assert.equal(unifiedExport.rates.team.price,1050);
   assert.equal(unifiedExport.catalog.rate_groups.topcoats[0].yield_unit,undefined);assert.equal(audit.state.configuration.inventory.manual,undefined);
   assert.equal(JSON.stringify(pricingFixture),originalPricing);assert.match(byId('app-message').textContent,/all inventory and rate groups/);passed++;
@@ -474,7 +485,7 @@ let passed=0;
   const hiddenNotesInputs=JSON.stringify(audit.state.inputs),hiddenNotesFields=JSON.stringify(audit.state.fields);
   audit.renderInputs();
   const inputDescendants=node=>[node,...(node.children||[]).flatMap(inputDescendants)];
-  const visibleCells=['input-sections','adjustment-sections','material-inputs'].flatMap(id=>inputDescendants(byId(id))).filter(node=>node.dataset?.cell).map(node=>node.dataset.cell);
+  const visibleCells=['project-input-fields','input-sections','adjustment-sections','material-inputs'].flatMap(id=>inputDescendants(byId(id))).filter(node=>node.dataset?.cell).map(node=>node.dataset.cell);
   assert.ok(!visibleCells.includes('B12'));assert.equal(visibleCells.length,audit.state.fields.length-1);
   assert.deepEqual(visibleCells.slice().sort(),audit.state.fields.filter(field=>field.cell!=='B12').map(field=>field.cell).sort());
   assert.equal(JSON.stringify(audit.state.inputs),hiddenNotesInputs);assert.equal(JSON.stringify(audit.state.fields),hiddenNotesFields);
@@ -487,14 +498,14 @@ let passed=0;
     task_days:7.23456789,masking_days:0.123456789,extra_days:1.5,mobilisation_days:.75,total_days:16.987654321}};
   const labourBefore=JSON.stringify(labourResult);audit.renderResults(labourResult);
   const labourRows=()=>byId('labour-results').children;
-  assert.equal(labourRows().length,13);assert.equal(labourRows()[0].children[1].textContent,'1.23');assert.equal(labourRows()[1].children[0].textContent,'Mesh <literal>');assert.equal(labourRows()[2].children[1].textContent,'0.00');
-  assert.equal(labourRows()[8].children[0].textContent,'Task labour subtotal');assert.equal(labourRows()[11].children[0].textContent,'Mobilisation allowance');assert.equal(labourRows()[11].children[1].textContent,'0.75');
-  assert.equal(labourRows()[12].children[0].textContent,'Total project days');assert.equal(labourRows()[12].children[1].textContent,'16.99');assert.equal(byId('sum-days').textContent,'16.99');
+  assert.equal(labourRows().length,12);assert.equal(labourRows()[0].children[1].textContent,'1.23');assert.equal(labourRows()[1].children[0].textContent,'Mesh <literal>');assert.equal(labourRows()[2].children[1].textContent,'0.00');
+  assert.ok(!labourRows().some(row=>row.children[0].textContent==='Task labour subtotal'));assert.equal(labourRows()[10].children[0].textContent,'Mobilisation allowance');assert.equal(labourRows()[10].children[1].textContent,'0.75');
+  assert.equal(labourRows()[11].children[0].textContent,'Total project days');assert.equal(labourRows()[11].children[1].textContent,'16.99');assert.equal(byId('sum-days').textContent,'16.99');
   assert.equal(labourRows()[0].children[0].scope,'row');assert.equal(JSON.stringify(labourResult),labourBefore);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
 
   // Missing and failed labour values remain unavailable or explicit errors rather than plausible zero days.
-  const missingLabour=copy(labourResult);missingLabour.labour.tasks[0].days=null;missingLabour.labour.task_days='#DIV/0!';missingLabour.labour.mobilisation_days='';missingLabour.labour.total_days='#N/A';
-  audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'#DIV/0!');assert.equal(labourRows()[11].children[1].textContent,'—');assert.equal(labourRows()[12].children[1].textContent,'#N/A');
+  const missingLabour=copy(labourResult);missingLabour.labour.tasks[0].days=null;missingLabour.labour.masking_days='#DIV/0!';missingLabour.labour.mobilisation_days='';missingLabour.labour.total_days='#N/A';
+  audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'#DIV/0!');assert.equal(labourRows()[10].children[1].textContent,'—');assert.equal(labourRows()[11].children[1].textContent,'#N/A');
   audit.renderResults({});assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'Labour breakdown is unavailable for this result.');passed++;
 
   // Labour output clears during calculation, rejects stale responses and cannot leave old totals after a failure.
@@ -512,7 +523,7 @@ let passed=0;
     audit.setRequest(async()=>({id:'notes-quote',title:'Saved notes',configuration:oldConfig,fields:currentNotesFields,inputs:{D15:'New spray',B12:savedNotes},workflow:'Fire wrap to ductwork'}));
     await openOlder('notes-quote',element('button'));assert.equal(audit.state.inputs.B12,savedNotes);
     audit.renderInputs();
-    assert.ok(!['input-sections','adjustment-sections','material-inputs'].flatMap(id=>inputDescendants(byId(id))).some(node=>node.dataset?.cell==='B12'));
+    assert.ok(!['project-input-fields','input-sections','adjustment-sections','material-inputs'].flatMap(id=>inputDescendants(byId(id))).some(node=>node.dataset?.cell==='B12'));
     byId('measurements').value='Edited main note';await byId('measurements').emit('input');assert.equal(audit.state.dirty,true);
     let notesBody;audit.setRequest(async(path,options)=>{notesBody=JSON.parse(options.body);return {id:'notes-quote',...notesBody,fields:currentNotesFields};});
     await audit.saveQuote();assert.equal(notesBody.inputs.B12,savedNotes);assert.equal(audit.reportPayload().inputs.B12,savedNotes);assert.equal(notesBody.measurements,'Edited main note');

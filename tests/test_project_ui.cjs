@@ -10,7 +10,7 @@ const ids = ['steel_vermiculite', 'steel_board', 'ductwork'];
 const titles = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'];
 const listing = ids.map((id, index) => ({ id, title: titles[index] }));
 const projectFilename = 'CEASEFIRE-Project.ceasefire-project.json';
-const fileResponse = type => ({ ok: true, status: 200, headers: { get: key => key === 'Content-Type' ? type : null }, blob: async () => ({ size: 500 }) });
+const fileResponse = type => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({saved:true,path:`C:/Downloads/report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,filename:`report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,destination:'downloads'}) });
 function definition(id) {
   return { id, title: titles[ids.indexOf(id)], pages: ['CALCULATOR'], inputs: { CALCULATOR: { A9: 'Local saved value' } },
     sheets: [{ name: 'CALCULATOR', header_rows: [], hidden_columns: [], merges: [] }], documents: [] };
@@ -47,6 +47,7 @@ function harness() {
     FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,QUFBQQ=='; queueMicrotask(() => this.onload()); } },
   };
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   let calculatorSource = fs.readFileSync('static/calculators.js', 'utf8');
   const bridge = '  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };';
   assert.ok(calculatorSource.includes(bridge), 'Calculator test hook must match the actual project bridge');
@@ -220,8 +221,9 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     const details = copy(h.context.window.CeasefireProject.details()), inputs = copy(entry.inputs);
     const download = ({ schedule: h.calc.downloadSchedulePdf, summary: h.calc.downloadMaterialsSummaryPdf, xlsx: h.calc.downloadExcelRegister })[action]();
     assert.deepEqual(sent.body.inputs, inputs);
-    if (action === 'xlsx') assert.deepEqual(Object.keys(sent.body), ['inputs']);
+    if (action === 'xlsx') assert.deepEqual(Object.keys(sent.body), ['inputs','download']);
     else assert.deepEqual(sent.body.project_details, details);
+    assert.deepEqual(sent.body.download,{project_token:null});
     h.byId('client').value = 'Client changed after click';
     pending.resolve(fileResponse(action === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf')); await download;
     if (action !== 'xlsx') assert.match(h.byId('calculator-message').textContent, /later edits are not included/);

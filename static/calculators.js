@@ -18,17 +18,19 @@
       CALCULATOR: { center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I24"] }, // 8–9
       SETTINGS: {
+        omit: ["A1"],
         center: ["A10:L15", "A54:L58", "A86:L90", "A123:L167", "A196:L223", "A259:L264"], // 10–11, 17–20
         left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239"], // 12–16
       },
     },
     steel_board: {
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"] }, // 22
-      SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" } }, // 23–25
+      SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
       SUMMARY: { center: ["A8:J11", "A18:F26", "A30:C32", "A39:G41"], text: { A17: "PENETRATION ANGLES" } }, // 27–30
       "PRODUCT SETTINGS": {
+        omit: ["A1"],
         center: ["A36:H39", "B7:D35", "B44:D46", "B90:D92", "A74:H79", "B49:D73", "B95:D115",
           "A117:H121", "A123:H127", "A129:H134", "A136:H141", "J95:Q104", "J116:Q130"], // 31–43
       },
@@ -329,7 +331,9 @@
 
   function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
   function displayPages(definition) {
-    return definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
+    const pages = definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
+    return pages.map((page) => page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
+      { ...page, label: definition.id === "steel_vermiculite" ? "LOOKUP" : ["steel_board", "ductwork"].includes(definition.id) ? "SCHEDULE" : page.label } : page);
   }
   function currentPage(entry) { return entry.page || entry.sheet; }
   function pageDefinition(entry) { return displayPages(entry.definition).find((page) => page.id === currentPage(entry)) || { id: currentPage(entry), label: currentPage(entry), sheet: entry.sheet }; }
@@ -346,7 +350,6 @@
     const overrides = result?.display_text || sheetMetadata(entry).display_text || {};
     if (Object.prototype.hasOwnProperty.call(overrides, address) && typeof overrides[address] === "string") return overrides[address];
     if (typeof value !== "string") return value;
-    if (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && address === "A1") return "SETTINGS & RULES";
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
     const position = parseAddress(address);
@@ -607,7 +610,8 @@
 
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: result?.omitted_ranges || metadata.omitted_ranges || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: result?.settings_sections ?? metadata.settings_sections ?? [], display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
+    const omittedRanges = [...(result?.omitted_ranges || metadata.omitted_ranges || []), ...(browserPresentation[entry.definition.id]?.[entry.sheet]?.omit || [])];
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: result?.settings_sections ?? metadata.settings_sections ?? [], display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {
@@ -1030,7 +1034,6 @@
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
-    if (dynamicSchedule) content.push(renderScheduleTools(entry));
     const logicalSections = new Map();
     const displayGroups = [...sections], tableSlots = displayGroups.map(([, group], index) => group.definition ? index : -1).filter((index) => index >= 0);
     if (metadata.display_table_order.length) {
@@ -1109,6 +1112,7 @@
         section.append(heading, scroll); append(section);
       } else append(scroll);
     }
+    if (dynamicSchedule) content.push(renderScheduleTools(entry));
     if (settings) content.push(settings.chooser, ...settings.panels.values());
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     if (dynamicSchedule) for (const scroll of grid.querySelectorAll("[data-schedule-viewport]")) { scroll.scrollTop = entry.scheduleViewport?.top || 0; scroll.scrollLeft = entry.scheduleViewport?.left || 0; }
@@ -1359,18 +1363,13 @@
     const entry = current(); if (!entry || state.action) return;
     state.action = true; updateStatus();
     try {
-      const response = await fetch(endpoint(entry.definition.id, "template"), { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      if (!response.ok) { const error = await response.json(); throw new Error(error.error || "Template export failed."); }
-      const blob = await response.blob();
-      if (!String(response.headers.get("Content-Type") || "").includes("spreadsheetml.sheet")) throw new Error("The server did not return an Excel workbook.");
-      const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `ceasefire-${entry.definition.id}-schedule.xlsx`;
-      document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-      message("Schedule template exported. Complete its input columns, then use Import XLSX Schedule.");
+      const saved = await window.CeasefireDownloads.save(endpoint(entry.definition.id, "template"));
+      message(`Schedule template saved to ${saved.path}. Complete its input columns, then use Import XLSX Schedule.`);
     } catch (error) { message(`Could not export the template. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
   }
 
-  async function downloadCalculatedFile({ action, buttonId, filename, fixedFilename = false, label, mimeType, fileDescription }) {
+  async function downloadCalculatedFile({ action, buttonId, label, includeProjectDetails = false }) {
     const entry = current(); if (!entry || entry.invalid.size || state.action) return;
     // Input events retain exact edits; blur completes dropdown validation before
     // the server calculates the captured draft for the downloaded file.
@@ -1378,40 +1377,28 @@
     if ((focused?.dataset?.calculatorCell || focused?.dataset?.calculatorCustomCell) && focused.dataset.calculatorSheet === entry.sheet) focused.blur();
     if (current() !== entry || entry.invalid.size) return;
     const id = entry.definition.id, snapshot = clone(entry.inputs), revision = entry.revision;
-    const projectDetails = mimeType === "application/pdf" ? clone(window.CeasefireProject?.details() || {}) : null;
+    const projectDetails = includeProjectDetails ? clone(window.CeasefireProject?.details() || {}) : null;
     const button = $(buttonId), previousLabel = button.textContent;
     state.action = true; updateStatus();
     button.textContent = `Preparing ${label}…`; button.setAttribute("aria-busy", "true");
     try {
-      const response = await fetch(endpoint(id, action), { method: "POST", headers: { "Content-Type": "application/json", Accept: mimeType }, body: JSON.stringify({ inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) }) });
-      const contentType = String(response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
-      if (!response.ok) {
-        let detail = `The server could not create the ${label} (${response.status}).`;
-        if (contentType === "application/json") { const error = await response.json().catch(() => null); if (typeof error?.error === "string") detail = error.error; }
-        throw new Error(detail);
-      }
-      if (contentType !== mimeType) throw new Error(`The server did not return ${fileDescription}.`);
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("The server returned an empty file.");
-      const url = URL.createObjectURL(blob), link = node("a");
-      link.href = url; link.download = fixedFilename ? filename : `ceasefire-${id}-${filename}`; document.body.append(link);
-      try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      const saved = await window.CeasefireDownloads.save(endpoint(id, action), { inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) });
       const changed = current() !== entry || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
-      message(`${label} download started using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
+      message(`${label} saved to ${saved.path} using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
     } catch (error) { message(`Could not download the ${label}. ${error.message}`, true); }
     finally { button.textContent = previousLabel; button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
   }
 
   function downloadSchedulePdf() {
-    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", filename: "APPENDIX A.pdf", fixedFilename: true, label: "PDF Schedule", mimeType: "application/pdf", fileDescription: "a PDF report" });
+    return downloadCalculatedFile({ action: "report.pdf", buttonId: "calculator-pdf", label: "PDF Schedule", includeProjectDetails: true });
   }
 
   function downloadExcelRegister() {
-    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", filename: "APPENDIX A.xlsx", fixedFilename: true, label: "XLSX Schedule", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileDescription: "an Excel workbook" });
+    return downloadCalculatedFile({ action: "register.xlsx", buttonId: "calculator-excel", label: "XLSX Schedule" });
   }
 
   function downloadMaterialsSummaryPdf() {
-    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", filename: "materials-summary.pdf", label: "PDF Summary", mimeType: "application/pdf", fileDescription: "a PDF report" });
+    return downloadCalculatedFile({ action: "summary.pdf", buttonId: "calculator-summary-pdf", label: "PDF Summary", includeProjectDetails: true });
   }
 
   $("calculator-reset").addEventListener("click", reset);

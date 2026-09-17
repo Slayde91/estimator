@@ -346,6 +346,31 @@ class ProjectLibrary:
             self._save_targets[token] = SaveSelection(str(path), fingerprint)
         return {**metadata, "save_token": token}
 
+    def capture_download(self, request):
+        """Bind an export to its requesting window's selected file, not global state."""
+        from .download_files import DownloadDestination, standard_downloads_directory
+        if not isinstance(request, dict) or set(request) != {'project_token'}:
+            raise ValidationError('Download options must contain the current project token only.')
+        token = request['project_token']
+        if token is None:
+            return DownloadDestination(standard_downloads_directory(), 'downloads')
+        if not isinstance(token, str) or not 1 <= len(token) <= 200:
+            raise ValidationError('The download project selection is invalid. Reload the project or use Save As.')
+        with self._lock:
+            selection = self._save_targets.get(token)
+            if selection is None:
+                raise ValidationError('The download project selection is no longer available. Reload the project or use Save As.')
+            if file_fingerprint(selection.path) != selection.fingerprint:
+                raise ValidationError('The project file changed or was removed. Reload it or use Save As before downloading.')
+            return DownloadDestination(_directory(Path(selection.path).parent), 'project')
+
+    def write_download(self, destination, filename, payload):
+        from .download_files import write_download_file
+        with self._lock:
+            # The captured authorization remains valid for this one download
+            # even if Save rotates the token while the report is rendering.
+            return write_download_file(destination, filename, payload)
+
     def open_file(self):
         with _dialog():
             selected = self.dialogs.choose_open(self.store.project_folder())

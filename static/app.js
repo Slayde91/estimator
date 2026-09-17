@@ -239,19 +239,22 @@
     const before = $("input-sections");
     const after = $("adjustment-sections");
     const materials = $("material-inputs");
-    before.replaceChildren(); after.replaceChildren(); materials.replaceChildren();
-    const job = [], labour = [], adjustments = [], additions = [], remainder = [];
+    const project = $("project-input-fields");
+    before.replaceChildren(); after.replaceChildren(); materials.replaceChildren(); project.replaceChildren();
+    const job = [], labour = [], masking = [], adjustments = [], additions = [], remainder = [];
     for (const field of state.fields) {
       // Keep historical workbook notes in the snapshot without a second editor.
       if (field.cell === "B12") continue;
       if (/^[BCDE](1[5-9]|2[0-3])$/.test(field.cell)) continue;
-      if (/^B([2-9]|10)$/.test(field.cell)) job.push(field);
+      if (field.cell === "B8") project.append(makeControl(field));
+      else if (field.cell === "B9" || field.cell === "B10") masking.push(field);
+      else if (/^B[2-7]$/.test(field.cell)) job.push(field);
       else if (/^D[2-9]$/.test(field.cell) || field.cell === "D10") labour.push(field);
       else if (/^B2[6-8]$/.test(field.cell)) adjustments.push(field);
       else if (/^[EF]2[6-8]$/.test(field.cell)) additions.push({ ...field, label: additionLabels[field.cell] });
       else remainder.push(field);
     }
-    for (const card of [inputCard("Job, access and travel", job), inputCard("Labour teams", labour)]) if (card) before.append(card);
+    for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour), inputCard("Masking/Cleaning", masking)]) if (card) before.append(card);
     for (let row = 15; row <= 23; row++) {
       const tr = node("tr");
       const title = node("td", "material-label", materialNames[row - 15][0]);
@@ -279,10 +282,10 @@
       tr.append(yieldCell);
       materials.append(tr);
     }
-    const additionCard = inputCard("Additional labour and fees", additions);
+    const additionCard = inputCard("Additions", additions);
     additionCard?.querySelector(".fields").classList.add("two-columns");
     for (const card of [
-      inputCard("Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote."),
+      inputCard("Global Adjustments", adjustments, "Percentage inputs are shown as percentages: enter 10 for 10%. A negative global amount deducts from the quote."),
       additionCard,
       inputCard("Other estimate inputs", remainder),
     ]) if (card) after.append(card);
@@ -365,7 +368,6 @@
         labelCell.scope = "row"; row.append(labelCell, node("td", "numeric", formatNumber(days))); labourRows.push(row);
       };
       for (const task of labour.tasks || []) addDays(task.name, task.days);
-      addDays("Task labour subtotal", labour.task_days, "labour-subtotal");
       addDays("Masking / cleaning", labour.masking_days);
       addDays("Extra labour", labour.extra_days);
       addDays("Mobilisation allowance", labour.mobilisation_days);
@@ -1078,15 +1080,6 @@
     finally { button.disabled = false; $("use-current-pricing").disabled = false; }
   }
 
-  function downloadFile(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const link = node("a");
-    link.href = url; link.download = filename; link.hidden = true;
-    document.body.append(link);
-    try { link.click(); }
-    finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }
-  }
-
   async function exportPricing() {
     document.activeElement?.blur?.();
     if (pricingInputProblem()) { message(pricingInputProblem(), true); return; }
@@ -1095,22 +1088,10 @@
     const draft = JSON.stringify(state.draft);
     button.disabled = true; button.textContent = "Exporting…";
     try {
-      const response = await fetch("/api/pricing/export", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ configuration: JSON.parse(draft) }),
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        throw new Error(detail?.error || `Export failed (${response.status}).`);
-      }
-      const contentType = (response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
-      if (contentType !== "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") throw new Error("The server did not return an Excel workbook.");
-      const workbook = await response.blob();
-      if (!workbook.size) throw new Error("The server returned an empty workbook.");
-      downloadFile(workbook, "ceasefire-pricing.xlsx");
+      const saved = await window.CeasefireDownloads.save("/api/pricing/export", { configuration: JSON.parse(draft) });
       message(draft === JSON.stringify(state.draft)
-        ? "Excel download started. It includes all inventory and rate groups, including your unsaved pricing edits."
-        : "Excel download started using the pricing captured when you clicked Export Excel. Later edits are not included.");
+        ? `Excel saved to ${saved.path}. It includes all inventory and rate groups, including your unsaved pricing edits.`
+        : `Excel saved to ${saved.path} using the pricing captured when you clicked Export Excel. Later edits are not included.`);
     } catch (error) { message(`Pricing was not exported. ${error.message}`, true); }
     finally { button.disabled = false; button.textContent = "Export Excel"; }
   }
@@ -1189,13 +1170,6 @@
       measurements: $("measurements").value,
       ...(state.quote ? { source_quote_id: state.quote.id } : {}),
     };
-  }
-
-  function reportFilename(disposition) {
-    const match = /(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;]*))/i.exec(disposition || "");
-    const filename = (match?.[1] ?? match?.[2] ?? "").trim();
-    // Accept only safe ASCII filenames; ignore paths or unexpected values.
-    return /^[a-z0-9][a-z0-9._-]{0,180}\.pdf$/i.test(filename) ? filename : "CEASEFIRE-Estimate.pdf";
   }
 
   function projectEstimate() {
@@ -1391,43 +1365,15 @@
     const capturedPayload = JSON.stringify(payload);
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
     const reportPath = savedReportId ? `/api/quotes/${encodeURIComponent(savedReportId)}/report.pdf` : "/api/quote-report";
-    const reportOptions = savedReportId
-      ? { method: "GET", headers: { "Accept": "application/pdf" } }
-      : { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/pdf" }, body: capturedPayload };
     button.disabled = true;
     button.textContent = "Preparing PDF…";
     button.setAttribute("aria-busy", "true");
     try {
-      const response = await fetch(reportPath, reportOptions);
-      const contentType = (response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
-      if (!response.ok) {
-        let detail = `The server could not create the PDF (${response.status}).`;
-        if (contentType === "application/json") {
-          const data = await response.json().catch(() => null);
-          if (typeof data?.error === "string") detail = data.error;
-          else if (typeof data?.message === "string") detail = data.message;
-        }
-        throw new Error(detail);
-      }
-      if (contentType !== "application/pdf") throw new Error("The server returned an unexpected file type instead of a PDF.");
-      const pdf = await response.blob();
-      if (!pdf.size) throw new Error("The server returned an empty PDF.");
-      const url = URL.createObjectURL(pdf);
-      const link = node("a");
-      link.href = url;
-      link.download = reportFilename(response.headers.get("Content-Disposition"));
-      link.hidden = true;
-      document.body.append(link);
-      try { link.click(); }
-      finally {
-        link.remove();
-        // Allow the browser to begin reading the blob before releasing it.
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      }
+      const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload);
       const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload());
       message(estimateChanged
-        ? `PDF download started for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Download PDF"}. Later edits are not included.`
-        : `PDF download started for “${payload.title}”.`);
+        ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Download PDF"}. Later edits are not included.`
+        : `PDF saved to ${saved.path} for “${payload.title}”.`);
     } catch (error) { message(`PDF for “${payload.title}” was not downloaded. ${error.message}`, true); }
     finally {
       button.disabled = false;
@@ -1474,6 +1420,7 @@
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
   window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration)) { event.preventDefault(); event.returnValue = ""; } });
-  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus };
+  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus,
+    downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   bootstrap();
 })();

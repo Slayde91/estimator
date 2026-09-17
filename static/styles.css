@@ -34,7 +34,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .eyebrow{font-size:10px;font-weight:800;letter-spacing:2.3px;color:var(--accent);margin-bottom:9px}
 .subtitle{margin-top:9px;font-size:13px;color:var(--muted)}
 .actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-.project-save-actions{display:inline-flex;gap:9px;align-items:center}
+.project-save-actions,.project-edit-actions{display:inline-flex;gap:9px;align-items:center}
 .project-tools{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;margin-bottom:28px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:12px;background:#fff}
 .project-tools[hidden]{display:none}
 .project-tools>div:first-child{min-width:0}
@@ -72,6 +72,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .full-width{margin-top:20px}
 .helper{font-size:11px;color:var(--muted);line-height:1.65;margin-top:11px}
 .generated-title .helper{display:block;margin-top:5px;font-size:10px}
+.generated-title[hidden]{display:none}
 .workflow-section{border-top:1px solid #f0e9ec;margin-top:22px;padding-top:20px}
 .work-summary-panel{margin-top:16px;padding:16px 18px;background:linear-gradient(125deg,#fff7ef,#fffaf6);border:1px solid #f6e2ce;border-left:3px solid var(--gold);border-radius:10px}
 .work-summary-panel .section-heading{margin-bottom:9px;align-items:center}

@@ -154,6 +154,7 @@ class ProjectLibraryTests(unittest.TestCase):
             "steel_board": {"inputs": {"CALCULATOR": {"F1008": 2.123456789}, "EXTRA BOARDS": {"A45": "Keep allowance"}}},
             "ductwork": {"inputs": {"CALCULATOR": {"D1010": 9.876543210987}, "PRODUCT SETTINGS": {"B97": 1.22}}},
         }
+        original_request = copy.deepcopy(request)
         calls = len(self.dialogs.calls)
         overwrite = {**request, "save_token": saved["file"]["save_token"]}
         result = self.library.save(overwrite)
@@ -164,7 +165,13 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertEqual(snapshot["estimate"]["measurements"], request["estimate"]["measurements"])
         self.assertEqual(snapshot["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
         for name, calculator in request["calculators"].items():
-            self.assertEqual(snapshot["calculators"][name]["inputs"], calculator["inputs"])
+            expected_inputs = calculator["inputs"]
+            if name == "ductwork":
+                # Canonicalize only the source example's Mixed orientation;
+                # retain the precise late-row input and settings as supplied.
+                expected_inputs = {**expected_inputs, "CALCULATOR": {**expected_inputs["CALCULATOR"], "I13": "Both"}}
+            self.assertEqual(snapshot["calculators"][name]["inputs"], expected_inputs)
+        self.assertEqual(request, original_request)
         self.assertNotEqual(result["file"]["save_token"], overwrite["save_token"])
         with self.assertRaisesRegex(ValidationError, "no longer available"):
             self.library.save(overwrite)

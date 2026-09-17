@@ -166,11 +166,14 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
     def test_save_reopen_and_fresh_store_preserve_precision_and_source_hash(self):
         inputs = {"CALCULATOR": {"D11": 2.1234567890123457, "F11": 0, "G11": None},
                   "PRODUCT SETTINGS": {"B97": 1.22}}
+        # Sparse drafts inherit the source example's Mixed orientation; saving
+        # records its canonical Both value without rounding any supplied input.
+        expected = {**inputs, "CALCULATOR": {**inputs["CALCULATOR"], "I13": "Both"}}
         saved = self.save(inputs)
-        self.assertEqual(saved["inputs"], inputs)
+        self.assertEqual(saved["inputs"], expected)
         self.assertEqual(saved["source_sha256"], self.definition()["source"]["sha256"])
         self.assertTrue(saved["updated_at"])
-        self.assertEqual(self.definition()["inputs"], inputs)
+        self.assertEqual(self.definition()["inputs"], expected)
         self.assertEqual(Store(self.database).calculator_state("ductwork"), saved)
         page = self.calculate()
         self.assertEqual(self.cell(page, "D11")["value"], inputs["CALCULATOR"]["D11"])
@@ -187,7 +190,9 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
             self.save(inputs, identity)
         self.assertEqual(len(self.stored_rows()), 3)
         for identity, inputs in supplied.items():
-            self.assertEqual(self.definition(identity)["inputs"], inputs)
+            expected = ({**inputs, "CALCULATOR": {**inputs["CALCULATOR"], "I13": "Both"}}
+                        if identity == "ductwork" else inputs)
+            self.assertEqual(self.definition(identity)["inputs"], expected)
         self.save({"CALCULATOR": {"D11": 7}})
         for identity in ("steel_vermiculite", "steel_board"):
             self.assertEqual(self.definition(identity)["inputs"], supplied[identity])
@@ -235,6 +240,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
 
     def test_import_is_a_draft_then_save_replaces_schedule_and_keeps_settings(self):
         old = {"CALCULATOR": {"B11": "400x200", "D11": 4}, "PRODUCT SETTINGS": {"B97": 1.22}}
+        expected_old = {**old, "CALCULATOR": {**old["CALCULATOR"], "I13": "Both"}}
         self.save(old)
         before = self.stored_rows()
         workbook = load_workbook(BytesIO(self.exported()))
@@ -254,7 +260,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertIsNone(proposed["inputs"]["CALCULATOR"]["B12"])
         self.assertEqual(proposed["inputs"]["PRODUCT SETTINGS"], old["PRODUCT SETTINGS"])
         self.assertEqual(self.stored_rows(), before)
-        self.assertEqual(self.definition()["inputs"], old)
+        self.assertEqual(self.definition()["inputs"], expected_old)
         saved = self.save(proposed["inputs"])
         self.assertEqual(self.definition()["inputs"], proposed["inputs"])
         self.assertEqual(Store(self.database).calculator_state("ductwork"), saved)

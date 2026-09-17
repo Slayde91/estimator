@@ -212,3 +212,43 @@ generic external ratings, unsupported inputs, row 1000, aliases, strict XLSX
 templates, normalized imports, and directional notes in both PDFs and Excel.
 The original native parity suite continues to evaluate the unchanged source
 formulas separately from the approved application overrides.
+
+## Current source workbook reconciliation
+
+A fresh read-only comparison found that the current
+`Ceasefire_Duct_Estimator_NEW.xlsx` differs from the preserved original:
+
+- Preserved original SHA-256:
+  `9b2e5388a0118c4b3f66ea57f582d487d156585b45d9f34ebc8178f270ff7462`.
+- Current workbook SHA-256:
+  `7ad569ad83d66298d7fba3c291a836b6e75cbfbc687c02fc53df837e2e45299b`.
+
+Independent OOXML decoding found 20 changed example-input literals, all in
+`CALCULATOR` rows 13-15. These are changes to schedule examples, including
+dimensions, exposure/application choices, orientation and penetration counts;
+they are not merely formatting changes. There are no changed literal values
+in `PRODUCT SETTINGS`.
+
+All 24,059 formulas retain the same calculation logic: 24,021 formula strings
+match exactly, and 38 `SUMMARY` formulas differ only in redundant single quotes
+around the `CALCULATOR` worksheet name. Independent token comparison found no
+other formula-token differences. Defined names and table calculation columns
+also match. Workbook calculation settings differ only by the presence of an
+Excel calculation-version identifier, without changed precision, iteration or
+calculation-mode settings. Stored formula caches also differ, as expected with
+changed examples and workbook serialization; cached answers are not the
+application's calculated outputs.
+
+The bounded strict catalog comparison completed with exit status 1 for this
+current duct workbook: 77,158 stored-field differences, including exactly 20
+literal-value and 38 formula-text differences. The remaining differences are
+source identity, caches, formula encoding, cell types, styles and other stored
+metadata. This remains a strict mismatch; it was not accepted as a new baseline.
+The preserved spray and board originals in the same comparison matched their
+catalogs with zero differences. Source and catalog hashes were checked before
+and after reading and remained unchanged during the audit.
+
+This source-file reconciliation is separate from the intentional application
+policy overrides described above. No source workbook was rewritten or opened
+in Excel for this comparison. The findings do not attribute the source edits
+to an author or establish when they occurred relative to this implementation.

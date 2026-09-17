@@ -86,7 +86,12 @@ class ScheduleRowsTests(unittest.TestCase):
                 entry['inputs'] = {}
             reopened = load_project_bytes(store, json.dumps(legacy).encode())
             for identity in IDS:
-                self.assertEqual(reopened['calculators'][identity]['inputs'], {})
+                # A legacy empty overlay retains source examples. The ductwork
+                # example's Mixed orientation is now the canonical Both alias;
+                # it is the only required overlay and no source row moves.
+                expected_inputs = {'CALCULATOR': {'I13': 'Both'}} if identity == 'ductwork' else {}
+                self.assertEqual(reopened['calculators'][identity]['inputs'], expected_inputs)
+                self.assertEqual(legacy['calculators'][identity]['inputs'], {})
                 self.assertEqual(reopened['calculators'][identity]['schedule_rows'], normalize_schedule_rows(identity, {}))
 
     def test_import_extent_ignores_generated_lines_and_preserves_gaps_partial_data(self):

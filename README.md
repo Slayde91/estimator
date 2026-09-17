@@ -181,8 +181,16 @@ To verify the import against the original files:
 
 ```powershell
 $env:ESTIMATOR_WORKBOOK_DIR = 'C:\ESTIMATOR'
+$env:ESTIMATOR_CALCULATOR_SOURCE_DIR = 'PATH TO BYTE-IDENTICAL ORIGINAL CALCULATOR WORKBOOKS'
 python -m unittest discover -s tests -v
 ```
+
+The second directory must contain the three original calculator filenames and
+recorded source bytes. Editable OneDrive copies can differ after Excel saves
+them. Strict reconstruction reports those differences even when separately
+audited calculations agree; it never updates the frozen app source automatically.
+See the [integrity audit](docs/CALCULATOR_INTEGRITY_AUDIT.md) and the later
+[FyreWrap source reconciliation](docs/FYREWRAP_RULE_REVIEW.md).
 
 Without the files, two source-reconstruction tests skip; all committed Excel fixtures still run. Tests also cover pricing workbook round trips, complete replacements, invalid imports, pricing links, quote metadata/names, deterministic work summaries, display precision and saved-quote isolation. Oracle regeneration is optional developer tooling and needs Microsoft Excel, PowerShell 7, and openpyxl; see `docs/CALCULATOR_SPEC.md`.
 

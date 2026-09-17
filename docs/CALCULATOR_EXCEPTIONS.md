@@ -1,5 +1,52 @@
 # Approved calculator exceptions
 
+## FyreWrap application FRLs and closed schedule choices
+
+On 17 September 2026 the user authorized reconciling the ductwork dropdowns,
+reviewing FyreWrap layer quantities against the manual, and updating outputs.
+The user then explicitly selected the highest application FRL while preserving
+each fire direction's actual requirement. This is a calculation-policy change,
+separate from the earlier presentation and fixing-text changes.
+
+The source workbook, compressed catalogs, native Excel captures and generic
+Excel evaluator remain unchanged. `ductwork_policy.py` supplies canonical input
+aliases and runtime-only validation metadata; `ductwork_rules.py` supplies named
+formula overrides through the existing application boundary. Their source hash
+continues to identify the original workbook, not equivalence to its old rules.
+
+- Numeric FRLs become full FRLs. The two removed 120-minute partial FRLs become
+  the displayed `120/120/120` application rating. Higher/unknown ratings are not
+  reduced or silently discarded.
+- Kitchen inside/outside, diesel and other exhaust map to Internal. Combined
+  kitchen/smoke, smoke and stair pressure relief map to Both. Mixed maps to Both
+  for exposure and orientation. Stair/Other pressurisation remain separate.
+- FyreWrap Internal/Both denote the manual's exhaust applications. Known lower
+  ratings are raised to 120/120/120, including the old kitchen -/30/30 case.
+  The retained pressurisation applications use the same displayed maximum;
+  their actual external requirements remain 120/120/60 and 120/120/120.
+  Generic External continues to require its selected full external FRL.
+- Internal/Both exhaust uses one continuous layer plus eligible local layers.
+  Stair/Other pressurisation retains two/three continuous layers. The existing
+  area, overlap, local-length cap, board and angle arithmetic is unchanged.
+- The current manual and assessment do not establish one universal external
+  penetration rule. Those complete wrap totals remain withheld. The final wall
+  band above 2400mm in both dimensions is now also withheld because the manual
+  and detailed assessment disagree at its upper end.
+- The four duct schedule dropdowns have closed lists. Unknown historic values
+  remain visible for correction, with no custom editor and no complete wrap
+  quantity. Other calculators retain their original dropdown behavior.
+
+Normalization applies consistently to calculation, imports, project load/save
+and output generation. It does not rewrite an original project file or database
+record merely by reading it. Saving reconciles the draft explicitly. Notes in
+the application and exports retain the directional ratings and limitations.
+Historical projects are recalculated under this approved application policy;
+this is not a claim that changed FyreWrap cases reproduce the old workbook.
+
+The detailed evidence and independent takeoffs are recorded in
+[FYREWRAP_RULE_REVIEW.md](FYREWRAP_RULE_REVIEW.md). Original native parity remains
+tested separately, and new hand-derived cases test the intentional exceptions.
+
 ## Ductwork penetration fixing text
 
 On 13 September 2026 the user approved correcting copied technical text in the

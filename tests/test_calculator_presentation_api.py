@@ -126,13 +126,16 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         for identity, inputs in cases.items():
             with self.subTest(calculator=identity):
                 sheet = next(iter(inputs))
+                # The source example's legacy Mixed orientation is reconciled
+                # in the returned draft even when another row alone is edited.
+                expected = {sheet: {**inputs[sheet], **({'I13': 'Both'} if identity == 'ductwork' else {})}}
                 before = self.stored_rows()
-                self.assertEqual(self.worksheet(identity, sheet, inputs=inputs)['inputs'], inputs)
+                self.assertEqual(self.worksheet(identity, sheet, inputs=inputs)['inputs'], expected)
                 self.assertEqual(self.stored_rows(), before)
                 saved = self.json_request('PUT', f'/api/calculators/{identity}/state', {'inputs': inputs})
-                self.assertEqual(saved['inputs'], inputs)
-                self.assertEqual(Store(self.database).calculator_state(identity)['inputs'], inputs)
-                self.assertEqual(self.json_request('GET', f'/api/calculators/{identity}')['inputs'], inputs)
+                self.assertEqual(saved['inputs'], expected)
+                self.assertEqual(Store(self.database).calculator_state(identity)['inputs'], expected)
+                self.assertEqual(self.json_request('GET', f'/api/calculators/{identity}')['inputs'], expected)
                 after_save = self.stored_rows()
                 self.worksheet(identity, sheet, inputs={})
                 self.assertEqual(self.stored_rows(), after_save)
@@ -174,7 +177,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             elif identity == 'ductwork':
                 self.assertEqual(page['display_text']['J94'], 'FYREWRAP APPLICATION TABLE')
                 self.assertIn('MANUAL', self.cells(page)['J94']['value'])
-                self.assertTrue(any('copied fixing instructions' in warning for warning in page['warnings']))
+                self.assertTrue(any('directional requirements' in warning and 'external 120/120/60' in warning for warning in page['warnings']))
         self.assertEqual(self.stored_rows(), before)
 
     def test_display_tabs_keep_the_original_settings_api_and_saved_input_scope(self):
@@ -235,7 +238,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         before = self.stored_rows()
         draft = {"CALCULATOR": {"D11": 12.345678901234567}, "PRODUCT SETTINGS": {"B46": 20}}
         changed = self.worksheet("ductwork", "CALCULATOR", inputs=draft)
-        self.assertEqual(changed["inputs"], draft)
+        self.assertEqual(changed["inputs"], {**draft, 'CALCULATOR': {**draft['CALCULATOR'], 'I13': 'Both'}})
         self.assertEqual(self.cells(changed)["K11"]["value"], 12.345678901234567)
         current = self.worksheet("ductwork", "CALCULATOR")
         self.assertEqual(current["inputs"], saved["inputs"])

@@ -1,6 +1,7 @@
 """Portable project round trips and untrusted-file boundaries on disposable DBs."""
 
 import base64
+from copy import deepcopy
 import http.client
 import json
 from pathlib import Path
@@ -70,6 +71,7 @@ class ProjectFileTests(unittest.TestCase):
             "ductwork": {"inputs": {"CALCULATOR": {"B1010": "1200x450", "D1010": 9.876543210987},
                                     "PRODUCT SETTINGS": {"B97": 1.22}}},
         }
+        original_drafts = deepcopy(drafts)
         before_sender = stored_rows(self.sender)
         payload = export_project(self.sender, {"estimate": estimate, "calculators": drafts})
         self.receiver.save_configuration({"rates": {rate: {"price": 22}}})
@@ -85,8 +87,14 @@ class ProjectFileTests(unittest.TestCase):
         self.assertEqual(loaded["estimate"]["result"], self.sender.prepare_quote(estimate)["result"])
         self.assertEqual(loaded["fields"], fields(effective_catalog(loaded["estimate"]["configuration"])))
         for identity, draft in drafts.items():
-            self.assertEqual(loaded["calculators"][identity]["inputs"], draft["inputs"])
+            expected_inputs = draft["inputs"]
+            if identity == "ductwork":
+                # The untouched source example keeps its row and becomes the
+                # approved Both orientation; all supplied values stay exact.
+                expected_inputs = {**expected_inputs, "CALCULATOR": {**expected_inputs["CALCULATOR"], "I13": "Both"}}
+            self.assertEqual(loaded["calculators"][identity]["inputs"], expected_inputs)
             self.assertEqual(loaded["calculators"][identity]["source_sha256"], source_model(identity)["source"]["sha256"])
+        self.assertEqual(drafts, original_drafts)
         second = export_project(self.receiver, {"estimate": {key: loaded["estimate"][key] for key in ESTIMATE_FIELDS},
                                                "calculators": {key: {"inputs": value["inputs"]} for key, value in loaded["calculators"].items()}})
         self.assertEqual(json.loads(second), json.loads(payload))
@@ -97,7 +105,9 @@ class ProjectFileTests(unittest.TestCase):
         before = stored_rows(self.sender)
         snapshot = json.loads(export_project(self.sender, {"estimate": {}}))
         self.assertEqual(set(snapshot["calculators"]), set(CALCULATOR_IDS))
-        self.assertEqual(snapshot["calculators"]["ductwork"]["inputs"], saved)
+        self.assertEqual(snapshot["calculators"]["ductwork"]["inputs"],
+                         {"CALCULATOR": {"B1010": "saved last row", "I13": "Both"}})
+        self.assertEqual(saved, {"CALCULATOR": {"B1010": "saved last row"}})
         self.assertEqual(snapshot["calculators"]["steel_vermiculite"]["inputs"], empty_schedule_inputs("steel_vermiculite"))
         self.assertEqual(stored_rows(self.sender), before)
         self.assertNotIn("result", snapshot["estimate"])

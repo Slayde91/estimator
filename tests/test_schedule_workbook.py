@@ -98,6 +98,7 @@ class ScheduleWorkbookTests(unittest.TestCase):
         self.assertEqual(result["inputs"]["CALCULATOR"]["F11"], 0)
         self.assertEqual(result["inputs"]["CALCULATOR"]["G11"], 1)
         self.assertEqual(result["inputs"]["CALCULATOR"]["B11"], "250x250")
+        self.assertEqual(result["inputs"]["CALCULATOR"]["I11"], "Both")
         self.assertIsNone(result["inputs"]["CALCULATOR"]["B12"])
         self.assertEqual(result["inputs"]["PRODUCT SETTINGS"], {"B97": 1.22})
         self.assertEqual(result["source_sha256"], hashlib.sha256(payload).hexdigest())
@@ -217,8 +218,20 @@ class ScheduleWorkbookTests(unittest.TestCase):
         board.close()
         duct = load_workbook(BytesIO(self.templates["ductwork"]))
         rules = {str(rule.sqref).split(":")[0]: rule for rule in duct["CALCULATOR"].data_validations.dataValidation}
-        self.assertEqual(rules["B2"].formula1, '"CAFCO 300,MONOKOTE,FyreWrap"')
-        self.assertIn("ScheduleChoices", rules["G2"].formula1)
+        # The ductwork lists are now closed application choices; unlike the
+        # dependent board lists above, they need no copied reference lookup.
+        expected = {
+            "B2": '"CAFCO 300,MONOKOTE,FyreWrap"',
+            "D2": '"60/60/60,90/90/90,120/120/120,180/180/180,240/240/180"',
+            "G2": '"Internal,External,Both,Stair pressurisation,Other pressurisation"',
+            "H2": '"Horizontal,Vertical,Both"',
+        }
+        for address, choices in expected.items():
+            self.assertEqual(rules[address].formula1, choices)
+            self.assertEqual(rules[address].errorStyle, "stop")
+            self.assertTrue(rules[address].showErrorMessage)
+            self.assertTrue(rules[address].allowBlank)
+            self.assertIn(f"{address[0]}1001", str(rules[address].sqref))
         duct.close()
 
     def test_missing_or_stale_dimensions_do_not_truncate_schedule(self):

@@ -167,6 +167,9 @@ def project_calculator_report(calculator_id, inputs=None):
             'inputs': normalized, 'sheet': sheet_name, 'rows': rows, 'summaries': [],
             'extra_rows': [], 'incomplete_rows': sum(not row['complete'] for row in rows)}
     if calculator_id == 'ductwork':
+        data['application_notes'] = list(dict.fromkeys(
+            row['values']['AP'] for row in rows
+            if row['wrap'] and isinstance(row['values']['AP'], str) and row['values']['AP'].strip()))
         data['summaries'] = [
             table('Product totals', 'SUMMARY', 8, 9, 11, 'ABCDEFGHIJ', note='Net spray bags and wrap roll equivalents remain fractional. The source has no whole-bag or whole-roll purchasing rule.'),
             table('Penetration angles by size and location', 'SUMMARY', 18, 19, 26, 'ABCDEF'),
@@ -253,6 +256,11 @@ class _ScheduleReport(_Report):
         coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
                     'Every used item remains in this report.')
         self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
+        if data.get('application_notes'):
+            heading = self.p('FyreWrap application notes', 'subheading')
+            heading.keepWithNext = True
+            self.story.append(heading)
+            self.story.extend(self.p(note, 'small') for note in data['application_notes'])
         if materials and data['id'] != 'steel_vermiculite':
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))
         if not ((materials and data['id'] in {'steel_board', 'steel_vermiculite'}) or

@@ -35,7 +35,7 @@ vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
-     addScheduleRow,removeScheduleRow,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,
+     addScheduleRow,removeScheduleRow,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
@@ -115,6 +115,64 @@ let passed = 0;
   rating.value = '75'; await rating.emit('input'); assert.equal(entry.inputs.CALCULATOR.B9, 75);
   const strict = audit.makeControl({ column: 3, type: 'select', value: 4, options: [1, 2, 3, 4] }, 9, entry, 'Sides');
   assert.equal(strict.tagName, 'select');assert.equal(strict.children[0].value,''); strict.value = '3'; await strict.emit('change'); assert.equal(entry.inputs.CALCULATOR.C9, 3); passed++;
+
+  // Every duct schedule dropdown uses only server choices, even with stale permissive metadata.
+  const ductChoices={C:['CAFCO 300','MONOKOTE','FyreWrap'],E:['60/60/60','90/90/90','120/120/120','180/180/180','240/240/180'],H:['Internal','External','Both','Stair pressurisation','Other pressurisation'],I:['Horizontal','Vertical','Both']};
+  const ductSetup=(inputs={})=>{
+    const next=setup(inputs);audit.state.entries.clear();audit.state.current='ductwork';
+    next.definition.id='ductwork';next.definition.title='Ductwork';
+    next.definition.schedule={sheet:'CALCULATOR',first_row:11,last_row:1010,header_row:10,columns:[]};
+    next.definition.sheets[0].display_cells=Object.fromEntries(Object.keys(ductChoices).flatMap(column=>[11,1010].map(row=>[`${column}${row}`,{control:'select'}])));
+    audit.state.entries.set('ductwork',next);return next;
+  };
+  for(const row of [11,1010])for(const permissive of [false,true]){
+    entry=ductSetup();
+    for(const [column,options]of Object.entries(ductChoices)){
+      const control=audit.makeControl({address:`${column}${row}`,type:'select',value:null,options,allow_other:permissive,error_style:permissive?'warning':'stop'},row,entry,column);
+      assert.equal(control.tagName,'select');assert.deepEqual(control.children.map(option=>option.value),['',...options]);
+      assert.equal(descendants(control).some(node=>node.tagName==='input'||node.textContent==='Enter custom value…'),false);
+      control.value=options.at(-1);await control.emit('change');assert.equal(entry.inputs.CALCULATOR[`${column}${row}`],options.at(-1));
+      control.value='Invented value';await control.emit('change');assert.equal(control.value,options.at(-1));assert.equal(entry.inputs.CALCULATOR[`${column}${row}`],options.at(-1));
+      control.value='';await control.emit('change');assert.equal(entry.inputs.CALCULATOR[`${column}${row}`],'');
+    }
+  }passed++;
+
+  // Historical values remain visible and exact through viewing and snapshots; only an explicit choice replaces them.
+  const legacyDuct={CALCULATOR:{C11:'Earlier custom product',E11:120,H11:'Mixed',I11:'Mixed',D11:1.23456789012345}};
+  entry=ductSetup(legacyDuct);const legacyControls={};
+  for(const [column,options]of Object.entries(ductChoices)){
+    const address=`${column}11`,control=audit.makeControl({address,type:'select',value:legacyDuct.CALCULATOR[address],options,allow_other:false,error_style:'stop'},11,entry,column);
+    legacyControls[column]=control;assert.equal(control.tagName,'select');assert.equal(control.value,String(legacyDuct.CALCULATOR[address]));
+    const historical=control.children.find(option=>option.value===control.value);assert.equal(historical.disabled,true);assert.ok(historical.textContent.includes('Saved value:'));assert.ok(historical.textContent.includes(String(legacyDuct.CALCULATOR[address])));
+    assert.deepEqual(control.children.filter(option=>!option.disabled).map(option=>option.value),['',...options]);
+    await control.emit('focus');assert.ok(historical.textContent.includes('Saved value:'));await control.emit('blur');assert.ok(historical.textContent.includes('Saved value:'));
+  }
+  assert.deepEqual(copy(entry.inputs),legacyDuct);assert.equal(entry.invalid.size,0);assert.equal(entry.revision,0);
+  assert.deepEqual(copy(audit.projectSnapshot().ductwork.inputs),legacyDuct);
+  const ductDownloads=[];audit.setFetch(async(path,options)=>{ductDownloads.push(JSON.parse(options.body).inputs);return fileSaved(path.endsWith('.pdf')?'APPENDIX A.pdf':'APPENDIX A.xlsx');});
+  await audit.downloadSchedulePdf();await audit.downloadExcelRegister();assert.equal(ductDownloads.length,2);for(const captured of ductDownloads)assert.deepEqual(captured,legacyDuct);
+  legacyControls.E.value='120/120/120';await legacyControls.E.emit('change');assert.equal(entry.inputs.CALCULATOR.E11,'120/120/120');assert.equal(entry.inputs.CALCULATOR.H11,'Mixed');
+  legacyControls.E.value='120';await legacyControls.E.emit('change');assert.equal(legacyControls.E.value,'120/120/120');assert.equal(entry.inputs.CALCULATOR.E11,'120/120/120');passed++;
+
+  // A focused legacy select catches up with normalized server inputs on blur, without replacing an unfinished edit.
+  entry=ductSetup({CALCULATOR:{E11:120}});
+  const normalizedCell={column:5,address:'E11',type:'select',editable:true,value:'120/120/120',options:ductChoices.E,allow_other:false,error_style:'stop'};
+  const normalizedWorksheet=result({CALCULATOR:{E11:'120/120/120'}},{max_column:9,rows:[{row:11,cells:[normalizedCell]}]});
+  const focusedLegacy=audit.makeControl(normalizedCell,11,entry,'FRL');byId('calculator-grid').replaceChildren(focusedLegacy);
+  entry.result=normalizedWorksheet;entry.needsRender=false;entry.renderedSheet='CALCULATOR';entry.renderedPage='CALCULATOR';entry.choiceSignature=audit.choiceSignature(normalizedWorksheet,entry);
+  context.document.activeElement=focusedLegacy;await focusedLegacy.emit('focus');audit.setRequest(async()=>normalizedWorksheet);await audit.calculate();
+  assert.equal(entry.inputs.CALCULATOR.E11,'120/120/120');assert.equal(focusedLegacy.value,'120');assert.equal(entry.pendingResult,null);
+  context.document.activeElement=null;await focusedLegacy.emit('blur');assert.equal(focusedLegacy.value,'120/120/120');assert.equal(entry.invalid.size,0);passed++;
+
+  // The restriction does not alter steel custom choices or duct controls outside the schedule.
+  for(const identity of ['steel_board','steel_vermiculite']){
+    entry=setup();entry.definition.id=identity;entry.definition.sheets[0].display_cells={C11:{control:'select'}};
+    const [select,custom]=audit.makeControl({address:'C11',type:'select',value:'Legacy',options:['Listed'],allow_other:true,error_style:'warning'},11,entry,'Product').children;
+    select.value=select.children.find(option=>option.textContent==='Enter custom value…').value;await select.emit('change');custom.value='Custom retained';await custom.emit('input');assert.equal(entry.inputs.CALCULATOR.C11,'Custom retained');
+  }
+  entry=ductSetup();entry.definition.sheets[0].display_cells.C10={control:'select'};
+  const outside=audit.makeControl({address:'C10',type:'select',value:'Existing',options:['Listed'],allow_other:true},10,entry,'Outside schedule');
+  assert.ok(descendants(outside).some(node=>node.textContent==='Enter custom value…'));passed++;
 
   // Large strict native lists stay lightweight until opened, without losing any source choices.
   entry=setup({SCHEDULE:{F1009:'Legacy custom section'}});entry.sheet='SCHEDULE';

@@ -50,8 +50,11 @@ class CalculatorReportTests(unittest.TestCase):
             for column, actual in row['values'].items():
                 address = column + str(row['row'])
                 if address in expected.get(projected['sheet'], {}):
-                    if identity == 'ductwork' and column == 'AL':
-                        continue  # Explicit approved copied-text exception has its own native fixture.
+                    if identity == 'ductwork' and (column == 'AL' or (row['wrap'] and column in ('AP', 'AQ'))):
+                        # Fixing text has its own native fixture. The new directional
+                        # application notes are asserted in test_fyrewrap_rules;
+                        # all quantity outputs here still match the original oracle.
+                        continue
                     self.assertTrue(excel_equal(actual, expected[projected['sheet']][address]), (identity, address, actual, expected[projected['sheet']][address]))
                     comparisons += 1
         for table in projected['summaries']:

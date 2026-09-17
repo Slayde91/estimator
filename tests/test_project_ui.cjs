@@ -255,6 +255,46 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     assert.equal(h.calls.length,0);
     assert.ok(fs.readFileSync('static/index.html','utf8').includes('You have not yet created a Project, please click "Save As"'));
   });
+  for(const saveAs of [true,false])await check(`${saveAs?'Save As':'Save'} adopts canonical calculator receipt only for the captured draft`, async h => {
+    const duct=h.addEntry('ductwork',{CALCULATOR:{C11:'CAFCO',E11:120,H11:'Mixed',I11:'Mixed',D11:1.23456789012345}});
+    duct.scheduleRows=[11];h.app.state.projectFile={name:'existing.json',path:'C:/estimates/existing.json',save_token:'current'};
+    let canonical;
+    h.app.setRequest(async(path,options)=>{
+      assert.equal(path,saveAs?'/api/project/save-as':'/api/project/save');const payload=JSON.parse(options.body);
+      canonical=copy(payload.calculators);Object.assign(canonical.ductwork.inputs.CALCULATOR,{C11:'CAFCO 300',E11:'120/120/120',H11:'Both',I11:'Both'});
+      return {file:{name:'saved.json',path:'C:/estimates/saved.json',save_token:'next'},project:{...project(),estimate:payload.estimate,calculators:canonical}};
+    });
+    const revision=duct.revision;await h.app.saveProject(saveAs);
+    assert.deepEqual(copy(duct.inputs),canonical.ductwork.inputs);assert.equal(duct.inputs.CALCULATOR.D11,1.23456789012345);
+    assert.equal(h.calc.dirty(duct),false);assert.equal(duct.revision,revision+1);assert.equal(duct.needsRender,true);
+    assert.equal(h.app.state.dirty,false);assert.doesNotMatch(h.byId('app-message').textContent,/Later edits/);
+  });
+  for(const later of ['input','row','invalid'])await check(`Canonical save receipt preserves a later calculator ${later} edit`, async h => {
+    const duct=h.addEntry('ductwork',{CALCULATOR:{E11:120,D11:1.23456789012345}});duct.scheduleRows=[11];
+    const pending=deferred();let payload;
+    h.app.setRequest((path,options)=>{payload=JSON.parse(options.body);return pending.promise;});
+    const saving=h.app.saveProject();await flush();
+    if(later==='input')h.calc.setInput(duct,'CALCULATOR','D11',9.87654321012345);
+    else if(later==='row')duct.scheduleRows=[11,12];
+    else duct.invalid.set('CALCULATOR!D11','unfinished 1e');
+    const inputs=copy(duct.inputs),rows=copy(duct.scheduleRows),invalid=[...duct.invalid],canonical=copy(payload.calculators);
+    canonical.ductwork.inputs.CALCULATOR.E11='120/120/120';
+    pending.resolve({file:{name:'saved.json',path:'C:/estimates/saved.json'},project:{...project(),estimate:payload.estimate,calculators:canonical}});await saving;
+    assert.deepEqual(copy(duct.inputs),inputs);assert.deepEqual(copy(duct.scheduleRows),rows);assert.deepEqual([...duct.invalid],invalid);
+    assert.equal(JSON.parse(duct.saved).CALCULATOR.E11,'120/120/120');assert.equal(h.calc.dirty(duct),true);
+    assert.match(h.byId('app-message').textContent,/Later edits are not included/);
+  });
+  await check('Canonical save receipt invalidates an older worksheet response', async h => {
+    const duct=h.addEntry('ductwork',{CALCULATOR:{E11:120}});h.calc.state.current='ductwork';
+    const old=deferred();h.calc.setRequest(()=>old.promise);const calculating=h.calc.calculate();
+    h.app.setRequest(async(path,options)=>{
+      const payload=JSON.parse(options.body),canonical=copy(payload.calculators);canonical.ductwork.inputs.CALCULATOR.E11='120/120/120';
+      return {file:{name:'saved.json',path:'C:/estimates/saved.json'},project:{...project(),estimate:payload.estimate,calculators:canonical}};
+    });
+    await h.app.saveProject();const after=copy(duct.inputs);
+    old.resolve({inputs:{CALCULATOR:{E11:120}},rows:[]});await calculating;
+    assert.deepEqual(copy(duct.inputs),after);assert.equal(duct.inputs.CALCULATOR.E11,'120/120/120');assert.equal(h.calc.dirty(duct),false);
+  });
   await check('Save sends the current capability and complete precise state, then keeps the rotated target', async h => {
     h.addEntry('ductwork');
     h.app.state.projectFile={name:'existing.json',path:'C:/estimates/existing.json',save_token:'authorized-original'};

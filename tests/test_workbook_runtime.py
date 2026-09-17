@@ -58,7 +58,8 @@ class WorkbookRuntimeTests(unittest.TestCase):
             self.assertTrue(any(v['sqref'] == f'C{schedule["first_row"]}:C{end}' for v in target['validations']))
             for row in (schedule['first_row'], schedule['first_row'] + 499, end):
                 data = {schedule['sheet']: {f'C{row}': 'A custom warning-list value'}}
-                self.assertEqual(normalize_calculator_inputs(identity, data), data)
+                expected = {schedule['sheet']: {**data[schedule['sheet']], **({'I13': 'Both'} if identity == 'ductwork' else {})}}
+                self.assertEqual(normalize_calculator_inputs(identity, data), expected)
             model['schedule']['last_row'] = 1
             target['cells'][f'C{end}']['value'] = 'caller change'
             self.assertEqual(load_application_catalog(identity)['schedule']['last_row'], end)

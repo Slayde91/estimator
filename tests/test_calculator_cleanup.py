@@ -235,7 +235,20 @@ class CalculatorCleanupTests(unittest.TestCase):
                     }
                 if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
                     aliases["J94"] = "FYREWRAP APPLICATION TABLE"
-                self.assertEqual(sheet["display_text"], aliases)
+                actual_aliases = dict(sheet['display_text'])
+                reviewed_notes = {
+                    'CALCULATOR': {'A3': 'Internal and Both use the exhaust application rules'},
+                    'PRODUCT SETTINGS': {
+                        'J95': 'Source application', 'J109': 'Stair',
+                        'J112': 'External and pressurisation penetrations require a matching detail',
+                        'K137': 'actual directional requirements',
+                        'B145': 'guidance differs between the manual and assessment',
+                        'B150': 'one continuous layer'},
+                }
+                if identity == 'ductwork':
+                    for address, fragment in reviewed_notes.get(sheet['name'], {}).items():
+                        self.assertIn(fragment.lower(), actual_aliases.pop(address).lower())
+                self.assertEqual(actual_aliases, aliases)
                 expected_order = [*range(1, 37), 40, 41, 37, 38, 39, 42, 43, 44] if identity == "ductwork" and sheet["name"] == "CALCULATOR" else []
                 self.assertEqual(sheet["display_column_order"], expected_order)
                 self.assertEqual(len(sheet["display_column_order"]), len(set(sheet["display_column_order"])))
@@ -401,8 +414,9 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertTrue(cells[address]["allow_other"])
             self.assertEqual(cells[address]["value"], value)
         saved = self.request("PUT", "/state", {"inputs": draft}, identity=identity)
-        self.assertEqual(saved["inputs"], draft)
-        self.assertEqual(self.request("GET", identity=identity)["inputs"], draft)
+        expected = {**draft, 'CALCULATOR': {'I13': 'Both'}}
+        self.assertEqual(saved["inputs"], expected)
+        self.assertEqual(self.request("GET", identity=identity)["inputs"], expected)
         self.assertFalse(cells["B96"]["editable"])
         self.request("PUT", "/state", {"inputs": {sheet: {"B96": .05}}}, identity=identity, expected=400)
 

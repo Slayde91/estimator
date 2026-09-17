@@ -417,13 +417,17 @@
     };
     const value = rawValue();
     const options = cellOptions(cell, entry);
-    const allowOther = cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle);
+    const schedule = scheduleFor(entry), coordinates = parseAddress(address);
+    const listedDuctChoice = cell.type === "select" && entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR"
+      && schedule && coordinates && coordinates.row >= schedule.first_row && coordinates.row <= schedule.last_row
+      && [3, 5, 8, 9].includes(coordinates.column);
+    const allowOther = !listedDuctChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
-    const select = cell.type === "select" && (display?.control === "select" || !allowOther && options.length <= 40);
+    const select = cell.type === "select" && (listedDuctChoice || display?.control === "select" || !allowOther && options.length <= 40);
     const customAllowed = select && allowOther;
     const multiline = Boolean(cell.multiline);
     const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
@@ -443,8 +447,11 @@
     control.setAttribute("aria-label", `${label}${percent(cell) ? " in percent" : ""}`);
     if (select) {
       const appendOption = (item) => {
-        const option = node("option", "", item === "" ? "(blank)" : displayValue(item, cell));
-        option.value = String(item); control.append(option); selectOptions.push({ option, value: item });
+        // Historical inputs stay visible and exact, without becoming new choices.
+        const unavailable = listedDuctChoice && item !== "" && !options.some((choice) => String(choice) === String(item));
+        const option = node("option", "", unavailable ? `Saved value: ${item} (choose a listed value)` : item === "" ? "(blank)" : displayValue(item, cell));
+        if (unavailable) option.disabled = true;
+        option.value = String(item); control.append(option); selectOptions.push({ option, value: item, unavailable });
         if (isNumber(item)) option.title = `Exact value: ${numericInputValue(item, cell, true)}${percent(cell) ? "%" : ""}`;
       };
       control.calculatorEnsureOption = (item) => {
@@ -487,7 +494,7 @@
     const bindEditor = (editor, isChoice) => {
       let focusedValue;
       editor.addEventListener("focus", () => {
-        for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = `${numericInputValue(item.value, cell, true)}${percent(cell) ? "%" : ""}`;
+        for (const item of selectOptions) if (isNumber(item.value) && !item.unavailable) item.option.textContent = `${numericInputValue(item.value, cell, true)}${percent(cell) ? "%" : ""}`;
         if (!isChoice && !entry.invalid.has(key)) {
           const raw = rawValue();
           if (numeric || isNumber(raw)) { editor.value = numericInputValue(raw, cell, true); editor.select(); }
@@ -504,6 +511,10 @@
         let next = editor.value;
         const optionText = (option) => String(!isChoice && isNumber(option) && percent(cell) ? decimalShift(option, 2) : option);
         const optionIndex = options.findIndex((option) => optionText(option) === next);
+        if (listedDuctChoice && next !== "" && optionIndex < 0) {
+          editor.value = String(rawValue() ?? "");
+          calculationStatus("Choose a value from the available list."); return;
+        }
         const selectedOption = isChoice ? selectOptions.find(({ option }) => option.value === next) : null;
         const validSyntax = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(next.trim());
         if (selectedOption) next = selectedOption.value;
@@ -528,7 +539,11 @@
           entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true");
           calculationStatus("Choose a value from the available list."); updateStatus(entry);
         }
-        for (const item of selectOptions) if (isNumber(item.value)) item.option.textContent = displayValue(item.value, cell);
+        for (const item of selectOptions) if (isNumber(item.value) && !item.unavailable) item.option.textContent = displayValue(item.value, cell);
+        if (isChoice && listedDuctChoice && !entry.invalid.has(key)) {
+          const latest = rawValue();
+          control.calculatorEnsureOption(latest); editor.value = String(latest ?? "");
+        }
         if (!isChoice && !entry.invalid.has(key)) {
           const raw = rawValue(); if (numeric || isNumber(raw)) editor.value = numericInputValue(raw, cell);
         }
@@ -1453,9 +1468,25 @@
     return prepared;
   }
 
-  function markProjectSaved(calculators) {
+  function markProjectSaved(calculators, captured) {
     for (const [id, entry] of state.entries) {
-      if (calculators[id]?.inputs) { entry.saved = JSON.stringify(calculators[id].inputs); entry.savedRows = JSON.stringify(calculators[id].schedule_rows); }
+      const receipt = calculators[id], snapshot = captured?.[id];
+      if (!receipt?.inputs) continue;
+      const saved = JSON.stringify(receipt.inputs), savedRows = JSON.stringify(receipt.schedule_rows);
+      // A server may canonicalize approved aliases. Adopt only the exact draft
+      // captured by this save; later edits and unfinished input remain untouched.
+      if (snapshot && !entry.invalid.size && JSON.stringify(entry.inputs) === JSON.stringify(snapshot.inputs)
+          && JSON.stringify(entry.scheduleRows) === JSON.stringify(snapshot.schedule_rows)
+          && (JSON.stringify(entry.inputs) !== saved || JSON.stringify(entry.scheduleRows) !== savedRows)) {
+        entry.inputs = clone(receipt.inputs); entry.scheduleRows = receipt.schedule_rows && [...receipt.schedule_rows];
+        entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
+        if (current() === entry) {
+          if (state.gridEntry === entry && entry.result) refreshOutputs(entry.result);
+          clearTimeout(state.timer);
+          state.timer = setTimeout(() => { if (current() === entry) calculate(); }, 550);
+        }
+      }
+      entry.saved = saved; entry.savedRows = savedRows;
     }
     updateStatus();
   }

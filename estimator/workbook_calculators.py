@@ -13,6 +13,7 @@ from .catalog import ROOT, ValidationError
 from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula
 from .workbook_runtime import _application_catalog, list_application_catalogs, application_editable_cells as editable_cells
 from .calculator_defaults import default_calculator_inputs, yield_review
+from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
 
 
 # Source table headings outside the main schedules. See the per-page evidence
@@ -69,9 +70,18 @@ _DISPLAY_TEXT = {
                     'CALCULATOR': {'A1': 'STRUCTURAL STEEL BOARD SCHEDULE'},
                     'BOARD SUMMARY': {'A1': 'BOARD SUMMARY'},
                     'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
-    'ductwork': {'CALCULATOR': {'A1': 'DUCT PROTECTION CALCULATOR'},
+    'ductwork': {'CALCULATOR': {
+                    'A1': 'DUCT PROTECTION CALCULATOR',
+                    'A3': 'For FyreWrap, Internal and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'},
-                 'PRODUCT SETTINGS': {'J94': 'FYREWRAP APPLICATION TABLE'}},
+                 'PRODUCT SETTINGS': {
+                     'J94': 'FYREWRAP APPLICATION TABLE',
+                     'J95': 'Source application',
+                     'J109': 'Schedule mapping: kitchen, diesel and other exhaust use Internal. Smoke, combined kitchen/smoke and stair relief use Both. Pressurisation remains separate. External means the full selected external FRL.',
+                     'J112': 'Internal/Both exhaust uses calculate local wrap from Tables 4-5. External and pressurisation penetrations require a matching detail; their wrap totals remain withheld. The highest wall-size band also requires review.',
+                     'K137': 'Schedule choices are Internal, External, Both, Stair pressurisation and Other pressurisation. The full application FRL does not replace the actual directional requirements.',
+                     'B145': 'Table 5 covers internal fire. External and multi-layer penetration guidance differs between the manual and assessment; a matching detail is required before a complete wrap quantity is shown.',
+                     'B150': 'Internal/Both exhaust uses one continuous layer; stair pressurisation uses two and other pressurisation three. Generic External uses the selected full external FRL. Local layers are separate from continuous-layer selection.'}},
 }
 # Browser-only spans and semantic corrections. Merged children are decorative
 # blanks; source formulas, input identities and source merge records stay intact.
@@ -245,8 +255,12 @@ def approved_formula_overrides(calculator_id):
     master = '=' + sheet['cells']['AL11']['formula']
     # Explicit user-approved exception: translated references, unchanged fixed
     # wording. Original formulas stay intact in the imported source package.
-    return {'CALCULATOR': {f'AL{row}': Translator(master, origin='AL11').translate_formula(f'AL{row}').lstrip('=')
-                           for row in range(12, model['schedule']['last_row'] + 1)}}
+    from .ductwork_rules import application_formula_overrides
+    overrides = application_formula_overrides(model)
+    overrides['CALCULATOR'].update({
+        f'AL{row}': Translator(master, origin='AL11').translate_formula(f'AL{row}').lstrip('=')
+        for row in range(12, model['schedule']['last_row'] + 1)})
+    return overrides
 
 
 def calculator_list():
@@ -329,8 +343,10 @@ def normalize_calculator_inputs(calculator_id, inputs=None):
                 raise ValidationError(f"{field['label']}: text must be at most 2,000 characters without control characters.")
             if field['type'] == 'number' and not isinstance(value, (int, float)):
                 raise ValidationError(f"{field['label']}: enter a number or leave the input blank.")
+            if calculator_id == 'ductwork' and name == model['schedule']['sheet']:
+                value = canonical_ductwork_value(address.rstrip('0123456789'), value)
             normalized[name][address] = value
-    return normalized
+    return normalize_schedule_choices(normalized, model) if calculator_id == 'ductwork' else normalized
 
 
 def validate_calculator_edits(calculator_id, inputs, saved_inputs):
@@ -578,7 +594,7 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
     if calculator_id == 'ductwork':
-        warnings.append('The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.')
+        warnings.append('FyreWrap application FRLs preserve directional requirements: Both means internal 120/120/120 and external 120/120/-. Stair pressurisation means external 120/120/60. Unresolved penetration wrap totals are withheld.')
     with lock:
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []

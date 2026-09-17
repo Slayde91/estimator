@@ -303,6 +303,29 @@ let passed=0;
   assert.equal(productRows()[0].children[8].hidden,true);assert.match(productRows()[0].children[4].children[1].textContent,/Topcoats \$180.12/);
   assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
 
+  // Returning to unchanged pricing retains its controls and exact stored values.
+  const unchangedRow=productRows()[0],unchangedHeading=byId('pricing-head').children[0],untouchedDraft=JSON.stringify(audit.state.draft);
+  audit.showView('pricing');audit.showView('estimate');audit.showView('pricing');audit.showView('pricing');
+  assert.equal(productRows()[0],unchangedRow);assert.equal(byId('pricing-head').children[0],unchangedHeading);
+  assert.equal(JSON.stringify(audit.state.draft),untouchedDraft);assert.equal(audit.state.catalog.inventory[0].supplier_price,100.123456);passed++;
+
+  // In-place edits and replacement drafts invalidate navigation reuse.
+  audit.state.draft.inventory.coat={supplier_price:234.567891};audit.showView('estimate');audit.showView('pricing');
+  assert.notEqual(productRows()[0],unchangedRow);assert.equal(productInput('coat','supplier_price').value,'234.57');
+  assert.equal(audit.state.draft.inventory.coat.supplier_price,234.567891);
+  const previousDraftRow=productRows()[0];audit.state.draft=copy(audit.state.draft);audit.showView('pricing');
+  assert.notEqual(productRows()[0],previousDraftRow);
+  delete audit.state.draft.inventory.coat;audit.renderPricing();passed++;
+
+  // Scope changes show the separate draft, then unchanged visits reuse that scope.
+  const sharedRow=productRows()[0];audit.state.quoteConfiguration={inventory:{coat:{supplier_price:333.123456}},rates:{}};
+  byId('pricing-scope').value='project';await byId('pricing-scope').emit('change');
+  assert.notEqual(productRows()[0],sharedRow);assert.equal(productInput('coat','supplier_price').value,'333.12');
+  const projectRow=productRows()[0];audit.showView('estimate');audit.showView('pricing');assert.equal(productRows()[0],projectRow);
+  byId('pricing-scope').value='library';await byId('pricing-scope').emit('change');
+  assert.equal(productInput('coat','supplier_price').value,'100.12');assert.equal(audit.state.projectPricingDraft.inventory.coat.supplier_price,333.123456);
+  audit.state.quoteConfiguration=null;audit.state.projectPricingDraft=null;passed++;
+
   // Display labels never change the option value used by Calculator lookups.
   audit.state.inputs.D15='Old spray';
   const relabelled=audit.makeControl({...oldFields[0],option_labels:{'Old spray':'Descriptive product; 20 kg'}},true);
@@ -342,6 +365,9 @@ let passed=0;
   // A scalar yield validates atomically; malformed input cannot export stale accepted data.
   const beforeBadList=JSON.stringify(audit.state.draft);const bad=await editList('coat','Yield','99; 100');
   assert.equal(bad.getAttribute('aria-invalid'),'true');assert.equal(JSON.stringify(audit.state.draft),beforeBadList);
+  audit.showView('estimate');audit.showView('pricing');
+  assert.equal(productInput('coat','Yield'),bad);assert.equal(bad.value,'99; 100');assert.equal(bad.getAttribute('aria-invalid'),'true');
+  assert.equal(JSON.stringify(audit.state.draft),beforeBadList);passed++;
   audit.renderPricing();assert.equal(productInput('coat','Yield').value,'99; 100');
   let invalidExport=false;audit.setFetch(async()=>{invalidExport=true;throw new Error('unexpected');});await audit.exportPricing();assert.equal(invalidExport,false);
   await editList('coat','Yield','blank');assert.equal(audit.state.draft.rates.primer.yield,null);assert.equal(audit.state.draft.rates.topcoat.yield,null);

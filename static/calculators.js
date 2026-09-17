@@ -218,6 +218,7 @@
     entry.inputs[sheet] ||= {};
     entry.inputs[sheet][address] = value;
     entry.pendingResult = null;
+    entry.navigationCache = null;
     entry.revision++;
     updateStatus(entry);
     clearTimeout(state.timer);
@@ -343,7 +344,7 @@
           next = validSyntax ? Number(next) : NaN;
           if (!Number.isFinite(next)) {
             entry.invalid.set(key, editor.value); editor.setAttribute("aria-invalid", "true"); control.setAttribute("aria-invalid", "true");
-            entry.revision++; entry.pendingResult = null; clearTimeout(state.timer); updateStatus(entry);
+            entry.revision++; entry.pendingResult = null; entry.navigationCache = null; clearTimeout(state.timer); updateStatus(entry);
             calculationStatus("Enter a valid number to recalculate."); return;
           }
           if (percent(cell)) next = decimalShift(next, -2);
@@ -911,12 +912,73 @@
     if (settings) content.push(settings.chooser, ...settings.panels.values());
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
+    state.gridEntry = entry;
     $("calculator-page-status").textContent = schedule ? `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
   }
 
-  async function calculate() {
+  function navigationCache(entry, create = false) {
+    const inputs = JSON.stringify(entry.inputs);
+    if (entry.navigationCache?.revision !== entry.revision || entry.navigationCache?.inputs !== inputs) entry.navigationCache = null;
+    if (!entry.navigationCache && create) entry.navigationCache = { revision: entry.revision, inputs, sheets: new Map(), pages: new Map() };
+    return entry.navigationCache;
+  }
+
+  function retainRecent(map, key, value, limit) {
+    map.delete(key); map.set(key, value);
+    while (map.size > limit) map.delete(map.keys().next().value);
+  }
+
+  function retainPage(entry) {
+    const cache = entry && navigationCache(entry);
+    if (!cache || state.gridEntry !== entry || entry.invalid.size || entry.pendingResult || entry.needsRender || cache.sheets.get(entry.sheet) !== entry.result || entry.renderedPage !== currentPage(entry)) return;
+    const grid = $("calculator-grid");
+    retainRecent(cache.pages, currentPage(entry), { nodes: [...grid.children], result: entry.result, signature: entry.choiceSignature,
+      totals: entry.productTotalsElement, scrollLeft: grid.scrollLeft, scrollTop: grid.scrollTop,
+      optionNodes: [...$("calculator-option-lists").children], optionLists: new Map(state.optionLists), optionKeys: state.optionKeys,
+      expanded: grid.classList.contains("calculator-grid-expanded"), status: $("calculator-page-status").textContent }, 3);
+  }
+
+  function showCalculationStatus(entry, result) {
+    const copiedFixingNote = "The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.";
+    const hideCopiedFixingNote = entry.definition.id === "ductwork" && ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"].includes(entry.sheet);
+    const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter((warning) => warning && !(hideCopiedFixingNote && warning === copiedFixingNote));
+    $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
+    calculationStatus(); updateStatus(entry);
+  }
+
+  function latestCells(entry, result) {
+    entry.latestCells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [`${entry.sheet}!${cell.address || `${columnName(cell.column)}${row.row}`}`, cell])));
+  }
+
+  async function navigateWorksheet(entry) {
+    // Cached navigation must invalidate earlier requests just like a new request.
+    ++state.requestRevision; clearTimeout(state.timer);
+    if (entry.invalid.size && entry.result) {
+      renderGrid(entry); $("calculator-grid").setAttribute("aria-busy", "false"); updateStatus(entry); return;
+    }
+    const cache = navigationCache(entry), page = currentPage(entry), view = cache?.pages.get(page), result = cache?.sheets.get(entry.sheet);
+    entry.pendingResult = null; entry.needsRender = true;
+    if (result) {
+      entry.result = result; latestCells(entry, result);
+      if (view && view.result === result) {
+        const grid = $("calculator-grid"); grid.replaceChildren(...view.nodes);
+        $("calculator-option-lists").replaceChildren(...view.optionNodes); state.optionLists = new Map(view.optionLists); state.optionKeys = view.optionKeys;
+        grid.classList.toggle("calculator-grid-expanded", view.expanded); grid.scrollLeft = view.scrollLeft; grid.scrollTop = view.scrollTop;
+        entry.productTotalsElement = view.totals; entry.choiceSignature = view.signature;
+        entry.renderedSheet = entry.sheet; entry.renderedPage = page; entry.needsRender = false; state.gridEntry = entry;
+        $("calculator-page-status").textContent = view.status; retainRecent(cache.pages, page, view, 3);
+      } else renderGrid(entry);
+      $("calculator-grid").setAttribute("aria-busy", "false"); showCalculationStatus(entry, result); return;
+    }
+    entry.result = null; state.gridEntry = null;
+    $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
+    await calculate({ navigation: true });
+  }
+
+  async function calculate(options = {}) {
     const entry = current(); if (!entry || entry.invalid.size) return;
     clearTimeout(state.timer);
+    if (!options.navigation) entry.navigationCache = null;
     const revision = entry.revision, sheet = entry.sheet, page = currentPage(entry), serial = ++state.requestRevision;
     calculationStatus("Calculating…");
     $("calculator-grid").setAttribute("aria-busy", "true");
@@ -924,19 +986,16 @@
       const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false }) });
       if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || page !== currentPage(entry)) return;
       if (result.inputs) entry.inputs = clone(result.inputs);
-      entry.latestCells = new Map(result.rows.flatMap((row) => row.cells.map((cell) => [`${sheet}!${cell.address || `${columnName(cell.column)}${row.row}`}`, cell])));
+      const cache = navigationCache(entry, true);
+      retainRecent(cache.sheets, sheet, result, 5); cache.pages.delete(page);
+      latestCells(entry, result);
       const active = document.activeElement;
       const canRefresh = !entry.needsRender && entry.renderedSheet === sheet && entry.renderedPage === page && entry.choiceSignature === choiceSignature(result);
       entry.result = result;
       if (canRefresh) { entry.pendingResult = null; refreshOutputs(result); }
       else if (!entry.needsRender && (active?.dataset?.calculatorCell || active?.dataset?.calculatorCustomCell) && active.dataset.calculatorSheet === sheet) { entry.pendingResult = result; refreshOutputs(result); }
       else { entry.pendingResult = null; renderGrid(entry); }
-      const copiedFixingNote = "The copied fixing instructions use the first schedule row’s fixed technical references on every row. This is the approved correction to the source workbook; quantity formulas are unchanged.";
-      const hideCopiedFixingNote = entry.definition.id === "ductwork" && ["CALCULATOR", "SUMMARY", "PRODUCT SETTINGS"].includes(sheet);
-      const warnings = (result.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message || warning.label || "").filter((warning) => warning && !(hideCopiedFixingNote && warning === copiedFixingNote));
-      $("calculator-warnings").textContent = warnings.join("\n"); $("calculator-warnings").hidden = !warnings.length;
-      calculationStatus();
-      updateStatus(entry);
+      showCalculationStatus(entry, result);
     } catch (error) {
       if (current() === entry && serial === state.requestRevision && revision === entry.revision && page === currentPage(entry)) { message(`Could not calculate. ${error.message}`, true); calculationStatus("Calculation needs attention"); }
     } finally { if (serial === state.requestRevision) $("calculator-grid").setAttribute("aria-busy", "false"); }
@@ -944,11 +1003,12 @@
 
   async function selectPage(id) {
     const entry = current(), page = entry && displayPages(entry.definition).find((item) => item.id === id); if (!page) return;
+    if (id === currentPage(entry) && state.gridEntry === entry && entry.result && !entry.needsRender) return;
     if (entry.invalid.size) { message("Correct the invalid number before changing pages.", true); return; }
-    entry.page = page.id; entry.sheet = page.sheet; entry.pendingResult = null; entry.result = null; entry.needsRender = true;
+    retainPage(entry);
+    entry.page = page.id; entry.sheet = page.sheet;
     $("calculator-sheet-title").textContent = page.label;
-    $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
-    renderPages(entry); message(); await calculate();
+    renderPages(entry); message(); await navigateWorksheet(entry);
   }
 
   function renderPages(entry) {
@@ -999,6 +1059,7 @@
 
   async function selectCalculator(id) {
     const serial = ++state.loadRevision;
+    if (id === state.current && state.gridEntry === current() && current()?.result && !current().needsRender) return;
     try {
       let entry = state.entries.get(id);
       if (!entry) {
@@ -1010,12 +1071,12 @@
         state.entries.set(id, entry);
       }
       if (serial !== state.loadRevision) return;
+      retainPage(current());
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
       $("calculator-sheet-title").textContent = pageDefinition(entry).label;
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
-      if (entry.result) renderGrid(entry); else $("calculator-grid").replaceChildren(node("p", "calculator-empty", "Loading this worksheet…"));
-      await calculate();
+      await navigateWorksheet(entry);
     } catch (error) { if (serial === state.loadRevision) message(`Could not open the calculator. ${error.message}`, true); }
   }
 
@@ -1052,7 +1113,7 @@
       const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and supplied workbook example rows" : "supplied workbook defaults, including its example rows";
       if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save Project to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
-      entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
+      entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       message("Calculator defaults restored in this draft. Save Project to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
@@ -1075,7 +1136,7 @@
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
       if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save Project.`, "Apply to draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
-      entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.needsRender = true;
+      entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       message(`Imported ${result.imported_rows} schedule rows into the draft. Save Project to keep them.`); await calculate();
     } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
@@ -1176,6 +1237,7 @@
     if (state.action) throw new Error("Wait for the current calculator action to finish.");
     ++state.loadRevision; ++state.requestRevision; clearTimeout(state.timer);
     state.entries = new Map(prepared.entries); state.list = prepared.list; state.current = null;
+    state.gridEntry = null;
     state.optionLists.clear(); state.optionKeys = new WeakMap(); state.nextListId = 0;
     $("calculator-option-lists").replaceChildren(); $("calculator-grid").replaceChildren();
     $("calculator-workspace").hidden = true; renderChoices(); message();

@@ -34,7 +34,7 @@ vm.createContext(context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
-    exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
+     exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -252,6 +252,80 @@ let passed = 0;
   const retained = audit.current(); audit.setInput(retained, 'CALCULATOR', 'B9', 33);
   earlier.resolve({ ...definition, inputs: { CALCULATOR: { B9: 2 } } }); await firstOpen;
   assert.equal(audit.current(), retained); assert.equal(audit.current().inputs.CALCULATOR.B9, 33); passed++;
+
+  // Returning to unchanged pages reuses exact results and existing controls, including scroll position.
+  entry=setup({CALCULATOR:{B9:1.23456789123},SETTINGS:{B9:.123456789}});audit.setRender(realRender);
+  entry.definition.pages.push('SUMMARY');entry.definition.sheets.push({name:'SUMMARY',header_rows:[],hidden_columns:[],merges:[]});
+  const navigationRequests=[];
+  const navigationResult=(inputs,sheet)=>result(copy(inputs),{sheet,warnings:[`${sheet} warning`],rows:[{row:9,cells:[
+    {column:1,address:'A9',type:'select',editable:true,value:'Alpha',options:['Alpha','Beta'],allow_other:true},
+    {column:2,address:'B9',type:'number',editable:true,value:inputs[sheet]?.B9??0},
+    {column:3,address:'C9',calculated:true,value:inputs.CALCULATOR.B9*2}]}]});
+  const serveNavigation=async(path,options)=>{const body=JSON.parse(options.body);navigationRequests.push(body);return navigationResult(body.inputs,body.sheet);};
+  const navigationControl=()=>renderedControls().find(control=>control.dataset.calculatorCell==='B9');
+  audit.setRequest(serveNavigation);await audit.calculate();const originalNavigationControl=navigationControl();
+  const originalNavigationList=byId('calculator-option-lists').children[0],originalNavigationChoice=renderedControls().find(control=>control.dataset.calculatorCell==='A9');
+  byId('calculator-grid').scrollTop=321;await audit.selectPage('SETTINGS');await audit.selectPage('CALCULATOR');
+  assert.equal(navigationRequests.length,2);assert.equal(navigationControl(),originalNavigationControl);assert.equal(byId('calculator-grid').scrollTop,321);
+  assert.equal(byId('calculator-option-lists').children[0],originalNavigationList);assert.equal(originalNavigationChoice.getAttribute('list'),originalNavigationList.id);
+  assert.deepEqual(originalNavigationList.children.map(option=>option.value),['Alpha','Beta']);assert.ok([...audit.state.optionLists.values()].includes(originalNavigationList.id));
+  assert.equal(byId('calculator-warnings').textContent,'CALCULATOR warning');assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);
+  const unchangedGrid=byId('calculator-grid').children;await audit.selectPage('CALCULATOR');await audit.selectCalculator('steel_board');
+  assert.equal(byId('calculator-grid').children,unchangedGrid);assert.equal(navigationRequests.length,2);passed++;
+
+  // Explicit recalculate always requests; any sheet's precise edit invalidates dependent pages.
+  await audit.calculate();assert.equal(navigationRequests.length,3);
+  await audit.selectPage('SETTINGS');assert.equal(navigationRequests.length,4);
+  audit.setInput(entry,'SETTINGS','B9',.23456789123);await audit.selectPage('CALCULATOR');await audit.selectPage('SETTINGS');
+  assert.equal(navigationRequests.length,6);assert.equal(navigationRequests.at(-1).inputs.SETTINGS.B9,.23456789123);
+  assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);passed++;
+
+  // A cache hit advances the request serial so late worksheet responses and errors cannot overwrite it.
+  const lateNavigation=deferred();audit.setRequest(()=>lateNavigation.promise);
+  const pendingNavigation=audit.selectPage('SUMMARY');await audit.selectPage('CALCULATOR');const cachedNavigationResult=entry.result;
+  lateNavigation.resolve(navigationResult({CALCULATOR:{B9:-99}},'SUMMARY'));await pendingNavigation;
+  assert.equal(entry.result,cachedNavigationResult);assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);assert.equal(entry.sheet,'CALCULATOR');
+  const lateNavigationError=deferred();audit.setRequest(()=>lateNavigationError.promise);
+  const pendingNavigationError=audit.selectPage('SUMMARY');await audit.selectPage('SETTINGS');
+  lateNavigationError.reject(new Error('Obsolete navigation failure'));await pendingNavigationError;
+  assert.equal(entry.sheet,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete navigation failure'));assert.equal(byId('calculator-grid').getAttribute('aria-busy'),'false');passed++;
+
+  // Normalized/replaced inputs also invalidate even if their revision number was unchanged.
+  audit.setRequest(serveNavigation);const beforeReplacementRequests=navigationRequests.length;
+  entry.inputs.CALCULATOR.B9=9.87654321987;await audit.selectPage('CALCULATOR');
+  assert.equal(navigationRequests.length,beforeReplacementRequests+1);assert.equal(navigationRequests.at(-1).inputs.CALCULATOR.B9,9.87654321987);passed++;
+
+  // Calculator switching keeps independent warm pages and invalid text in the original draft.
+  const navigationEntry=entry,otherNavigationEntry={definition:{...copy(entry.definition),id:'ductwork',title:'Ductwork'},inputs:{CALCULATOR:{B9:44.123456789}},saved:'{}',revision:0,sheet:'CALCULATOR',page:'CALCULATOR',invalid:new Map(),result:null,needsRender:true};
+  audit.state.entries.set('ductwork',otherNavigationEntry);await audit.selectCalculator('ductwork');const afterOtherOpen=navigationRequests.length;
+  await audit.selectCalculator('steel_board');assert.equal(navigationRequests.length,afterOtherOpen);assert.equal(otherNavigationEntry.inputs.CALCULATOR.B9,44.123456789);
+  const invalidNavigationControl=navigationControl();invalidNavigationControl.value='invalid';await invalidNavigationControl.emit('input');
+  const blockedNavigationPage=navigationEntry.page;await audit.selectPage('SETTINGS');assert.equal(navigationEntry.page,blockedNavigationPage);
+  await audit.selectCalculator('ductwork');await audit.selectCalculator('steel_board');
+  assert.equal(navigationRequests.length,afterOtherOpen);assert.equal(navigationControl().value,'invalid');assert.equal(navigationEntry.inputs.CALCULATOR.B9,9.87654321987);
+  navigationControl().value='9.87654321987';await navigationControl().emit('input');passed++;
+
+  // A loaded project cannot inherit retained DOM/results from the previous project's entries.
+  const previousProjectControl=renderedControls()[0],preparedNavigation=await audit.prepareProject({steel_board:{inputs:{CALCULATOR:{B9:7.65432198765}}}});
+  audit.applyProject(preparedNavigation);const beforeProjectOpen=navigationRequests.length;await audit.selectCalculator('steel_board');
+  assert.equal(navigationRequests.length,beforeProjectOpen+1);assert.notEqual(renderedControls()[0],previousProjectControl);assert.equal(audit.current().inputs.CALCULATOR.B9,7.65432198765);passed++;
+
+  // Confirmed reset/import must not reuse a dependent page from the previous draft.
+  entry=audit.current();await audit.selectPage('SETTINGS');
+  entry.definition.defaults={CALCULATOR:{B9:2.34567891234},SETTINGS:{B9:.34567891234}};
+  const beforeNavigationReset=navigationRequests.length,resetNavigation=audit.reset();await flush();await byId('calculator-confirm-dialog').close('confirm');await resetNavigation;
+  await audit.selectPage('CALCULATOR');assert.equal(navigationRequests.length,beforeNavigationReset+2);assert.deepEqual(navigationRequests.at(-1).inputs,entry.definition.defaults);
+  const importedNavigationInputs={CALCULATOR:{B9:3.45678912345},SETTINGS:{B9:.45678912345}};
+  audit.setRequest((path,options)=>path.endsWith('/import')?Promise.resolve({inputs:copy(importedNavigationInputs),imported_rows:1}):serveNavigation(path,options));
+  byId('calculator-import-file').files=[{name:'schedule.xlsx',size:100}];
+  const beforeNavigationImport=navigationRequests.length,importNavigation=audit.importSchedule();await flush();await byId('calculator-confirm-dialog').close('confirm');await importNavigation;
+  await audit.selectPage('SETTINGS');assert.equal(navigationRequests.length,beforeNavigationImport+2);assert.deepEqual(navigationRequests.at(-1).inputs,importedNavigationInputs);passed++;
+
+  // Many display pages retain a bounded number of detached grids, while source results remain reusable.
+  audit.setRequest(serveNavigation);
+  entry.definition.display_pages=[...entry.definition.pages.map(sheet=>({id:sheet,label:sheet,sheet})),{id:'VIEW A',label:'View A',sheet:'CALCULATOR'},{id:'VIEW B',label:'View B',sheet:'CALCULATOR'}];
+  for(const page of ['CALCULATOR','SUMMARY','SETTINGS','VIEW A','VIEW B'])await audit.selectPage(page);
+  assert.ok(entry.navigationCache.pages.size<=3);assert.ok(entry.navigationCache.sheets.size<=5);passed++;
 
   // Import races and cancellation cannot replace the current draft.
   entry = setup({ CALCULATOR: { B9: 4 } }); const importResponse = deferred(); audit.setRequest(() => importResponse.promise);
@@ -1239,12 +1313,14 @@ let passed = 0;
   assert.equal(startBody.children[startBody.children.findIndex(row=>row.dataset.sourceRow==='270')+1].children[0].dataset.calculatorOutput,'A7');
   for(const address of ['A1','A9','A31','A341','D342'])assert.ok(!virtualOutputs().includes(address));
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;
+  const virtualNavigationStartRequests=virtualRequests.length;
   assert.equal(audit.sourceDisplayText('Factor helper starts at row 341.',entry,'A7'),'Open FACTOR CALCS for the Section Factor Helper.');
   const bagsDirectionsEntry={...entry,sheet:'BAGS',result:null};
   assert.equal(audit.sourceDisplayText('Change product yields and waste in SETTINGS. The factor helper is also there.',bagsDirectionsEntry,'A27'),'Change product yields and waste in SETTINGS. Open FACTOR CALCS for factor helpers.');
 
   // Settings and factor chooser selections are independent; hidden source inputs and invalid drafts survive switching.
   await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,7);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
+  assert.equal(virtualRequests.length,virtualNavigationStartRequests); // Both browser tabs use the same unchanged source worksheet.
   assert.ok(virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D10');
   assert.equal(virtualSetting.dataset.calculatorSheet,'SETTINGS');virtualSetting.value='3.45678912';await virtualSetting.emit('input');
@@ -1261,12 +1337,14 @@ let passed = 0;
   assert.equal(entry.inputs.START,undefined);assert.equal(entry.inputs['FACTOR CALCS'],undefined);assert.ok(virtualRequests.every(request=>request.body.sheet==='SETTINGS'));passed++;
 
   // Late responses for another browser tab cannot replace the active tab even when both share SETTINGS.
+  entry.navigationCache=null;
   const oldVirtual=deferred();let virtualCalls=0;
   audit.setRequest(async(path,options)=>{const body=JSON.parse(options.body);assert.equal(body.sheet,'SETTINGS');return ++virtualCalls===1?oldVirtual.promise:virtualResult(body.inputs);});
   const oldVirtualRun=audit.selectPage('SETTINGS');await audit.selectPage('FACTOR CALCS');
   const freshVirtualResult=entry.result;oldVirtual.resolve(virtualResult({SETTINGS:{D10:-99}}));await oldVirtualRun;
   assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.renderedPage,'FACTOR CALCS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,3);assert.equal(entry.inputs.SETTINGS.D10,3.45678912);
   const oldVirtualError=deferred();virtualCalls=0;
+  entry.navigationCache=null;
   audit.setRequest(async(path,options)=>++virtualCalls===1?oldVirtualError.promise:virtualResult(JSON.parse(options.body).inputs));
   const oldFailure=audit.selectPage('START');await audit.selectPage('SETTINGS');oldVirtualError.reject(new Error('Obsolete START failure'));await oldFailure;
   assert.equal(entry.page,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete START failure'));assert.equal(virtualButtons().length,7);passed++;

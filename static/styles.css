@@ -34,6 +34,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .eyebrow{font-size:10px;font-weight:800;letter-spacing:2.3px;color:var(--accent);margin-bottom:9px}
 .subtitle{margin-top:9px;font-size:13px;color:var(--muted)}
 .actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.project-save-actions{display:inline-flex;gap:9px;align-items:center}
 .project-tools{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;margin-bottom:28px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:12px;background:#fff}
 .project-tools[hidden]{display:none}
 .project-tools>div:first-child{min-width:0}

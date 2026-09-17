@@ -437,12 +437,6 @@ class _Report:
         self.story.extend([PageBreak(), self.p("Quote notes", "section")])
         self.story.append(self.p("NOTES", "subheading"))
         self.note_block(self.quote.get("measurements"))
-        self.story.append(self.p("Generated material and allowance notes", "subheading"))
-        notes = self.result.get("notes")
-        if "B30" in self.errors:
-            self.story.append(self.p("Unavailable: " + _text(self.errors["B30"]), "alert"))
-        else:
-            self.note_block(notes)
         if self.errors:
             self.story.append(self.p("Calculation errors - complete list", "subheading"))
             error_rows = [[self.p(error["label"], "cell"), self.p(error["code"], "cell")]

@@ -114,11 +114,12 @@ class ReportTests(unittest.TestCase):
         for token in ("Work summary", quote["work_summary"], "Material pricing and quantities",
                       "The material category total on the summary also contains",
                       "Project area / items:", "Coverage and units are entered by the estimator.",
-                      "Masking allowance:", "Measurement / technical notes", "Estimator notes"):
+                      "Masking allowance:", "Measurement / technical notes", "Estimator notes",
+                      "Generated material and allowance notes"):
             self.assertNotIn(token, text)
         for token in ("Material breakdown", "Material / yield", "Line amount", "Labour and masking",
                       "Masking / cleaning", "Masking labour", "Masking materials", "Masking material adjustment",
-                      "Additions and project costs", "Generated material and allowance notes"):
+                      "Additions and project costs"):
             self.assertIn(token, text)
         quote.pop("work_summary")
         before = deepcopy(quote)
@@ -148,16 +149,35 @@ class ReportTests(unittest.TestCase):
         self.assertNotRegex(text, r"\b\d[\d,]*\.\d{3,}\b")
         self.assertEqual(quote, before)
 
-    def test_removing_duplicate_notes_field_preserves_generated_notes_and_saved_inputs(self):
+    def test_current_and_saved_pdfs_omit_automatic_notes_but_preserve_authored_notes_and_snapshot(self):
         quote = deepcopy(self.quote)
         quote['inputs']['B12'] = 'Retained allowance note'
         quote['result']['notes'] = 'Retained allowance note\n\nGenerated board requirement: 7 sheets.'
+        quote['result']['cells']['B30'] = quote['result']['notes']
+        quote['measurements'] = 'Authored project note: preserve 12.3456789 m2 exactly.'
+        for report_kind in ('Current estimate', 'Saved quote'):
+            with self.subTest(report_kind=report_kind):
+                quote['report_kind'] = report_kind
+                before = deepcopy(quote)
+                text = pdf_text(render_quote_pdf(quote))
+                for omitted in ('Estimator notes', 'Generated material and allowance notes',
+                                'Retained allowance note', 'Generated board requirement: 7 sheets.'):
+                    self.assertNotIn(omitted, text)
+                self.assertIn('NOTES', text)
+                self.assertIn(quote['measurements'], text)
+                self.assertEqual(quote, before)
+
+    def test_hidden_automatic_notes_do_not_hide_calculation_errors(self):
+        quote = deepcopy(self.quote)
+        quote['result']['errors']['B30'] = '#N/A'
+        quote['result']['cells']['B30'] = '#N/A'
+        quote['result']['notes'] = '#N/A'
         before = deepcopy(quote)
         text = pdf_text(render_quote_pdf(quote))
-        self.assertNotIn('Estimator notes', text)
-        self.assertEqual(text.count('Retained allowance note'), 1)
-        self.assertIn('Generated board requirement: 7 sheets.', text)
-        self.assertIn('NOTES', text)
+        self.assertNotIn('Generated material and allowance notes', text)
+        self.assertIn('Calculation errors - complete list', text)
+        self.assertIn('Generated material notes', text)
+        self.assertIn('#N/A', text)
         self.assertEqual(quote, before)
 
     def test_numeric_formatter_handles_rounding_negatives_tiny_and_large_values(self):

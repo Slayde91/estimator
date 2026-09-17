@@ -1036,7 +1036,7 @@ let passed = 0;
   assert.ok(descendants(vermSections[0]).find(node=>node.tagName==='table').className.includes('calculator-responsive-form'));
   const periodTable=descendants(vermSections[2]).find(node=>node.tagName==='table');assert.equal(periodTable.children[0].children.length,7);assert.ok(periodTable.children[0].children.slice(1).every(col=>col.style.width==='88px'));assert.equal(periodTable.children.at(-1).children[0].children[0].tagName,'th');assert.equal(periodTable.children.at(-1).children[0].dataset.sourceRow,'28');
   for(const periodRow of periodTable.children.at(-1).children)for(const cell of periodRow.children){assert.equal(cell.classList.contains('calculator-align-center'),true);assert.equal(cell.tagName,periodRow.dataset.sourceRow==='28'?'th':'td');}
-  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').classList.contains('calculator-align-center'),false);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='H6').classList.contains('calculator-align-center'),true);
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='J28'));assert.equal(JSON.stringify(entry.result),vermRaw);
   const orderedVermOutputs=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   for(const row of [28,29,30]){assert.deepEqual(periodTable.children.at(-1).children.find(node=>node.dataset.sourceRow===String(row)).children.map(node=>node.dataset.calculatorOutput),[...'ACEFGHI'].map(column=>`${column}${row}`));for(const column of ['B','D'])assert.ok(!orderedVermOutputs.includes(`${column}${row}`));}
@@ -1062,7 +1062,7 @@ let passed = 0;
   const publishedTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Thickness and quantities');
   const publishedRow=publishedTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='6');
   assert.deepEqual(publishedRow.children.map(cell=>cell.dataset.calculatorOutput),['L6','H6']);assert.deepEqual(publishedRow.children.map(cell=>cell.colSpan),[3,4]);assert.deepEqual(publishedRow.children.map(cell=>cell.rowSpan),[3,3]);
-  assert.equal(publishedRow.children[0].textContent,'PUBLISHED VALUE');assert.equal(publishedRow.children[1].textContent,'26.00 mm');assert.equal(publishedRow.children[1].classList.contains('calculator-align-left'),true);
+  assert.equal(publishedRow.children[0].textContent,'PUBLISHED VALUE');assert.equal(publishedRow.children[1].textContent,'26.00 mm');assert.equal(publishedRow.children[1].classList.contains('calculator-align-center'),true);
   const belowPublishedRow=publishedTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='9');assert.equal(belowPublishedRow.children.length,2);assert.deepEqual(belowPublishedRow.children.map(cell=>cell.colSpan),[3,4]);
   assert.equal(belowPublishedRow.children[0].classList.contains('calculator-normal'),true);assert.equal(belowPublishedRow.children[0].classList.contains('calculator-bold'),false);
   assert.deepEqual(renderedControls().map(control=>control.dataset.calculatorCell).sort(),['D6','K9']);
@@ -1392,7 +1392,7 @@ let passed = 0;
   const alignedOutput=address=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===address);
   const alignedLabel=alignedOutput('J96');assert.equal(alignedLabel.classList.contains('calculator-bold'),true);assert.equal(alignedLabel.classList.contains('calculator-align-center'),true);
   assert.equal(alignedOutput('K96').classList.contains('calculator-align-center'),true);assert.equal(alignedOutput('K96').classList.contains('calculator-bold'),false);
-  assert.equal(alignedOutput('L96').classList.contains('calculator-bold'),false);assert.equal(alignedOutput('L96').classList.contains('calculator-normal'),true);assert.equal(alignedOutput('L96').classList.contains('calculator-align-left'),true);assert.equal(alignedOutput('L96').classList.contains('calculator-align-center'),false);
+  assert.equal(alignedOutput('L96').classList.contains('calculator-bold'),false);assert.equal(alignedOutput('L96').classList.contains('calculator-normal'),true);assert.equal(alignedOutput('L96').classList.contains('calculator-align-left'),false);assert.equal(alignedOutput('L96').classList.contains('calculator-align-center'),true);
   assert.equal(JSON.stringify(entry.result),rawAlignedCells);
   const alignedUpdate=copy(entry.result);alignedUpdate.rows[0].cells[1].value=0.987654321;audit.setRequest(async()=>alignedUpdate);await audit.calculate();
   assert.equal(alignedOutput('J96'),alignedLabel);assert.equal(alignedOutput('K96').textContent,'0.99');assert.equal(alignedOutput('K96').classList.contains('calculator-align-center'),true);
@@ -1582,6 +1582,36 @@ let passed = 0;
   assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
   for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-reset','calculator-recalculate'])assert.equal(byId(id).listeners.click.length,1);passed++;
+
+  // Status alignment keeps the original output anchors and refreshes their text
+  // once, without adding a second calculated value or altering exact inputs.
+  entry=setup({CALCULATOR:{D6:12.3456789012345}});entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';
+  entry.definition.sheets=[{name:'CALCULATOR',header_rows:[],merges:['H5:N5','H9:N10','H20:N21'],section_cells:['H5'],table_layout:'projected',
+    presentation_tables:[{first_row:5,last_row:21,columns:[8,9,10,11,12,13,14],column_widths:Array(7).fill(1),width_mode:'fit',table_kind:'form',title_address:'H5',label:'Thickness and quantities'}]}];
+  entry.result=result(copy(entry.inputs),{max_column:14,rows:[
+    {row:5,cells:[{column:8,address:'H5',value:'02 THICKNESS & QUANTITIES',presentation:{role:'section'}}]},
+    {row:9,cells:[{column:8,address:'H9',value:'PUBLISHED - TABLE LOOKUP',calculated:true}]},
+    {row:20,cells:[{column:8,address:'H20',value:'QUANTIFIED - ESTIMATE',calculated:true}]},
+  ]});
+  const statusRaw=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
+  const statusOutput=address=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===address);
+  const retainedAnnotationStatus=statusOutput('H9');
+  for(const [address,text] of [['H9','PUBLISHED - TABLE LOOKUP'],['H20','QUANTIFIED - ESTIMATE']]){
+    const output=statusOutput(address);assert.equal(output.colSpan,7);assert.equal(output.classList.contains('calculator-split-status'),true);
+    assert.equal(output.children.length,1);assert.equal(output.children[0].children.length,2);assert.equal(output.children[0].children[0].textContent,text);
+    assert.equal(output.children[0].children[1].getAttribute('aria-hidden'),'true');
+    assert.equal(output.children[0].children[0].dataset.calculatorOutput,undefined);
+  }
+  assert.equal(statusOutput('H5').classList.contains('calculator-align-center'),false);assert.equal(JSON.stringify(entry.result),statusRaw);
+  const statusUpdate=copy(entry.result);statusUpdate.rows[1].cells[0].value='HOLD - REVIEW SOURCE';audit.setRequest(async()=>statusUpdate);await audit.calculate();
+  assert.equal(statusOutput('H9'),retainedAnnotationStatus);assert.equal(retainedAnnotationStatus.children[0].children[0].textContent,'HOLD - REVIEW SOURCE');
+  assert.equal(retainedAnnotationStatus.children.length,1);assert.equal(entry.inputs.CALCULATOR.D6,12.3456789012345);passed++;
+
+  // The two browser labels are aliases at exact coordinates, never raw data edits.
+  for(const [id,sheet,address,raw,shown] of [['steel_board','SETTINGS','Q5','Plain-English message (display only)','Description'],['ductwork','SUMMARY','A17','PENETRATION ANGLES — LENGTH BY SIZE AND LOCATION','PENETRATION ANGLES']]){
+    entry=setup();entry.definition.id=id;entry.sheet=sheet;
+    assert.equal(audit.sourceDisplayText(raw,entry,address),shown);assert.equal(audit.sourceDisplayText(raw,entry,'Z99'),raw);
+  }passed++;
 
   // Cancelled file pickers and oversized workbooks do not read or submit content.
   entry = setup(); requests = 0; audit.setRequest(async () => { requests++; });

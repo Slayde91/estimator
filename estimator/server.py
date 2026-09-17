@@ -134,6 +134,12 @@ def create_server(port=8765, database=None, project_dialogs=None):
                                       {'Content-Disposition': project_download_header(filename)})
                 elif route == '/api/project/save-as' and self.command == 'POST':
                     self.send_payload(200, projects.save_as(body))
+                elif route == '/api/project/save' and self.command == 'POST':
+                    self.send_payload(200, projects.save(body))
+                elif route == '/api/project/open' and self.command == 'POST':
+                    if body:
+                        raise ValidationError('Load Project does not accept a file path or other fields.')
+                    self.send_payload(200, projects.open_file())
                 elif route == '/api/projects/link-folder' and self.command == 'POST':
                     if body:
                         raise ValidationError('Link folder does not accept a folder path or other fields.')

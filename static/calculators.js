@@ -11,6 +11,43 @@
     ductwork: "Ductwork dimensions, protection systems and quantities",
     steel_board: "Steel member schedules, board stacks and whole-sheet takeoff",
   };
+  // Browser annotation scopes use immutable source coordinates. They change
+  // alignment/labels only; values, formulas, input keys and exports are untouched.
+  const browserPresentation = {
+    steel_vermiculite: {
+      CALCULATOR: { center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
+      BAGS: { center: ["A6:N15", "A19:I24"] }, // 8–9
+      SETTINGS: {
+        center: ["A10:L15", "A54:L58", "A86:L90", "A123:L167", "A196:L223", "A259:L264"], // 10–11, 17–20
+        left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239"], // 12–16
+      },
+    },
+    steel_board: {
+      "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"] }, // 22
+      SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" } }, // 23–25
+    },
+    ductwork: {
+      SUMMARY: { center: ["A8:J11", "A18:F26", "A30:C32", "A39:G41"], text: { A17: "PENETRATION ANGLES" } }, // 27–30
+      "PRODUCT SETTINGS": {
+        center: ["A36:H39", "B7:D35", "B44:D46", "B90:D92", "A74:H79", "B49:D73", "B95:D115",
+          "A117:H121", "A123:H127", "A129:H134", "A136:H141", "J95:Q104", "J116:Q130"], // 31–43
+      },
+    },
+  };
+  const browserAlignmentRanges = new WeakMap();
+  function browserCellDisplay(entry, address, source = {}) {
+    const rules = browserPresentation[entry.definition.id]?.[entry.sheet];
+    if (!rules) return source;
+    const position = parseAddress(address);
+    if (!position) return source;
+    if (!browserAlignmentRanges.has(rules)) browserAlignmentRanges.set(rules,
+      Object.fromEntries(["left", "center"].map((align) => [align, (rules[align] || []).map((range) => range.split(":").map(parseAddress))])));
+    const ranges = browserAlignmentRanges.get(rules), inside = ([start, end]) => {
+      return position.row >= start.row && position.row <= end.row && position.column >= start.column && position.column <= end.column;
+    };
+    const align = ranges.left.some(inside) ? "left" : ranges.center.some(inside) ? "center" : source.align;
+    return align === source.align ? source : { ...source, align };
+  }
   // Display-only wording for identified workbook directions. These are scoped
   // to their original cells; a general A1 replacement would corrupt product,
   // fastener, exposure and report identifiers such as P250, M12 and R3.
@@ -184,6 +221,8 @@
 
   function sourceDisplayText(value, entry, address, result = entry?.result) {
     if (!entry) return value;
+    const browserText = browserPresentation[entry.definition.id]?.[entry.sheet]?.text;
+    if (Object.prototype.hasOwnProperty.call(browserText || {}, address)) return browserText[address];
     const overrides = result?.display_text || sheetMetadata(entry).display_text || {};
     if (Object.prototype.hasOwnProperty.call(overrides, address) && typeof overrides[address] === "string") return overrides[address];
     if (typeof value !== "string") return value;
@@ -198,7 +237,7 @@
   function updateStatus(entry = current()) {
     window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
-    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save Project" : "Project calculator inputs · use Save Project to save all calculators";
+    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save or Save As" : "Project calculator inputs · use Save or Save As to save all calculators";
     const hasErrors = entry.invalid.size > 0;
     $("calculator-recalculate").disabled = hasErrors;
     $("calculator-pdf").disabled = state.action || hasErrors;
@@ -412,6 +451,13 @@
     const schedule = entry?.definition.schedule, position = parseAddress(address);
     const lineNumber = schedule && entry.sheet === schedule.sheet && position?.column === columnNumber(schedule.line_id_column) && position.row >= schedule.first_row && position.row <= schedule.last_row;
     element.textContent = (lineNumber && Number.isInteger(value) ? String(value) : displayValue(value, cell)) + (isNumber(value) && !cell.error && typeof suffix === "string" ? suffix : "");
+    if (cell.calculated && browserPresentation[entry?.definition.id]?.[entry?.sheet]?.split_status?.includes(address)) {
+      // Keep the status in its original merged output cell. The invisible
+      // internal divider follows the label/value columns below (H:J / K:N).
+      const columns = node("span", "calculator-status-columns"), status = node("span", "calculator-status-text", element.textContent), empty = node("span");
+      empty.setAttribute("aria-hidden", "true"); columns.append(status, empty);
+      element.classList.add("calculator-split-status"); element.replaceChildren(columns);
+    }
     if (entry?.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS" && ["J32", "J65", "J97", "J174", "J230"].includes(address) && cell.value === "BACK TO TOP") {
       const link = node("a", "calculator-inline-link", "Back to worksheet controls"); link.href = "#calculator-sheet-title"; element.replaceChildren(link);
     }
@@ -550,7 +596,7 @@
     container.hidden = !totals.length;
     if (!totals.length) { container.replaceChildren(); return; }
     const heading = node("h4", "", board ? "CALCULATED SUMMARY" : "PRODUCT SUMMARY"), note = node("p", "", board ? "Box reference area measures the enclosure used for the board takeoff. Net board area and whole sheets include valid additional boards. Review products with incomplete rows." : "Whole bags use each product’s combined order quantity, including its configured waste. A blank total remains withheld; review the order status.");
-    const scroll = node("div", "calculator-product-totals-scroll"), table = node("table"), head = node("thead"), body = node("tbody"), headers = node("tr");
+    const scroll = node("div", "calculator-product-totals-scroll"), table = node("table", "calculator-centered-data-table"), head = node("thead"), body = node("tbody"), headers = node("tr");
     for (const label of board ? ["Product", "Box reference area (m²)", "Net board area (m²)", "Whole sheets", "Order status"] : ["Product", "Net bags", "Whole bags", "Order status"]) { const cell = node("th", "", label); cell.scope = "col"; headers.append(cell); }
     head.append(headers);
     for (const total of totals) {
@@ -787,7 +833,7 @@
         const sourceHeading = (!hasOwnHeader || headerRow === row.row) && (metadata.header_rows || []).includes(row.row);
         const matrixHeading = group === "matrix" && row.row === matrix.first || Boolean(definition) && headerRow === row.row;
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
-        const display = metadata.display_cells[cell.address || `${columnName(column)}${row.row}`] || {};
+        const display = browserCellDisplay(entry, cell.address || `${columnName(column)}${row.row}`, metadata.display_cells[cell.address || `${columnName(column)}${row.row}`] || {});
         let role = display.role || (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell));
         if (hasOwnHeader && row.row !== headerRow && role === "column_header" && !section) role = "body";
         if (definition?.table_kind === "form" && role === "section" && !section && !(merge && groupColumns.every((visible) => visible >= merge.start.column && visible <= merge.end.column))) role = "label";
@@ -1111,10 +1157,10 @@
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
       const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and supplied workbook example rows" : "supplied workbook defaults, including its example rows";
-      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save Project to keep the reset.`, "Reset draft")) return;
+      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save or Save As to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
-      message("Calculator defaults restored in this draft. Save Project to keep them."); await calculate();
+      message("Calculator defaults restored in this draft. Use Save or Save As to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 
@@ -1134,10 +1180,10 @@
       const content = await readFile(file);
       const result = await request(endpoint(entry.definition.id, "import"), { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, inputs: snapshot }) });
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
-      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save Project.`, "Apply to draft")) return;
+      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save or Save As.`, "Apply to draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
       entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
-      message(`Imported ${result.imported_rows} schedule rows into the draft. Save Project to keep them.`); await calculate();
+      message(`Imported ${result.imported_rows} schedule rows into the draft. Use Save or Save As to keep them.`); await calculate();
     } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
   }

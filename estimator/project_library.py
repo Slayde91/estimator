@@ -7,6 +7,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import secrets
 import stat
 import tempfile
 import threading
@@ -14,7 +15,7 @@ import time
 
 from .catalog import ValidationError
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import MAX_PROJECT_FILE, export_project, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, MAX_PROJECT_FILE, export_project, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
@@ -131,7 +132,7 @@ def _atomic_write(selection, payload):
     temporary = None
     try:
         if file_fingerprint(path) != expected:
-            raise ValidationError("The selected file changed after the dialog. Save again to confirm its current contents.")
+            raise ValidationError("The selected file changed. Reload the project or use Save As to confirm its current contents.")
         descriptor, temporary = tempfile.mkstemp(prefix=".ceasefire-project-", suffix=".tmp", dir=folder)
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload)
@@ -140,7 +141,7 @@ def _atomic_write(selection, payload):
             saved_info = os.fstat(stream.fileno())
         # Recheck both the directory and confirmed file after preparing the bytes.
         if _directory(folder) != folder or file_fingerprint(path) != expected:
-            raise ValidationError("The selected file changed after the dialog. Save again to confirm its current contents.")
+            raise ValidationError("The selected file changed. Reload the project or use Save As to confirm its current contents.")
         os.replace(temporary, path)
         temporary = None
         return path, saved_info
@@ -161,6 +162,10 @@ class ProjectLibrary:
         self._lock = threading.RLock()
         self._cache = {}
         self._scan = None
+        # Only native selections and validated folder loads grant write access.
+        # Browser requests receive opaque, session-only capabilities, never a
+        # writable path argument. Each successful Save consumes its capability.
+        self._save_targets = {}
 
     def close(self):
         """Release a partially scanned directory when the server shuts down."""
@@ -331,7 +336,76 @@ class ProjectLibrary:
             raise ValidationError("Choose a project from the linked estimates folder.")
         payload, info = _read_file(path)
         project = load_project_bytes(self.store, payload)
-        return {**project, "file": _metadata(path, info, project, folder)}
+        return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder))}
+
+    def _authorize_save(self, path, info, payload, metadata):
+        token = secrets.token_urlsafe(32)
+        fingerprint = {"size": info.st_size, "mtime_ns": info.st_mtime_ns,
+                       "sha256": hashlib.sha256(payload).hexdigest()}
+        with self._lock:
+            self._save_targets[token] = SaveSelection(str(path), fingerprint)
+        return {**metadata, "save_token": token}
+
+    def open_file(self):
+        with _dialog():
+            selected = self.dialogs.choose_open(self.store.project_folder())
+            if selected is None:
+                return {"cancelled": True}
+            path = Path(selected)
+            if not path.is_absolute() or ".." in path.parts or not path.name.lower().endswith(".json"):
+                raise ValidationError("Choose a project JSON file in an accessible folder.")
+            payload, info = _read_file(path)
+            project = load_project_bytes(self.store, payload)
+            selected_folder = self.store.project_folder()
+            try:
+                folder = _directory(selected_folder) if selected_folder else None
+            except ValidationError:
+                folder = None
+            metadata = self._authorize_save(path, info, payload, _metadata(path, info, project, folder))
+            return {"cancelled": False, **project, "file": metadata}
+
+    def save(self, request):
+        if not isinstance(request, dict) or set(request) != {"save_token", "estimate", "calculators"}:
+            raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
+        if not isinstance(request["calculators"], dict) or set(request["calculators"]) != set(CALCULATOR_IDS):
+            raise ValidationError("Save must include all three calculator drafts.")
+        if not isinstance(request["estimate"], dict) or set(request["estimate"]) != ESTIMATE_FIELDS:
+            raise ValidationError("Save must include the complete estimate inputs and pricing snapshot.")
+        token = request["save_token"]
+        if not isinstance(token, str):
+            raise ValidationError('Choose the project with Load Project or "Save As" before using Save.')
+        with self._lock:
+            selection = self._save_targets.get(token)
+            if selection is None:
+                raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
+        payload = export_project(self.store, {key: request[key] for key in ("estimate", "calculators")})
+        project = load_project_bytes(self.store, payload)
+        # Serialize writes and recheck the capability after preparation so two
+        # simultaneous requests cannot both consume one saved-file version.
+        with self._lock:
+            if self._save_targets.get(token) is not selection:
+                raise ValidationError('The project was already saved by another request. Reload it or use "Save As".')
+            path = Path(selection.path)
+            if file_fingerprint(path) != selection.fingerprint:
+                raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
+            selected_folder = self.store.project_folder()
+            path, info = _atomic_write(selection, payload)
+            del self._save_targets[token]
+            try:
+                folder = _directory(selected_folder) if selected_folder else None
+            except ValidationError:
+                folder = None
+            metadata = _metadata(path, info, project, folder)
+            metadata["in_linked_folder"] = folder is not None and path.is_relative_to(folder)
+            self.close()
+            if folder is not None:
+                self._start_scan(folder)
+                if metadata["in_linked_folder"]:
+                    self._scan["files"][metadata["id"]] = metadata
+            else:
+                self._scan = None
+            metadata = self._authorize_save(path, info, payload, metadata)
+        return {"cancelled": False, "file": metadata, "folder": selected_folder, "project": project}
 
     def save_as(self, request):
         # No dialog or preference/file writes until the complete captured state is valid.
@@ -342,7 +416,8 @@ class ProjectLibrary:
             selection = self.dialogs.choose_save(selected_folder, project_filename(project["estimate"]["title"]))
             if selection is None:
                 return {"cancelled": True}
-            path, saved_info = _atomic_write(selection, payload)
+            with self._lock:
+                path, saved_info = _atomic_write(selection, payload)
             warning = None
             if selected_folder is None:
                 try:
@@ -365,6 +440,7 @@ class ProjectLibrary:
                         self._scan["files"][metadata["id"]] = metadata
                 else:
                     self._scan = None
+        metadata = self._authorize_save(path, saved_info, payload, metadata)
         response = {"cancelled": False, "file": metadata, "folder": selected_folder, "project": project}
         if warning:
             response["warning"] = warning

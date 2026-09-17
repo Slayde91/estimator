@@ -1701,6 +1701,15 @@ let passed = 0;
   const invalidViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];invalidViewport.scrollTop=900*96;await invalidViewport.emit('scroll');
   assert.equal(invalidViewport.scrollTop,0);assert.equal(invalidScrollRequests,0);assert.equal(entry.invalid.get('CALCULATOR!B9'),'broken');assert.equal(entry.inputs.CALCULATOR.B9,3.123456789);passed++;
 
+  // An invalid editor at the end of a buffered window remains at its exact
+  // prior viewport, rather than jumping to the first row of that window.
+  entry=dynamicSetup(Array.from({length:1000},(_,index)=>index+9),{CALCULATOR:{B1008:3.123456789}});
+  entry.scheduleViewport={offset:940,top:95200,left:333};await audit.calculate();
+  entry.invalid.set('CALCULATOR!B1008','broken');let blockedTailRequests=0;audit.setRequest(async()=>{blockedTailRequests++;});
+  const tailViewport=byId('calculator-grid').querySelectorAll('[data-schedule-viewport]')[0];tailViewport.scrollTop=0;tailViewport.scrollLeft=100;await tailViewport.emit('scroll');
+  assert.equal(tailViewport.scrollTop,95200);assert.equal(tailViewport.scrollLeft,333);assert.equal(entry.scheduleViewport.top,95200);assert.equal(blockedTailRequests,0);
+  assert.equal(entry.invalid.get('CALCULATOR!B1008'),'broken');assert.equal(entry.inputs.CALCULATOR.B1008,3.123456789);passed++;
+
   // Project saving acknowledges row metadata independently of inputs. Later
   // row additions remain dirty when an earlier save completes.
   entry=dynamicSetup([9]);const captured=audit.projectSnapshot();entry.scheduleRows=[9,10];audit.markProjectSaved(captured);assert.equal(audit.dirty(entry),true);

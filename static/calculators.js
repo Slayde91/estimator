@@ -223,6 +223,7 @@
     let timer;
     const onScroll = () => {
       if (entry !== current() || scheduleFor(entry)?.sheet !== entry.sheet) return;
+      const previousTop = viewport.top || 0, previousLeft = viewport.left || 0;
       viewport.top = scroll.scrollTop; viewport.left = scroll.scrollLeft;
       clearTimeout(timer);
       if (entry.scheduleRows.length <= scheduleWindowSize) return;
@@ -234,7 +235,10 @@
       const focused = document.activeElement;
       if (focused?.dataset?.calculatorSheet === entry.sheet && (focused.dataset.calculatorCell || focused.dataset.calculatorCustomCell)) focused.blur?.();
       if (entry.invalid.size) {
-        scroll.scrollTop = Math.max(0, view.offset * scheduleRowHeight); viewport.top = scroll.scrollTop;
+        // Stay where the user was editing, rather than jumping to the first
+        // buffered row and leaving the invalid editor far below the viewport.
+        scroll.scrollTop = previousTop; scroll.scrollLeft = previousLeft;
+        viewport.top = previousTop; viewport.left = previousLeft;
         message("Correct the invalid input before scrolling to another group of rows.", true); return;
       }
       timer = setTimeout(() => {

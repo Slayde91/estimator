@@ -310,7 +310,7 @@ class ProjectLibraryTests(unittest.TestCase):
 
     def test_listing_errors_limits_unavailable_folder_and_opaque_ids(self):
         (self.folder / "valid.json").write_bytes(self.payload)
-        (self.folder / "broken.json").write_text("{}", encoding="utf-8")
+        (self.folder / "broken.json").write_text('{"format":"ceasefire-project","version":1}', encoding="utf-8")
         (self.folder / "ignored.txt").write_bytes(self.payload)
         self.store.set_project_folder(self.folder)
         listing = self.library.listing()
@@ -333,6 +333,145 @@ class ProjectLibraryTests(unittest.TestCase):
             self.library.load(identifier)
         self.store.set_project_folder(self.root / "missing")
         self.assertEqual(len(self.library.listing()["errors"]), 1)
+
+    def test_scan_ignores_unrelated_json_without_using_names_or_nested_markers(self):
+        unrelated = {
+            "CEASEFIRE Project.json": b'{}',
+            "export.json": b'{"format":"exporter-data","estimate":{"title":"Export"}}',
+            "array.json": b'[{"format":"ceasefire-project"}]',
+            "nested.json": b'{"export":{"format":"ceasefire-project"}}',
+            "text.json": b'"format: ceasefire-project"',
+            "number.json": b'12.5',
+            "true.json": b'true',
+            "null.json": b'null',
+            "malformed.json": b'{"export":',
+            "prose.json": b'not JSON {"format":"ceasefire-project"}',
+            "encoding.json": b'\xffbroken',
+            "deep-export.json": b'{"data":' + b'[' * 1100 + b'0' + b']' * 1100 + b'}',
+        }
+        for name, payload in unrelated.items():
+            (self.folder / name).write_bytes(payload)
+        (self.folder / "arbitrary-name.json").write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        from estimator.project_file import project_summary
+        with patch("estimator.project_library.project_summary", wraps=project_summary) as summary, patch("estimator.project_library.load_project_bytes", side_effect=AssertionError("Listing recalculated a project")):
+            listing = self.library.listing()
+        self.assertEqual([item["name"] for item in listing["files"]], ["arbitrary-name.json"])
+        self.assertEqual(listing["errors"], [])
+        self.assertEqual(listing["scanned_files"], len(unrelated) + 1)
+        self.assertEqual(summary.call_count, 1)
+        self.assertFalse(listing["scan_pending"])
+
+    def test_recognized_project_errors_remain_strict_and_unrelated_manual_open_fails(self):
+        invalid = {
+            "version.json": b'{"format":"ceasefire-project","version":999}',
+            "missing-fields.json": b'{"format":"ceasefire-project","version":1}',
+            "truncated.json": b'{"format":"ceasefire-project","version":',
+            "duplicate.json": b'{"format":"exporter","format":"ceasefire-project","version":1}',
+            "nonfinite.json": b'{"format":"ceasefire-project","number":NaN}',
+            "overflow.json": b'{"format":"ceasefire-project","number":1e999}',
+            "encoding.json": b'{"format":"ceasefire-project","value":"\xff"}',
+            "nested.json": b'{"format":"ceasefire-project","data":' + b'[' * 40 + b'0' + b']' * 40 + b'}',
+            "escaped-marker.json": b'{"for\\u006dat":"ceasefire-\\u0070roject","version":',
+        }
+        for name, payload in invalid.items():
+            (self.folder / name).write_bytes(payload)
+        self.store.set_project_folder(self.folder)
+        listing = self.library.listing()
+        self.assertEqual(listing["files"], [])
+        self.assertEqual({item["name"] for item in listing["errors"]}, set(invalid))
+        self.assertEqual(listing["scanned_files"], len(invalid))
+        target = self.folder / "unrelated.json"
+        before = database_rows(self.store)
+        for payload in (b'{}', b'{"format":"exporter"}', b'{'):
+            target.write_bytes(payload)
+            self.dialogs.opened = str(target)
+            with self.assertRaises(ValidationError):
+                self.library.open_file()
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_ignored_files_refresh_into_projects_and_known_corruption_is_not_hidden(self):
+        target = self.folder / "changing.json"
+        target.write_bytes(b'{"format":"exporter"}')
+        self.store.set_project_folder(self.folder)
+        from estimator.project_library import _read_file
+        with patch("estimator.project_library._read_file", wraps=_read_file) as read:
+            self.assertEqual(self.library.listing()["errors"], [])
+            self.assertEqual(self.library.listing(refresh=True)["files"], [])
+            self.assertEqual(read.call_count, 1)
+            target.write_bytes(self.payload)
+            listed = self.library.listing(refresh=True)
+            self.assertEqual([item["name"] for item in listed["files"]], [target.name])
+            self.assertEqual(read.call_count, 2)
+            target.write_bytes(b'{')
+            for expected_reads in (3, 4):
+                broken = self.library.listing(refresh=True)
+                self.assertEqual([item["name"] for item in broken["errors"]], [target.name])
+                self.assertEqual(broken["files"], [])
+                self.assertEqual(read.call_count, expected_reads)
+            target.write_bytes(b'{"format":"different-export"}')
+            unrelated = self.library.listing(refresh=True)
+            self.assertEqual((unrelated["files"], unrelated["errors"]), ([], []))
+            target.write_bytes(b'{')
+            self.assertEqual(self.library.listing(refresh=True)["errors"], [])
+            target.write_bytes(self.payload)
+            self.assertEqual(len(self.library.listing(refresh=True)["files"]), 1)
+            for foreign in (
+                b'{"format":"different-export","value":' + b'[' * 40 + b'0' + b']' * 40 + b'}',
+                b'{"format":"different-export","value":1e999}',
+                b'{"format":"different-export","value":1,"value":2}',
+            ):
+                target.write_bytes(foreign)
+                unrelated = self.library.listing(refresh=True)
+                self.assertEqual((unrelated["files"], unrelated["errors"]), ([], []))
+                target.write_bytes(self.payload)
+                self.assertEqual(len(self.library.listing(refresh=True)["files"]), 1)
+        target.unlink()
+        self.assertEqual(self.library.listing(refresh=True)["files"], [])
+        self.assertEqual(self.library._cache, {})
+        target.write_bytes(b'{')
+        self.assertEqual(self.library.listing(refresh=True)["errors"], [])
+
+    def test_oversized_scan_reads_one_bounded_prefix_and_charges_each_read(self):
+        (self.folder / "unrelated.json").write_bytes(b'{"export":"' + b'x' * 1000 + b'"}')
+        (self.folder / "project.json").write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        from estimator.project_library import _read_file
+        read_sizes = []
+        def bounded_read(*args, **kwargs):
+            result = _read_file(*args, **kwargs)
+            read_sizes.append(len(result[0]))
+            return result
+        with patch("estimator.project_library.MAX_PROJECT_FILE", 256), patch("estimator.project_library.MAX_LIST_BYTES", 513), patch("estimator.project_library._read_file", side_effect=bounded_read):
+            first = self.library.listing()
+            self.assertTrue(first["scan_pending"])
+            self.assertEqual(first["scanned_files"], 1)
+            for _ in range(5):
+                listing = self.library.listing()
+                if not listing["scan_pending"]:
+                    break
+            self.assertFalse(listing["scan_pending"])
+            self.assertEqual(read_sizes, [257, 257])
+            self.assertEqual(listing["files"], [])
+            self.assertEqual([item["name"] for item in listing["errors"]], ["project.json"])
+            self.assertIn("16 MB", listing["errors"][0]["error"])
+            self.assertEqual(listing["scanned_files"], 2)
+
+    def test_ignored_json_still_counts_toward_scan_batch_limits(self):
+        for number in range(7):
+            (self.folder / f"export-{number}.json").write_bytes(b'{}')
+        (self.folder / "project.json").write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        with patch("estimator.project_library.MAX_PROJECT_FILES", 2), patch("estimator.project_library.MAX_SCAN_ENTRIES", 3):
+            for calls in range(10):
+                listing = self.library.listing()
+                if not listing["scan_pending"]:
+                    break
+        self.assertGreater(calls, 1)
+        self.assertFalse(listing["scan_pending"])
+        self.assertEqual(listing["scanned_files"], 8)
+        self.assertEqual([item["name"] for item in listing["files"]], ["project.json"])
+        self.assertEqual(listing["errors"], [])
 
     def test_loading_revalidates_changed_source_and_file_size(self):
         target = self.folder / "valid.json"

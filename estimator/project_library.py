@@ -15,7 +15,7 @@ import time
 
 from .catalog import ValidationError
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, MAX_PROJECT_FILE, export_project, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, MAX_PROJECT_FILE, export_project, has_project_identity, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
@@ -54,8 +54,12 @@ def _identity(info):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
 
 
-def _read_file(path):
-    """Read a bounded regular file and reject replacement during the read."""
+def _read_file(path, *, scan=False):
+    """Read a bounded regular file and reject replacement during the read.
+
+    A scan may inspect the bounded prefix of an oversized file to determine
+    whether a project warning applies. Explicit opens always reject its size.
+    """
     path = Path(path)
     parent = _directory(path.parent)
     if path.parent != parent:
@@ -64,7 +68,7 @@ def _read_file(path):
         before = path.lstat()
         if _linked(before) or not stat.S_ISREG(before.st_mode):
             raise ValidationError("Project files must be regular files, not links.")
-        if before.st_size > MAX_PROJECT_FILE:
+        if before.st_size > MAX_PROJECT_FILE and not scan:
             raise ValidationError("The project file must be at most 16 MB.")
         flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
         with os.fdopen(os.open(path, flags), "rb") as stream:
@@ -73,7 +77,7 @@ def _read_file(path):
                 raise ValidationError("The project file changed while opening it. Try again.")
             payload = stream.read(MAX_PROJECT_FILE + 1)
             after = os.fstat(stream.fileno())
-        if len(payload) > MAX_PROJECT_FILE or _identity(before) != _identity(after) or _identity(before) != _identity(path.lstat()):
+        if (len(payload) > MAX_PROJECT_FILE and not scan) or _identity(before) != _identity(after) or _identity(before) != _identity(path.lstat()):
             raise ValidationError("The project file changed while reading it. Try again.")
         return payload, before
     except OSError as error:
@@ -179,8 +183,11 @@ class ProjectLibrary:
             self._cache.clear()
         else:
             # Availability failures (including cloud hydration) can recover
-            # without changing size/mtime. Never make a cached error permanent.
-            self._cache = {key: value for key, value in self._cache.items() if "error" not in value[1]}
+            # without changing size/mtime. Force their reread while retaining
+            # known project identity if corruption later removes its marker.
+            # Completed scans still prune every removed path from this cache.
+            self._cache = {key: (None, value[1], value[2]) if "error" in value[1] else value
+                           for key, value in self._cache.items()}
         self.close()
         self._scan = {"folder": folder, "directories": deque([folder]), "iterator": None,
                       "current": None, "deferred": None, "files": {}, "errors": [], "seen": set(),
@@ -243,22 +250,29 @@ class ProjectLibrary:
                 identity = _identity(info)
                 cached = self._cache.get(key)
                 if cached is None or cached[0] != identity:
-                    if consumed + min(info.st_size, MAX_PROJECT_FILE) > MAX_LIST_BYTES:
+                    if consumed + min(info.st_size, MAX_PROJECT_FILE + 1) > MAX_LIST_BYTES:
                         scan["deferred"] = path
                         break
-                    consumed += min(info.st_size, MAX_PROJECT_FILE)
+                    consumed += min(info.st_size, MAX_PROJECT_FILE + 1)
+                    recognized = cached[2] if cached is not None else False
                     try:
-                        payload, info = _read_file(path)
-                        value = _metadata(path, info, project_summary(payload), scan["folder"])
+                        payload, info = _read_file(path, scan=True)
+                        recognized = has_project_identity(payload, previously_recognized=recognized)
+                        if recognized:
+                            if info.st_size > MAX_PROJECT_FILE:
+                                raise ValidationError("The project file must be at most 16 MB.")
+                            value = _metadata(path, info, project_summary(payload), scan["folder"])
+                        else:
+                            value = {"ignored": True}
                     except (OSError, ValidationError) as error:
                         value = {"name": relative, "error": str(error)}
-                    cached = (identity, value)
+                    cached = (identity, value, recognized)
                     self._cache[key] = cached
                 scan["seen"].add(key)
                 value = cached[1]
                 if "error" in value:
                     scan["errors"].append(value)
-                else:
+                elif not value.get("ignored"):
                     scan["files"][value["id"]] = value
                 processed += 1
                 scan["json_files"] += 1

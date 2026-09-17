@@ -381,9 +381,15 @@ let passed=0;
   assert.equal(JSON.stringify(audit.state.draft),beforeBadList);passed++;
   audit.renderPricing();assert.equal(productInput('coat','Yield').value,'99; 100');
   let invalidExport=false;audit.setFetch(async()=>{invalidExport=true;throw new Error('unexpected');});await audit.exportPricing();assert.equal(invalidExport,false);
-  await editList('coat','Yield','blank');assert.equal(audit.state.draft.rates.primer.yield,null);assert.equal(audit.state.draft.rates.topcoat.yield,null);
-  await editList('coat','Yield','empty text');assert.equal(audit.state.draft.rates.primer.yield,'');assert.equal(audit.state.draft.rates.topcoat.yield,'');
-  await editList('coat','Yield','0');assert.equal(audit.state.draft.rates.primer.yield,0);assert.equal(audit.state.draft.rates.topcoat.yield,0);
+  for (const [legacyText, storedValue] of [['blank', null], ['empty text', '']]) {
+    await editList('coat','Yield',legacyText);
+    assert.equal(audit.state.draft.rates.primer.yield,storedValue);assert.equal(audit.state.draft.rates.topcoat.yield,storedValue);
+    assert.equal(productInput('coat','Yield').value,'');
+    const untouchedBlank=JSON.stringify(audit.state.draft);
+    await productInput('coat','Yield').emit('change');audit.showView('estimate');audit.showView('pricing');
+    assert.equal(productInput('coat','Yield').value,'');assert.equal(JSON.stringify(audit.state.draft),untouchedBlank);
+  }
+  await editList('coat','Yield','0');assert.equal(audit.state.draft.rates.primer.yield,0);assert.equal(audit.state.draft.rates.topcoat.yield,0);assert.equal(productInput('coat','Yield').value,'0');
   await editList('coat','Yield','142');assert.equal(audit.state.draft.rates.topcoat.yield,142);passed++;
 
   // Group edits retain matched identities and their values, and can add or remove uses on the same row.

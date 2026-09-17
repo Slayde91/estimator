@@ -786,6 +786,7 @@
     for (const [index, definition] of definitions.entries()) {
       const prefix = `calculator-settings-${entry.definition.id}-${page}-${definition.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
       const button = node("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
+      if (entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS" && ["A6", "A48", "A94", "J94", "J115"].includes(definition.id)) button.classList.add("calculator-settings-royal-blue");
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       button.addEventListener("click", () => {
@@ -964,7 +965,10 @@
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
-        const action = node("td", "calculator-row-action"), remove = node("button", "button secondary", "Remove");
+        const action = node("td", "calculator-row-action"), remove = node("button", "button secondary calculator-remove-row"), icon = node("span", "calculator-trash-icon");
+        icon.setAttribute("aria-hidden", "true");
+        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
+        remove.append(icon); remove.title = `Remove line ${item}`;
         remove.type = "button"; remove.dataset.scheduleRemove = String(row.row); remove.disabled = state.action || entry.invalid.size > 0;
         remove.setAttribute("aria-label", `Remove line ${item}`); remove.addEventListener("click", () => removeScheduleRow(row.row, entry)); action.append(remove); tr.append(action);
       }

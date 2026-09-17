@@ -41,6 +41,53 @@ def project_filename(title):
     return name + ".json"
 
 
+def has_project_identity(payload, *, previously_recognized=False):
+    """Recognize a top-level format marker without accepting a project.
+
+    Folder scans may ignore unrelated JSON, including broken exporter files.
+    Decode root members in order so a recognized project still reaches strict
+    validation when its later contents are truncated or otherwise invalid.
+    Nested markers and quoted mentions never identify a project. A previously
+    recognized file remains reportable if it becomes invalid JSON, but valid
+    unrelated JSON replaces that identity. This bounded probe is not used to
+    open or authorize files.
+    """
+    payload = payload[:MAX_PROJECT_FILE + 1]
+    text = payload.decode("utf-8-sig", errors="replace")
+    whitespace = re.compile(r"[ \t\r\n]*")
+    position = whitespace.match(text).end()
+    decoder = json.JSONDecoder()
+    try:
+        if text[position:position + 1] == "{":
+            position += 1
+        else:
+            position = len(text)
+        while position < len(text):
+            position = whitespace.match(text, position).end()
+            key, position = decoder.raw_decode(text, position)
+            if not isinstance(key, str):
+                break
+            position = whitespace.match(text, position).end()
+            if text[position:position + 1] != ":":
+                break
+            position = whitespace.match(text, position + 1).end()
+            value, position = decoder.raw_decode(text, position)
+            if key == "format" and value == PROJECT_FORMAT:
+                return True
+            position = whitespace.match(text, position).end()
+            if text[position:position + 1] != ",":
+                break
+            position += 1
+    except (ValueError, RecursionError):
+        pass
+    if previously_recognized:
+        try:
+            json.loads(payload.decode("utf-8-sig"), parse_constant=_reject_constant)
+        except (UnicodeDecodeError, ValueError, RecursionError, ValidationError):
+            return True
+    return False
+
+
 def project_summary(payload):
     """Read display metadata without calculating or applying a project.
 

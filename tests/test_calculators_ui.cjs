@@ -1761,10 +1761,14 @@ let passed = 0;
   // Remove/Undo restores both precise values and absent overrides, without
   // changing settings or moving the other row's formula addresses.
   entry=dynamicSetup([9,10],{CALCULATOR:{A9:'Original',B9:7.123456789012345,M9:'Optional exact',A10:'Keep',B10:2},SETTINGS:{B6:0.123456789012345}});await audit.calculate();
-  const beforeRemove=JSON.stringify(entry.inputs);await audit.removeScheduleRow(9);
+  const removeButton=byId('calculator-grid').querySelectorAll('[data-schedule-remove]')[0];
+  assert.equal(removeButton.tagName,'button');assert.equal(removeButton.type,'button');
+  assert.equal(removeButton.getAttribute('aria-label'),'Remove line 1');assert.equal(removeButton.title,'Remove line 1');
+  assert.equal(removeButton.children[0].getAttribute('aria-hidden'),'true');
+  const beforeRemove=JSON.stringify(entry.inputs);await removeButton.emit('click');
   assert.deepEqual(copy(entry.scheduleRows),[10]);for(const cell of ['A9','B9','M9'])assert.equal(entry.inputs.CALCULATOR[cell],null);
   assert.equal(entry.inputs.CALCULATOR.A10,'Keep');assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);
-  await audit.undoScheduleRemove();assert.deepEqual(copy(entry.scheduleRows),[9,10]);assert.equal(JSON.stringify(entry.inputs),beforeRemove);assert.equal(audit.dirty(entry),false);passed++;
+  await byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0].emit('click');assert.deepEqual(copy(entry.scheduleRows),[9,10]);assert.equal(JSON.stringify(entry.inputs),beforeRemove);assert.equal(audit.dirty(entry),false);passed++;
 
   // The final row remains an empty placeholder; Undo must never overwrite a
   // new value subsequently entered into that same physical row.

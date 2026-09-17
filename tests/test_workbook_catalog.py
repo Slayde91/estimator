@@ -17,6 +17,7 @@ from estimator.workbook_catalog import (
 )
 from scripts.import_calculators import DEFAULT_SOURCE_DIRECTORY, XML_SPACE, extract_calculator, normalize_literal_text, write_catalog
 from scripts.import_workbooks import SourceWorkbook, NS
+from scripts.check_calculator_integrity import compare_catalogs, format_catalog_difference
 
 
 SOURCE_HASHES = {
@@ -202,8 +203,9 @@ class WorkbookSourceRegressionTests(unittest.TestCase):
                 actual = extract_calculator(path, identifier)
                 with gzip.open(DATA_DIRECTORY / f"{identifier}.json.gz", "rt", encoding="utf-8") as source:
                     expected = json.load(source)
-                self.assertEqual(actual, expected)
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), before)
+                comparison = compare_catalogs(expected, actual)
+                self.assertTrue(comparison["matches"], format_catalog_difference(comparison))
 
     def test_shared_formula_boundaries_match_independent_openpyxl_translation(self):
         from openpyxl.formula.translate import Translator

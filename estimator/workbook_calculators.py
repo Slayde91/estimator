@@ -72,7 +72,7 @@ _DISPLAY_TEXT = {
                     'EXTRA BOARDS': {'A1': 'EXTRA BOARDS'}},
     'ductwork': {'CALCULATOR': {
                     'A1': 'DUCT PROTECTION CALCULATOR',
-                    'A3': 'For FyreWrap, Internal and Both use the exhaust application rules. Select pressurisation separately. The application FRL retains the directional requirements shown in the calculation notes. No waste is added.'},
+                    'A3': 'For FyreWrap, Internal and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.'},
                  'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'},
                  'PRODUCT SETTINGS': {
                      'J94': 'FYREWRAP APPLICATION TABLE',
@@ -594,7 +594,7 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
     if calculator_id == 'ductwork':
-        warnings.append('The copied fixing instructions use the first schedule row’s fixed technical references on every row. FyreWrap application choices and layer eligibility follow the approved manual review; original workbook evidence is retained.')
+        warnings.append('FyreWrap application FRLs preserve directional requirements: Both means internal 120/120/120 and external 120/120/-. Stair pressurisation means external 120/120/60. Unresolved penetration wrap totals are withheld.')
     with lock:
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []

@@ -205,7 +205,7 @@
   }
 
   function renderScheduleTools(entry) {
-    const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "", "Add row"), undo = node("button", "secondary", "Undo remove");
+    const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "button primary", "Add row"), undo = node("button", "button secondary", "Undo remove");
     add.type = undo.type = "button"; add.dataset.scheduleAdd = "true"; undo.dataset.scheduleUndo = "true";
     const capacity = entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
     add.disabled = state.action || entry.invalid.size > 0 || entry.scheduleRows.length >= capacity;
@@ -924,7 +924,7 @@
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
-        const action = node("td", "calculator-row-action"), remove = node("button", "secondary", "Remove");
+        const action = node("td", "calculator-row-action"), remove = node("button", "button secondary", "Remove");
         remove.type = "button"; remove.dataset.scheduleRemove = String(row.row); remove.disabled = state.action || entry.invalid.size > 0;
         remove.setAttribute("aria-label", `Remove line ${item}`); remove.addEventListener("click", () => removeScheduleRow(row.row, entry)); action.append(remove); tr.append(action);
       }

@@ -416,6 +416,16 @@ class ProjectLibraryTests(unittest.TestCase):
             self.assertEqual(self.library.listing(refresh=True)["errors"], [])
             target.write_bytes(self.payload)
             self.assertEqual(len(self.library.listing(refresh=True)["files"]), 1)
+            for foreign in (
+                b'{"format":"different-export","value":' + b'[' * 40 + b'0' + b']' * 40 + b'}',
+                b'{"format":"different-export","value":1e999}',
+                b'{"format":"different-export","value":1,"value":2}',
+            ):
+                target.write_bytes(foreign)
+                unrelated = self.library.listing(refresh=True)
+                self.assertEqual((unrelated["files"], unrelated["errors"]), ([], []))
+                target.write_bytes(self.payload)
+                self.assertEqual(len(self.library.listing(refresh=True)["files"]), 1)
         target.unlink()
         self.assertEqual(self.library.listing(refresh=True)["files"], [])
         self.assertEqual(self.library._cache, {})

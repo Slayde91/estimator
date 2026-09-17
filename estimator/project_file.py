@@ -82,8 +82,7 @@ def has_project_identity(payload, *, previously_recognized=False):
         pass
     if previously_recognized:
         try:
-            snapshot = json.loads(payload.decode("utf-8-sig"), object_pairs_hook=_unique_object, parse_constant=_reject_constant)
-            _check_tree(snapshot)
+            json.loads(payload.decode("utf-8-sig"), parse_constant=_reject_constant)
         except (UnicodeDecodeError, ValueError, RecursionError, ValidationError):
             return True
     return False

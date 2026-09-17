@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -92,6 +93,18 @@ def file_fingerprint(path):
         return None
     payload, info = _read_file(path)
     return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": hashlib.sha256(payload).hexdigest()}
+
+
+def _preserve_penetration_inputs(path, request):
+    if "penetration" in request:
+        return
+    existing, _ = _read_file(path)
+    try:
+        snapshot = json.loads(existing)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return
+    if isinstance(snapshot, dict) and has_project_identity(existing) and "penetration" in snapshot:
+        raise ValidationError("Refresh the application and reload this project before saving its Penetration Calculator inputs.")
 
 
 def _file_id(folder, name):
@@ -404,7 +417,8 @@ class ProjectLibrary:
             return {"cancelled": False, **project, "file": metadata}
 
     def save(self, request):
-        if not isinstance(request, dict) or set(request) != {"save_token", "estimate", "calculators"}:
+        required = {"save_token", "estimate", "calculators"}
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if not isinstance(request["calculators"], dict) or set(request["calculators"]) != set(CALCULATOR_IDS):
             raise ValidationError("Save must include all three calculator drafts.")
@@ -417,7 +431,7 @@ class ProjectLibrary:
             selection = self._save_targets.get(token)
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
-        payload = export_project(self.store, {key: request[key] for key in ("estimate", "calculators")})
+        payload = export_project(self.store, {key: request[key] for key in ("estimate", "calculators", "penetration") if key in request})
         project = load_project_bytes(self.store, payload)
         # Serialize writes and recheck the capability after preparation so two
         # simultaneous requests cannot both consume one saved-file version.
@@ -427,6 +441,7 @@ class ProjectLibrary:
             path = Path(selection.path)
             if file_fingerprint(path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
+            _preserve_penetration_inputs(path, request)
             selected_folder = self.store.project_folder()
             path, info = _atomic_write(selection, payload)
             del self._save_targets[token]
@@ -456,6 +471,8 @@ class ProjectLibrary:
             if selection is None:
                 return {"cancelled": True}
             with self._lock:
+                if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
+                    _preserve_penetration_inputs(Path(selection.path), request)
                 path, saved_info = _atomic_write(selection, payload)
             warning = None
             if selected_folder is None:

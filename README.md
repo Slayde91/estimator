@@ -1,6 +1,6 @@
 # Ceasefire ESTIMATOR
 
-A local estimating application reproducing `Quote.xlsm`'s Calculator with permanently imported pricing from `Inventory_list.xlsm`, plus the three supplied ductwork and structural-steel workbooks.
+A local estimating application reproducing `Quote.xlsm`'s Calculator and `Penetration_Calculator.xlsx` with shared pricing from `Inventory_list.xlsm`, plus the three supplied ductwork and structural-steel workbooks.
 
 ## Run
 
@@ -17,6 +17,13 @@ python -m estimator
 ```
 
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
+
+The **Estimator** tab has two tiles: **Estimator** opens the existing estimate,
+and **Penetration Calculator** opens its separate penetration schedule and costs.
+Both use the same project details and pricing library, and are saved together.
+Their totals remain separate. The Penetration Calculator retains the supplied
+workbook formulas, with grouped inputs, per-item results and PDF/XLSX downloads.
+See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
 
 1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
@@ -156,9 +163,11 @@ python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 node --check static/app.js
 node --check static/calculators.js
+node --check static/penetration.js
 node tests/test_ui.cjs
 node tests/test_calculators_ui.cjs
 node tests/test_project_ui.cjs
+node tests/test_penetration_ui.cjs
 python scripts/build.py
 ```
 
@@ -172,8 +181,16 @@ To verify the import against the original files:
 
 ```powershell
 $env:ESTIMATOR_WORKBOOK_DIR = 'C:\ESTIMATOR'
+$env:ESTIMATOR_CALCULATOR_SOURCE_DIR = 'PATH TO BYTE-IDENTICAL ORIGINAL CALCULATOR WORKBOOKS'
 python -m unittest discover -s tests -v
 ```
+
+The second directory must contain the three original calculator filenames and
+recorded source bytes. Editable OneDrive copies can differ after Excel saves
+them. Strict reconstruction reports those differences even when separately
+audited calculations agree; it never updates the frozen app source automatically.
+See the [integrity audit](docs/CALCULATOR_INTEGRITY_AUDIT.md) and the later
+[FyreWrap source reconciliation](docs/FYREWRAP_RULE_REVIEW.md).
 
 Without the files, two source-reconstruction tests skip; all committed Excel fixtures still run. Tests also cover pricing workbook round trips, complete replacements, invalid imports, pricing links, quote metadata/names, deterministic work summaries, display precision and saved-quote isolation. Oracle regeneration is optional developer tooling and needs Microsoft Excel, PowerShell 7, and openpyxl; see `docs/CALCULATOR_SPEC.md`.
 

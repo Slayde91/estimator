@@ -18,8 +18,10 @@ jobs:
       - run: node --check static/app.js
       - run: node --check static/calculators.js
       - run: node --check static/downloads.js
+      - run: node --check static/penetration.js
       - run: node tests/test_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_downloads_ui.cjs
+      - run: node tests/test_penetration_ui.cjs
       - run: python scripts/build.py

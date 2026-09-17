@@ -1,10 +1,13 @@
-# FyreWrap rule review - 17 September 2026
+# FyreWrap rule review - updated 18 September 2026
 
 This review separates the continuous duct covering, local penetration layers,
 directional fire ratings and material geometry. The existing layer-area formulas
 do not add a local second or third layer on top of the same numbered continuous
 layer. The unresolved issue is which assessed penetration detail applies to an
-external or multilayer system, not a demonstrated duplicate in those formulas.
+full-insulation external or multilayer system, not a demonstrated duplicate in
+those formulas. The External dropdown now means exhaust external exposure,
+not an unspecified full-insulation external system; see the approved behavior
+and correction below.
 
 The figures below are independent calculation expectations. Automated checks
 assert these literal quantities separately from the preserved native Excel
@@ -97,7 +100,7 @@ The current manual footnote and the assessment drawings do not, by themselves,
 resolve how Tables 4-5 are to be combined with two or three continuous layers
 for every external application. Neither adding all local allowances nor
 subtracting continuous layers is an established universal rule. Unresolved
-external/multilayer penetration wrap totals must remain withheld until a
+pressurisation/multilayer penetration wrap totals must remain withheld until a
 matching assessed detail is identified. This uncertainty must not be displayed
 as zero additional material or a complete validated takeoff.
 
@@ -109,8 +112,9 @@ eligible local layer-two zones. `X` makes the corresponding choice for layer
 three when `R >= 3`. Neither branch sums both alternatives. `V` is layer one,
 and `N` sums the available layer areas subject to the eligibility gates.
 
-The internal examples below therefore need one continuous layer plus the
-specified local extensions. An external case cannot be certified merely by
+The exhaust examples below therefore need one continuous layer plus the
+specified local extensions. A generic full-insulation external system cannot
+be certified merely by
 observing that the arithmetic avoids duplicate layer numbers.
 
 ## Independently calculated examples with overlaps
@@ -188,14 +192,37 @@ number of continuous wrap layers.
 ## Approved application behavior and regression coverage
 
 The user chose the highest application FRL with the actual directional
-requirements retained. The simplified FyreWrap Internal/Both choices therefore
+requirements retained. The simplified FyreWrap Internal/External/Both choices therefore
 mean the exhaust applications on p8. Known lower application ratings are
 promoted to 120/120/120, including kitchen ductwork inside the compartment.
 Both denotes internal 120/120/120 and external 120/120/-, not full external
-insulation. Stair/Other pressurisation keep their separate p9 rules. A generic
-External choice still calls for the selected full external rating; a 60-minute
-selection uses two layers and 90/120 minutes uses three. Ratings above the
-existing 120-minute automatic-system limit remain unavailable.
+insulation. External denotes the external exposure of these exhaust systems:
+its actual external requirement is 120/120/-, and the internal direction is not
+selected. It uses one continuous layer, while Stair/Other pressurisation keep
+their separate two-/three-layer p9 rules. Ratings above the existing 120-minute
+automatic-system limit remain unavailable.
+
+The 18 September correction removes the previous interpretation of External
+as a generic full external FRL. That earlier mapping deliberately selected
+two continuous layers at 60 minutes and three at 90/120 minutes. The user
+confirmed this was the wrong application meaning: the simplified exposure
+choices are exhaust, and the named pressurisation choices identify the
+continuous multilayer systems. This is an explicit application-policy change,
+not a claim that one blanket layer supplies 120-minute external insulation.
+Known 60/90-minute External ratings are raised to the same displayed maximum
+120/120/120 as the other exhaust choices; blank, unknown and higher unsupported
+ratings are preserved.
+
+The p8 exhaust table's local-layer footnote applies to External exhaust as well
+as Internal/Both. It therefore uses the same eligible local wall/floor detail
+selection, without adding full-run layers two or three. The wall-size conflict,
+unsupported dimensions, orientation checks and short-run warnings remain.
+Pressurisation penetration totals remain withheld where their detail is
+unresolved. For example, External on a 250x250mm, 10m run without penetrations
+now uses 16.7076m², not the previous three-layer 60.9756m². With one wall and
+one floor it uses the independently derived 27.8096m² above. On a 1000x500mm
+run with one wall and one floor it uses 76.1744m², including only the specified
+local second and third layers.
 
 All four schedule dropdowns are closed. Canonical aliases apply across loaded
 projects, imported schedules, worksheet calculations, PDFs and Excel registers.
@@ -208,7 +235,7 @@ Regression coverage is in `test_ductwork_policy.py`, `test_fyrewrap_rules.py`
 and `test_fyrewrap_outputs.py`, with browser-state checks in the existing
 calculator/project JavaScript suites. It covers the literal hand takeoffs
 above, separate wall/floor zones, short-run caps, both pressurisation cases,
-generic external ratings, unsupported inputs, row 1000, aliases, strict XLSX
+external exhaust ratings, unsupported inputs, row 1000, aliases, strict XLSX
 templates, normalized imports, and directional notes in both PDFs and Excel.
 The original native parity suite continues to evaluate the unchanged source
 formulas separately from the approved application overrides.

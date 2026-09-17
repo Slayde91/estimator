@@ -35,7 +35,7 @@ class FyreWrapApplicationRulesTests(unittest.TestCase):
             ({'B': '1000x500', 'F': 1, 'G': 1}, (1, 2.15, 2.55, 1.25, 40.5076, 29.8494, 5.8174, 76.1744)),
         ]
         rows, expected_rows = {}, {}
-        for exposure in ['Internal', 'Both']:
+        for exposure in ['Internal', 'External', 'Both']:
             for supplied, expected in cases:
                 row = 11 + len(rows)
                 rows[row] = {**supplied, 'H': exposure}
@@ -47,12 +47,14 @@ class FyreWrapApplicationRulesTests(unittest.TestCase):
                     self.assertAlmostEqual(engine.value('CALCULATOR', f'{column}{row}'), quantity, places=8)
             if rows[row]['H'] == 'Both':
                 self.assertIn('internal 120/120/120; external 120/120/-', engine.value('CALCULATOR', f'AP{row}'))
+            if rows[row]['H'] == 'External':
+                self.assertIn('external 120/120/-; internal not selected', engine.value('CALCULATOR', f'AP{row}'))
 
     def test_pressurisation_keeps_actual_directional_rating_and_no_extra_full_layer(self):
         inputs = schedule_input({11: {'H': 'Stair pressurisation'}, 12: {'H': 'Other pressurisation'},
                                  13: {'H': 'External'}, 14: {'H': 'External', 'E': '60/60/60'}})
         _, engine, _ = calculator_session('ductwork', inputs)
-        for row, layers, material in [(11, 2, 37.0328), (12, 3, 60.9756), (13, 3, 60.9756), (14, 2, 37.0328)]:
+        for row, layers, material in [(11, 2, 37.0328), (12, 3, 60.9756), (13, 1, 16.7076), (14, 1, 16.7076)]:
             self.assertEqual(engine.value('CALCULATOR', f'R{row}'), layers)
             self.assertAlmostEqual(engine.value('CALCULATOR', f'N{row}'), material, places=8)
         self.assertIn('external 120/120/60; internal not required', engine.value('CALCULATOR', 'AP11'))
@@ -62,16 +64,35 @@ class FyreWrapApplicationRulesTests(unittest.TestCase):
 
     def test_unresolved_or_unsupported_details_cannot_produce_complete_wrap_totals(self):
         rows = {11: {'H': 'Stair pressurisation', 'F': 1}, 12: {'H': 'Other pressurisation', 'G': 1},
-                13: {'H': 'External', 'F': 1}, 14: {'B': '3600x3600', 'F': 1},
+                13: {'H': 'External', 'F': 1, 'B': '3600x3600'}, 14: {'B': '3600x3600', 'F': 1},
                 15: {'B': '500x1000', 'F': 1}, 16: {'E': '180/180/180'},
                 17: {'E': '75/75/75'}, 18: {'C': 'Custom product'},
-                19: {'H': 'Custom application'}, 20: {'I': 'Custom orientation'}}
+                19: {'H': 'Custom application'}, 20: {'I': 'Custom orientation'},
+                21: {'H': 'External', 'E': '180/180/180'},
+                22: {'H': 'External', 'G': 1, 'I': 'Horizontal'}}
         _, engine, _ = calculator_session('ductwork', schedule_input(rows))
         for row in rows:
             self.assertEqual(engine.value('CALCULATOR', f'N{row}'), '', row)
             self.assertEqual(engine.value('CALCULATOR', f'O{row}'), '', row)
         self.assertIn('wall table discrepancy', engine.value('CALCULATOR', 'J14'))
         self.assertIn('differs between manual and assessment', engine.value('CALCULATOR', 'AP14'))
+
+    def test_legacy_external_ratings_use_one_base_layer_at_last_row_without_mutation(self):
+        ratings = [60, '90/90/90', '120/120/-', '120/120/60', '120/120/120']
+        raw = schedule_input({row: {'H': 'External', 'E': rating}
+                              for row, rating in zip(range(1006, 1011), ratings)})
+        before = deepcopy(raw)
+        normalized, engine, _ = calculator_session('ductwork', raw)
+        self.assertEqual(raw, before)
+        for row in range(1006, 1011):
+            self.assertEqual(normalized['CALCULATOR'][f'E{row}'], '120/120/120')
+            self.assertEqual(normalized['CALCULATOR'][f'H{row}'], 'External')
+            self.assertEqual(engine.value('CALCULATOR', f'R{row}'), 1)
+            self.assertEqual(engine.value('CALCULATOR', f'W{row}'), 0)
+            self.assertEqual(engine.value('CALCULATOR', f'X{row}'), 0)
+            self.assertAlmostEqual(engine.value('CALCULATOR', f'N{row}'), 16.7076, places=8)
+        reconciled, _, _ = calculator_session('ductwork', normalized)
+        self.assertEqual(reconciled, normalized)
 
     def test_short_run_caps_local_layers_without_adding_a_continuous_layer(self):
         _, engine, _ = calculator_session('ductwork', schedule_input({11: {'D': 1, 'F': 2, 'G': 2}}))

@@ -237,13 +237,13 @@ class CalculatorCleanupTests(unittest.TestCase):
                     aliases["J94"] = "FYREWRAP APPLICATION TABLE"
                 actual_aliases = dict(sheet['display_text'])
                 reviewed_notes = {
-                    'CALCULATOR': {'A3': 'Internal and Both use the exhaust application rules'},
+                    'CALCULATOR': {'A3': 'Internal, External and Both use the exhaust application rules'},
                     'PRODUCT SETTINGS': {
-                        'J95': 'Source application', 'J109': 'Stair',
-                        'J112': 'External and pressurisation penetrations require a matching detail',
+                        'J95': 'Source application', 'J109': 'External means exhaust external exposure, requiring 120/120/- in that direction',
+                        'J112': 'Pressurisation penetrations require a matching detail',
                         'K137': 'actual directional requirements',
-                        'B145': 'guidance differs between the manual and assessment',
-                        'B150': 'one continuous layer'},
+                        'B145': 'Pressurisation/multilayer penetration guidance differs between the manual and assessment',
+                        'B150': 'Internal/External/Both exhaust uses one continuous layer'},
                 }
                 if identity == 'ductwork':
                     for address, fragment in reviewed_notes.get(sheet['name'], {}).items():

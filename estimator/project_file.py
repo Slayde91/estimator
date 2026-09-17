@@ -165,9 +165,21 @@ def _portable_inputs(calculator_id, value):
     return validate_calculator_edits(calculator_id, value, {})
 
 
+def _portable_penetration(value, *, saved=False):
+    """Keep the separate estimator draft tied to its immutable workbook source."""
+    from .penetration_calculator import normalize_draft, source_model as penetration_source
+    expected = {"draft", "source_sha256"} if saved else {"draft"}
+    if not isinstance(value, dict) or set(value) != expected:
+        raise ValidationError("Penetration Calculator projects must contain their input draft and source version only.")
+    source_hash = penetration_source()["source"]["sha256"]
+    if saved and value["source_sha256"] != source_hash:
+        raise ValidationError("The project uses a different Penetration Calculator workbook version.")
+    return {"source_sha256": source_hash, "draft": normalize_draft(value["draft"])}
+
+
 def export_project(store, request):
     """Return a self-contained snapshot of the active estimate and calculators."""
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -199,6 +211,8 @@ def export_project(store, request):
         "estimate": {key: prepared[key] for key in sorted(ESTIMATE_FIELDS)},
         "calculators": calculators,
     }
+    if "penetration" in request:
+        snapshot["penetration"] = _portable_penetration(request["penetration"])
     payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
     if len(payload) > MAX_PROJECT_FILE:
         raise ValidationError("The project file must be at most 16 MB.")
@@ -229,7 +243,8 @@ def load_project_bytes(store, payload):
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ValidationError("The project file must contain valid JSON.") from error
     _check_tree(snapshot)
-    if not isinstance(snapshot, dict) or set(snapshot) != {"format", "version", "estimate", "calculators"}:
+    required = {"format", "version", "estimate", "calculators"}
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] != PROJECT_VERSION:
         raise ValidationError("This project file format or version is not supported.")
@@ -253,9 +268,13 @@ def load_project_bytes(store, payload):
         inputs = _portable_inputs(calculator_id, calculator["inputs"])
         normalized[calculator_id] = {"inputs": inputs, "source_sha256": source_hash,
                                      "schedule_rows": normalize_schedule_rows(calculator_id, inputs, calculator.get('schedule_rows'))}
+    penetration = _portable_penetration(snapshot["penetration"], saved=True) if "penetration" in snapshot else None
     prepared = store.prepare_quote(estimate)
     # This is a new active draft, never a reference to a local saved quote.
     prepared["id"] = None
     metadata = fields(effective_catalog(prepared["configuration"]))
-    return {"estimate": prepared, "fields": metadata, "calculators": normalized,
-            "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
+    result = {"estimate": prepared, "fields": metadata, "calculators": normalized,
+              "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
+    if penetration is not None:
+        result["penetration"] = penetration
+    return result

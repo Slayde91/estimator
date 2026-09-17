@@ -97,7 +97,10 @@ def create_server(port=8765, database=None, project_dialogs=None):
                 return
             route = urlsplit(self.path).path
             if self.command == "GET":
-                if route == '/api/calculators':
+                if route == '/api/penetration':
+                    from .penetration_calculator import definition
+                    self.send_payload(200, definition(store.configuration()))
+                elif route == '/api/calculators':
                     from .workbook_calculators import calculator_list
                     self.send_payload(200, calculator_list())
                 elif re.fullmatch(r'/api/calculators/[a-z_]+', route):
@@ -123,7 +126,7 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/ceasefire-logo.png"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration.js", "/penetration.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png"}[path.suffix]
@@ -133,7 +136,35 @@ def create_server(port=8765, database=None, project_dialogs=None):
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if route == '/api/project/export' and self.command == 'POST':
+                if route in {'/api/penetration/definition', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    from .penetration_calculator import calculate as calculate_penetration, definition
+                    action = route.rsplit('/', 1)[1]
+                    allowed = {'configuration'} if action == 'definition' else {'draft', 'configuration'}
+                    if action in {'report.pdf', 'register.xlsx'}:
+                        allowed |= {'project_details', 'download'}
+                    if set(body) - allowed or (action != 'definition' and 'draft' not in body):
+                        raise ValidationError('Include the Penetration Calculator draft and pricing configuration only.')
+                    config = validate_configuration(body.get('configuration', store.configuration()))
+                    if action == 'definition':
+                        self.send_payload(200, definition(config))
+                    elif action == 'calculate':
+                        self.send_payload(200, calculate_penetration(body['draft'], config))
+                    else:
+                        from .penetration_report import render_penetration_pdf, build_penetration_register
+                        from .project_file import project_details
+                        destination = projects.capture_download(body['download']) if 'download' in body else None
+                        details = project_details(body.get('project_details'))
+                        result = calculate_penetration(body['draft'], config)
+                        if action == 'report.pdf':
+                            report = render_penetration_pdf(result, definition(config), details)
+                            self.send_download(report, 'application/pdf', 'CEASEFIRE-Penetration-Estimate.pdf', destination)
+                        else:
+                            report = build_penetration_register(result, definition(config), details)
+                            self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Penetration-Schedule.xlsx', destination)
+                elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
                     project = export_project(store, body)
                     filename = project_filename(json.loads(project)['estimate']['title'])

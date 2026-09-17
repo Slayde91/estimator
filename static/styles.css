@@ -33,6 +33,16 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .page-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:30px}
 .eyebrow{font-size:10px;font-weight:800;letter-spacing:2.3px;color:var(--accent);margin-bottom:9px}
 .subtitle{margin-top:9px;font-size:13px;color:var(--muted)}
+.estimator-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:28px}
+.estimator-choice{text-align:left;padding:20px 22px;min-height:108px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+.estimator-choice:hover{border-color:#dca3a7;background:#fffaf9}
+.estimator-choice[aria-pressed=true]{border-color:var(--accent);background:linear-gradient(120deg,#fff5ee,#fff);box-shadow:inset 3px 0 0 var(--red)}
+.estimator-choice strong{display:block;font-size:17px;margin-bottom:6px}
+.estimator-choice span{display:block;font-size:12px;color:var(--muted)}
+.estimator-child[hidden]{display:none!important}
+.estimator-child>.page-heading h2{font-size:28px}
+@media(max-width:650px){.estimator-choices{grid-template-columns:1fr;gap:10px}.estimator-choice{min-height:0;padding:15px 18px}}
+@media print{.estimator-choices,#estimator-view-heading{display:none!important}}
 .actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .project-save-actions,.project-edit-actions{display:inline-flex;gap:9px;align-items:center}
 .project-tools{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;margin-bottom:28px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:12px;background:#fff}

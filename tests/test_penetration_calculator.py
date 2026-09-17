@@ -1,0 +1,258 @@
+"""Source, pricing, input-boundary and independent Excel parity regression."""
+
+from copy import deepcopy
+import gzip
+import json
+import math
+from pathlib import Path
+import re
+import unittest
+from unittest.mock import patch
+
+from estimator.catalog import ValidationError, configuration_catalog, effective_catalog
+from estimator.excel_engine import FormulaError, column_number, coordinates
+from estimator.penetration_calculator import (
+    GLOBAL_DEFAULTS, ROW_COLUMNS, PenetrationEngine, _copy_row_formula,
+    calculate, definition, engine_for_draft, inventory_lists, normalize_draft, source_model,
+)
+
+
+def source_example():
+    cells = next(s['cells'] for s in source_model()['sheets'] if s['name'] == 'CALC')
+    return {'globals': {col: cells.get(col + '2', {}).get('value') for col in GLOBAL_DEFAULTS},
+            'rows': [{'id': 'source-example', 'inputs': {col: cells.get(col + '4', {}).get('value') for col in ROW_COLUMNS}}]}
+
+
+class PenetrationSourceTests(unittest.TestCase):
+    def test_all_native_excel_scenarios_match_every_formula_output(self):
+        path = Path(__file__).parent / 'fixtures' / 'penetration_excel_oracle.json.gz'
+        with gzip.open(path, 'rt', encoding='utf-8') as stream:
+            fixture = json.load(stream)
+        self.assertEqual(fixture['source_sha256'], source_model()['source']['sha256'])
+        self.assertEqual(fixture['oracle']['application'], 'Microsoft Excel')
+        self.assertTrue(fixture['oracle']['financial_xml_identical'])
+        self.assertEqual(fixture['oracle']['frozen_lookup_anchors'], 32)
+        self.assertEqual(len(fixture['scenarios']), 49)
+        comparisons = 0
+        for scenario in fixture['scenarios']:
+            source = source_example()
+            draft = {'globals': source['globals'], 'rows': [
+                {'id': 'row-' + str(row), 'inputs': deepcopy(source['rows'][0]['inputs'])}
+                for row in range(scenario['row_count'])]}
+            for address, value in scenario['inputs']['CALC'].items():
+                match = re.fullmatch(r'([A-Z]+)(\d+)', address)
+                column, row = match[1], int(match[2])
+                if row == 2 and column in GLOBAL_DEFAULTS:
+                    draft['globals'][column] = value
+                elif row >= 4 and column in ROW_COLUMNS:
+                    draft['rows'][row - 4]['inputs'][column] = value
+                else:
+                    self.assertIsNone(value, f'Unexpected nonblank input {scenario["id"]}:{address}')
+            engine, _ = engine_for_draft(draft, scenario.get('configuration'))
+            if scenario.get('configuration'):
+                for address, expected in scenario['inputs']['LISTS'].items():
+                    self.assertEqual(engine.inputs['LISTS'][address], expected,
+                                     f'Shared inventory hydration {scenario["id"]}:{address}')
+            else:
+                engine.inputs['LISTS'].update(scenario['inputs']['LISTS'])
+            for sheet, expected_cells in scenario['expected'].items():
+                for address, expected in expected_cells.items():
+                    actual = engine.value(sheet, address)
+                    with self.subTest(scenario=scenario['id'], sheet=sheet, cell=address):
+                        if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+                            self.assertIsInstance(actual, (int, float))
+                            self.assertTrue(math.isclose(actual, expected, abs_tol=1e-10, rel_tol=1e-12),
+                                            f'{actual!r} != {expected!r}')
+                        else:
+                            self.assertEqual(actual, expected)
+                    comparisons += 1
+        self.assertEqual(comparisons, 3786)
+
+    def test_preserved_source_identity_formulas_constants_and_names(self):
+        model = source_model()
+        self.assertEqual(model['source']['sha256'], '388bf5d51befe860304c82ec0475c01a6737c8be225a219a763d087851a5dfde')
+        self.assertEqual(model['counts']['formulas'], 108)
+        self.assertEqual({s['name']: sum('formula' in c for c in s['cells'].values()) for s in model['sheets']},
+                         {'LISTS': 32, 'Settings': 0, 'CALC': 69, 'BREAKDOWN': 7})
+        self.assertFalse(model['has_vba'])
+        self.assertEqual(model['calculation_properties'], {'calcId': '191029'})
+        self.assertEqual(model['defined_names']['LAFHA_rate'], 'LISTS!$BY$2')
+        self.assertEqual(model['tables']['Table1']['ref'], 'J3:V4')
+        self.assertEqual(len(model['tables']['Table1']['columns']), 13)
+        lists = next(s['cells'] for s in model['sheets'] if s['name'] == 'LISTS')
+        self.assertEqual((lists['BY2']['value'], lists['BZ2']['value']), (650, 2080))
+        self.assertEqual(len(model['list_filters']), 13)
+        self.assertEqual(len(model['list_lookups']), 19)
+
+    def test_every_source_calculation_matches_independent_saved_excel_caches(self):
+        engine, _ = engine_for_draft(source_example())
+        count = 0
+        for sheet in source_model()['sheets']:
+            if sheet['name'] not in ('CALC', 'BREAKDOWN'):
+                continue
+            for address, cell in sheet['cells'].items():
+                if 'formula' not in cell:
+                    continue
+                expected = cell['cached_value']
+                expected = '' if expected is None else expected
+                actual = engine.value(sheet['name'], address)
+                with self.subTest(sheet=sheet['name'], address=address):
+                    if isinstance(expected, (int, float)):
+                        self.assertAlmostEqual(actual, expected, places=9)
+                    else:
+                        self.assertEqual(actual, expected)
+                count += 1
+        self.assertEqual(count, 76)
+
+    def test_all_inventory_list_names_prices_dimensions_match_source_cache(self):
+        overlay, selections = inventory_lists()
+        cells = next(s['cells'] for s in source_model()['sheets'] if s['name'] == 'LISTS')
+        for rule in source_model()['list_filters']:
+            col = rule['column']
+            cached = [cells.get(col + str(row), {}).get('cached_value', cells.get(col + str(row), {}).get('value')) for row in range(1, 1001)]
+            self.assertEqual(selections[col], [value for value in cached if value not in (None, '')])
+        checked = 0
+        for rule in source_model()['list_lookups']:
+            for row in range(1, 1001):
+                address = rule['column'] + str(row)
+                cell = cells.get(address, {})
+                expected = cell.get('cached_value', cell.get('value'))
+                expected = '' if expected is None else expected
+                with self.subTest(cell=address):
+                    if isinstance(expected, (int, float)):
+                        self.assertAlmostEqual(overlay[address], expected, places=10)
+                    else:
+                        self.assertEqual(overlay[address], expected)
+                checked += 1
+        self.assertEqual(checked, 19000)
+
+    def test_row_formula_expansion_matches_independent_openpyxl(self):
+        from openpyxl.formula.translate import Translator
+        from openpyxl.formula import Tokenizer
+        def tokens(formula):
+            return [(t.type, t.subtype, t.value) for t in Tokenizer(formula).items if t.type != 'WHITE-SPACE']
+        calc = next(s['cells'] for s in source_model()['sheets'] if s['name'] == 'CALC')
+        for address, cell in calc.items():
+            if 'formula' not in cell or not address.endswith('4'):
+                continue
+            for row in (5, 503, 1003):
+                with self.subTest(cell=address, row=row):
+                    self.assertEqual(tokens(_copy_row_formula(cell['formula'], row)),
+                                     tokens(Translator(cell['formula'], origin=address).translate_formula(address[:-1] + str(row))))
+
+
+class PenetrationCalculationTests(unittest.TestCase):
+    def test_blank_draft_and_globals_do_not_resurrect_example(self):
+        result = calculate(None)
+        self.assertEqual(result['draft']['rows'][0]['inputs'], {})
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(result['summary']['grand_total'], '')
+        self.assertEqual(result['summary']['labour_hours'], 0)
+        self.assertEqual(result['draft'], definition()['defaults'])
+
+    def test_percentage_outputs_display_source_fractions_as_percentages(self):
+        spec = definition()
+        outputs = {field['column']: field for field in spec['output_fields']}
+        for col in ('BI', 'BJ', 'BK', 'BR', 'CA', 'CI', 'CP'):
+            self.assertEqual((outputs[col]['format'], outputs[col]['units']), ('percent', '%'))
+        self.assertEqual(outputs['H']['format'], 'currency')
+        self.assertEqual(outputs['DK']['format'], 'number')
+        self.assertEqual(calculate(source_example())['rows'][0]['outputs']['BI'], .02)
+
+    def test_multirow_aggregates_travel_once_and_preserves_source_precision(self):
+        draft = source_example()
+        draft['rows'].append({'id': 'second', 'inputs': deepcopy(draft['rows'][0]['inputs'])})
+        draft['globals']['K'] = 1.125
+        result = calculate(draft)
+        self.assertEqual(result['errors'], [])
+        self.assertAlmostEqual(result['summary']['grand_total'], 2 * 847.1201322786885 + 2080 * 1.125, places=10)
+        self.assertEqual(result['summary']['labour_hours'], 3.8)
+        self.assertEqual(result['summary']['total_days'], 3.8 / 8 + 1.125)
+        self.assertEqual(result['rows'][0]['outputs'], result['rows'][1]['outputs'])
+
+    def test_shared_supplier_markup_updates_price_without_changing_saved_snapshot(self):
+        draft = source_example()
+        original = calculate(draft)
+        frozen = configuration_catalog()
+        configuration = {'inventory': {'300': {'supplier_price': 123.456789}}}
+        current = calculate(draft, configuration)
+        inventory = next(i for i in effective_catalog(configuration)['inventory'] if i['id'] == '300')
+        self.assertEqual(current['rows'][0]['outputs']['CX'], inventory['sales_price'])
+        self.assertNotEqual(current['summary']['grand_total'], original['summary']['grand_total'])
+        self.assertEqual(calculate(draft, {'catalog': frozen})['summary'], original['summary'])
+        self.assertEqual(current['draft'], original['draft'])
+
+    def test_removed_product_never_resurrects_source_cached_price(self):
+        draft = source_example()
+        catalog = configuration_catalog()
+        selected = draft['rows'][0]['inputs']['X']
+        catalog['inventory'] = [item for item in catalog['inventory'] if item['sales_description'] != selected]
+        # Keep catalog validation coherent: remove rates linked to this item too.
+        ids = {i['id'] for i in catalog['inventory']}
+        for group, rows in catalog['rate_groups'].items():
+            catalog['rate_groups'][group] = [r for r in rows if not r.get('inventory_id') or r['inventory_id'] in ids]
+        result = calculate(draft, {'catalog': catalog})
+        self.assertEqual(result['rows'][0]['outputs']['CX'], '')
+        self.assertTrue(any(e['cell'] == 'X4' for e in result['errors']))
+
+    def test_duplicate_description_uses_first_inventory_price(self):
+        catalog = configuration_catalog()
+        item = next(i for i in catalog['inventory'] if i['id'] == '300')
+        duplicate = deepcopy(item)
+        duplicate['id'] = 'duplicate-board'
+        duplicate['item_code'] = 'duplicate-board'
+        duplicate['sales_price'] = 99999
+        duplicate['calculated_sell_price'] = 99999
+        catalog['inventory'].append(duplicate)
+        result = calculate(source_example(), {'catalog': catalog})
+        self.assertEqual(result['rows'][0]['outputs']['CX'], item['sales_price'])
+
+    def test_input_boundary_rejects_formula_edits_duplicate_ids_and_nonfinite_numbers(self):
+        for draft in ({'rows': [{'id': 'a', 'inputs': {'DK': 10}}]},
+                      {'rows': [{'id': 'a'}, {'id': 'a'}]},
+                      {'rows': [{'id': 'a', 'inputs': {'O': float('inf')}}]},
+                      {'rows': [{'id': 'a', 'inputs': {'O': 10 ** 1000}}]},
+                      {'rows': [{'id': 'a', 'inputs': {'O': True}}]},
+                      {'globals': {'J': 'Maybe'}}, {'rows': []}, {'rows': [{'id': 'a', 'inputs': {'O': '1'}}]}):
+            with self.subTest(draft=draft), self.assertRaises(ValidationError):
+                normalize_draft(draft)
+
+    def test_summary_never_hides_row_calculation_error(self):
+        original = PenetrationEngine.cell
+        def failing(engine, sheet, row, column):
+            if sheet == 'CALC' and row == 4 and column == column_number('DK'):
+                raise FormulaError('#VALUE!')
+            return original(engine, sheet, row, column)
+        with patch.object(PenetrationEngine, 'cell', failing):
+            result = calculate(source_example())
+        self.assertEqual(result['summary']['labour_hours'], '#VALUE!')
+        self.assertEqual(result['summary']['grand_total'], '#VALUE!')
+        self.assertTrue(any(e['row_id'] is None and e['cell'] == 'H2' for e in result['errors']))
+
+    def test_unknown_workbook_choices_are_visible_without_changing_source_results(self):
+        draft = source_example()
+        for col in ('J', 'L', 'M', 'N', 'P', 'Q', 'R'):
+            draft['rows'][0]['inputs'][col] = 'Unlisted choice'
+        result = calculate(draft)
+        self.assertEqual({error['cell'] for error in result['rows'][0]['errors']},
+                         {'J4', 'L4', 'M4', 'N4', 'P4', 'Q4', 'R4'})
+        self.assertEqual(result['rows'][0]['outputs']['BI'], '')
+        self.assertEqual(result['rows'][0]['outputs']['BJ'], '')
+        self.assertEqual(result['rows'][0]['outputs']['BK'], '')
+        self.assertEqual(result['draft']['rows'][0]['inputs']['P'], 'Unlisted choice')
+
+    def test_source_labour_band_next_larger_and_maximum_fallback(self):
+        engine, _ = engine_for_draft(None)
+        for actual, expected in ((0.15, 0.5), (0.150001, 0.6)):
+            engine.inputs['CALC']['CH4'] = actual
+            engine.cache.clear()
+            self.assertEqual(engine.value('CALC', 'DE4'), expected)
+        engine.inputs['CALC'].update(CH4=1e8, AC4=1e8, CT4=1e8, AM4=1e8)
+        engine.cache.clear()
+        lists = next(s['cells'] for s in source_model()['sheets'] if s['name'] == 'LISTS')
+        for output, last in (('DE4', 'BP38'), ('DG4', 'BM9'), ('DH4', 'BX16'), ('DI4', 'BR14')):
+            self.assertEqual(engine.value('CALC', output), lists[last]['value'])
+
+
+if __name__ == '__main__':
+    unittest.main()

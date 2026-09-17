@@ -7,9 +7,11 @@
   <title>Ceasefire Estimator</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/calculators.css">
+  <link rel="stylesheet" href="/penetration.css">
   <script src="/downloads.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/calculators.js" defer></script>
+  <script src="/penetration.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -30,7 +32,13 @@
       <div class="project-identity"><p class="eyebrow">CURRENT PROJECT</p><strong id="project-name">Untitled project</strong><span id="project-save-state" class="status-label unsaved" role="status">Not saved to a file</span><p id="project-file-name" class="project-file-name">No project file selected</p><p id="project-file-location" class="helper">Choose a folder with Save As</p><p id="project-last-saved" class="helper" hidden></p><p id="project-pricing-source" class="helper">Pricing: current saved library</p></div>
       <div class="actions"><span class="project-edit-actions"><button id="new-quote" type="button" class="button secondary">New project</button><button id="edit-project-details" type="button" class="button secondary">Edit Project</button></span><button id="load-project" type="button" class="button secondary">Load Project</button><input id="project-import-file" type="file" accept=".json,application/json" hidden><span class="project-save-actions"><button id="save-current-project" type="button" class="button save-button">Save</button><button id="save-project" type="button" class="button save-button">Save As</button></span></div>
     </section>
-    <section id="view-estimate" class="view" aria-labelledby="estimate-heading" hidden>
+    <section id="view-estimate" class="view" aria-labelledby="estimator-view-heading" hidden>
+      <div class="page-heading"><div><p class="eyebrow">ESTIMATOR</p><h1 id="estimator-view-heading">Project estimators</h1><p class="subtitle">Choose the estimate to work on. Both share this project's details and pricing.</p></div></div>
+      <div class="estimator-choices" role="group" aria-label="Choose an estimator">
+        <button type="button" class="estimator-choice" data-estimator-kind="estimate" aria-pressed="true" aria-controls="estimator-main"><strong>Estimator</strong><span>Material, labour and project costs</span></button>
+        <button type="button" class="estimator-choice" data-estimator-kind="penetration" aria-pressed="false" aria-controls="estimator-penetration"><strong>Penetration Calculator</strong><span>Penetration schedule, materials and installation costs</span></button>
+      </div>
+      <div id="estimator-main" class="estimator-child">
       <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h1 id="estimate-heading">Build an estimate</h1><p class="subtitle">From project details to a complete material and labour quote.</p></div><div class="actions"><button id="download-quote-pdf" type="button" class="button pdf-button">Download PDF</button></div></div>
       <div class="estimate-layout">
         <div class="estimate-main">
@@ -43,6 +51,19 @@
         </div>
         <aside class="summary-card" aria-labelledby="summary-heading"><div class="section-heading"><h2 id="summary-heading">Quote Summary</h2><span id="calculation-status" class="status-label" role="status">Calculating</span></div><dl class="cost-list"><div><dt>Labour</dt><dd id="sum-labour">—</dd></div><div><dt>Materials</dt><dd id="sum-material">—</dd></div><div><dt>Access</dt><dd id="sum-access">—</dd></div><div><dt>Travel</dt><dd id="sum-travel">—</dd></div><div class="subtotal"><dt>Subtotal</dt><dd id="sum-subtotal">—</dd></div><div><dt>Global adjustment</dt><dd id="sum-adjustment">—</dd></div></dl><div class="grand-total"><span>Grand total</span><strong id="sum-total">—</strong><span class="currency-note">AUD · Material &amp; labour estimate</span></div><dl class="metrics"><div><dt>Rate per SQM / item</dt><dd id="sum-rate">—</dd></div><div><dt>Total days</dt><dd id="sum-days">—</dd></div></dl><div id="calculation-errors" class="calculation-errors" role="alert" hidden></div><p class="helper">Enter assessed quantities and suitable products. A quote total does not assess product suitability or fire ratings.</p></aside>
       </div>
+      </div>
+      <section id="estimator-penetration" class="estimator-child" aria-labelledby="penetration-heading" hidden>
+        <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h2 id="penetration-heading">Penetration Calculator</h2><p class="subtitle">Add schedule items and review their calculated quantities and costs.</p></div><div class="actions"><button id="penetration-recalculate" type="button" class="button secondary">Recalculate</button><button id="penetration-excel" type="button" class="button excel-button">Download XLSX</button><button id="penetration-pdf" type="button" class="button pdf-button">Download PDF</button></div></div>
+        <div id="penetration-message" class="message" role="status" hidden></div>
+        <div id="penetration-loading" class="empty-state">Loading penetration fields…</div>
+        <div id="penetration-workspace" hidden>
+          <section class="card penetration-schedule" aria-labelledby="penetration-schedule-heading"><div class="section-heading"><h3 id="penetration-schedule-heading">Schedule</h3><span id="penetration-status" class="status-label" role="status">Ready</span></div><div class="table-scroll"><table><thead><tr><th scope="col">Line</th><th scope="col">Item(s)</th><th scope="col">System</th><th scope="col">Item QTY</th><th scope="col">Total</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody id="penetration-schedule-body"></tbody></table></div><div class="penetration-row-tools"><button id="penetration-add" type="button" class="button primary">Add row</button><button id="penetration-undo" type="button" class="button secondary" disabled>Undo remove</button><span id="penetration-row-count" class="helper"></span></div></section>
+          <div class="penetration-layout"><section class="card" aria-labelledby="penetration-row-heading"><div class="section-heading"><h3 id="penetration-row-heading">Line 1</h3></div><div id="penetration-input-groups" class="penetration-group-choices" role="group" aria-label="Item input groups"></div><div id="penetration-row-fields"></div></section><aside class="card penetration-summary" aria-labelledby="penetration-summary-heading"><div class="section-heading"><h3 id="penetration-summary-heading">Estimate summary</h3></div><dl id="penetration-summary" class="cost-list"></dl><div id="penetration-summary-notes" class="helper"></div></aside></div>
+          <details class="card penetration-globals"><summary>Project allowances and settings</summary><div id="penetration-global-fields"></div></details>
+          <section class="card" aria-labelledby="penetration-breakdown-heading"><div class="section-heading"><h3 id="penetration-breakdown-heading">Selected item breakdown</h3></div><div id="penetration-breakdown"></div></section>
+          <details class="penetration-source"><summary>Calculation source</summary><p id="penetration-source" class="helper"></p></details>
+        </div>
+      </section>
     </section>
     <section id="view-calculators" class="view" aria-labelledby="calculators-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">CALCULATORS</p><h1 id="calculators-heading">Project calculators</h1><p class="subtitle">Prepare a schedule, adjust settings and review the calculated material requirements.</p></div></div>

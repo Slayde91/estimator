@@ -12,6 +12,7 @@ import re
 from openpyxl.formula.translate import Translator
 
 from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, range_addresses
+from .ductwork_policy import apply_ductwork_choices
 
 
 SCHEDULE_CAPACITY = 1000
@@ -167,6 +168,8 @@ def _application_catalog(calculator_id):
     elif calculator_id == 'steel_board':
         schedule['line_numbers'] = True
         schedule['location_column'] = 'B'
+    elif calculator_id == 'ductwork':
+        apply_ductwork_choices(model)
     return model
 
 

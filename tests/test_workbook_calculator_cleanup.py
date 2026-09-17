@@ -142,17 +142,15 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
         self.assertEqual((cells['H208']['value'], cells['J208']['value']), (75, 612))
         self.assertTrue(cells['H208']['allow_other'] and cells['J208']['allow_other'])
 
-    def test_extra_board_and_duct_dropdowns_preserve_permissive_lists_and_custom_values(self):
-        application_cells = source_sheet('ductwork', 'PRODUCT SETTINGS')['cells']
+    def test_extra_board_stays_permissive_while_duct_choices_are_closed(self):
         choices = {
             ('steel_board', 'EXTRA BOARDS'): {
                 'B': BOARD_PRODUCTS, 'C': [8, 10, 12, 12.5, 15, 18, 20, 25, 30]},
             ('ductwork', 'CALCULATOR'): {
                 'C': ['CAFCO 300', 'MONOKOTE', 'FyreWrap'],
-                'E': [60, 90, 120, 180, '60/60/60', '90/90/90', '120/120/120',
-                      '180/180/180', '240/240/180', '120/120/-', '120/120/60'],
-                'H': [application_cells[f'J{row}']['value'] for row in range(137, 150)],
-                'I': ['Horizontal', 'Vertical', 'Mixed', 'Both']},
+                'E': ['60/60/60', '90/90/90', '120/120/120', '180/180/180', '240/240/180'],
+                'H': ['Internal', 'External', 'Both', 'Stair pressurisation', 'Other pressurisation'],
+                'I': ['Horizontal', 'Vertical', 'Both']},
         }
         for identity, name, _, first, last in NATIVE_RANGES[1:]:
             source = source_sheet(identity, name)
@@ -162,9 +160,13 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
                     cell = cells[f'{column}{row}']
                     self.assertEqual(cell['options'], expected)
                     self.assertEqual(cell['type'], 'select')
-                    self.assertTrue(cell['editable'] and cell['allow_other'])
+                    self.assertTrue(cell['editable'])
+                    self.assertEqual(cell['allow_other'], identity == 'steel_board')
                     self.assertEqual(cell['error_style'], 'stop')
-                    self.assertNotIn('showErrorMessage', _validation(source, cell['address']))
+                    if identity == 'steel_board':
+                        self.assertNotIn('showErrorMessage', _validation(source, cell['address']))
+                    else:
+                        self.assertEqual(_validation(source, cell['address'])['showErrorMessage'], '1')
                     self.assertEqual(cell['value'], source['cells'].get(cell['address'], {}).get('value'))
         cases = (
             ('steel_board', 'EXTRA BOARDS', 45, {'B45': 'Custom board', 'C45': 13.75}),
@@ -173,13 +175,15 @@ class WorkbookCalculatorCleanupTests(unittest.TestCase):
         )
         for identity, name, row, custom in cases:
             inputs = {name: custom}
-            self.assertEqual(normalize_calculator_inputs(identity, inputs), inputs)
+            normalized = normalize_calculator_inputs(identity, inputs)
+            self.assertEqual({address: normalized[name][address] for address in custom}, custom)
             cells = page_cells(identity, name, row, inputs=inputs)
             for address, value in custom.items():
                 self.assertEqual(cells[address]['value'], value)
-                self.assertTrue(cells[address]['allow_other'])
+                self.assertEqual(cells[address]['allow_other'], identity == 'steel_board')
             cleared = {name: dict.fromkeys(custom, '')}
-            self.assertEqual(normalize_calculator_inputs(identity, cleared), {name: dict.fromkeys(custom)})
+            normalized = normalize_calculator_inputs(identity, cleared)
+            self.assertEqual({address: normalized[name][address] for address in custom}, dict.fromkeys(custom))
 
     def test_board_unit_suffixes_preserve_raw_numbers_whole_sheets_cards_and_warning(self):
         metadata = self.metadata('steel_board', 'BOARD SUMMARY')

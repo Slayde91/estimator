@@ -98,6 +98,7 @@ class ScheduleWorkbookTests(unittest.TestCase):
         self.assertEqual(result["inputs"]["CALCULATOR"]["F11"], 0)
         self.assertEqual(result["inputs"]["CALCULATOR"]["G11"], 1)
         self.assertEqual(result["inputs"]["CALCULATOR"]["B11"], "250x250")
+        self.assertEqual(result["inputs"]["CALCULATOR"]["I11"], "Both")
         self.assertIsNone(result["inputs"]["CALCULATOR"]["B12"])
         self.assertEqual(result["inputs"]["PRODUCT SETTINGS"], {"B97": 1.22})
         self.assertEqual(result["source_sha256"], hashlib.sha256(payload).hexdigest())

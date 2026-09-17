@@ -291,6 +291,9 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
     finally:
         if workbook is not None:
             workbook.close()
+    if calculator_id == 'ductwork':
+        from .workbook_calculators import normalize_calculator_inputs
+        proposed = normalize_calculator_inputs(calculator_id, proposed)
     return {"inputs": proposed, "imported_rows": imported_rows,
             "schedule_rows": list(range(schedule['first_row'], last_populated_row + 1)),
             "source_sha256": hashlib.sha256(payload).hexdigest()}

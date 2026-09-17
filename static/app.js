@@ -1223,7 +1223,7 @@
       const changed = captured !== projectStamp();
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
-        window.CeasefireCalculators.markProjectSaved(saved.project.calculators);
+        window.CeasefireCalculators.markProjectSaved(saved.project.calculators, calculators);
         if (!changed) {
           state.quote = null; state.quoteConfiguration = clone(saved.project.estimate.configuration);
           state.fields = clone(saved.project.fields); resetProjectPricing(); renderInputs(); updateDirty(false); scheduleCalculation();

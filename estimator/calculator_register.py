@@ -138,6 +138,13 @@ def _summary(data, workbook):
     row += 1
     _band(sheet, row, f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review item statuses before ordering.", len(widths))
     row += 2
+    if data.get('application_notes'):
+        _band(sheet, row, 'FyreWrap application notes', len(widths), title=True)
+        row += 1
+        for note in data['application_notes']:
+            _band(sheet, row, note, len(widths))
+            row += 1
+        row += 1
     for note in data.get('summary_notes', []):
         if note:
             _band(sheet, row, _source_text(data['id'], 'BOARD SUMMARY', 'A8', note), len(widths))

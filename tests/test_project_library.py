@@ -1,4 +1,5 @@
 import copy
+import base64
 import http.client
 import json
 import os
@@ -22,6 +23,7 @@ from estimator.storage import Store
 class Chooser:
     folder = None
     selection = None
+    opened = None
 
     def __init__(self):
         self.calls = []
@@ -33,6 +35,10 @@ class Chooser:
     def choose_save(self, initial_directory, filename):
         self.calls.append(("save", initial_directory, filename))
         return self.selection
+
+    def choose_open(self, initial_directory):
+        self.calls.append(("open", initial_directory))
+        return self.opened
 
 
 def database_rows(store):
@@ -134,6 +140,119 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertEqual(self.dialogs.calls[-1][1], str(self.folder))
         self.assertEqual(Store(self.store.path).project_folder(), str(self.folder))
         self.assertEqual(self.library.listing()["files"], [])
+
+    def test_save_overwrites_only_authorized_file_preserves_precision_and_rotates_capability(self):
+        target = self.folder / "Existing.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        saved = self.library.save_as(self.request)
+        before = database_rows(self.store)
+        request = copy.deepcopy(self.request)
+        request["estimate"]["inputs"]["B15"] = 432.123456789
+        request["estimate"]["measurements"] = "Latest notes, stored exactly"
+        request["calculators"] = {
+            "steel_vermiculite": {"inputs": {"SCHEDULE": {"AA1009": "Last spray", "J1009": 12.3456789012345}}},
+            "steel_board": {"inputs": {"CALCULATOR": {"F1008": 2.123456789}, "EXTRA BOARDS": {"A45": "Keep allowance"}}},
+            "ductwork": {"inputs": {"CALCULATOR": {"D1010": 9.876543210987}, "PRODUCT SETTINGS": {"B97": 1.22}}},
+        }
+        calls = len(self.dialogs.calls)
+        overwrite = {**request, "save_token": saved["file"]["save_token"]}
+        result = self.library.save(overwrite)
+        snapshot = json.loads(target.read_bytes())
+        self.assertEqual(len(self.dialogs.calls), calls)
+        self.assertEqual(result["file"]["path"], str(target))
+        self.assertEqual(snapshot["estimate"]["inputs"]["B15"], 432.123456789)
+        self.assertEqual(snapshot["estimate"]["measurements"], request["estimate"]["measurements"])
+        self.assertEqual(snapshot["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
+        for name, calculator in request["calculators"].items():
+            self.assertEqual(snapshot["calculators"][name]["inputs"], calculator["inputs"])
+        self.assertNotEqual(result["file"]["save_token"], overwrite["save_token"])
+        with self.assertRaisesRegex(ValidationError, "no longer available"):
+            self.library.save(overwrite)
+        self.assertEqual(database_rows(self.store), before)
+        self.assertNotIn("save_token", self.library.listing()["files"][0])
+
+    def test_save_refuses_unknown_path_modified_deleted_or_replaced_target(self):
+        target = self.folder / "Existing.json"
+        target.write_bytes(self.payload)
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        request = {**self.request, "save_token": opened["file"]["save_token"]}
+        before = database_rows(self.store)
+        for invalid in ({**request, "path": str(target)}, {**request, "save_token": str(target)},
+                        {**request, "save_token": None}, {**request, "calculators": {}}):
+            with self.assertRaises(ValidationError):
+                self.library.save(invalid)
+        target.write_text("Changed externally", encoding="utf-8")
+        with self.assertRaisesRegex(ValidationError, "changed or was removed"):
+            self.library.save(request)
+        self.assertEqual(target.read_text(), "Changed externally")
+        target.unlink()
+        with self.assertRaisesRegex(ValidationError, "changed or was removed"):
+            self.library.save(request)
+        self.assertFalse(target.exists())
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_save_failure_is_atomic_and_retains_target_for_retry(self):
+        target = self.folder / "Existing.json"
+        target.write_bytes(self.payload)
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        request = {**copy.deepcopy(self.request), "save_token": opened["file"]["save_token"]}
+        request["estimate"]["measurements"] = "Retry me"
+        with patch("estimator.project_library.os.replace", side_effect=PermissionError("locked")):
+            with self.assertRaisesRegex(ValidationError, "could not be saved"):
+                self.library.save(request)
+        self.assertEqual(target.read_bytes(), self.payload)
+        self.assertEqual([path.name for path in self.folder.iterdir()], [target.name])
+        self.library.save(request)
+        self.assertEqual(json.loads(target.read_bytes())["estimate"]["measurements"], "Retry me")
+
+    def test_native_open_and_folder_load_authorize_only_the_selected_snapshot(self):
+        target = self.root / "Outside.json"
+        target.write_bytes(self.payload)
+        before = database_rows(self.store)
+        self.assertEqual(self.library.open_file(), {"cancelled": True})
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        self.assertEqual(opened["file"]["path"], str(target))
+        self.assertIsNone(opened["file"]["id"])
+        self.assertEqual(database_rows(self.store), before)
+        self.library.save({**self.request, "save_token": opened["file"]["save_token"]})
+        inside = self.folder / "Inside.json"
+        inside.write_bytes(self.payload)
+        self.store.set_project_folder(self.folder)
+        loaded = self.library.load(self.library.listing()["files"][0]["id"])
+        result = self.library.save({**self.request, "save_token": loaded["file"]["save_token"]})
+        self.assertEqual(result["file"]["path"], str(inside))
+
+    def test_simultaneous_saves_cannot_consume_one_capability_twice(self):
+        target = self.folder / "Existing.json"
+        target.write_bytes(self.payload)
+        self.dialogs.opened = str(target)
+        opened = self.library.open_file()
+        request = {**self.request, "save_token": opened["file"]["save_token"]}
+        original_export = export_project
+        barrier = threading.Barrier(2)
+        outcomes = []
+        def prepare(*args):
+            payload = original_export(*args)
+            barrier.wait(timeout=30)
+            return payload
+        def save():
+            try:
+                outcomes.append(self.library.save(request))
+            except Exception as error:
+                outcomes.append(error)
+        with patch("estimator.project_library.export_project", side_effect=prepare):
+            workers = [threading.Thread(target=save) for _ in range(2)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join(timeout=60)
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+        self.assertEqual(sum(isinstance(value, dict) for value in outcomes), 1, outcomes)
+        self.assertEqual(sum(isinstance(value, ValidationError) for value in outcomes), 1, outcomes)
+        self.assertEqual(json.loads(target.read_bytes()), json.loads(self.payload))
 
     def test_successful_file_save_is_reported_when_initial_folder_preference_fails(self):
         target = self.folder / "Saved.json"
@@ -258,6 +377,10 @@ class ProjectLibraryTests(unittest.TestCase):
         with patch("estimator.native_dialogs.subprocess.run", side_effect=subprocess.TimeoutExpired("dialog", 600)):
             with self.assertRaisesRegex(ValidationError, "native file dialog"):
                 native.choose_folder()
+        with patch("estimator.native_dialogs.subprocess.run", return_value=SimpleNamespace(stdout=json.dumps({"path": str(self.folder / "Selected.json")}))) as run:
+            self.assertEqual(native.choose_open(str(self.folder)), str(self.folder / "Selected.json"))
+            self.assertEqual(json.loads(run.call_args.kwargs["input"]), {"kind": "open", "directory": str(self.folder)})
+            self.assertNotIn("shell", run.call_args.kwargs)
 
     def test_filename_sanitization_retains_names_without_paths_or_header_injection(self):
         self.assertEqual(project_filename("CON"), "_CON.json")
@@ -407,12 +530,19 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/api/projects")[1]["folder"], None)
         self.assertEqual(self.request("POST", "/api/projects/link-folder", {}), (200, {"cancelled": True}))
         self.assertEqual(self.request("POST", "/api/project/save-as", {"estimate": {}}), (200, {"cancelled": True}))
+        self.assertEqual(self.request("POST", "/api/project/open", {}), (200, {"cancelled": True}))
         calls = len(self.dialogs.calls)
         for method, route, body in (("GET", "/api/projects/link-folder", None), ("PUT", "/api/project/save-as", {"estimate": {}}),
                                     ("POST", "/api/projects/link-folder", {"path": str(self.root)}),
+                                    ("POST", "/api/project/open", {"path": str(self.root / "file.json")}),
+                                    ("PUT", "/api/project/open", {}),
+                                    ("GET", "/api/project/save", None),
+                                    ("POST", "/api/project/save", {"path": str(self.root / "file.json"), "estimate": {}}),
                                     ("POST", "/api/projects/load", {"path": "../file.json"})):
             self.assertGreaterEqual(self.request(method, route, body)[0], 400)
         self.assertEqual(self.request("POST", "/api/project/save-as", {"estimate": {}}, {"Origin": "https://evil.example"})[0], 403)
+        self.assertEqual(self.request("POST", "/api/project/open", {}, {"Origin": "https://evil.example"})[0], 403)
+        self.assertEqual(self.request("POST", "/api/project/save", {}, {"Origin": "https://evil.example"})[0], 403)
         self.assertEqual(self.request("POST", "/api/projects/link-folder", {}, {"Host": "evil.example"})[0], 403)
         self.assertEqual(len(self.dialogs.calls), calls)
         self.assertEqual(database_rows(self.store), before)
@@ -440,6 +570,31 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(response["configuration"], {"inventory": {}, "rates": {}})
         self.assertEqual(self.request("POST", "/api/configuration/preview", {"configuration": {"rates": {"missing": {"price": 1}}}})[0], 400)
         self.assertEqual(self.request("POST", "/api/configuration/preview", {"configuration": {}, "path": "bad"})[0], 400)
+        self.assertEqual(database_rows(self.store), before)
+
+    def test_native_open_and_save_http_preserve_complete_state_without_exposing_path_writes(self):
+        target = self.root / "Selected.json"
+        payload = export_project(self.store, {"estimate": {"project_no": "Native target"}})
+        target.write_bytes(payload)
+        self.dialogs.opened = str(target)
+        before = database_rows(self.store)
+        status, loaded = self.request("POST", "/api/project/open", {})
+        self.assertEqual(status, 200, loaded)
+        token = loaded["file"]["save_token"]
+        snapshot = json.loads(payload)
+        body = {"save_token": token, "estimate": snapshot["estimate"],
+                "calculators": {name: {"inputs": value["inputs"]} for name, value in snapshot["calculators"].items()}}
+        body["estimate"]["inputs"]["B15"] = 234.567890123
+        status, saved = self.request("POST", "/api/project/save", body)
+        self.assertEqual(status, 200, saved)
+        self.assertNotEqual(saved["file"]["save_token"], token)
+        self.assertEqual(json.loads(target.read_bytes())["estimate"]["inputs"]["B15"], 234.567890123)
+        self.assertEqual(self.request("POST", "/api/project/save", body)[0], 400)
+        status, imported = self.request("POST", "/api/project/import", {
+            "filename": "Selected.json", "content_base64": base64.b64encode(payload).decode("ascii")})
+        self.assertEqual(status, 200, imported)
+        self.assertNotIn("file", imported)
+        self.assertNotIn("save_token", imported)
         self.assertEqual(database_rows(self.store), before)
 
     def test_recursive_search_and_page_query_options_are_validated(self):

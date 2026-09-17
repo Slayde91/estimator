@@ -169,8 +169,6 @@
 .calculator-overview-full h3{flex:0 0 100%;font-size:20px;margin:0}
 .calculator-overview-full>p{flex:0 0 100%;padding:12px 15px;font-size:12px;color:#6a555f;line-height:1.8}
 .calculator-grid td.calculator-role-spacer{background:#fff0ce!important}
-.calculator-grid .calculator-align-center,.calculator-grid .calculator-align-center input,.calculator-grid .calculator-align-center select{text-align:center!important}
-.calculator-grid .calculator-align-left,.calculator-grid .calculator-align-left input,.calculator-grid .calculator-align-left select{text-align:left!important}
 .calculator-grid .calculator-normal{font-weight:400!important}
 .calculator-grid input,.calculator-grid textarea{font-weight:400}
 .calculator-grid .calculator-bold select{font-weight:inherit}
@@ -195,3 +193,15 @@
 .calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):hover:not(:disabled){filter:brightness(.92)}
 .calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):focus-visible{outline:3px solid #222;outline-offset:3px}
 .calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):disabled{opacity:.5;filter:none;cursor:not-allowed}
+/* Explicit browser annotations: cell ranges receive alignment classes from the
+   renderer; headings and neighbouring explanations keep their existing layout. */
+.calculator-grid .calculator-align-center,.calculator-grid .calculator-align-center :is(input,select,textarea){text-align:center!important}
+.calculator-grid .calculator-align-center select{text-align-last:center}
+.calculator-grid .calculator-align-left,.calculator-grid .calculator-align-left :is(input,select,textarea){text-align:left!important}
+.calculator-grid .calculator-align-left select{text-align-last:left}
+.calculator-grid .calculator-centered-data-table :is(th,td){text-align:center!important}
+.calculator-grid .calculator-schedule-table td.calculator-line-number{background:#fff!important}
+.calculator-grid td.calculator-split-status{padding:0!important}
+.calculator-status-columns{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,4fr)}
+.calculator-status-text{padding:12px 15px;text-align:center}
+@media(max-width:760px){.calculator-status-columns{grid-template-columns:minmax(0,1fr)}.calculator-status-columns>[aria-hidden=true]{display:none}}

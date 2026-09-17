@@ -453,7 +453,8 @@ let passed=0;
   await audit.calculate();assert.equal(calculationBody.workflow,'Fire wrap to ductwork');
   assert.equal(audit.state.result.work_summary,'Fire wrap to ductwork\nWrap: 12.35 m² <b>literal label</b>');
   assert.equal(byId('sum-days').textContent,'2.35');assert.equal(byId('sum-total').textContent,'$1.23');
-  assert.equal(byId('calculated-notes').textContent,'Literal product 1.2345');passed++;
+  assert.equal(audit.state.result.notes,'Literal product 1.2345');
+  assert.ok(!fs.readFileSync('static/index.html','utf8').includes('id="calculated-notes"'));passed++;
 
   // New estimates keep normal defaults but start Notes blank without mutating source metadata.
   const notesField=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields.find(field=>field.cell==='B12');
@@ -589,7 +590,7 @@ let passed=0;
   assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);
   assert.match(markup,/<span>NOTES <span class="optional">Optional<\/span><\/span><textarea id="measurements"/);
   assert.match(markup,/id="quote-title"[^>]*readonly/);assert.doesNotMatch(markup,/work-summary|Generated work summary|Updating work summary/);assert.doesNotMatch(source,/\$\("work-summary"\)/);passed++;
-  assert.ok(markup.indexOf('id="breakdown-heading"')<markup.indexOf('id="labour-breakdown"'));assert.ok(markup.indexOf('id="labour-breakdown"')<markup.indexOf('id="notes-heading"'));
+  assert.ok(markup.indexOf('id="breakdown-heading"')<markup.indexOf('id="labour-breakdown"'));assert.doesNotMatch(markup,/id="notes-heading"|id="calculated-notes"|Quote notes and material requirements/);
   assert.match(markup,/<th scope="col" class="numeric">Days<\/th>/);assert.match(markup,/Pinning is included in meshing days/);
 
   console.log(`${passed} UI metadata, precision, summary and race checks passed.`);

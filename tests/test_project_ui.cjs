@@ -61,7 +61,7 @@ function harness() {
   const appEnd = /  bootstrap\(\);\s*\}\)\(\);\s*$/;
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
-    globalThis.appAudit = {state, saveProject, loadProject, projectStamp, saveQuote, openQuote, calculate,
+    globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,
       setRequest(fn) { request = fn; }};
   })();`);
@@ -243,6 +243,73 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     assert.equal(h.calc.state.entries.size,3);for(const entry of h.calc.state.entries.values())assert.equal(h.calc.dirty(entry),false);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.quoteConfiguration),captured.estimate.configuration);
   });
+  await check('Save without an authorized file shows the requested popup and sends no request', async h => {
+    h.app.setRequest(async()=>{throw new Error('Save must not send a request');});
+    for(const file of [null,{name:'uploaded.json',path:'C:/fakepath/uploaded.json'}]) {
+      h.app.state.projectFile=file;const before=h.snapshot();await h.app.saveProject(false);
+      assert.equal(h.byId('save-required-dialog').open,true);assert.deepEqual(h.snapshot(),before);assert.equal(h.app.state.projectFile,file);
+      await h.byId('save-required-dialog').close('close');
+    }
+    assert.equal(h.calls.length,0);
+    assert.ok(fs.readFileSync('static/index.html','utf8').includes('You have not yet created a Project, please click "Save As"'));
+  });
+  await check('Save sends the current capability and complete precise state, then keeps the rotated target', async h => {
+    h.addEntry('ductwork');
+    h.app.state.projectFile={name:'existing.json',path:'C:/estimates/existing.json',save_token:'authorized-original'};
+    h.app.state.inputs.B15=432.123456789;
+    for(const [index,id] of ids.entries())h.calc.state.entries.get(id).inputs.CALCULATOR.F9=1.234567890123+index;
+    const before=h.snapshot(),paths=[];
+    h.app.setRequest(async(path,options)=>{
+      paths.push(path);const body=JSON.parse(options.body);assert.equal(body.save_token,'authorized-original');assert.equal(body.path,undefined);
+      assert.equal(body.estimate.inputs.B15,432.123456789);assert.deepEqual(body.estimate.configuration,before.estimate.configuration);
+      assert.deepEqual(body.calculators,before.calculators);
+      return {cancelled:false,file:{name:'existing.json',path:'C:/estimates/existing.json',save_token:'authorized-next'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};
+    });
+    await h.app.saveProject(false);assert.deepEqual(paths,['/api/project/save']);assert.equal(h.app.state.projectFile.save_token,'authorized-next');
+    assert.equal(h.app.state.inputs.B15,432.123456789);assert.equal(h.app.state.dirty,false);
+    for(const entry of h.calc.state.entries.values())assert.equal(h.calc.dirty(entry),false);
+  });
+  await check('Edits during Save remain unsaved while its returned capability points to the saved snapshot', async h => {
+    h.addEntry('ductwork');h.app.state.projectFile={name:'saved.json',path:'C:/estimates/saved.json',save_token:'old'};
+    const pending=deferred();let payload;h.app.setRequest((path,options)=>{assert.equal(path,'/api/project/save');payload=JSON.parse(options.body);return pending.promise;});
+    const saving=h.app.saveProject(false);await flush();h.app.state.inputs.B15=789.123456789;h.calc.setInput(h.calc.current(),'CALCULATOR','A9','Later board');
+    pending.resolve({cancelled:false,file:{name:'saved.json',path:'C:/estimates/saved.json',save_token:'new'},project:{...project(),estimate:payload.estimate,calculators:payload.calculators}});await saving;
+    assert.equal(h.app.state.projectFile.save_token,'new');assert.equal(h.app.state.inputs.B15,789.123456789);
+    assert.equal(h.app.state.dirty,true);assert.equal(h.calc.dirty(h.calc.current()),true);assert.match(h.byId('app-message').textContent,/Later edits are not included/);
+  });
+  for(const failure of ['cancel','failure'])await check(`Save As ${failure} retains the previous target and unapplied project pricing draft`, async h => {
+    h.addEntry('ductwork');const file={name:'original.json',path:'C:/estimates/original.json',save_token:'keep-me'};h.app.state.projectFile=file;
+    h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=123.456789;const before=h.snapshot();
+    h.app.setRequest(async(path,options)=>{
+      if(path==='/api/configuration/preview')return {configuration:JSON.parse(options.body).configuration,fields:copy(h.app.state.fields)};
+      assert.equal(path,'/api/project/save-as');if(failure==='failure')throw new Error('File locked');return {cancelled:true};
+    });
+    await h.app.saveProject();assert.equal(h.app.state.projectFile,file);assert.deepEqual(h.snapshot(),before);
+    assert.equal(h.app.state.quoteConfiguration.rates.frozen.price,17.12345);assert.equal(h.app.state.draft.rates.frozen.price,123.456789);
+  });
+  await check('Native Load cancellation retains the existing target and native Load acceptance enables Save', async h => {
+    const original={name:'old.json',save_token:'old'};h.app.state.projectFile=original;const before=h.snapshot();
+    h.app.setRequest(async(path,options)=>{assert.equal(path,'/api/project/open');assert.deepEqual(JSON.parse(options.body),{});return {cancelled:true};});
+    await h.app.openNativeProject();assert.equal(h.app.state.projectFile,original);assert.deepEqual(h.snapshot(),before);
+    const loaded={name:'loaded.json',path:'C:/estimates/loaded.json',save_token:'loaded'};
+    h.app.setRequest(async()=>({...project(),file:loaded,cancelled:false}));
+    let loading=h.app.openNativeProject();await flush();await h.byId('discard-dialog').close('cancel');await loading;
+    assert.equal(h.app.state.projectFile,original);assert.deepEqual(h.snapshot(),before);
+    loading=h.app.openNativeProject();await flush();await h.byId('discard-dialog').close('confirm');await loading;
+    assert.equal(h.app.state.projectFile.save_token,'loaded');
+    h.app.setRequest(async(path,options)=>{assert.equal(path,'/api/project/save');assert.equal(JSON.parse(options.body).save_token,'loaded');return {cancelled:true};});
+    await h.app.saveProject(false);
+  });
+  await check('A browser-imported project cannot grant a writable target', async h => {
+    await h.loadAccepted();assert.equal(h.app.state.projectFile.save_token,undefined);let requested=false;
+    h.app.setRequest(async()=>{requested=true;});await h.app.saveProject(false);
+    assert.equal(requested,false);assert.equal(h.byId('save-required-dialog').open,true);
+  });
+  await check('Starting a new project clears the previous Save target', async h => {
+    h.app.state.projectFile={name:'old.json',save_token:'old'};h.app.state.initialized=true;
+    const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
+    assert.equal(h.app.state.projectFile,null);await h.app.saveProject(false);assert.equal(h.byId('save-required-dialog').open,true);
+  });
   await check('Project pricing changes are validated without changing shared rates and are included by Save Project', async h => {
     h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=42.75;
     const shared=copy(h.app.state.configuration),library=copy(h.app.state.libraryDraft),paths=[];let saved;
@@ -252,6 +319,21 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     });
     await h.app.saveProject();assert.deepEqual(paths,['/api/configuration/preview','/api/project/save-as']);assert.equal(saved.estimate.configuration.rates.frozen.price,42.75);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),library);assert.equal(h.app.state.dirty,false);
+  });
+  await check('Saving pending project pricing refreshes visible totals with the saved prices', async h => {
+    h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=42.123456789;
+    h.app.state.result={summary:{total:111}};const timers=[];let calculated;
+    h.context.setTimeout=callback=>{timers.push(callback);return timers.length;};
+    h.app.setRequest(async(path,options)=>{
+      const body=JSON.parse(options.body);
+      if(path==='/api/configuration/preview')return {configuration:body.configuration,fields:copy(h.app.state.fields)};
+      if(path==='/api/calculate'){calculated=body;return {summary:{total:987.65},cells:{},materials:[],errors:{},labour:[]};}
+      assert.equal(path,'/api/project/save-as');return {cancelled:false,file:{name:'saved.json',path:'C:/estimates/saved.json',save_token:'saved'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};
+    });
+    await h.app.saveProject();assert.equal(h.app.state.result,null);assert.match(h.byId('calculation-status').textContent,/Calculating/);
+    assert.ok(timers.length);timers.at(-1)();await flush();
+    assert.equal(calculated.configuration.rates.frozen.price,42.123456789);assert.equal(h.app.state.result.summary.total,987.65);
+    assert.equal(h.byId('sum-total').textContent,'$987.65');assert.equal(h.app.state.dirty,false);
   });
   await check('New estimate follows newly saved shared library and Save Project does not restore stale prices', async h => {
     h.app.state.quote=null;h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=copy(h.app.state.configuration);

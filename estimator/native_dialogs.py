@@ -87,9 +87,19 @@ try {
         if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
             @{path=$dialog.SelectedPath} | ConvertTo-Json -Compress
         } else { 'null' }
+    } elseif ($request.kind -eq 'open') {
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Title = 'Load Project'
+        $dialog.Filter = 'Ceasefire project (*.json)|*.json'
+        $dialog.CheckFileExists = $true
+        $dialog.Multiselect = $false
+        if ($request.directory) { $dialog.InitialDirectory = $request.directory }
+        if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
+            @{path=$dialog.FileName} | ConvertTo-Json -Compress
+        } else { 'null' }
     } else {
         $dialog = New-Object System.Windows.Forms.SaveFileDialog
-        $dialog.Title = 'Save Project'
+        $dialog.Title = 'Save As'
         $dialog.Filter = 'Ceasefire project (*.json)|*.json'
         $dialog.DefaultExt = 'json'
         $dialog.AddExtension = $true
@@ -133,8 +143,12 @@ try:
     if request['kind'] == 'folder':
         path = filedialog.askdirectory(parent=root, title='Choose your estimates folder', initialdir=request.get('directory') or None)
         result = {'path': path} if path else None
+    elif request['kind'] == 'open':
+        path = filedialog.askopenfilename(parent=root, title='Load Project', initialdir=request.get('directory') or None,
+            filetypes=[('Ceasefire project', '*.json')])
+        result = {'path': path} if path else None
     else:
-        path = filedialog.asksaveasfilename(parent=root, title='Save Project', initialdir=request.get('directory') or None,
+        path = filedialog.asksaveasfilename(parent=root, title='Save As', initialdir=request.get('directory') or None,
             initialfile=request['filename'], defaultextension='.json',
             filetypes=[('Ceasefire project', '*.json')])
         result = None
@@ -187,3 +201,7 @@ class NativeDialogs:
     def choose_save(self, initial_directory, filename):
         response = self._run({"kind": "save", "directory": initial_directory, "filename": filename})
         return SaveSelection(response["path"], response.get("fingerprint")) if response else None
+
+    def choose_open(self, initial_directory=None):
+        response = self._run({"kind": "open", "directory": initial_directory})
+        return response["path"] if response else None

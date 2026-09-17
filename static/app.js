@@ -18,7 +18,7 @@
   const percentCells = new Set(["B9", "B26", "B27", ...Array.from({ length: 9 }, (_, i) => `E${i + 15}`)]);
   const wholeCells = new Set(["B4", "B8", "B9", "B26", "B27", "F27", "F28", ...Array.from({ length: 9 }, (_, i) => `B${i + 15}`), ...Array.from({ length: 9 }, (_, i) => `E${i + 15}`)]);
   const materialNames = [
-    ["Spraying", "Bags / drums"], ["Meshing", "m²"], ["Pins / clips", "m²"],
+    ["Spraying", "Bags / drums / rolls"], ["Meshing", "m²"], ["Pins / clips", "m²"],
     ["Access panels", "Number of panels"], ["PromaMesh / fan enclosures", "m²"],
     ["Primer", "m²"], ["Topcoat", "m²"], ["Board", "m²"], ["Mastic", "Linear metres"],
   ];
@@ -147,7 +147,7 @@
     status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
     status.classList.toggle("unsaved", changed || !file);
     $("project-file-name").textContent = file?.name || "No project file selected";
-    $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Loaded from file picker · choose a folder with Save Project" : "Choose a folder with Save Project");
+    $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Imported file · choose a folder with Save As" : "Choose a folder with Save As");
     const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
     $("project-last-saved").textContent = savedAt && !Number.isNaN(savedAt.getTime()) ? `File saved ${savedAt.toLocaleString("en-AU")}` : "File save time unavailable";
     $("project-last-saved").hidden = !file;
@@ -260,7 +260,16 @@
       for (const col of ["B", "C", "D", "E"]) {
         const td = node("td");
         const field = fieldByCell(`${col}${row}`);
-        td.append(field ? makeControl(field, true) : node("span", "", "—"));
+        const control = field ? makeControl(field, true) : node("span", "", "—");
+        if (field && (col === "B" || col === "C")) {
+          const unit = col === "B" ? materialNames[row - 15][1] : row === 17 ? "m²" : "Quantity";
+          control.title = unit;
+          control.setAttribute("aria-label", `${materialNames[row - 15][0]} — ${col === "B" ? "Coverage required" : "Daily output"} (${unit})`);
+          if (col === "C") control.setAttribute("aria-description", row === 17
+            ? "Square metres per day. This field does not change pinning labour, which follows meshing days."
+            : "Quantity of selected product units completed per day.");
+        }
+        td.append(control);
         tr.append(td);
       }
       const yieldCell = node("td", "calculated-yield");
@@ -284,7 +293,6 @@
     document.querySelector(".summary-card").setAttribute("aria-busy", "true");
     for (const key of ["labour", "material", "access", "travel", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
-    $("calculated-notes").textContent = "—";
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
     const labourRow = node("tr"), labourCell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
@@ -340,7 +348,6 @@
     $("sum-days").textContent = formatNumber(summary.days);
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
-    $("calculated-notes").textContent = result.notes ?? cells.B30 ?? "";
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
@@ -490,7 +497,7 @@
       if (loadRevision !== state.quoteLoadRevision) return;
       const captured = projectStamp();
       const prepared = await window.CeasefireCalculators.prepareDefaults();
-      if (!await confirmReplace("Open this older estimate?", "This record contains the estimate and its original pricing only. The current estimate will be replaced and all three calculators will start from defaults. Save Project can then save them together.", "Open older estimate")) return;
+      if (!await confirmReplace("Open this older estimate?", "This record contains the estimate and its original pricing only. The current estimate will be replaced and all three calculators will start from defaults. Save As can then save them together.", "Open older estimate")) return;
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
@@ -551,7 +558,7 @@
     $("pricing-scope").value = state.pricingScope;
     $("save-pricing").textContent = state.pricingScope === "project" ? "Apply project pricing" : "Save pricing";
     $("pricing-context").textContent = state.pricingScope === "project"
-      ? "These prices belong to the current project. Apply project pricing updates its estimate; Save Project stores them in the project file. The shared library stays unchanged."
+      ? "These prices belong to the current project. Apply project pricing updates its estimate; Save stores them in the current file, or Save As creates another file. The shared library stays unchanged."
       : "Save pricing stores the shared library on this computer for future estimates. Discard changes returns to its last save. Existing projects keep their own pricing.";
   }
   function switchPricingScope(scope) {
@@ -570,7 +577,7 @@
     pricingScopeUi(); refreshPricingCatalog(); renderPricing();
   }
 
-  async function applyProjectPricing() {
+  async function previewProjectPricing() {
     document.activeElement?.blur?.();
     const draft = state.pricingScope === "project" ? state.draft : state.projectPricingDraft;
     if (!draft) return;
@@ -580,12 +587,18 @@
     const data = await request("/api/configuration/preview", { method: "POST", body: JSON.stringify({ configuration: clone(draft) }) });
     const currentDraft = state.pricingScope === "project" ? state.draft : state.projectPricingDraft;
     if (context !== state.quoteContext || currentDraft !== draft || captured !== JSON.stringify(draft) || pricingHasPendingInput(draft)) throw new Error("Project pricing changed while being checked. Apply it again when ready.");
+    return data;
+  }
+
+  async function applyProjectPricing() {
+    const data = await previewProjectPricing();
+    if (!data) return;
     state.quoteConfiguration = clone(data.configuration); state.fields = clone(data.fields);
     state.projectPricingDraft = clone(data.configuration);
     if (state.pricingScope === "project") { state.draft = state.projectPricingDraft; refreshPricingCatalog(); renderPricing(); }
     renderInputs(); updateDirty(); scheduleCalculation();
     $("snapshot-message").hidden = false;
-    $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save Project retains these prices in its file.";
+    $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save or Save As retains these prices in its file.";
   }
 
   async function useCurrentPricing() {
@@ -594,8 +607,8 @@
     state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields);
     resetProjectPricing(); renderInputs(); updateDirty(); scheduleCalculation();
     $("snapshot-message").hidden = false;
-    $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save Project to retain these prices.";
-    message("Current saved library applied to this project. Check any removed product selections, then Save Project.");
+    $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save or Save As to retain these prices.";
+    message("Current saved library applied to this project. Check any removed product selections, then Save or Save As.");
   }
 
   function setOverride(kind, item, field, value) {
@@ -1033,7 +1046,7 @@
     try {
       if (state.pricingScope === "project") {
         await applyProjectPricing();
-        message("Project pricing applied. Save Project to store it with the estimate and calculators.");
+        message("Project pricing applied. Save or Save As to store it with the estimate and calculators.");
         return;
       }
       const draftObject = state.draft;
@@ -1200,24 +1213,38 @@
 
   function projectBusy(value) {
     state.projectBusy = value;
-    for (const id of ["save-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
+    for (const id of ["save-project", "save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
     updateProjectStatus();
   }
 
-  async function saveProject() {
+  async function saveProject(saveAs = true) {
     if (state.projectBusy) return;
+    const target = state.projectFile, context = state.quoteContext;
+    if (!saveAs && !target?.save_token) {
+      const dialog = $("save-required-dialog");
+      if (!dialog.open) dialog.showModal();
+      return;
+    }
     projectBusy(true);
     try {
       document.activeElement?.blur?.();
       if (inputProblem()) throw new Error(inputProblem());
-      await applyProjectPricing();
+      // Validate the project pricing draft without applying it yet. Cancelling
+      // Save As or a failed write must retain the exact current editing state.
+      const pricing = await previewProjectPricing();
       if (inputProblem()) throw new Error(inputProblem());
+      const pricingStamp = () => {
+        const draft = state.pricingScope === "project" ? state.draft : state.projectPricingDraft;
+        return JSON.stringify([state.quoteConfiguration || state.configuration, draft, draft ? [...pricingPendingFields(draft)] : []]);
+      };
+      const preparedPricing = pricingStamp();
       const calculators = await window.CeasefireCalculators.completeProjectSnapshot();
-      if (inputProblem() || projectPricingChanged()) throw new Error(inputProblem() || "Project pricing changed while preparing the file. Save Project again when ready.");
+      if (context !== state.quoteContext || target !== state.projectFile || inputProblem() || preparedPricing !== pricingStamp()) throw new Error(inputProblem() || "The project changed while preparing the file. Save again when ready.");
       const payload = { estimate: projectEstimate(), calculators };
+      if (pricing) payload.estimate.configuration = clone(pricing.configuration);
+      if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
-      const context = state.quoteContext;
-      const saved = await request("/api/project/save-as", { method: "POST", body: JSON.stringify(payload) });
+      const saved = await request(saveAs ? "/api/project/save-as" : "/api/project/save", { method: "POST", body: JSON.stringify(payload) });
       if (saved.cancelled) { message("Save As cancelled. Your current project remains open."); return; }
       const changed = captured !== projectStamp();
       if (context === state.quoteContext) {
@@ -1225,13 +1252,25 @@
         window.CeasefireCalculators.markProjectSaved(saved.project.calculators);
         if (!changed) {
           state.quote = null; state.quoteConfiguration = clone(saved.project.estimate.configuration);
-          state.fields = clone(saved.project.fields); resetProjectPricing(); renderInputs(); updateDirty(false);
+          state.fields = clone(saved.project.fields); resetProjectPricing(); renderInputs(); updateDirty(false); scheduleCalculation();
           $("snapshot-message").hidden = false;
           $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
         } else updateDirty();
       }
       message(`Project saved to ${saved.file.path}. It includes the estimate, its pricing library and all three calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
     } catch (error) { message(`Project was not saved. ${error.message}`, true); }
+    finally { projectBusy(false); }
+  }
+
+  async function openNativeProject() {
+    if (state.projectBusy) return;
+    projectBusy(true);
+    try {
+      const captured = projectStamp();
+      const project = await request("/api/project/open", { method: "POST", body: "{}" });
+      if (project.cancelled) { message("Project load cancelled. Your current drafts were kept."); return; }
+      await reviewAndLoadProject(project, project.file, captured);
+    } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
 
@@ -1271,7 +1310,9 @@
       updateQuoteTitle(); renderInputs(); updateDirty(false);
       $("snapshot-message").hidden = false; $("snapshot-message").querySelector("span").textContent = "This project uses the pricing snapshot from its file.";
       showView("estimate"); scheduleCalculation();
-      message("Project loaded with its original pricing and all three calculators. Save Project stores the complete project together.");
+      message(file.save_token
+        ? "Project loaded with its original pricing and all three calculators. Save updates this file; Save As stores the complete project in another file."
+        : "Project imported with its original pricing and all three calculators. Use Save As to choose its project file.");
   }
 
   async function loadProjects({ refresh = false, offset = state.projectsOffset } = {}) {
@@ -1400,8 +1441,9 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", newQuote);
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
-  $("save-project").addEventListener("click", saveProject);
-  $("load-project").addEventListener("click", () => { if (!state.projectBusy) $("project-import-file").click(); });
+  $("save-project").addEventListener("click", () => saveProject(true));
+  $("save-current-project").addEventListener("click", () => saveProject(false));
+  $("load-project").addEventListener("click", openNativeProject);
   $("project-import-file").addEventListener("change", loadProject);
   $("edit-project-details").addEventListener("click", () => { showView("estimate"); $("project-no").focus(); });
   $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));

@@ -57,6 +57,8 @@ class FyreWrapApplicationRulesTests(unittest.TestCase):
             self.assertAlmostEqual(engine.value('CALCULATOR', f'N{row}'), material, places=8)
         self.assertIn('external 120/120/60; internal not required', engine.value('CALCULATOR', 'AP11'))
         self.assertIn('external 120/120/120; internal not required', engine.value('CALCULATOR', 'AP12'))
+        self.assertIn('No penetration wrap included.', engine.value('CALCULATOR', 'AP11'))
+        self.assertNotIn('Local wall wrap is on both faces', engine.value('CALCULATOR', 'AP11'))
 
     def test_unresolved_or_unsupported_details_cannot_produce_complete_wrap_totals(self):
         rows = {11: {'H': 'Stair pressurisation', 'F': 1}, 12: {'H': 'Other pressurisation', 'G': 1},

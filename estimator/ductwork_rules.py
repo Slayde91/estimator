@@ -36,7 +36,8 @@ def application_formula_overrides(model):
         'R11&" continuous layer(s). ")&'
         'IF(AND(F11>0,BI11=5),"Upper wall-size band differs between manual and assessment; confirm detail. ","")&'
         'IF(NOT(BM11),"Wrap total withheld: matching penetration detail required. Board and angles are separate allowances. ",'
-        '"Local wall wrap is on both faces; local floor wrap is above the slab only. ")&'
+        'IF(SUM(F11:G11)=0,"No penetration wrap included. ",'
+        '"Local wall wrap is on both faces; local floor wrap is above the slab only. "))&'
         'IF(NOT(BO11),"Local wrap lengths capped to run; check locations and overlapping zones. ","")&'
         '"Required overlaps included; no waste added."'
     )

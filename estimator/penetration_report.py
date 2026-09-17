@@ -89,9 +89,10 @@ def render_penetration_pdf(result, definition, project_details):
         for error in row.get('errors', []):
             report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
     report.story.extend([CondPageBreak(65), report.p('Global inputs', 'subheading')])
-    report.story.append(report.table(['Parameter', 'Value'], [
-        [report.p(field['label'], 'cell'), report.p(_display(result['draft']['globals'].get(field['column']), field), 'cell')]
-        for field in definition['global_fields']], [content * .44, content * .56]))
+    global_fields = definition['global_fields']
+    report.story.append(report.table([field['label'] for field in global_fields], [[
+        report.p(_display(result['draft']['globals'].get(field['column']), field), 'cell')
+        for field in global_fields]], [content / len(global_fields)] * len(global_fields), compact=True))
     for error in result.get('errors', []):
         if not error.get('row_id'):
             report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))

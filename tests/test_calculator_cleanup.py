@@ -230,8 +230,8 @@ class CalculatorCleanupTests(unittest.TestCase):
                 aliases = {"A1": title} if title else {}
                 if identity == "steel_board" and sheet["name"] == "START":
                     aliases = {
-                        "D9": "Replace or clear the demonstration rows. Enter one member, or one group of identical members, per row. 1,000 prepared rows: 9-1008. Enter the TOTAL lineal length for that row.",
-                        "A28": "Capacity is 1,000 prepared rows. All prepared rows are included in the calculation formulas, dropdowns and purchasing totals.",
+                        "D9": "Add schedule rows as needed, or import a schedule. Enter one member, or one group of identical members, per row. Enter the TOTAL lineal length for that row.",
+                        "A28": "Schedules support up to 1,000 rows. Every entered row is included in the calculations and purchasing totals, including rows outside the current view.",
                     }
                 if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
                     aliases["J94"] = "FYREWRAP APPLICATION TABLE"

@@ -267,10 +267,12 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         elif actual != tuple(field["label"] for field in columns):
             raise ValidationError("Schedule headers must match the selected calculator's exported template exactly.")
         imported_rows = 0
+        last_populated_row = schedule['first_row']
         for row_index, row in enumerate(rows, 2):
             values = [_value(cell, field, row_index) for cell, field in zip(row, columns)]
             if any(value not in (None, "") for field, value in zip(columns, values) if not field.get("generated")):
                 imported_rows += 1
+                last_populated_row = schedule['first_row'] + row_index - 2
             source_row = schedule["first_row"] + row_index - 2
             for field, value in zip(columns, values):
                 if field.get("generated"):
@@ -290,4 +292,5 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         if workbook is not None:
             workbook.close()
     return {"inputs": proposed, "imported_rows": imported_rows,
+            "schedule_rows": list(range(schedule['first_row'], last_populated_row + 1)),
             "source_sha256": hashlib.sha256(payload).hexdigest()}

@@ -9,6 +9,7 @@ import threading
 import unittest
 
 from estimator.calculator_defaults import default_calculator_inputs, yield_review
+from estimator.schedule_rows import empty_schedule_inputs
 from estimator.catalog import ValidationError
 from estimator.server import create_server
 from estimator.storage import Store
@@ -82,7 +83,7 @@ class CalculatorDefaultsTests(unittest.TestCase):
     def test_new_state_prefills_without_writing_and_existing_saves_remain_exact(self):
         with tempfile.TemporaryDirectory() as temporary:
             store = Store(Path(temporary) / 'defaults.sqlite3')
-            self.assertEqual(store.calculator_state(IDENTITY)['inputs'], default_calculator_inputs(IDENTITY))
+            self.assertEqual(store.calculator_state(IDENTITY)['inputs'], empty_schedule_inputs(IDENTITY))
             with store.connect() as db:
                 self.assertEqual(db.execute('SELECT COUNT(*) FROM calculator_states').fetchone()[0], 0)
             for inputs in ({}, {'SETTINGS': {'D36': 24, 'D37': .05123456789}}, default_calculator_inputs(IDENTITY)):
@@ -141,7 +142,9 @@ class CalculatorDefaultsHttpTests(unittest.TestCase):
         self.assertEqual(definition['yield_review']['products'][0]['bag_mass_kg'], 20)
         results = []
         for direct in (.0651, .1302, 0):
-            inputs = deepcopy(definition['inputs'])
+            # Exercise pooled source-example quantities explicitly. New drafts
+            # now have one blank row and therefore no material quantities.
+            inputs = default_calculator_inputs(IDENTITY)
             inputs['SETTINGS']['D37'] = direct
             worksheet = self.request('POST', '/worksheet', {'sheet': 'SCHEDULE', 'inputs': inputs})
             totals = worksheet['product_totals']

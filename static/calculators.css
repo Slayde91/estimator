@@ -201,6 +201,17 @@
 .calculator-grid .calculator-align-left select{text-align-last:left}
 .calculator-grid .calculator-centered-data-table :is(th,td){text-align:center!important}
 .calculator-grid .calculator-schedule-table td.calculator-line-number{background:#fff!important}
+.calculator-schedule-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 20px;background:#fffaf2;border-block:1px solid #d8c9bc}
+.calculator-schedule-tools button{white-space:nowrap}
+.calculator-schedule-help{flex-basis:100%;font-size:11px}
+.calculator-grid .calculator-row-action{width:100px;padding:7px!important;background:#fff!important}
+.calculator-row-action button{padding:8px;font-size:11px;min-height:36px}
+.calculator-grid .calculator-virtual-schedule tbody tr:not(.calculator-virtual-spacer){height:96px}
+.calculator-grid .calculator-virtual-schedule tbody td{height:96px;box-sizing:border-box;padding-block:7px;overflow:hidden}
+.calculator-virtual-output{max-height:80px;overflow:auto;scrollbar-width:thin;white-space:pre-wrap;overflow-wrap:anywhere}
+.calculator-grid .calculator-virtual-schedule textarea{height:76px;min-height:0;max-height:76px;resize:none}
+.calculator-grid .calculator-virtual-schedule .calculator-native-custom{max-height:80px;overflow:auto}
+.calculator-grid .calculator-virtual-schedule .calculator-virtual-spacer td{padding:0!important;border:0;background:#fff!important;line-height:0}
 .calculator-grid td.calculator-split-status{padding:0!important}
 .calculator-status-columns{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,4fr)}
 .calculator-status-text{padding:12px 15px;text-align:center}

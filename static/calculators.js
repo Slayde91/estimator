@@ -146,7 +146,106 @@
   const current = () => state.entries.get(state.current);
   const endpoint = (id, action = "") => `/api/calculators/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
   const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
-  const dirty = (entry) => JSON.stringify(entry.inputs) !== entry.saved;
+  const dirty = (entry) => JSON.stringify(entry.inputs) !== entry.saved || JSON.stringify(entry.scheduleRows) !== entry.savedRows;
+  const scheduleWindowSize = 60, scheduleRowHeight = 96, scheduleBuffer = 12;
+  const scheduleFor = (entry) => entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : null;
+  const scheduleState = (entry) => Array.isArray(entry.scheduleRows) ? { schedule_rows: [...entry.scheduleRows] } : {};
+
+  function scheduleChanged(entry) {
+    entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
+    clearTimeout(state.timer); ++state.requestRevision; updateStatus(entry);
+  }
+
+  function scheduleEditableAddresses(entry, row) {
+    const schedule = entry.definition.schedule;
+    const columns = (schedule.columns || []).filter((column) => column.editable && !column.generated && column.column !== schedule.line_id_column).map((column) => columnName(columnNumber(column.column)));
+    return [...new Set([...columns.map((column) => `${column}${row}`), ...Object.keys(entry.inputs[schedule.sheet] || {}).filter((address) => parseAddress(address)?.row === row && columnName(parseAddress(address).column) !== schedule.line_id_column)])];
+  }
+
+  async function addScheduleRow(entry = current()) {
+    if (!entry || entry !== current() || state.action || entry.invalid.size || !Array.isArray(entry.scheduleRows)) return;
+    const schedule = entry.definition.schedule, used = new Set(entry.scheduleRows);
+    let row = schedule.first_row;
+    while (used.has(row) && row <= schedule.last_row) row++;
+    if (row > schedule.last_row) return;
+    entry.inputs[schedule.sheet] ||= {};
+    for (const address of scheduleEditableAddresses(entry, row)) entry.inputs[schedule.sheet][address] = null;
+    entry.scheduleRows = [...entry.scheduleRows, row].sort((left, right) => left - right);
+    entry.removedRows = [];
+    const index = entry.scheduleRows.indexOf(row);
+    entry.scheduleViewport = { offset: Math.max(0, Math.min(index - scheduleBuffer, entry.scheduleRows.length - scheduleWindowSize)), top: entry.scheduleRows.length > scheduleWindowSize ? Math.max(0, index - 2) * scheduleRowHeight : 0, left: entry.scheduleViewport?.left || 0 };
+    scheduleChanged(entry); message(`Line ${row - schedule.first_row + 1} added.`); await calculate();
+  }
+
+  async function removeScheduleRow(row, entry = current()) {
+    if (!entry || entry !== current() || state.action || entry.invalid.size || !entry.scheduleRows?.includes(row)) return;
+    const schedule = entry.definition.schedule, sheet = schedule.sheet, hadSheet = Object.prototype.hasOwnProperty.call(entry.inputs, sheet), values = entry.inputs[sheet] ||= {};
+    const addresses = scheduleEditableAddresses(entry, row), before = addresses.map((address) => [address, Object.prototype.hasOwnProperty.call(values, address), values[address]]);
+    (entry.removedRows ||= []).push({ row, rows: [...entry.scheduleRows], before, hadSheet, placeholder: entry.scheduleRows.length === 1 ? schedule.first_row : null });
+    if (entry.removedRows.length > 20) entry.removedRows.shift();
+    for (const address of addresses) values[address] = null;
+    entry.scheduleRows = entry.scheduleRows.filter((value) => value !== row);
+    if (!entry.scheduleRows.length) entry.scheduleRows = [schedule.first_row];
+    const viewport = entry.scheduleViewport ||= {};
+    viewport.offset = Math.max(0, Math.min(viewport.offset || 0, entry.scheduleRows.length - scheduleWindowSize));
+    viewport.top = Math.max(0, Math.min(viewport.top || 0, (entry.scheduleRows.length - 1) * scheduleRowHeight));
+    scheduleChanged(entry); message(`Line ${row - schedule.first_row + 1} removed. Use Undo remove to restore it.`); await calculate();
+  }
+
+  async function undoScheduleRemove(entry = current()) {
+    if (!entry || entry !== current() || state.action || entry.invalid.size || !entry.removedRows?.length) return;
+    const removed = entry.removedRows.pop(), values = entry.inputs[entry.definition.schedule.sheet] ||= {};
+    for (const [address, existed, value] of removed.before) { if (existed) values[address] = value; else delete values[address]; }
+    const retained = entry.scheduleRows.filter((row) => row !== removed.placeholder || scheduleEditableAddresses(entry, row).some((address) => values[address] !== null && values[address] !== undefined && values[address] !== ""));
+    entry.scheduleRows = [...new Set([...retained, ...removed.rows])].sort((left, right) => left - right);
+    if (!removed.hadSheet && !Object.keys(values).length) delete entry.inputs[entry.definition.schedule.sheet];
+    const index = entry.scheduleRows.indexOf(removed.row);
+    entry.scheduleViewport = { offset: Math.max(0, Math.min(index - scheduleBuffer, entry.scheduleRows.length - scheduleWindowSize)), top: entry.scheduleRows.length > scheduleWindowSize ? Math.max(0, index - 2) * scheduleRowHeight : 0, left: entry.scheduleViewport?.left || 0 };
+    scheduleChanged(entry); message("Removed row restored with its original inputs."); await calculate();
+  }
+
+  function renderScheduleTools(entry) {
+    const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "", "Add row"), undo = node("button", "secondary", "Undo remove");
+    add.type = undo.type = "button"; add.dataset.scheduleAdd = "true"; undo.dataset.scheduleUndo = "true";
+    const capacity = entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
+    add.disabled = state.action || entry.invalid.size > 0 || entry.scheduleRows.length >= capacity;
+    undo.disabled = state.action || entry.invalid.size > 0 || !entry.removedRows?.length;
+    add.addEventListener("click", () => addScheduleRow(entry)); undo.addEventListener("click", () => undoScheduleRemove(entry));
+    const count = node("span", "helper", `${entry.scheduleRows.length.toLocaleString("en-AU")} ${entry.scheduleRows.length === 1 ? "row" : "rows"} · Capacity ${capacity.toLocaleString("en-AU")}`);
+    const help = node("span", "helper calculator-schedule-help", "Line numbers stay with their items. Removing a row clears its inputs; Undo remove restores them.");
+    toolbar.append(add, undo, count, help); return toolbar;
+  }
+
+  function bindScheduleScroll(scroll, entry, view) {
+    scroll.dataset.scheduleViewport = "true";
+    const viewport = entry.scheduleViewport ||= { offset: view.offset, top: 0, left: 0 };
+    scroll.scrollTop = viewport.top || 0; scroll.scrollLeft = viewport.left || 0;
+    let timer;
+    const onScroll = () => {
+      if (entry !== current() || scheduleFor(entry)?.sheet !== entry.sheet) return;
+      viewport.top = scroll.scrollTop; viewport.left = scroll.scrollLeft;
+      clearTimeout(timer);
+      if (entry.scheduleRows.length <= scheduleWindowSize) return;
+      const first = Math.max(0, Math.floor(scroll.scrollTop / scheduleRowHeight));
+      const shown = Math.ceil((scroll.clientHeight || 650) / scheduleRowHeight);
+      if (first >= view.offset + 4 && first + shown <= view.offset + view.limit - 4 || view.offset === 0 && first < 4 || view.offset + view.limit >= entry.scheduleRows.length && first + shown >= entry.scheduleRows.length - 4) return;
+      // Commit the focused editor before replacing a distant window. Input
+      // events already retain its exact value; blur completes list validation.
+      const focused = document.activeElement;
+      if (focused?.dataset?.calculatorSheet === entry.sheet && (focused.dataset.calculatorCell || focused.dataset.calculatorCustomCell)) focused.blur?.();
+      if (entry.invalid.size) {
+        scroll.scrollTop = Math.max(0, view.offset * scheduleRowHeight); viewport.top = scroll.scrollTop;
+        message("Correct the invalid input before scrolling to another group of rows.", true); return;
+      }
+      timer = setTimeout(() => {
+        if (entry !== current() || !scheduleFor(entry) || entry.invalid.size) return;
+        const offset = Math.max(0, Math.min(first - scheduleBuffer, entry.scheduleRows.length - scheduleWindowSize));
+        if (offset === entry.scheduleViewport?.offset) return;
+        entry.scheduleViewport.offset = offset; entry.needsRender = true; calculate({ viewport: true });
+      }, 80);
+    };
+    scroll.addEventListener("scroll", onScroll);
+  }
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -247,6 +346,9 @@
     $("calculator-reset").disabled = state.action;
     $("calculator-import").disabled = state.action;
     $("calculator-template").disabled = state.action;
+    for (const button of $("calculator-grid").querySelectorAll("[data-schedule-add]")) button.disabled = state.action || hasErrors || entry.scheduleRows.length >= entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
+    for (const button of $("calculator-grid").querySelectorAll("[data-schedule-undo]")) button.disabled = state.action || hasErrors || !entry.removedRows?.length;
+    for (const button of $("calculator-grid").querySelectorAll("[data-schedule-remove]")) button.disabled = state.action || hasErrors;
   }
 
   function calculationStatus(text = "") {
@@ -256,6 +358,9 @@
   function setInput(entry, sheet, address, value) {
     entry.inputs[sheet] ||= {};
     entry.inputs[sheet][address] = value;
+    // Reusing a removed source row is a new draft. Undo must never overwrite
+    // fresh edits entered into the one-row placeholder (or a stale DOM row).
+    if (sheet === entry.definition.schedule?.sheet && entry.removedRows?.length) entry.removedRows = entry.removedRows.filter((removed) => removed.row !== parseAddress(address)?.row);
     entry.pendingResult = null;
     entry.navigationCache = null;
     entry.revision++;
@@ -470,6 +575,7 @@
       outputState(element, cell.value);
       if (element.calculatorValueCard) outputState(element.calculatorValueCard, cell.value);
     }
+    if (element.dataset.calculatorVirtualOutput === "true") element.replaceChildren(node("div", "calculator-virtual-output", element.textContent));
   }
 
   function outputState(element, value) {
@@ -667,6 +773,9 @@
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
     const labels = headerLabels(entry, result);
     const schedule = entry.definition.schedule?.sheet === entry.sheet ? entry.definition.schedule : entry.sheet === "EXTRA BOARDS" ? { first_row: 6, last_row: 45, header_row: 5 } : null;
+    const scheduleView = scheduleFor(entry) && result.schedule_view;
+    const dynamicSchedule = Boolean(scheduleView && Array.isArray(entry.scheduleRows));
+    const virtualSchedule = dynamicSchedule && entry.scheduleRows.length > scheduleWindowSize;
     const syntheticLine = Boolean(schedule?.line_numbers), lineColumn = columnNumber(schedule?.line_id_column), lineWidth = 70;
     const exposureColumns = new Set((schedule?.columns || []).filter((column) => column.editable && /exposure/i.test(column.label)).map((column) => columnNumber(column.column)));
     const presentationTables = metadata.presentation_tables;
@@ -797,6 +906,7 @@
       }
     }
     const headRow = node("tr");
+    if (dynamicSchedule) { const heading = node("th", "calculator-row-action", "Row"); heading.scope = "col"; headRow.append(heading); }
     if (syntheticLine) { const heading = node("th", "calculator-line-number", "Line"); heading.scope = "col"; headRow.append(heading); }
     for (const column of columns) {
       const label = String(labels[column] || "");
@@ -812,6 +922,12 @@
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
       tr.dataset.sourceRow = String(row.row);
+      if (dynamicSchedule) {
+        tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
+        const action = node("td", "calculator-row-action"), remove = node("button", "secondary", "Remove");
+        remove.type = "button"; remove.dataset.scheduleRemove = String(row.row); remove.disabled = state.action || entry.invalid.size > 0;
+        remove.setAttribute("aria-label", `Remove line ${item}`); remove.addEventListener("click", () => removeScheduleRow(row.row, entry)); action.append(remove); tr.append(action);
+      }
       if (syntheticLine) tr.append(node("td", "calculator-line-number", item));
       const requestedLayout = renderedGroup.definition?.row_layouts?.[row.row];
       let rowLayout = null;
@@ -863,6 +979,7 @@
           const tableValue = Boolean(schedule) || group === "matrix" || Boolean(renderedGroup.definition) || referenceTableValue(entry, row.row, column);
           if (!structural && (tableValue || cell.output || cell.calculated || role === "output" || role !== "label" && cell.value !== null && cell.value !== undefined && cell.value !== "")) td.dataset.calculatorValue = "true";
           td.dataset.calculatorOutput = cell.address || `${columnName(column)}${row.row}`;
+          if (virtualSchedule) td.dataset.calculatorVirtualOutput = "true";
           updateOutputCell(td, cell);
           if (sourceHeading) td.classList.add("calculator-source-heading");
         }
@@ -892,6 +1009,7 @@
       entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
+    if (dynamicSchedule) content.push(renderScheduleTools(entry));
     const logicalSections = new Map();
     const displayGroups = [...sections], tableSlots = displayGroups.map(([, group], index) => group.definition ? index : -1).filter((index) => index >= 0);
     if (metadata.display_table_order.length) {
@@ -903,6 +1021,8 @@
       const { body, definition, columns: groupColumns } = renderedGroup;
       const responsive = definition?.table_kind === "form" || matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" || definition?.table_kind === "comparison" ? " calculator-comparison-table" : ""}`);
+      if (virtualSchedule) table.classList.add("calculator-virtual-schedule");
+      if (dynamicSchedule) { table.setAttribute("aria-label", `${entry.definition.title} schedule`); table.setAttribute("aria-rowcount", String(entry.scheduleRows.length + 1)); }
       const colgroup = node("colgroup");
       const legacyOrder = matrix && !periodMatrix && group === "matrix";
       const orderTable = legacyOrder || definition?.table_kind === "order";
@@ -915,16 +1035,29 @@
       if (definition) table.classList.add("calculator-projection-table");
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
       if (syntheticLine) groupWidths.unshift(lineWidth);
+      if (dynamicSchedule) groupWidths.unshift(100);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
       for (const width of groupWidths) { const col = node("col"); col.style.width = `${fitWidth ? width / totalWidth * 100 : width}${legacyOrder || fitWidth ? "%" : "px"}`; colgroup.append(col); }
       table.style.width = legacyOrder || fitWidth ? "100%" : `${totalWidth}px`; table.append(colgroup);
       if (schedule) table.append(head);
+      if (virtualSchedule) {
+        const spacer = (count) => {
+          const row = node("tr", "calculator-virtual-spacer"), cell = node("td"); row.setAttribute("aria-hidden", "true");
+          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule);
+          cell.style.height = `${Math.max(0, count) * scheduleRowHeight}px`; row.append(cell); return row;
+        };
+        body.replaceChildren(spacer(scheduleView.offset), ...body.children, spacer(entry.scheduleRows.length - scheduleView.offset - rows.length));
+      }
       table.append(body);
       const scroll = node("div", `calculator-table-scroll${responsive ? " calculator-responsive-scroll" : ""}`);
       if (definition || metadata.expand_tables || !schedule && ["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet)) scroll.classList.add("calculator-section-scroll");
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);
+      if (dynamicSchedule) {
+        scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", "Schedule rows. Scroll vertically for more rows and horizontally for all columns."); scroll.tabIndex = 0;
+        bindScheduleScroll(scroll, entry, scheduleView);
+      }
       const link = definition && tableLinks[presentationTables.indexOf(definition)];
       const append = (element) => {
         const panel = settings?.panels.get(renderedGroup.settingsSectionId);
@@ -957,9 +1090,10 @@
     }
     if (settings) content.push(settings.chooser, ...settings.panels.values());
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
+    if (dynamicSchedule) for (const scroll of grid.querySelectorAll("[data-schedule-viewport]")) { scroll.scrollTop = entry.scheduleViewport?.top || 0; scroll.scrollLeft = entry.scheduleViewport?.left || 0; }
     entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     state.gridEntry = entry;
-    $("calculator-page-status").textContent = schedule ? `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
+    $("calculator-page-status").textContent = schedule ? dynamicSchedule ? `${entry.scheduleRows.length.toLocaleString("en-AU")} schedule ${entry.scheduleRows.length === 1 ? "row" : "rows"}${virtualSchedule ? ` · Viewing ${scheduleView.offset + 1}–${Math.min(entry.scheduleRows.length, scheduleView.offset + rows.length)}` : ""} · All rows included in calculations` : `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
   }
 
   function navigationCache(entry, create = false) {
@@ -1029,9 +1163,17 @@
     calculationStatus("Calculating…");
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
-      const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false }) });
+      const schedule = scheduleFor(entry);
+      const result = await request(endpoint(entry.definition.id, "worksheet"), { method: "POST", body: JSON.stringify({ inputs: clone(entry.inputs), sheet, include_advanced: false,
+        ...(schedule ? { schedule_view: { ...(Array.isArray(entry.scheduleRows) ? { rows: [...entry.scheduleRows] } : {}), offset: entry.scheduleViewport?.offset || 0, limit: scheduleWindowSize } } : {}) }) });
       if (current() !== entry || serial !== state.requestRevision || revision !== entry.revision || sheet !== entry.sheet || page !== currentPage(entry)) return;
       if (result.inputs) entry.inputs = clone(result.inputs);
+      if (result.schedule_view) {
+        if (!Array.isArray(entry.scheduleRows)) entry.savedRows = JSON.stringify(result.schedule_view.rows);
+        entry.scheduleRows = [...result.schedule_view.rows];
+        entry.scheduleViewport ||= { top: 0, left: 0 };
+        entry.scheduleViewport.offset = result.schedule_view.offset;
+      }
       const cache = navigationCache(entry, true);
       retainRecent(cache.sheets, sheet, result, 5); cache.pages.delete(page);
       latestCells(entry, result);
@@ -1113,7 +1255,7 @@
         if (serial !== state.loadRevision) return;
         const inputs = clone(definition.inputs || {});
         const page = displayPages(definition)[0];
-        entry = state.entries.get(id) || { definition, inputs, saved: JSON.stringify(inputs), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
+        entry = state.entries.get(id) || { definition, inputs, saved: JSON.stringify(inputs), scheduleRows: definition.schedule_rows && [...definition.schedule_rows], savedRows: JSON.stringify(definition.schedule_rows), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
         state.entries.set(id, entry);
       }
       if (serial !== state.loadRevision) return;
@@ -1142,11 +1284,12 @@
   async function save() {
     const entry = current(); if (!entry || entry.invalid.size || state.action) return;
     state.action = true; updateStatus();
-    const snapshot = clone(entry.inputs), revision = entry.revision;
+    const snapshot = clone(entry.inputs), rows = scheduleState(entry), revision = entry.revision;
     try {
-      const response = await request(endpoint(entry.definition.id, "state"), { method: "PUT", body: JSON.stringify({ inputs: snapshot }) });
+      const response = await request(endpoint(entry.definition.id, "state"), { method: "PUT", body: JSON.stringify({ inputs: snapshot, ...rows }) });
       const saved = clone(response.inputs || snapshot); entry.saved = JSON.stringify(saved);
-      if (entry.revision === revision) entry.inputs = saved;
+      entry.savedRows = JSON.stringify(response.schedule_rows || rows.schedule_rows);
+      if (entry.revision === revision) { entry.inputs = saved; entry.scheduleRows = response.schedule_rows || rows.schedule_rows; }
       message(entry.revision === revision ? `${entry.definition.title} saved.` : "Calculator saved. Your later edits are still unsaved.");
     } catch (error) { message(`Could not save the calculator. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
@@ -1156,10 +1299,12 @@
     const entry = current(); if (!entry || state.action) return;
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
-      const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and supplied workbook example rows" : "supplied workbook defaults, including its example rows";
+      const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and one blank schedule row" : "supplied workbook settings and one blank schedule row";
       if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save or Save As to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
+      if (entry.definition.schedule) entry.scheduleRows = [entry.definition.schedule.first_row];
+      entry.scheduleViewport = null; entry.removedRows = [];
       message("Calculator defaults restored in this draft. Use Save or Save As to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
@@ -1183,6 +1328,7 @@
       if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save or Save As.`, "Apply to draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
       entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
+      entry.scheduleRows = result.schedule_rows && [...result.schedule_rows]; entry.scheduleViewport = null; entry.removedRows = [];
       message(`Imported ${result.imported_rows} schedule rows into the draft. Use Save or Save As to keep them.`); await calculate();
     } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
@@ -1260,11 +1406,11 @@
     document.activeElement?.blur?.();
     if (state.action) throw new Error("Wait for the current calculator action to finish.");
     if ([...state.entries.values()].some((entry) => entry.invalid.size)) throw new Error("Correct the invalid calculator inputs before saving a project.");
-    return Object.fromEntries([...state.entries].map(([id, entry]) => [id, { inputs: clone(entry.inputs) }]));
+    return Object.fromEntries([...state.entries].map(([id, entry]) => [id, { inputs: clone(entry.inputs), ...scheduleState(entry) }]));
   }
 
   function projectFingerprint() {
-    return JSON.stringify({ action: state.action, entries: [...state.entries].map(([id, entry]) => [id, entry.inputs, entry.saved, [...entry.invalid]]) });
+    return JSON.stringify({ action: state.action, entries: [...state.entries].map(([id, entry]) => [id, entry.inputs, entry.saved, entry.scheduleRows, entry.savedRows, [...entry.invalid]]) });
   }
 
   async function prepareProject(calculators) {
@@ -1274,7 +1420,7 @@
       const definition = state.entries.get(id)?.definition || await request(endpoint(id));
       if (!calculators[id]?.inputs) throw new Error("The project is missing a calculator.");
       const page = displayPages(definition)[0];
-      return [id, { definition, inputs: clone(calculators[id].inputs), saved: null, revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() }];
+      return [id, { definition, inputs: clone(calculators[id].inputs), saved: null, scheduleRows: calculators[id].schedule_rows && [...calculators[id].schedule_rows], savedRows: JSON.stringify(calculators[id].schedule_rows), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() }];
     }));
     return { list, entries };
   }
@@ -1293,7 +1439,7 @@
     if (state.action) throw new Error("Wait for the current calculator action to finish.");
     const list = state.list || (await request("/api/calculators")).calculators;
     const definitions = await Promise.all(list.map(async ({ id }) => state.entries.get(id)?.definition || await request(endpoint(id))));
-    const calculators = Object.fromEntries(definitions.map(definition => [definition.id, { inputs: clone(definition.defaults || {}) }]));
+    const calculators = Object.fromEntries(definitions.map(definition => [definition.id, { inputs: clone(definition.defaults || {}), ...(definition.schedule ? { schedule_rows: [definition.schedule.first_row] } : {}) }]));
     const prepared = await prepareProject(calculators);
     for (const [, entry] of prepared.entries) entry.saved = JSON.stringify(entry.inputs);
     return prepared;
@@ -1301,7 +1447,7 @@
 
   function markProjectSaved(calculators) {
     for (const [id, entry] of state.entries) {
-      if (calculators[id]?.inputs) entry.saved = JSON.stringify(calculators[id].inputs);
+      if (calculators[id]?.inputs) { entry.saved = JSON.stringify(calculators[id].inputs); entry.savedRows = JSON.stringify(calculators[id].schedule_rows); }
     }
     updateStatus();
   }
@@ -1316,7 +1462,7 @@
     for (const definition of definitions) {
       if (context.has(definition.id)) continue;
       const inputs = clone(definition.inputs || {}), page = displayPages(definition)[0];
-      context.set(definition.id, { definition, inputs, saved: JSON.stringify(inputs), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() });
+      context.set(definition.id, { definition, inputs, saved: JSON.stringify(inputs), scheduleRows: definition.schedule_rows && [...definition.schedule_rows], savedRows: JSON.stringify(definition.schedule_rows), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() });
     }
     return projectSnapshot();
   }

@@ -426,5 +426,37 @@ async function check(name, fn) { await fn(harness()); passed++; console.log(`ok 
     await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects?offset=200','/api/projects']);
     assert.equal(h.app.state.projectsOffset,0);assert.match(h.byId('project-list-status').textContent,/1–1 of 20/);
   });
+  await check('Loaded schedule row lists survive project saving for every calculator', async h => {
+    const incoming=project();
+    for(const [index,id] of ids.entries()) incoming.calculators[id].schedule_rows=[9,12+index,1008];
+    h.app.setRequest(async()=>incoming);await h.loadAccepted();
+    for(const id of ids){
+      const entry=h.calc.state.entries.get(id);assert.deepEqual(copy(entry.scheduleRows),incoming.calculators[id].schedule_rows);assert.equal(h.calc.dirty(entry),false);
+      assert.deepEqual(copy(h.bridgeApi.projectSnapshot()[id].schedule_rows),incoming.calculators[id].schedule_rows);
+    }
+    let saved;
+    h.app.setRequest(async(path,options)=>{saved=JSON.parse(options.body);return {cancelled:false,file:{name:'rows.json',path:'C:/estimates/rows.json',save_token:'rows'},project:{...incoming,estimate:saved.estimate,calculators:saved.calculators}};});
+    await h.app.saveProject();for(const id of ids)assert.deepEqual(saved.calculators[id].schedule_rows,incoming.calculators[id].schedule_rows);
+  });
+  await check('Changing only schedule rows during project save remains unsaved after completion', async h => {
+    const entry=h.calc.current();entry.scheduleRows=[9];entry.savedRows=JSON.stringify([9]);
+    const pending=deferred();let sent;
+    h.app.setRequest((path,options)=>{sent=JSON.parse(options.body);return pending.promise;});const saving=h.app.saveProject();await flush();
+    entry.scheduleRows=[9,10];entry.revision++;
+    pending.resolve({cancelled:false,file:{name:'rows.json',path:'C:/estimates/rows.json',save_token:'rows'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators}});await saving;
+    assert.deepEqual(sent.calculators.steel_board.schedule_rows,[9]);assert.deepEqual(copy(entry.scheduleRows),[9,10]);assert.equal(h.calc.dirty(entry),true);
+    assert.match(h.byId('app-message').textContent,/Later edits are not included/);
+  });
+  await check('New project prepares one blank source row for all calculators without changing their settings', async h => {
+    for(const [index,id] of ids.entries()){
+      const entry=h.calc.state.entries.get(id)||h.addEntry(id);entry.definition.schedule={sheet:'CALCULATOR',first_row:9+index,last_row:1008+index};
+      entry.definition.defaults={CALCULATOR:{[`A${9+index}`]:null},SETTINGS:{B6:0.123456789012345}};
+    }
+    const prepared=await h.bridgeApi.prepareDefaults();
+    for(const [index,[id,entry]] of prepared.entries.entries()){
+      assert.deepEqual(copy(entry.scheduleRows),[9+index]);assert.equal(entry.inputs.CALCULATOR[`A${9+index}`],null);
+      assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);assert.equal(h.calc.dirty(entry),false);assert.equal(id,ids[index]);
+    }
+  });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

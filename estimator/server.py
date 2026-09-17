@@ -97,7 +97,8 @@ def create_server(port=8765, database=None, project_dialogs=None):
                 elif re.fullmatch(r'/api/calculators/[a-z_]+', route):
                     from .workbook_calculators import calculator_definition
                     calculator_id = route.rsplit('/', 1)[1]
-                    self.send_payload(200, calculator_definition(calculator_id, store.calculator_state(calculator_id)['inputs']))
+                    state = store.calculator_state(calculator_id)
+                    self.send_payload(200, calculator_definition(calculator_id, state['inputs'], state['schedule_rows']))
                 elif route == "/api/bootstrap":
                     config = store.configuration()
                     catalog = effective_catalog(config)
@@ -165,8 +166,8 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     if self.command != expected_method:
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
-                    allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs'},
-                               'worksheet': {'inputs', 'sheet', 'include_advanced'}, 'report.pdf': {'inputs', 'project_details'}, 'summary.pdf': {'inputs', 'project_details'}, 'register.xlsx': {'inputs'},
+                    allowed = {'calculate': {'inputs', 'sheet', 'start_row', 'row_count'}, 'state': {'inputs', 'schedule_rows'},
+                               'worksheet': {'inputs', 'sheet', 'include_advanced', 'schedule_view'}, 'report.pdf': {'inputs', 'project_details'}, 'summary.pdf': {'inputs', 'project_details'}, 'register.xlsx': {'inputs'},
                                'template': set(), 'import': {'filename', 'content_base64', 'inputs'}}[action]
                     if set(body) - allowed:
                         raise ValidationError('Unknown calculator request fields.')
@@ -176,7 +177,7 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     if action == 'calculate':
                         self.send_payload(200, calculate_page(calculator_id, inputs, body.get('sheet'), body.get('start_row', 1), body.get('row_count', 25)))
                     elif action == 'worksheet':
-                        self.send_payload(200, calculate_worksheet(calculator_id, inputs, body.get('sheet'), body.get('include_advanced', False)))
+                        self.send_payload(200, calculate_worksheet(calculator_id, inputs, body.get('sheet'), body.get('include_advanced', False), body.get('schedule_view')))
                     elif action in {'report.pdf', 'summary.pdf'}:
                         from .calculator_report import build_calculator_report, build_calculator_summary_report
                         from .project_file import project_details
@@ -193,7 +194,7 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     elif action == 'state':
                         if 'inputs' not in body:
                             raise ValidationError('Include the calculator inputs to save.')
-                        self.send_payload(200, store.save_calculator_state(calculator_id, body['inputs']))
+                        self.send_payload(200, store.save_calculator_state(calculator_id, body['inputs'], body.get('schedule_rows')))
                     elif action == 'template':
                         from .schedule_workbook import export_schedule_template
                         workbook = export_schedule_template(calculator_id)

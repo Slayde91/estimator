@@ -234,6 +234,10 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
     def test_new_mutation_routes_enforce_method_and_same_origin(self):
         before = self.protected()
         body = self.creation()
+        # An empty configuration is valid and selects the default catalog. Keep
+        # these guard probes compact: Host/Origin reject before reading a body,
+        # so uploading a full catalog can race the server's early connection close.
+        body['configuration'] = {}
         routes = [('/api/libraries/penetration', body),
                   ('/api/libraries/penetration/pkb-002/links', {'technical_id': 'report-a-v1'})]
         for path, payload in routes:

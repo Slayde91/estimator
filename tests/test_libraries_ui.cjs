@@ -55,11 +55,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.match(text(pane.results),/Newest result/);assert.doesNotMatch(text(pane.results),/Stale result/);
   });
   await check('Full detail uses literal source text and accessible local source-page and diagram links',async h=>{
-    await h.api.open('penetration','penetration-1');const pane=h.pane('penetration'),nodes=walk(pane.detailPanel);
+    await h.api.open('technical','technical-1');const pane=h.pane('technical'),nodes=walk(pane.detailPanel);
     assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.match(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
     const pdf=nodes.find(node=>node.tagName==='a'&&node.href.includes('documents/'));assert.equal(pdf.href,'/api/libraries/documents/synthetic-document.pdf#page=12');assert.match(pdf.getAttribute('aria-label'),/page 12.*new tab/);assert.equal(pdf.rel,'noopener noreferrer');
     const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
-    assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.match(text(pane.detailPanel),/synthetic-hash/);assert.match(text(pane.detailPanel),/Related technical references/);
+    assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.match(pane.notice.textContent,/Synthetic local reference library/);
   });
@@ -81,8 +81,27 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Library prices and edit controls use server metadata while reference notices remain beside their links',async h=>{
     const opened=[];h.context.window.CeasefireLibraryEditor={open:async id=>opened.push(id)};
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'legacy-row-4',title:'FL-ID-001',price:{amount:123.456789,label:'Workbook price'},editable:true}]}):({...detail('technical','technical-1'),links:[{kind:'penetration',id:'legacy-row-4',title:'FL-ID-001',relationship:'Original source entry',notice:'This item has saved edits; the technical reference describes its original workbook entry.'}]}));
-    await h.api.open('penetration');const pane=h.pane('penetration');assert.match(text(pane.results),/FL-ID-001.*Workbook price: \$123\.46/);await walk(pane.results).find(node=>node.dataset.libraryEdit).emit('click');assert.deepEqual(opened,['legacy-row-4']);
+    await h.api.open('penetration');const pane=h.pane('penetration');assert.match(text(pane.results),/FL-ID-001.*Library price: \$123\.46/);assert.doesNotMatch(text(pane.results),/Workbook price/);await walk(pane.results).find(node=>node.dataset.libraryEdit).emit('click');assert.deepEqual(opened,['legacy-row-4']);
     await h.api.open('technical','technical-1');const related=walk(h.pane('technical').detailPanel).find(node=>node.className==='library-related-record');assert.match(text(related),/FL-ID-001.*Original source entry.*saved edits/);assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryEdit).length,0);
+  });
+  await check('Presentation cleanup hides requested metadata without changing source evidence or main-table conditions',async h=>{
+    const source={...detail('technical','source'),price:{amount:25.123456,label:'Workbook price'},fields:[
+      {label:'Diagram captions (visually checked)',value:'Internal caption review'},
+      {label:' workbook report revision ',value:'Internal workbook revision'},
+      {label:'REFERENCE REVIEW',value:'Internal link review'},
+      {label:'Source table notes',value:'Underlying shared table condition'},
+      {label:'Source option alignment',value:'Internal option mapping'},
+      {label:'Service',value:'Ordinary main-table condition',table:{columns:['Service','FRL'],rows:[['A','-/60/60'],['B','-/120/120']]}}
+    ]},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():source);
+    for(const kind of ['penetration','technical']){
+      await h.api.open(kind,'source');const pane=h.pane(kind),nodes=walk(pane.detailPanel),content=text(pane.detailPanel);
+      assert.doesNotMatch(content,/Internal caption review|Internal workbook revision|Internal link review|Source fingerprint|synthetic-hash|Workbook price/);assert.match(content,/Library price: \$25\.12/);assert.match(content,/Ordinary main-table condition/);
+      assert.deepEqual(copy(nodes.find(node=>node.tagName==='tbody').children.map(row=>row.children.map(cell=>cell.textContent))),[['A','-/60/60'],['B','-/120/120']]);
+      if(kind==='technical'){assert.doesNotMatch(content,/Source table notes|Underlying shared table condition|Source option alignment|Internal option mapping/);assert.match(content,/Source information/);assert.equal(nodes.find(node=>node.tagName==='a'&&node.href.includes('documents/')).href,'/api/libraries/documents/synthetic-document.pdf#page=12');}
+      else{assert.doesNotMatch(content,/Source information|Synthetic source reference|synthetic.pdf/);assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.includes('documents/')).length,0);assert.match(content,/Underlying shared table condition/);}
+      assert.deepEqual(source,before);assert.equal(pane.detail.sources[0].sha256,'synthetic-hash');
+    }
   });
   await check('Source subtables preserve service wrap and FRL row pairing as literal accessible cells',async h=>{
     const paired=[['Service A','100 mm','-/60/60'],['Service B <script>','200 mm','-/120/120']];

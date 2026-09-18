@@ -170,10 +170,10 @@ def _portable_penetration(value, *, saved=False):
     from .penetration_calculator import normalize_draft, source_model as penetration_source
     expected = {"draft", "source_sha256"} if saved else {"draft"}
     if not isinstance(value, dict) or set(value) != expected:
-        raise ValidationError("Penetration Calculator projects must contain their input draft and source version only.")
+        raise ValidationError("Firestopping Estimator projects must contain their input draft and source version only.")
     source_hash = penetration_source()["source"]["sha256"]
     if saved and value["source_sha256"] != source_hash:
-        raise ValidationError("The project uses a different Penetration Calculator workbook version.")
+        raise ValidationError("The project uses a different Firestopping Estimator workbook version.")
     return {"source_sha256": source_hash, "draft": normalize_draft(value["draft"])}
 
 

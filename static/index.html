@@ -9,11 +9,13 @@
   <link rel="stylesheet" href="/calculators.css">
   <link rel="stylesheet" href="/penetration.css">
   <link rel="stylesheet" href="/libraries.css">
+  <link rel="stylesheet" href="/library-editor.css">
   <script src="/downloads.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/calculators.js" defer></script>
   <script src="/penetration.js" defer></script>
   <script src="/libraries.js" defer></script>
+  <script src="/library-editor.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -38,7 +40,7 @@
       <div class="page-heading"><div><p class="eyebrow">ESTIMATOR</p><h1 id="estimator-view-heading">Project estimators</h1><p class="subtitle">Choose the estimate to work on. Both share this project's details and pricing.</p></div></div>
       <div class="estimator-choices" role="group" aria-label="Choose an estimator">
         <button type="button" class="estimator-choice" data-estimator-kind="estimate" aria-pressed="true" aria-controls="estimator-main"><strong>Estimator</strong><span>Material, labour and project costs</span></button>
-        <button type="button" class="estimator-choice" data-estimator-kind="penetration" aria-pressed="false" aria-controls="estimator-penetration"><strong>Penetration Calculator</strong><span>Penetration schedule, materials and installation costs</span></button>
+        <button type="button" class="estimator-choice" data-estimator-kind="penetration" aria-pressed="false" aria-controls="estimator-penetration"><strong>Firestopping Estimator</strong><span>Firestopping schedule, materials and installation costs</span></button>
       </div>
       <div id="estimator-main" class="estimator-child">
       <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h1 id="estimate-heading">Build an estimate</h1><p class="subtitle">From project details to a complete material and labour quote.</p></div><div class="actions"><button id="download-quote-pdf" type="button" class="button pdf-button">Download PDF</button></div></div>
@@ -55,7 +57,8 @@
       </div>
       </div>
       <section id="estimator-penetration" class="estimator-child" aria-labelledby="penetration-heading" hidden>
-        <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h2 id="penetration-heading">Penetration Calculator</h2><p class="subtitle">Add schedule items and review their calculated quantities and costs.</p></div><div class="actions"><button id="penetration-recalculate" type="button" class="button secondary">Recalculate</button><button id="penetration-excel" type="button" class="button excel-button">Download XLSX</button><button id="penetration-pdf" type="button" class="button pdf-button">Download PDF</button></div></div>
+        <div id="firestopping-project-workspace">
+        <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h2 id="penetration-heading">Firestopping Estimator</h2><p class="subtitle">Add schedule items and review their calculated quantities and costs.</p></div><div class="actions"><button id="penetration-recalculate" type="button" class="button secondary">Recalculate</button><button id="penetration-excel" type="button" class="button excel-button">Download XLSX</button><button id="penetration-pdf" type="button" class="button pdf-button">Download PDF</button></div></div>
         <div id="penetration-message" class="message" role="status" hidden></div>
         <div id="penetration-loading" class="empty-state">Loading penetration fields…</div>
         <div id="penetration-workspace" hidden>
@@ -65,6 +68,16 @@
           <section class="card" aria-labelledby="penetration-breakdown-heading"><div class="section-heading"><h3 id="penetration-breakdown-heading">Selected item breakdown</h3></div><div id="penetration-breakdown"></div></section>
           <details class="penetration-source"><summary>Calculation source</summary><p id="penetration-source" class="helper"></p></details>
         </div>
+        </div>
+        <section id="firestopping-library-editor" aria-labelledby="library-editor-heading" hidden>
+          <div class="page-heading"><div><p class="eyebrow">FIRESTOPPING LIBRARY ITEM</p><h2 id="library-editor-heading">Firestopping Estimator</h2><p id="library-editor-identity" class="subtitle"></p></div><div class="actions"><button id="library-editor-cancel" type="button" class="button secondary">Cancel</button><button id="library-editor-save" type="button" class="button primary">Save Library Item</button></div></div>
+          <p class="helper library-editor-scope">Editing this library item leaves your current project and estimate unchanged.</p>
+          <div id="library-editor-message" class="message" role="status" hidden></div>
+          <section class="card library-editor-pricing" aria-labelledby="library-editor-pricing-heading"><div><h3 id="library-editor-pricing-heading">Library price</h3><strong id="library-editor-price">—</strong><p id="library-editor-pricing-basis" class="helper"></p><span id="library-editor-status" class="status-label" role="status">Ready</span></div><div class="actions"><button id="library-editor-recalculate" type="button" class="button secondary">Recalculate</button><button id="library-editor-refresh-pricing" type="button" class="button secondary">Refresh from Pricing Library</button></div></section>
+          <div class="library-editor-layout"><section class="card" aria-labelledby="library-editor-input-heading"><h3 id="library-editor-input-heading">Item details</h3><div id="library-editor-groups" class="penetration-group-choices" role="group" aria-label="Library item input groups"></div><div id="library-editor-fields"></div></section><aside class="card library-editor-summary" aria-labelledby="library-editor-summary-heading"><h3 id="library-editor-summary-heading">Item estimate</h3><dl id="library-editor-summary" class="cost-list"></dl><p id="library-editor-summary-notes" class="helper"></p></aside></div>
+          <details class="card library-editor-globals"><summary>Item allowances and settings</summary><div id="library-editor-globals"></div></details>
+          <section class="card" aria-labelledby="library-editor-breakdown-heading"><h3 id="library-editor-breakdown-heading">Calculated breakdown</h3><div id="library-editor-breakdown"></div></section>
+        </section>
       </section>
     </section>
     <section id="view-calculators" class="view" aria-labelledby="calculators-heading" hidden>
@@ -86,7 +99,7 @@
       <div class="page-heading"><div><p class="eyebrow">LIBRARIES</p><h1 id="libraries-heading">Project libraries</h1><p class="subtitle">Browse pricing, penetration records and their technical references.</p></div></div>
       <div class="library-choices" role="group" aria-label="Choose a library">
         <button type="button" class="estimator-choice library-choice" data-library-kind="pricing" aria-pressed="true" aria-controls="library-pricing"><strong>Pricing Library</strong><span>Products, labour and project prices</span></button>
-        <button type="button" class="estimator-choice library-choice" data-library-kind="penetration" aria-pressed="false" aria-controls="library-penetration"><strong>Penetration Library</strong><span>Penetration records and related technical references</span></button>
+        <button type="button" class="estimator-choice library-choice" data-library-kind="penetration" aria-pressed="false" aria-controls="library-penetration"><strong>Firestopping Library</strong><span>Firestopping records and related technical references</span></button>
         <button type="button" class="estimator-choice library-choice" data-library-kind="technical" aria-pressed="false" aria-controls="library-technical"><strong>Technical Library</strong><span>Systems, source reports and related penetration records</span></button>
       </div>
       <div id="library-pricing" class="library-child">
@@ -94,7 +107,7 @@
       <label class="field pricing-scope-field"><span>Pricing to edit</span><select id="pricing-scope"><option value="library">Shared library</option><option value="project">Current project pricing</option></select></label><div id="pricing-context" class="message info"></div><p class="import-guide">Export Excel includes the entire library and unsaved edits, regardless of the current filter. Each product or service has one row with one editable name and yield. The workbook retains existing selections and saved rate overrides in hidden columns. Keep those columns and follow its Instructions when adding or removing uses. Import the complete workbook, review the changes, then save the shared library or apply the project prices. Reset Library loads application defaults into this editor; they take effect when you save or apply them. Earlier pricing workbook formats remain supported.</p>
       <section class="card"><div class="pricing-controls"><label class="search-field"><span class="sr-only">Search products or services</span><input id="pricing-search" type="search" placeholder="Search product, service or item code…"></label><label id="rate-group-field" class="field"><span>Used in Estimator</span><select id="rate-group"></select></label><label class="pricing-advanced-toggle"><input id="show-rate-overrides" type="checkbox">Show rate overrides</label></div><div class="section-heading"><p id="pricing-count" class="helper"></p><span id="pricing-status" class="status-label">Saved configuration</span></div><p id="pricing-help" class="helper"></p><div class="table-scroll"><table class="pricing-table"><thead id="pricing-head"></thead><tbody id="pricing-body"></tbody></table></div></section>
       </div>
-      <section id="library-penetration" class="library-child" aria-labelledby="penetration-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="penetration-library-heading">Penetration Library</h2></div></div><div id="penetration-library-workspace"></div></section>
+      <section id="library-penetration" class="library-child" aria-labelledby="penetration-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="penetration-library-heading">Firestopping Library</h2></div></div><div id="penetration-library-workspace"></div></section>
       <section id="library-technical" class="library-child" aria-labelledby="technical-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="technical-library-heading">Technical Library</h2></div></div><div id="technical-library-workspace"></div></section>
     </section>
     <section id="view-quotes" class="view" aria-labelledby="quotes-heading" hidden>

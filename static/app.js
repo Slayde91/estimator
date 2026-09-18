@@ -535,7 +535,11 @@
     $("estimator-main").hidden = kind !== "estimate";
     $("estimator-penetration").hidden = kind !== "penetration";
     for (const button of document.querySelectorAll("[data-estimator-kind]")) button.setAttribute("aria-pressed", String(button.dataset.estimatorKind === kind));
-    if (kind === "penetration") window.CeasefirePenetrations?.open();
+    const libraryEditor = !!window.CeasefireLibraryEditor?.isOpen();
+    $("firestopping-project-workspace").hidden = libraryEditor;
+    $("firestopping-library-editor").hidden = !libraryEditor;
+    $("estimator-penetration").setAttribute("aria-labelledby", libraryEditor ? "library-editor-heading" : "penetration-heading");
+    if (kind === "penetration" && !libraryEditor) window.CeasefirePenetrations?.open();
   }
 
   function selectLibrary(kind, selection) {
@@ -548,7 +552,7 @@
     else window.CeasefireLibraries?.open(kind, selection);
   }
 
-  function showView(view) {
+  function showView(view, librarySelection) {
     state.currentView = view;
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
@@ -558,7 +562,7 @@
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     if (view === "quotes") loadProjects();
-    if (view === "pricing") selectLibrary(state.libraryKind);
+    if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     if (view === "calculators") window.CeasefireCalculators?.open();
     if (view === "estimate") selectEstimator(state.estimatorKind);
     // Each section starts with its heading and actions visible below the sticky
@@ -1456,10 +1460,14 @@
     if (draft !== state.draft || revision !== state.pricingRevision) return;
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
-  window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration)) { event.preventDefault(); event.returnValue = ""; } });
+  window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration) || window.CeasefireLibraryEditor?.hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ""; } });
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus,
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   window.CeasefireLibraryNavigation = { open: selectLibrary };
+  window.CeasefireLibraryEditorNavigation = {
+    show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("estimate"); },
+    returnToLibrary(id) { state.libraryKind = "penetration"; showView("pricing", id); },
+  };
   bootstrap();
 })();

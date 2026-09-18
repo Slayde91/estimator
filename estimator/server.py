@@ -25,8 +25,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
     from .project_library import ProjectLibrary
     projects = ProjectLibrary(store, project_dialogs)
-    from .reference_library import ReferenceLibrary, ReferenceNotFound
-    libraries = ReferenceLibrary(library_directory)
+    from .reference_library import ReferenceNotFound
+    from .firestopping_library import FirestoppingLibrary, LibraryConflict
+    libraries = FirestoppingLibrary(library_directory, store)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "CeasefireEstimator"
@@ -127,6 +128,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if any(len(values) != 1 for values in query.values()):
                         raise ValidationError('Use one value per library search option.')
                     self.send_payload(200, libraries.listing(route.rsplit('/', 1)[1], **{key: values[0] for key, values in query.items()}))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/edit', route):
+                    self.send_payload(200, libraries.edit(route.split('/')[-2]))
                 elif re.fullmatch(r'/api/libraries/(penetration|technical)/[a-z0-9][a-z0-9_-]{0,119}', route):
                     _, _, _, kind, key = route.split('/')
                     self.send_payload(200, libraries.detail(kind, key))
@@ -163,7 +166,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration.js", "/penetration.css", "/libraries.js", "/libraries.css", "/ceasefire-logo.png"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration.js", "/penetration.css", "/libraries.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png"}[path.suffix]
@@ -173,7 +176,12 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if route in {'/api/penetration/definition', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
+                if re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save)', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.action(route.split('/')[-2], route.split('/')[-1], body))
+                elif route in {'/api/penetration/definition', '/api/penetration/calculate', '/api/penetration/report.pdf', '/api/penetration/register.xlsx'}:
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
@@ -183,7 +191,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if action in {'report.pdf', 'register.xlsx'}:
                         allowed |= {'project_details', 'download'}
                     if set(body) - allowed or (action != 'definition' and 'draft' not in body):
-                        raise ValidationError('Include the Penetration Calculator draft and pricing configuration only.')
+                        raise ValidationError('Include the Firestopping Estimator draft and pricing configuration only.')
                     config = validate_configuration(body.get('configuration', store.configuration()))
                     if action == 'definition':
                         self.send_payload(200, definition(config))
@@ -197,10 +205,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         result = calculate_penetration(body['draft'], config)
                         if action == 'report.pdf':
                             report = render_penetration_pdf(result, definition(config), details)
-                            self.send_download(report, 'application/pdf', 'CEASEFIRE-Penetration-Estimate.pdf', destination)
+                            self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination)
                         else:
                             report = build_penetration_register(result, definition(config), details)
-                            self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Penetration-Schedule.xlsx', destination)
+                            self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Schedule.xlsx', destination)
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
                     project = export_project(store, body)
@@ -351,6 +359,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self.connection.settimeout(15)
             try:
                 self.dispatch()
+            except LibraryConflict as exc:
+                self.send_payload(409, {"error": str(exc)})
             except ValidationError as exc:
                 self.send_payload(400, {"error": str(exc)})
             except ReferenceNotFound:

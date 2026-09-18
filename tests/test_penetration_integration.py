@@ -136,7 +136,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
             if route.endswith('.pdf'):
                 text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(content)).pages)
                 self.assertIn('TEST-PEN', text)
-                self.assertIn('Penetration estimate', text)
+                self.assertIn('Firestopping estimate', text)
                 self.assertIn('Literal text', text)
             else:
                 workbook = load_workbook(BytesIO(content))

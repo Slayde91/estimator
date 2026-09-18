@@ -104,7 +104,7 @@ def _preserve_penetration_inputs(path, request):
     except (ValueError, UnicodeDecodeError, RecursionError):
         return
     if isinstance(snapshot, dict) and has_project_identity(existing) and "penetration" in snapshot:
-        raise ValidationError("Refresh the application and reload this project before saving its Penetration Calculator inputs.")
+        raise ValidationError("Refresh the application and reload this project before saving its Firestopping Estimator inputs.")
 
 
 def _file_id(folder, name):

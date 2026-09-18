@@ -13,6 +13,10 @@
 .library-subtitle{margin-top:7px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
 .library-excerpt{margin:12px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .library-result>.helper{margin-top:10px;overflow-wrap:anywhere}
+.library-record-price{font-size:16px;font-weight:700;margin-top:12px}
+.library-result>.button{margin-top:14px}
+.library-record-commercial{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin:16px 0}
+.library-record-commercial .library-record-price{margin:0}
 .library-pagination,.library-detail-navigation{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 0}
 .library-detail-navigation{margin:0 0 22px}
 .library-detail>h3{font-size:23px;overflow-wrap:anywhere;scroll-margin-top:120px}
@@ -32,8 +36,17 @@
 .library-source-audit summary{cursor:pointer}
 .library-source-audit code{display:block;margin-top:6px;overflow-wrap:anywhere}
 .library-related-record>.helper{margin-top:7px;white-space:pre-wrap;overflow-wrap:anywhere}
+.library-related-notice,.library-record-notice{margin:8px 0 0;padding:9px 12px;border-left:3px solid #817163;background:#f5f0e9;white-space:pre-wrap;overflow-wrap:anywhere}
 .library-notice{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 20px}
 .library-images{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:24px}
+.library-field-images{grid-template-columns:minmax(0,1fr);margin-top:12px}
+.library-record-field-table{grid-column:1/-1;min-width:0}
+.library-record-field-table>dd{min-width:0}
+.library-field-table-scroll{max-width:100%;overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:6px}
+.library-field-table-scroll:focus-visible{outline:3px solid #b86c00;outline-offset:3px}
+.library-field-table{width:100%;min-width:30rem;border-collapse:collapse;white-space:normal}
+.library-field-table th,.library-field-table td{padding:10px 12px;border:1px solid var(--line);text-align:left;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}
+.library-field-table th{background:#f5f0e9;color:var(--text);font-weight:650}
 .library-image{margin:0;min-width:0;border:1px solid var(--line);border-radius:8px;padding:14px}
 .library-image a{display:block}
 .library-image img{display:block;max-width:100%;max-height:520px;height:auto;object-fit:contain;margin:auto}

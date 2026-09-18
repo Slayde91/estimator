@@ -13,7 +13,7 @@ from threading import RLock
 
 from .catalog import ROOT, ValidationError
 
-KINDS = {'penetration': 'Penetration Library', 'technical': 'Technical Library'}
+KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
 MAX_INDEX = 64 * 1024 * 1024
 MAX_ASSET = 128 * 1024 * 1024
@@ -124,6 +124,22 @@ class ReferenceLibrary:
                     text.append(string(item.get(name, ''), 20000))
                 for field in item.get('fields', []):
                     text += [string(field['label'], 500), string(field['value'])]
+                    if 'table' in field:
+                        table = field['table']
+                        if not isinstance(table, dict) or set(table) != {'columns', 'rows'}:
+                            raise ValueError('Invalid source table')
+                        columns, rows = table['columns'], table['rows']
+                        if not isinstance(columns, list) or not 1 <= len(columns) <= 20 or not isinstance(rows, list) or len(rows) > 2000:
+                            raise ValueError('Source table limits')
+                        text.extend(string(column, 500) for column in columns)
+                        for row in rows:
+                            if not isinstance(row, list) or len(row) != len(columns):
+                                raise ValueError('Source table columns must remain aligned')
+                            text.extend(string(cell, 20000) for cell in row)
+                    for image in field.get('images', []):
+                        if assets[image['id']]['pdf']:
+                            raise ValueError('Field image is a PDF')
+                        string(image.get('caption', ''), 2000)
                 for source in item.get('sources', []):
                     text += [string(source.get('label', ''), 2000), string(source.get('filename', ''), 500)]
                     if 'document_id' in source:
@@ -194,6 +210,7 @@ class ReferenceLibrary:
                 for key, item in data['_records'][kind].items():
                     if all(token in data['_searches'][kind][key] for token in search.split()) and all(value in item.get('filter_values', {}).get(name, []) for name, value in chosen.items()):
                         items.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
+                                      **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
                                       'related_count': len(data['_links'][kind][key])})
             return {'items': items[offset:offset + limit], 'total': len(items), 'offset': offset, 'limit': limit,
                     'filters': deepcopy(data['_filters'][kind]) if data else [],

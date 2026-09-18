@@ -20,10 +20,12 @@ jobs:
       - run: node --check static/downloads.js
       - run: node --check static/penetration.js
       - run: node --check static/libraries.js
+      - run: node --check static/library-editor.js
       - run: node tests/test_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_penetration_ui.cjs
       - run: node tests/test_libraries_ui.cjs
+      - run: node tests/test_library_editor_ui.cjs
       - run: python scripts/build.py

@@ -1,0 +1,16 @@
+#firestopping-library-editor[hidden],#firestopping-project-workspace[hidden]{display:none!important}
+.library-editor-scope{margin-bottom:20px}
+.library-editor-pricing{display:flex;align-items:center;justify-content:space-between;gap:22px}
+#library-editor-price{display:block;margin:9px 0;font-size:30px;font-variant-numeric:tabular-nums}
+#library-editor-pricing-basis{margin-bottom:10px}
+.library-editor-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:22px;align-items:start}
+#library-editor-groups{margin-top:16px}
+.library-editor-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
+.library-editor-fields .field>span{overflow-wrap:anywhere}
+.library-editor-fields .field.library-editor-long-text{grid-column:1/-1}
+.library-editor-summary{position:sticky;top:116px}
+.library-editor-summary .cost-list dd{overflow-wrap:anywhere}
+#library-editor-summary-notes{white-space:pre-line}
+.library-editor-globals>summary{cursor:pointer;font-weight:650}
+@media(max-width:1050px){.library-editor-layout{grid-template-columns:1fr}.library-editor-summary{position:static}.library-editor-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.library-editor-fields{grid-template-columns:1fr}.library-editor-pricing{align-items:flex-start;flex-direction:column}}

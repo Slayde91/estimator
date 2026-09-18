@@ -113,6 +113,33 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.write(self.data)
         self.assertEqual(self.library.detail('penetration', 'pkb-002')['title'], 'Updated source title')
 
+    def test_diagrams_remain_attached_to_their_source_table_field(self):
+        field = {'label': 'Installation concept', 'value': '',
+                 'images': [{'id': 'diagram-a', 'caption': 'Table cell, page 2'}]}
+        self.data['libraries']['technical']['items'][0]['fields'].append(field)
+        self.write(self.data)
+        actual = self.library.detail('technical', 'report-a-v1')['fields'][-1]
+        self.assertEqual(actual, field)
+        self.assertEqual(self.library.asset(actual['images'][0]['id'], False)[0], self.png)
+        for invalid in ('missing', 'report-a'):
+            self.data['libraries']['technical']['items'][0]['fields'][-1]['images'][0]['id'] = invalid
+            self.write(self.data)
+            with self.assertRaises(ValidationError):
+                ReferenceLibrary(self.root).overview()
+
+    def test_embedded_source_tables_preserve_row_pairings_and_search(self):
+        field = {'label': 'Service', 'value': '', 'table': {
+            'columns': ['Service', 'Wrap', 'FRL'],
+            'rows': [['Small', '600 mm', '120'], ['Small', '750 mm', '180']]}}
+        self.data['libraries']['technical']['items'][0]['fields'].append(field)
+        self.write(self.data)
+        self.assertEqual(self.library.detail('technical', 'report-a-v1')['fields'][-1], field)
+        self.assertEqual(self.library.listing('technical', search='750')['total'], 1)
+        field['table']['rows'][0].pop()
+        self.write(self.data)
+        with self.assertRaises(ValidationError):
+            ReferenceLibrary(self.root).overview()
+
     def test_asset_symlinks_outside_the_library_are_not_served(self):
         target = Path(self.temp.name) / 'outside.pdf'
         target.write_bytes(self.pdf)

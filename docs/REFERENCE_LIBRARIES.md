@@ -4,12 +4,16 @@ The Libraries page has three tiles: Pricing Library, Firestopping Library and
 Technical Library. The existing pricing editor keeps its own state and actions.
 Reference browsing does not change prices, estimates or calculator inputs.
 
-Firestopping records display stable identifiers such as `FL-ID-001`, their item
-price, source sheet and row, source table fields, and original in-cell PNG
+Firestopping records display stable identifiers such as `FL-ID-001`, their
+**Library price**, source table fields, and original in-cell PNG
 diagrams. The internal legacy record IDs remain unchanged so existing links
 still work; the former PKB identifier is not the visible item name. Blank source
 cells remain blank in the data. Item inputs and original workbook pricing are
 stored in the private bundle, separate from the shared Pricing Library.
+Source sheet/row metadata and extraction-review fields remain in that bundle
+but are not displayed in Firestopping Library entries. The library item editor
+continues to distinguish original workbook rates from explicitly refreshed
+Pricing Library rates; changing the displayed price label does not change them.
 
 Technical records contain active entries from the supplied reports' main
 tables, identified by report revision, source ID and exact PDF page. Reserved or
@@ -22,10 +26,21 @@ excluded from the record list. Each report keeps its own source column schema:
 | FAS190235 | ID; Service; Service Wrap; Protection; Local Protection; Refer Figure; FRL |
 | FAS190236 | ID; Service Description; Installation concept; Penetration seal description; Support Construction; FRL |
 
+The Technical Library's **Source information** links identify the pages that
+contain that entry's actual table row, including continued rows. Table-wide
+introduction pages and notes applying to a range of IDs must not be presented as
+if they contain the individual entry. Review each citation against the exact
+source ID and table geometry, including suffixes, merged cells and page breaks;
+an ID occurring elsewhere in page text is not sufficient evidence.
+
 The complete original PDFs open locally, including source notes, drawings and
-conditions outside the indexed main tables. Common source context remains with
-its entry. Embedded tables retain corresponding service, wrap/protection and
-FRL values on the same row rather than presenting independent lists.
+conditions outside the indexed main tables. The entry UI omits extraction
+metadata, source fingerprints, **Source table notes** and **Source option
+alignment**. Those values remain in the private source evidence; table-wide
+conditions remain available in the linked PDF. Main-table fields keep their
+common text, numbered options and installation diagrams. Embedded tables retain
+corresponding service, wrap/protection and FRL values on the same row rather
+than presenting independent lists.
 Structured technical fields can include the source installation diagram in the
 same field, with a link to its full-size local image.
 

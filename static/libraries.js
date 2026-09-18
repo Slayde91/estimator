@@ -232,7 +232,7 @@
       if (pane.linkSession !== session || state.current !== pane.kind) return;
       closeLinkPicker(pane); const revision = pane.openRevision + 1; await open(pane.kind, pane.selected || { list: true });
       if (state.current === pane.kind && pane.openRevision === revision) message(pane, receipt.created === false ? "This technical reference is already linked." : "Technical reference linked.");
-    } catch (error) { if (pane.linkSession === session) linkMessage(session, `The reference link was not saved. ${error.message}`, true); }
+    } catch (error) { if (pane.linkSession === session) linkMessage(session, `Saving the reference link was not confirmed. ${error.message} Retry to check the same link.`, true); }
     finally {
       if (pane.linkSession === session) { session.saving = false; session.save.disabled = !session.selected; session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = false; for (const choice of session.choices) choice.disabled = false; session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
     }

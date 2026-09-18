@@ -9,6 +9,22 @@
 .penetration-schedule table{width:100%;min-width:780px}
 .penetration-schedule td{vertical-align:middle;max-width:300px;overflow-wrap:anywhere}
 .penetration-schedule td:nth-child(4),.penetration-schedule td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.penetration-schedule-quantity{position:relative;min-width:100px;max-width:150px;gap:4px}
+.penetration-schedule-quantity input{text-align:right;font-variant-numeric:tabular-nums}
+.penetration-schedule-quantity .penetration-field-error{white-space:normal;text-align:left}
+.penetration-project-allowances{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.penetration-project-allowances h4{margin-bottom:5px}
+.penetration-breakdown-scroll{margin-top:12px}
+.penetration-breakdown-scroll:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.penetration-breakdown-table{width:100%;min-width:720px;font-variant-numeric:tabular-nums}
+.penetration-breakdown-table th,.penetration-breakdown-table td{vertical-align:top}
+.penetration-breakdown-table td{text-align:right}
+.penetration-breakdown-table tbody th{font-weight:650;white-space:nowrap}
+.penetration-breakdown-table tfoot th,.penetration-breakdown-table tfoot td{border-top:2px solid var(--line);font-weight:750}
+.penetration-breakdown-value+.penetration-breakdown-value{margin-top:8px}
+.penetration-breakdown-context{display:block;color:var(--muted);font-size:11px}
+.penetration-breakdown-note{margin-top:12px;white-space:pre-line}
+.penetration-breakdown-content>.message{white-space:pre-line}
 .penetration-selected-row{background:#fff4ef;box-shadow:inset 3px 0 var(--accent)}
 .penetration-item-actions{white-space:nowrap}
 .penetration-item-actions button{vertical-align:middle;margin-right:7px}

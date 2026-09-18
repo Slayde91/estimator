@@ -6,6 +6,69 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Schedule quantity edits preserve the active DOM and precision while totals recalculate',async h=>{
+    h.audit.addRow();await flush();h.audit.selectRow('line-1');
+    const body=h.byId('penetration-schedule-body'),row=body.children[1],quantity=row.querySelectorAll('[data-penetration-field]')[0];
+    await quantity.focus();quantity.value='2.345678901234';quantity.selectionStart=quantity.selectionEnd=14;await quantity.emit('input');
+    assert.equal(body.children[1],row);assert.equal(row.querySelectorAll('[data-penetration-field]')[0],quantity);assert.equal(h.context.document.activeElement,quantity);assert.equal(quantity.selectionEnd,14);
+    assert.equal(h.audit.state.selected,'line-1');assert.equal(h.api.projectSnapshot().draft.rows[1].inputs.O,2.345678901234);assert.equal(h.control('O','line-1').value,'');
+    h.audit.setRequest(async(path,payload)=>{const receipt=result(payload.draft);receipt.rows[1].outputs.H=payload.draft.rows[1].inputs.O*10;return receipt;});
+    await h.audit.calculate();assert.equal(body.children[1],row);assert.equal(quantity.value,'2.345678901234');assert.equal(h.context.document.activeElement,quantity);assert.equal(row.children[4].textContent,'$23.46');
+    assert.equal(quantity.getAttribute('aria-label'),'Line 2: Item QTY');await quantity.blur();assert.equal(quantity.value,'2.35');await quantity.focus();assert.equal(quantity.value,'2.345678901234');
+  });
+  await check('Schedule and item quantity controls mirror invalid text and corrections without losing either draft',async h=>{
+    const quantity=h.byId('penetration-schedule-body').children[0].querySelectorAll('[data-penetration-field]')[0];
+    await quantity.focus();quantity.value='1e-';await quantity.emit('input');
+    assert.equal(h.control('O').value,'1e-');assert.equal(h.control('O').getAttribute('aria-invalid'),'true');assert.equal(h.byId('penetration-pdf').disabled,true);
+    h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(quantity.value,'1e-');
+    h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');
+    await quantity.blur();const item=h.control('O');await item.focus();item.value='3.14159265358979';await item.emit('input');
+    assert.equal(quantity.getAttribute('aria-invalid'),'false');assert.equal(quantity.value,'3.14');assert.equal(item.value,'3.14159265358979');assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.14159265358979);
+    await item.blur();await quantity.focus();assert.equal(quantity.value,'3.14159265358979');
+  });
+  await check('A later schedule quantity edit rejects stale results and replacement projects reject detached quantity controls',async h=>{
+    const quantity=h.byId('penetration-schedule-body').children[0].querySelectorAll('[data-penetration-field]')[0],pending=deferred();
+    await quantity.focus();quantity.value='2';await quantity.emit('input');h.audit.setRequest(()=>pending.promise);const calculating=h.audit.calculate();await flush();
+    const captured=h.api.projectSnapshot().draft;quantity.value='4.12345678901234';await quantity.emit('input');pending.resolve(result(captured));await calculating;
+    assert.equal(h.audit.state.result,null);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,4.12345678901234);assert.equal(quantity.value,'4.12345678901234');
+    h.api.applyProject({definition:definition(),draft:definition().defaults,saved:JSON.stringify(definition().defaults)});quantity.value='99';await quantity.emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,undefined);
+  });
+  await check('Additional Allowances contains one project-wide global draft across selected items',async h=>{
+    assert.equal(h.byId('penetration-project-allowances').hidden,true);h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('penetration-project-allowances').hidden,false);
+    const allowance=h.control('L',null);await allowance.focus();allowance.value='12.3456789012345';await allowance.emit('input');await allowance.blur();
+    h.audit.addRow();await flush();h.audit.state.group='Additional Allowances';h.audit.renderFields();await h.control('L',null).focus();assert.equal(h.control('L',null).value,'12.3456789012345');
+    assert.equal(h.api.projectSnapshot().draft.globals.L,.123456789012345);assert(h.api.projectSnapshot().draft.rows.every(row=>row.inputs.L===undefined));
+    h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.byId('penetration-project-allowances').hidden,true);
+  });
+  await check('The shared breakdown preserves seven server rows, five contextual quantities and server subtotals without deriving amounts',async h=>{
+    const labels=['Labour','Board','Collars','Mastic','Framing','Wrap','Other'];
+    const rows=labels.map((label,index)=>({label,unit_prices:[{value:10+index,format:'currency'}],material_quantities:[],material_costs:index,labour_costs:index*2,task_hours:index/10}));
+    rows[1].material_quantities=[{label:'Substrate',value:1.23456789,units:'m²'},{label:'Bulkhead',value:2.3456789,units:'m²'}];
+    rows[4].material_quantities=[{label:'Bulkhead',value:3.456789,units:'m'}];rows[5].material_quantities=[{label:'Pipes',value:4.56789,units:'m²'},{label:'Cabletrays',value:5.6789,units:'m²'}];
+    const row={inputs:{AC:989898,AN:878787,AF:767676},outputs:{BQ:656565},errors:[],breakdown:{rows,totals:{material_costs:999.12,labour_costs:888.23,task_hours:777.34},note:'Server calculation basis'}};
+    const original=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row),table=rendered.children[0].children[0],body=table.children[2],foot=table.children[3];
+    assert.deepEqual(body.children.map(line=>line.children[0].textContent),labels);assert.deepEqual(copy(row),original);
+    assert.deepEqual(table.children[1].children[0].children.map(cell=>cell.textContent),['Item','Unit Prices','Material Quantities','Material Costs','Labour Costs','Task Hours']);
+    assert.equal(body.children.flatMap(line=>line.children[2].children).length,5);assert.match(text(body),/Substrate.*1\.23.*Bulkhead.*2\.35/);assert.match(text(body),/Pipes.*4\.57.*Cabletrays.*5\.68/);
+    for(const index of [0,2,3,6])assert.equal(body.children[index].children[2].textContent,'—');
+    assert.deepEqual(foot.children[0].children.map(cell=>cell.textContent),['Subtotal','$999.12','$888.23','777.34']);assert.doesNotMatch(text(rendered),/989898|878787|767676|656565/);
+    assert.equal(rendered.children[0].tabIndex,0);assert.equal(rendered.children[0].getAttribute('aria-label'),'Item cost breakdown');
+  });
+  await check('The shared breakdown exposes source errors, distinguishes zero and blank, and retains literal labels',async h=>{
+    const row={errors:[{cell:'F4',message:'#VALUE!'}],breakdown:{rows:[{label:'<img src=x>',unit_prices:[{value:0}],material_quantities:[],material_costs:0,labour_costs:null,task_hours:'#DIV/0!'}],totals:{material_costs:0,labour_costs:'#VALUE!',task_hours:null}}};
+    const rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row),content=text(rendered);
+    assert.match(content,/F4: #VALUE!/);assert.match(content,/<img src=x>/);assert.match(content,/\$0\.00/);assert.match(content,/#DIV\/0!/);assert.match(content,/—/);
+    const table=rendered.children[1].children[0],line=table.children[2].children[0];assert.equal(line.children[0].children.length,0);assert.equal(line.children[3].textContent,'$0.00');assert.equal(line.children[4].textContent,'—');
+    assert.match(text(h.context.window.CeasefirePenetrationBreakdown.render(definition(),{outputs:{},errors:[]})),/unavailable/);
+  });
+  await check('Summary and Multipliers preserve source costs and adjustments beside the consolidated table',async h=>{
+    const metadata=definition();metadata.output_fields.push({column:'B',label:'Substrate cost',group:'Summary',format:'currency'},{column:'BI',label:'Complexity',group:'Multipliers',format:'percent'},{column:'BJ',label:'Access',group:'Multipliers',format:'percent'});
+    const row=result(metadata.defaults).rows[0];Object.assign(row.outputs,{B:37.89123,BI:.123456789,BJ:'#VALUE!'});
+    const rendered=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row),sections=rendered.children.filter(child=>child.tagName==='details');
+    assert.deepEqual(sections.map(section=>section.children[0].textContent),['Summary','Multipliers']);assert.match(text(sections[0]),/Substrate cost.*\$37\.89/);assert.match(text(sections[1]),/Complexity.*12\.35%.*Access.*#VALUE!/);
+    assert.doesNotMatch(text(rendered),/Material quantities|Unit prices|Labour days/);
+    delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable.*Summary.*Substrate cost.*Multipliers/);
+  });
   await check('New rows apply Standard defaults while loaded historical blanks stay blank',async h=>{
     h.audit.state.definition.row_fields.push({column:'Q',label:'Access',type:'select',group:'Penetration',default:'Standard',options:['Standard']},{column:'R',label:'Complexity',type:'select',group:'Penetration',default:'Standard',options:['Standard']});
     h.audit.addRow();await flush();assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[1].inputs),{Q:'Standard',R:'Standard'});assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),{});

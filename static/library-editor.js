@@ -90,19 +90,18 @@
     }));
     const fields = node("div", "library-editor-fields"); fields.append(...state.definition.row_fields.filter(field => field.group === state.group).map(field => makeControl(field, false))); $("library-editor-fields").replaceChildren(fields);
     const globals = node("div", "library-editor-fields"); globals.append(...state.definition.global_fields.map(field => makeControl(field, true))); $("library-editor-globals").replaceChildren(globals);
+    $("library-editor-project-allowances").hidden = state.group !== "Additional Allowances";
   }
   function renderOutputs() {
     const price = state.result?.rows?.[0]?.outputs?.H ?? (!hasUnsavedChanges() ? state.record.price?.amount ?? state.record.source_price?.amount : null);
     $("library-editor-price").textContent = display(price, "currency");
     $("library-editor-pricing-basis").textContent = state.record.pricing_label || "Workbook prices";
-    const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Labour hours" };
+    const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
     $("library-editor-summary").replaceChildren(...Object.entries(labels).map(([key, label]) => { const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(state.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line; }));
     const errors = state.result?.errors || [];
     $("library-editor-summary-notes").textContent = errors.length ? errors.map(error => `${error.cell}: ${error.message}`).join("\n") : "Calculated from this library item's inputs and selected pricing basis.";
     const row = state.result?.rows?.[0], breakdown = $("library-editor-breakdown");
-    if (!row) { breakdown.replaceChildren(node("p", "helper", "Recalculate to see this item's output.")); return; }
-    const groups = new Map(); for (const field of state.definition.output_fields) { if (!groups.has(field.group)) groups.set(field.group, []); groups.get(field.group).push(field); }
-    breakdown.replaceChildren(...[...groups].map(([group, fields]) => { const section = node("details", "penetration-output-group"), list = node("dl", "cost-list"); section.open = group === "Summary"; section.append(node("summary", "", group)); for (const field of fields) { const line = node("div"); line.append(node("dt", "", fieldLabel(field) + (field.units ? ` (${field.units})` : "")), node("dd", "", display(row.outputs[field.column], field.format))); list.append(line); } section.append(list); return section; }));
+    breakdown.replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, row));
   }
   function present(record, handlers = {}) {
     if (!record?.draft || !record.definition || record.draft.rows?.length !== 1) throw new Error("The library item does not contain one editable source row.");

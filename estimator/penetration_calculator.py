@@ -37,10 +37,10 @@ MANUFACTURERS = ('Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fen
 GROUP_COLUMNS = {
     'Penetration': 'J K L M N O P Q R T U V'.split(),
     'Products and labour': 'W X Y Z AA AB AC'.split(),
-    'Additional materials and labour': 'AE AF AG AH AI AJ'.split(),
-    'Circular service wrap': 'AL AM AN AO'.split(),
-    'Cable tray wrap': 'AQ AR AS AT AU'.split(),
-    'Board': 'AW AX AY AZ'.split(),
+    'Additional Allowances': 'AE AF AG AH AI AJ'.split(),
+    'Pipes': 'AL AM AN AO'.split(),
+    'Cabletrays': 'AQ AR AS AT AU'.split(),
+    'Substrate': 'AW AX AY AZ'.split(),
     'Bulkhead': 'BB BC BD BE BF BG'.split(),
 }
 ROW_COLUMNS = tuple(c for cols in GROUP_COLUMNS.values() for c in cols)
@@ -48,6 +48,11 @@ TEXT_COLUMNS = set('J K L M N P Q R T U V W X Y Z AA AB AE'.split())
 PERCENT_COLUMNS = set('AG AO AU AZ BF BG'.split())
 PRICE_COLUMNS = {'W': 'AK', 'X': 'M', 'Y': 'B', 'Z': 'AN', 'AA': 'E', 'AB': 'S', 'AE': 'AR'}
 OUTPUT_PERCENT_COLUMNS = {'BI', 'BJ', 'BK', 'BR', 'CA', 'CI', 'CP'}
+QUANTITY_OUTPUT_CONTEXTS = {'BS': 'Pipes', 'CB': 'Cabletrays', 'CJ': 'Substrate',
+                            'CQ': 'Bulkhead', 'CU': 'Bulkhead'}
+TASK_HOUR_LABELS = {'DE': 'Board Task Hours', 'DF': 'Collars Task Hours',
+                    'DG': 'Mastic Task Hours', 'DH': 'Framing Task Hours',
+                    'DI': 'Wrap Task Hours', 'DJ': 'Other Task Hours', 'DK': 'Total Task Hours'}
 CHOICE_NAMES = {'J': 'servicelist', 'L': 'pentype', 'M': 'orientation', 'N': 'FRL',
                 'P': 'substrates', 'Q': 'Access', 'R': 'complexity'}
 SUMMARY_COLUMNS = {'C2': 'other_allowances', 'D2': 'travel_lafha', 'E2': 'access',
@@ -121,20 +126,22 @@ def definition(configuration=None, service_types=None):
                 'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hours' if col == 'AH' else ''})
     global_fields = [{'column': col, 'address': col + '2', 'label': calc[col + '1']['value'],
         'type': 'select' if col == 'J' else 'number', 'options': ['Yes', 'No'] if col == 'J' else [],
-        'group': 'Global settings', 'default': value, 'format': 'percent' if col in ('L', 'M') else 'text' if col == 'J' else 'number',
+        'group': 'Additional Allowances', 'scope': 'project', 'default': value, 'format': 'percent' if col in ('L', 'M') else 'text' if col == 'J' else 'number',
         'units': '%' if col in ('L', 'M') else 'days' if col == 'K' else ''} for col, value in GLOBAL_DEFAULTS.items()]
     output_fields = []
     for address, cell in sorted(calc.items(), key=lambda item: coordinates(item[0])[1]):
         if not address.endswith('4') or 'formula' not in cell:
             continue
         col = address[:-1]
-        group = 'Summary' if column_number(col) <= 8 else 'Multipliers' if col in ('BI', 'BJ', 'BK') else 'Material quantities' if column_number(col) < column_number('CW') else 'Unit prices' if column_number(col) < column_number('DE') else 'Labour hours' if column_number(col) <= column_number('DK') else 'Material costs'
-        output_fields.append({'column': col, 'address': address, 'label': calc.get(col + '3', {}).get('value', col),
+        group = 'Summary' if column_number(col) <= 8 else 'Multipliers' if col in ('BI', 'BJ', 'BK') else 'Material quantities' if column_number(col) < column_number('CW') else 'Unit prices' if column_number(col) < column_number('DE') else 'Task Hours' if column_number(col) <= column_number('DK') else 'Material costs'
+        output_fields.append({'column': col, 'address': address, 'label': TASK_HOUR_LABELS.get(col, calc.get(col + '3', {}).get('value', col)),
             'group': group, 'format': 'percent' if col in OUTPUT_PERCENT_COLUMNS else 'currency' if group in ('Summary', 'Unit prices', 'Material costs') else 'number',
-            'units': '%' if col in OUTPUT_PERCENT_COLUMNS else 'hours' if group == 'Labour hours' else ''})
+            'units': '%' if col in OUTPUT_PERCENT_COLUMNS else 'hours' if group == 'Task Hours' else '',
+            **({'quantity_context': QUANTITY_OUTPUT_CONTEXTS[col]} if col in QUANTITY_OUTPUT_CONTEXTS else {})})
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
-        'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS)}
+        'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS),
+        'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
 
 
 def normalize_draft(draft):
@@ -326,5 +333,6 @@ def calculate(draft, configuration=None):
         summary['labour_hours'] = error.code
         errors.append({'row_id': None, 'cell': 'DK4:DK' + str(len(rows) + 3), 'message': error.code})
     breakdown = {address: engine.value('BREAKDOWN', address) for address, cell in _sheet('BREAKDOWN')['cells'].items() if 'formula' in cell}
-    return {'source_sha256': source_model()['source']['sha256'], 'draft': draft, 'summary': summary,
-        'summary_cells': summary_cells, 'rows': rows, 'errors': errors, 'breakdown_cells': breakdown, 'definition': spec}
+    from .penetration_breakdown import add_breakdowns
+    return add_breakdowns({'source_sha256': source_model()['source']['sha256'], 'draft': draft, 'summary': summary,
+        'summary_cells': summary_cells, 'rows': rows, 'errors': errors, 'breakdown_cells': breakdown, 'definition': spec}, source_model())

@@ -103,10 +103,11 @@
     renderSchedule(); renderSummary(); renderBreakdown(); status(); clearTimeout(state.timer);
     state.timer = setTimeout(calculate, 350);
   }
-  function makeControl(field, rowId) {
+  function makeControl(field, rowId, compact = false) {
     const context = state.context;
     const key = keyFor(rowId, field.column), wrapper = node("label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
     const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
+    if (compact) { wrapper.className += " penetration-schedule-quantity"; label.className = "sr-only"; control.dataset.penetrationScheduleQuantity = rowId; }
     const line = rowId === null ? "Project" : `Line ${state.draft.rows.findIndex(row => row.id === rowId) + 1}`;
     control.dataset.penetrationField = field.column; control.dataset.penetrationRow = rowId === null ? "" : rowId;
     control.setAttribute("aria-label", `${line}: ${label.textContent}`);
@@ -157,6 +158,7 @@
     control.addEventListener("blur", () => {
       if (context !== state.context) return;
       if (!state.invalid.has(key)) control.value = controlText(field, inputValue(field, rowId));
+      refreshControls();
       if (state.pendingFields) { state.pendingFields = false; renderFields(); }
     });
     wrapper.append(label, control, problem); return wrapper;
@@ -179,13 +181,16 @@
     const globals = node("div", "penetration-fields");
     for (const field of state.definition.global_fields) globals.append(makeControl(field, null));
     $("penetration-global-fields").replaceChildren(globals);
+    $("penetration-project-allowances").hidden = !["Additional Allowances", "Additional materials and labour"].includes(state.group);
   }
   function refreshControls() {
-    for (const parent of [$("penetration-row-fields"), $("penetration-global-fields")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
+    for (const parent of [$("penetration-row-fields"), $("penetration-global-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
       const rowId = control.dataset.penetrationRow || null, key = keyFor(rowId, control.dataset.penetrationField);
-      if (control === document.activeElement || state.invalid.has(key)) continue;
+      const pending = state.invalid.get(key), problem = control.parentNode.children[2];
+      control.setAttribute("aria-invalid", String(!!pending)); problem.textContent = pending?.error || ""; problem.hidden = !pending;
+      if (control === document.activeElement) continue;
       const field = (rowId === null ? state.definition.global_fields : state.definition.row_fields).find(field => field.column === control.dataset.penetrationField);
-      if (field) control.value = controlText(field, inputValue(field, rowId));
+      if (field) control.value = pending ? pending.value : controlText(field, inputValue(field, rowId));
     }
   }
   function selectRow(id) {
@@ -287,19 +292,34 @@
   }
   function renderSchedule() {
     if (!state.draft) return;
+    const body = $("penetration-schedule-body"), previous = [...body.children];
+    const existing = new Map(previous.filter(row => row.dataset.penetrationContext === String(state.context)).map(row => [row.dataset.penetrationId, row]));
+    const quantityField = state.definition.row_fields.find(field => field.column === "O");
     const results = new Map((state.result?.rows || []).map(row => [row.id, row]));
     const rows = state.draft.rows.slice(state.page * pageSize, (state.page + 1) * pageSize).map((row, index) => {
-      const line = state.page * pageSize + index + 1, result = results.get(row.id), tr = node("tr"); tr.dataset.penetrationId = row.id;
+      const line = state.page * pageSize + index + 1, result = results.get(row.id), tr = existing.get(row.id) || node("tr"); tr.dataset.penetrationId = row.id; tr.dataset.penetrationContext = String(state.context);
       tr.className = row.id === state.selected ? "penetration-selected-row" : "";
       const invalid = [...state.invalid.keys()].some(key => JSON.parse(key)[0] === row.id);
-      for (const value of [line, row.inputs.T || "—", row.inputs.U || "—", display(row.inputs.O), display(result?.outputs.H, "currency"), invalid ? "Check input" : result?.errors?.length ? "Review calculation" : state.calculating ? "Calculating…" : result ? "Calculated" : "—"]) tr.append(node("td", "", value));
+      if (!tr.children.length) {
+        for (let column = 0; column < 6; column++) tr.append(node("td"));
+        if (quantityField) tr.children[3].append(makeControl(quantityField, row.id, true));
+      }
+      const values = [line, row.inputs.T || "—", row.inputs.U || "—", null, display(result?.outputs.H, "currency"), invalid ? "Check input" : result?.errors?.length ? "Review calculation" : state.calculating ? "Calculating…" : result ? "Calculated" : "—"];
+      values.forEach((value, column) => { if (column !== 3) tr.children[column].textContent = String(value); });
+      if (!quantityField) tr.children[3].textContent = display(row.inputs.O);
+      for (const control of tr.children[3].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Line ${line}: ${fieldLabel(quantityField)}`);
       const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit penetration line ${line}`); edit.addEventListener("click", () => selectRow(row.id));
       const remove = node("button", "button secondary penetration-remove"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
       remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove line ${line}`; remove.setAttribute("aria-label", `Remove penetration line ${line}`); remove.disabled = state.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
-      actions.append(edit, remove); tr.append(actions); return tr;
+      actions.append(edit, remove);
+      if (tr.children[6]) tr.children[6].replaceChildren(edit, remove); else tr.append(actions);
+      return tr;
     });
-    $("penetration-schedule-body").replaceChildren(...rows);
+    // Keeping unchanged rows attached preserves the active quantity editor and
+    // its selection while inputs and server results update around it.
+    if (rows.length !== previous.length || rows.some((row, index) => row !== previous[index])) body.replaceChildren(...rows);
+    refreshControls();
     const count = $("penetration-row-count"); count.replaceChildren(node("span", "", `${state.draft.rows.length} ${state.draft.rows.length === 1 ? "row" : "rows"} · Capacity ${state.definition.capacity}`));
     if (state.draft.rows.length > pageSize) {
       const previous = node("button", "button secondary", "Previous rows"), next = node("button", "button secondary", "Next rows"); previous.type = next.type = "button";
@@ -309,7 +329,7 @@
     }
   }
   function renderSummary() {
-    const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Labour hours" };
+    const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
     $("penetration-summary").replaceChildren(...Object.entries(labels).map(([key, label]) => {
       const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(state.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
     }));
@@ -321,20 +341,7 @@
   }
   function renderBreakdown() {
     const result = state.result?.rows.find(row => row.id === state.selected), container = $("penetration-breakdown");
-    if (!result) { container.replaceChildren(node("p", "helper", "Recalculate to see this item's output.")); return; }
-    const groups = new Map();
-    for (const field of state.definition.output_fields) {
-      if (!groups.has(field.group)) groups.set(field.group, []); groups.get(field.group).push(field);
-    }
-    const parts = [];
-    if (result.errors?.length) parts.push(node("p", "message error", result.errors.map(error => `${error.cell}: ${error.message}`).join("\n")));
-    for (const [group, fields] of groups) {
-      const section = node("details", "penetration-output-group"); section.open = group === "Summary";
-      section.append(node("summary", "", group)); const list = node("dl", "cost-list");
-      for (const field of fields) { const line = node("div"); line.append(node("dt", "", fieldLabel(field) + (field.units ? ` (${field.units})` : "")), node("dd", "", display(result.outputs[field.column], field.format))); list.append(line); }
-      section.append(list); parts.push(section);
-    }
-    container.replaceChildren(...parts);
+    container.replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, result));
   }
   function render() {
     if (!state.draft) return;

@@ -19,6 +19,7 @@ jobs:
       - run: node --check static/calculators.js
       - run: node --check static/downloads.js
       - run: node --check static/penetration.js
+      - run: node --check static/penetration-breakdown.js
       - run: node --check static/libraries.js
       - run: node --check static/library-editor.js
       - run: node tests/test_ui.cjs

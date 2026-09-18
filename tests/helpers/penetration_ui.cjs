@@ -4,17 +4,18 @@ const copy = value => JSON.parse(JSON.stringify(value));
 function definition() {
   const field = (column,label,type,group,format='number',options=[]) => ({column,label,type,group,format,options,units:'',default:null});
   return {id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
-    defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},groups:['Penetration','Products and labour'],
+    defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},groups:['Penetration','Products and labour','Additional Allowances'],
     global_fields:[field('J','LAFHA','select','Global settings','text',['No','Yes']),field('L','Global Labour','number','Global settings','percent')],
     row_fields:[field('T','Item(s)','text','Penetration','text'),field('U','System','text','Penetration','text'),field('O','Item QTY','number','Penetration'),field('J','Type','select','Penetration','text',['HVAC','Electrical']),field('W','Workers','select','Products and labour','text',['Installer']),field('AG','Material Wastage %','number','Products and labour','percent')],
     output_fields:[field('H','Item total','number','Summary','currency'),field('BQ','Wrap SQM Required','number','Material quantities'),field('DI','Labour days','number','Labour')]};
 }
 function result(draft,metadata=definition()) {
   return {source_sha256:metadata.source_sha256,draft:copy(draft),definition:copy(metadata),summary:{grand_total:123.456789,materials:65.4321,labour:58.024689,total_days:0.123456},errors:[],
-    rows:draft.rows.map(row=>({id:row.id,inputs:copy(row.inputs),outputs:{H:123.456789,BQ:0,DI:'#VALUE!'},errors:[]}))};
+    rows:draft.rows.map(row=>({id:row.id,inputs:copy(row.inputs),outputs:{H:123.456789,BQ:0,DI:'#VALUE!'},errors:[],breakdown:{rows:[{label:'Wrap',unit_prices:[],material_quantities:[{label:'Pipes',value:0,units:'m²'}],material_costs:null,labour_costs:null,task_hours:'#VALUE!'}],totals:{material_costs:65.4321,labour_costs:58.024689,task_hours:'#VALUE!'}}}))};
 }
 function install(context) {
-  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,addToLibrary,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
+  vm.runInContext(fs.readFileSync('static/penetration-breakdown.js','utf8'),context);
+  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,addToLibrary,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
   vm.runInContext(source,context);
   const audit=context.penAudit,calls=[];
   audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return path.endsWith('/definition')?definition():result(payload.draft);});

@@ -110,7 +110,7 @@ class ReferenceLibrary:
             filter_labels = {}
             for entry in definitions:
                 key = identifier(entry['key'])
-                if key in {'search', 'offset', 'limit'} or key in filter_labels:
+                if key in {'search', 'offset', 'limit', 'technical_reference'} or key in filter_labels:
                     raise ValueError('Reserved filter')
                 filter_labels[key] = string(entry['label'], 100)
             records[kind], searches[kind] = {}, {}
@@ -177,7 +177,8 @@ class ReferenceLibrary:
             relationship = string(link['relationship'], 4000)
             for kind, source, target_kind, target in [('penetration', left, 'technical', right), ('technical', right, 'penetration', left)]:
                 title = records[target_kind][target]['title']
-                links[kind][source].append({'kind': target_kind, 'id': target, 'title': title, 'relationship': relationship})
+                links[kind][source].append({'kind': target_kind, 'id': target, 'title': title, 'relationship': relationship,
+                                          **({'origin': 'user'} if link.get('origin') == 'user' else {})})
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
 
     def overview(self):
@@ -185,6 +186,8 @@ class ReferenceLibrary:
             data = self._load()
             return {'libraries': [{'id': kind, 'title': title, 'available': data is not None,
                      'count': len(data['_records'][kind]) if data else 0,
+                     'linked_count': sum(bool(value) for value in data['_links'][kind].values()) if data else 0,
+                     'unlinked_count': sum(not value for value in data['_links'][kind].values()) if data else 0,
                      'source_count': len(data['documents']) if data and kind == 'technical' else 1 if data else 0,
                      'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'} for kind, title in KINDS.items()],
                     'notice': data.get('notice', '') if data else ''}
@@ -195,8 +198,11 @@ class ReferenceLibrary:
                 raise ReferenceNotFound()
             data = self._load()
             filter_keys = {entry['key'] for entry in data['_filters'][kind]} if data else set()
-            if set(query) - {'search', 'offset', 'limit'} - filter_keys:
+            if set(query) - {'search', 'offset', 'limit', *({'technical_reference'} if kind == 'penetration' else set())} - filter_keys:
                 raise ValidationError('Unknown library search option.')
+            reference = query.get('technical_reference', 'any')
+            if reference not in ('any', 'linked', 'unlinked'):
+                raise ValidationError('Choose any, linked or unlinked technical references.')
             search = string(query.get('search', ''), 500).strip().casefold()
             def page_value(key, default, minimum, maximum):
                 raw = query.get(key, str(default))
@@ -208,12 +214,22 @@ class ReferenceLibrary:
             items = []
             if data:
                 for key, item in data['_records'][kind].items():
+                    linked = bool(data['_links'][kind][key])
+                    if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
+                        continue
                     if all(token in data['_searches'][kind][key] for token in search.split()) and all(value in item.get('filter_values', {}).get(name, []) for name, value in chosen.items()):
                         items.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
                                       **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
                                       'related_count': len(data['_links'][kind][key])})
+            counts = {'total': len(data['_records'][kind]) if data else 0,
+                      'linked': sum(bool(value) for value in data['_links'][kind].values()) if data else 0,
+                      'unlinked': sum(not value for value in data['_links'][kind].values()) if data else 0}
+            filters = deepcopy(data['_filters'][kind]) if data else []
+            if kind == 'penetration':
+                filters.append({'key': 'technical_reference', 'label': 'Technical reference', 'options': [
+                    {'value': 'any', 'label': 'Any'}, {'value': 'linked', 'label': 'Linked'}, {'value': 'unlinked', 'label': 'No linked reference'}]})
             return {'items': items[offset:offset + limit], 'total': len(items), 'offset': offset, 'limit': limit,
-                    'filters': deepcopy(data['_filters'][kind]) if data else [],
+                    'counts': counts, 'filters': filters,
                     'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'}
 
     def detail(self, kind, key):

@@ -20,6 +20,10 @@ function harness(){
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Library price uses the item total while the summary retains separate project allowances',async h=>{
+    const item=fixture();item.result.summary.grand_total=523.456789;
+    h.api.present(item);assert.match(text(h.byId('library-editor-price')),/123\.46/);assert.doesNotMatch(text(h.byId('library-editor-price')),/523\.46/);assert.match(text(h.byId('library-editor-summary')),/523\.46/);
+  });
   await check('Opening the library item leaves the full project state and raw invalid inputs intact',async h=>{
     const project=h.context.penAudit;project.state.draft.rows[0].inputs.T='Unsaved project';project.makeControl(definition().row_fields.find(f=>f.column==='O'),'line-1');
     const projectQuantity=h.byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField==='O');projectQuantity.value='1e-';await projectQuantity.emit('input');
@@ -32,7 +36,7 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     input.value='1e-';await input.emit('input');h.audit.state.group='Products and labour';h.audit.renderFields();h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');assert.equal(h.audit.state.draft.rows[0].inputs.O,12.3456789012345);assert.equal(h.byId('library-editor-save').disabled,true);assert.equal(h.audit.state.result,null);
   });
   await check('Calculation sends only the one-row draft, item revision and opaque pricing token',async h=>{
-    await h.api.open('legacy-row-4');assert.equal(h.control('T').getAttribute('aria-label'),'Library item: Items/Services');assert.equal(h.control('U').getAttribute('aria-label'),'Library item: System/Install');h.control('T').value='Exact service description';await h.control('T').emit('input');h.control('U').value='Exact installation description';await h.control('U').emit('input');h.control('O').value='1.23456789012345';await h.control('O').emit('input');await h.audit.calculate();
+    await h.api.open('legacy-row-4');assert.equal(h.control('T').getAttribute('aria-label'),'Library item: Items/Services');assert.equal(h.control('U').getAttribute('aria-label'),'Library item: System/Install Details');h.control('T').value='Exact service description';await h.control('T').emit('input');h.control('U').value='Exact installation description';await h.control('U').emit('input');h.control('O').value='1.23456789012345';await h.control('O').emit('input');await h.audit.calculate();
     const call=h.calls.at(-1);assert.equal(call.action,'calculate');assert.deepEqual(Object.keys(call.payload).sort(),['draft','pricing_token','revision']);assert.equal(call.payload.pricing_token,'workbook-token');assert.equal(call.payload.draft.rows[0].inputs.O,1.23456789012345);assert.equal(call.payload.draft.rows.length,1);
     assert.equal(call.payload.draft.rows[0].inputs.T,'Exact service description');assert.equal(call.payload.draft.rows[0].inputs.U,'Exact installation description');assert.equal(h.audit.state.definition.row_fields.find(field=>field.column==='T').label,'Item(s)');assert.equal(h.audit.state.definition.row_fields.find(field=>field.column==='U').label,'System');
   });
@@ -75,7 +79,7 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
   });
   await check('Formula errors remain readable and unknown historical choices are retained for correction',async h=>{
     const source=fixture();source.draft.rows[0].inputs.J='Legacy service';source.result.errors=[{row_id:null,cell:'H2',message:'#VALUE!'}];source.result.summary.grand_total='#VALUE!';h.api.present(source);
-    assert.equal(h.control('J').value,'Legacy service');assert.equal(h.control('J').children.at(-1).disabled,true);assert.match(h.byId('library-editor-price').textContent,/#VALUE!/);assert.match(h.byId('library-editor-summary-notes').textContent,/H2: #VALUE!/);
+    assert.equal(h.control('J').value,'Legacy service');assert.equal(h.control('J').children.at(-1).disabled,true);assert.match(h.byId('library-editor-price').textContent,/123\.46/);assert.match(text(h.byId('library-editor-summary')),/#VALUE!/);assert.match(h.byId('library-editor-summary-notes').textContent,/H2: #VALUE!/);source.result.rows[0].outputs.H='#VALUE!';h.api.present(source);assert.match(h.byId('library-editor-price').textContent,/#VALUE!/);
     h.control('J').value='Invented';await h.control('J').emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.J,'Legacy service');assert.equal(h.byId('library-editor-save').disabled,true);
   });
   await check('Numeric range errors preserve prior values and block save without requests',async h=>{

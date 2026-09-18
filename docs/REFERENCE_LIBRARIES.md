@@ -15,7 +15,7 @@ but are not displayed in Firestopping Library entries. The library item editor
 continues to distinguish original workbook rates from explicitly refreshed
 Pricing Library rates; changing the displayed price label does not change them.
 
-**Items/Services** and **System/Install** use the same labels in the library,
+**Items/Services** and **System/Install Details** use the same labels in the library,
 Firestopping Estimator, and its detailed exports. Workbook row/cell locations
 are not shown on library result cards or diagram captions.
 
@@ -27,6 +27,42 @@ outside diameter. Descriptive sizes retain component quantities and ranges.
 Aperture, seal, wrap, board and bulkhead dimensions are not service dimensions.
 When no service size is given, the field says so. Saving an item refreshes this
 field without changing its calculation rules or prices.
+
+The Firestopping Library starts with a table showing the total number of entries
+and how many have no linked technical references. These are whole-library
+counts, independent of the current search or page. **Technical Reference**
+filters the list by **Any**, **Linked Technical References**, or **No Linked
+Technical References**, together with the existing search and filters.
+
+## Adding items to the library and schedule
+
+**Add to Library**, beside the selected estimator item's inputs, captures that
+one row, its project allowances and its current effective pricing. The server
+calculates its price and stores the inputs and pricing snapshot separately from
+the supplier bundle. Later project or shared-price changes do not change the
+saved library item. Repeated requests for the same capture return the saved
+entry rather than creating duplicates. A service/installation description,
+positive quantity and a calculation without errors are required.
+
+Imported IDs remain unchanged. User-created items receive permanent IDs starting
+at **FL-ID-100001**; this reserved range avoids collisions with future supplier
+imports and permits creation before a supplier bundle is installed. Allocation
+is transactional across concurrent requests. Imported IDs must be below that
+range. New entries support the same edit/save/reopen workflow as imported items.
+
+**Add to Schedule** copies an item's saved inputs into the current Firestopping
+Estimator. It retains the current schedule's prices and project allowances and
+shows the recalculated item price. Existing schedule rows and unsaved edits
+remain intact; a single unused starting row is replaced. The stored library
+item stays unchanged. Save the project separately to retain the new schedule row.
+
+New estimator rows default **Access** and **Complexity** to **Standard**. Loading
+an existing row retains its values, including deliberate blanks. **Service Type**
+is a dropdown containing the library's service types plus Cable Trays, Busbar
+Trunking, Fire Dampers, Flexible Ducts, Linear Joints and Movement Joints.
+**Manufacturer** offers Promat, Trafalgar, Boss, Firefly, Hilti, Snap and Fendix.
+Historical descriptions remain visible without rewriting saved inputs. These
+descriptive choices do not select products or change calculation formulas.
 
 Technical records contain active entries from the supplied reports' main
 tables, identified by report revision, source ID and exact PDF page. Reserved or
@@ -103,6 +139,14 @@ Entries without sufficient source evidence remain searchable without invented
 links. Reports from one manufacturer do not support another manufacturer's
 entries. References to documents or appendices not supplied remain unresolved.
 
+Each Firestopping entry has **Link Library Item**. Search the Technical Library,
+choose a record and save the link. One saved relationship appears in both
+directions; selecting an existing relationship does not duplicate it. Manual
+links are identified as user-created and stored separately from imported links.
+Their source fingerprints are retained internally. If a referenced source
+version changes, the old manual relationship is withheld for review rather than
+silently reassigned to a different report.
+
 ## Local installation and privacy
 
 Supplier content is local data, separate from the public source repository and
@@ -123,8 +167,8 @@ and asset before installation. An existing library requires `--replace`, which
 retains a timestamped backup. It does not edit the original workbook or PDFs.
 The application can use another local installation via `--library-directory`.
 Use Refresh in a library pane after installing an updated bundle. An application
-without a local bundle displays an empty state; pricing and calculators remain
-available.
+without a local bundle displays its saved user-created entries, or an empty
+state if none exist; pricing and calculators remain available.
 
 ## Data contract
 
@@ -159,11 +203,18 @@ requests are supported for opening larger local reports.
 
 ## Verification
 
+`POST /api/libraries/penetration` accepts `draft`, `configuration` and a unique
+`idempotency_key`. It returns the new or previously captured item's edit response.
+`POST /api/libraries/penetration/{id}/links` accepts exactly `technical_id` and
+returns a confirmed pair. Listing uses `technical_reference=any|linked|unlinked`;
+its `counts` object is independent of its filtered `total` and pagination.
+
 ```powershell
 python -m unittest tests.test_reference_library -v
 node tests/test_libraries_ui.cjs
 node --check static/library-editor.js
 node tests/test_library_editor_ui.cjs
+python -m unittest discover -s tests -p "test_library_workflow*.py" -v
 ```
 
 Tests use synthetic content. Real source extraction, page coverage, image

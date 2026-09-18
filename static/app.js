@@ -10,7 +10,7 @@
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "estimate", projectsOffset: 0, projectsTimer: null,
-    pricingRender: null, estimatorKind: "estimate",
+    pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -538,6 +538,16 @@
     if (kind === "penetration") window.CeasefirePenetrations?.open();
   }
 
+  function selectLibrary(kind, selection) {
+    if (!["pricing", "penetration", "technical"].includes(kind)) return;
+    document.activeElement?.blur?.();
+    state.libraryKind = kind;
+    for (const child of ["pricing", "penetration", "technical"]) $("library-" + child).hidden = child !== kind;
+    for (const button of document.querySelectorAll("[data-library-kind]")) button.setAttribute("aria-pressed", String(button.dataset.libraryKind === kind));
+    if (kind === "pricing") { if (!pricingViewCurrent()) renderPricing(); }
+    else window.CeasefireLibraries?.open(kind, selection);
+  }
+
   function showView(view) {
     state.currentView = view;
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
@@ -548,7 +558,7 @@
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     if (view === "quotes") loadProjects();
-    if (view === "pricing" && !pricingViewCurrent()) renderPricing();
+    if (view === "pricing") selectLibrary(state.libraryKind);
     if (view === "calculators") window.CeasefireCalculators?.open();
     if (view === "estimate") selectEstimator(state.estimatorKind);
     // Each section starts with its heading and actions visible below the sticky
@@ -1409,6 +1419,7 @@
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
   for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
+  for (const button of document.querySelectorAll("[data-library-kind]")) button.addEventListener("click", () => selectLibrary(button.dataset.libraryKind));
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", newQuote);
@@ -1449,5 +1460,6 @@
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus,
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
+  window.CeasefireLibraryNavigation = { open: selectLibrary };
   bootstrap();
 })();

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def main():
     paths = sorted(path for folder in ("estimator", "static", "data") for path in (ROOT / folder).rglob("*") if path.is_file() and "__pycache__" not in path.parts)
     paths.extend([ROOT / name for name in ("README.md", "requirements.txt", "Start-Estimator.cmd", "Start-Estimator.ps1")])
+    paths.append(ROOT / 'scripts' / 'install_reference_library.py')
     for path in paths:
         if path.suffix == ".py":
             py_compile.compile(str(path), doraise=True)

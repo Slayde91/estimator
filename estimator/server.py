@@ -21,10 +21,12 @@ MAX_PRICING_FILE = 5 * 1_048_576
 LOGGER = logging.getLogger(__name__)
 
 
-def create_server(port=8765, database=None, project_dialogs=None):
+def create_server(port=8765, database=None, project_dialogs=None, library_directory=None):
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
     from .project_library import ProjectLibrary
     projects = ProjectLibrary(store, project_dialogs)
+    from .reference_library import ReferenceLibrary, ReferenceNotFound
+    libraries = ReferenceLibrary(library_directory)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "CeasefireEstimator"
@@ -48,6 +50,27 @@ def create_server(port=8765, database=None, project_dialogs=None):
                 self.send_payload(200, projects.write_download(destination, filename, payload))
             else:
                 self.send_payload(200, payload, content_type, {'Content-Disposition': f'attachment; filename="{filename}"'})
+
+        def send_reference_asset(self, asset_id, pdf=True):
+            payload, content_type, filename = libraries.asset(asset_id, pdf)
+            size = len(payload)
+            headers = {'Content-Disposition': f'inline; filename="{filename}"', 'Accept-Ranges': 'bytes'}
+            requested = self.headers.get('Range')
+            status = 200
+            if requested:
+                match = re.fullmatch(r'bytes=(\d{0,18})-(\d{0,18})', requested)
+                if not match or not any(match.groups()):
+                    self.send_payload(416, b'', content_type, {'Content-Range': f'bytes */{size}'})
+                    return
+                left, right = match.groups()
+                start = int(left) if left else max(0, size - int(right))
+                end = min(size - 1, int(right)) if left and right else size - 1
+                if start > end or start >= size:
+                    self.send_payload(416, b'', content_type, {'Content-Range': f'bytes */{size}'})
+                    return
+                headers['Content-Range'] = f'bytes {start}-{end}/{size}'
+                status, payload = 206, payload[start:end + 1]
+            self.send_payload(status, payload, content_type, headers)
 
         def send_report(self, quote, report_kind, destination=None):
             from .report import render_quote_pdf
@@ -97,7 +120,21 @@ def create_server(port=8765, database=None, project_dialogs=None):
                 return
             route = urlsplit(self.path).path
             if self.command == "GET":
-                if route == '/api/penetration':
+                if route == '/api/libraries':
+                    self.send_payload(200, libraries.overview())
+                elif route in {'/api/libraries/penetration', '/api/libraries/technical'}:
+                    query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                    if any(len(values) != 1 for values in query.values()):
+                        raise ValidationError('Use one value per library search option.')
+                    self.send_payload(200, libraries.listing(route.rsplit('/', 1)[1], **{key: values[0] for key, values in query.items()}))
+                elif re.fullmatch(r'/api/libraries/(penetration|technical)/[a-z0-9][a-z0-9_-]{0,119}', route):
+                    _, _, _, kind, key = route.split('/')
+                    self.send_payload(200, libraries.detail(kind, key))
+                elif re.fullmatch(r'/api/libraries/documents/[a-z0-9][a-z0-9_-]{0,119}\.pdf', route):
+                    self.send_reference_asset(route.rsplit('/', 1)[1][:-4])
+                elif re.fullmatch(r'/api/libraries/images/[a-z0-9][a-z0-9_-]{0,119}', route):
+                    self.send_reference_asset(route.rsplit('/', 1)[1], False)
+                elif route == '/api/penetration':
                     from .penetration_calculator import definition
                     self.send_payload(200, definition(store.configuration()))
                 elif route == '/api/calculators':
@@ -126,7 +163,7 @@ def create_server(port=8765, database=None, project_dialogs=None):
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration.js", "/penetration.css", "/ceasefire-logo.png"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration.js", "/penetration.css", "/libraries.js", "/libraries.css", "/ceasefire-logo.png"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png"}[path.suffix]
@@ -316,6 +353,8 @@ def create_server(port=8765, database=None, project_dialogs=None):
                 self.dispatch()
             except ValidationError as exc:
                 self.send_payload(400, {"error": str(exc)})
+            except ReferenceNotFound:
+                self.send_payload(404, {"error": "Library reference not found."})
             except KeyError:
                 self.send_payload(404, {"error": "Quote not found."})
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
@@ -346,9 +385,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--database", type=Path)
+    parser.add_argument("--library-directory", type=Path, help="Local reference library folder (defaults to .runtime/reference-library).")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    server = create_server(args.port, args.database)
+    server = create_server(args.port, args.database, library_directory=args.library_directory)
     print(f"Ceasefire ESTIMATOR: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()

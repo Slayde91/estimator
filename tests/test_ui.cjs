@@ -320,6 +320,18 @@ let passed=0;
   assert.equal(productRows()[0],unchangedRow);assert.equal(byId('pricing-head').children[0],unchangedHeading);
   assert.equal(JSON.stringify(audit.state.draft),untouchedDraft);assert.equal(audit.state.catalog.inventory[0].supplier_price,100.123456);passed++;
 
+  // Reference library navigation preserves pending pricing text and lazy rendering.
+  const libraryVisits=[],pendingPrice=productInput('coat','Product/Service'),pricingRow=productRows()[0];
+  context.window.CeasefireLibraries={open:(...args)=>libraryVisits.push(args)};
+  pendingPrice.value='Unfinished product description';await pendingPrice.emit('input');const pendingPricing=JSON.stringify(audit.state.draft);
+  context.window.CeasefireLibraryNavigation.open('penetration');context.window.CeasefireLibraryNavigation.open('technical','synthetic-reference');
+  audit.showView('estimate');audit.showView('pricing');
+  assert.equal(audit.state.libraryKind,'technical');assert.equal(byId('library-pricing').hidden,true);assert.equal(byId('library-technical').hidden,false);
+  assert.ok(productRows()[0]===pricingRow);assert.equal(pendingPrice.value,'Unfinished product description');assert.equal(JSON.stringify(audit.state.draft),pendingPricing);
+  assert.deepEqual(libraryVisits.map(args=>args[0]),['penetration','technical','technical']);
+  context.window.CeasefireLibraryNavigation.open('pricing');assert.ok(productRows()[0]===pricingRow);assert.equal(pendingPrice.value,'Unfinished product description');assert.equal(byId('library-pricing').hidden,false);
+  pendingPrice.value='Coating <literal>';await pendingPrice.emit('input');await pendingPrice.emit('change');delete context.window.CeasefireLibraries;passed++;
+
   // In-place edits and replacement drafts invalidate navigation reuse.
   audit.state.draft.inventory.coat={supplier_price:234.567891};audit.showView('estimate');audit.showView('pricing');
   assert.notEqual(productRows()[0],unchangedRow);assert.equal(productInput('coat','supplier_price').value,'234.57');

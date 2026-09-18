@@ -25,11 +25,20 @@ Their totals remain separate. The Penetration Calculator retains the supplied
 workbook formulas, with grouped inputs, per-item results and PDF/XLSX downloads.
 See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
 
+The **Libraries** tab has **Pricing Library**, **Penetration Library** and
+**Technical Library** tiles. The two reference libraries support search,
+filters, original diagrams, report-page links and navigation between related
+records. Supplier files stay in a local bundle, separate from the public source
+and application ZIP. To install an inspected bundle, run
+`python scripts/install_reference_library.py <reviewed-bundle-directory>`;
+an existing installation requires `--replace` and is retained as a backup.
+See [local reference libraries](docs/REFERENCE_LIBRARIES.md) for the data contract.
+
 1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
 3. Review the live total, **Material Breakdown** and **Labour Breakdown**. The labour table shows task, masking, extra-labour and mobilisation days leading to total project days, without a separate task-labour subtotal row. Pinning is included in meshing days. Use the main **NOTES** field for general notes. The separate historical Notes field is hidden; its stored text is retained.
 4. Click **Save As** to choose a folder and filename for the estimate, its complete pricing library and all three calculators. **Save** updates the currently opened or saved project file without another file dialog. If no project file is open, use **Save As** first. Reopen a file through **Saved projects** or the native **Load Project** dialog; use **Use current pricing** when you want to replace its original prices with the last saved shared library. A file changed or removed outside the app must be reopened or saved through **Save As** before it can be overwritten.
-5. In **Pricing library**, choose **Shared library** or **Current project pricing**. Each product has one row with an editable **Product/Service** label, supplier price, markup, uses and one yield. Existing selection keys and independent rate overrides remain intact; **Show rate overrides** reveals the rate editor when needed. Yield units are read-only and follow the calculation. Filter by **Used in Estimator** or search for an item or use; unused products and standalone rates remain available. **Save pricing** stores shared-library edits, while **Apply project pricing** updates only the active estimate. **Save / Save As** stores its project prices in the project file.
+5. In **Libraries → Pricing Library**, choose **Shared library** or **Current project pricing**. Each product has one row with an editable **Product/Service** label, supplier price, markup, uses and one yield. Existing selection keys and independent rate overrides remain intact; **Show rate overrides** reveals the rate editor when needed. Yield units are read-only and follow the calculation. Filter by **Used in Estimator** or search for an item or use; unused products and standalone rates remain available. **Save pricing** stores shared-library edits, while **Apply project pricing** updates only the active estimate. **Save / Save As** stores its project prices in the project file.
 6. Use **Download PDF** for a branded quote report named **CEASEFIRE-Estimate.pdf**. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. PDF download is the report action; the separate Print button has been removed.
 
 The Estimator groups inputs under **Project Details**, **Access & Travel**, **Teams/Crews**, **Masking/Cleaning**, **Material Requirements & Output**, **Global Adjustments** and **Additions**, with totals in **Quote Summary**. Sqm/Items is in Project Details. The generated quote name remains in the current-project display and saved data; its duplicate field is hidden. **New project** and **Edit Project** sit together in the shared project toolbar, available from every page.

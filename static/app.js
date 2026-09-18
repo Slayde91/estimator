@@ -539,7 +539,7 @@
     $("firestopping-project-workspace").hidden = libraryEditor;
     $("firestopping-library-editor").hidden = !libraryEditor;
     $("estimator-penetration").setAttribute("aria-labelledby", libraryEditor ? "library-editor-heading" : "penetration-heading");
-    if (kind === "penetration" && !libraryEditor) window.CeasefirePenetrations?.open();
+    if (kind === "penetration" && !libraryEditor) return window.CeasefirePenetrations?.open();
   }
 
   function selectLibrary(kind, selection) {
@@ -564,10 +564,11 @@
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     if (view === "calculators") window.CeasefireCalculators?.open();
-    if (view === "estimate") selectEstimator(state.estimatorKind);
+    const estimatorReady = view === "estimate" ? selectEstimator(state.estimatorKind) : undefined;
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    return estimatorReady;
   }
 
   function getOverride(kind, id) { return state.draft[kind]?.[id] || {}; }
@@ -1465,6 +1466,9 @@
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   window.CeasefireLibraryNavigation = { open: selectLibrary };
+  window.CeasefirePenetrationNavigation = {
+    show() { state.estimatorKind = "penetration"; return showView("estimate"); },
+  };
   window.CeasefireLibraryEditorNavigation = {
     show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("estimate"); },
     returnToLibrary(id) { state.libraryKind = "penetration"; showView("pricing", id); },

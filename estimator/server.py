@@ -139,7 +139,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_reference_asset(route.rsplit('/', 1)[1], False)
                 elif route == '/api/penetration':
                     from .penetration_calculator import definition
-                    self.send_payload(200, definition(store.configuration()))
+                    self.send_payload(200, definition(store.configuration(), service_types=libraries.service_types()))
                 elif route == '/api/calculators':
                     from .workbook_calculators import calculator_list
                     self.send_payload(200, calculator_list())
@@ -176,7 +176,17 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             elif self.command in {"POST", "PUT"}:
                 body = self.read_json()
                 calculator_route = re.fullmatch(r'/api/calculators/([a-z_]+)/(calculate|worksheet|report\.pdf|summary\.pdf|register\.xlsx|state|template|import)', route)
-                if re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save)', route):
+                if route == '/api/libraries/penetration':
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.create(body))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/links', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.add_link(route.split('/')[-2], body))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save)', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
@@ -194,9 +204,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Include the Firestopping Estimator draft and pricing configuration only.')
                     config = validate_configuration(body.get('configuration', store.configuration()))
                     if action == 'definition':
-                        self.send_payload(200, definition(config))
+                        self.send_payload(200, definition(config, service_types=libraries.service_types()))
                     elif action == 'calculate':
-                        self.send_payload(200, calculate_penetration(body['draft'], config))
+                        result = calculate_penetration(body['draft'], config)
+                        result['definition'] = definition(config, service_types=libraries.service_types())
+                        self.send_payload(200, result)
                     else:
                         from .penetration_report import render_penetration_pdf, build_penetration_register
                         from .project_file import project_details

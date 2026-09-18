@@ -140,7 +140,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
                 self.assertIn('Firestopping estimate', text)
                 self.assertIn('Literal text', text)
                 self.assertIn('Items/Services', text)
-                self.assertIn('System/Install', text)
+                self.assertIn('System/Install Details', text)
             else:
                 workbook = load_workbook(BytesIO(content))
                 totals = {row[0].value: row[1].value for row in workbook['Summary'] if row[0].value is not None}
@@ -151,7 +151,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
                 self.assertTrue(any(cell.value == draft['rows'][0]['inputs']['T']
                                     for row in workbook['Inputs'] for cell in row))
                 input_labels = {row[1].value for row in workbook['Inputs']}
-                self.assertTrue({'Items/Services', 'System/Install'} <= input_labels)
+                self.assertTrue({'Items/Services', 'System/Install Details'} <= input_labels)
                 self.assertFalse(any(cell.data_type in {'f', 'e'} or cell.hyperlink
                                      for sheet in workbook for row in sheet for cell in row))
         fresh = json.loads(self.request('GET', '/api/penetration')[2])

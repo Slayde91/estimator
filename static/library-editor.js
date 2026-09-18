@@ -9,7 +9,7 @@
   const numeric = value => typeof value === "number" && Number.isFinite(value);
   const shiftDecimal = (value, places) => { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); };
   const keyFor = (global, column) => `${global ? "global" : "row"}:${column}`;
-  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : field.label === "System" ? "System/Install" : field.label;
+  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))];
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
@@ -92,7 +92,7 @@
     const globals = node("div", "library-editor-fields"); globals.append(...state.definition.global_fields.map(field => makeControl(field, true))); $("library-editor-globals").replaceChildren(globals);
   }
   function renderOutputs() {
-    const price = state.result?.summary?.grand_total ?? (!hasUnsavedChanges() ? state.record.price?.amount ?? state.record.source_price?.amount : null);
+    const price = state.result?.rows?.[0]?.outputs?.H ?? (!hasUnsavedChanges() ? state.record.price?.amount ?? state.record.source_price?.amount : null);
     $("library-editor-price").textContent = display(price, "currency");
     $("library-editor-pricing-basis").textContent = state.record.pricing_label || "Workbook prices";
     const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Labour hours" };

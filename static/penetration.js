@@ -3,7 +3,8 @@
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const state = { definition: null, draft: null, saved: null, selected: null, group: null, result: null,
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
-    loading: false, calculating: false, downloading: false, page: 0, pendingFields: false };
+    loading: false, calculating: false, downloading: false, page: 0, pendingFields: false,
+    creatingLibrary: false, addingLibrary: false, libraryCapture: null };
   const definitions = new Map(), pageSize = 50;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currency = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -11,7 +12,7 @@
   const configuration = () => clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
   const configStamp = () => JSON.stringify(configuration());
   const keyFor = (rowId, column) => JSON.stringify([rowId, column]);
-  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : field.label === "System" ? "System/Install" : field.label;
+  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
   const rowById = id => state.draft?.rows.find(row => row.id === id);
   const selected = () => rowById(state.selected);
   function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -22,7 +23,7 @@
     return format === "currency" ? currency.format(value) : format === "percent" ? `${number.format(shiftDecimal(value, 2))}%` : number.format(value);
   }
   async function request(path, payload) {
-    const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const response = await fetch(path, payload === undefined ? { headers: { Accept: "application/json" } } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`); return data;
   }
   function message(text = "", error = false) { const el = $("penetration-message"); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
@@ -33,6 +34,7 @@
     for (const id of ["penetration-recalculate", "penetration-pdf", "penetration-excel"]) $(id).disabled = blocked || state.downloading;
     $("penetration-add").disabled = blocked || state.draft.rows.length >= (state.definition.capacity || 1000);
     $("penetration-undo").disabled = blocked || !state.removed.length;
+    $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
     for (const button of $("penetration-schedule-body").querySelectorAll("[data-penetration-remove]")) button.disabled = blocked;
     window.CeasefireProject?.changed?.();
   }
@@ -191,7 +193,79 @@
     state.page = Math.floor(state.draft.rows.findIndex(row => row.id === id) / pageSize);
     renderSchedule(); renderFields(); renderBreakdown();
   }
-  function newRow() { let index = 1; while (rowById(`line-${index}`)) index++; return { id: `line-${index}`, inputs: {} }; }
+  function newRow() {
+    let index = 1; while (rowById(`line-${index}`)) index++;
+    const inputs = Object.fromEntries(state.definition.row_fields.filter(field => field.default !== null && field.default !== undefined).map(field => [field.column, clone(field.default)]));
+    return { id: `line-${index}`, inputs };
+  }
+  function libraryDraft(row) {
+    const normalized = values => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
+    return { globals: normalized({ ...state.definition.defaults.globals, ...clone(state.draft.globals) }),
+      rows: row ? [{ id: row.id, inputs: normalized(clone(row.inputs)) }] : [] };
+  }
+  function librarySignature(context, payload) {
+    const ordered = value => Array.isArray(value) ? value.map(ordered) : value && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+    return JSON.stringify(ordered({ context, ...payload }));
+  }
+  async function addToLibrary() {
+    document.activeElement?.blur?.();
+    if (!state.draft || state.invalid.size || state.creatingLibrary) return;
+    const context = state.context, row = selected();
+    const payload = { draft: libraryDraft(row), configuration: configuration() };
+    const signature = librarySignature(context, payload);
+    // Reuse the key after an uncertain response or a second click on this capture.
+    if (state.libraryCapture?.signature !== signature) state.libraryCapture = { signature, key: globalThis.crypto.randomUUID() };
+    payload.idempotency_key = state.libraryCapture.key;
+    state.creatingLibrary = true; status();
+    try {
+      const record = await request("/api/libraries/penetration", payload);
+      if (!record.id || !record.library_id || !record.draft || !record.price) throw new Error("The library did not confirm the saved item. Retry to check the same capture.");
+      window.CeasefireLibraries?.invalidate?.(); definitions.clear();
+      if (context === state.context) {
+        const later = signature !== librarySignature(context, { draft: libraryDraft(rowById(row.id)), configuration: configuration() });
+        message(`${record.library_id} ${record.created === false ? "is already in" : "was added to"} the Firestopping Library at ${display(record.price.amount, "currency")}.${later ? " It contains the inputs captured when you clicked Add to Library; later edits are not included." : ""}`);
+      }
+    } catch (error) { if (context === state.context) message(`Add to Library was not confirmed. ${error.message}`, true); }
+    finally { state.creatingLibrary = false; status(); }
+  }
+  async function addLibraryItem(id) {
+    if (state.addingLibrary) throw new Error("A library item is already being added to the schedule.");
+    if (window.CeasefireLibraryEditor?.isOpen()) throw new Error("Save or cancel the open library edit before adding an item to the schedule.");
+    document.activeElement?.blur?.();
+    const context = state.context;
+    state.addingLibrary = true;
+    try {
+      if (!state.draft) {
+        const prepared = await prepareDefaults();
+        if (context !== state.context) throw new Error("The project changed. Add the library item again when ready.");
+        if (window.CeasefireLibraryEditor?.isOpen()) throw new Error("Save or cancel the open library edit before adding an item to the schedule.");
+        applyProject(prepared);
+      }
+      const targetContext = state.context;
+      if (state.invalid.size) throw new Error(inputProblem());
+      const record = await request(`/api/libraries/penetration/${encodeURIComponent(id)}/edit`);
+      if (targetContext !== state.context) throw new Error("The project changed while opening the library item. Nothing was added.");
+      if (window.CeasefireLibraryEditor?.isOpen()) throw new Error("Save or cancel the open library edit before adding an item to the schedule.");
+      if (state.invalid.size) throw new Error(inputProblem());
+      checkDraft(record.draft, state.definition);
+      if (record.draft.rows.length !== 1 || record.definition?.source_sha256 !== state.definition.source_sha256) throw new Error("This library item does not match the current Firestopping Estimator calculation source.");
+      const empty = state.draft.rows.length === 1 && Object.entries(state.draft.rows[0].inputs).every(([column, value]) => value === null || value === "" || (["Q", "R"].includes(column) && value === "Standard"));
+      if (!empty && state.draft.rows.length >= state.definition.capacity) throw new Error("The current schedule is full. Remove a row before adding another item.");
+      const row = newRow(); row.inputs = clone(record.draft.rows[0].inputs);
+      if (empty) state.draft.rows = [row]; else state.draft.rows.push(row);
+      state.removed = []; changed(row.id); selectRow(row.id); clearTimeout(state.timer);
+      const addedRevision = state.revision;
+      if (window.CeasefirePenetrationNavigation?.show) await window.CeasefirePenetrationNavigation.show(); else await calculate();
+      if (targetContext === state.context && rowById(row.id)) {
+        const output = state.result?.rows?.find(item => item.id === row.id);
+        const total = output?.outputs?.H;
+        const priceText = numeric(total) && !output?.errors?.length ? `Recalculated item price: ${display(total, "currency")}.` : "Review the calculation before using its price.";
+        message(`${record.library_id} added using the current schedule prices and project allowances. ${priceText}${state.revision !== addedRevision ? " The schedule also contains your later edits." : ""}`);
+      }
+      return { added: true, id: row.id };
+    } finally { state.addingLibrary = false; }
+  }
   function addRow() {
     if (!state.draft || state.invalid.size || state.draft.rows.length >= state.definition.capacity) return;
     const row = newRow(); state.draft.rows.push(row); state.removed = []; changed(row.id); selectRow(row.id); calculate();
@@ -321,7 +395,8 @@
     finally { state.downloading = false; status(); }
   }
   $("penetration-add").addEventListener("click", addRow); $("penetration-undo").addEventListener("click", undoRemove);
+  $("penetration-add-to-library").addEventListener("click", addToLibrary);
   $("penetration-recalculate").addEventListener("click", calculate);
   $("penetration-pdf").addEventListener("click", () => download("pdf")); $("penetration-excel").addEventListener("click", () => download("xlsx"));
-  window.CeasefirePenetrations = { open, projectSnapshot, projectFingerprint, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem };
+  window.CeasefirePenetrations = { open, projectSnapshot, projectFingerprint, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem };
 })();

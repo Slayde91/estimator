@@ -20,6 +20,20 @@ from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
 
 CAPACITY = 1000
 GLOBAL_DEFAULTS = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
+ROW_DEFAULTS = {'Q': 'Standard', 'R': 'Standard'}
+# Descriptive choices only: these do not select products or alter workbook rules.
+SERVICE_TYPES = (
+    'Access Panel', 'Blank Seal', 'Cable Bundles', 'Coaxial Cables', 'Conduit',
+    'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
+    'Downlight Box', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables',
+    'Junction Box', 'Lagged Pipes', 'Mixed Service Bundle', 'Mixed Services',
+    'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils', 'Plastic Pipes',
+    'Power Cable Bundles', 'Power Cables', 'Single Cables',
+    'TPS & Fire Alarm Cable Bundles', 'Unlagged Pipes', 'Cable Trays',
+    'Busbar Trunking', 'Fire Dampers', 'Flexible Ducts', 'Linear Joints',
+    'Movement Joints',
+)
+MANUFACTURERS = ('Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix')
 GROUP_COLUMNS = {
     'Penetration': 'J K L M N O P Q R T U V'.split(),
     'Products and labour': 'W X Y Z AA AB AC'.split(),
@@ -88,17 +102,21 @@ def _named_options(name):
             if cells.get(match[1] + str(r), {}).get('value') is not None]
 
 
-def definition(configuration=None):
+def definition(configuration=None, service_types=None):
     _, selections = inventory_lists(configuration)
     calc = _sheet('CALC')['cells']
     fields = []
+    descriptions = {
+        'K': sorted(set(SERVICE_TYPES) | set(service_types or ()), key=str.casefold),
+        'V': list(MANUFACTURERS),
+    }
     for group, columns in GROUP_COLUMNS.items():
         for col in columns:
-            options = selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else []
-            label = {'T': 'Items/Services', 'U': 'System/Install'}.get(col, calc[col + '3']['value'])
+            options = selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, [])
+            label = {'T': 'Items/Services', 'U': 'System/Install Details'}.get(col, calc[col + '3']['value'])
             fields.append({'column': col, 'address': col + '4', 'label': label,
-                'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES else 'text' if col in TEXT_COLUMNS else 'number',
-                'options': options, 'group': group, 'default': None,
+                'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES or col in descriptions else 'text' if col in TEXT_COLUMNS else 'number',
+                'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
                 'format': 'percent' if col in PERCENT_COLUMNS else 'currency' if col in ('AI', 'AJ') else 'text' if col in TEXT_COLUMNS else 'number',
                 'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hours' if col == 'AH' else ''})
     global_fields = [{'column': col, 'address': col + '2', 'label': calc[col + '1']['value'],
@@ -115,7 +133,7 @@ def definition(configuration=None):
             'group': group, 'format': 'percent' if col in OUTPUT_PERCENT_COLUMNS else 'currency' if group in ('Summary', 'Unit prices', 'Material costs') else 'number',
             'units': '%' if col in OUTPUT_PERCENT_COLUMNS else 'hours' if group == 'Labour hours' else ''})
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
-        'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': {}}]},
+        'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS)}
 
 

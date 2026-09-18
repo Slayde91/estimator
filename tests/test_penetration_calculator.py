@@ -148,7 +148,24 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(result['errors'], [])
         self.assertEqual(result['summary']['grand_total'], '')
         self.assertEqual(result['summary']['labour_hours'], 0)
-        self.assertEqual(result['draft'], definition()['defaults'])
+        self.assertEqual(result['draft'], normalize_draft(None))
+
+    def test_new_row_defaults_and_descriptive_choices_preserve_existing_inputs(self):
+        spec = definition(service_types=['Saved custom service'])
+        fields = {field['column']: field for field in spec['row_fields']}
+        self.assertEqual(spec['defaults']['rows'][0]['inputs'], {'Q': 'Standard', 'R': 'Standard'})
+        self.assertEqual((fields['Q']['default'], fields['R']['default']), ('Standard', 'Standard'))
+        self.assertEqual(fields['K']['type'], 'select')
+        self.assertIn('Saved custom service', fields['K']['options'])
+        self.assertIn('Cable Trays', fields['K']['options'])
+        self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
+        self.assertEqual(fields['U']['label'], 'System/Install Details')
+        existing = {'globals': {}, 'rows': [{'id': 'old', 'inputs': {'Q': None, 'R': 'Easy', 'V': 'FIREFLY', 'K': 'Legacy text'}}]}
+        self.assertEqual(normalize_draft(existing)['rows'], existing['rows'])
+        original = source_example()
+        renamed = deepcopy(original)
+        renamed['rows'][0]['inputs'].update(K='Cable Trays', V='Firefly')
+        self.assertEqual(calculate(original)['summary'], calculate(renamed)['summary'])
 
     def test_percentage_outputs_display_source_fractions_as_percentages(self):
         spec = definition()

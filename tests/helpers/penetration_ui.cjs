@@ -14,7 +14,7 @@ function result(draft,metadata=definition()) {
     rows:draft.rows.map(row=>({id:row.id,inputs:copy(row.inputs),outputs:{H:123.456789,BQ:0,DI:'#VALUE!'},errors:[]}))};
 }
 function install(context) {
-  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
+  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,addToLibrary,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
   vm.runInContext(source,context);
   const audit=context.penAudit,calls=[];
   audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return path.endsWith('/definition')?definition():result(payload.draft);});

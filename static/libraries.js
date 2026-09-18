@@ -11,6 +11,8 @@
   const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review"]);
   const hiddenTechnicalFields = new Set(["source table notes", "source option alignment"]);
   const visibleField = (kind, field) => { const label = String(field.label || "").trim().toLowerCase(); return !hiddenFields.has(label) && !(kind === "technical" && hiddenTechnicalFields.has(label)); };
+  const fieldLabel = (kind, label) => kind !== "penetration" ? label : label === "Item(s)" ? "Items/Services" : label === "System" ? "System/Install" : label;
+  const diagramCaption = (kind, caption) => (kind === "penetration" ? String(caption || "").replace(/(?:^|\s+|\s*[·|—–-]\s*)(?:'?CALC'?!\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?|CALC\s+row\s+\d+)\s*$/i, "").trim() : caption) || "Source diagram";
   const validId = value => typeof value === "string" && value.length > 0;
   const validAssetId = value => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
   const integer = (value, fallback = 0) => Number.isSafeInteger(value) && value >= 0 ? value : fallback;
@@ -114,7 +116,7 @@
       if (item.subtitle) card.append(node("p", "library-subtitle", item.subtitle));
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", valueText(item.summary)));
-      if (item.source_label) card.append(node("p", "helper", item.source_label));
+      if (pane.kind !== "penetration" && item.source_label) card.append(node("p", "helper", item.source_label));
       if (Number.isSafeInteger(item.related_count)) card.append(node("p", "helper", `${item.related_count} related ${pane.kind === "penetration" ? "technical references" : "firestopping records"}`));
       if (pane.kind === "penetration" && item.editable) { const edit = button("Edit Library Item", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; card.append(edit); }
       return card;
@@ -172,23 +174,18 @@
   }
   function sourceNode(source) {
     const box = node("article", "library-source"), heading = source.label || source.filename || "Source reference";
-    box.append(node("h4", "", heading));
-    const fields = [["File", source.filename], ["Revision", source.revision], ["Sheet", source.sheet], ["Row", source.row], ["Page", source.page]].filter(([,value]) => value !== undefined && value !== null && value !== "");
-    const dl = node("dl", "library-source-fields");
-    for (const [label, value] of fields) { const line = node("div"); line.append(node("dt", "", label), node("dd", "", valueText(value))); dl.append(line); }
-    box.append(dl);
     if (validAssetId(source.document_id)) {
       const page = Number.isSafeInteger(source.page) && source.page > 0 ? source.page : null;
-      const link = node("a", "button secondary", page ? `Open PDF at page ${page}` : "Open source PDF");
+      const link = node("a", "library-record-link", heading);
       link.href = `/api/libraries/documents/${encodeURIComponent(source.document_id)}.pdf${page ? `#page=${page}` : ""}`;
       link.target = "_blank"; link.rel = "noopener noreferrer";
-      link.setAttribute("aria-label", `${page ? `Open page ${page} of` : "Open"} ${source.filename || heading} (new tab)`); box.append(link);
-    }
+      link.setAttribute("aria-label", `${heading} — ${page ? `open PDF page ${page}` : "open PDF"} (new tab)`); box.append(link);
+    } else box.append(node("span", "", heading));
     return box;
   }
-  function imageNode(item) {
+  function imageNode(item, kind) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
-    const caption = item.caption || "Source diagram";
+    const caption = diagramCaption(kind, item.caption);
     link.href = `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
     link.setAttribute("aria-label", `Open ${caption} at full size (new tab)`);
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
@@ -229,8 +226,8 @@
       const table = field.table && Array.isArray(field.table.columns) && Array.isArray(field.table.rows);
       if (!images.length && !table || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
       if (table) { pair.className += " library-record-field-table"; value.append(fieldTable(field)); }
-      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(imageNode)); value.append(gallery); }
-      pair.append(node("dt", "", field.label || "Field"), value); fields.append(pair);
+      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind))); value.append(gallery); }
+      pair.append(node("dt", "", fieldLabel(pane.kind, field.label) || "Field"), value); fields.append(pair);
     }
     const related = node("section", "library-detail-section"), links = data.links || [];
     related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
@@ -250,7 +247,7 @@
     }
     content.push(fields);
     const images = (data.images || []).filter(item => validAssetId(item.id));
-    if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(imageNode)); content.push(gallery); }
+    if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
     // Item qualifications belong in the card that receives navigation focus;
     // keep only the general library notices above that card.
     pane.detailPanel.replaceChildren(...content); updateNotice(pane, {});

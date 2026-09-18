@@ -122,6 +122,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(payload)['capacity'], 1000)
         draft = self.draft()
+        draft['rows'][0]['inputs']['U'] = 'Install the selected protection.'
         request = {'draft': draft, 'configuration': {}}
         status, _, payload = self.request('POST', '/api/penetration/calculate', request)
         self.assertEqual(status, 200)
@@ -138,6 +139,8 @@ class PenetrationIntegrationTests(unittest.TestCase):
                 self.assertIn('TEST-PEN', text)
                 self.assertIn('Firestopping estimate', text)
                 self.assertIn('Literal text', text)
+                self.assertIn('Items/Services', text)
+                self.assertIn('System/Install', text)
             else:
                 workbook = load_workbook(BytesIO(content))
                 totals = {row[0].value: row[1].value for row in workbook['Summary'] if row[0].value is not None}
@@ -147,6 +150,8 @@ class PenetrationIntegrationTests(unittest.TestCase):
                         self.assertEqual(row[1].number_format, '0.00%')
                 self.assertTrue(any(cell.value == draft['rows'][0]['inputs']['T']
                                     for row in workbook['Inputs'] for cell in row))
+                input_labels = {row[1].value for row in workbook['Inputs']}
+                self.assertTrue({'Items/Services', 'System/Install'} <= input_labels)
                 self.assertFalse(any(cell.data_type in {'f', 'e'} or cell.hyperlink
                                      for sheet in workbook for row in sheet for cell in row))
         fresh = json.loads(self.request('GET', '/api/penetration')[2])

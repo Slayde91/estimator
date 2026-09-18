@@ -58,10 +58,27 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('technical','technical-1');const pane=h.pane('technical'),nodes=walk(pane.detailPanel);
     assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.match(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
     const pdf=nodes.find(node=>node.tagName==='a'&&node.href.includes('documents/'));assert.equal(pdf.href,'/api/libraries/documents/synthetic-document.pdf#page=12');assert.match(pdf.getAttribute('aria-label'),/page 12.*new tab/);assert.equal(pdf.rel,'noopener noreferrer');
+    const sourceCard=nodes.find(node=>node.className==='library-source');assert.deepEqual(sourceCard.children,[pdf]);assert.equal(pdf.textContent,'Synthetic source reference');assert.ok(pdf.getAttribute('aria-label').includes(pdf.textContent));assert.equal(walk(sourceCard).filter(node=>['dl','dt','dd','button'].includes(node.tagName)).length,0);assert.doesNotMatch(text(sourceCard),/Open PDF|synthetic\.pdf|Synthetic sheet/);
     const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
     assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.match(pane.notice.textContent,/Synthetic local reference library/);
+  });
+  await check('Firestopping labels and diagrams omit workbook locations while retaining technical captions and source data',async h=>{
+    const source={...detail('penetration','source'),fields:[{label:'Item(s)',value:'Two insulated pipes'},{label:'System',value:'Install both face seals'},{label:'Service Size or Diameter',value:'Not stated'}],images:[
+      {id:'diagram-1',caption:'Source diagram · CALC!S6'},
+      {id:'diagram-2',caption:'Pair coil seal — CALC!$S$53'},
+      {id:'diagram-3',caption:'Alternative view · CALC row 53'},
+      {id:'diagram-4',caption:'Rated assembly H2 — 120 minutes'}
+    ]},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'source',title:'FL-ID-001',source_label:'CALC row 53'}]}):source);
+    await h.api.open('penetration');assert.doesNotMatch(text(h.pane('penetration').results),/CALC row 53/);
+    await h.api.open('penetration','source');const panel=h.pane('penetration').detailPanel,nodes=walk(panel);
+    assert.deepEqual(nodes.filter(node=>node.tagName==='dt').map(node=>node.textContent),['Items/Services','System/Install','Service Size or Diameter']);
+    assert.match(text(panel),/Two insulated pipes.*Install both face seals.*Not stated/);assert.doesNotMatch(text(panel),/CALC|Item\(s\)/);
+    const captions=['Source diagram','Pair coil seal','Alternative view','Rated assembly H2 — 120 minutes'];assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>node.textContent),captions);assert.deepEqual(nodes.filter(node=>node.tagName==='img').map(node=>node.alt),captions);
+    assert.ok(nodes.filter(node=>node.tagName==='a'&&node.href.includes('/images/')).every((link,index)=>link.getAttribute('aria-label')===`Open ${captions[index]} at full size (new tab)`));
+    await h.api.open('technical','source');assert.deepEqual(walk(h.pane('technical').detailPanel).filter(node=>node.tagName==='figcaption').map(node=>node.textContent),source.images.map(image=>image.caption));assert.deepEqual(source,before);
   });
   await check('Untrusted asset IDs never become fetchable links; unavailable relationship text remains visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));

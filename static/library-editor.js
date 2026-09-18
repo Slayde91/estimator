@@ -9,6 +9,7 @@
   const numeric = value => typeof value === "number" && Number.isFinite(value);
   const shiftDecimal = (value, places) => { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); };
   const keyFor = (global, column) => `${global ? "global" : "row"}:${column}`;
+  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : field.label === "System" ? "System/Install" : field.label;
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))];
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
@@ -43,7 +44,7 @@
   function makeControl(field, global) {
     const session = state.session, key = keyFor(global, field.column), raw = values(global)[field.column] ?? null;
     const long = field.type === "text" && ["T", "U"].includes(field.column);
-    const wrapper = node("label", `field${long ? " library-editor-long-text" : ""}`), label = field.label + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
+    const wrapper = node("label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); control.setAttribute("aria-label", `${global ? "Item allowance" : "Library item"}: ${label}`);
     if (field.type === "select") {
@@ -101,7 +102,7 @@
     const row = state.result?.rows?.[0], breakdown = $("library-editor-breakdown");
     if (!row) { breakdown.replaceChildren(node("p", "helper", "Recalculate to see this item's output.")); return; }
     const groups = new Map(); for (const field of state.definition.output_fields) { if (!groups.has(field.group)) groups.set(field.group, []); groups.get(field.group).push(field); }
-    breakdown.replaceChildren(...[...groups].map(([group, fields]) => { const section = node("details", "penetration-output-group"), list = node("dl", "cost-list"); section.open = group === "Summary"; section.append(node("summary", "", group)); for (const field of fields) { const line = node("div"); line.append(node("dt", "", field.label + (field.units ? ` (${field.units})` : "")), node("dd", "", display(row.outputs[field.column], field.format))); list.append(line); } section.append(list); return section; }));
+    breakdown.replaceChildren(...[...groups].map(([group, fields]) => { const section = node("details", "penetration-output-group"), list = node("dl", "cost-list"); section.open = group === "Summary"; section.append(node("summary", "", group)); for (const field of fields) { const line = node("div"); line.append(node("dt", "", fieldLabel(field) + (field.units ? ` (${field.units})` : "")), node("dd", "", display(row.outputs[field.column], field.format))); list.append(line); } section.append(list); return section; }));
   }
   function present(record, handlers = {}) {
     if (!record?.draft || !record.definition || record.draft.rows?.length !== 1) throw new Error("The library item does not contain one editable source row.");

@@ -15,6 +15,19 @@ but are not displayed in Firestopping Library entries. The library item editor
 continues to distinguish original workbook rates from explicitly refreshed
 Pricing Library rates; changing the displayed price label does not change them.
 
+**Items/Services** and **System/Install** use the same labels in the library,
+Firestopping Estimator, and its detailed exports. Workbook row/cell locations
+are not shown on library result cards or diagram captions.
+
+Every Firestopping entry includes **Service Size or Diameter**, derived from
+its effective calculator inputs. Diameter and cable-tray width/depth inputs
+take precedence. A diameter used for a bundle or a conflicting description is
+identified as the calculation diameter rather than asserted to be a pipe's
+outside diameter. Descriptive sizes retain component quantities and ranges.
+Aperture, seal, wrap, board and bulkhead dimensions are not service dimensions.
+When no service size is given, the field says so. Saving an item refreshes this
+field without changing its calculation rules or prices.
+
 Technical records contain active entries from the supplied reports' main
 tables, identified by report revision, source ID and exact PDF page. Reserved or
 blank entries, standalone drawings, contents pages and report-level entries are
@@ -32,6 +45,8 @@ introduction pages and notes applying to a range of IDs must not be presented as
 if they contain the individual entry. Review each citation against the exact
 source ID and table geometry, including suffixes, merged cells and page breaks;
 an ID occurring elsewhere in page text is not sufficient evidence.
+Each citation is a single hyperlink to that PDF page; duplicate filename/page
+fields and a separate open button are omitted.
 
 The complete original PDFs open locally, including source notes, drawings and
 conditions outside the indexed main tables. The entry UI omits extraction

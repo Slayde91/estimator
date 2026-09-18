@@ -15,6 +15,7 @@ import re
 from .catalog import ValidationError, configuration_catalog, validate_configuration
 from .penetration_calculator import calculate, normalize_draft, source_model
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
+from .service_dimensions import FIELD_LABEL, service_size_field
 
 
 class LibraryConflict(ValidationError):
@@ -115,6 +116,8 @@ class FirestoppingLibrary(ReferenceLibrary):
             item['fields'] = [field for field in item.get('fields', []) if field['label'] not in ('PKB Entry ID', 'Firestopping Library ID')]
             item['fields'].insert(0, {'label': 'Firestopping Library ID', 'value': alias})
             item['editable'] = bool(item.get('estimate') and data.get('firestopping'))
+            draft_rows = item.get('estimate', {}).get('draft', {}).get('rows', [])
+            self._service_size(item, draft_rows[0].get('inputs', {}) if draft_rows else {})
             edit = saved.get(item['id'])
             if edit:
                 if edit['source_sha256'] != self._source_hash(base):
@@ -129,6 +132,12 @@ class FirestoppingLibrary(ReferenceLibrary):
                     link['notice'] = 'The library item has saved edits. This reference describes its original workbook entry.'
         self._effective_stamp, self._effective = stamp, data
         return data
+
+    @staticmethod
+    def _service_size(item, inputs):
+        item['fields'] = [field for field in item['fields'] if field['label'] != FIELD_LABEL]
+        position = next((i+1 for i, field in enumerate(item['fields']) if field.get('column') == 'K'), 1)
+        item['fields'].insert(position, service_size_field(inputs))
 
     @staticmethod
     def _apply_edit(item, edit):
@@ -146,6 +155,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         item['price'] = price(edit['amount'], 'Saved item price')
         item['fields'].insert(1, {'label': 'Saved library edit', 'value': edit['updated_at']})
         item['notice'] = 'This item has saved edits. Technical references and source diagrams describe the original workbook item.'
+        FirestoppingLibrary._service_size(item, inputs)
         for key, col in {'manufacturer': 'V', 'service_type': 'K', 'penetration_type': 'L', 'orientation': 'M', 'frl': 'N', 'substrate': 'P'}.items():
             if key in item.get('filter_values', {}):
                 item['filter_values'][key] = [str(inputs[col])] if inputs.get(col) else []

@@ -38,8 +38,9 @@
 .library-image a{display:block}
 .library-image img{display:block;max-width:100%;max-height:520px;height:auto;object-fit:contain;margin:auto}
 .library-image figcaption{margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}
-.library-browser{scroll-margin-top:120px}
+.library-browser,.library-detail{scroll-margin-top:120px}
 @media(max-width:900px){.library-results{grid-template-columns:1fr}}
 @media(max-width:760px){.library-choices{grid-template-columns:1fr;gap:10px}.library-choice{min-height:0;padding:15px 18px}}
 @media(max-width:580px){.library-record-fields,.library-images{grid-template-columns:1fr}.library-controls{flex-wrap:wrap}.library-search{flex-basis:100%}.library-filters>.field{max-width:none;width:100%}.library-detail>h3{font-size:20px}.library-source-fields>div{grid-template-columns:1fr;gap:2px}}
+@media(max-width:570px){.library-browser,.library-detail{scroll-margin-top:180px}}
 @media print{.library-choices{display:none!important}}

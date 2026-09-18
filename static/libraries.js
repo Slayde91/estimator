@@ -211,7 +211,7 @@
     if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(imageNode)); content.push(gallery); }
     pane.detailPanel.replaceChildren(...content); updateNotice(pane, data);
     if (state.current === pane.kind && $("library-" + pane.kind)?.hidden === false && $("view-pricing")?.hidden === false) {
-      heading.focus(); heading.scrollIntoView?.({ block: "start" });
+      heading.focus({ preventScroll: true }); pane.detailPanel.scrollIntoView?.({ block: "start" });
     }
   }
   async function loadDetail(pane, id) {

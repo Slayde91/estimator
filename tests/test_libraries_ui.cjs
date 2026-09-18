@@ -18,7 +18,7 @@ function harness(){
     return{tagName,children:[],dataset:{},listeners:{},textContent:'',value:'',hidden:false,disabled:false,
       append(...children){this.children.push(...children);},replaceChildren(...children){this.children=[];this.append(...children);},
       addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name){for(const fn of this.listeners[name]||[])await fn({target:this});},
-      setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(){this.focused=true;},scrollIntoView(){this.scrolled=true;}};
+      setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(options){this.focused=true;this.focusOptions=options;},scrollIntoView(){this.scrolled=true;}};
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   let route=path=>{if(path==='/api/libraries')return meta();const [, , ,kind,id]=path.split('/');return id?detail(kind,decodeURIComponent(id)):records(kind.split('?')[0]);};
@@ -60,6 +60,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const pdf=nodes.find(node=>node.tagName==='a'&&node.href.includes('documents/'));assert.equal(pdf.href,'/api/libraries/documents/synthetic-document.pdf#page=12');assert.match(pdf.getAttribute('aria-label'),/page 12.*new tab/);assert.equal(pdf.rel,'noopener noreferrer');
     const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
     assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.match(text(pane.detailPanel),/synthetic-hash/);assert.match(text(pane.detailPanel),/Related technical references/);
+    const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
   });
   await check('Untrusted asset IDs never become fetchable links; unavailable relationship text remains visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));

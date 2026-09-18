@@ -55,12 +55,20 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         self.stop_server()
         self.start_server()
 
-    def request(self, method, path, body=None, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+    def request(self, method, path, body=None, headers=None, *, headers_only=False):
+        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port,
+                                               timeout=5 if headers_only else 30)
         try:
-            connection.request(method, path,
-                               body=json.dumps(body) if body is not None else None,
-                               headers={'Content-Type': 'application/json', **(headers or {})})
+            payload = json.dumps(body).encode('utf-8') if body is not None else None
+            request_headers = {'Content-Type': 'application/json', **(headers or {})}
+            if headers_only:
+                # Advertise the valid payload, but require the guard's response
+                # before sending it. A guard that starts reading the body fails
+                # with a bounded timeout rather than racing an early close.
+                self.assertIsNotNone(payload)
+                request_headers['Content-Length'] = str(len(payload))
+            connection.request(method, path, body=None if headers_only else payload,
+                               headers=request_headers)
             response = connection.getresponse()
             return response.status, json.loads(response.read())
         finally:
@@ -234,17 +242,15 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
     def test_new_mutation_routes_enforce_method_and_same_origin(self):
         before = self.protected()
         body = self.creation()
-        # An empty configuration is valid and selects the default catalog. Keep
-        # these guard probes compact: Host/Origin reject before reading a body,
-        # so uploading a full catalog can race the server's early connection close.
-        body['configuration'] = {}
         routes = [('/api/libraries/penetration', body),
                   ('/api/libraries/penetration/pkb-002/links', {'technical_id': 'report-a-v1'})]
         for path, payload in routes:
             with self.subTest(path=path):
                 self.assertEqual(self.request('PUT', path, payload)[0], 405)
-                self.assertEqual(self.request('POST', path, payload, {'Origin': 'https://example.com'})[0], 403)
-                self.assertEqual(self.request('POST', path, payload, {'Host': 'example.com'})[0], 403)
+                self.assertEqual(self.request('POST', path, payload, {'Origin': 'https://example.com'},
+                                              headers_only=True)[0], 403)
+                self.assertEqual(self.request('POST', path, payload, {'Host': 'example.com'},
+                                              headers_only=True)[0], 403)
         self.assertEqual(self.get('/api/libraries/penetration')['total'], 2)
         self.assertEqual(self.get('/api/libraries/penetration/pkb-002')['links'], [])
         self.assertEqual(self.protected(), before)

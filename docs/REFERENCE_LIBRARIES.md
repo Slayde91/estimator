@@ -182,6 +182,13 @@ exact source labels. Top-level `links` stores each penetration/technical pair
 once, with a human-readable `relationship` explaining its basis.
 Individual fields may include registered `images: [{id, caption}]`; related
 links may include a `notice` beside their relationship text.
+The detail page shows system fields and diagrams before related records and
+technical source links. Firestopping entries continue to omit source-information
+sections. Report-family audits distinguish an independent batt substrate from
+local batt infill explicitly included in a core-hole detail; a missing service
+reference is left unresolved when the current report cannot support the stored
+service. Related current details carry any material differences in their link
+text and do not silently revise the item's calculation or price.
 Fields with embedded source tables use
 `table: {columns: [string], rows: [[string]]}`. Rows preserve column pairing and
 source order. A nonempty `value` retains common text outside the nested table;

@@ -50,10 +50,29 @@ day and percentage inputs. The source image cell S4 already contains a cached
 ## Project and output behavior
 
 A new penetration schedule starts with one blank row. Input groups separate
-service details, products/labour, additions, circular service wrap, cable tray
-wrap, board and bulkhead dimensions. The selected item's calculated detail and
+Penetration, Products and labour, Additional Allowances, Pipes, Cabletrays,
+Substrate and Bulkhead. The selected item's calculated detail and
 the complete schedule totals are shown separately. Numeric inputs retain their
 full stored precision; percentages are shown and edited as percentages.
+
+Item QTY is editable in the schedule and mirrors the selected item's input.
+Invalid or incomplete numeric text remains visible and blocks calculation;
+asynchronous results do not interrupt typing or replace newer inputs. Project
+LAFHA, travel days and global percentages appear under Additional Allowances
+and retain their project-wide scope. The library editor applies its separate
+allowances only to that library item.
+
+The selected item and library editor share a seven-row cost table: Labour,
+Board, Collars, Mastic, Framing, Wrap and Other. Its five quantity values are
+the source product quantities BS/CB/CJ/CQ/CU multiplied by Item QTY. No rounding
+up is added. Task hours and costs include the existing global adjustments and
+quantity so the subtotals are exactly the original G/F/DK outputs. Setup/register
+hours come from the source named range; AI is allocated to Other materials and
+AJ to Labour costs. The canonical DK result controls the source hours gate.
+Blanks, zeros, negatives and calculation errors remain distinct. This is an
+additive display projection, not a replacement calculation. Raw outputs and
+export evidence remain complete. Summary and Multipliers remain available
+separately below the table.
 
 Save and Save As capture both estimates and the three existing calculators
 together. Project version 1 gains an optional `penetration` object containing

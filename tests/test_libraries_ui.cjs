@@ -60,6 +60,10 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const pdf=nodes.find(node=>node.tagName==='a'&&node.href.includes('documents/'));assert.equal(pdf.href,'/api/libraries/documents/synthetic-document.pdf#page=12');assert.match(pdf.getAttribute('aria-label'),/page 12.*new tab/);assert.equal(pdf.rel,'noopener noreferrer');
     const sourceCard=nodes.find(node=>node.className==='library-source');assert.deepEqual(sourceCard.children,[pdf]);assert.equal(pdf.textContent,'Synthetic source reference');assert.ok(pdf.getAttribute('aria-label').includes(pdf.textContent));assert.equal(walk(sourceCard).filter(node=>['dl','dt','dd','button'].includes(node.tagName)).length,0);assert.doesNotMatch(text(sourceCard),/Open PDF|synthetic\.pdf|Synthetic sheet/);
     const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
+    const children=pane.detailPanel.children,fields=children.find(node=>node.tagName==='dl'),gallery=children.find(node=>node.getAttribute('aria-label')==='Source diagrams');
+    const sections=children.filter(node=>node.className==='library-detail-section');
+    assert.ok(children.indexOf(fields)<children.indexOf(gallery));assert.ok(children.indexOf(gallery)<children.indexOf(sections[0]));
+    assert.match(text(sections[0]),/Related firestopping records/);assert.match(text(sections[1]),/Source information/);
     assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.doesNotMatch(text(pane.detailPanel),/Source fingerprint|synthetic-hash/);assert.match(text(pane.detailPanel),/Related firestopping records/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.match(pane.notice.textContent,/Synthetic local reference library/);
@@ -74,6 +78,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'source',title:'FL-ID-001',source_label:'CALC row 53'}]}):source);
     await h.api.open('penetration');assert.doesNotMatch(text(h.pane('penetration').results),/CALC row 53/);
     await h.api.open('penetration','source');const panel=h.pane('penetration').detailPanel,nodes=walk(panel);
+    assert.ok(panel.children.findIndex(node=>node.tagName==='dl')<panel.children.findIndex(node=>node.className==='library-detail-section'));
     assert.deepEqual(nodes.filter(node=>node.tagName==='dt').map(node=>node.textContent),['Items/Services','System/Install Details','Service Size or Diameter']);
     assert.match(text(panel),/Two insulated pipes.*Install both face seals.*Not stated/);assert.doesNotMatch(text(panel),/CALC|Item\(s\)/);
     const captions=['Source diagram','Pair coil seal','Alternative view','Rated assembly H2 — 120 minutes'];assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>node.textContent),captions);assert.deepEqual(nodes.filter(node=>node.tagName==='img').map(node=>node.alt),captions);

@@ -345,6 +345,9 @@
       if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind))); value.append(gallery); }
       pair.append(node("dt", "", fieldLabel(pane.kind, field.label) || "Field"), value); fields.append(pair);
     }
+    content.push(fields);
+    const images = (data.images || []).filter(item => validAssetId(item.id));
+    if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
     const related = node("section", "library-detail-section"), links = data.links || [];
     related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
     if (!links.length) related.append(node("p", "helper", "No related records are recorded."));
@@ -361,9 +364,6 @@
       const sources = node("section", "library-detail-section"); sources.append(node("h4", "", "Source information"));
       sources.append(...(data.sources?.length ? data.sources.map(sourceNode) : [node("p", "helper", "No source reference is recorded for this item.")])); content.push(sources);
     }
-    content.push(fields);
-    const images = (data.images || []).filter(item => validAssetId(item.id));
-    if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
     // Item qualifications belong in the card that receives navigation focus;
     // keep only the general library notices above that card.
     pane.detailPanel.replaceChildren(...content); updateNotice(pane, {});

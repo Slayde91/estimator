@@ -24,6 +24,16 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     const item=fixture();item.result.summary.grand_total=523.456789;
     h.api.present(item);assert.match(text(h.byId('library-editor-price')),/123\.46/);assert.doesNotMatch(text(h.byId('library-editor-price')),/523\.46/);assert.match(text(h.byId('library-editor-summary')),/523\.46/);
   });
+  await check('Item allowances share the Additional Allowances group and breakdown uses the source projection',async h=>{
+    await h.api.open('legacy-row-4');assert.equal(h.byId('library-editor-project-allowances').hidden,true);
+    h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('library-editor-project-allowances').hidden,false);
+    assert.equal(h.control('L',true).value,'0.00');
+    const nodes=walk(h.byId('library-editor-breakdown')),table=nodes.find(node=>node.tagName==='table');assert.ok(table);
+    assert.match(text(table),/Unit Prices.*Material Quantities.*Material Costs.*Labour Costs.*Task Hours/);
+    assert.match(text(table),/Pipes.*0.*#VALUE!/);assert.match(text(table),/Subtotal.*65\.43.*58\.02.*#VALUE!/);
+    assert.doesNotMatch(text(h.byId('library-editor-summary')),/Labour hours/);
+    h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.byId('library-editor-project-allowances').hidden,true);
+  });
   await check('Opening the library item leaves the full project state and raw invalid inputs intact',async h=>{
     const project=h.context.penAudit;project.state.draft.rows[0].inputs.T='Unsaved project';project.makeControl(definition().row_fields.find(f=>f.column==='O'),'line-1');
     const projectQuantity=h.byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField==='O');projectQuantity.value='1e-';await projectQuantity.emit('input');

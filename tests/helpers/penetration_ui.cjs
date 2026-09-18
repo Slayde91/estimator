@@ -3,7 +3,7 @@ const vm = require('node:vm');
 const copy = value => JSON.parse(JSON.stringify(value));
 function definition() {
   const field = (column,label,type,group,format='number',options=[]) => ({column,label,type,group,format,options,units:'',default:null});
-  return {id:'penetration',title:'Penetration Estimator',source_sha256:'penetration-source',capacity:1000,
+  return {id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
     defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},groups:['Penetration','Products and labour'],
     global_fields:[field('J','LAFHA','select','Global settings','text',['No','Yes']),field('L','Global Labour','number','Global settings','percent')],
     row_fields:[field('T','Item(s)','text','Penetration','text'),field('U','System','text','Penetration','text'),field('O','Item QTY','number','Penetration'),field('J','Type','select','Penetration','text',['HVAC','Electrical']),field('W','Workers','select','Products and labour','text',['Installer']),field('AG','Material Wastage %','number','Products and labour','percent')],

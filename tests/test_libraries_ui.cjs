@@ -8,7 +8,7 @@ const text=node=>walk(node).map(el=>el.textContent).join(' ');
 const meta=()=>({notice:'Synthetic local reference library.',libraries:['penetration','technical'].map(id=>({id,title:id,available:true,count:2}))});
 const filters=[{key:'category',label:'Category',options:[{value:'sample & test',label:'Sample & test'}]}];
 const records=kind=>({items:[{id:kind+'-1',title:'Synthetic '+kind+' record',subtitle:'Source row 10',summary:'Synthetic summary',source_label:'Synthetic source',related_count:1}],offset:0,limit:50,total:1,filters});
-const detail=(kind,id)=>({id,title:'Synthetic '+id,subtitle:'Literal reference',fields:[{label:'Recorded condition',value:'<img src=x onerror=alert(1)>\nLiteral second line'},{label:'Blank',value:null},{label:'Zero',value:0}],
+const detail=(kind,id)=>({id,title:'Synthetic '+id,subtitle:'Literal reference',notice:'Record-specific source qualification.',fields:[{label:'Recorded condition',value:'<img src=x onerror=alert(1)>\nLiteral second line'},{label:'Blank',value:null},{label:'Zero',value:0}],
   sources:[{label:'Synthetic source reference',filename:'synthetic.pdf',document_id:'synthetic-document',page:12,sheet:'Synthetic sheet',row:10,sha256:'synthetic-hash'}],
   links:[{kind:kind==='penetration'?'technical':'penetration',id:kind==='penetration'?'technical-1':'penetration-1',title:'Related synthetic record',relationship:'Recorded reference only'}],images:[{id:'synthetic_image-1',caption:'Synthetic diagram'}]});
 function harness(){
@@ -61,10 +61,44 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
     assert.ok(nodes.every(node=>node.innerHTML===undefined));assert.match(text(pane.detailPanel),/synthetic-hash/);assert.match(text(pane.detailPanel),/Related technical references/);
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
+    assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.match(pane.notice.textContent,/Synthetic local reference library/);
   });
   await check('Untrusted asset IDs never become fetchable links; unavailable relationship text remains visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));
     await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(node=>node.tagName==='img'||node.tagName==='a').length,0);assert.match(text(h.pane('technical').detailPanel),/Unresolved original reference.*Ambiguous source association/);
+  });
+  await check('Structured source fields keep exact text and validated diagrams inside their field',async h=>{
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),images:[],fields:[
+      {label:'Installation concept',value:'Exact source cell text',images:[{id:'source_cell-12',caption:'Source installation diagram'},{id:'../unregistered',caption:'Invalid'}]},
+      {label:'Image-only source cell',value:'',images:[{id:'source_cell-13',caption:'Image-only diagram'}]},
+    ]}));
+    await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel),fields=nodes.filter(node=>node.className==='library-record-field');
+    assert.equal(fields.length,2);assert.match(text(fields[0]),/Installation concept Exact source cell text/);
+    const images=nodes.filter(node=>node.tagName==='img');assert.equal(images.length,2);assert.equal(images[0].src,'/api/libraries/images/source_cell-12');assert.equal(images[0].loading,'lazy');assert.equal(images[0].alt,'Source installation diagram');
+    assert.ok(walk(fields[0].children[1]).includes(images[0]));assert.ok(walk(fields[1].children[1]).includes(images[1]));assert.doesNotMatch(text(fields[1]),/Not recorded/);
+    const full=walk(fields[0]).find(node=>node.tagName==='a');assert.equal(full.target,'_blank');assert.equal(full.rel,'noopener noreferrer');
+  });
+  await check('Library prices and edit controls use server metadata while reference notices remain beside their links',async h=>{
+    const opened=[];h.context.window.CeasefireLibraryEditor={open:async id=>opened.push(id)};
+    h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'legacy-row-4',title:'FL-ID-001',price:{amount:123.456789,label:'Workbook price'},editable:true}]}):({...detail('technical','technical-1'),links:[{kind:'penetration',id:'legacy-row-4',title:'FL-ID-001',relationship:'Original source entry',notice:'This item has saved edits; the technical reference describes its original workbook entry.'}]}));
+    await h.api.open('penetration');const pane=h.pane('penetration');assert.match(text(pane.results),/FL-ID-001.*Workbook price: \$123\.46/);await walk(pane.results).find(node=>node.dataset.libraryEdit).emit('click');assert.deepEqual(opened,['legacy-row-4']);
+    await h.api.open('technical','technical-1');const related=walk(h.pane('technical').detailPanel).find(node=>node.className==='library-related-record');assert.match(text(related),/FL-ID-001.*Original source entry.*saved edits/);assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryEdit).length,0);
+  });
+  await check('Source subtables preserve service wrap and FRL row pairing as literal accessible cells',async h=>{
+    const paired=[['Service A','100 mm','-/60/60'],['Service B <script>','200 mm','-/120/120']];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),images:[],fields:[{label:'Service options',value:'Common source condition',table:{columns:['Service','Wrap length','FRL'],rows:paired}},{label:'Sizes only',value:'',table:{columns:['Size'],rows:[['0']]}}]}));
+    await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel),tables=nodes.filter(node=>node.tagName==='table');assert.equal(tables.length,2);
+    const headings=walk(tables[0]).filter(node=>node.tagName==='th');assert.deepEqual(headings.map(node=>node.textContent),['Service','Wrap length','FRL']);assert.ok(headings.every(node=>node.getAttribute('scope')==='col'));
+    const body=tables[0].children.find(node=>node.tagName==='tbody');assert.deepEqual(copy(body.children.map(row=>row.children.map(cell=>cell.textContent))),paired);
+    assert.equal(nodes.filter(node=>node.textContent==='Common source condition').length,1);assert.equal(nodes.filter(node=>node.textContent==='Service B <script>').length,1);assert.ok(nodes.every(node=>node.innerHTML===undefined));
+    const scroll=nodes.filter(node=>node.className==='library-field-table-scroll');assert.equal(scroll[0].tabIndex,0);assert.equal(scroll[0].getAttribute('role'),'region');assert.equal(scroll[0].getAttribute('aria-label'),'Service options table');assert.doesNotMatch(text(scroll[1]),/Not recorded/);
+  });
+  await check('A saved item invalidates prices and details without losing list search and filters',async h=>{
+    await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='retained search';await pane.searchInput.emit('input');await h.runTimers();const filter=walk(pane.filterControls).find(node=>node.tagName==='select');filter.value='sample & test';await filter.emit('change');await flush();
+    await h.api.open('penetration','penetration-1');h.api.invalidate();
+    h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?({...records('penetration'),items:[{id:'penetration-1',title:'FL-ID-001',price:{amount:987.654321,label:'Saved library price'},editable:true}]}):({...detail('penetration','penetration-1'),title:'FL-ID-001',price:{amount:987.654321,label:'Saved library price'},editable:true}));
+    await h.api.open('penetration','penetration-1');assert.match(text(pane.detailPanel),/Saved library price: \$987\.65/);assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryEdit==='penetration-1'));
+    await walk(pane.detailPanel).find(node=>node.dataset.libraryBackToResults).emit('click');await flush();assert.equal(pane.searchInput.value,'retained search');assert.match(h.calls.at(-1).path,/search=retained\+search.*category=sample\+%26\+test/);assert.match(text(pane.results),/\$987\.65/);
   });
   await check('Bidirectional links return to the original record and preserve filtered results',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='original filter';await pane.searchInput.emit('input');await h.runTimers();

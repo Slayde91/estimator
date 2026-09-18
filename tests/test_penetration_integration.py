@@ -104,10 +104,10 @@ class PenetrationIntegrationTests(unittest.TestCase):
                        'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
                                        for key, value in project['calculators'].items()}}
             before = target.read_bytes()
-            with self.assertRaisesRegex(ValidationError, 'Penetration Calculator'):
+            with self.assertRaisesRegex(ValidationError, 'Firestopping Estimator'):
                 library.save(request)
             self.assertEqual(target.read_bytes(), before)
-            with self.assertRaisesRegex(ValidationError, 'Penetration Calculator'):
+            with self.assertRaisesRegex(ValidationError, 'Firestopping Estimator'):
                 library.save_as({'estimate': request['estimate'], 'calculators': request['calculators']})
             self.assertEqual(target.read_bytes(), before)
             request['penetration'] = {'draft': self.draft()}
@@ -136,7 +136,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
             if route.endswith('.pdf'):
                 text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(content)).pages)
                 self.assertIn('TEST-PEN', text)
-                self.assertIn('Penetration estimate', text)
+                self.assertIn('Firestopping estimate', text)
                 self.assertIn('Literal text', text)
             else:
                 workbook = load_workbook(BytesIO(content))

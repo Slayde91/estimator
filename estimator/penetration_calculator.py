@@ -113,7 +113,7 @@ def definition(configuration=None):
         output_fields.append({'column': col, 'address': address, 'label': calc.get(col + '3', {}).get('value', col),
             'group': group, 'format': 'percent' if col in OUTPUT_PERCENT_COLUMNS else 'currency' if group in ('Summary', 'Unit prices', 'Material costs') else 'number',
             'units': '%' if col in OUTPUT_PERCENT_COLUMNS else 'hours' if group == 'Labour hours' else ''})
-    return {'id': 'penetration', 'title': 'Penetration Estimator', 'source_sha256': source_model()['source']['sha256'],
+    return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': {}}]},
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS)}
 

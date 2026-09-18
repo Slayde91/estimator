@@ -1,10 +1,12 @@
 (() => {
   "use strict";
-  const kinds = ["penetration", "technical"], titles = { penetration: "Penetration Library", technical: "Technical Library" };
+  const kinds = ["penetration", "technical"], titles = { penetration: "Firestopping Library", technical: "Technical Library" };
   const state = { current: null, metadata: null, metadataRequest: null, panes: new Map(), history: [] };
   const $ = id => document.getElementById(id);
   const node = (tag, className = "", text) => { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; };
   const clone = value => JSON.parse(JSON.stringify(value));
+  const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
+  const priceText = price => typeof price?.amount === "number" && Number.isFinite(price.amount) ? money.format(price.amount) : "Price unavailable";
   const validId = value => typeof value === "string" && value.length > 0;
   const validAssetId = value => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
   const integer = (value, fallback = 0) => Number.isSafeInteger(value) && value >= 0 ? value : fallback;
@@ -43,7 +45,7 @@
     pane.list = node("section", "card library-browser"); pane.list.setAttribute("aria-label", titles[kind] + " records");
     const controls = node("div", "library-controls"), label = node("label", "field library-search");
     pane.searchInput = node("input"); pane.searchInput.type = "search"; pane.searchInput.maxLength = 400;
-    pane.searchInput.placeholder = kind === "penetration" ? "Search penetration records…" : "Search systems and technical references…";
+    pane.searchInput.placeholder = kind === "penetration" ? "Search firestopping records…" : "Search systems and technical references…";
     pane.searchInput.dataset.librarySearch = kind;
     label.append(node("span", "", `Search ${titles[kind]}`), pane.searchInput);
     pane.refresh = button("Refresh", () => refresh(pane)); pane.refresh.dataset.libraryRefresh = kind;
@@ -106,12 +108,19 @@
       const card = node("article", "library-result"), title = button(item.title || item.id, () => navigate(pane.kind, item.id), "library-record-link");
       title.dataset.libraryRecord = item.id; card.append(title);
       if (item.subtitle) card.append(node("p", "library-subtitle", item.subtitle));
+      if (item.price) card.append(node("p", "library-record-price", `${item.price.label || "Library price"}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", valueText(item.summary)));
       if (item.source_label) card.append(node("p", "helper", item.source_label));
-      if (Number.isSafeInteger(item.related_count)) card.append(node("p", "helper", `${item.related_count} related ${pane.kind === "penetration" ? "technical references" : "penetration records"}`));
+      if (Number.isSafeInteger(item.related_count)) card.append(node("p", "helper", `${item.related_count} related ${pane.kind === "penetration" ? "technical references" : "firestopping records"}`));
+      if (pane.kind === "penetration" && item.editable) { const edit = button("Edit Library Item", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; card.append(edit); }
       return card;
     }) : [node("p", "empty-state", "Try a different search or filter.")]));
     renderFilters(pane, data.filters || libraryInfo(pane)?.filters || []); setBusy(pane, false);
+  }
+  async function editItem(pane, id) {
+    message(pane);
+    try { await window.CeasefireLibraryEditor.open(id); }
+    catch (error) { message(pane, `The library item could not be opened for editing. ${error.message}`, true); }
   }
   function libraryInfo(pane) { return state.metadata?.libraries?.find(library => library.id === pane.kind); }
   function updateNotice(pane, data = pane.data) {
@@ -182,6 +191,15 @@
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
     link.append(image); figure.append(link, node("figcaption", "helper", caption)); return figure;
   }
+  function fieldTable(field) {
+    const scroll = node("div", "library-field-table-scroll"), table = node("table", "library-field-table"), head = node("thead"), headings = node("tr"), body = node("tbody");
+    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${field.label || "Source"} table`);
+    table.setAttribute("aria-label", field.label || "Source table");
+    for (const label of field.table.columns) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
+    head.append(headings);
+    for (const values of field.table.rows) { const row = node("tr"); row.append(...values.map(value => node("td", "", value))); body.append(row); }
+    table.append(head, body); scroll.append(table); return scroll;
+  }
   function detailNavigation(pane) {
     const nav = node("nav", "library-detail-navigation"); nav.setAttribute("aria-label", "Library record navigation");
     const results = button("Back to results", () => { state.history = []; showList(pane); pane.searchInput.focus(); }); results.dataset.libraryBackToResults = pane.kind; nav.append(results);
@@ -193,23 +211,42 @@
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
     const content = [detailNavigation(pane), heading];
     if (data.subtitle) content.push(node("p", "library-subtitle", data.subtitle));
+    if (data.price || pane.kind === "penetration" && data.editable) {
+      const commercial = node("div", "library-record-commercial");
+      if (data.price) commercial.append(node("p", "library-record-price", `${data.price.label || "Library price"}: ${priceText(data.price)}`));
+      if (pane.kind === "penetration" && data.editable) { const edit = button("Edit Library Item", () => editItem(pane, data.id)); edit.dataset.libraryEdit = data.id; commercial.append(edit); }
+      content.push(commercial);
+    }
+    if (data.notice) content.push(node("p", "library-record-notice", data.notice));
     const fields = node("dl", "library-record-fields");
-    for (const field of data.fields || []) { const pair = node("div", "library-record-field"); pair.append(node("dt", "", field.label || "Field"), node("dd", "", valueText(field.value))); fields.append(pair); }
+    for (const field of data.fields || []) {
+      const pair = node("div", "library-record-field"), value = node("dd");
+      const images = (field.images || []).filter(item => validAssetId(item.id));
+      const table = field.table && Array.isArray(field.table.columns) && Array.isArray(field.table.rows);
+      if (!images.length && !table || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
+      if (table) { pair.className += " library-record-field-table"; value.append(fieldTable(field)); }
+      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(imageNode)); value.append(gallery); }
+      pair.append(node("dt", "", field.label || "Field"), value); fields.append(pair);
+    }
     const sources = node("section", "library-detail-section"); sources.append(node("h4", "", "Source information"));
     sources.append(...(data.sources?.length ? data.sources.map(sourceNode) : [node("p", "helper", "No source reference is recorded for this item.")]));
     const related = node("section", "library-detail-section"), links = data.links || [];
-    related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related penetration records"));
+    related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
     if (!links.length) related.append(node("p", "helper", "No related records are recorded."));
     for (const link of links) {
       const box = node("div", "library-related-record");
       if (kinds.includes(link.kind) && validId(link.id)) { const action = button(link.title || link.id, () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; box.append(action); }
       else box.append(node("p", "", link.title || "Reference unavailable"));
-      if (link.relationship) box.append(node("p", "helper", link.relationship)); related.append(box);
+      if (link.relationship) box.append(node("p", "helper", link.relationship));
+      if (link.notice) box.append(node("p", "library-related-notice", link.notice));
+      related.append(box);
     }
     content.push(related, sources, fields);
     const images = (data.images || []).filter(item => validAssetId(item.id));
     if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(imageNode)); content.push(gallery); }
-    pane.detailPanel.replaceChildren(...content); updateNotice(pane, data);
+    // Item qualifications belong in the card that receives navigation focus;
+    // keep only the general library notices above that card.
+    pane.detailPanel.replaceChildren(...content); updateNotice(pane, {});
     if (state.current === pane.kind && $("library-" + pane.kind)?.hidden === false && $("view-pricing")?.hidden === false) {
       heading.focus({ preventScroll: true }); pane.detailPanel.scrollIntoView?.({ block: "start" });
     }
@@ -254,5 +291,8 @@
     invalidateList(pane); pane.data = null; pane.detail = null; pane.filterStamp = null;
     state.metadata = null; state.metadataRequest = null; await open(pane.kind, pane.selected || { list: true });
   }
-  window.CeasefireLibraries = { open };
+  function invalidate() {
+    for (const pane of state.panes.values()) { invalidateList(pane); ++pane.detailRevision; pane.detailAbort?.abort(); pane.data = null; pane.dataQuery = null; pane.detail = null; }
+  }
+  window.CeasefireLibraries = { open, invalidate };
 })();

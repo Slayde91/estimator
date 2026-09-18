@@ -264,7 +264,7 @@
   function render() {
     if (!state.draft) return;
     $("penetration-loading").hidden = true; $("penetration-workspace").hidden = false;
-    $("penetration-source").textContent = state.definition.source?.filename || "Penetration Calculator workbook";
+    $("penetration-source").textContent = state.definition.source?.filename || "Firestopping Estimator workbook";
     renderSchedule(); renderFields(); renderSummary(); renderBreakdown(); status("Ready");
   }
   async function calculate() {

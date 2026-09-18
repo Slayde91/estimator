@@ -1,9 +1,15 @@
-# Penetration Calculator
+# Firestopping Estimator
 
 The Estimator page contains two independently editable estimates: the existing
-Estimator and the Penetration Calculator. They share project details and one
+Estimator and the Firestopping Estimator. They share project details and one
 effective pricing snapshot. Their totals are separate; neither is automatically
 added to the other.
+
+The visible name is Firestopping Estimator. Source filenames, the internal
+`penetration` project key and `/api/penetration` routes remain unchanged for
+compatibility. The Firestopping Library uses a separate single-item editor with
+the same calculation engine; its inputs and pricing do not replace the project
+schedule. See [library item editing](REFERENCE_LIBRARIES.md#editing-a-firestopping-library-item).
 
 ## Source contract
 

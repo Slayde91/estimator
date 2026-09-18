@@ -55,7 +55,7 @@ def render_penetration_pdf(result, definition, project_details):
     margin = 32
     content = width - 2 * margin
     logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
-    report.story.append(report.p('Penetration estimate', 'title'))
+    report.story.append(report.p('Firestopping estimate', 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]
@@ -100,16 +100,16 @@ def render_penetration_pdf(result, definition, project_details):
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
         topMargin=91, bottomMargin=43, pageCompression=1,
-        title='Ceasefire - Penetration estimate', author='Ceasefire')
+        title='Ceasefire - Firestopping estimate', author='Ceasefire')
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'PENETRATION ESTIMATE', label_below_logo=True)
+        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ESTIMATE', label_below_logo=True)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Penetration Calculator')
+        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Firestopping Estimator')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 
@@ -122,8 +122,8 @@ def build_penetration_register(result, definition, project_details):
     workbook = Workbook()
     workbook.remove(workbook.active)
     workbook.properties.creator = 'Ceasefire'
-    workbook.properties.title = 'Penetration estimate'
-    summary = _sheet(workbook, 'Summary', 'PENETRATION ESTIMATE', [36, 64])
+    workbook.properties.title = 'Firestopping estimate'
+    summary = _sheet(workbook, 'Summary', 'FIRESTOPPING ESTIMATE', [36, 64])
     row = _table(summary, 4, ['Project details', 'Value'],
                  [[label, project_details.get(key, '')] for label, key in
                   [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]], [36, 64])

@@ -19,13 +19,13 @@ python -m estimator
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
 
 The **Estimator** tab has two tiles: **Estimator** opens the existing estimate,
-and **Penetration Calculator** opens its separate penetration schedule and costs.
+and **Firestopping Estimator** opens its separate firestopping schedule and costs.
 Both use the same project details and pricing library, and are saved together.
-Their totals remain separate. The Penetration Calculator retains the supplied
+Their totals remain separate. The Firestopping Estimator retains the supplied
 workbook formulas, with grouped inputs, per-item results and PDF/XLSX downloads.
 See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
 
-The **Libraries** tab has **Pricing Library**, **Penetration Library** and
+The **Libraries** tab has **Pricing Library**, **Firestopping Library** and
 **Technical Library** tiles. The two reference libraries support search,
 filters, original diagrams, report-page links and navigation between related
 records. Supplier files stay in a local bundle, separate from the public source
@@ -33,6 +33,18 @@ and application ZIP. To install an inspected bundle, run
 `python scripts/install_reference_library.py <reviewed-bundle-directory>`;
 an existing installation requires `--replace` and is retained as a backup.
 See [local reference libraries](docs/REFERENCE_LIBRARIES.md) for the data contract.
+
+Firestopping Library entries display stable **FL-ID-001** style identifiers and
+their prices. **Edit Library Item** opens a separate Firestopping Estimator
+session, retaining the current project's unsaved inputs and pricing. Each item
+starts with its original workbook rates. **Refresh from Pricing Library**
+explicitly captures the last **saved** shared rates for that item; unsaved shared
+pricing edits and current-project prices are not used. Review the result and
+choose **Save Library Item** to retain its inputs and captured prices. Later
+shared-rate changes do not alter a saved item. **Cancel** discards only this
+library editing session. Project Save / Save As does not save library edits.
+The supplier workbook, PDFs and diagrams stay unchanged; related technical
+references continue to describe the original source entry after an item is edited.
 
 1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
@@ -59,7 +71,7 @@ The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/clea
 
 The persistent **Current project** area shows the filename, its known location, last-saved time and whether the estimate, project pricing or any calculator has unsaved changes. Files opened through **Load Project** or **Saved projects** retain their save target for this app session. Imported browser-upload content has no authorized local path and requires **Save As**. If the app server restarts, reopen the file or use **Save As** before saving again. On Windows, native Save As, Load Project and folder dialogs are owned by the foreground application and the actual dialog, including overwrite prompts, is raised above it. Automated checks cover save/load behavior and native helper structure; native dialog foreground placement remains a manual visual check.
 
-The file contains the active estimate's inputs, project details and notes, its complete catalog, prices, overrides and yields, and every calculator's exact input set, including settings and extra boards. Pending valid **Current project pricing** edits are applied before saving. All three calculator states are captured even if a calculator has not been opened in this session; existing local calculator saves or defaults supply an unopened initial state. A separate unsaved **Shared library** draft and the collection of older estimates are not included. Results are recalculated locally from the saved inputs. Recalculation, navigation and report downloads do not save the project.
+The file contains the active estimate's inputs, project details and notes, its complete catalog, prices, overrides and yields, and every calculator's exact input set, including settings and extra boards. Pending valid **Current project pricing** edits are applied before saving. All three calculator states are captured even if a calculator has not been opened in this session; existing local calculator saves or defaults supply an unopened initial state. A separate unsaved **Shared library** draft, Firestopping Library item edits and the collection of older estimates are not included. Results are recalculated locally from the saved inputs. Recalculation, navigation and report downloads do not save the project.
 
 In **Saved projects**, choose **Link Project Folder**. Project files in that folder and all its subfolders appear in the library, and the linked folder becomes the default Save As location. Each entry shows its relative folder so identical filenames remain distinguishable. Search quote names, project details and paths, sort the results, and move through pages of 100 projects. Large folders scan in continuing batches while this page is open; progress and unreadable entries are reported. **Continue folder scan** resumes an unfinished scan, and **Refresh** checks for changes. File metadata is cached without recalculating projects; opening a project still validates the complete file. Symbolic links and junctions are not followed. Supported OneDrive cloud placeholders are accepted when their contents can be read.
 
@@ -173,10 +185,16 @@ python -m unittest discover -s tests -v
 node --check static/app.js
 node --check static/calculators.js
 node --check static/penetration.js
+node --check static/downloads.js
+node --check static/libraries.js
+node --check static/library-editor.js
 node tests/test_ui.cjs
 node tests/test_calculators_ui.cjs
 node tests/test_project_ui.cjs
 node tests/test_penetration_ui.cjs
+node tests/test_downloads_ui.cjs
+node tests/test_libraries_ui.cjs
+node tests/test_library_editor_ui.cjs
 python scripts/build.py
 ```
 

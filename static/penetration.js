@@ -11,6 +11,7 @@
   const configuration = () => clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
   const configStamp = () => JSON.stringify(configuration());
   const keyFor = (rowId, column) => JSON.stringify([rowId, column]);
+  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : field.label === "System" ? "System/Install" : field.label;
   const rowById = id => state.draft?.rows.find(row => row.id === id);
   const selected = () => rowById(state.selected);
   function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -102,7 +103,7 @@
   }
   function makeControl(field, rowId) {
     const context = state.context;
-    const key = keyFor(rowId, field.column), wrapper = node("label", "field"), label = node("span", "", field.label + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
+    const key = keyFor(rowId, field.column), wrapper = node("label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
     const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
     const line = rowId === null ? "Project" : `Line ${state.draft.rows.findIndex(row => row.id === rowId) + 1}`;
     control.dataset.penetrationField = field.column; control.dataset.penetrationRow = rowId === null ? "" : rowId;
@@ -256,7 +257,7 @@
     for (const [group, fields] of groups) {
       const section = node("details", "penetration-output-group"); section.open = group === "Summary";
       section.append(node("summary", "", group)); const list = node("dl", "cost-list");
-      for (const field of fields) { const line = node("div"); line.append(node("dt", "", field.label + (field.units ? ` (${field.units})` : "")), node("dd", "", display(result.outputs[field.column], field.format))); list.append(line); }
+      for (const field of fields) { const line = node("div"); line.append(node("dt", "", fieldLabel(field) + (field.units ? ` (${field.units})` : "")), node("dd", "", display(result.outputs[field.column], field.format))); list.append(line); }
       section.append(list); parts.push(section);
     }
     container.replaceChildren(...parts);

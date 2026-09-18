@@ -95,7 +95,8 @@ def definition(configuration=None):
     for group, columns in GROUP_COLUMNS.items():
         for col in columns:
             options = selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else []
-            fields.append({'column': col, 'address': col + '4', 'label': calc[col + '3']['value'],
+            label = {'T': 'Items/Services', 'U': 'System/Install'}.get(col, calc[col + '3']['value'])
+            fields.append({'column': col, 'address': col + '4', 'label': label,
                 'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES else 'text' if col in TEXT_COLUMNS else 'number',
                 'options': options, 'group': group, 'default': None,
                 'format': 'percent' if col in PERCENT_COLUMNS else 'currency' if col in ('AI', 'AJ') else 'text' if col in TEXT_COLUMNS else 'number',

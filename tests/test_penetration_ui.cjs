@@ -8,9 +8,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
 (async()=>{
   await check('Blank schedules, metadata groups and server outputs retain source semantics',async h=>{
     assert.deepEqual(copy(h.api.projectSnapshot().draft),definition().defaults);assert.equal(h.api.hasUnsavedChanges(),false);
+    assert.equal(h.control('T').getAttribute('aria-label'),'Line 1: Items/Services');assert.equal(h.control('U').getAttribute('aria-label'),'Line 1: System/Install');
+    h.control('T').value='Exact service description';await h.control('T').emit('input');h.control('U').value='Exact installation description';await h.control('U').emit('input');
     await h.audit.calculate();assert.match(text(h.byId('penetration-summary')),/123\.46/);
     assert.match(text(h.byId('penetration-breakdown')),/0\.00/);assert.match(text(h.byId('penetration-breakdown')),/#VALUE!/);
     assert.equal(h.calls.at(-1).payload.draft.rows.length,1);assert.deepEqual(h.calls.at(-1).payload.configuration,h.pricing);
+    assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.T,'Exact service description');assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.U,'Exact installation description');assert.equal(h.audit.state.definition.row_fields.find(field=>field.column==='T').label,'Item(s)');assert.equal(h.audit.state.definition.row_fields.find(field=>field.column==='U').label,'System');
   });
   await check('Focus and blur preserve exact numeric precision; percentages use source fractions',async h=>{
     const quantity=h.control('O');quantity.value='12.3456789012345';await quantity.emit('input');await quantity.blur();assert.equal(quantity.value,'12.35');await quantity.focus();assert.equal(quantity.value,'12.3456789012345');assert.equal(quantity.selectionStart,0);assert.equal(quantity.selectionEnd,quantity.value.length);

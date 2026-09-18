@@ -8,10 +8,12 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/calculators.css">
   <link rel="stylesheet" href="/penetration.css">
+  <link rel="stylesheet" href="/libraries.css">
   <script src="/downloads.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/calculators.js" defer></script>
   <script src="/penetration.js" defer></script>
+  <script src="/libraries.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -20,7 +22,7 @@
     <nav aria-label="Main navigation">
       <button type="button" class="nav-button active" data-view="estimate" aria-current="page">Estimator</button>
       <button type="button" class="nav-button" data-view="calculators">Calculators</button>
-      <button type="button" class="nav-button" data-view="pricing">Pricing library</button>
+      <button type="button" class="nav-button" data-view="pricing">Libraries</button>
       <button type="button" class="nav-button" data-view="quotes">Saved projects</button>
     </nav>
     <span class="local-badge"><span aria-hidden="true"></span>Local workspace</span>
@@ -80,10 +82,20 @@
         <details id="calculator-documents" class="calculator-documents" hidden><summary>Technical documents and source information</summary><div id="calculator-document-list"></div></details>
       </section>
     </section>
-    <section id="view-pricing" class="view" aria-labelledby="pricing-heading" hidden>
+    <section id="view-pricing" class="view" aria-labelledby="libraries-heading" hidden>
+      <div class="page-heading"><div><p class="eyebrow">LIBRARIES</p><h1 id="libraries-heading">Project libraries</h1><p class="subtitle">Browse pricing, penetration records and their technical references.</p></div></div>
+      <div class="library-choices" role="group" aria-label="Choose a library">
+        <button type="button" class="estimator-choice library-choice" data-library-kind="pricing" aria-pressed="true" aria-controls="library-pricing"><strong>Pricing Library</strong><span>Products, labour and project prices</span></button>
+        <button type="button" class="estimator-choice library-choice" data-library-kind="penetration" aria-pressed="false" aria-controls="library-penetration"><strong>Penetration Library</strong><span>Penetration records and related technical references</span></button>
+        <button type="button" class="estimator-choice library-choice" data-library-kind="technical" aria-pressed="false" aria-controls="library-technical"><strong>Technical Library</strong><span>Systems, source reports and related penetration records</span></button>
+      </div>
+      <div id="library-pricing" class="library-child">
       <div class="page-heading"><div><p class="eyebrow">PRICING LIBRARY</p><h1 id="pricing-heading">Inventory &amp; Rates</h1><p class="subtitle">Manage products, dropdown choices and prices in one library.</p></div><div class="actions"><button id="export-pricing" type="button" class="button excel-button">Export Excel</button><button id="import-pricing" type="button" class="button excel-button">Import Excel</button><input id="pricing-import-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><button id="discard-pricing" type="button" class="button secondary">Discard changes</button><button id="reset-pricing" type="button" class="button secondary">Reset Library</button><button id="save-pricing" type="button" class="button primary">Save pricing</button></div></div>
       <label class="field pricing-scope-field"><span>Pricing to edit</span><select id="pricing-scope"><option value="library">Shared library</option><option value="project">Current project pricing</option></select></label><div id="pricing-context" class="message info"></div><p class="import-guide">Export Excel includes the entire library and unsaved edits, regardless of the current filter. Each product or service has one row with one editable name and yield. The workbook retains existing selections and saved rate overrides in hidden columns. Keep those columns and follow its Instructions when adding or removing uses. Import the complete workbook, review the changes, then save the shared library or apply the project prices. Reset Library loads application defaults into this editor; they take effect when you save or apply them. Earlier pricing workbook formats remain supported.</p>
       <section class="card"><div class="pricing-controls"><label class="search-field"><span class="sr-only">Search products or services</span><input id="pricing-search" type="search" placeholder="Search product, service or item code…"></label><label id="rate-group-field" class="field"><span>Used in Estimator</span><select id="rate-group"></select></label><label class="pricing-advanced-toggle"><input id="show-rate-overrides" type="checkbox">Show rate overrides</label></div><div class="section-heading"><p id="pricing-count" class="helper"></p><span id="pricing-status" class="status-label">Saved configuration</span></div><p id="pricing-help" class="helper"></p><div class="table-scroll"><table class="pricing-table"><thead id="pricing-head"></thead><tbody id="pricing-body"></tbody></table></div></section>
+      </div>
+      <section id="library-penetration" class="library-child" aria-labelledby="penetration-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="penetration-library-heading">Penetration Library</h2></div></div><div id="penetration-library-workspace"></div></section>
+      <section id="library-technical" class="library-child" aria-labelledby="technical-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="technical-library-heading">Technical Library</h2></div></div><div id="technical-library-workspace"></div></section>
     </section>
     <section id="view-quotes" class="view" aria-labelledby="quotes-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="quotes-heading">Saved projects</h1><p class="subtitle">Open a complete estimate, its original prices and all three calculators.</p></div><div class="actions"><button id="link-project-folder" type="button" class="button secondary">Link Project Folder</button><button id="refresh-quotes" type="button" class="button secondary">Refresh</button></div></div>

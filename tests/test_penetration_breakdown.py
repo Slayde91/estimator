@@ -61,7 +61,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
         self.assertAlmostEqual(indexed['Other']['labour_costs'], 86.4)
         quantities = {value['column']: value['value'] for entry in table['rows']
                       for value in entry['material_quantities']}
-        self.assertEqual(quantities, {'BS': .75, 'CB': 1.5, 'CJ': 2.25, 'CQ': 3, 'CU': 3.75, 'AC': None, 'AN': None, 'AF': None})
+        self.assertEqual(quantities, {'BS': .75, 'CB': 1.5, 'CJ': 2.25, 'CQ': 3, 'CU': 3.75, 'AC': None, 'AF': None})
         self.assertEqual(indexed['Labour']['unit_prices'][0]['value'], 40)
         self.assert_reconciles(table)
         self.assertEqual(row, original)

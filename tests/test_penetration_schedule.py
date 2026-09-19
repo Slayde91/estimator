@@ -227,6 +227,44 @@ class PenetrationScheduleTests(unittest.TestCase):
         self.assertEqual(len(board['material_quantities']), 4)
         self.assertTrue(all(len(item['row_ids']) == 1 for item in board['material_quantities']))
 
+    def test_collar_quantities_require_a_selected_product_and_keep_pipe_quantities(self):
+        template = self.mixed_schedule()['rows'][0]['inputs']
+        product = self.options('Y')[0]
+        draft = {'rows': [
+            {'id': 'missing', 'inputs': {**template, 'AN': 2}},
+            {'id': 'blank', 'inputs': {**template, 'Y': '', 'AN': 4}},
+            {'id': 'null', 'inputs': {**template, 'Y': None, 'AN': 6}},
+            {'id': 'selected-one', 'inputs': {**template, 'Y': product, 'AN': 2}},
+            {'id': 'selected-two', 'inputs': {**template, 'Y': product, 'AN': 3}},
+        ]}
+        before = deepcopy(draft)
+        result = calculate(draft)
+        self.assertEqual(result['errors'], [])
+        collars = next(task for task in result['schedule_breakdown']['rows'] if task['label'] == 'Collars')
+        self.assertEqual(len(collars['material_quantities']), 1)
+        self.assertEqual(collars['material_quantities'][0]['value'], (2 + 3) * template['O'])
+        self.assertEqual(collars['material_quantities'][0]['row_ids'], ['selected-one', 'selected-two'])
+        materials = [item for item in result['material_breakdown'] if item['quantity_column'] == 'AN']
+        self.assertEqual(len(materials), 1)
+        self.assertEqual(materials[0]['quantity'], (2 + 3) * template['O'])
+        self.assertEqual(materials[0]['product'], product)
+        for row in result['rows'][:3]:
+            tasks = {task['label']: task for task in row['breakdown']['rows']}
+            self.assertEqual(tasks['Collars']['material_quantities'], [])
+            pipe = next(value for value in tasks['Wrap']['material_quantities'] if value['column'] == 'BS')
+            self.assertEqual(pipe['value'], row['outputs']['BS'] * row['inputs']['O'])
+            self.assertGreater(pipe['value'], 0)
+        self.assertEqual(draft, before)
+
+        # Clearing a previously selected product removes only its collar entry.
+        draft['rows'] = [draft['rows'][3]]
+        draft['rows'][0]['inputs']['Y'] = None
+        cleared = calculate(draft)
+        self.assertEqual(next(task for task in cleared['schedule_breakdown']['rows']
+                              if task['label'] == 'Collars')['material_quantities'], [])
+        self.assertFalse(any(item['quantity_column'] == 'AN' for item in cleared['material_breakdown']))
+        self.assertEqual(cleared['rows'][0]['inputs']['AN'], 2)
+
     def test_grouped_mastic_keeps_blank_zero_negative_and_error_distinctions(self):
         result = calculate(self.mixed_schedule())
         for row in result['rows']:

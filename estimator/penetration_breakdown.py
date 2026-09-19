@@ -129,6 +129,10 @@ def line_breakdown(row, globals_, miscellaneous_hours, *, effective=True):
         task_hours = hours(outputs.get(task))
         quantity_values = []
         for column, context in quantities:
+            # AN is also the pipe/wrap count; it represents collars only when
+            # a collar product is selected. Keep the underlying input intact.
+            if column == 'AN' and inputs.get('Y') in (None, ''):
+                continue
             # AC is the source Mastic Qty input; DO prices AC and G applies O.
             # Like the source-derived quantities, its display uses Item QTY once.
             value = inputs.get(column) if column in ('AC', 'AN', 'AF') else outputs.get(column)

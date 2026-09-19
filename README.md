@@ -27,8 +27,10 @@ schedule lines. **Edit** loads a copy of a schedule line; **Update Schedule**
 explicitly applies it, and **Cancel edit** restores the previous current item.
 Both use the same project details and pricing library, and are saved together.
 Scheduled materials, labour costs and days also contribute once to the main
-quote totals and exports. Global firestopping allowances and substrate, access
-and complexity multipliers no longer affect estimates. The supplied workbook
+quote totals and exports. The main global material and labour adjustments apply
+once to the combined estimate and Firestopping cost base. Legacy per-item
+Firestopping allowances and substrate, access and complexity multipliers no
+longer affect estimates. The supplied workbook
 formulas remain intact as the source reference.
 See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
 
@@ -50,7 +52,9 @@ pricing edits and current-project prices are not used. Review the result and
 choose **Save Library Item** to retain its inputs and captured prices. Later
 shared-rate changes do not alter a saved item. **Cancel** discards only this
 library editing session. Project Save / Save As does not save library edits.
-The supplier workbook, PDFs and diagrams stay unchanged; related technical
+The editor can also save a compressed PNG, JPEG or WebP source diagram for the
+item; its thumbnail appears on matching Firestopping Schedule rows. The supplier
+workbook, PDFs and original diagrams stay unchanged; related technical
 references continue to describe the original source entry after an item is edited.
 **Add to Schedule** stays on the library page and confirms the recalculated
 price beside the item. The current item in the Firestopping Estimator is retained.

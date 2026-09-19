@@ -85,8 +85,15 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.ok(nodes.filter(node=>node.tagName==='a'&&node.href.includes('/images/')).every((link,index)=>link.getAttribute('aria-label')===`Open ${captions[index]} at full size (new tab)`));
     await h.api.open('technical','source');assert.deepEqual(walk(h.pane('technical').detailPanel).filter(node=>node.tagName==='figcaption').map(node=>node.textContent),source.images.map(image=>image.caption));assert.deepEqual(source,before);
   });
+  await check('A saved Firestopping source diagram replaces the immutable gallery in the library detail',async h=>{
+    const source={...detail('penetration','penetration-1'),diagram:{available:true,custom:true,url:'/api/libraries/penetration/penetration-1/image'},images:[{id:'original-source',caption:'Original source diagram'}]};
+    h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('penetration','penetration-1');
+    const nodes=walk(h.pane('penetration').detailPanel),images=nodes.filter(node=>node.tagName==='img'),links=nodes.filter(node=>node.tagName==='a'&&node.href?.includes('/image'));
+    assert.equal(images.length,1);assert.equal(images[0].src,'/api/libraries/penetration/penetration-1/image');assert.equal(images[0].alt,'Source diagram');
+    assert.equal(links.length,1);assert.equal(links[0].target,'_blank');assert.equal(links[0].rel,'noopener noreferrer');assert.doesNotMatch(images[0].src,/original-source/);
+  });
   await check('Untrusted asset IDs never become fetchable links; unavailable relationship text remains visible',async h=>{
-    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),diagram:{custom:true,url:'https://remote/image'},sources:[{filename:'Unavailable report',document_id:'../../private',page:-1}],images:[{id:'https://remote/image'},{id:'../private'}],links:[{title:'Unresolved original reference',relationship:'Ambiguous source association'}]}));
     await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(node=>node.tagName==='img'||node.tagName==='a').length,0);assert.match(text(h.pane('technical').detailPanel),/Unresolved original reference.*Ambiguous source association/);
   });
   await check('Structured source fields keep exact text and validated diagrams inside their field',async h=>{

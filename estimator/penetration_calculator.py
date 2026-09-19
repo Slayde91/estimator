@@ -64,6 +64,33 @@ GROUP_VISIBILITY = {
     **{group: {'column': 'K', 'values': services}
        for group, services in PIPE_DISPLAY_GROUPS.items()},
 }
+FIELD_STEPS = {
+    'O': 1,
+    'AC': .25,
+    'AF': 1,
+    'AG': 1,
+    'AH': .25,
+    'AI': 1,
+    'AJ': 1,
+    'AM': 5,
+    'AO': 1,
+    'AQ': 5,
+    'AR': 5,
+    'AS': 5,
+    'AT': 1,
+    'AU': 1,
+    'AW': 5,
+    'AX': 5,
+    'AY': 1,
+    'AZ': 1,
+    'BB': 5,
+    'BC': 5,
+    'BD': 5,
+    'BE': 1,
+    'BF': 1,
+    'BG': 1,
+    'register_allowance_hours': .05,
+}
 ROW_COLUMNS = tuple(c for cols in GROUP_COLUMNS.values() for c in cols)
 TEXT_COLUMNS = set('J K L M N P Q R T U V W X Y Z AA AB AE'.split())
 PERCENT_COLUMNS = set('AG AO AU AZ BF BG'.split())
@@ -148,12 +175,10 @@ def definition(configuration=None, service_types=None):
                 'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
                 'format': 'percent' if col in PERCENT_COLUMNS else 'currency' if col in ('AI', 'AJ') else 'text' if col in TEXT_COLUMNS else 'number',
                 'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hrs' if col == 'AH' else ''}
+            if col in FIELD_STEPS:
+                field['step'] = FIELD_STEPS[col]
             if display_groups:
                 field['display_groups'] = display_groups
-            if col == 'AG':
-                # The raw value remains in source, saved projects and exports;
-                # only the obsolete editor control is hidden.
-                field['hidden'] = True
             fields.append(field)
             for key, app_field in APP_INPUT_FIELDS.items():
                 if app_field['after'] == col and app_field['group'] == group:
@@ -161,6 +186,8 @@ def definition(configuration=None, service_types=None):
                         'type': 'number', 'options': [], 'group': group, 'default': None,
                         'format': 'number', 'units': 'hrs', 'min': 0,
                         'automatic_default': True, 'source': 'application'}
+                    if key in FIELD_STEPS:
+                        field['step'] = FIELD_STEPS[key]
                     if display_groups:
                         field['display_groups'] = display_groups
                     fields.append(field)

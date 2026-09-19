@@ -5,6 +5,13 @@
 #library-editor-pricing-basis{margin-bottom:10px}
 .library-editor-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:22px;align-items:start}
 #library-editor-groups{margin-top:16px}
+.library-editor-diagram{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fffdfd}
+.library-editor-diagram h4{margin:0 0 12px}
+.library-editor-diagram figure{margin:0 0 14px}
+.library-editor-diagram img{display:block;width:100%;max-width:520px;max-height:360px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
+.library-editor-diagram figcaption{margin-top:8px}
+.library-editor-image-field{max-width:520px}
+.library-editor-diagram .actions{margin-top:10px}
 .library-editor-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
 .library-editor-fields .field>span{overflow-wrap:anywhere}
 .library-editor-fields .field.library-editor-long-text{grid-column:1/-1}

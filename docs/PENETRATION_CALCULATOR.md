@@ -46,8 +46,10 @@ extend over all rows. The app supports 0–1,000 schedule rows; the current-item
 calculator always has one row. An empty schedule overlays zero summary and
 BREAKDOWN outputs and clears template inputs, so it charges no travel or setup.
 The original workbook's formulas and constants in the packaged source are not
-rewritten. The effective application policy disables global LAFHA, travel days,
-labour/material percentages and substrate/access/complexity surcharges. It
+rewritten. The effective application policy disables the legacy Firestopping
+LAFHA, travel days, labour/material percentages and
+substrate/access/complexity surcharges. The main Estimator's global material
+and labour adjustments still apply once to the combined quote cost base. It
 overlays J2:M2 with No/0/0/0 and BI/BJ/BK with zero for every row, regardless of
 legacy inputs or current pricing. Historical inputs remain portable but cannot
 reactivate those effects. Explicit row materials, manual hours and adjustments
@@ -62,15 +64,21 @@ The source image cell S4 already contains a cached
 ## Project and output behavior
 
 A new Firestopping Schedule starts empty. Its columns include Service Type,
-Penetration Type, Substrate Orientation, FRL and editable Item QTY. A separate
+Penetration Type, Substrate Orientation, FRL, editable Item QTY and a compact
+source-diagram thumbnail when the library item has an image. A separate
 current item starts blank. Input groups separate
 Penetration, Products and labour, Additional Allowances, Unlagged Pipes,
 Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
 group matching Service Type is shown, and Bulkhead is shown only when Type is
-Bulkheads. The obsolete Material Wastage input is retained in raw saved inputs
-but hidden from both editors. The current item's calculated detail and
-the complete schedule totals are calculated independently. Numeric inputs retain their
-full stored precision; percentages are shown and edited as percentages.
+Bulkheads. Material Wastage remains editable and contributes through the
+existing source calculation. The current item's calculated detail and
+the complete schedule totals are calculated independently. Numeric fields use
+native number controls, retain their full stored precision and use the following
+arrow-step sizes: Item QTY, Material QTY, dollar adjustments, wastage values and
+multipliers use 1; Mastic Qty and Additional Labour use 0.25; Register Allowance
+uses 0.05; cable-tray, wrap, board and bulkhead dimensions use 5 mm. Other
+numeric fields accept their existing precision. Percentages are shown and edited
+as percentages.
 
 **Add to Schedule** copies the current item's inputs using current project prices
 and the effective calculation policy. **Edit** copies a schedule row into the current-item

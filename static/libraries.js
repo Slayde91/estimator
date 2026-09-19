@@ -15,6 +15,7 @@
   const diagramCaption = (kind, caption) => (kind === "penetration" ? String(caption || "").replace(/(?:^|\s+|\s*[·|—–-]\s*)(?:'?CALC'?!\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?|CALC\s+row\s+\d+)\s*$/i, "").trim() : caption) || "Source diagram";
   const validId = value => typeof value === "string" && value.length > 0;
   const validAssetId = value => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+  const validDiagramUrl = value => typeof value === "string" && /^\/api\/libraries\/penetration\/[a-z0-9][a-z0-9_-]{0,119}\/image$/.test(value);
   const integer = (value, fallback = 0) => Number.isSafeInteger(value) && value >= 0 ? value : fallback;
   const valueText = value => value === null || value === undefined || value === "" ? "Not recorded" : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
   const button = (text, action, className = "button secondary") => { const el = node("button", className, text); el.type = "button"; el.addEventListener("click", action); return el; };
@@ -328,7 +329,8 @@
   function imageNode(item, kind) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
     const caption = diagramCaption(kind, item.caption);
-    link.href = `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
+    const savedUrl = validDiagramUrl(item.url) ? item.url : null;
+    link.href = savedUrl || `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
     link.setAttribute("aria-label", `Open ${caption} at full size (new tab)`);
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
     link.append(image); figure.append(link, node("figcaption", "helper", caption)); return figure;
@@ -376,7 +378,9 @@
       pair.append(node("dt", "", fieldLabel(pane.kind, field.label) || "Field"), value); fields.append(pair);
     }
     content.push(fields);
-    const images = (data.images || []).filter(item => validAssetId(item.id));
+    const images = data.diagram?.custom && validDiagramUrl(data.diagram.url)
+      ? [{ url: data.diagram.url, caption: "Source diagram" }]
+      : (data.images || []).filter(item => validAssetId(item.id));
     if (images.length) { const gallery = node("section", "library-images"); gallery.setAttribute("aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind))); content.push(gallery); }
     const related = node("section", "library-detail-section"), links = data.links || [];
     related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));

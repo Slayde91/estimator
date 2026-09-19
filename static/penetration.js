@@ -6,7 +6,7 @@
     loading: false, calculating: false, downloading: false, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
-  const definitions = new Map(), pageSize = 50;
+  const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
   let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currency = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -172,8 +172,10 @@
         const option = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); option.value = String(raw); option.disabled = true; control.append(option);
       }
     } else {
-      control.type = "text"; control.maxLength = 2000;
-      if (field.type === "number") { control.inputMode = "decimal"; control.autocomplete = "off"; }
+      if (field.type === "number") {
+        control.type = "number"; control.step = String(field.step ?? "any");
+        control.inputMode = "decimal"; control.autocomplete = "off";
+      } else { control.type = "text"; control.maxLength = 2000; }
     }
     control.value = pending ? pending.value : controlText(field, displayedInput(field, rowId, scope));
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
@@ -365,6 +367,11 @@
     if (rows.some(row => state.schedule.invalid.has(keyFor(row.id, "O")))) return null;
     return rows.reduce((sum, row) => sum + (row.inputs.O ?? 0), 0);
   }
+  function libraryDiagramChanged(id) {
+    if (typeof id !== "string" || !id) return;
+    diagramVersions.set(id, (diagramVersions.get(id) || 0) + 1);
+    renderSchedule();
+  }
   const libraryInputs = inputs => stable(Object.fromEntries(Object.entries(inputs).filter(([column, value]) => column !== "O" && value !== null && value !== "")));
   function addLibraryQuantity(id, inputs) {
     if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
@@ -469,11 +476,22 @@
       tr.className = row.id === state.edit?.id ? "penetration-selected-row" : "";
       const invalid = [...state.schedule.invalid.keys()].some(key => JSON.parse(key)[0] === row.id);
       if (!tr.children.length) {
-        for (let column = 0; column < 8; column++) tr.append(node("td"));
+        for (let column = 0; column < 9; column++) tr.append(node("td"));
+        tr.children[8].className = "penetration-schedule-diagram";
         if (quantityField) tr.children[5].append(makeControl(quantityField, row.id, true, state.schedule));
       }
-      const values = [line, row.inputs.K || "—", row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), invalid ? "Check input" : result?.errors?.length ? "Review calculation" : state.schedule.calculating ? "Calculating…" : result ? "Calculated" : "—"];
-      values.forEach((value, column) => { if (column !== 5) tr.children[column].textContent = String(value); });
+      const diagramCell = tr.children[8], diagramId = row.library_item_id, diagramVersion = diagramId ? diagramVersions.get(diagramId) || 0 : 0;
+      const diagramStamp = diagramId ? `${diagramId}:${diagramVersion}` : "";
+      if (diagramCell.dataset.libraryDiagram !== diagramStamp) {
+        diagramCell.dataset.libraryDiagram = diagramStamp;
+        if (diagramId) {
+          const image = node("img"); image.src = `/api/libraries/penetration/${encodeURIComponent(diagramId)}/thumbnail${diagramVersion ? `?v=${diagramVersion}` : ""}`; image.alt = `${row.inputs.T || row.inputs.K || "Firestopping item"} source diagram`; image.loading = "lazy"; image.decoding = "async";
+          image.addEventListener("error", () => { if (diagramCell.dataset.libraryDiagram === diagramStamp) diagramCell.replaceChildren(node("span", "helper", "No diagram")); });
+          diagramCell.replaceChildren(image);
+        } else diagramCell.replaceChildren(node("span", "helper", "—"));
+      }
+      const values = [line, row.inputs.K || "—", row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), invalid ? "Check input" : result?.errors?.length ? "Review calculation" : state.schedule.calculating ? "Calculating…" : result ? "Calculated" : "—", null];
+      values.forEach((value, column) => { if (column !== 5 && column !== 8) tr.children[column].textContent = String(value); });
       if (!quantityField) tr.children[5].textContent = display(row.inputs.O);
       for (const control of tr.children[5].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Item ${line}: ${fieldLabel(quantityField)}`);
       const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit firestopping item ${line}`); edit.addEventListener("click", () => selectRow(row.id));
@@ -481,7 +499,7 @@
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
       remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove item ${line}`; remove.setAttribute("aria-label", `Remove firestopping item ${line}`); remove.disabled = state.schedule.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
       actions.append(edit, remove);
-      if (tr.children[8]) tr.children[8].replaceChildren(edit, remove); else tr.append(actions);
+      if (tr.children[9]) tr.children[9].replaceChildren(edit, remove); else tr.append(actions);
       return tr;
     });
     // Keeping unchanged rows attached preserves the active quantity editor and
@@ -587,5 +605,5 @@
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
   $("penetration-pdf").addEventListener("click", () => download("pdf")); $("penetration-excel").addEventListener("click", () => download("xlsx"));
-  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity };
+  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged };
 })();

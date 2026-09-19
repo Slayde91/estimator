@@ -3,12 +3,13 @@ const vm = require('node:vm');
 const copy = value => JSON.parse(JSON.stringify(value));
 function definition() {
   const field = (column,label,type,group,format='number',options=[]) => ({column,label,type,group,format,options,units:'',default:null});
-  return {id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
+  const metadata={id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
     defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},schedule_defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[]},groups:['Penetration','Products and labour','Additional Allowances','Substrate'],
     // Legacy metadata may still describe globals; current views must not render them.
     global_fields:[field('J','LAFHA','select','Global settings','text',['No','Yes']),field('L','Global Labour','number','Global settings','percent')],
     row_fields:[field('T','Item(s)','text','Penetration','text'),field('U','System','text','Penetration','text'),field('O','Item QTY','number','Penetration'),field('J','Type','select','Penetration','text',['HVAC','Electrical']),field('W','Workers','select','Products and labour','text',['Installer']),field('AG','Material Wastage %','number','Additional Allowances','percent'),field('AW','Length','number','Substrate')],
     output_fields:[field('H','Item total','number','Summary','currency'),field('BQ','Wrap SQM Required','number','Material quantities'),field('DI','Labour days','number','Labour')]};
+  metadata.row_fields.find(item=>item.column==='O').step=1;metadata.row_fields.find(item=>item.column==='AG').step=1;metadata.row_fields.find(item=>item.column==='AW').step=5;return metadata;
 }
 function result(draft,metadata=definition()) {
   return {source_sha256:metadata.source_sha256,draft:copy(draft),definition:copy(metadata),summary:{grand_total:123.456789,materials:65.4321,labour:58.024689,total_days:0.123456},errors:[],
@@ -16,7 +17,7 @@ function result(draft,metadata=definition()) {
 }
 function allowanceDefinition() {
   const metadata=definition();metadata.groups.push('Pipes');
-  for(const [column,label,group] of [['register_allowance_hours','Register Allowance','Products and labour'],['pipe_labour_hours','Pipe Labour','Pipes']]) metadata.row_fields.push({column,label,group,type:'number',format:'number',units:'hrs',options:[],default:null,automatic_default:true,source:'application',address:null,min:0});
+  for(const [column,label,group] of [['register_allowance_hours','Register Allowance','Products and labour'],['pipe_labour_hours','Pipe Labour','Pipes']]) metadata.row_fields.push({column,label,group,type:'number',format:'number',units:'hrs',options:[],default:null,automatic_default:true,source:'application',address:null,min:0,...(column==='register_allowance_hours'?{step:.05}:{})});
   metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',type:'number',format:'number',units:'mm',options:[],default:null});
   return metadata;
 }

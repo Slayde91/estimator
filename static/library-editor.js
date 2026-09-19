@@ -2,7 +2,8 @@
   "use strict";
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const state = { record: null, draft: null, definition: null, result: null, group: null, baseline: null,
-    invalid: new Map(), session: 0, version: 0, busy: false, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null };
+    invalid: new Map(), session: 0, version: 0, busy: false, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null,
+    diagramChange: undefined, diagramRead: 0 };
   let actions = {};
   let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -19,7 +20,7 @@
   });
   const fieldInGroup = (field, group) => !field.hidden && (field.display_groups || [field.group]).includes(group);
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
-  const hasUnsavedChanges = () => state.open && !!state.record && (stamp() !== state.baseline || state.invalid.size > 0);
+  const hasUnsavedChanges = () => state.open && !!state.record && (stamp() !== state.baseline || state.invalid.size > 0 || state.diagramChange !== undefined);
   async function request(id, action, payload) {
     const response = await fetch(`/api/libraries/penetration/${encodeURIComponent(id)}/${action}`, payload ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) } : { headers: { Accept: "application/json" } });
     const data = await response.json();
@@ -39,10 +40,50 @@
     return precise ? String(adjusted) : number.format(adjusted).replace(/,/g, "");
   }
   function message(text = "", error = false) { const element = $("library-editor-message"); element.textContent = text; element.hidden = !text; element.className = `message${error ? " error" : ""}`; }
+  const diagramMime = filename => /\.png$/i.test(filename) ? "image/png" : /\.webp$/i.test(filename) ? "image/webp" : "image/jpeg";
+  function renderDiagram() {
+    const preview = $("library-editor-diagram-preview"), image = $("library-editor-diagram-image"), caption = $("library-editor-diagram-caption"), empty = $("library-editor-diagram-empty"), remove = $("library-editor-diagram-remove");
+    const pending = state.diagramChange, saved = state.record?.diagram || {};
+    let source = "", text = "";
+    if (pending && typeof pending === "object") {
+      source = `data:${diagramMime(pending.filename)};base64,${pending.content_base64}`;
+      text = `${pending.filename} — ready to compress and save.`;
+    } else if (pending === undefined && saved.available && saved.url) {
+      source = saved.url; text = saved.custom ? "Saved source diagram." : "Original source diagram. Choose an image to replace it for this library item.";
+    } else if (pending === null && saved.available && !saved.custom) {
+      source = saved.url; text = "The original source diagram will remain after saving.";
+    }
+    preview.hidden = !source; empty.hidden = !!source;
+    if (source) { image.src = source; caption.textContent = text; } else { image.removeAttribute?.("src"); caption.textContent = ""; }
+    remove.hidden = !(pending !== undefined || saved.custom);
+    remove.textContent = pending === null ? "Undo image change" : pending && typeof pending === "object" ? "Discard selected image" : "Remove saved image";
+  }
+  function queueDiagram(filename, content) {
+    if (!state.open || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP source diagram.");
+    if (typeof content !== "string" || !content || content.length > 20 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
+    state.diagramChange = { filename, content_base64: content }; state.version++; renderDiagram(); status();
+  }
+  function fileBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("The source diagram could not be read."));
+      reader.onload = () => { const value = String(reader.result || ""), comma = value.indexOf(","); comma < 0 ? reject(new Error("The source diagram could not be read.")) : resolve(value.slice(comma + 1)); };
+      reader.readAsDataURL(file);
+    });
+  }
+  async function chooseDiagram(file) {
+    if (!file) return;
+    if (file.size > 15 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
+    const session = state.session, read = ++state.diagramRead, content = await fileBase64(file);
+    if (!state.open || session !== state.session || read !== state.diagramRead) return;
+    queueDiagram(file.name, content); message("The source diagram is ready. Save Library Item to retain the compressed image and thumbnail.");
+  }
   function status(text) {
     $("library-editor-status").textContent = text || (state.busy ? "Working…" : state.invalid.size ? "Check input" : state.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved library changes" : "Saved library item");
     for (const id of ["library-editor-save", "library-editor-recalculate", "library-editor-refresh-pricing"]) $(id).disabled = !state.record || state.busy || state.invalid.size > 0;
     $("library-editor-cancel").disabled = state.busy;
+    $("library-editor-diagram-file").disabled = state.busy;
+    $("library-editor-diagram-remove").disabled = state.busy;
   }
   function changed() {
     state.version++; state.result = null; renderOutputs(); status(); actions.changed?.();
@@ -66,9 +107,11 @@
       for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) { const saved = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); saved.value = String(raw); saved.disabled = true; control.append(saved); }
     } else {
-      control.maxLength = 2000;
-      if (long) control.rows = 3; else control.type = "text";
-      if (field.type === "number") { control.inputMode = "decimal"; control.autocomplete = "off"; }
+      if (long) { control.rows = 3; control.maxLength = 2000; }
+      else if (field.type === "number") {
+        control.type = "number"; control.step = String(field.step ?? "any");
+        control.inputMode = "decimal"; control.autocomplete = "off";
+      } else { control.type = "text"; control.maxLength = 2000; }
     }
     const pending = state.invalid.get(key); control.value = pending ? pending.value : controlText(field, displayedInput(field, global));
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
@@ -137,20 +180,24 @@
   function present(record, handlers = {}) {
     if (!record?.draft || !record.definition || record.draft.rows?.length !== 1) throw new Error("The library item does not contain one editable source row.");
     state.session++; Object.assign(state, { record: clone(record), draft: clone(record.draft), definition: clone(record.definition), result: clone(record.result || null),
-      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true });
+      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true, diagramChange: undefined });
     clearTimeout(state.timer); state.requestRevision++;
     actions = { changed: scheduleCalculation, calculate, refreshPricing, save, cancel, ...handlers };
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
     $("firestopping-project-workspace").hidden = true; $("firestopping-library-editor").hidden = false;
-    renderFields(); renderOutputs(); status(); message();
+    renderFields(); renderOutputs(); renderDiagram(); status(); message();
   }
   function close() {
     state.session++; state.requestRevision++; state.opening++; clearTimeout(state.timer);
-    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map() });
+    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map(), diagramChange: undefined });
     $("firestopping-library-editor").hidden = true; $("firestopping-project-workspace").hidden = false;
   }
   function inputProblem() { return state.invalid.size ? "Correct the library item input marked invalid before continuing." : ""; }
-  function snapshot() { return { id: state.record.id, session: state.session, version: state.version, payload: { draft: clone(state.draft), revision: state.record.revision, pricing_token: state.record.pricing_token } }; }
+  function snapshot(includeDiagram = false) {
+    const payload = { draft: clone(state.draft), revision: state.record.revision, pricing_token: state.record.pricing_token };
+    if (includeDiagram && state.diagramChange !== undefined) payload.diagram = clone(state.diagramChange);
+    return { id: state.record.id, session: state.session, version: state.version, payload };
+  }
   function current(captured) { return state.open && state.session === captured.session && state.record.id === captured.id; }
   function refreshFields() {
     if (document.activeElement?.dataset?.libraryEditorField) {
@@ -165,7 +212,7 @@
     if (!keepDraft) state.draft = clone(record.draft);
     state.result = keepDraft ? null : clone(record.result || null);
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
-    refreshFields(); renderOutputs(); status();
+    refreshFields(); renderOutputs(); renderDiagram(); status();
   }
   async function open(id) {
     if (state.open) {
@@ -211,14 +258,16 @@
   async function save() {
     document.activeElement?.blur?.(); clearTimeout(state.timer);
     if (!state.open || state.busy || state.invalid.size) return;
-    const captured = snapshot(), revision = ++state.requestRevision;
+    const captured = snapshot(true), revision = ++state.requestRevision;
     let reschedule = false; state.busy = true; status("Saving library item…");
     try {
       const record = await request(captured.id, "save", captured.payload);
       if (!current(captured) || revision !== state.requestRevision) return;
       const later = state.version !== captured.version || state.invalid.size > 0;
+      if (Object.hasOwn(captured.payload, "diagram") && JSON.stringify(state.diagramChange) === JSON.stringify(captured.payload.diagram)) state.diagramChange = undefined;
       adopt(record, later); state.baseline = stamp(record.draft, record.pricing_token);
       window.CeasefireLibraries?.invalidate?.();
+      if (Object.hasOwn(captured.payload, "diagram")) window.CeasefirePenetrations?.libraryDiagramChanged?.(captured.id);
       if (later) { reschedule = true; message("The captured library item was saved. Your later edits are still here and have not been saved."); }
       else { close(); window.CeasefireLibraryEditorNavigation?.returnToLibrary(captured.id); }
     } catch (error) { if (current(captured) && revision === state.requestRevision) message(`Library item was not saved. ${error.message}`, true); }
@@ -232,5 +281,15 @@
   $("library-editor-refresh-pricing").addEventListener("click", () => actions.refreshPricing?.());
   $("library-editor-save").addEventListener("click", () => actions.save?.());
   $("library-editor-cancel").addEventListener("click", () => actions.cancel?.());
+  $("library-editor-diagram-file").addEventListener("change", async event => {
+    try { await chooseDiagram(event.target.files?.[0]); }
+    catch (error) { message(error.message, true); }
+    finally { event.target.value = ""; }
+  });
+  $("library-editor-diagram-remove").addEventListener("click", () => {
+    if (!state.open || state.busy) return;
+    state.diagramChange = state.diagramChange !== undefined ? undefined : null;
+    state.version++; renderDiagram(); status(); message(state.diagramChange === null ? "The saved image will be removed when you save this library item." : "The current saved image is retained.");
+  });
   window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem };
 })();

@@ -18,6 +18,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
     h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
   });
+  await check('Requested estimator numbers use native step controls without changing stored precision',async h=>{
+    let quantity=h.control('O');assert.equal(quantity.type,'number');assert.equal(quantity.step,'1');
+    h.audit.state.group='Substrate';h.audit.renderFields();const length=h.control('AW');assert.equal(length.type,'number');assert.equal(length.step,'5');
+    length.value='12.3456789012345';await length.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AW,12.3456789012345);
+    const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Products and labour';h.audit.renderFields();const allowance=h.control('register_allowance_hours');assert.equal(allowance.type,'number');assert.equal(allowance.step,'0.05');
+  });
   await check('Automatic allowances display server defaults without dirtying inputs and support precise manual, zero and reset values',async h=>{
     const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Products and labour';h.audit.renderFields();
     h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata));const before=copy(h.api.projectSnapshot());
@@ -314,6 +320,8 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.setRequest(async(path,payload)=>{if(path.endsWith('/edit')){reads++;return copy(item);}const response=result(payload.draft);response.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return response;});
     assert.equal(h.api.libraryQuantity('pkb-002'),undefined);
     for(let qty=1;qty<=4;qty++){const receipt=await h.api.addLibraryItem('pkb-002');assert.equal(receipt.quantity,qty);assert.equal(receipt.total,qty*10);assert.equal(h.api.libraryQuantity('pkb-002'),qty);assert.equal(h.api.projectSnapshot().draft.rows.length,1);}
+    const thumbnail=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.equal(thumbnail.tagName,'img');assert.equal(thumbnail.src,'/api/libraries/penetration/pkb-002/thumbnail');assert.match(thumbnail.alt,/Library pipe source diagram/);
+    h.api.libraryDiagramChanged('pkb-002');const refreshed=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.notEqual(refreshed,thumbnail);assert.equal(refreshed.src,'/api/libraries/penetration/pkb-002/thumbnail?v=1');
     assert.equal(reads,1);assert.equal(item.draft.rows[0].inputs.O,8);assert.equal(h.api.projectSnapshot().draft.globals.L,.17);assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'pkb-002');
   });
   await check('Library identity survives calculate, Save and Open; Add preserves edited row inputs and the composer',async h=>{

@@ -230,7 +230,7 @@ class PenetrationCalculationTests(unittest.TestCase):
                       {'rows': [{'id': 'a', 'inputs': {'O': float('inf')}}]},
                       {'rows': [{'id': 'a', 'inputs': {'O': 10 ** 1000}}]},
                       {'rows': [{'id': 'a', 'inputs': {'O': True}}]},
-                      {'globals': {'J': 'Maybe'}}, {'rows': []}, {'rows': [{'id': 'a', 'inputs': {'O': '1'}}]}):
+                      {'globals': {'J': 'Maybe'}}, {'rows': [None]}, {'rows': [{'id': 'a', 'inputs': {'O': '1'}}]}):
             with self.subTest(draft=draft), self.assertRaises(ValidationError):
                 normalize_draft(draft)
 

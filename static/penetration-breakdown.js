@@ -20,6 +20,22 @@
     return cell;
   }
   function sourceGroups(container, definition, row) {
+    if (Array.isArray(row.breakdown?.source_groups)) {
+      for (const group of row.breakdown.source_groups) {
+        const section = node("details", "penetration-output-group"); section.append(node("summary", "", group.label));
+        if (!group.rows.length) section.append(node("p", "helper", "No schedule items."));
+        for (const item of group.rows) {
+          section.append(node("h4", "penetration-source-line", item.label));
+          const list = node("dl", "cost-list");
+          for (const field of item.values) {
+            const line = node("div"); line.append(node("dt", "", field.label + (field.units ? ` (${field.units})` : "")), node("dd", "", display(field.value, field.format))); list.append(line);
+          }
+          section.append(list);
+        }
+        container.append(section);
+      }
+      return;
+    }
     for (const group of ["Summary", "Multipliers"]) {
       const fields = (definition?.output_fields || []).filter(field => field.group === group);
       if (!fields.length) continue;
@@ -31,15 +47,16 @@
       section.append(list); container.append(section);
     }
   }
-  function render(definition, row) {
+  function render(definition, row, schedule = false) {
     const container = node("div", "penetration-breakdown-content");
-    if (!row) { container.append(node("p", "helper", "Recalculate to see this item's output.")); return container; }
+    if (!row) { container.append(node("p", "helper", schedule ? "Recalculate to see the schedule output." : "Recalculate to see this item's output.")); return container; }
     if (row.errors?.length) container.append(node("p", "message error", row.errors.map(error => `${error.cell}: ${error.message}`).join("\n")));
     const breakdown = row.breakdown;
     if (!breakdown || !Array.isArray(breakdown.rows)) { container.append(node("p", "helper", "The item breakdown is unavailable.")); sourceGroups(container, definition, row); return container; }
     const scroll = node("div", "table-scroll penetration-breakdown-scroll"), table = node("table", "penetration-breakdown-table");
-    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", "Item cost breakdown");
-    table.append(node("caption", "sr-only", "Item cost breakdown"));
+    const caption = schedule ? "Schedule cost breakdown" : "Item cost breakdown";
+    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", caption);
+    table.append(node("caption", "sr-only", caption));
     const head = node("thead"), headings = node("tr"), body = node("tbody"), foot = node("tfoot"), subtotal = node("tr");
     for (const label of ["Item", "Unit Prices", "Material Quantities", "Material Costs", "Labour Costs", "Task Hours"]) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
@@ -56,5 +73,8 @@
     sourceGroups(container, definition, row);
     return container;
   }
-  window.CeasefirePenetrationBreakdown = { render };
+  function renderSchedule(definition, result) {
+    return render(definition, result ? { breakdown: result.schedule_breakdown, errors: result.errors, outputs: {} } : null, true);
+  }
+  window.CeasefirePenetrationBreakdown = { render, renderSchedule };
 })();

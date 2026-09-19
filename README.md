@@ -18,11 +18,16 @@ python -m estimator
 
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
 
-The **Estimator** tab has two tiles: **Estimator** opens the existing estimate,
-and **Firestopping Estimator** opens its separate firestopping schedule and costs.
+The **Estimator** tab has two tiles. **Estimator** includes the **Firestopping
+Schedule** below Material Requirements & Output, with its own totals and
+PDF/XLSX downloads. **Firestopping Estimator** calculates one current item;
+**Add to Schedule** copies it into the schedule using the schedule's allowances
+and current project prices. Editing the current item does not change existing
+schedule lines. **Edit** loads a copy of a schedule line; **Update Schedule**
+explicitly applies it, and **Cancel edit** restores the previous current item.
 Both use the same project details and pricing library, and are saved together.
-Their totals remain separate. The Firestopping Estimator retains the supplied
-workbook formulas, with grouped inputs, per-item results and PDF/XLSX downloads.
+The existing estimate and firestopping totals remain separate. The supplied
+workbook formulas remain intact.
 See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
 
 The **Libraries** tab has **Pricing Library**, **Firestopping Library** and
@@ -45,6 +50,8 @@ shared-rate changes do not alter a saved item. **Cancel** discards only this
 library editing session. Project Save / Save As does not save library edits.
 The supplier workbook, PDFs and diagrams stay unchanged; related technical
 references continue to describe the original source entry after an item is edited.
+**Add to Schedule** stays on the library page and confirms the recalculated
+price beside the item. The current item in the Firestopping Estimator is retained.
 
 1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.

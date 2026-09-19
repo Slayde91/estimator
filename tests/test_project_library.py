@@ -178,6 +178,31 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertEqual(database_rows(self.store), before)
         self.assertNotIn("save_token", self.library.listing()["files"][0])
 
+    def test_older_browser_cannot_remove_saved_current_item_on_save_or_save_as(self):
+        from estimator.penetration_calculator import definition
+        current = copy.deepcopy(definition({})['defaults'])
+        current['rows'][0]['inputs'].update(T='Keep my unscheduled item', O=2.123456789)
+        schedule = {**copy.deepcopy(current), 'rows': []}
+        request = {**copy.deepcopy(self.request), 'penetration': {'draft': schedule, 'composer': current}}
+        target = self.folder / 'Schedule and current item.json'
+        self.dialogs.selection = SaveSelection(str(target), None)
+        saved = self.library.save_as(request)
+        before = target.read_bytes()
+        older = {**request, 'penetration': {'draft': schedule}}
+        with self.assertRaisesRegex(ValidationError, 'Refresh the application'):
+            self.library.save({**older, 'save_token': saved['file']['save_token']})
+        self.assertEqual(target.read_bytes(), before)
+        self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+        with self.assertRaisesRegex(ValidationError, 'Refresh the application'):
+            self.library.save_as(older)
+        self.assertEqual(target.read_bytes(), before)
+        # A complete current browser can still save the project, using the same
+        # capability retained after the rejected incomplete write.
+        current['rows'][0]['inputs']['O'] = 3.123456789
+        receipt = self.library.save({**request, 'save_token': saved['file']['save_token']})
+        self.assertEqual(receipt['project']['penetration']['composer']['rows'][0]['inputs']['O'], 3.123456789)
+        self.assertEqual(receipt['project']['penetration']['draft']['rows'], [])
+
     def test_save_refuses_unknown_path_modified_deleted_or_replaced_target(self):
         target = self.folder / "Existing.json"
         target.write_bytes(self.payload)

@@ -507,32 +507,58 @@ async function penetrationCheck(name, fn) {
       assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);assert.equal(h.calc.dirty(entry),false);assert.equal(id,ids[index]);
     }
   });
-  await penetrationCheck('Save As captures the penetration draft and frozen project pricing; later row edits remain dirty',async h=>{
+  await penetrationCheck('Save As captures schedule and composer separately with frozen pricing; later composer edits remain dirty',async h=>{
     const input=h.pen.control('O');input.value='1.23456789012345';await input.emit('input');const pending=deferred();let sent;
+    await h.byId('penetration-add-to-schedule').emit('click');await flush();
     h.app.setRequest((path,options)=>{sent=JSON.parse(options.body);return pending.promise;});const saving=h.app.saveProject();await flush();
-    assert.equal(sent.penetration.draft.rows[0].inputs.O,1.23456789012345);assert.deepEqual(sent.estimate.configuration,copy(h.app.state.quoteConfiguration));
+    assert.equal(sent.penetration.draft.rows[0].inputs.O,1.23456789012345);assert.equal(sent.penetration.composer.rows[0].inputs.O,1.23456789012345);assert.deepEqual(sent.estimate.configuration,copy(h.app.state.quoteConfiguration));
     input.value='9.87654321098765';await input.emit('input');pending.resolve({file:{name:'penetration.json',path:'C:/estimates/penetration.json',save_token:'saved'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,penetration:{...sent.penetration,source_sha256:'penetration-source'}}});await saving;
-    assert.equal(h.pen.api.projectSnapshot().draft.rows[0].inputs.O,9.87654321098765);assert.equal(h.pen.api.hasUnsavedChanges(),true);assert.match(h.byId('app-message').textContent,/Later edits are not included/);
+    assert.equal(h.pen.api.projectSnapshot().composer.rows[0].inputs.O,9.87654321098765);assert.equal(h.pen.api.projectSnapshot().draft.rows[0].inputs.O,1.23456789012345);assert.equal(h.pen.api.hasUnsavedChanges(),true);assert.match(h.byId('app-message').textContent,/Later edits are not included/);
   });
-  await penetrationCheck('Successful Save preserves penetration precision and marks the entire snapshot saved',async h=>{
+  await penetrationCheck('Successful Save preserves precise composer values and an empty schedule, marking both saved',async h=>{
     const input=h.pen.control('O');input.value='7.123456789012345';await input.emit('input');h.app.state.projectFile={save_token:'original'};let sent;
     h.app.setRequest(async(path,options)=>{assert.equal(path,'/api/project/save');sent=JSON.parse(options.body);return{file:{name:'saved.json',path:'C:/estimates/saved.json',save_token:'rotated'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,penetration:sent.penetration}};});
-    await h.app.saveProject(false);await flush();assert.equal(sent.save_token,'original');assert.equal(h.app.state.projectFile.save_token,'rotated');assert.equal(h.pen.api.projectSnapshot().draft.rows[0].inputs.O,7.123456789012345);assert.equal(h.pen.api.hasUnsavedChanges(),false);
+    await h.app.saveProject(false);await flush();assert.equal(sent.save_token,'original');assert.equal(h.app.state.projectFile.save_token,'rotated');assert.equal(h.pen.api.projectSnapshot().composer.rows[0].inputs.O,7.123456789012345);assert.deepEqual(copy(sent.penetration.draft.rows),[]);assert.deepEqual(copy(h.pen.api.projectSnapshot()),sent.penetration);assert.equal(h.pen.api.hasUnsavedChanges(),false);
+  });
+  for(const calculationFirst of [true,false])await penetrationCheck(`Blank normalization ${calculationFirst?'before':'after'} a pending Save receipt does not invent later edits`,async h=>{
+    const input=h.pen.control('U');input.value='Keep the scheduled description';await input.emit('input');
+    await h.pen.audit.addToSchedule();await flush();
+    input.value='';await input.emit('input');
+    const calculation=deferred(),save=deferred();let calculatedDraft,sent;
+    h.pen.audit.setRequest((path,payload)=>{
+      if(path.endsWith('/definition'))return Promise.resolve(penetrationHelper.definition());
+      assert.equal(path,'/api/penetration/calculate');
+      if(!calculatedDraft){calculatedDraft=copy(payload.draft);return calculation.promise;}
+      return Promise.resolve(penetrationHelper.result(payload.draft));
+    });
+    const calculating=h.pen.audit.calculate();await flush();
+    h.app.setRequest((path,options)=>{assert.equal(path,'/api/project/save-as');sent=JSON.parse(options.body);return save.promise;});
+    const saving=h.app.saveProject();await flush();
+    const canonical=copy(sent.penetration);canonical.composer.rows[0].inputs.U=null;
+    calculatedDraft.rows[0].inputs.U=null;
+    const resolveCalculation=async()=>{calculation.resolve(penetrationHelper.result(calculatedDraft));await calculating;await flush();};
+    if(calculationFirst)await resolveCalculation();
+    save.resolve({file:{name:'normalized.json',path:'C:/estimates/normalized.json',save_token:'normalized'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,penetration:canonical}});await saving;
+    if(!calculationFirst)await resolveCalculation();
+    assert.equal(h.pen.api.projectSnapshot().draft.rows[0].inputs.U,'Keep the scheduled description');
+    assert.equal(h.pen.api.projectSnapshot().composer.rows[0].inputs.U,null);
+    assert.equal(h.pen.api.hasUnsavedChanges(),false);assert.equal(h.byId('project-save-state').textContent,'Saved project');
+    assert.doesNotMatch(h.byId('app-message').textContent,/Later edits/);
   });
   await penetrationCheck('Invalid penetration edits while other calculator preparation is pending block project writing',async h=>{
     const pending=deferred(),original=h.bridgeApi.completeProjectSnapshot;h.bridgeApi.completeProjectSnapshot=()=>pending.promise;let writes=0;h.app.setRequest(async()=>{writes++;});
     const saving=h.app.saveProject();await flush();const input=h.pen.control('O');input.value='1e';await input.emit('input');pending.resolve(h.bridgeApi.projectSnapshot());await saving;
-    assert.equal(writes,0);assert.match(h.byId('app-message').textContent,/penetration input marked invalid/);assert.equal(h.pen.api.hasUnsavedChanges(),true);h.bridgeApi.completeProjectSnapshot=original;
+    assert.equal(writes,0);assert.match(h.byId('app-message').textContent,/firestopping input marked invalid/);assert.equal(h.pen.api.hasUnsavedChanges(),true);h.bridgeApi.completeProjectSnapshot=original;
   });
-  await penetrationCheck('Cancelled project load retains penetration edits; accepted load uses its own rows and prices',async h=>{
+  await penetrationCheck('Cancelled project load retains composer edits; legacy schedule load keeps rows and gets an independent composer',async h=>{
     const input=h.pen.control('T');input.value='Keep before confirmation';await input.emit('input');const incoming=project();incoming.penetration={source_sha256:'penetration-source',draft:{globals:{J:'Yes',L:0.123456789},rows:[{id:'imported-42',inputs:{T:'Imported penetration',O:42.123456789}}]}};
-    h.app.setRequest(async()=>incoming);h.chooseFile();let loading=h.app.loadProject();await flush();await h.byId('discard-dialog').close('cancel');await loading;assert.equal(h.pen.api.projectSnapshot().draft.rows[0].inputs.T,'Keep before confirmation');
-    await h.loadAccepted();await flush();assert.deepEqual(copy(h.pen.api.projectSnapshot()),{draft:incoming.penetration.draft});assert.equal(h.pen.api.hasUnsavedChanges(),false);
+    h.app.setRequest(async()=>incoming);h.chooseFile();let loading=h.app.loadProject();await flush();await h.byId('discard-dialog').close('cancel');await loading;assert.equal(h.pen.api.projectSnapshot().composer.rows[0].inputs.T,'Keep before confirmation');
+    await h.loadAccepted();await flush();assert.deepEqual(copy(h.pen.api.projectSnapshot()),{draft:{...incoming.penetration.draft,globals:{J:'Yes',K:null,L:0.123456789,M:0}},composer:penetrationHelper.definition().defaults});assert.equal(h.pen.api.hasUnsavedChanges(),false);
     assert.deepEqual(h.pen.calls.filter(call=>call.path.endsWith('/definition')).at(-1).payload.configuration,incoming.estimate.configuration);assert.deepEqual(h.pen.calls.filter(call=>call.path.endsWith('/calculate')).at(-1).payload.configuration,incoming.estimate.configuration);
   });
-  await penetrationCheck('Legacy project without penetration opens a clean blank schedule',async h=>{
+  await penetrationCheck('Legacy project without penetration opens an empty schedule and clean default composer',async h=>{
     const input=h.pen.control('T');input.value='Previous penetration';await input.emit('input');await h.loadAccepted();await flush();
-    assert.deepEqual(copy(h.pen.api.projectSnapshot().draft),penetrationHelper.definition().defaults);assert.equal(h.pen.api.hasUnsavedChanges(),false);
+    assert.deepEqual(copy(h.pen.api.projectSnapshot()),{draft:penetrationHelper.definition().schedule_defaults,composer:penetrationHelper.definition().defaults});assert.equal(h.pen.api.hasUnsavedChanges(),false);
   });
   await penetrationCheck('Penetration source mismatch blocks load atomically without changing any project workspace',async h=>{
     const before=h.snapshot(),incoming=project();incoming.penetration={source_sha256:'other-source',draft:penetrationHelper.definition().defaults};h.app.setRequest(async()=>incoming);h.chooseFile();await h.app.loadProject();
@@ -542,15 +568,52 @@ async function penetrationCheck(name, fn) {
     h.chooseFile();const loading=h.app.loadProject();await flush();const input=h.pen.control('T');input.value='Review-time penetration edit';await input.emit('input');const before=h.snapshot();
     await h.byId('discard-dialog').close('confirm');await loading;assert.deepEqual(h.snapshot(),before);assert.match(h.byId('app-message').textContent,/changed during review/);
   });
-  await penetrationCheck('New project clears penetration inputs, Undo history and download target while returning to shared pricing',async h=>{
-    h.app.state.initialized=true;h.app.state.projectFile={save_token:'old'};const input=h.pen.control('T');input.value='Old penetration';await input.emit('input');h.pen.audit.removeRow('line-1');await flush();
+  await penetrationCheck('New project clears schedule, composer, Undo history and download target while returning to shared pricing',async h=>{
+    h.app.state.initialized=true;h.app.state.projectFile={save_token:'old'};const input=h.pen.control('T');input.value='Old penetration';await input.emit('input');await h.byId('penetration-add-to-schedule').emit('click');await flush();h.pen.audit.removeRow(h.pen.api.projectSnapshot().draft.rows[0].id);await flush();
     const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;await flush();
-    assert.deepEqual(copy(h.pen.api.projectSnapshot().draft),penetrationHelper.definition().defaults);assert.equal(h.pen.audit.state.removed.length,0);assert.equal(h.app.state.projectFile,null);assert.equal(h.app.state.quoteConfiguration,null);assert.equal(h.pen.api.hasUnsavedChanges(),false);
+    assert.deepEqual(copy(h.pen.api.projectSnapshot()),{draft:penetrationHelper.definition().schedule_defaults,composer:penetrationHelper.definition().defaults});assert.equal(h.pen.audit.state.removed.length,0);assert.equal(h.app.state.projectFile,null);assert.equal(h.app.state.quoteConfiguration,null);assert.equal(h.pen.api.hasUnsavedChanges(),false);
     assert.deepEqual(h.pen.calls.filter(call=>call.path.endsWith('/calculate')).at(-1).payload.configuration,copy(h.app.state.configuration));
   });
   await penetrationCheck('Applying current library pricing recalculates penetration without changing precise row inputs',async h=>{
     const input=h.pen.control('O');input.value='3.33333333333333';await input.emit('input');const before=h.pen.api.projectSnapshot();await h.app.useCurrentPricing();await flush();
     assert.deepEqual(copy(h.pen.api.projectSnapshot()),copy(before));assert.deepEqual(h.pen.calls.filter(call=>call.path.endsWith('/calculate')).at(-1).payload.configuration,copy(h.app.state.configuration));
+  });
+  await penetrationCheck('Opening a current-format project restores distinct schedule and composer allowances without touching the shared library',async h=>{
+    const incoming=project(),shared=copy(h.app.state.configuration);
+    incoming.penetration={source_sha256:'penetration-source',
+      draft:{globals:{J:'Yes',K:2.123456789,L:.15,M:.2},rows:[{id:'schedule-91',inputs:{T:'Scheduled item',O:2.3456789012345,AI:14.123456789}}]},
+      composer:{globals:{J:'No',K:8.987654321,L:.35,M:.45},rows:[{id:'composer-73',inputs:{T:'Unscheduled item',O:6.7890123456789,AI:72.987654321}}]}};
+    h.app.setRequest(async()=>incoming);await h.loadAccepted();await flush();
+    assert.deepEqual(copy(h.pen.api.projectSnapshot()),{draft:incoming.penetration.draft,composer:incoming.penetration.composer});
+    assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.inputs),incoming.estimate.inputs);
+    assert.equal(h.pen.api.hasUnsavedChanges(),false);
+    const calculations=h.pen.calls.filter(call=>call.path.endsWith('/calculate'));
+    assert.ok(calculations.some(call=>JSON.stringify(call.payload.draft)===JSON.stringify(incoming.penetration.composer)));
+    assert.ok(calculations.some(call=>JSON.stringify(call.payload.draft)===JSON.stringify(incoming.penetration.draft)));
+    assert.ok(calculations.every(call=>JSON.stringify(call.payload.configuration)===JSON.stringify(incoming.estimate.configuration)));
+  });
+  await penetrationCheck('Malformed saved composer blocks project replacement before any workspace changes',async h=>{
+    const before=h.snapshot(),incoming=project();
+    incoming.penetration={source_sha256:'penetration-source',draft:penetrationHelper.definition().schedule_defaults,
+      composer:{globals:{},rows:[{id:'one',inputs:{}},{id:'two',inputs:{}}]}};
+    h.app.setRequest(async()=>incoming);h.chooseFile();await h.app.loadProject();
+    assert.deepEqual(h.snapshot(),before);assert.ok(!h.byId('discard-dialog').open);
+    assert.match(h.byId('app-message').textContent,/firestopping inputs .*row capacity/i);
+  });
+  await penetrationCheck('Late composer calculation cannot restore the old item after a complete project load',async h=>{
+    const pending=deferred();let deferredOnce=false;
+    h.pen.audit.setRequest(async(path,payload)=>{
+      if(path.endsWith('/definition'))return penetrationHelper.definition();
+      if(!deferredOnce){deferredOnce=true;return pending.promise;}
+      return penetrationHelper.result(payload.draft);
+    });
+    const calculating=h.pen.audit.calculate();await flush();
+    const incoming=project();incoming.penetration={source_sha256:'penetration-source',
+      draft:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'new-schedule',inputs:{T:'Loaded schedule',O:12}}]},
+      composer:{globals:{J:'Yes',K:1.5,L:.22,M:.11},rows:[{id:'new-composer',inputs:{T:'Loaded composer',O:6.543210987654}}]}};
+    h.app.setRequest(async()=>incoming);await h.loadAccepted();await flush();const before=h.snapshot();
+    pending.resolve(penetrationHelper.result({globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{T:'Stale response',O:999}}]}));
+    await calculating;await flush();assert.deepEqual(h.snapshot(),before);assert.equal(h.pen.api.hasUnsavedChanges(),false);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

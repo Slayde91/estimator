@@ -201,6 +201,16 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const pending=deferred();h.context.window.CeasefirePenetrations={addLibraryItem:()=>pending.promise};await h.api.open('penetration','first');const pane=h.pane('penetration'),work=walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).emit('click');await flush();await h.api.open('penetration','second');pending.reject(new Error('Stale failure'));await work;
     assert.equal(pane.selected,'second');assert.doesNotMatch(text(pane.detailPanel),/Stale failure/);assert.equal(pane.addPending.size,0);assert.equal(walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).disabled,false);
   });
+  await check('Add confirms the recalculated price on the same library detail without navigating',async h=>{
+    h.context.window.CeasefirePenetrations={addLibraryItem:async()=>({added:true,id:'line-7',message:'FL-ID-007 added. Recalculated item price: $131.26.'})};
+    await h.api.open('penetration','penetration-1');const pane=h.pane('penetration');await walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).emit('click');
+    assert.equal(pane.selected,'penetration-1');assert.equal(pane.detailPanel.hidden,false);assert.match(text(pane.detailPanel),/Recalculated item price: \$131\.26/);
+    const status=walk(pane.detailPanel).find(node=>node.className==='message library-action-message');assert.ok(status);assert.equal(status.hidden,false);
+  });
+  await check('A late successful Add does not announce its price on a newer library record',async h=>{
+    const pending=deferred();h.context.window.CeasefirePenetrations={addLibraryItem:()=>pending.promise};await h.api.open('penetration','first');const pane=h.pane('penetration'),work=walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).emit('click');await flush();await h.api.open('penetration','second');pending.resolve({added:true,message:'Old item added at $1.23'});await work;
+    assert.equal(pane.selected,'second');assert.doesNotMatch(text(pane.detailPanel),/Old item added/);
+  });
   await check('Manual link selection saves only IDs, refreshes reciprocal caches and full totals, and preserves list controls',async h=>{
     let saved=false;h.setRoute((path,options)=>{
       if(path==='/api/libraries')return{libraries:[{id:'penetration',available:true,count:2,unlinked_count:saved?0:1},{id:'technical',available:true,count:2}]};

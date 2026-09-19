@@ -226,5 +226,21 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('A schedule initialization failure reveals its error in the schedule workspace',async h=>{
     h.audit.state.draft=null;h.audit.state.schedule.draft=null;h.pricing.rates.original.price=99;h.audit.setRequest(async()=>{throw new Error('Definition unavailable');});h.byId('penetration-schedule-workspace').hidden=true;await h.api.openSchedule();assert.equal(h.byId('penetration-schedule-workspace').hidden,false);assert.match(h.byId('penetration-schedule-message').textContent,/Definition unavailable/);
   });
+  for(const route of ['save','calculate'])await check(`Accepted ${route} normalization keeps a matching schedule Edit target usable`,async h=>{
+    h.audit.state.draft.rows[0].inputs.T='';await h.audit.addToSchedule();await h.audit.selectRow('line-1');const captured=h.api.projectSnapshot(),canonical=copy(captured);canonical.draft.rows[0].inputs.T=null;canonical.composer.rows[0].inputs.T=null;
+    if(route==='save')h.api.markProjectSaved(canonical,captured);
+    else{h.audit.setRequest(async()=>result(canonical.draft));await h.audit.calculateSchedule();}
+    assert.equal(h.audit.state.schedule.draft.rows[0].inputs.T,null);assert.equal(h.byId('penetration-update-schedule').disabled,false);
+    h.control('T').value='Updated after normalization';await h.control('T').emit('input');h.audit.setRequest(async(path,payload)=>result(payload.draft));await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Updated after normalization');
+  });
+  for(const route of ['save','calculate'])for(const conflict of ['later edit','removed and restored'])await check(`${route} normalization cannot unlock an Edit target after a ${conflict}`,async h=>{
+    h.audit.state.draft.rows[0].inputs.T='';await h.audit.addToSchedule();await h.audit.selectRow('line-1');
+    if(conflict==='later edit'){const qty=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];qty.value='3.123456789';await qty.emit('input');}
+    else{h.audit.removeRow('line-1');await flush();h.audit.undoRemove();await flush();}
+    const captured=h.api.projectSnapshot(),canonical=copy(captured);canonical.draft.rows[0].inputs.T=null;
+    if(route==='save')h.api.markProjectSaved(canonical,captured);
+    else{h.audit.setRequest(async()=>result(canonical.draft));await h.audit.calculateSchedule();}
+    assert.equal(h.byId('penetration-update-schedule').disabled,true);h.control('T').value='Obsolete edited copy';await h.control('T').emit('input');await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,null);if(conflict==='later edit')assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.123456789);
+  });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

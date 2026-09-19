@@ -93,12 +93,20 @@
   function inputProblem() { return state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
   function projectFingerprint() { return JSON.stringify({ context: state.context, ...persisted(), invalid: [...state.invalid], scheduleInvalid: [...state.schedule.invalid], edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch }); }
   async function completeProjectSnapshot() { await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
+  function acceptDraft(scope, draft, captured) {
+    // An accepted receipt can normalize blanks without changing the edited row.
+    // Advance its comparison value only while the original row and capture match.
+    const edit = scope === state.schedule && validEdit() && JSON.stringify(scope.draft) === JSON.stringify(captured)
+      && JSON.stringify(captured?.rows.find(row => row.id === state.edit.id)) === state.edit.target ? state.edit : null;
+    scope.draft = clone(draft);
+    if (edit && scheduleRow(edit.id)) edit.target = JSON.stringify(scheduleRow(edit.id));
+  }
   function markProjectSaved(receipt, captured) {
     if (!receipt?.draft || !state.draft) return;
     const saved = { draft: receipt.draft, composer: receipt.composer || captured?.composer || state.definition.defaults };
     for (const [key, scope] of [["draft", state.schedule], ["composer", state]]) {
       if (captured && !scope.invalid.size && JSON.stringify(scope.draft) === JSON.stringify(captured[key]) && JSON.stringify(scope.draft) !== JSON.stringify(saved[key])) {
-        scope.draft = clone(saved[key]); scope.revision++; scope.result = null;
+        acceptDraft(scope, saved[key], captured[key]); scope.revision++; scope.result = null;
       }
     }
     state.saved = JSON.stringify(saved); state.selected = state.draft.rows[0].id; render();
@@ -438,7 +446,7 @@
       const data = await request("/api/penetration/calculate", { draft, configuration: pricing });
       if (context !== state.context || revision !== scope.revision || requestRevision !== scope.requestRevision || pricingKey !== configStamp() || scope.invalid.size) return;
       const fieldsChanged = JSON.stringify([state.definition.row_fields, state.definition.global_fields]) !== JSON.stringify([data.definition?.row_fields || state.definition.row_fields, data.definition?.global_fields || state.definition.global_fields]);
-      if (data.draft) scope.draft = clone(data.draft);
+      if (data.draft) acceptDraft(scope, data.draft, draft);
       state.definition = data.definition || state.definition; scope.result = data; scope.calculating = false;
       renderSchedule(); renderSummary(scope); renderBreakdown(scope);
       if (fieldsChanged && fieldsActive()) state.pendingFields = true; else if (fieldsChanged) { renderFields(); renderScheduleGlobals(); } else refreshControls();

@@ -51,7 +51,11 @@ labour/material percentages and substrate/access/complexity surcharges. It
 overlays J2:M2 with No/0/0/0 and BI/BJ/BK with zero for every row, regardless of
 legacy inputs or current pricing. Historical inputs remain portable but cannot
 reactivate those effects. Explicit row materials, manual hours and adjustments
-(AE:AJ), quantity, wastage and source setup/register time remain active.
+(AE:AJ), quantity and wastage remain active. The effective labour policy replaces
+the source's combined 0.10-hour setup and 0.15-hour register charge with an
+editable Register Allowance, defaulting to 0.25 hours per item. It also replaces
+the source collar labour lookup with editable Pipe Labour multiplied by the
+Pipes Multiplier (AN). Item QTY (O) then applies once to these hours.
 The source image cell S4 already contains a cached
 `#VALUE!`; it is not a financial formula or an editable estimating input.
 
@@ -85,14 +89,19 @@ and schedule global allowance controls, Access and Complexity are omitted.
 Substrate remains descriptive. Library edits and existing saved items use the
 same effective policy; their frozen product and labour prices remain independent.
 
-The selected item and library editor share a seven-row cost table: Labour,
-Board, Collars, Mastic, Framing, Wrap and Other. Quantity values use the source
+The selected item and library editor share an eight-row cost table: Additional
+Labour, Register allowance, Board, Collars, Mastic, Framing, Wrap and Other.
+Additional Labour uses the existing manual AH/DJ hours and the AJ monetary
+adjustment; those hours are no longer duplicated under Other. Register allowance
+uses the selected Workers unit price (CW), as does Pipe Labour. Quantity values use the source
 BS/CB/CJ/CQ/CU product quantities, Mastic Qty AC, collar multiplier AN and
 additional material AF with its AG wastage, each multiplied by Item QTY once.
-No rounding up or global allowance is added. Task hours and costs use Item QTY
-and reconcile to the effective G/F/DK outputs. Setup/register
-hours come from the source named range; AI is allocated to Other materials and
-AJ to Labour costs. The canonical DK result controls the source hours gate.
+No rounding up or global allowance is added. Collar quantities appear only when
+a collar product is selected; the underlying Pipes Multiplier remains available
+to pipe-wrap calculations. Task hours and costs use Item QTY and reconcile to
+the effective G/F/DK outputs. AI is allocated to Other materials and AJ to
+Additional Labour costs once per line, without multiplication by Item QTY.
+The canonical DK result controls the effective hours gate.
 Blanks, zeros, negatives and calculation errors remain distinct. This is a
 display projection. Summary remains available below the table; removed allowance
 and multiplier values are omitted from the UI and exports. All table cells are
@@ -100,9 +109,41 @@ centred. The schedule has a
 separate aggregate table: costs and task hours sum across schedule lines, with
 canonical schedule subtotals. Matching product unit prices are shown once.
 Material quantities sum only for the same product, source context and unit;
-different rates stay separate in Unit Prices. Entries without a selected product
-remain per line, and grouped entries retain their contributing row IDs.
+different rates stay separate in Unit Prices. Non-collar entries without a
+selected product remain per line, and grouped entries retain their contributing row IDs.
 Summary retains each line's effective values.
+
+### Automatic and manual labour allowances
+
+The application inputs `register_allowance_hours` and `pipe_labour_hours` are
+stored separately from workbook cell inputs. Missing or null values mean
+automatic; an explicit number, including zero, is a manual override. Clearing
+an override or choosing **Use automatic** restores automatic calculation. The
+server returns resolved defaults separately, so merely opening an item does not
+write those values into its saved draft. Both new inputs accept finite,
+nonnegative hours. Additional Labour retains its existing AH input semantics.
+
+Register Allowance defaults to 0.25 hours. Pipe Labour is applied only with a
+selected collar and uses the pipe diameter (AL):
+
+| Pipe diameter | Hours per pipe |
+| --- | ---: |
+| Up to and including 50 mm | 0.25 |
+| Over 50, up to 100 mm | 0.30 |
+| Over 100, up to 150 mm | 0.35 |
+| Over 150, up to 200 mm | 0.40 |
+| Over 200, up to 250 mm | 0.45 |
+| Over 250, up to 300 mm | 0.50 |
+
+A selected collar with a missing/nonpositive diameter or a diameter above
+300 mm requires manual Pipe Labour hours. Its calculation is unavailable until
+that value is supplied; it is not silently priced with zero labour. Manual
+values survive diameter changes. Removing a collar selection suppresses pipe
+labour without deleting the entered allowance or pipe multiplier.
+
+These rules apply to current items, existing library items, schedules and quote
+exports. The calculation policy version invalidates cached library prices.
+Original source formulas and the source-oracle calculation path remain intact.
 
 Each material quantity also appears as a product/context row in the main
 Material Breakdown, with its unit sell rate, exact quantity multiplied by rate,
@@ -111,8 +152,9 @@ before matching product/context/rate rows are grouped. The combined Board task
 is split between Substrate and Bulkhead in proportion to their calculated
 quantities; Wrap is split between Pipes and Cabletrays in the same way. The last
 share retains any floating-point remainder so each task's hours are counted once.
-Zero total quantities do not receive invented labour days. Setup time remains
-in Labour Breakdown, and monetary adjustments do not create hours. Explicit AI
+Zero total quantities do not receive invented labour days. Register allowance
+and Additional Labour remain separate in Labour Breakdown; monetary adjustments
+do not create hours. Explicit AI
 material adjustments appear separately with quantity one and their extended rate.
 
 The combined quote leaves original main-estimator cells unchanged and adds the

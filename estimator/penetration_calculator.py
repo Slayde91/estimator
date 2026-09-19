@@ -16,6 +16,7 @@ import re
 from .catalog import ValidationError, effective_catalog
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
+from .penetration_labour import APP_INPUT_FIELDS, resolve_labour, validate_hours
 
 
 CAPACITY = 1000
@@ -23,7 +24,7 @@ GLOBAL_DEFAULTS = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
 # Explicit application policy; original workbook formulas and saved inputs remain
 # available for provenance. Removed allowances never affect effective estimates.
 EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
-CALCULATION_POLICY_VERSION = 'firestopping-no-global-allowances-or-multipliers-v1'
+CALCULATION_POLICY_VERSION = 'firestopping-register-and-pipe-labour-v2'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
@@ -54,9 +55,9 @@ PRICE_COLUMNS = {'W': 'AK', 'X': 'M', 'Y': 'B', 'Z': 'AN', 'AA': 'E', 'AB': 'S',
 OUTPUT_PERCENT_COLUMNS = {'BI', 'BJ', 'BK', 'BR', 'CA', 'CI', 'CP'}
 QUANTITY_OUTPUT_CONTEXTS = {'BS': 'Pipes', 'CB': 'Cabletrays', 'CJ': 'Substrate',
                             'CQ': 'Bulkhead', 'CU': 'Bulkhead'}
-TASK_HOUR_LABELS = {'DE': 'Board Task Hours', 'DF': 'Collars Task Hours',
+TASK_HOUR_LABELS = {'DE': 'Board Task Hours', 'DF': 'Pipes Task Hours',
                     'DG': 'Mastic Task Hours', 'DH': 'Framing Task Hours',
-                    'DI': 'Wrap Task Hours', 'DJ': 'Other Task Hours', 'DK': 'Total Task Hours'}
+                    'DI': 'Wrap Task Hours', 'DJ': 'Additional Labour Task Hours', 'DK': 'Total Task Hours'}
 CHOICE_NAMES = {'J': 'servicelist', 'L': 'pentype', 'M': 'orientation', 'N': 'FRL',
                 'P': 'substrates', 'Q': 'Access', 'R': 'complexity'}
 SUMMARY_COLUMNS = {'C2': 'other_allowances', 'D2': 'travel_lafha', 'E2': 'access',
@@ -124,12 +125,18 @@ def definition(configuration=None, service_types=None):
             if col in ('Q', 'R'):
                 continue
             options = selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, [])
-            label = {'T': 'Items/Services', 'U': 'System/Install Details'}.get(col, calc[col + '3']['value'])
+            label = {'T': 'Items/Services', 'U': 'System/Install Details', 'AH': 'Additional Labour'}.get(col, calc[col + '3']['value'])
             fields.append({'column': col, 'address': col + '4', 'label': label,
                 'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES or col in descriptions else 'text' if col in TEXT_COLUMNS else 'number',
                 'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
                 'format': 'percent' if col in PERCENT_COLUMNS else 'currency' if col in ('AI', 'AJ') else 'text' if col in TEXT_COLUMNS else 'number',
-                'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hours' if col == 'AH' else ''})
+                'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hrs' if col == 'AH' else ''})
+            for key, field in APP_INPUT_FIELDS.items():
+                if field['after'] == col:
+                    fields.append({'column': key, 'address': None, 'label': field['label'],
+                        'type': 'number', 'options': [], 'group': field['group'], 'default': None,
+                        'format': 'number', 'units': 'hrs', 'min': 0,
+                        'automatic_default': True, 'source': 'application'})
     output_fields = []
     for address, cell in sorted(calc.items(), key=lambda item: coordinates(item[0])[1]):
         if not address.endswith('4') or 'formula' not in cell:
@@ -144,7 +151,7 @@ def definition(configuration=None, service_types=None):
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
         'schedule_defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': []},
         'global_fields': [], 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS),
-        'allowed_input_columns': list(ROW_COLUMNS), 'calculation_policy': CALCULATION_POLICY_VERSION,
+        'allowed_input_columns': [*ROW_COLUMNS, *APP_INPUT_FIELDS], 'calculation_policy': CALCULATION_POLICY_VERSION,
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
 
 
@@ -183,10 +190,12 @@ def normalize_draft(draft):
         identifier, inputs = row.get('id'), row.get('inputs', {})
         if not isinstance(identifier, str) or not identifier or len(identifier) > 128 or identifier in seen:
             raise ValidationError('Penetration row IDs must be unique nonempty text, at most 128 characters.')
-        if not isinstance(inputs, dict) or set(inputs) - set(ROW_COLUMNS):
+        if not isinstance(inputs, dict) or set(inputs) - set(ROW_COLUMNS) - set(APP_INPUT_FIELDS):
             raise ValidationError('Unknown penetration row input; calculated cells cannot be edited.')
         seen.add(identifier)
-        normalized = {'id': identifier, 'inputs': {col: checked(value, col in TEXT_COLUMNS, col) for col, value in inputs.items()}}
+        normalized = {'id': identifier, 'inputs': {
+            col: validate_hours(value, col) if col in APP_INPUT_FIELDS else checked(value, col in TEXT_COLUMNS, col)
+            for col, value in inputs.items()}}
         if 'library_item_id' in row:
             library_id = row['library_item_id']
             if not isinstance(library_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}', library_id):
@@ -309,6 +318,7 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
     overlays, _ = inventory_lists(configuration)
     globals_ = EFFECTIVE_GLOBALS if effective else draft['globals']
     inputs = {'LISTS': overlays, 'CALC': {col + '2': value for col, value in globals_.items()}}
+    overrides = {'CALC': {}}
     if not draft['rows']:
         # The workbook has one physical template row. An empty application
         # schedule has no template item or travel/setup charge to calculate.
@@ -328,10 +338,23 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
         for address, cell in formulas.items():
             if index != 4:
                 calc[address[:-1] + str(index)] = dict(cell, formula=_copy_row_formula(cell['formula'], index))
+        if effective:
+            labour = resolve_labour(row['inputs'])
+            if labour['errors']:
+                # A formula error propagates through DK/F/H and each summary;
+                # a literal error-looking string would be silently zeroed by N.
+                overrides['CALC'][f'DF{index}'] = '=0+"Pipe Labour hours required"'
+            else:
+                inputs['CALC'][f'DF{index}'] = labour['pipe_task_hours']
+            tasks = ','.join(f'{column}{index}' for column in ('DE', 'DF', 'DG', 'DH', 'DI', 'DJ'))
+            overrides['CALC'][f'DK{index}'] = (
+                f'=_xlfn.LET(_xlpm.base,SUM({tasks})+{labour["register_hours"]!r},'
+                f'_xlpm.total,_xlpm.base*N(O{index}),'
+                'IF(_xlpm.base<=0,"",_xlpm.total))')
     last = len(draft['rows']) + 3
     for address in SUMMARY_COLUMNS:
         calc[address] = dict(calc[address], formula=re.sub(r'(:[A-Z]+)4\b', lambda m: m[1] + str(last), calc[address]['formula']))
-    return PenetrationEngine(model, inputs), draft
+    return PenetrationEngine(model, inputs, overrides), draft
 
 
 def calculate(draft, configuration=None):
@@ -340,6 +363,8 @@ def calculate(draft, configuration=None):
     rows, errors = [], []
     for index, row in enumerate(draft['rows'], 4):
         output, row_errors = {}, []
+        labour = resolve_labour(row['inputs'])
+        row_errors.extend(deepcopy(labour['errors']))
         for field in spec['output_fields']:
             address = field['column'] + str(index)
             try:
@@ -354,7 +379,9 @@ def calculate(draft, configuration=None):
                 message = 'Selected product or labour option is absent from this pricing snapshot.' if col in PRICE_COLUMNS else 'Selected option is absent from the workbook choices.'
                 row_errors.append({'cell': col + str(index), 'message': message})
         errors.extend(dict(error, row_id=row['id']) for error in row_errors)
-        rows.append({'id': row['id'], 'inputs': deepcopy(row['inputs']), 'outputs': output, 'errors': row_errors})
+        rows.append({'id': row['id'], 'inputs': deepcopy(row['inputs']), 'outputs': output, 'errors': row_errors,
+                     'input_defaults': labour['input_defaults'],
+                     'labour_policy': {key: value for key, value in labour.items() if key != 'input_defaults'}})
     summary_cells = {}
     for address in SUMMARY_COLUMNS:
         try:

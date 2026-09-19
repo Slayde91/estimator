@@ -1,6 +1,6 @@
 // Synthetic values only. The private workbook and report contents stay outside tests.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const {copy,definition,result,harness:projectHarness}=require('./helpers/penetration_ui.cjs');
+const {copy,definition,result,allowanceDefinition,allowanceResult,harness:projectHarness}=require('./helpers/penetration_ui.cjs');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const walk=node=>[node,...node.children.flatMap(walk)],text=node=>walk(node).map(el=>el.textContent).join(' ');
@@ -20,6 +20,25 @@ function harness(){
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Library automatic allowances remain raw and clean until manual input, retaining precise and zero overrides and reset',async h=>{
+    const metadata=allowanceDefinition(),source=fixture(undefined,{definition:metadata,result:allowanceResult(definition().defaults,metadata)});h.api.present(source);h.audit.state.group='Products and labour';h.audit.renderFields();let control=h.control('register_allowance_hours');const before=copy(h.audit.state.draft);
+    assert.equal(control.value,'0.25');assert.equal(h.api.hasUnsavedChanges(),false);await control.focus();await control.blur();assert.deepEqual(copy(h.audit.state.draft),before);
+    h.audit.setRequest(async(id,action,payload)=>fixture(payload.draft,{definition:metadata,result:allowanceResult(payload.draft,metadata)}));
+    for(const value of [0,.123456789012345]){control=h.control('register_allowance_hours');await control.focus();control.value=String(value);await control.emit('input');await control.blur();await h.audit.calculate();control=h.control('register_allowance_hours');assert.equal(h.audit.state.draft.rows[0].inputs.register_allowance_hours,value);await control.focus();assert.equal(control.value,String(value));await control.blur();}
+    control=h.control('register_allowance_hours');control.value='-1';await control.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.audit.state.draft.rows[0].inputs.register_allowance_hours,.123456789012345);await control.parentNode.children[3].children[1].emit('click');await h.audit.calculate();assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.register_allowance_hours,null);assert.equal(h.control('register_allowance_hours').value,'0.25');
+  });
+  await check('Library automatic defaults update from backend only, preserve focused input, and missing defaults never become guessed values',async h=>{
+    const metadata=allowanceDefinition(),source=fixture(undefined,{definition:metadata,result:allowanceResult(definition().defaults,metadata)});h.api.present(source);h.audit.state.group='Pipes';h.audit.renderFields();const pipe=h.control('pipe_labour_hours');await pipe.focus();
+    h.audit.setRequest(async(id,action,payload)=>fixture(payload.draft,{definition:metadata,result:allowanceResult(payload.draft,metadata,{pipe_labour_hours:.7123456789,register_allowance_hours:.25})}));await h.audit.calculate();assert.equal(pipe.value,'0.3');assert.match(text(pipe.parentNode),/Automatic: 0\.71 hrs/);await pipe.blur();assert.equal(h.control('pipe_labour_hours').value,'0.71');assert.equal(h.api.hasUnsavedChanges(),false);
+    const diameter=h.control('AL');await diameter.focus();diameter.value='200';await diameter.emit('input');assert.equal(h.control('pipe_labour_hours').value,'');await h.audit.calculate();assert.equal(h.control('pipe_labour_hours').value,'0.71');assert.equal(diameter.value,'200');await diameter.blur();const large=h.control('AL');large.value='500';await large.emit('input');assert.equal(h.control('pipe_labour_hours').value,'');
+    h.audit.setRequest(async(id,action,payload)=>fixture(payload.draft,{definition:metadata,result:allowanceResult(payload.draft,metadata,{pipe_labour_hours:null,register_allowance_hours:.25})}));await h.audit.calculate();assert.equal(h.control('pipe_labour_hours').value,'');assert.match(text(h.control('pipe_labour_hours').parentNode),/No automatic value/);assert.equal(h.audit.state.draft.rows[0].inputs.pipe_labour_hours,undefined);
+  });
+  await check('Library named allowances are captured by Save and reopen while later edits survive an in-flight receipt',async h=>{
+    const metadata=allowanceDefinition(),draft=copy(definition().defaults);draft.rows[0].inputs={T:'Library fixture',O:1,register_allowance_hours:0,pipe_labour_hours:.3456789012345};h.api.present(fixture(draft,{definition:metadata,result:allowanceResult(draft,metadata)}));h.audit.state.group='Pipes';h.audit.renderFields();
+    const pending=deferred();let capture;h.audit.setRequest(async(id,action,payload)=>{capture=copy(payload);return pending.promise;});const saving=h.audit.save();await flush();const pipe=h.control('pipe_labour_hours');pipe.value='.4567890123456';await pipe.emit('input');pending.resolve(fixture(capture.draft,{definition:metadata,revision:1,result:allowanceResult(capture.draft,metadata)}));await saving;
+    assert.equal(capture.draft.rows[0].inputs.register_allowance_hours,0);assert.equal(capture.draft.rows[0].inputs.pipe_labour_hours,.3456789012345);assert.equal(h.audit.state.draft.rows[0].inputs.pipe_labour_hours,.4567890123456);assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.api.isOpen(),true);
+    let saved;h.audit.setRequest(async(id,action,payload)=>saved=fixture(payload.draft,{definition:metadata,revision:2,result:allowanceResult(payload.draft,metadata)}));await h.audit.save();h.api.present(saved);assert.equal(h.audit.state.draft.rows[0].inputs.pipe_labour_hours,.4567890123456);assert.equal(h.api.hasUnsavedChanges(),false);
+  });
   await check('Library price uses the item total independently of the server summary total',async h=>{
     const item=fixture();item.result.summary.grand_total=523.456789;
     h.api.present(item);assert.match(text(h.byId('library-editor-price')),/123\.46/);assert.doesNotMatch(text(h.byId('library-editor-price')),/523\.46/);assert.match(text(h.byId('library-editor-summary')),/523\.46/);

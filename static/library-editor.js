@@ -4,6 +4,7 @@
   const state = { record: null, draft: null, definition: null, result: null, group: null, baseline: null,
     invalid: new Map(), session: 0, version: 0, busy: false, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null };
   let actions = {};
+  let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const numeric = value => typeof value === "number" && Number.isFinite(value);
@@ -41,6 +42,11 @@
   }
   function changed() {
     state.version++; state.result = null; renderOutputs(); status(); actions.changed?.();
+    for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) control.refreshAutomatic?.();
+  }
+  function displayedInput(field, global) {
+    const raw = values(global)[field.column] ?? null;
+    return field.automatic_default && (raw === null || raw === "") ? state.result?.rows?.[0]?.input_defaults?.[field.column] ?? null : raw;
   }
   function makeControl(field, global) {
     const session = state.session, key = keyFor(global, field.column), raw = values(global)[field.column] ?? null;
@@ -48,7 +54,7 @@
     // Match known casing variants without changing the stored manufacturer's value.
     const options = [...new Set((field.options || []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
     const long = field.type === "text" && ["T", "U"].includes(field.column);
-    const wrapper = node("label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
+    const wrapper = node(field.automatic_default ? "div" : "label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); control.setAttribute("aria-label", `${global ? "Item allowance" : "Library item"}: ${label}`);
     if (field.type === "select") {
@@ -60,10 +66,10 @@
       if (long) control.rows = 3; else control.type = "text";
       if (field.type === "number") { control.inputMode = "decimal"; control.autocomplete = "off"; }
     }
-    const pending = state.invalid.get(key); control.value = pending ? pending.value : controlText(field, raw);
+    const pending = state.invalid.get(key); control.value = pending ? pending.value : controlText(field, displayedInput(field, global));
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
     showProblem(pending?.error);
-    control.addEventListener("focus", () => { if (session === state.session && field.type === "number" && !state.invalid.has(key)) { control.value = controlText(field, values(global)[field.column], true); control.select?.(); } });
+    control.addEventListener("focus", () => { if (session === state.session && field.type === "number" && !state.invalid.has(key)) { control.value = controlText(field, displayedInput(field, global), true); control.select?.(); } });
     control.addEventListener(field.type === "select" ? "change" : "input", () => {
       if (session !== state.session || !state.open) return;
       let value = control.value, error = "";
@@ -71,7 +77,7 @@
         const text = value.trim();
         if (!text) value = null;
         else if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text) || !Number.isFinite(Number(text))) error = "Enter a finite number or leave this field blank.";
-        else { value = field.format === "percent" ? shiftDecimal(text, -2) : Number(text); if (!Number.isFinite(value) || Math.abs(value) > 1e12) error = "Enter a value between -1,000,000,000,000 and 1,000,000,000,000."; }
+        else { value = field.format === "percent" ? shiftDecimal(text, -2) : Number(text); if (!Number.isFinite(value) || Math.abs(value) > 1e12) error = "Enter a value between -1,000,000,000,000 and 1,000,000,000,000."; else if (numeric(field.min) && value < field.min) error = `Enter a value of at least ${field.min}.`; }
       } else if (field.type === "select") {
         value = value === "" ? null : options.find(option => String(option) === value);
         if (value === undefined) error = "Choose a listed value.";
@@ -81,10 +87,28 @@
     });
     control.addEventListener("blur", () => {
       if (session !== state.session) return;
-      if (!state.invalid.has(key)) control.value = controlText(field, values(global)[field.column]);
+      if (!state.invalid.has(key)) control.value = controlText(field, displayedInput(field, global));
       if (state.pendingFields) { state.pendingFields = false; renderFields(); }
     });
-    wrapper.append(node("span", "", label), control, problem); return wrapper;
+    wrapper.append(node("span", "", label), control, problem);
+    if (field.automatic_default) {
+      const tools = node("div", "penetration-automatic-tools"), hint = node("small", "helper"), reset = node("button", "button secondary", "Use automatic");
+      hint.id = `library-editor-default-${++controlSequence}`; control.setAttribute("aria-describedby", hint.id);
+      reset.type = "button"; reset.setAttribute("aria-label", `Use automatic ${fieldLabel(field)}`);
+      control.refreshAutomatic = () => {
+        const value = values(global)[field.column], automatic = value === null || value === undefined || value === "";
+        const defaults = state.result?.rows?.[0]?.input_defaults;
+        hint.textContent = !automatic ? "Manual allowance." : !defaults ? "Automatic value updates after calculation." : numeric(defaults[field.column]) ? `Automatic: ${controlText(field, defaults[field.column])}${field.units ? ` ${field.units}` : ""}.` : "No automatic value for this item. Enter hours if required.";
+        reset.disabled = automatic && !state.invalid.has(key);
+        if (control !== document.activeElement && !state.invalid.has(key)) control.value = controlText(field, displayedInput(field, global));
+      };
+      reset.addEventListener("click", () => {
+        if (session !== state.session || !state.open) return;
+        values(global)[field.column] = null; state.invalid.delete(key); showProblem(""); changed(); control.value = "";
+      });
+      control.refreshAutomatic(); tools.append(hint, reset); wrapper.append(tools);
+    }
+    return wrapper;
   }
   function renderFields() {
     const groups = fieldGroups(); if (!groups.includes(state.group)) state.group = groups[0];
@@ -101,7 +125,7 @@
     const labels = { materials: "Materials", labour: "Labour", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
     $("library-editor-summary").replaceChildren(...Object.entries(labels).map(([key, label]) => { const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(state.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line; }));
     const errors = state.result?.errors || [];
-    $("library-editor-summary-notes").textContent = errors.length ? errors.map(error => `${error.cell}: ${error.message}`).join("\n") : "Calculated from this library item's inputs and selected pricing basis.";
+    $("library-editor-summary-notes").textContent = errors.length ? errors.map(error => `${state.definition.row_fields.find(field => field.column === error.cell)?.label || error.cell}: ${error.message}`).join("\n") : "Calculated from this library item's inputs and selected pricing basis.";
     const row = state.result?.rows?.[0], breakdown = $("library-editor-breakdown");
     breakdown.replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, row));
   }
@@ -124,7 +148,11 @@
   function snapshot() { return { id: state.record.id, session: state.session, version: state.version, payload: { draft: clone(state.draft), revision: state.record.revision, pricing_token: state.record.pricing_token } }; }
   function current(captured) { return state.open && state.session === captured.session && state.record.id === captured.id; }
   function refreshFields() {
-    if (document.activeElement?.dataset?.libraryEditorField) { state.pendingFields = true; return; }
+    if (document.activeElement?.dataset?.libraryEditorField) {
+      state.pendingFields = true;
+      for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) control.refreshAutomatic?.();
+      return;
+    }
     renderFields();
   }
   function adopt(record, keepDraft = false) {

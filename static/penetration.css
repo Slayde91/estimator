@@ -51,3 +51,6 @@
 .penetration-schedule-workspace[hidden]{display:none}
 .penetration-schedule-workspace .card{min-width:0}
 .penetration-source-line{margin-top:18px}
+.penetration-automatic-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.penetration-automatic-tools .helper{flex:1 1 130px}
+.penetration-automatic-tools .button{padding:8px 10px;font-size:12px;min-height:36px}

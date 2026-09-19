@@ -19,10 +19,12 @@ TASKS = (
     ('Other', 'DC', 'DR', 'DJ', (('AF', 'Additional material'),)),
 )
 NOTE = ('Quantities, costs and task hours use this line’s Item QTY. '
-        'Labour includes setup/register time and the labour adjustment; Other includes the material adjustment. '
+        'Register allowance is separate from Additional Labour. '
+        'Additional Labour includes the manual hours and the labour adjustment; Other includes the material adjustment. '
         'Project allowances and substrate, access and complexity multipliers are excluded.')
 HOURS_PER_DAY = 8
-PRODUCT_COLUMNS = {'Labour': 'W', 'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
+PRODUCT_COLUMNS = {'Additional Labour': 'W', 'Register allowance': 'W',
+                   'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
                    'Framing': 'Z', 'Wrap': 'AA', 'Other': 'AE'}
 
 
@@ -121,12 +123,26 @@ def line_breakdown(row, globals_, miscellaneous_hours, *, effective=True):
     def unit_price(column):
         return [{'column': column, 'value': _source_value(outputs.get(column)), 'format': 'currency'}]
 
-    miscellaneous = hours(miscellaneous_hours)
-    rows = [{'label': 'Labour', 'unit_prices': unit_price('CW'), 'material_quantities': [],
-             'material_costs': '', 'labour_costs': labour_cost(miscellaneous, inputs.get('AJ')),
-             'task_hours': miscellaneous}]
+    if effective:
+        from .penetration_labour import resolve_labour
+        register = hours(resolve_labour(inputs)['register_hours'])
+        additional = hours(outputs.get('DJ'))
+        rows = [
+            {'label': 'Additional Labour', 'unit_prices': unit_price('CW'), 'material_quantities': [],
+             'material_costs': '', 'labour_costs': labour_cost(additional, inputs.get('AJ')),
+             'task_hours': additional},
+            {'label': 'Register allowance', 'unit_prices': unit_price('CW'), 'material_quantities': [],
+             'material_costs': '', 'labour_costs': labour_cost(register), 'task_hours': register},
+        ]
+    else:
+        miscellaneous = hours(miscellaneous_hours)
+        rows = [{'label': 'Labour', 'unit_prices': unit_price('CW'), 'material_quantities': [],
+                 'material_costs': '', 'labour_costs': labour_cost(miscellaneous, inputs.get('AJ')),
+                 'task_hours': miscellaneous}]
     for label, price, material, task, quantities in TASKS:
-        task_hours = hours(outputs.get(task))
+        # Manual AH/DJ hours belong to Additional Labour, independently of the
+        # extra material choice. Raw source-oracle projections retain Other.
+        task_hours = '' if effective and label == 'Other' else hours(outputs.get(task))
         quantity_values = []
         for column, context in quantities:
             # AN is also the pipe/wrap count; it represents collars only when
@@ -147,7 +163,8 @@ def line_breakdown(row, globals_, miscellaneous_hours, *, effective=True):
     note = NOTE
     if (total_hours in (None, '')
             and any(isinstance(outputs.get(task[3]), (int, float)) and outputs[task[3]] != 0 for task in TASKS)):
-        note += ' The source omits task hours when the base task-hour total is zero or negative.'
+        note += (' Task hours are omitted when the total allowed task hours are zero or negative.' if effective
+                 else ' The source omits task hours when the base task-hour total is zero or negative.')
     return {'basis': 'adjusted_line', 'rows': rows,
             'totals': {'material_costs': _source_value(outputs.get('G')),
                        'labour_costs': _source_value(outputs.get('F')),
@@ -156,7 +173,7 @@ def line_breakdown(row, globals_, miscellaneous_hours, *, effective=True):
 
 def add_breakdowns(result, source, *, effective=True):
     """Attach view data only after the source calculation has completed."""
-    miscellaneous = _miscellaneous_hours(source)
+    miscellaneous = None if effective else _miscellaneous_hours(source)
     for row in result['rows']:
         row['breakdown'] = line_breakdown(row, result['draft']['globals'], miscellaneous, effective=effective)
     return result

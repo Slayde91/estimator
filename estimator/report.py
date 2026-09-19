@@ -380,10 +380,12 @@ class _Report:
             rows, widths))
         if 'firestopping' in self.result:
             self.story.extend([PageBreak(), self.p('Firestopping schedule materials', 'section')])
+            has_register = any(item.get('name', '').endswith('Register allowance')
+                for item in self.result.get('labour', {}).get('firestopping_tasks', []))
             self.story.append(self.p(
                 'The schedule is included once in the quote summary. These quantities and sell rates use the recorded pricing snapshot. '
                 'Shared Board and Wrap task hours are allocated by each line\'s calculated material quantities; labour days use eight hours per day. '
-                'Setup labour is shown separately below.', 'small'))
+                + ('Register allowance is shown separately below.' if has_register else 'Setup labour is shown separately below.'), 'small'))
             entries = [item for item in self.result.get('materials', []) if item.get('source') == 'firestopping']
             if entries:
                 rows = [[self.detail(item['name']),
@@ -432,8 +434,11 @@ class _Report:
                          self.p(_number(schedule_summary.get('labour'), money=True), 'numeric')])
             self.story.append(self.table(['Task', 'Task hours', 'Labour days', 'Labour amount'], rows,
                 [223, 80, 80, _WIDTH - 383], compact=True))
+            labour_note = ('Register allowance shows the resolved registration time. Additional Labour includes entered extra hours and fixed labour adjustments. '
+                if any(item.get('name', '').endswith('Register allowance') for item in tasks)
+                else 'Firestopping Labour includes source setup time and fixed labour adjustments. ')
             self.story.append(self.p(
-                'Firestopping Labour includes source setup time and fixed labour adjustments. '
+                labour_note +
                 'Fixed monetary adjustments do not create task hours. These task totals include the hours allocated to material rows; '
                 'they are included once in the combined quote total.', 'small'))
 

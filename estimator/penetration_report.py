@@ -21,6 +21,7 @@ SCHEDULE = (
     ('Service', 'K'), ('Quantity', 'O'), ('Substrate', 'P'),
     ('Labour', 'F'), ('Materials', 'G'), ('Item total', 'H'),
 )
+LABOUR_INPUTS = {'register_allowance_hours': 'register_hours', 'pipe_labour_hours': 'pipe_hours'}
 
 
 def _visible_outputs(definition):
@@ -30,6 +31,30 @@ def _visible_outputs(definition):
 
 def _value(row, column):
     return row['outputs'].get(column, row['inputs'].get(column))
+
+
+def _input_value(row, column):
+    """Display the evaluated app allowance without filling its raw input."""
+    raw = row['inputs'].get(column)
+    if column not in LABOUR_INPUTS or raw not in (None, ''):
+        return raw
+    value = row.get('labour_policy', {}).get(LABOUR_INPUTS[column], row.get('input_defaults', {}).get(column))
+    if value is None:
+        if column == 'pipe_labour_hours' and row['inputs'].get('Y') in (None, ''):
+            return 'Not applicable'
+        return 'Unavailable'
+    return value
+
+
+def _input_basis(row, column):
+    if column not in LABOUR_INPUTS:
+        return ''
+    manual = row['inputs'].get(column) not in (None, '')
+    if column == 'pipe_labour_hours' and row['inputs'].get('Y') in (None, ''):
+        return ('Manual' if manual else 'Automatic') + '; no collar selected'
+    if not manual and _input_value(row, column) == 'Unavailable':
+        return 'Manual value required'
+    return 'Manual' if manual else 'Automatic'
 
 
 def _display(value, field=None):
@@ -83,8 +108,15 @@ def render_penetration_pdf(result, definition, project_details):
         for heading, fields, values in (
                 ('Inputs', definition['row_fields'], row['inputs']),
                 ('Calculated detail', _visible_outputs(definition), row['outputs'])):
-            records = [[report.p(field['label'], 'cell'), report.p(_display(values.get(field['column']), field), 'cell')]
-                       for field in fields if values.get(field['column']) not in (None, '')]
+            records = []
+            for field in fields:
+                column = field['column']
+                value = _input_value(row, column) if heading == 'Inputs' else values.get(column)
+                if value in (None, ''):
+                    continue
+                basis = _input_basis(row, column) if heading == 'Inputs' else ''
+                rendered = _display(value, field) + (' (' + basis + ')' if basis else '')
+                records.append([report.p(field['label'], 'cell'), report.p(rendered, 'cell')])
             if records:
                 report.story.extend([CondPageBreak(65), report.p(heading, 'subheading')])
                 report.story.append(report.table(['Parameter', 'Value'], records,
@@ -139,10 +171,11 @@ def build_penetration_register(result, definition, project_details):
            formats={index: _excel_format(fields_by_column[column]) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
     for title, fields, key in [('Inputs', definition['row_fields'], 'inputs'),
                                ('Calculated detail', _visible_outputs(definition), 'outputs')]:
-        widths = [9, 42, 85, 20]
+        widths = [9, 42, 85, 20] + ([36] if key == 'inputs' else [])
         sheet = _sheet(workbook, title, title.upper(), widths)
-        _table(sheet, 4, ['Line', 'Parameter', 'Value', 'Units'],
-               [[index, field['label'], row[key].get(field['column']), field.get('units', '')]
+        _table(sheet, 4, ['Line', 'Parameter', 'Value', 'Units'] + (['Basis'] if key == 'inputs' else []),
+               [[index, field['label'], _input_value(row, field['column']) if key == 'inputs' else row[key].get(field['column']), field.get('units', '')]
+                + ([_input_basis(row, field['column'])] if key == 'inputs' else [])
                 for index, row in enumerate(result['rows'], 1) for field in fields], widths, filtered=True)
         for index in range(len(result['rows'])):
             for offset, field in enumerate(fields):

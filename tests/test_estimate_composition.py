@@ -64,6 +64,12 @@ class EstimateCompositionTests(unittest.TestCase):
         self.assertEqual(result['labour']['total_days'], result['summary']['days'])
         self.assertEqual(result['labour']['task_days'], base['labour']['task_days'] + fire['summary']['labour_hours'] / 8)
         self.assertGreater(next(task['task_hours'] for task in result['labour']['firestopping_tasks'] if task['name'].endswith('Labour')), 0)
+        tasks = {task['name']: task for task in result['labour']['firestopping_tasks']}
+        self.assertEqual(len(tasks), 8)
+        self.assertEqual(tasks['Firestopping · Additional Labour']['task_hours'], .25 * 3.125)
+        self.assertEqual(tasks['Firestopping · Register allowance']['task_hours'], .25 * 3.125)
+        self.assertEqual(tasks['Firestopping · Other']['task_hours'], 0)
+        self.assertEqual(tasks['Firestopping · Other']['total'], 0)
         self.assertEqual(calculate(inputs), base)
 
     def test_empty_schedule_adds_no_template_cost_or_hours(self):

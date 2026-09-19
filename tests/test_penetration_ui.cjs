@@ -1,22 +1,47 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
-const {copy,definition,result,harness}=require('./helpers/penetration_ui.cjs');
+const {copy,definition,result,allowanceDefinition,allowanceResult,harness}=require('./helpers/penetration_ui.cjs');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
-  await check('The shared breakdown preserves seven server rows, five contextual quantities and server subtotals without deriving amounts',async h=>{
-    const labels=['Labour','Board','Collars','Mastic','Framing','Wrap','Other'];
+  await check('Automatic allowances display server defaults without dirtying inputs and support precise manual, zero and reset values',async h=>{
+    const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Products and labour';h.audit.renderFields();
+    h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata));const before=copy(h.api.projectSnapshot());
+    let control=h.control('register_allowance_hours');await control.focus();assert.equal(control.value,'');await h.audit.calculate();assert.equal(control.value,'');assert.match(text(control.parentNode),/Automatic: 0\.25 hrs/);await control.blur();assert.equal(control.value,'0.25');assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.api.hasUnsavedChanges(),false);
+    await control.focus();assert.equal(control.value,'0.25');await control.blur();assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    for(const value of [0,.123456789012345]){await control.focus();control.value=String(value);await control.emit('input');await control.blur();await h.audit.calculate();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,value);await control.focus();assert.equal(control.value,String(value));await control.blur();assert.match(text(control.parentNode),/Manual allowance/);}
+    control.value='-1';await control.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,.123456789012345);
+    await control.parentNode.children[3].children[1].emit('click');await h.audit.calculate();assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,null);assert.equal(control.value,'0.25');
+    await control.focus();control.value='';await control.emit('input');await control.blur();await h.audit.calculate();assert.equal(control.value,'0.25');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,null);
+  });
+  await check('Changed backend defaults refresh idle automatic fields without overwriting focused or manual values and stale responses stay rejected',async h=>{
+    const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Pipes';h.audit.renderFields();let automatic=.3123456789;
+    h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata,{pipe_labour_hours:automatic,register_allowance_hours:.25}));await h.audit.calculate();const pipe=h.control('pipe_labour_hours'),diameter=h.control('AL');await pipe.focus();assert.equal(pipe.value,String(automatic));
+    automatic=.7123456789;await h.audit.calculate();assert.equal(pipe.value,'0.3123456789');await pipe.blur();assert.equal(pipe.value,'0.71');assert.equal(h.api.hasUnsavedChanges(),false);
+    diameter.value='200';await diameter.emit('input');assert.equal(pipe.value,'');await h.audit.calculate();assert.equal(pipe.value,'0.71');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,undefined);
+    pipe.value='0';await pipe.emit('input');automatic=null;await h.audit.calculate();assert.equal(pipe.value,'0.00');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,0);
+    const pending=deferred(),captured=copy(h.audit.state.draft);h.audit.setRequest(()=>pending.promise);const calculating=h.audit.calculate();await flush();pipe.value='0.987654321';await pipe.emit('input');pending.resolve(allowanceResult(captured,metadata));await calculating;assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,.987654321);assert.equal(h.audit.state.result,null);
+    h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata,{pipe_labour_hours:null,register_allowance_hours:.25}));await pipe.parentNode.children[3].children[1].emit('click');await h.audit.calculate();assert.equal(pipe.value,'');assert.match(text(pipe.parentNode),/No automatic value/);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,null);
+  });
+  await check('Named allowance overrides survive Add, explicit Update, Remove Undo and project Save Open without changing independent composer state',async h=>{
+    const metadata=allowanceDefinition();h.audit.setRequest(async(path,payload)=>path.endsWith('/definition')?metadata:allowanceResult(payload.draft,metadata));h.audit.state.definition=metadata;
+    Object.assign(h.audit.state.draft.rows[0].inputs,{T:'Allowance fixture',O:2,register_allowance_hours:0,pipe_labour_hours:.3456789012345});await h.audit.addToSchedule();const original=copy(h.api.projectSnapshot());assert.deepEqual(original.draft.rows[0].inputs,original.composer.rows[0].inputs);
+    const id=original.draft.rows[0].id;await h.audit.selectRow(id);h.audit.state.group='Pipes';h.audit.renderFields();const pipe=h.control('pipe_labour_hours',id);pipe.value='.4567890123456';await pipe.emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.pipe_labour_hours,.3456789012345);await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.pipe_labour_hours,.4567890123456);
+    h.audit.removeRow(id);h.audit.undoRemove();const saved=copy(h.api.projectSnapshot());h.api.markProjectSaved(saved,saved);assert.equal(h.api.hasUnsavedChanges(),false);h.api.applyProject(await h.api.prepareProject(saved));assert.deepEqual(copy(h.api.projectSnapshot()),saved);assert.equal(h.api.hasUnsavedChanges(),false);
+  });
+  await check('The shared breakdown preserves eight server rows, separate register and additional labour, and server subtotals without deriving amounts',async h=>{
+    const labels=['Additional Labour','Register allowance','Board','Collars','Mastic','Framing','Wrap','Other'];
     const rows=labels.map((label,index)=>({label,unit_prices:[{value:10+index,format:'currency'}],material_quantities:[],material_costs:index,labour_costs:index*2,task_hours:index/10}));
-    rows[1].material_quantities=[{label:'Substrate',value:1.23456789,units:'m²'},{label:'Bulkhead',value:2.3456789,units:'m²'}];
-    rows[4].material_quantities=[{label:'Bulkhead',value:3.456789,units:'m'}];rows[5].material_quantities=[{label:'Pipes',value:4.56789,units:'m²'},{label:'Cabletrays',value:5.6789,units:'m²'}];
+    rows[2].material_quantities=[{label:'Substrate',value:1.23456789,units:'m²'},{label:'Bulkhead',value:2.3456789,units:'m²'}];
+    rows[5].material_quantities=[{label:'Bulkhead',value:3.456789,units:'m'}];rows[6].material_quantities=[{label:'Pipes',value:4.56789,units:'m²'},{label:'Cabletrays',value:5.6789,units:'m²'}];
     const row={inputs:{AC:989898,AN:878787,AF:767676},outputs:{BQ:656565},errors:[],breakdown:{rows,totals:{material_costs:999.12,labour_costs:888.23,task_hours:777.34},note:'Server calculation basis'}};
     const original=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row),table=rendered.children[0].children[0],body=table.children[2],foot=table.children[3];
     assert.deepEqual(body.children.map(line=>line.children[0].textContent),labels);assert.deepEqual(copy(row),original);
     assert.deepEqual(table.children[1].children[0].children.map(cell=>cell.textContent),['Item','Unit Prices','Material Quantities','Material Costs','Labour Costs','Task Hours']);
     assert.equal(body.children.flatMap(line=>line.children[2].children).length,5);assert.match(text(body),/Substrate.*1\.23.*Bulkhead.*2\.35/);assert.match(text(body),/Pipes.*4\.57.*Cabletrays.*5\.68/);
-    for(const index of [0,2,3,6])assert.equal(body.children[index].children[2].textContent,'—');
+    for(const index of [0,1,3,4,7])assert.equal(body.children[index].children[2].textContent,'—');
     assert.deepEqual(foot.children[0].children.map(cell=>cell.textContent),['Subtotal','$999.12','$888.23','777.34']);assert.doesNotMatch(text(rendered),/989898|878787|767676|656565/);
     assert.equal(rendered.children[0].tabIndex,0);assert.equal(rendered.children[0].getAttribute('aria-label'),'Item cost breakdown');
   });

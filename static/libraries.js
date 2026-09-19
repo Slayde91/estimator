@@ -45,7 +45,7 @@
     if (state.panes.has(kind)) return state.panes.get(kind);
     const pane = { kind, search: "", filters: {}, offset: 0, limit: 50, data: null, dataQuery: null, detail: null, selected: null,
       listRevision: 0, detailRevision: 0, openRevision: 0, listAbort: null, detailAbort: null, timer: null, filterStamp: null, busy: false,
-      linkSession: null, addPending: new Map(), addErrors: new Map(), scheduleButtons: new Map(), actionMessages: new Map() };
+      linkSession: null, addPending: new Map(), addErrors: new Map(), scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map() };
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
     pane.notice = node("p", "helper library-notice"); pane.notice.hidden = true;
@@ -115,9 +115,12 @@
     const total = integer(data.total);
     pane.count.textContent = total ? `Showing ${pane.offset + 1}–${Math.min(pane.offset + items.length, total)} of ${total} records` : "No matching records.";
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("list:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
+    for (const key of pane.quantityBadges.keys()) if (key.startsWith("list:")) pane.quantityBadges.delete(key);
     pane.results.replaceChildren(...(items.length ? items.map(item => {
       const card = node("article", "library-result"), title = button(item.title || item.id, () => navigate(pane.kind, item.id), "library-record-link");
-      title.dataset.libraryRecord = item.id; card.append(title);
+      title.dataset.libraryRecord = item.id;
+      if (pane.kind === "penetration") { const heading = node("div", "library-record-heading"); heading.append(title, quantityBadge(pane, item.id, "list")); card.append(heading); }
+      else card.append(title);
       if (item.subtitle) card.append(node("p", "library-subtitle", item.subtitle));
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", valueText(item.summary)));
@@ -138,6 +141,21 @@
     head.append(row); body.append(totals); table.append(head, body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
   }
   function actionContext(pane) { return JSON.stringify([state.current, pane.openRevision, pane.selected, pane.search, pane.filters, pane.offset]); }
+  function updateQuantity(badge, id) {
+    const quantity = window.CeasefirePenetrations?.libraryQuantity?.(id);
+    const available = typeof quantity === "number" && Number.isFinite(quantity);
+    badge.hidden = quantity === undefined;
+    badge.textContent = available ? `Quantity: ${quantity}` : "Quantity unavailable";
+    badge.setAttribute("aria-label", available ? `Current schedule quantity: ${quantity}` : "Current schedule quantity unavailable");
+  }
+  function quantityBadge(pane, id, place) {
+    const badge = node("span", "library-schedule-quantity"); badge.dataset.libraryQuantity = id; badge.setAttribute("role", "status");
+    pane.quantityBadges.set(`${place}:${id}`, badge); updateQuantity(badge, id); return badge;
+  }
+  function scheduleChanged() {
+    const pane = state.panes.get("penetration"); if (!pane) return;
+    for (const badge of pane.quantityBadges.values()) updateQuantity(badge, badge.dataset.libraryQuantity);
+  }
   function itemActions(pane, item, place) {
     const actions = node("div", "library-item-actions");
     if (item.editable) { const edit = button("Edit Library Item", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; actions.append(edit); }
@@ -153,6 +171,7 @@
     for (const control of pane.scheduleButtons.values()) if (control.dataset.libraryAdd === id) control.disabled = true;
     try {
       const receipt = await window.CeasefirePenetrations.addLibraryItem(id);
+      scheduleChanged();
       if (context === actionContext(pane) && receipt?.added) {
         const text = receipt.message || "Added to the Firestopping Schedule using its current prices and allowances.";
         for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) {
@@ -332,7 +351,10 @@
   function renderDetail(pane) {
     const data = pane.detail, heading = node("h3", "", data.title || data.id);
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
-    const content = [detailNavigation(pane), heading];
+    for (const key of pane.quantityBadges.keys()) if (key.startsWith("detail:")) pane.quantityBadges.delete(key);
+    const title = pane.kind === "penetration" ? node("div", "library-record-heading") : heading;
+    if (pane.kind === "penetration") title.append(heading, quantityBadge(pane, data.id, "detail"));
+    const content = [detailNavigation(pane), title];
     if (data.subtitle) content.push(node("p", "library-subtitle", data.subtitle));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     if (data.price || pane.kind === "penetration") {
@@ -424,5 +446,5 @@
     state.metadata = null; state.metadataRequest = null;
     for (const pane of state.panes.values()) { invalidateList(pane); ++pane.detailRevision; pane.detailAbort?.abort(); pane.data = null; pane.dataQuery = null; pane.detail = null; }
   }
-  window.CeasefireLibraries = { open, invalidate };
+  window.CeasefireLibraries = { open, invalidate, scheduleChanged };
 })();

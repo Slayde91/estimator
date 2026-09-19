@@ -10,6 +10,7 @@
   const shiftDecimal = (value, places) => { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); };
   const keyFor = (global, column) => `${global ? "global" : "row"}:${column}`;
   const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
+  const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))];
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
@@ -43,14 +44,17 @@
   }
   function makeControl(field, global) {
     const session = state.session, key = keyFor(global, field.column), raw = values(global)[field.column] ?? null;
+    const manufacturer = !global && manufacturerLabel(field, raw);
+    // Match known casing variants without changing the stored manufacturer's value.
+    const options = [...new Set((field.options || []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
     const long = field.type === "text" && ["T", "U"].includes(field.column);
     const wrapper = node("label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); control.setAttribute("aria-label", `${global ? "Item allowance" : "Library item"}: ${label}`);
     if (field.type === "select") {
       const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
-      for (const value of field.options || []) { const option = node("option", "", value); option.value = String(value); control.append(option); }
-      if (raw !== null && raw !== "" && !(field.options || []).some(value => String(value) === String(raw))) { const saved = node("option", "", `Saved value: ${raw} (choose a listed value)`); saved.value = String(raw); saved.disabled = true; control.append(saved); }
+      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || value); option.value = String(value); control.append(option); }
+      if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) { const saved = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); saved.value = String(raw); saved.disabled = true; control.append(saved); }
     } else {
       control.maxLength = 2000;
       if (long) control.rows = 3; else control.type = "text";
@@ -69,7 +73,7 @@
         else if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text) || !Number.isFinite(Number(text))) error = "Enter a finite number or leave this field blank.";
         else { value = field.format === "percent" ? shiftDecimal(text, -2) : Number(text); if (!Number.isFinite(value) || Math.abs(value) > 1e12) error = "Enter a value between -1,000,000,000,000 and 1,000,000,000,000."; }
       } else if (field.type === "select") {
-        value = value === "" ? null : (field.options || []).find(option => String(option) === value);
+        value = value === "" ? null : options.find(option => String(option) === value);
         if (value === undefined) error = "Choose a listed value.";
       }
       if (error) state.invalid.set(key, { value: control.value, error }); else { state.invalid.delete(key); values(global)[field.column] = value; }

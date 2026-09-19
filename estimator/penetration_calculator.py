@@ -173,17 +173,26 @@ def normalize_draft(draft):
         globals_out[col] = checked(value, col == 'J', col + '2')
     if globals_out['J'] not in ('Yes', 'No', None):
         raise ValidationError('LAFHA must be Yes or No.')
-    result, seen = [], set()
+    result, seen, library_ids = [], set(), set()
     for row in rows:
-        if not isinstance(row, dict) or set(row) - {'id', 'inputs'}:
-            raise ValidationError('Each penetration row must contain id and inputs only.')
+        if not isinstance(row, dict) or set(row) - {'id', 'inputs', 'library_item_id'}:
+            raise ValidationError('Each penetration row must contain id, inputs and an optional library item ID only.')
         identifier, inputs = row.get('id'), row.get('inputs', {})
         if not isinstance(identifier, str) or not identifier or len(identifier) > 128 or identifier in seen:
             raise ValidationError('Penetration row IDs must be unique nonempty text, at most 128 characters.')
         if not isinstance(inputs, dict) or set(inputs) - set(ROW_COLUMNS):
             raise ValidationError('Unknown penetration row input; calculated cells cannot be edited.')
         seen.add(identifier)
-        result.append({'id': identifier, 'inputs': {col: checked(value, col in TEXT_COLUMNS, col) for col, value in inputs.items()}})
+        normalized = {'id': identifier, 'inputs': {col: checked(value, col in TEXT_COLUMNS, col) for col, value in inputs.items()}}
+        if 'library_item_id' in row:
+            library_id = row['library_item_id']
+            if not isinstance(library_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}', library_id):
+                raise ValidationError('The library item ID must contain 1 to 200 letters, digits, dots, colons, underscores or hyphens.')
+            if library_id in library_ids:
+                raise ValidationError('Each library item may appear only once in a firestopping schedule; update its quantity instead.')
+            library_ids.add(library_id)
+            normalized['library_item_id'] = library_id
+        result.append(normalized)
     return {'globals': globals_out, 'rows': result}
 
 

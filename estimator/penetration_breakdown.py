@@ -13,7 +13,7 @@ from .excel_engine import column_name, column_number
 TASKS = (
     ('Board', 'CX', 'DM', 'DE', (('CJ', 'Substrate'), ('CQ', 'Bulkhead'))),
     ('Collars', 'CY', 'DN', 'DF', ()),
-    ('Mastic', 'CZ', 'DO', 'DG', ()),
+    ('Mastic', 'CZ', 'DO', 'DG', (('AC', 'Mastic Qty'),)),
     ('Framing', 'DA', 'DP', 'DH', (('CU', 'Bulkhead'),)),
     ('Wrap', 'DB', 'DQ', 'DI', (('BS', 'Pipes'), ('CB', 'Cabletrays'))),
     ('Other', 'DC', 'DR', 'DJ', ()),
@@ -123,7 +123,9 @@ def line_breakdown(row, globals_, miscellaneous_hours):
         task_hours = hours(outputs.get(task))
         quantity_values = []
         for column, context in quantities:
-            value = outputs.get(column)
+            # AC is the source Mastic Qty input; DO prices AC and G applies O.
+            # Like the source-derived quantities, its display uses Item QTY once.
+            value = inputs.get(column) if column == 'AC' else outputs.get(column)
             scaled = value if value in (None, '') else _compute(lambda: _number(value) * _number(quantity))
             quantity_values.append({'column': column, 'label': context, 'value': scaled,
                                     'format': 'number', 'units': ''})
@@ -149,10 +151,10 @@ def add_breakdowns(result, source):
 
 
 def schedule_breakdown(result):
-    """Aggregate adjusted costs, retaining line/product identities for other values.
+    """Aggregate compatible quantities and deduplicate identical product rates.
 
-    Prices and quantities are intentionally not added: even one task can use
-    different products, sizes and measurement bases across schedule lines.
+    Quantities retain product, source context and unit; prices also retain rate.
+    Entries without a selected product keep their individual line identities.
     The footer is the canonical calculation summary, not a rounded re-sum.
     """
     products = {'Labour': 'W', 'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
@@ -162,16 +164,31 @@ def schedule_breakdown(result):
         entries = [(index, row, next(item for item in row['breakdown']['rows'] if item['label'] == task))
                    for index, row in enumerate(result['rows'], 1)]
         combined = {'label': task, 'unit_prices': [], 'material_quantities': []}
+        grouped = {'unit_prices': {}, 'material_quantities': {}}
         for index, row, item in entries:
             product = row['inputs'].get(product_column)
             for key in ('unit_prices', 'material_quantities'):
                 for value in item[key]:
                     if value['value'] in (None, ''):
                         continue
-                    label = ' · '.join(str(part) for part in
-                                       (f'Line {index}', product, value.get('label')) if part not in (None, ''))
-                    combined[key].append({**value, 'label': label, 'row_id': row['id'],
-                                          'product_column': product_column, 'product': product})
+                    context = value.get('label')
+                    identity = (product, value['column'], context, value.get('format'), value.get('units', ''),
+                                _source_value(value['value']) if key == 'unit_prices' else None,
+                                row['id'] if product in (None, '') else None)
+                    if identity not in grouped[key]:
+                        label = ' · '.join(str(part) for part in
+                                           (f'Line {index}' if product in (None, '') else None,
+                                            product, context) if part not in (None, ''))
+                        group = {**value, 'label': label, 'row_ids': [],
+                                 'product_column': product_column, 'product': product}
+                        grouped[key][identity] = group
+                        combined[key].append(group)
+                    group = grouped[key][identity]
+                    if key == 'material_quantities' and group['row_ids']:
+                        group['value'] = _compute(lambda: _number(group['value']) + _number(value['value']))
+                    else:
+                        group['value'] = _source_value(value['value'])
+                    group['row_ids'].append(row['id'])
         for key in ('material_costs', 'labour_costs', 'task_hours'):
             combined[key] = _compute(lambda: sum(_number(item[key]) for _, _, item in entries))
         rows.append(combined)
@@ -194,5 +211,5 @@ def schedule_breakdown(result):
                        'task_hours': _source_value(summary['labour_hours'])},
             'source_groups': source_groups,
             'note': ('Costs and task hours include schedule quantities and allowances. '
-                     'Unit prices and material quantities retain their line and product. '
+                     'Matching product unit prices are shown once; quantities total matching products, contexts and units. '
                      'Summary and multiplier values are shown per line; project travel is included once in the schedule total.')}

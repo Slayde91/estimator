@@ -19,14 +19,13 @@ Pricing Library rates; changing the displayed price label does not change them.
 Firestopping Estimator, and its detailed exports. Workbook row/cell locations
 are not shown on library result cards or diagram captions.
 
-Every Firestopping entry includes **Service Size or Diameter**, derived from
-its effective calculator inputs. Diameter and cable-tray width/depth inputs
-take precedence. A diameter used for a bundle or a conflicting description is
-identified as the calculation diameter rather than asserted to be a pipe's
-outside diameter. Descriptive sizes retain component quantities and ranges.
-Aperture, seal, wrap, board and bulkhead dimensions are not service dimensions.
-When no service size is given, the field says so. Saving an item refreshes this
-field without changing its calculation rules or prices.
+Every Firestopping entry includes **Service Size or Diameter**, using only its
+effective calculator diameter (`AL`) and cable-tray width/depth (`AQ`/`AR`).
+For example, these display as `110 mm` or `450 mm wide × 50 mm deep`.
+Description text is never parsed or used as a fallback, and aperture, seal,
+wrap, board and bulkhead dimensions are excluded. When none of those fields has
+a valid dimension, the display is **Not specified in calculator inputs**. Saving an item refreshes this
+field without changing its calculation rules or stored pricing basis.
 
 The Firestopping Library starts with a table showing the total number of entries
 and how many have no linked technical references. These are whole-library

@@ -169,8 +169,11 @@ def _portable_penetration(value, *, saved=False):
     """Keep the separate estimator draft tied to its immutable workbook source."""
     from .penetration_calculator import normalize_composer, normalize_draft, source_model as penetration_source
     required = {"draft", "source_sha256"} if saved else {"draft"}
-    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {"composer"}:
+    optional = {"composer"} if saved else {"composer", "library_tracking_version"}
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - optional:
         raise ValidationError("Firestopping Estimator projects must contain their schedule, optional composer and source version only.")
+    if "library_tracking_version" in value and (type(value["library_tracking_version"]) is not int or value["library_tracking_version"] != 1):
+        raise ValidationError("The Firestopping Estimator library tracking version is not supported.")
     source_hash = penetration_source()["source"]["sha256"]
     if saved and value["source_sha256"] != source_hash:
         raise ValidationError("The project uses a different Firestopping Estimator workbook version.")

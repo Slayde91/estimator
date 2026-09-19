@@ -57,7 +57,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
         self.assertAlmostEqual(indexed['Other']['labour_costs'], 86.4)
         quantities = {value['column']: value['value'] for entry in table['rows']
                       for value in entry['material_quantities']}
-        self.assertEqual(quantities, {'BS': .75, 'CB': 1.5, 'CJ': 2.25, 'CQ': 3, 'CU': 3.75})
+        self.assertEqual(quantities, {'BS': .75, 'CB': 1.5, 'CJ': 2.25, 'CQ': 3, 'CU': 3.75, 'AC': None})
         self.assertEqual(indexed['Labour']['unit_prices'][0]['value'], 40)
         self.assert_reconciles(table)
         self.assertEqual(row, original)
@@ -94,10 +94,35 @@ class PenetrationBreakdownTests(unittest.TestCase):
                     self.assertEqual(table['totals'], {'material_costs': row['outputs']['G'],
                                                       'labour_costs': row['outputs']['F'], 'task_hours': row['outputs']['DK']})
                     self.assert_reconciles(table)
+                    mastic = next(item for item in table['rows'] if item['label'] == 'Mastic')['material_quantities'][0]
+                    quantity = row['inputs'].get('AC')
+                    item_count = row['inputs'].get('O') or 0
+                    self.assertEqual(mastic['column'], 'AC')
+                    self.assertEqual(mastic['value'], quantity if quantity in (None, '') else quantity * item_count)
                 checked += 1
             self.assertEqual(result, original)
         self.assertEqual(len(fixture['scenarios']), 49)
         self.assertEqual(checked, 50)
+
+    def test_mastic_quantity_uses_authoritative_input_times_item_qty_once(self):
+        calc = next(sheet for sheet in source_model()['sheets'] if sheet['name'] == 'CALC')['cells']
+        self.assertEqual(calc['AC3']['value'], 'Mastic Qty')
+        self.assertEqual(calc['DO4']['formula'], '=IFERROR((AC4) * (CZ4), "")')
+        for mastic, quantity, expected in ((.123456789012345, 3, .123456789012345 * 3),
+                                          (0, 4, 0), (None, 3, None), ('', 3, ''),
+                                          (2, 0, 0), (-.5, 3, -1.5), (2, None, 0),
+                                          ('#VALUE!', 3, '#VALUE!'), (2, '#N/A', '#N/A')):
+            with self.subTest(mastic=mastic, quantity=quantity):
+                row, globals_ = synthetic_row()
+                row['inputs'].update(AC=mastic, O=quantity)
+                row['outputs']['AC'] = 987654  # It is an input, never a calculated output.
+                globals_['M'] = 7
+                original = deepcopy(row)
+                value = next(item for item in line_breakdown(row, globals_, .25)['rows']
+                             if item['label'] == 'Mastic')['material_quantities'][0]
+                self.assertEqual(value, {'column': 'AC', 'label': 'Mastic Qty', 'value': expected,
+                                         'format': 'number', 'units': ''})
+                self.assertEqual(row, original)
 
     def test_source_gate_omits_all_hours_but_keeps_explicit_labour_adjustment(self):
         for other_hours in (-3, -1.5):

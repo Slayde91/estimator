@@ -83,6 +83,16 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     h.audit.state.group='Penetration';h.audit.renderFields();h.control('T').value='Edited row only';await h.control('T').emit('input');await h.audit.calculate();assert.deepEqual(h.calls.at(-1).payload.draft.globals,original);await h.audit.save();const saved=copy(h.calls.at(-1).payload.draft);assert.deepEqual(saved.globals,original);h.api.present(fixture(saved));assert.deepEqual(copy(h.audit.state.draft.globals),original);
     const html=fs.readFileSync('static/index.html','utf8');for(const id of ['library-editor-project-allowances','library-editor-globals'])assert.ok(!html.includes(`id="${id}"`),`${id} must not remain in HTML`);
   });
+  await check('Library SETTINGS exposes contextual Waste and pipe band fields as saved globals',async h=>{
+    const metadata=definition();metadata.groups.push('SETTINGS');metadata.global_fields=[
+      {column:'pipe_labour_50_hours',label:'Pipe Labour up to 50 mm',group:'SETTINGS',type:'number',format:'number',units:'hrs',options:[],default:.25,min:0,step:.05,help:'Pipe Labour hours per collar for pipe diameters up to 50 mm.'},
+      {column:'waste_cabletrays',label:'Waste',group:'SETTINGS',type:'number',format:'percent',units:'%',options:[],default:0,min:0,step:1,help:'Applies to Cabletrays.'}
+    ];const draft=copy(metadata.defaults);Object.assign(draft.globals,{pipe_labour_50_hours:.25,waste_cabletrays:0});
+    h.api.present(fixture(draft,{definition:metadata,result:result(draft,metadata)}));h.audit.state.group='SETTINGS';h.audit.renderFields();
+    const waste=h.control('waste_cabletrays',true),pipe=h.control('pipe_labour_50_hours',true);assert.ok(waste&&pipe);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.equal(waste.title,'Applies to Cabletrays.');
+    waste.value='8.5';await waste.emit('input');pipe.value='.6';await pipe.emit('input');assert.equal(h.audit.state.draft.globals.waste_cabletrays,.085);assert.equal(h.audit.state.draft.globals.pipe_labour_50_hours,.6);
+    let capture;h.audit.setRequest(async(id,action,payload)=>{capture=copy(payload);return fixture(payload.draft,{definition:metadata,result:result(payload.draft,metadata)});});await h.audit.calculate();assert.equal(capture.draft.globals.waste_cabletrays,.085);
+  });
   await check('Opening the library item leaves the full project state and raw invalid inputs intact',async h=>{
     const project=h.context.penAudit;project.state.draft.rows[0].inputs.T='Unsaved project';project.makeControl(definition().row_fields.find(f=>f.column==='O'),'line-1');
     const projectQuantity=h.byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField==='O');projectQuantity.value='1e-';await projectQuantity.emit('input');

@@ -15,6 +15,8 @@ APP_INPUT_FIELDS = {
     'pipe_labour_hours': {'label': 'Pipe Labour', 'group': 'Pipes', 'after': 'AN'},
 }
 PIPE_BANDS = ((50, .25), (100, .30), (150, .35), (200, .40), (250, .45), (300, .50))
+PIPE_BAND_SETTINGS = tuple((maximum, f'pipe_labour_{maximum}_hours', hours)
+                           for maximum, hours in PIPE_BANDS)
 REGISTER_HOURS = .25
 PIPE_HOURS_REQUIRED = 'Enter Pipe Labour hours for the selected collar; a positive diameter up to 300 mm is required for automatic hours.'
 
@@ -29,26 +31,30 @@ def validate_hours(value, key):
     return value
 
 
-def resolve_labour(inputs):
+def resolve_labour(inputs, settings=None):
     """Resolve defaults and per-item labour without mutating the entered inputs.
 
 The pipe allowance is per pipe. AN scales it here; Item QTY O scales all task
 hours later in DK. No selected collar means no pipe labour, even if a manual
 allowance is retained for a future selection.
 """
+    settings = settings or {}
+    collar_selected = inputs.get('Y') not in (None, '')
     diameter = inputs.get('AL')
     automatic_pipe = None
-    if (isinstance(diameter, (int, float)) and not isinstance(diameter, bool)
+    if (collar_selected and isinstance(diameter, (int, float)) and not isinstance(diameter, bool)
             and 0 < diameter <= 300 and math.isfinite(diameter)):
-        automatic_pipe = next((hours for maximum, hours in PIPE_BANDS if diameter <= maximum), None)
+        automatic_pipe = next((settings.get(key, hours) for maximum, key, hours in PIPE_BAND_SETTINGS
+                               if diameter <= maximum), None)
     defaults = {'register_allowance_hours': REGISTER_HOURS, 'pipe_labour_hours': automatic_pipe}
     register = validate_hours(inputs.get('register_allowance_hours'), 'register_allowance_hours')
-    pipe = validate_hours(inputs.get('pipe_labour_hours'), 'pipe_labour_hours')
+    pipe = (validate_hours(inputs.get('pipe_labour_hours'), 'pipe_labour_hours')
+            if collar_selected else None)
     register = defaults['register_allowance_hours'] if register is None else register
     pipe = defaults['pipe_labour_hours'] if pipe is None else pipe
     errors = []
     pipe_task = ''
-    if inputs.get('Y') not in (None, ''):
+    if collar_selected:
         if pipe is None:
             pipe_task = '#VALUE!'
             errors.append({'cell': 'pipe_labour_hours', 'message': PIPE_HOURS_REQUIRED})

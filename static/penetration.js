@@ -86,6 +86,12 @@
     if (snapshot?.source_sha256 && snapshot.source_sha256 !== definition.source_sha256) throw new Error("The firestopping inputs use a different source workbook version. Their inputs have been retained.");
     const draft = clone(snapshot?.draft || definition.schedule_defaults || { globals: definition.defaults.globals, rows: [] });
     const composer = clone(snapshot?.composer || definition.defaults);
+    for (const field of (definition.global_fields || []).filter(field => field.group === "SETTINGS")) {
+      const legacy = field.legacy_column && [...draft.rows, ...composer.rows]
+        .map(row => row.inputs?.[field.legacy_column]).find(value => value !== null && value !== undefined && value !== "");
+      draft.globals[field.column] = draft.globals[field.column] ?? legacy ?? field.default;
+      composer.globals[field.column] = draft.globals[field.column];
+    }
     checkDraft(draft, definition); checkDraft(composer, definition, true);
     return { definition, draft, composer, saved: stable(canonicalSnapshot({ draft, composer }, definition)) };
   }
@@ -157,6 +163,8 @@
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : rowId === null || epoch === state.rowEpochs.get(rowId));
     const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
     const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
+    const help = field.help || "";
+    if (help) { wrapper.title = help; label.title = help; control.title = help; }
     if (compact) { wrapper.className += " penetration-schedule-quantity"; label.className = "sr-only"; control.dataset.penetrationScheduleQuantity = rowId; }
     const line = rowId === null ? (scope === state ? "Current item" : "Schedule") : `Item ${scope.draft.rows.findIndex(row => row.id === rowId) + 1}`;
     control.dataset.penetrationScope = scope === state ? "composer" : "schedule";
@@ -178,6 +186,10 @@
       } else { control.type = "text"; control.maxLength = 2000; }
     }
     control.value = pending ? pending.value : controlText(field, displayedInput(field, rowId, scope));
+    if (field.enabled_when) {
+      const inputs = rowById(rowId, scope)?.inputs || {};
+      control.disabled = field.enabled_when.nonblank && [null, undefined, ""].includes(inputs[field.enabled_when.column]);
+    }
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
     showProblem(pending?.error);
     control.addEventListener("focus", () => {
@@ -208,7 +220,10 @@
       if (error) scope.invalid.set(key, { value: control.value, error });
       else { scope.invalid.delete(key); (rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs)[field.column] = value; }
       showProblem(error); changed(rowId, scope);
-      if (scope === state && !error && ["J", "K"].includes(field.column)) renderFields();
+      if (!error && rowId === null && field.group === "SETTINGS" && scope === state.schedule) {
+        state.draft.globals[field.column] = value; changed(null, state);
+      }
+      if (scope === state && !error && ["J", "K", "Y"].includes(field.column)) renderFields();
     };
     control.addEventListener(field.type === "select" ? "change" : "input", apply);
     control.addEventListener("blur", () => {
@@ -261,7 +276,9 @@
     const identity = [row.inputs.J, row.inputs.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
     $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${identity || "Item details"}`;
     const fields = node("div", "penetration-fields");
-    for (const field of state.definition.row_fields.filter(field => fieldInGroup(field, state.group))) fields.append(makeControl(field, row.id));
+    const settings = state.group === "SETTINGS";
+    const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
+    for (const field of visible) fields.append(makeControl(field, settings ? null : row.id, false, settings ? state.schedule : state));
     $("penetration-row-fields").replaceChildren(fields);
   }
   function refreshControls() {
@@ -283,7 +300,11 @@
     if (!window.CeasefirePenetrationNavigation?.confirm) { message("Finish the current item before replacing it.", true); return false; }
     return window.CeasefirePenetrationNavigation.confirm(title, detail, action);
   }
-  function defaultComposer() { const draft = clone(state.definition.defaults); draft.rows[0].inputs = { ...newRow(state).inputs, ...draft.rows[0].inputs }; return draft; }
+  function defaultComposer() {
+    const draft = clone(state.definition.defaults);
+    for (const field of (state.definition.global_fields || []).filter(field => field.group === "SETTINGS")) draft.globals[field.column] = state.schedule.draft?.globals?.[field.column] ?? field.default;
+    draft.rows[0].inputs = { ...newRow(state).inputs, ...draft.rows[0].inputs }; return draft;
+  }
   function composerChanged() { return state.invalid.size > 0 || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
   function replaceComposer(draft, invalid = new Map()) {
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);

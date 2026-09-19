@@ -244,7 +244,7 @@ class EstimateCompositionTests(unittest.TestCase):
         fire_materials = [item['name'] for item in quote['result']['materials']
                           if item.get('source') == 'firestopping']
         for token in ('Material breakdown', 'Base units', 'Wastage %', '/ units',
-                      'Firestopping schedule labour', 'Firestopping total', 'Material adjustment',
+                      'Firestopping Labour', 'Material adjustment',
                       *fire_materials, f"${quote['result']['summary']['total']:,.2f}"):
             self.assertIn(''.join(token.split()), compact)
         self.assertNotIn('Firestopping schedule materials', text)

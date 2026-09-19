@@ -78,7 +78,8 @@ class LabourPolicyTests(unittest.TestCase):
                 with self.subTest(key=key, value=str(value)), self.assertRaises(ValidationError):
                     normalize_draft({'rows': [{'id': 'one', 'inputs': {key: value}}]})
             value = .123456789012345
-            draft = normalize_draft({'rows': [{'id': 'one', 'inputs': {key: value}}]})
+            inputs = {key: value, **({'Y': self.collar} if key == 'pipe_labour_hours' else {})}
+            draft = normalize_draft({'rows': [{'id': 'one', 'inputs': inputs}]})
             self.assertEqual(draft['rows'][0]['inputs'][key], value)
 
     def test_definition_exposes_application_fields_without_forged_workbook_addresses(self):
@@ -124,14 +125,23 @@ class LabourPolicyTests(unittest.TestCase):
         self.assertAlmostEqual(row['outputs']['F'], row['outputs']['DK'] * row['outputs']['CW'] + 17)
         self.assertAlmostEqual(result['summary']['total_days'], row['outputs']['DK'] / 8)
 
-    def test_clearing_collar_keeps_manual_hours_but_removes_pipe_charge(self):
+    def test_clearing_collar_removes_manual_hours_and_pipe_charge(self):
         result = self.result(AL=50, AN=4, pipe_labour_hours=1.25)
         row = result['rows'][0]
-        self.assertEqual(row['inputs']['pipe_labour_hours'], 1.25)
-        self.assertEqual(row['labour_policy']['pipe_hours'], 1.25)
+        self.assertNotIn('pipe_labour_hours', row['inputs'])
+        self.assertIsNone(row['input_defaults']['pipe_labour_hours'])
+        self.assertIsNone(row['labour_policy']['pipe_hours'])
         self.assertEqual(row['outputs']['DF'], '')
         self.assertEqual(row['outputs']['DK'], .5)
         self.assertEqual(result['errors'], [])
+
+    def test_project_pipe_band_settings_change_automatic_hours(self):
+        draft = {'globals': {'pipe_labour_100_hours': .75}, 'rows': [{
+            'id': 'one', 'inputs': {'W': self.worker, 'O': 1, 'Y': self.collar,
+                                    'AL': 75, 'AN': 2, 'register_allowance_hours': 0}}]}
+        result = calculate(draft)
+        self.assertEqual(result['rows'][0]['input_defaults']['pipe_labour_hours'], .75)
+        self.assertEqual(result['rows'][0]['outputs']['DF'], 1.5)
 
     def test_manual_zero_bypasses_missing_diameter_and_null_resets_to_validation(self):
         zero = self.result(Y=self.collar, AN=2, pipe_labour_hours=0)

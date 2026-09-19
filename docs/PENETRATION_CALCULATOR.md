@@ -53,7 +53,7 @@ and labour adjustments still apply once to the combined quote cost base. It
 overlays J2:M2 with No/0/0/0 and BI/BJ/BK with zero for every row, regardless of
 legacy inputs or current pricing. Historical inputs remain portable but cannot
 reactivate those effects. Explicit row materials, manual hours and adjustments
-(AE:AJ), quantity and wastage remain active. The effective labour policy replaces
+(AE:AJ), quantity and project Waste settings remain active. The effective labour policy replaces
 the source's combined 0.10-hour setup and 0.15-hour register charge with an
 editable Register Allowance, defaulting to 0.25 hours per item. It also replaces
 the source collar labour lookup with editable Pipe Labour multiplied by the
@@ -71,17 +71,25 @@ Penetration, Products and labour, Additional Allowances, Unlagged Pipes,
 Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
 group matching Service Type is shown, and Bulkhead is shown only when Type is
 Bulkheads. Cabletrays is shown only for cable/bundle services, Cable Trays and
-the source-backed Lagged Pipes entries that use those fields. The current-item
-heading uses Type and Service Type, while the longer Items/Services description
-remains in its input. Material Wastage remains editable and contributes through the
-existing source calculation. The current item's calculated detail and
+the source-backed Lagged Pipes entries that use those fields. SETTINGS contains
+the six editable Pipe Labour diameter bands and the six project-wide Waste (%)
+values for Additional Allowances, Pipes/Cables, Cabletrays, Substrate, Bulkhead
+board and Bulkhead framing. Hover help names each Waste setting's applicable
+section. Legacy row wastage is migrated once into these project settings and no
+longer changes one row independently. The current-item heading uses Type and
+Service Type, while the longer Items/Services description remains in its input.
+The current item's calculated detail and
 the complete schedule totals are calculated independently. Numeric fields use
 native number controls, retain their full stored precision and use the following
-arrow-step sizes: Item QTY, Material QTY, dollar adjustments, wastage values and
+arrow-step sizes: Item QTY, Material QTY, dollar adjustments, Waste settings and
 multipliers use 1; Mastic Qty and Additional Labour use 0.25; Register Allowance
 uses 0.05; cable-tray, wrap, board and bulkhead dimensions use 5 mm. Other
 numeric fields accept their existing precision. Percentages are shown and edited
 as percentages.
+
+FRL uses one canonical list: N/A, -/60/60, -/90/90, -/120/120, -/180/180 and
+-/240/240. Legacy library and saved-item values such as `120 min` are presented
+as `-/120/120` without rewriting the installed supplier source package.
 
 **Add to Schedule** copies the current item's inputs using current project prices
 and the effective calculation policy. **Edit** copies a schedule row into the current-item
@@ -146,8 +154,9 @@ path. Zero or missing Pipe Labour, zero or negative Additional Labour, rows
 without a collar, and other Service Types retain their entered AH value. The
 installed supplier library remains unchanged.
 
-Register Allowance defaults to 0.25 hours. Pipe Labour is applied only with a
-selected collar and uses the pipe diameter (AL):
+Register Allowance defaults to 0.25 hours. Pipe Labour is enabled and applied
+only with a selected collar and uses the pipe diameter (AL). Its six banded
+defaults are editable in project SETTINGS:
 
 | Pipe diameter | Hours per pipe |
 | --- | ---: |
@@ -161,8 +170,8 @@ selected collar and uses the pipe diameter (AL):
 A selected collar with a missing/nonpositive diameter or a diameter above
 300 mm requires manual Pipe Labour hours. Its calculation is unavailable until
 that value is supplied; it is not silently priced with zero labour. Manual
-values survive diameter changes. Removing a collar selection suppresses pipe
-labour without deleting the entered allowance or pipe multiplier.
+values survive diameter changes. Removing a collar selection clears Pipe Labour
+so it remains nil while no collar is selected; the pipe multiplier is retained.
 
 These rules apply to current items, existing library items, schedules and quote
 exports. The calculation policy version invalidates cached library prices.
@@ -182,9 +191,14 @@ average when captured rates differ. The combined Board task
 is split between Substrate and Bulkhead in proportion to their calculated
 quantities; Wrap is split between Pipes and Cabletrays in the same way. The last
 share retains any floating-point remainder so each task's hours are counted once.
-Zero total quantities do not receive invented labour days. Register allowance
-and Additional Labour remain separate in Labour Breakdown; monetary adjustments
-do not create hours. Explicit AI
+Zero total quantities do not receive invented labour days. The Estimator Labour
+Breakdown reconciles all Firestopping components into one `Firestopping` row and
+sums their days. The quote PDF keeps the detailed task rows under `Firestopping
+Labour` and adds totals for task hours, labour days and labour amount. Its main
+labour, Masking / cleaning, and Additions and project costs tables also include
+the requested days and amount totals. Register allowance and Additional Labour
+remain separate inputs in the detailed Firestopping calculation; monetary
+adjustments do not create hours. Explicit AI
 material adjustments appear separately with quantity one and their extended rate.
 
 The source-oracle path retains the original workbook formulas. The application

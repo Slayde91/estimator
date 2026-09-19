@@ -11,6 +11,7 @@ import unittest
 
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
+from estimator.penetration_calculator import normalize_draft
 from estimator.server import create_server
 from estimator.storage import Store
 from test_firestopping_library import editable_library
@@ -72,7 +73,7 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         self.assertEqual(self.library.detail('penetration', created['id'])['price']['label'], 'Library price')
         original = self.library.edits.created()[created['id']]
         original_prices = self.library.edits.snapshot(created['pricing_token'])
-        self.assertEqual(created['draft'], request['draft'])
+        self.assertEqual(created['draft'], normalize_draft(request['draft']))
         self.assertIn('catalog', created['configuration'])
         self.assertIn('Unknown saved service Ø65', self.library.service_types())
         edit = {key: deepcopy(created[key]) for key in ('draft', 'revision', 'pricing_token')}

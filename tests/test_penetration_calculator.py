@@ -12,7 +12,7 @@ from unittest.mock import patch
 from estimator.catalog import ValidationError, configuration_catalog, effective_catalog
 from estimator.excel_engine import FormulaError, column_number, coordinates
 from estimator.penetration_calculator import (
-    GLOBAL_DEFAULTS, ROW_COLUMNS, PenetrationEngine, _copy_row_formula,
+    FRL_OPTIONS, GLOBAL_DEFAULTS, ROW_COLUMNS, WASTE_SETTINGS, PenetrationEngine, _copy_row_formula,
     calculate, definition, engine_for_draft, inventory_lists, normalize_draft, source_model,
 )
 
@@ -144,6 +144,20 @@ class PenetrationSourceTests(unittest.TestCase):
 
 
 class PenetrationCalculationTests(unittest.TestCase):
+    def test_frl_and_shared_settings_are_canonical_and_drive_every_row(self):
+        draft = source_example()
+        draft['rows'][0]['inputs']['N'] = '120 min'
+        draft['rows'].append({'id': 'second', 'inputs': deepcopy(draft['rows'][0]['inputs'])})
+        for index, key in enumerate(WASTE_SETTINGS, 1):
+            draft['globals'][key] = index / 100
+        normalized = normalize_draft(draft)
+        self.assertEqual([row['inputs']['N'] for row in normalized['rows']], ['-/120/120', '-/120/120'])
+        self.assertEqual(definition()['row_fields'][4]['options'], list(FRL_OPTIONS))
+        engine, _ = engine_for_draft(draft)
+        for index in (4, 5):
+            for key, (column, _) in WASTE_SETTINGS.items():
+                self.assertEqual(engine.value('CALC', f'{column}{index}'), draft['globals'][key])
+
     def test_blank_draft_and_globals_do_not_resurrect_example(self):
         result = calculate(None)
         self.assertEqual(result['draft']['rows'][0]['inputs'], {})
@@ -158,15 +172,26 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(spec['defaults']['rows'][0]['inputs'], {})
         self.assertNotIn('Q', fields)
         self.assertNotIn('R', fields)
-        self.assertEqual(spec['global_fields'], [])
+        settings = {field['column']: field for field in spec['global_fields']}
+        self.assertEqual(len(settings), 12)
+        self.assertTrue(all(field['group'] == 'SETTINGS' for field in settings.values()))
+        self.assertEqual([settings[f'pipe_labour_{maximum}_hours']['default']
+                          for maximum in (50, 100, 150, 200, 250, 300)],
+                         [.25, .30, .35, .40, .45, .50])
+        self.assertTrue(all(settings[key]['label'] == 'Waste'
+                            and settings[key]['format'] == 'percent'
+                            and settings[key]['help'].startswith('Applies to ')
+                            for key in settings if key.startswith('waste_')))
         self.assertEqual(fields['K']['type'], 'select')
         self.assertIn('Saved custom service', fields['K']['options'])
         self.assertIn('Cable Trays', fields['K']['options'])
         self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
         self.assertEqual(fields['U']['label'], 'System/Install Details')
-        self.assertNotIn('hidden', fields['AG'])
+        for column in ('AG', 'AO', 'AU', 'AZ', 'BF', 'BG'):
+            self.assertNotIn(column, fields)
+        self.assertEqual(fields['N']['options'], ['N/A', '-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240'])
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
-            'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead'])
+            'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead', 'SETTINGS'])
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
         self.assertEqual(spec['group_visibility']['Cabletrays']['column'], 'K')
         for service in ('D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
@@ -177,14 +202,14 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertIn('Cable Bundles', spec['group_visibility']['Cables/Bundles']['values'])
         pipe_fields = [field for field in spec['row_fields'] if field['group'] == 'Pipes']
         self.assertEqual([field['column'] for field in pipe_fields],
-                         ['AL', 'AM', 'AN', 'pipe_labour_hours', 'AO'])
+                         ['AL', 'AM', 'AN', 'pipe_labour_hours'])
         for field in pipe_fields:
             self.assertEqual(field['display_groups'], ['Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles'])
         expected_steps = {'O': 1, 'AC': .25, 'register_allowance_hours': .05,
-            'AF': 1, 'AG': 1, 'AH': .25, 'AI': 1, 'AJ': 1, 'AM': 5,
-            'AO': 1, 'AQ': 5, 'AR': 5, 'AS': 5, 'AT': 1, 'AU': 1,
-            'AW': 5, 'AX': 5, 'AY': 1, 'AZ': 1, 'BB': 5, 'BC': 5,
-            'BD': 5, 'BE': 1, 'BF': 1, 'BG': 1}
+            'AF': 1, 'AH': .25, 'AI': 1, 'AJ': 1, 'AM': 5,
+            'AQ': 5, 'AR': 5, 'AS': 5, 'AT': 1,
+            'AW': 5, 'AX': 5, 'AY': 1, 'BB': 5, 'BC': 5,
+            'BD': 5, 'BE': 1}
         self.assertEqual({column: fields[column]['step'] for column in expected_steps}, expected_steps)
         self.assertNotIn('step', fields['AL'])
         self.assertNotIn('step', fields['pipe_labour_hours'])

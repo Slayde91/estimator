@@ -101,6 +101,7 @@
     const long = field.type === "text" && ["T", "U"].includes(field.column);
     const wrapper = node(field.automatic_default ? "div" : "label", `field${long ? " library-editor-long-text" : ""}`), label = fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "");
     const control = node(field.type === "select" ? "select" : long ? "textarea" : "input"), problem = node("small", "penetration-field-error");
+    if (field.help) { wrapper.title = field.help; control.title = field.help; }
     control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorGlobal = String(global); control.setAttribute("aria-label", `${global ? "Item allowance" : "Library item"}: ${label}`);
     if (field.type === "select") {
       const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
@@ -114,6 +115,7 @@
       } else { control.type = "text"; control.maxLength = 2000; }
     }
     const pending = state.invalid.get(key); control.value = pending ? pending.value : controlText(field, displayedInput(field, global));
+    if (field.enabled_when) control.disabled = field.enabled_when.nonblank && [null, undefined, ""].includes(state.draft.rows[0].inputs[field.enabled_when.column]);
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
     showProblem(pending?.error);
     control.addEventListener("focus", () => { if (session === state.session && field.type === "number" && !state.invalid.has(key)) { control.value = controlText(field, displayedInput(field, global), true); control.select?.(); } });
@@ -131,7 +133,7 @@
       }
       if (error) state.invalid.set(key, { value: control.value, error }); else { state.invalid.delete(key); values(global)[field.column] = value; }
       showProblem(error); changed();
-      if (!error && ["J", "K"].includes(field.column)) renderFields();
+      if (!error && ["J", "K", "Y"].includes(field.column)) renderFields();
     });
     control.addEventListener("blur", () => {
       if (session !== state.session) return;
@@ -164,7 +166,9 @@
       const button = node("button", "penetration-group", group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("aria-pressed", String(group === state.group));
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     }));
-    const fields = node("div", "library-editor-fields"); fields.append(...state.definition.row_fields.filter(field => fieldInGroup(field, state.group)).map(field => makeControl(field, false))); $("library-editor-fields").replaceChildren(fields);
+    const fields = node("div", "library-editor-fields"), settings = state.group === "SETTINGS";
+    const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
+    fields.append(...visible.map(field => makeControl(field, settings))); $("library-editor-fields").replaceChildren(fields);
   }
   function renderOutputs() {
     const price = state.result ? state.result.rows?.[0]?.outputs?.H : (!hasUnsavedChanges() ? state.record.price?.amount : null);

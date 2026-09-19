@@ -109,7 +109,9 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertEqual(records['Pipe Labour'], ('Not applicable', 'Automatic; no collar selected'))
         self.assertEqual(result['errors'], [])
         result = calculate(draft(Y=None, AL=None, pipe_labour_hours=0))
-        self.assertEqual(input_records(build_penetration_register(result, result['definition'], {}))['Pipe Labour'], (0, 'Manual; no collar selected'))
+        self.assertNotIn('pipe_labour_hours', result['rows'][0]['inputs'])
+        self.assertEqual(input_records(build_penetration_register(result, result['definition'], {}))['Pipe Labour'],
+                         ('Not applicable', 'Automatic; no collar selected'))
 
     def test_main_quote_costs_hours_days_and_material_projection_reconcile_once(self):
         request = {'title': 'Combined labour', 'inputs': {'B8': 1}, 'penetration': {'draft': draft()}}

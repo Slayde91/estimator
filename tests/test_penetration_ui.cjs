@@ -149,6 +149,20 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.deepEqual(copy(h.api.projectSnapshot().composer.globals),snapshot.composer.globals);assert.deepEqual(copy(h.api.projectSnapshot().draft.globals),snapshot.draft.globals);
     const html=fs.readFileSync('static/index.html','utf8');for(const id of ['penetration-project-allowances','penetration-global-fields','penetration-schedule-global-fields'])assert.ok(!html.includes(`id="${id}"`),`${id} must not remain in HTML`);
   });
+  await check('SETTINGS synchronizes pipe bands and contextual Waste fields across composer and schedule',async h=>{
+    const metadata=definition();metadata.groups.push('SETTINGS');
+    metadata.global_fields=[
+      {column:'pipe_labour_50_hours',label:'Pipe Labour up to 50 mm',group:'SETTINGS',type:'number',format:'number',units:'hrs',options:[],default:.25,min:0,step:.05,help:'Pipe Labour hours per collar for pipe diameters up to 50 mm.'},
+      {column:'waste_pipes',label:'Waste',group:'SETTINGS',type:'number',format:'percent',units:'%',options:[],default:0,min:0,step:1,help:'Applies to Unlagged Pipes, Plastic Pipes and Cables/Bundles.'}
+    ];
+    for(const draft of [metadata.defaults,metadata.schedule_defaults])Object.assign(draft.globals,{pipe_labour_50_hours:.25,waste_pipes:0});
+    h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);
+    h.audit.state.group='SETTINGS';h.audit.renderFields();
+    const waste=h.control('waste_pipes',null),pipe=h.control('pipe_labour_50_hours',null);assert.ok(waste&&pipe);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.match(waste.title,/Cables\/Bundles/);
+    waste.value='12.5';await waste.emit('input');assert.equal(h.audit.state.schedule.draft.globals.waste_pipes,.125);assert.equal(h.audit.state.draft.globals.waste_pipes,.125);
+    pipe.value='.4';await pipe.emit('input');assert.equal(h.audit.state.schedule.draft.globals.pipe_labour_50_hours,.4);assert.equal(h.audit.state.draft.globals.pipe_labour_50_hours,.4);
+    assert.equal(waste.dataset.penetrationScope,'schedule');assert.equal(waste.dataset.penetrationRow,'');
+  });
   await check('Substrate inputs remain available in the current item after allowance controls are removed',async h=>{
     const button=h.byId('penetration-input-groups').children.find(button=>button.textContent==='Substrate');assert.ok(button);await button.emit('click');assert.equal(button.dataset.penetrationGroup,'Substrate');
     const length=h.control('AW');assert.ok(length);length.value='450.123456789';await length.emit('input');await h.audit.calculate();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AW,450.123456789);assert.equal(h.api.projectSnapshot().draft.rows.length,0);

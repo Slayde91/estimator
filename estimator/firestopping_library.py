@@ -20,9 +20,8 @@ import re
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
-from .penetration_calculator import (CALCULATION_POLICY_VERSION, EFFECTIVE_GLOBALS,
-                                    calculate, definition, engine_for_draft,
-                                    normalize_draft, source_model)
+from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
+                                     definition, engine_for_draft, normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -311,7 +310,18 @@ class FirestoppingLibrary(ReferenceLibrary):
                 item['editable'] = False
                 item['notice'] = 'This saved item uses another calculator source version. Its original inputs and price are retained.'
             draft_rows = item.get('estimate', {}).get('draft', {}).get('rows', [])
-            self._service_size(item, draft_rows[0].get('inputs', {}) if draft_rows else {})
+            source_inputs = draft_rows[0].get('inputs', {}) if draft_rows else {}
+            source_frl = source_inputs.get('N')
+            effective_frl = canonical_frl(source_frl)
+            if effective_frl:
+                for field in item['fields']:
+                    if field.get('column') == 'N' or field.get('label') == 'FRL':
+                        field['value'] = effective_frl
+                if source_frl not in (None, ''):
+                    item['subtitle'] = str(item.get('subtitle', '')).replace(str(source_frl), effective_frl)
+                if 'frl' in item.get('filter_values', {}):
+                    item['filter_values']['frl'] = [effective_frl]
+            self._service_size(item, source_inputs)
             edit = saved.get(item['id'])
             if edit:
                 if edit['source_sha256'] != source_hash:
@@ -359,24 +369,26 @@ class FirestoppingLibrary(ReferenceLibrary):
     @staticmethod
     def _apply_edit(item, edit):
         inputs = edit['draft']['rows'][0]['inputs']
+        presentation_inputs = dict(inputs)
+        presentation_inputs['N'] = canonical_frl(inputs.get('N'))
         for field in item['fields']:
             # Source workbook W is its former ID, while the estimator W begins
             # calculation inputs. Only the common description columns map here.
             column = field.get('column')
             if column in {'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'T', 'U', 'V'}:
-                value = inputs.get(column)
+                value = presentation_inputs.get(column)
                 field['value'] = '' if value is None else str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
-        item['title'] = item['library_id'] + ' — ' + str(inputs.get('K') or inputs.get('T') or 'Firestopping item')
-        item['subtitle'] = ' · '.join(str(inputs[col]) for col in ('V', 'N', 'P') if inputs.get(col))
-        item['summary'] = str(inputs.get('U') or inputs.get('T') or '')
+        item['title'] = item['library_id'] + ' — ' + str(presentation_inputs.get('K') or presentation_inputs.get('T') or 'Firestopping item')
+        item['subtitle'] = ' · '.join(str(presentation_inputs[col]) for col in ('V', 'N', 'P') if presentation_inputs.get(col))
+        item['summary'] = str(presentation_inputs.get('U') or presentation_inputs.get('T') or '')
         item['price'] = price(edit['amount'], 'Saved item price')
         item['fields'].insert(1, {'label': 'Saved library edit', 'value': edit['updated_at']})
         item['notice'] = ('This user-created item has saved edits. Review linked technical details against the current inputs.' if item.get('user_created') else
                           'This item has saved edits. Source diagrams describe the original workbook item; review technical references against the current inputs.')
-        FirestoppingLibrary._service_size(item, inputs)
+        FirestoppingLibrary._service_size(item, presentation_inputs)
         for key, col in {'manufacturer': 'V', 'service_type': 'K', 'penetration_type': 'L', 'orientation': 'M', 'frl': 'N', 'substrate': 'P'}.items():
             if key in item.get('filter_values', {}):
-                item['filter_values'][key] = [str(inputs[col])] if inputs.get(col) else []
+                item['filter_values'][key] = [str(presentation_inputs[col])] if presentation_inputs.get(col) else []
 
     @staticmethod
     def _source_hash(data):
@@ -446,10 +458,13 @@ class FirestoppingLibrary(ReferenceLibrary):
                 configuration = snapshots[token]
                 # A source bundle may change its frozen pricing while retaining
                 # item IDs. Hash actual configuration, not just an item alias.
-                if token not in groups:
-                    groups[token] = {'configuration': configuration,
-                        'configuration_hash': hashlib.sha256(encoded(configuration).encode()).hexdigest(), 'entries': []}
-                group = groups[token]
+                settings_hash = hashlib.sha256(encoded(draft['globals']).encode()).hexdigest()
+                group_key = token, settings_hash
+                if group_key not in groups:
+                    groups[group_key] = {'configuration': configuration,
+                        'configuration_hash': hashlib.sha256(encoded(configuration).encode()).hexdigest(),
+                        'globals': draft['globals'], 'entries': []}
+                group = groups[group_key]
                 cache_key = (CALCULATION_POLICY_VERSION, group['configuration_hash'],
                              hashlib.sha256(encoded(draft).encode()).hexdigest())
                 if cache_key in self._price_cache:
@@ -466,7 +481,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             entries = group['entries']
             if not entries:
                 continue
-            draft = {'globals': EFFECTIVE_GLOBALS,
+            draft = {'globals': group['globals'],
                      'rows': [{'id': f'price-{index}', 'inputs': inputs}
                               for index, (_, inputs, _) in enumerate(entries)]}
             engine, _ = engine_for_draft(draft, group['configuration'])

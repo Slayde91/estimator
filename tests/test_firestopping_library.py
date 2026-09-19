@@ -78,6 +78,33 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(self.library.edits.stamp(), (0, 0))
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
 
+    def test_legacy_frl_is_canonical_in_source_and_saved_library_presentations(self):
+        path = self.root / 'library/library.json'
+        data = json.loads(path.read_text(encoding='utf-8'))
+        item = data['libraries']['penetration']['items'][0]
+        item['estimate']['draft']['rows'][0]['inputs']['N'] = '120 min'
+        item['fields'].append({'label': 'FRL', 'column': 'N', 'value': '120 min'})
+        item['subtitle'] = 'Sample manufacturer · 120 min · Concrete wall'
+        data['libraries']['penetration']['filters'].append({'key': 'frl', 'label': 'FRL'})
+        item.setdefault('filter_values', {})['frl'] = ['120 min']
+        path.write_text(json.dumps(data), encoding='utf-8')
+        library = FirestoppingLibrary(self.root / 'library', self.store)
+        detail = library.detail('penetration', 'pkb-001')
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field.get('column') == 'N'), '-/120/120')
+        self.assertIn('-/120/120', detail['subtitle'])
+        self.assertEqual(library.listing('penetration', frl='-/120/120')['total'], 1)
+        opened = library.edit('pkb-001')
+        legacy = deepcopy(opened['draft'])
+        legacy['rows'][0]['inputs']['N'] = '90 min'
+        snapshot = library._context('pkb-001')[3]
+        library.edits.save('pkb-001', 0, data['firestopping']['source_sha256'], {
+            'draft': legacy, 'pricing_token': opened['pricing_token'], 'amount': 150}, snapshot)
+        saved = library.detail('penetration', 'pkb-001')
+        self.assertEqual(next(field['value'] for field in saved['fields'] if field.get('column') == 'N'), '-/90/90')
+        self.assertIn('-/90/90', saved['subtitle'])
+        self.assertEqual(library.listing('penetration', frl='-/90/90')['total'], 1)
+        self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['N'], '-/90/90')
+
     def test_collar_pipe_labour_removes_only_the_duplicate_effective_additional_hours(self):
         collar = {'globals': {}, 'rows': [{'id': 'collar', 'inputs': {
             'K': 'Plastic Pipes', 'Y': 'Selected collar', 'AL': 50,

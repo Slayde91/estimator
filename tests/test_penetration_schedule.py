@@ -181,7 +181,7 @@ class PenetrationScheduleTests(unittest.TestCase):
         result = calculate(draft)
         self.assertEqual(result['errors'], [])
         tasks = {row['label']: row for row in result['schedule_breakdown']['rows']}
-        for task in ('Labour', 'Board', 'Wrap', 'Mastic'):
+        for task in ('Additional Labour', 'Register allowance', 'Board', 'Wrap', 'Mastic'):
             self.assertEqual(len(tasks[task]['unit_prices']), 1)
             self.assertEqual(tasks[task]['unit_prices'][0]['row_ids'], ['item-0', 'item-1'])
             self.assertNotIn('Line ', tasks[task]['unit_prices'][0]['label'])

@@ -66,6 +66,37 @@ class PenetrationBreakdownTests(unittest.TestCase):
         self.assert_reconciles(table)
         self.assertEqual(row, original)
 
+    def test_register_additional_hours_and_fixed_adjustment_are_separate_and_reconcile(self):
+        row, globals_ = synthetic_row(quantity=3, labour_allowance=0, material_allowance=0)
+        row['inputs'].update(AH=.6, register_allowance_hours=.4)
+        row['outputs'].update(DK=7.5, F=311)
+        before = deepcopy(row)
+        table = line_breakdown(row, globals_, 987654)
+        self.assertEqual([task['label'] for task in table['rows']],
+                         ['Additional Labour', 'Register allowance', 'Board', 'Collars',
+                          'Mastic', 'Framing', 'Wrap', 'Other'])
+        tasks = {task['label']: task for task in table['rows']}
+        self.assertAlmostEqual(tasks['Additional Labour']['task_hours'], 1.8)
+        self.assertAlmostEqual(tasks['Additional Labour']['labour_costs'], 83)
+        self.assertAlmostEqual(tasks['Register allowance']['task_hours'], 1.2)
+        self.assertAlmostEqual(tasks['Register allowance']['labour_costs'], 48)
+        self.assertEqual(tasks['Register allowance']['unit_prices'][0]['value'], 40)
+        self.assertEqual(tasks['Other']['task_hours'], '')
+        self.assertEqual(tasks['Other']['labour_costs'], '')
+        self.assertEqual(tasks['Other']['material_costs'], 201)
+        self.assert_reconciles(table)
+        self.assertEqual(row, before)
+
+    def test_register_default_and_explicit_zero_do_not_reuse_source_miscellaneous_hours(self):
+        row, globals_ = synthetic_row(quantity=2, labour_allowance=0, material_allowance=0)
+        for value, expected in ((None, .5), (0, 0), (.123456789012345, .24691357802469)):
+            with self.subTest(register=value):
+                row['inputs']['register_allowance_hours'] = value
+                table = line_breakdown(row, globals_, 987654)
+                register = next(task for task in table['rows'] if task['label'] == 'Register allowance')
+                self.assertEqual(register['task_hours'], expected)
+                self.assertEqual(register['labour_costs'], expected * 40)
+
     def test_all_native_scenarios_reconcile_without_replacing_any_source_value(self):
         with gzip.open(Path(__file__).parent / 'fixtures/penetration_excel_oracle.json.gz', 'rt', encoding='utf-8') as stream:
             fixture = json.load(stream)

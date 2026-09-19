@@ -48,13 +48,13 @@ class FirestoppingMaterialRowsTests(unittest.TestCase):
         self.assertEqual(indexed['Collar']['quantity'], 5)
         self.assertEqual(indexed['Collar']['days'], .5 / 8)  # AN does not multiply DF.
         self.assertEqual(indexed['Other material']['quantity'], 3 * 1.1 * 2.5)
-        self.assertEqual(indexed['Other material']['days'], 1 / 8)
+        self.assertEqual(indexed['Other material']['days'], 0)  # Manual hours are Additional Labour.
         self.assertEqual(indexed['Frame']['quantity'], 5)
         self.assertEqual(indexed['Frame']['days'], .75 / 8)
 
     def test_rates_contexts_and_unselected_products_are_not_collapsed(self):
         first, second = line('one', 1, 1, 3, 2), line('two', 1, 1, 3, 2)
-        second['breakdown']['rows'][1]['unit_prices'][0]['value'] = 10.00000000000002
+        next(task for task in second['breakdown']['rows'] if task['label'] == 'Board')['unit_prices'][0]['value'] = 10.00000000000002
         rows = material_breakdown({'rows': [first, second]})
         self.assertEqual(len([item for item in rows if item['product'] == 'Batt']), 4)
         first['inputs']['X'] = second['inputs']['X'] = None
@@ -67,7 +67,7 @@ class FirestoppingMaterialRowsTests(unittest.TestCase):
         substrate = next(item for item in rows if item['context'] == 'Substrate')
         self.assertEqual(substrate['quantity'], .123456789012345 * 1.23456789012345)
         self.assertEqual(substrate['total'], substrate['quantity'] * 10)
-        for item in row['breakdown']['rows'][1]['material_quantities']:
+        for item in next(task for task in row['breakdown']['rows'] if task['label'] == 'Board')['material_quantities']:
             item['value'] = '#DIV/0!'
         rows = material_breakdown({'rows': [row]})
         self.assertTrue(all(item['total'] == '#DIV/0!' and item['days'] == '#DIV/0!'

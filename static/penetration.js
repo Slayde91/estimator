@@ -7,6 +7,7 @@
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), pageSize = 50;
+  let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currency = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const numeric = value => typeof value === "number" && Number.isFinite(value);
@@ -132,6 +133,11 @@
     state.saved = stable(canonicalSnapshot(saved)); state.selected = state.draft.rows[0].id; render();
   }
   function inputValue(field, rowId, scope = state) { return (rowId === null ? scope.draft.globals : rowById(rowId, scope)?.inputs)?.[field.column] ?? null; }
+  function displayedInput(field, rowId, scope = state) {
+    const raw = inputValue(field, rowId, scope);
+    return field.automatic_default && (raw === null || raw === "")
+      ? scope.result?.rows.find(row => row.id === rowId)?.input_defaults?.[field.column] ?? null : raw;
+  }
   function controlText(field, value, precise = false) {
     if (value === null || value === undefined || value === "") return "";
     if (field.type !== "number" || !numeric(value)) return String(value);
@@ -143,12 +149,13 @@
     scope.revision++; scope.result = null;
     if (scope === state.schedule) renderSchedule();
     renderSummary(scope); renderBreakdown(scope); status(); clearTimeout(scope.timer);
+    for (const control of $("penetration-row-fields").querySelectorAll("[data-penetration-field]")) control.refreshAutomatic?.();
     scope.timer = setTimeout(() => calculate(scope), 350);
   }
   function makeControl(field, rowId, compact = false, scope = state) {
     const context = state.context, epoch = scope === state ? state.composerEpoch : state.rowEpochs.get(rowId);
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : rowId === null || epoch === state.rowEpochs.get(rowId));
-    const key = keyFor(rowId, field.column), wrapper = node("label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
+    const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
     const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
     if (compact) { wrapper.className += " penetration-schedule-quantity"; label.className = "sr-only"; control.dataset.penetrationScheduleQuantity = rowId; }
     const line = rowId === null ? (scope === state ? "Current item" : "Schedule") : `Line ${scope.draft.rows.findIndex(row => row.id === rowId) + 1}`;
@@ -168,13 +175,13 @@
       control.type = "text"; control.maxLength = 2000;
       if (field.type === "number") { control.inputMode = "decimal"; control.autocomplete = "off"; }
     }
-    control.value = pending ? pending.value : controlText(field, raw);
+    control.value = pending ? pending.value : controlText(field, displayedInput(field, rowId, scope));
     const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
     showProblem(pending?.error);
     control.addEventListener("focus", () => {
       if (!current()) return;
       if (field.type !== "number" || scope.invalid.has(key)) return;
-      control.value = controlText(field, inputValue(field, rowId, scope), true);
+      control.value = controlText(field, displayedInput(field, rowId, scope), true);
       // Replacing the rounded display resets the browser's selection. Select
       // the precise value so keyboard and accessibility replacements stay whole.
       control.select?.();
@@ -190,6 +197,7 @@
         else {
           value = field.format === "percent" ? shiftDecimal(text, -2) : Number(text);
           if (!Number.isFinite(value) || Math.abs(value) > 1e12) error = "Enter a value between -1,000,000,000,000 and 1,000,000,000,000.";
+          else if (numeric(field.min) && value < field.min) error = `Enter a value of at least ${field.min}.`;
         }
       } else if (field.type === "select") {
         value = value === "" ? null : options.find(item => String(item) === value);
@@ -202,11 +210,30 @@
     control.addEventListener(field.type === "select" ? "change" : "input", apply);
     control.addEventListener("blur", () => {
       if (!current()) return;
-      if (!scope.invalid.has(key)) control.value = controlText(field, inputValue(field, rowId, scope));
+      if (!scope.invalid.has(key)) control.value = controlText(field, displayedInput(field, rowId, scope));
       refreshControls();
       if (state.pendingFields) { state.pendingFields = false; renderFields(); renderScheduleGlobals(); }
     });
-    wrapper.append(label, control, problem); return wrapper;
+    wrapper.append(label, control, problem);
+    if (field.automatic_default) {
+      const tools = node("div", "penetration-automatic-tools"), hint = node("small", "helper"), reset = node("button", "button secondary", "Use automatic");
+      hint.id = `penetration-default-${++controlSequence}`; control.setAttribute("aria-describedby", hint.id);
+      reset.type = "button"; reset.setAttribute("aria-label", `Use automatic ${fieldLabel(field)}`);
+      control.refreshAutomatic = () => {
+        const value = inputValue(field, rowId, scope), automatic = value === null || value === "";
+        const defaults = scope.result?.rows.find(row => row.id === rowId)?.input_defaults;
+        hint.textContent = !automatic ? "Manual allowance." : !defaults ? "Automatic value updates after calculation." : numeric(defaults[field.column]) ? `Automatic: ${controlText(field, defaults[field.column])}${field.units ? ` ${field.units}` : ""}.` : "No automatic value for this item. Enter hours if required.";
+        reset.disabled = automatic && !scope.invalid.has(key);
+        if (control !== document.activeElement && !scope.invalid.has(key)) control.value = controlText(field, displayedInput(field, rowId, scope));
+      };
+      reset.addEventListener("click", () => {
+        if (!current() || !rowById(rowId, scope)) return;
+        rowById(rowId, scope).inputs[field.column] = null; scope.invalid.delete(key); showProblem("");
+        changed(rowId, scope); control.value = ""; refreshControls();
+      });
+      control.refreshAutomatic(); tools.append(hint, reset); wrapper.append(tools);
+    }
+    return wrapper;
   }
   function fieldsActive() { return !!document.activeElement?.dataset?.penetrationField; }
   function renderFields() {
@@ -230,9 +257,10 @@
       const scope = control.dataset.penetrationScope === "schedule" ? state.schedule : state;
       const pending = scope.invalid.get(key), problem = control.parentNode.children[2];
       control.setAttribute("aria-invalid", String(!!pending)); problem.textContent = pending?.error || ""; problem.hidden = !pending;
+      control.refreshAutomatic?.();
       if (control === document.activeElement) continue;
       const field = (rowId === null ? state.definition.global_fields : state.definition.row_fields).find(field => field.column === control.dataset.penetrationField);
-      if (field) control.value = pending ? pending.value : controlText(field, inputValue(field, rowId, scope));
+      if (field) control.value = pending ? pending.value : controlText(field, displayedInput(field, rowId, scope));
     }
   }
   function composerStamp() { return stable({ draft: canonicalDraft(state.draft), invalid: [...state.invalid], epoch: state.composerEpoch }); }
@@ -464,7 +492,7 @@
     $(`${prefix}-summary`).replaceChildren(...Object.entries(labels).map(([key, label]) => {
       const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(scope.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
     }));
-    const errors = scope.result?.errors || [], globalErrors = errors.filter(error => !error.row_id).map(error => `${error.cell}: ${error.message}`);
+    const errors = scope.result?.errors || [], globalErrors = errors.filter(error => !error.row_id).map(error => `${state.definition.row_fields.find(field => field.column === error.cell)?.label || error.cell}: ${error.message}`);
     $(`${prefix}-summary-notes`).textContent = errors.length
       ? [`${errors.length} calculation ${errors.length === 1 ? "issue" : "issues"}. Review the affected inputs and totals.`, ...globalErrors].join("\n")
       : scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.";

@@ -23,6 +23,7 @@ LINES = [(15, 63, 35, 65, "D2"), (16, 68, 36, 70, "D3"),
          (17, 73, 37, None, None), (18, 77, 38, 79, "D6"),
          (19, 82, 39, 84, "D8"), (20, 87, 40, 89, "D4"),
          (21, 92, 41, 94, "D5"), (22, 97, 42, 99, "D9"), (23, 102, 43, 104, "D10")]
+DISPLAY_LABELS = {"D7": "Masking/Cleaning labour"}
 
 
 class ExcelError(Exception):
@@ -39,6 +40,7 @@ def fields(catalog=None):
     output = []
     for field in specification()["fields"]:
         field = dict(field)
+        field["label"] = DISPLAY_LABELS.get(field["cell"], field["label"])
         if field["cell"] in GROUPS:
             rates = catalog["rate_groups"][GROUPS[field["cell"]]]
             field["options"] = [r["name"] for r in rates]

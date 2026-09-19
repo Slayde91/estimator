@@ -368,8 +368,8 @@ class _Report:
     def materials(self):
         self.story.extend([PageBreak(), self.p("Material breakdown", "section")])
         if "global_adjustments" in self.result:
-            material_note = ("All nine source material lines are included, including zero quantities. Coverage is the estimator's input. "
-                "Wastage is included in each source line. The global material percentage is applied once to the combined main and Firestopping material cost in the quote summary. "
+            material_note = ("Products are listed in the same order as the Estimator Material column, including zero-quantity source lines and Firestopping products. "
+                "Coverage, base units and wastage use the recorded calculation snapshot. The global material percentage is applied once to the combined main and Firestopping material cost in the quote summary. "
                 "Fractional priced quantities are preserved.")
             base_heading = "Base units"
         else:
@@ -378,45 +378,52 @@ class _Report:
                 "Fractional priced quantities are preserved.")
             base_heading = "Adjusted base units"
         self.story.append(self.p(material_note, "small"))
+        source_lines = {f"Calculator!D{requirements}/F{price}": (row, price)
+                        for _, row, price, requirements, _, _ in _LINES}
         rows = []
-        for label, row, price_row, _, _, _ in _LINES:
-            unit = "bags / drums / rolls" if row == 15 else "panels" if row == 18 else "linear m" if row == 23 else "m²"
-            yield_text = "Yield not used" if row in (15, 18) else "Yield: " + self.value(f"F{row}")
-            material = self.detail(label, self.input(f"D{row}") + "\n" + yield_text)
+        for item in self.result.get('materials', []):
+            source = source_lines.get(item.get('source'))
+            if source:
+                row, price_row = source
+                unit = "bags / drums / rolls" if row == 15 else "panels" if row == 18 else "linear m" if row == 23 else "m²"
+                yield_text = "Yield not used" if row in (15, 18) else "Yield: " + self.value(f"F{row}")
+                material = self.detail(item.get('name', ''), yield_text)
+                coverage = self.input(f"B{row}") + "\n" + unit
+                base_units = self.value(f"B{price_row}")
+                wastage = self.input(f"E{row}", percent=True) + "\n" + self.value(f"C{price_row}") + " units"
+                priced_units = self.value(f"D{price_row}")
+                unit_rate = self.value(f"A{price_row}", money=True)
+                line_amount = self.value(f"F{price_row}", money=True)
+            else:
+                context = item.get('context', '') if item.get('source') == 'firestopping' else ''
+                material = self.detail(item.get('name', ''), context)
+                coverage_value = item.get('coverage')
+                coverage_units = item.get('coverage_units', '')
+                coverage = _number(coverage_value, blank="—")
+                if coverage_value not in (None, '') and coverage_units:
+                    coverage += "\n" + _text(coverage_units)
+                base_units = _number(item.get('base_units'), blank="—")
+                percent = item.get('wastage_percent')
+                percent_text = (_number(percent, percent=True, blank="—")
+                                if percent != 'Mixed' else 'Mixed')
+                wastage_units = _number(item.get('wastage_units'), blank="—")
+                wastage = percent_text + ("\n" + wastage_units + " units" if item.get('wastage_units') is not None else "")
+                priced_units = _number(item.get('quantity'), blank="—")
+                unit_rate = _number(item.get('price'), money=True, blank="—")
+                line_amount = _number(item.get('total'), money=True, blank="—")
             rows.append([
                 material,
-                self.p(self.input(f"B{row}") + "\n" + unit, "numeric"),
-                self.p(self.value(f"B{price_row}"), "numeric"),
-                self.p(self.input(f"E{row}", percent=True) + "\n" + self.value(f"C{price_row}") + " units", "numeric"),
-                self.p(self.value(f"D{price_row}"), "numeric"),
-                self.p(self.value(f"A{price_row}", money=True), "numeric"),
-                self.p(self.value(f"F{price_row}", money=True), "numeric"),
+                self.p(coverage, "numeric"),
+                self.p(base_units, "numeric"),
+                self.p(wastage, "numeric"),
+                self.p(priced_units, "numeric"),
+                self.p(unit_rate, "numeric"),
+                self.p(line_amount, "numeric"),
             ])
         widths = [133, 54, 62, 59, 63, 65, _WIDTH - 436]
         self.story.append(self.table(
             ["Material / yield", "Coverage", base_heading, "Wastage % / units", "Priced units", "Unit sell rate", "Line amount"],
             rows, widths))
-        if 'firestopping' in self.result:
-            self.story.extend([PageBreak(), self.p('Firestopping schedule materials', 'section')])
-            has_register = any(item.get('name', '').endswith('Register allowance')
-                for item in self.result.get('labour', {}).get('firestopping_tasks', []))
-            self.story.append(self.p(
-                'The schedule is included once in the quote summary. These quantities and sell rates use the recorded pricing snapshot. '
-                'Shared Board and Wrap task hours are allocated by each line\'s calculated material quantities; labour days use eight hours per day. '
-                + ('Register allowance is shown separately below.' if has_register else 'Setup labour is shown separately below.'), 'small'))
-            entries = [item for item in self.result.get('materials', []) if item.get('source') == 'firestopping']
-            if entries:
-                rows = [[self.detail(item['name']),
-                         self.p(_number(item.get('quantity')), 'numeric'),
-                         self.p(_number(item.get('price'), money=True), 'numeric'),
-                         self.p(_number(item.get('total'), money=True), 'numeric'),
-                         self.p(_number(item.get('days')), 'numeric')] for item in entries]
-                material_table = self.table(['Product / context', 'Quantity', 'Unit sell rate', 'Line amount', 'Labour days'],
-                    rows, [203, 70, 85, 90, _WIDTH - 448], compact=True)
-                material_table.splitInRow = 0
-                self.story.append(material_table)
-            else:
-                self.story.append(self.p('No Firestopping material quantities.', 'small'))
 
     def labour_and_additions(self):
         self.story.extend([PageBreak(), self.p("Labour and masking", "section")])
@@ -466,7 +473,7 @@ class _Report:
         # today's catalogue, so historical pricing remains intact.
         masking = self.result.get("masking") or masking_breakdown(self.result)
         masking_rows = [
-            [self.detail("Masking labour", self.input("D7")),
+            [self.detail("Masking/Cleaning labour", self.input("D7")),
              self.p(self.value("B53"), "numeric"), self.p(self.value("B51", money=True), "numeric"),
              self.p(_number(masking.get("labour_total"), money=True), "numeric")],
             [self.detail("Masking materials", self.input("B10")),

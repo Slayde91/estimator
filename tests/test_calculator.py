@@ -50,6 +50,7 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(after["cells"], before["cells"])
         self.assertEqual(after["errors"], before["errors"])
         metadata = {field["cell"]: field for field in fields(changed)}
+        self.assertEqual(metadata["D7"]["label"], "Masking/Cleaning labour")
         self.assertIn(primer["name"], metadata["D20"]["options"])
         self.assertEqual(metadata["D20"]["option_labels"][primer["name"]], configuration["inventory"]["204"]["product_service"])
         self.assertEqual(metadata["E26"]["option_labels"][standalone["name"]], configuration["rates"][standalone["id"]]["product_service"])

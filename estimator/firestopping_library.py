@@ -23,7 +23,6 @@ from .catalog import ValidationError, configuration_catalog, validate_configurat
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, EFFECTIVE_GLOBALS,
                                     calculate, definition, engine_for_draft,
                                     normalize_draft, source_model)
-from .penetration_labour import resolve_labour
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -348,21 +347,8 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     @staticmethod
     def _library_draft(draft):
-        """Apply library-only cleanup without rewriting supplier or saved bytes.
-
-        Collar entries with resolved Pipe Labour no longer retain the old
-        Additional Labour allowance as a duplicate charge. The immutable source
-        draft remains available through the installed bundle.
-        """
-        effective = normalize_draft(draft)
-        if len(effective['rows']) != 1:
-            return effective
-        inputs = effective['rows'][0]['inputs']
-        labour = resolve_labour(inputs)
-        if (inputs.get('Y') not in (None, '') and inputs.get('AH') not in (None, '')
-                and not labour['errors'] and labour['pipe_hours'] is not None):
-            inputs['AH'] = None
-        return effective
+        """Normalize a copy without rewriting supplier or saved source bytes."""
+        return normalize_draft(draft)
 
     @staticmethod
     def _service_size(item, inputs):

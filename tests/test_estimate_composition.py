@@ -240,9 +240,16 @@ class EstimateCompositionTests(unittest.TestCase):
               patch('estimator.catalog.baseline', side_effect=AssertionError('Report read live pricing'))):
             payload = render_quote_pdf(quote)
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
-        for token in ('Firestopping schedule materials', 'Firestopping schedule labour', 'Firestopping total',
-                      'Material adjustment', f"${quote['result']['summary']['total']:,.2f}"):
-            self.assertIn(token, text)
+        compact = ''.join(text.split())
+        fire_materials = [item['name'] for item in quote['result']['materials']
+                          if item.get('source') == 'firestopping']
+        for token in ('Material breakdown', 'Base units', 'Wastage %', '/ units',
+                      'Firestopping schedule labour', 'Firestopping total', 'Material adjustment',
+                      *fire_materials, f"${quote['result']['summary']['total']:,.2f}"):
+            self.assertIn(''.join(token.split()), compact)
+        self.assertNotIn('Firestopping schedule materials', text)
+        positions = [compact.index(''.join(item['name'].split())) for item in quote['result']['materials']]
+        self.assertEqual(positions, sorted(positions))
         self.assertEqual(quote, before)
         report = _Report(quote)
         self.assertEqual(report.summary_value('total', 'F7', money=True), f"${quote['result']['summary']['total']:,.2f}")
@@ -290,8 +297,12 @@ class EstimateCompositionRouteTests(unittest.TestCase):
             status, payload = self.request('POST' if request is not None else 'GET', route, request)
             self.assertEqual(status, 200)
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+            compact = ''.join(text.split())
             self.assertIn(f"${result['summary']['total']:,.2f}", text)
-            self.assertIn('Firestopping schedule materials', text)
+            self.assertIn('Material breakdown', text)
+            self.assertNotIn('Firestopping schedule materials', text)
+            for item in result['materials']:
+                self.assertIn(''.join(str(item['name']).split()), compact)
         for value in (None, {'draft': {'rows': []}, 'composer': {}}):
             self.assertEqual(self.request('POST', '/api/calculate', {'penetration': value})[0], 400)
 

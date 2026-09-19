@@ -27,6 +27,16 @@ HOURS_PER_DAY = 8
 PRODUCT_COLUMNS = {'Additional Labour': 'W', 'Register allowance': 'W',
                    'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
                    'Framing': 'Z', 'Wrap': 'AA', 'Other': 'AE'}
+MATERIAL_REPORT_COLUMNS = {
+    'CJ': {'coverage': 'CH', 'wastage': 'AZ', 'coverage_units': 'm²'},
+    'CQ': {'coverage': 'CO', 'wastage': 'BF', 'coverage_units': 'm²'},
+    'CU': {'coverage': 'CT', 'wastage': 'BG', 'coverage_units': 'lm'},
+    'BS': {'coverage': 'BQ', 'wastage': 'AO', 'coverage_units': 'm²'},
+    'CB': {'coverage': 'BZ', 'wastage': 'AU', 'coverage_units': 'm²'},
+    'AF': {'coverage': None, 'wastage': 'AG', 'coverage_units': 'units'},
+    'AN': {'coverage': None, 'wastage': None, 'coverage_units': 'units'},
+    'AC': {'coverage': None, 'wastage': None, 'coverage_units': 'units'},
+}
 
 
 class _Unavailable(Exception):
@@ -253,6 +263,29 @@ def material_breakdown(result):
     proportionally to that line's calculated quantities, before aggregation.
     Never round quantities, prices or hours before the display/export boundary.
     """
+    def report_values(row, value, quantity):
+        """Project source quantity inputs/outputs into the quote PDF columns."""
+        metadata = MATERIAL_REPORT_COLUMNS[value['column']]
+        waste = row['inputs'].get(metadata['wastage']) if metadata['wastage'] else None
+        waste_number = 0 if waste in (None, '') else waste
+
+        def before_wastage(total):
+            denominator = 1 + _number(waste_number)
+            return '' if denominator == 0 else _number(total) / denominator
+
+        base_units = _compute(lambda: before_wastage(quantity))
+        if metadata['coverage']:
+            raw_coverage = row['outputs'].get(metadata['coverage'])
+            scaled_coverage = (raw_coverage if raw_coverage in (None, '') else
+                               _compute(lambda: _number(raw_coverage) * _number(row['inputs'].get('O'))))
+            coverage = _compute(lambda: before_wastage(scaled_coverage))
+        else:
+            coverage = base_units
+        wastage_units = _compute(lambda: _number(quantity) - _number(base_units))
+        return {'coverage': coverage, 'base_units': base_units,
+                'wastage_units': wastage_units, 'wastage_percent': waste,
+                'coverage_units': metadata['coverage_units']}
+
     materials, grouped = [], {}
     for index, row in enumerate(result['rows'], 1):
         for task in row['breakdown']['rows']:
@@ -276,6 +309,7 @@ def material_breakdown(result):
                 price = _source_value(task['unit_prices'][0]['value'])
                 context = value.get('label', '')
                 units = value.get('units', '')
+                report = report_values(row, value, quantity)
                 # A selected product is one commercial line even when the
                 # workbook uses it in more than one physical context. Keep
                 # blank products separate because they do not have an identity
@@ -289,7 +323,10 @@ def material_breakdown(result):
                             'product': product, 'context': context, 'quantity': quantity,
                             'price': price, 'total': contribution_total, 'task_hours': share,
                             'row_ids': [], 'contexts': [], 'quantity_columns': [], 'unit_labels': [],
-                            'quantity_column': value['column'], 'units': units}
+                            'quantity_column': value['column'], 'units': units,
+                            'coverage': report['coverage'], 'base_units': report['base_units'],
+                            'wastage_units': report['wastage_units'], 'wastage_percentages': [],
+                            'coverage_unit_labels': []}
                     grouped[key] = item
                     materials.append(item)
                 else:
@@ -297,6 +334,8 @@ def material_breakdown(result):
                     item['quantity'] = _compute(lambda: _number(item['quantity']) + _number(quantity))
                     item['total'] = _compute(lambda: _number(item['total']) + _number(contribution_total))
                     item['task_hours'] = _compute(lambda: _number(item['task_hours']) + _number(share))
+                    for key in ('coverage', 'base_units', 'wastage_units'):
+                        item[key] = _compute(lambda key=key: _number(item[key]) + _number(report[key]))
                 if row['id'] not in item['row_ids']:
                     item['row_ids'].append(row['id'])
                 if context and context not in item['contexts']:
@@ -305,12 +344,18 @@ def material_breakdown(result):
                     item['quantity_columns'].append(value['column'])
                 if units and units not in item['unit_labels']:
                     item['unit_labels'].append(units)
+                if report['wastage_percent'] is not None and report['wastage_percent'] not in item['wastage_percentages']:
+                    item['wastage_percentages'].append(report['wastage_percent'])
+                if report['coverage_units'] not in item['coverage_unit_labels']:
+                    item['coverage_unit_labels'].append(report['coverage_units'])
         adjustment = row['inputs'].get('AI')
         if adjustment not in (None, '', 0):
             amount = _compute(lambda: _number(adjustment) * _number(row['inputs'].get('O')))
             materials.append({'source': 'firestopping', 'name': f'Line {index} · Material adjustment',
                               'product': None, 'context': 'Material adjustment', 'quantity': 1,
-                              'price': amount, 'task_hours': 0, 'row_ids': [row['id']], 'units': ''})
+                              'price': amount, 'task_hours': 0, 'row_ids': [row['id']], 'units': '',
+                              'coverage': None, 'base_units': None, 'wastage_units': None,
+                              'wastage_percentages': [], 'coverage_unit_labels': []})
     for item in materials:
         if 'total' not in item:
             item['total'] = _compute(lambda: _number(item['quantity']) * _number(item['price']))
@@ -323,5 +368,9 @@ def material_breakdown(result):
             item['context'] = ' + '.join(item['contexts'])
         if item.get('unit_labels'):
             item['units'] = ' + '.join(item['unit_labels'])
+        if item.get('coverage_unit_labels'):
+            item['coverage_units'] = ' + '.join(item['coverage_unit_labels'])
+        percentages = item.get('wastage_percentages', [])
+        item['wastage_percent'] = percentages[0] if len(percentages) == 1 else 'Mixed' if percentages else None
         item['days'] = _compute(lambda: _number(item['task_hours']) / HOURS_PER_DAY)
     return materials

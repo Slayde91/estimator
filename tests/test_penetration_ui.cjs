@@ -7,15 +7,18 @@ let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
   await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
-    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Bulkhead'];metadata.group_visibility={
+    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Bulkhead'];metadata.group_visibility={
       'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
-      'Cables/Bundles':{column:'K',values:['Cable Bundles']},Bulkhead:{column:'J',values:['Bulkheads']}};
+      'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Bulkhead:{column:'J',values:['Bulkheads']}};
     for(const group of metadata.groups.slice(1))metadata.row_fields.push({column:`field-${group}`,label:group,group,type:'number',format:'number',units:'',options:[],default:null});
     metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
-    h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes'};h.audit.renderFields();
-    assert.match(text(h.byId('penetration-input-groups')),/Penetration.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|Bulkhead/);
+    h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes',T:'Long source description'};h.audit.renderFields();
+    assert.equal(h.byId('penetration-row-heading').textContent,'Current item · HVAC · Unlagged Pipes');
+    assert.match(text(h.byId('penetration-input-groups')),/Penetration.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|Cabletrays|Bulkhead/);
     h.audit.state.draft.rows[0].inputs.K='Plastic Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
     h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
+    h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Cabletrays/);
+    h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · D1 Power Cables');
     h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
   });
   await check('Requested estimator numbers use native step controls without changing stored precision',async h=>{

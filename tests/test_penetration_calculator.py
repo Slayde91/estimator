@@ -168,6 +168,11 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
             'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead'])
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
+        self.assertEqual(spec['group_visibility']['Cabletrays']['column'], 'K')
+        for service in ('D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
+                        'Pair Coil Bundle', 'Cable Trays', 'Lagged Pipes'):
+            self.assertIn(service, spec['group_visibility']['Cabletrays']['values'])
+        self.assertNotIn('Plastic Pipes', spec['group_visibility']['Cabletrays']['values'])
         self.assertIn('Plastic Pipes', spec['group_visibility']['Plastic Pipes']['values'])
         self.assertIn('Cable Bundles', spec['group_visibility']['Cables/Bundles']['values'])
         pipe_fields = [field for field in spec['row_fields'] if field['group'] == 'Pipes']
@@ -259,6 +264,25 @@ class PenetrationCalculationTests(unittest.TestCase):
                       {'globals': {'J': 'Maybe'}}, {'rows': [None]}, {'rows': [{'id': 'a', 'inputs': {'O': '1'}}]}):
             with self.subTest(draft=draft), self.assertRaises(ValidationError):
                 normalize_draft(draft)
+
+    def test_every_plastic_pipe_row_removes_only_positive_duplicate_additional_labour(self):
+        rows = [
+            {'id': 'automatic', 'inputs': {'K': 'Plastic Pipes', 'Y': 'Collar', 'AL': 50, 'AH': .25}},
+            {'id': 'manual', 'inputs': {'K': 'Plastic Pipes', 'Y': 'Collar', 'AL': None,
+                                        'pipe_labour_hours': .375, 'AH': 1}},
+            {'id': 'zero-pipe', 'inputs': {'K': 'Plastic Pipes', 'Y': 'Collar', 'AL': None,
+                                           'pipe_labour_hours': 0, 'AH': .25}},
+            {'id': 'zero-additional', 'inputs': {'K': 'Plastic Pipes', 'Y': 'Collar', 'AL': 50, 'AH': 0}},
+            {'id': 'no-collar', 'inputs': {'K': 'Plastic Pipes', 'Y': None, 'AL': 50, 'AH': .25}},
+            {'id': 'other-service', 'inputs': {'K': 'D1 Power Cables', 'Y': 'Collar', 'AL': 50, 'AH': .25}},
+        ]
+        draft = {'globals': {}, 'rows': rows}
+        before = deepcopy(draft)
+        normalized = normalize_draft(draft)
+        self.assertIsNone(normalized['rows'][0]['inputs']['AH'])
+        self.assertIsNone(normalized['rows'][1]['inputs']['AH'])
+        self.assertEqual([row['inputs']['AH'] for row in normalized['rows'][2:]], [.25, 0, .25, .25])
+        self.assertEqual(draft, before)
 
     def test_summary_never_hides_row_calculation_error(self):
         original = PenetrationEngine.cell

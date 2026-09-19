@@ -80,7 +80,8 @@ class FirestoppingLibraryTests(unittest.TestCase):
 
     def test_collar_pipe_labour_removes_only_the_duplicate_effective_additional_hours(self):
         collar = {'globals': {}, 'rows': [{'id': 'collar', 'inputs': {
-            'Y': 'Selected collar', 'AL': 50, 'AN': 1, 'AH': .25, 'O': 1}}]}
+            'K': 'Plastic Pipes', 'Y': 'Selected collar', 'AL': 50,
+            'AN': 1, 'AH': .25, 'O': 1}}]}
         before = deepcopy(collar)
         effective = self.library._library_draft(collar)
         self.assertIsNone(effective['rows'][0]['inputs']['AH'])
@@ -91,6 +92,12 @@ class FirestoppingLibraryTests(unittest.TestCase):
         no_pipe = deepcopy(collar)
         no_pipe['rows'][0]['inputs']['AL'] = None
         self.assertEqual(self.library._library_draft(no_pipe)['rows'][0]['inputs']['AH'], .25)
+        no_positive_additional = deepcopy(collar)
+        no_positive_additional['rows'][0]['inputs']['AH'] = 0
+        self.assertEqual(self.library._library_draft(no_positive_additional)['rows'][0]['inputs']['AH'], 0)
+        other_service = deepcopy(collar)
+        other_service['rows'][0]['inputs']['K'] = 'D1 Power Cables'
+        self.assertEqual(self.library._library_draft(other_service)['rows'][0]['inputs']['AH'], .25)
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
 
     def test_save_reopen_updates_price_search_filters_and_reciprocal_links(self):

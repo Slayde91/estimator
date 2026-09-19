@@ -70,7 +70,10 @@ current item starts blank. Input groups separate
 Penetration, Products and labour, Additional Allowances, Unlagged Pipes,
 Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
 group matching Service Type is shown, and Bulkhead is shown only when Type is
-Bulkheads. Material Wastage remains editable and contributes through the
+Bulkheads. Cabletrays is shown only for cable/bundle services, Cable Trays and
+the source-backed Lagged Pipes entries that use those fields. The current-item
+heading uses Type and Service Type, while the longer Items/Services description
+remains in its input. Material Wastage remains editable and contributes through the
 existing source calculation. The current item's calculated detail and
 the complete schedule totals are calculated independently. Numeric fields use
 native number controls, retain their full stored precision and use the following
@@ -136,6 +139,13 @@ server returns resolved defaults separately, so merely opening an item does not
 write those values into its saved draft. Both new inputs accept finite,
 nonnegative hours. Additional Labour retains its existing AH input semantics.
 
+For Plastic Pipes, a selected collar with positive resolved Pipe Labour makes a
+positive Additional Labour entry a duplicate. Draft normalization clears that
+duplicate AH value for every library, current-item, schedule and saved-project
+path. Zero or missing Pipe Labour, zero or negative Additional Labour, rows
+without a collar, and other Service Types retain their entered AH value. The
+installed supplier library remains unchanged.
+
 Register Allowance defaults to 0.25 hours. Pipe Labour is applied only with a
 selected collar and uses the pipe diameter (AL):
 
@@ -158,11 +168,16 @@ These rules apply to current items, existing library items, schedules and quote
 exports. The calculation policy version invalidates cached library prices.
 Original source formulas and the source-oracle calculation path remain intact.
 
-Each material quantity also appears in the main Material Breakdown, with its
-unit sell rate, exact quantity multiplied by rate, and allocated task hours
-divided by eight. Allocation happens per schedule item before rows with the same
-selected product are reconciled across contexts and captured rates. Quantities,
-line amounts and hours are summed; the displayed sell rate is the exact weighted
+The quote PDF Material Breakdown follows the same product order as the
+Estimator Material column. Main and Firestopping products share the columns
+Material / yield, Coverage, Base units, Wastage % / units, Priced units, Unit
+sell rate and Line amount; there is no second Firestopping materials table.
+Firestopping coverage, pre-wastage base units and wastage units come from the
+recorded schedule result. Older frozen results without those added presentation
+fields display them as unavailable and are never recalculated from current prices.
+Labour allocation happens per schedule item before rows with the same selected
+product are reconciled across contexts and captured rates. Quantities, line
+amounts and hours are summed; the displayed sell rate is the exact weighted
 average when captured rates differ. The combined Board task
 is split between Substrate and Bulkhead in proportion to their calculated
 quantities; Wrap is split between Pipes and Cabletrays in the same way. The last

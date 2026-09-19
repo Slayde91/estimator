@@ -64,7 +64,7 @@ class ReportTests(unittest.TestCase):
                 self.assertIn(money_text(amount), compact)
         for key in ("labour", "material", "access", "travel", "subtotal", "total", "rate"):
             self.assertIn(money_text(result["summary"][key]), compact, key)
-        for label in ("Material breakdown", "Labour and masking", "Pins / clips", "Masking labour", "Masking materials", "Global material adjustment", "Global labour adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Quote notes"):
+        for label in ("Material breakdown", "Labour and masking", "Box of pins/clips (1000)", "Masking/Cleaning labour", "Masking materials", "Global material adjustment", "Global labour adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Quote notes"):
             self.assertIn(label, self.text)
         self.assertNotIn("Masking material adjustment", self.text)
         self.assertIn("unrounded", self.text)
@@ -119,7 +119,7 @@ class ReportTests(unittest.TestCase):
                       "Generated material and allowance notes"):
             self.assertNotIn(token, text)
         for token in ("Material breakdown", "Material / yield", "Line amount", "Labour and masking",
-                      "Masking / cleaning", "Masking labour", "Masking materials", "Global material adjustment",
+                      "Masking / cleaning", "Masking/Cleaning labour", "Masking materials", "Global material adjustment",
                       "Global labour adjustment", "Additions and project costs"):
             self.assertIn(token, text)
         self.assertNotIn("Masking material adjustment", text)
@@ -136,6 +136,7 @@ class ReportTests(unittest.TestCase):
         quote.pop("work_summary", None)
         quote["inputs"]["D15"] = "Special coating 12.34567"
         quote["result"]["inputs"]["D15"] = quote["inputs"]["D15"]
+        quote["result"]["materials"][0]["name"] = quote["inputs"]["D15"]
         quote["inputs"]["B12"] = "User measurement 98.76543 remains literal."
         quote["measurements"] = "Plan reference 123.456789; user measurement 98.76543 remains literal."
         quote["result"]["cells"].update({"A63": 2.675, "F63": 12.34567, "B35": 1.234567,

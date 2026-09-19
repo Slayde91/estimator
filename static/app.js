@@ -245,6 +245,7 @@
       if (state.inputErrors.get(Object.keys(coverageTeams).find(cell => coverageTeams[cell] === field.cell)) === "Select Teams") message("Select Teams", true);
       else if ($("app-message").textContent === "Select Teams" && ![...state.inputErrors.values()].includes("Select Teams")) message("");
       updateDirty();
+      if (field.cell === "D7") renderInputs();
       scheduleCalculation();
     });
     if (field.type === "number") control.addEventListener("blur", () => {
@@ -296,7 +297,9 @@
       else if (/^[EF]2[6-8]$/.test(field.cell)) additions.push({ ...field, label: additionLabels[field.cell] });
       else remainder.push(field);
     }
-    for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour), inputCard("Masking/Cleaning", masking)]) if (card) before.append(card);
+    const maskingActive = String(state.inputs.D7 ?? "").trim().toLowerCase() !== "n/a";
+    for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour),
+      maskingActive ? inputCard("Masking/Cleaning", masking) : null]) if (card) before.append(card);
     for (let row = 15; row <= 23; row++) {
       const tr = node("tr");
       tr.dataset.materialRow = String(row);

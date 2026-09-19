@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from .calculator import LINES, specification
+from .calculator import DISPLAY_LABELS, LINES, specification
 
 
 MATERIAL_NAMES = (
@@ -17,7 +17,8 @@ ADDITION_NAMES = (
 
 @lru_cache(maxsize=1)
 def calculation_labels():
-    labels = {field["cell"]: field["label"] for field in specification()["fields"]}
+    labels = {field["cell"]: DISPLAY_LABELS.get(field["cell"], field["label"])
+              for field in specification()["fields"]}
     for name, (row, price, requirement, labour, _) in zip(MATERIAL_NAMES, LINES):
         labels.update({
             f"B{row}": f"{name} coverage", f"C{row}": f"{name} daily output",

@@ -24,7 +24,7 @@ GLOBAL_DEFAULTS = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
 # Explicit application policy; original workbook formulas and saved inputs remain
 # available for provenance. Removed allowances never affect effective estimates.
 EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
-CALCULATION_POLICY_VERSION = 'firestopping-register-and-pipe-labour-v2'
+CALCULATION_POLICY_VERSION = 'firestopping-register-and-pipe-labour-v3'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
@@ -59,8 +59,16 @@ PIPE_DISPLAY_GROUPS = {
         'TPS & Fire Alarm Cable Bundles',
     ),
 }
+CABLETRAY_SERVICE_TYPES = (
+    *PIPE_DISPLAY_GROUPS['Cables/Bundles'],
+    'Cable Trays',
+    # Four installed source items use the cable-tray calculation for lagged
+    # services, so retain that source-backed case as a relevant choice.
+    'Lagged Pipes',
+)
 GROUP_VISIBILITY = {
     'Bulkhead': {'column': 'J', 'values': ('Bulkheads',)},
+    'Cabletrays': {'column': 'K', 'values': CABLETRAY_SERVICE_TYPES},
     **{group: {'column': 'K', 'values': services}
        for group, services in PIPE_DISPLAY_GROUPS.items()},
 }
@@ -254,6 +262,19 @@ def normalize_draft(draft):
         normalized = {'id': identifier, 'inputs': {
             col: validate_hours(value, col) if col in APP_INPUT_FIELDS else checked(value, col in TEXT_COLUMNS, col)
             for col, value in inputs.items()}}
+        effective_inputs = normalized['inputs']
+        labour = resolve_labour(effective_inputs)
+        if (effective_inputs.get('K') == 'Plastic Pipes'
+                and effective_inputs.get('Y') not in (None, '')
+                and isinstance(effective_inputs.get('AH'), (int, float))
+                and effective_inputs['AH'] > 0
+                and not labour['errors']
+                and isinstance(labour['pipe_hours'], (int, float))
+                and labour['pipe_hours'] > 0):
+            # Pipe Labour prices the collar installation. Older Plastic Pipes
+            # library rows repeated that time in Additional Labour; normalize
+            # every draft path so library, composer and schedule agree.
+            effective_inputs['AH'] = None
         if 'library_item_id' in row:
             library_id = row['library_item_id']
             if not isinstance(library_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}', library_id):

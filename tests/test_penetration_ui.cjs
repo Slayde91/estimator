@@ -157,8 +157,8 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const metadata=definition();if(transition==='source')metadata.source_sha256='other';pending.resolve({library_id:'FL-ID-1',definition:metadata,draft:metadata.defaults});await assert.rejects(transfer);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
   });
   await check('Double library clicks, capacity and invalid schedule inputs cannot add duplicate or hidden rows',async h=>{
-    const pending=deferred();h.audit.setRequest(()=>pending.promise);const transfer=h.api.addLibraryItem('one');await assert.rejects(h.api.addLibraryItem('one'),/already being added/);pending.resolve({definition:definition(),draft:definition().defaults,library_id:'FL-ID-1'});await transfer;
-    h.audit.state.definition.capacity=1;await assert.rejects(h.api.addLibraryItem('one'),/full/);assert.equal(h.api.projectSnapshot().draft.rows.length,1);
+    const pending=deferred();h.audit.setRequest((path,payload)=>path.endsWith('/edit')?pending.promise:Promise.resolve(result(payload.draft)));const transfer=h.api.addLibraryItem('one');await assert.rejects(h.api.addLibraryItem('one'),/already being added/);pending.resolve({definition:definition(),draft:definition().defaults,library_id:'FL-ID-1'});await transfer;
+    h.audit.state.definition.capacity=1;await h.api.addLibraryItem('one');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,2);h.audit.state.definition.capacity=1;h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{definition:definition(),draft:{...definition().defaults,rows:[{id:'source',inputs:{T:'Other'}}]},library_id:'FL-ID-2'}:result(payload.draft));await assert.rejects(h.api.addLibraryItem('two'),/full/);assert.equal(h.api.projectSnapshot().draft.rows.length,1);
     h.audit.state.schedule.invalid.set('["line-1","O"]',{value:'bad',error:'bad'});await assert.rejects(h.api.addLibraryItem('one'),/marked invalid/);
   });
   await check('Add to Library captures composer only and preserves later edits while reusing its retry key',async h=>{
@@ -261,6 +261,57 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('Canonical snapshots preserve row order, literal whitespace, nulls and zero independently',async h=>{
     h.audit.state.draft.rows[0].inputs={U:' ',O:0,T:''};await h.audit.addToSchedule();await h.audit.addToSchedule();const captured=h.api.projectSnapshot(),stamp=h.api.projectFingerprint();assert.equal(captured.composer.rows[0].inputs.U,' ');assert.equal(captured.composer.rows[0].inputs.O,0);assert.equal(captured.composer.rows[0].inputs.T,null);
     h.audit.state.schedule.draft.rows.reverse();assert.notEqual(h.api.projectFingerprint(),stamp);assert.notEqual(h.api.projectSnapshot().draft.rows[0].id,captured.draft.rows[0].id);
+  });
+  await check('Repeated library Add retains one row and increments quantity using current schedule prices',async h=>{
+    let reads=0;const item={library_id:'FL-ID-002',definition:definition(),draft:{globals:{L:.9},rows:[{id:'source',inputs:{T:'Library pipe',O:8,AC:.5}}]}};
+    h.audit.state.schedule.draft.globals.L=.17;
+    h.audit.setRequest(async(path,payload)=>{if(path.endsWith('/edit')){reads++;return copy(item);}const response=result(payload.draft);response.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return response;});
+    assert.equal(h.api.libraryQuantity('pkb-002'),undefined);
+    for(let qty=1;qty<=4;qty++){const receipt=await h.api.addLibraryItem('pkb-002');assert.equal(receipt.quantity,qty);assert.equal(receipt.total,qty*10);assert.equal(h.api.libraryQuantity('pkb-002'),qty);assert.equal(h.api.projectSnapshot().draft.rows.length,1);}
+    assert.equal(reads,1);assert.equal(item.draft.rows[0].inputs.O,8);assert.equal(h.api.projectSnapshot().draft.globals.L,.17);assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'pkb-002');
+  });
+  await check('Library identity survives calculate, Save and Open; Add preserves edited row inputs and the composer',async h=>{
+    h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:{...definition().defaults,rows:[{id:'source',inputs:{T:'Original',O:1}}]}}:result(payload.draft));
+    await h.api.addLibraryItem('pkb-002');await h.audit.selectRow('line-1');h.control('T').value='Edited schedule item';await h.control('T').emit('input');await h.audit.updateSchedule();
+    const snapshot=h.api.projectSnapshot();h.api.markProjectSaved(copy(snapshot),snapshot);assert.equal(h.api.hasUnsavedChanges(),false);h.api.applyProject(await h.api.prepareProject(copy(snapshot)));assert.equal(h.api.libraryQuantity('pkb-002'),1);
+    const composer=copy(h.api.projectSnapshot().composer);await h.api.addLibraryItem('pkb-002');const row=h.api.projectSnapshot().draft.rows[0];assert.equal(row.inputs.T,'Edited schedule item');assert.equal(row.inputs.O,2);assert.equal(row.library_item_id,'pkb-002');assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);
+  });
+  await check('Quantity notifications follow precise manual edits, invalid text, zero, remove, Undo and project replacement',async h=>{
+    let notifications=0;h.context.window.CeasefireLibraries={scheduleChanged(){notifications++;}};
+    h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:definition().defaults}:result(payload.draft));await h.api.addLibraryItem('pkb-002');
+    const quantity=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];quantity.value='2.1234567890123';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),2.1234567890123);await h.api.addLibraryItem('pkb-002');assert.equal(h.api.libraryQuantity('pkb-002'),3.1234567890123);
+    quantity.value='1e-';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),null);await assert.rejects(h.api.addLibraryItem('pkb-002'),/marked invalid/);
+    quantity.value='0';await quantity.emit('input');assert.equal(h.api.libraryQuantity('pkb-002'),0);h.audit.removeRow('line-1');assert.equal(h.api.libraryQuantity('pkb-002'),undefined);h.audit.undoRemove();assert.equal(h.api.libraryQuantity('pkb-002'),0);
+    h.api.applyProject(await h.api.prepareDefaults());assert.equal(h.api.libraryQuantity('pkb-002'),undefined);assert.ok(notifications>=7);
+  });
+  await check('Legacy Add adopts one exact row and preserves all other rows and fixed per-row charges',async h=>{
+    const snapshot={draft:{...definition().schedule_defaults,rows:[{id:'a',inputs:{T:'Pipe',U:'',O:1.5}},{id:'b',inputs:{T:'Pipe',U:null,O:2.25}},{id:'c',inputs:{T:'Different',O:5}},{id:'d',inputs:{T:'Pipe',O:4},library_item_id:'other-id'}]}};
+    h.api.applyProject(await h.api.prepareProject(snapshot));h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:{...definition().defaults,rows:[{id:'source',inputs:{T:'Pipe',O:9}}]}}:result(payload.draft));
+    assert.equal(h.api.projectSnapshot().draft.rows.length,4);await h.api.addLibraryItem('pkb-002');const rows=h.api.projectSnapshot().draft.rows;assert.equal(rows.length,4);assert.equal(rows[0].id,'a');assert.equal(rows[0].inputs.O,2.5);assert.equal(rows[0].library_item_id,'pkb-002');assert.deepEqual(copy(rows.slice(1)),snapshot.draft.rows.slice(1));
+    const fixed={draft:{...definition().schedule_defaults,rows:[{id:'a',inputs:{T:'Fixed',O:1,AJ:25}},{id:'b',inputs:{T:'Fixed',O:1,AJ:25}}]}};h.api.applyProject(await h.api.prepareProject(fixed));h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:{...definition().defaults,rows:[{id:'source',inputs:{T:'Fixed',O:1,AJ:25}}]}}:result(payload.draft));await h.api.addLibraryItem('pkb-002');assert.equal(h.api.projectSnapshot().draft.rows.length,2);assert.equal(h.api.projectSnapshot().draft.rows.reduce((sum,row)=>sum+row.inputs.AJ,0),50);assert.equal(h.api.libraryQuantity('pkb-002'),2);
+  });
+  await check('Removed library items cannot be restored by a late receipt or mistaken for a reused row ID',async h=>{
+    const pending=deferred();h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:definition().defaults}:result(payload.draft));await h.api.addLibraryItem('pkb-002');
+    h.audit.setRequest(()=>pending.promise);const adding=h.api.addLibraryItem('pkb-002');await flush();h.audit.removeRow('line-1');const replacement=h.audit.addToSchedule();assert.equal(h.api.libraryQuantity('pkb-002'),undefined);pending.resolve(result(h.api.projectSnapshot().draft));await Promise.all([adding,replacement]);assert.equal(h.api.libraryQuantity('pkb-002'),undefined);
+  });
+  await check('Library quantity bounds and metadata validation reject changes without losing current rows',async h=>{
+    const draft={...definition().schedule_defaults,rows:[{id:'line-1',inputs:{O:1e12},library_item_id:'pkb-002'}]};h.api.applyProject(await h.api.prepareProject({draft}));await assert.rejects(h.api.addLibraryItem('pkb-002'),/supported range/);assert.equal(h.api.libraryQuantity('pkb-002'),1e12);
+    await assert.rejects(h.api.prepareProject({draft:{...draft,rows:[...draft.rows,{...draft.rows[0],id:'other'}]}}),/repeated library/);await assert.rejects(h.api.addLibraryItem('../invalid'),/invalid/);
+  });
+  for(const [raw,label] of [['FIREFLY','Firefly'],['TRAFALGAR','Trafalgar']])await check(`Known manufacturer ${raw} has one clean label and preserves its stored value`,async h=>{
+    h.audit.state.definition.row_fields.push({column:'V',label:'Manufacturer',type:'select',group:'Penetration',format:'text',options:['Firefly','Trafalgar','Promat']});h.audit.state.draft.rows[0].inputs.V=raw;h.audit.renderFields();const control=h.control('V');assert.equal(control.value,raw);assert.equal(control.children.filter(option=>option.textContent===label).length,1);assert.equal(control.children.find(option=>option.value===raw).textContent,label);await control.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);assert.equal(h.api.inputProblem(),'');
+  });
+  await check('Adding an open library edit preserves its copy and prevents Update from overwriting the new quantity',async h=>{
+    h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?{library_id:'FL-ID-002',definition:definition(),draft:{...definition().defaults,rows:[{id:'source',inputs:{T:'Original',O:1}}]}}:result(payload.draft));await h.api.addLibraryItem('pkb-002');await h.audit.selectRow('line-1');h.control('T').value='Unsaved edit';await h.control('T').emit('input');await h.api.addLibraryItem('pkb-002');assert.equal(h.control('T').value,'Unsaved edit');assert.equal(h.api.libraryQuantity('pkb-002'),2);assert.equal(h.byId('penetration-update-schedule').disabled,true);await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Original');assert.equal(h.api.libraryQuantity('pkb-002'),2);await h.audit.cancelEdit();await h.audit.selectRow('line-1');assert.equal(h.control('O').value,'2.00');
+  });
+  await check('Prototype-key and ordinary unknown manufacturers remain disabled saved values without mapping or mutation',async h=>{
+    const metadata=definition();metadata.row_fields.push({column:'V',label:'Manufacturer',type:'select',group:'Penetration',format:'text',options:['Firefly','Trafalgar'],default:null});
+    for(const raw of ['constructor','toString','__proto__','Unlisted supplier']){
+      h.audit.state.definition=copy(metadata);h.audit.state.draft.rows[0].inputs.V=raw;const before=h.api.projectFingerprint();h.audit.renderFields();const control=h.control('V'),saved=control.children.find(option=>option.value===raw);
+      assert.equal(control.value,raw);assert.equal(saved.textContent,`Saved value: ${raw} (choose a listed value)`);assert.equal(saved.disabled,true);assert.equal(h.api.projectFingerprint(),before);assert.deepEqual(copy(h.audit.state.definition.row_fields.at(-1).options),['Firefly','Trafalgar']);
+      h.control('T').value='Unrelated edit';await h.control('T').emit('input');let captured;h.audit.setRequest(async(path,payload)=>{captured=copy(payload.draft);return result(payload.draft,metadata);});await h.audit.calculate();assert.equal(captured.rows[0].inputs.V,raw);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.V,raw);
+      control.value=raw;await control.emit('change');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);control.value='Firefly';await control.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.V,'Firefly');
+    }
   });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

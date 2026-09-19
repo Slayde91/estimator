@@ -8,6 +8,10 @@
 .library-count{margin:12px 0}
 .library-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .library-result{padding:18px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.library-record-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}
+.library-record-heading>:first-child{min-width:0}
+.library-schedule-quantity{flex:none;padding:5px 9px;border:1px solid #c8bdb1;border-radius:6px;background:#f5f0e9;color:#403a34;font-size:13px;font-weight:700;line-height:1.4;text-align:right;overflow-wrap:anywhere;max-width:50%}
+.library-schedule-quantity[hidden]{display:none}
 .library-record-link{display:inline;padding:0;text-align:left;background:transparent;color:var(--accent-dark);font-size:15px;font-weight:650;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
 .library-record-link:hover{color:var(--accent)}
 .library-subtitle{margin-top:7px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
@@ -39,6 +43,7 @@
 .library-pagination,.library-detail-navigation{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 0}
 .library-detail-navigation{margin:0 0 22px}
 .library-detail>h3{font-size:23px;overflow-wrap:anywhere;scroll-margin-top:120px}
+.library-detail>.library-record-heading>h3{font-size:23px;overflow-wrap:anywhere;scroll-margin-top:120px}
 .library-record-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;margin:22px 0}
 .library-record-field{padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
 .library-record-field dt{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:5px}
@@ -75,4 +80,5 @@
 @media(max-width:760px){.library-choices{grid-template-columns:1fr;gap:10px}.library-choice{min-height:0;padding:15px 18px}}
 @media(max-width:580px){.library-record-fields,.library-images{grid-template-columns:1fr}.library-controls{flex-wrap:wrap}.library-search{flex-basis:100%}.library-filters>.field{max-width:none;width:100%}.library-detail>h3{font-size:20px}.library-source-fields>div{grid-template-columns:1fr;gap:2px}}
 @media(max-width:570px){.library-browser,.library-detail,.library-link-picker{scroll-margin-top:180px}.library-summary{padding:14px}.library-summary-table th,.library-summary-table td{padding:9px}.library-item-actions .button{flex:1 1 auto}.library-link-results{max-height:360px}}
+@media(max-width:580px){.library-detail>.library-record-heading>h3{font-size:20px}.library-schedule-quantity{font-size:12px;padding:4px 7px}}
 @media print{.library-choices{display:none!important}}

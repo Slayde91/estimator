@@ -95,5 +95,26 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
   await check('Numeric range errors preserve prior values and block save without requests',async h=>{
     await h.api.open('legacy-row-4');h.control('O').value='1000000000001';await h.control('O').emit('input');const calls=h.calls.length;await h.audit.save();assert.equal(h.calls.length,calls);assert.equal(h.audit.state.draft.rows[0].inputs.O,undefined);assert.match(h.api.inputProblem(),/invalid/);
   });
+  await check('Known manufacturer casing displays clear names and preserves original raw values through calculation and unrelated edits',async h=>{
+    for(const [raw,label] of [['FIREFLY','Firefly'],['tRaFaLgAr','Trafalgar']]){
+      const item=fixture();item.definition.row_fields.push({column:'V',label:'Manufacturer',type:'select',group:'Penetration',format:'text',options:['Firefly','Trafalgar'],default:null});item.draft.rows[0].inputs.V=raw;h.api.present(item);
+      const control=h.control('V'),selected=control.children.find(option=>option.value===raw);assert.equal(control.value,raw);assert.equal(selected.textContent,label);assert.notEqual(selected.disabled,true);assert.equal(control.children.filter(option=>option.textContent===label).length,1);assert.doesNotMatch(text(control),/Saved value/);assert.equal(h.api.hasUnsavedChanges(),false);
+      h.control('T').value='Unrelated edit';await h.control('T').emit('input');assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);await control.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);assert.equal(h.api.inputProblem(),'');
+      let payload;h.audit.setRequest(async(id,action,captured)=>{payload=copy(captured);return fixture(captured.draft,{definition:item.definition});});await h.audit.calculate();assert.equal(payload.draft.rows[0].inputs.V,raw);
+    }
+  });
+  await check('Manufacturer options retain their values and unknown manufacturers or other fields keep strict saved-value handling',async h=>{
+    const item=fixture();item.definition.row_fields.push({column:'V',label:'Manufacturer',type:'select',group:'Penetration',format:'text',options:['FIREFLY','TRAFALGAR'],default:null});item.draft.rows[0].inputs.V='Unknown supplier';item.draft.rows[0].inputs.J='FIREFLY';h.api.present(item);
+    const control=h.control('V');assert.deepEqual(control.children.slice(1,3).map(option=>[option.textContent,option.value]),[['Firefly','FIREFLY'],['Trafalgar','TRAFALGAR']]);assert.match(control.children.at(-1).textContent,/Saved value: Unknown supplier/);assert.equal(control.children.at(-1).disabled,true);assert.match(h.control('J').children.at(-1).textContent,/Saved value: FIREFLY/);
+    control.value='Invented';await control.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.V,'Unknown supplier');assert.match(h.api.inputProblem(),/invalid/);control.value='TRAFALGAR';await control.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.V,'TRAFALGAR');assert.equal(h.api.inputProblem(),'');
+  });
+  await check('Prototype-key and ordinary unknown manufacturers retain literal disabled saved labels and raw values',async h=>{
+    for(const raw of ['constructor','toString','__proto__','Unlisted supplier']){
+      const item=fixture();item.definition.row_fields.push({column:'V',label:'Manufacturer',type:'select',group:'Penetration',format:'text',options:['Firefly','Trafalgar'],default:null});item.draft.rows[0].inputs.V=raw;h.api.present(item);const control=h.control('V'),saved=control.children.find(option=>option.value===raw);
+      assert.equal(control.value,raw);assert.equal(saved.textContent,`Saved value: ${raw} (choose a listed value)`);assert.equal(saved.disabled,true);assert.equal(h.api.hasUnsavedChanges(),false);assert.deepEqual(copy(h.audit.state.draft),item.draft);assert.deepEqual(copy(h.audit.state.definition.row_fields.at(-1).options),['Firefly','Trafalgar']);
+      h.control('T').value='Unrelated edit';await h.control('T').emit('input');let captured;h.audit.setRequest(async(id,action,payload)=>{captured=copy(payload);return fixture(payload.draft,{definition:item.definition});});await h.audit.calculate();assert.equal(captured.draft.rows[0].inputs.V,raw);assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);
+      const current=h.control('V');current.value=raw;await current.emit('change');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);current.value='Trafalgar';await current.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.V,'Trafalgar');
+    }
+  });
   console.log(`${passed} library editor UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

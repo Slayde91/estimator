@@ -136,7 +136,7 @@ class PenetrationScheduleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'different Firestopping'):
             load_project_bytes(self.store, json.dumps(invalid).encode())
 
-    def test_mixed_products_keep_prices_quantities_and_multipliers_per_line(self):
+    def test_mixed_products_keep_distinct_prices_quantities_and_per_line_multipliers(self):
         draft = self.mixed_schedule()
         before = deepcopy(draft)
         result = calculate(draft)
@@ -149,9 +149,10 @@ class PenetrationScheduleTests(unittest.TestCase):
         self.assertEqual([item['product'] for item in board['unit_prices']], self.options('X')[:2])
         self.assertEqual([item['value'] for item in board['unit_prices']],
                          [row['outputs']['CX'] for row in result['rows']])
-        self.assertEqual([item['row_id'] for item in board['unit_prices']], ['item-0', 'item-1'])
+        self.assertEqual([item['row_ids'] for item in board['unit_prices']], [['item-0'], ['item-1']])
         for item in board['material_quantities']:
-            row = next(row for row in result['rows'] if row['id'] == item['row_id'])
+            self.assertEqual(len(item['row_ids']), 1)
+            row = next(row for row in result['rows'] if row['id'] == item['row_ids'][0])
             self.assertEqual(item['value'], row['outputs'][item['column']] * row['inputs']['O'])
             self.assertEqual(item['product'], row['inputs']['X'])
             self.assertIn(item['product'], item['label'])
@@ -169,6 +170,82 @@ class PenetrationScheduleTests(unittest.TestCase):
         expected_travel = source_lists['BZ2']['value'] * draft['globals']['K']
         self.assertAlmostEqual(result['summary']['grand_total'] - without['summary']['grand_total'], expected_travel)
         self.assertEqual(draft, before)
+
+    def test_matching_products_deduplicate_prices_and_total_mastic_and_other_quantities(self):
+        draft = self.mixed_schedule()
+        draft['rows'][0]['inputs'].update(AB=self.options('AB')[0], AC=.5, O=3)
+        draft['rows'][1]['inputs'] = deepcopy(draft['rows'][0]['inputs'])
+        draft['rows'][1]['inputs'].update(AC=.75, O=4)
+        original = deepcopy(draft)
+        result = calculate(draft)
+        self.assertEqual(result['errors'], [])
+        tasks = {row['label']: row for row in result['schedule_breakdown']['rows']}
+        for task in ('Labour', 'Board', 'Wrap', 'Mastic'):
+            self.assertEqual(len(tasks[task]['unit_prices']), 1)
+            self.assertEqual(tasks[task]['unit_prices'][0]['row_ids'], ['item-0', 'item-1'])
+            self.assertNotIn('Line ', tasks[task]['unit_prices'][0]['label'])
+        mastic = tasks['Mastic']['material_quantities']
+        self.assertEqual(len(mastic), 1)
+        self.assertEqual(mastic[0]['column'], 'AC')
+        self.assertEqual(mastic[0]['value'], .5 * 3 + .75 * 4)
+        self.assertEqual(mastic[0]['product'], self.options('AB')[0])
+        self.assertEqual(mastic[0]['row_ids'], ['item-0', 'item-1'])
+        for task in ('Board', 'Wrap'):
+            for entry in tasks[task]['material_quantities']:
+                expected = sum(row['outputs'][entry['column']] * row['inputs']['O'] for row in result['rows'])
+                self.assertEqual(entry['value'], expected)
+                self.assertEqual(entry['row_ids'], ['item-0', 'item-1'])
+        for row, expected in zip(result['rows'], (1.5, 3)):
+            item = next(task for task in row['breakdown']['rows'] if task['label'] == 'Mastic')
+            self.assertEqual(item['material_quantities'][0]['value'], expected)
+        self.assertEqual(draft, original)
+
+    def test_grouping_keeps_distinct_rates_units_contexts_and_unselected_products(self):
+        result = calculate(self.mixed_schedule())
+        first, second = result['rows']
+        second['inputs']['X'] = first['inputs']['X']
+        board1 = next(task for task in first['breakdown']['rows'] if task['label'] == 'Board')
+        board2 = next(task for task in second['breakdown']['rows'] if task['label'] == 'Board')
+        board1['unit_prices'][0]['value'] = 1.23456789012345
+        board2['unit_prices'][0]['value'] = 1.23456789012346
+        board1['material_quantities'] = [{'column': 'CJ', 'label': 'Substrate', 'value': .123456789012345, 'units': 'sheets', 'format': 'number'},
+                                          {'column': 'CQ', 'label': 'Bulkhead', 'value': 2, 'units': 'sheets', 'format': 'number'}]
+        board2['material_quantities'] = [{'column': 'CJ', 'label': 'Substrate', 'value': .234567890123456, 'units': 'sheets', 'format': 'number'},
+                                          {'column': 'CJ', 'label': 'Substrate', 'value': 4, 'units': 'm²', 'format': 'number'}]
+        original = deepcopy(result)
+        board = next(task for task in schedule_breakdown(result)['rows'] if task['label'] == 'Board')
+        self.assertEqual([item['value'] for item in board['unit_prices']], [1.23456789012345, 1.23456789012346])
+        self.assertEqual([item['value'] for item in board['material_quantities']],
+                         [.123456789012345 + .234567890123456, 2, 4])
+        self.assertEqual(board['material_quantities'][0]['row_ids'], ['item-0', 'item-1'])
+        self.assertEqual(result, original)
+        # Without a product identity, coincidentally equal values cannot be combined.
+        for row in result['rows']:
+            row['inputs']['X'] = None
+        board = next(task for task in schedule_breakdown(result)['rows'] if task['label'] == 'Board')
+        self.assertEqual(len(board['material_quantities']), 4)
+        self.assertTrue(all(len(item['row_ids']) == 1 for item in board['material_quantities']))
+
+    def test_grouped_mastic_keeps_blank_zero_negative_and_error_distinctions(self):
+        result = calculate(self.mixed_schedule())
+        for row in result['rows']:
+            row['inputs']['AB'] = self.options('AB')[0]
+            mastic = next(task for task in row['breakdown']['rows'] if task['label'] == 'Mastic')
+            mastic['unit_prices'][0]['value'] = 0
+        for values, expected in (((None, ''), None), ((0, None), 0), ((2, -2), 0),
+                                 ((2, '#DIV/0!'), '#DIV/0!'), ((float('inf'), 2), '#NUM!')):
+            with self.subTest(values=values):
+                for row, value in zip(result['rows'], values):
+                    next(task for task in row['breakdown']['rows'] if task['label'] == 'Mastic')['material_quantities'][0]['value'] = value
+                before = deepcopy(result)
+                mastic = next(task for task in schedule_breakdown(result)['rows'] if task['label'] == 'Mastic')
+                self.assertEqual(len(mastic['unit_prices']), 1)
+                self.assertEqual(mastic['unit_prices'][0]['value'], 0)
+                if expected is None:
+                    self.assertEqual(mastic['material_quantities'], [])
+                else:
+                    self.assertEqual(mastic['material_quantities'][0]['value'], expected)
+                self.assertEqual(result, before)
 
     def test_schedule_projection_retains_zero_and_errors_without_mutating_calculation(self):
         result = calculate(self.mixed_schedule())

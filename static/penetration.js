@@ -14,6 +14,7 @@
   const configStamp = () => JSON.stringify(configuration());
   const keyFor = (rowId, column) => JSON.stringify([rowId, column]);
   const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
+  const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const rowById = (id, scope = state) => scope.draft?.rows.find(row => row.id === id);
   const scheduleRow = id => rowById(id, state.schedule);
   const selected = () => rowById(state.selected);
@@ -21,14 +22,14 @@
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
   const stable = value => JSON.stringify(ordered(value));
   const canonicalValues = values => ordered(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])));
-  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs) });
+  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs), ...(row.library_item_id ? { library_item_id: row.library_item_id } : {}) });
   function canonicalDraft(draft, definition = state.definition) {
     return draft && { globals: canonicalValues({ ...definition.defaults.globals, ...draft.globals }), rows: draft.rows.map(canonicalRow) };
   }
   const draftStamp = (draft, definition = state.definition) => stable(canonicalDraft(draft, definition));
   const rowStamp = row => stable(canonicalRow(row));
   function canonicalSnapshot(snapshot, definition = state.definition) {
-    return { draft: canonicalDraft(snapshot.draft, definition), composer: canonicalDraft(snapshot.composer, definition) };
+    return { draft: canonicalDraft(snapshot.draft, definition), composer: canonicalDraft(snapshot.composer, definition), library_tracking_version: 1 };
   }
   function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
   function shiftDecimal(value, places) { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); }
@@ -70,9 +71,12 @@
   }
   function checkDraft(draft, definition, composer = false) {
     if (!draft || typeof draft.globals !== "object" || !draft.globals || Array.isArray(draft.globals) || !Array.isArray(draft.rows) || (composer && draft.rows.length !== 1) || draft.rows.length > definition.capacity) throw new Error("The firestopping inputs are incomplete or exceed their row capacity.");
-    const ids = new Set();
+    const ids = new Set(), libraryIds = new Set();
     for (const row of draft.rows) {
       if (!row || typeof row.id !== "string" || !row.id || ids.has(row.id) || !row.inputs || typeof row.inputs !== "object" || Array.isArray(row.inputs)) throw new Error("The firestopping schedule contains an invalid or repeated row.");
+      if (Object.hasOwn(row, "library_item_id") && (typeof row.library_item_id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(row.library_item_id))) throw new Error("The schedule contains an invalid library item ID.");
+      if (row.library_item_id && libraryIds.has(row.library_item_id)) throw new Error("The schedule contains a repeated library item ID.");
+      if (row.library_item_id) libraryIds.add(row.library_item_id);
       ids.add(row.id);
     }
   }
@@ -149,12 +153,13 @@
     control.dataset.penetrationField = field.column; control.dataset.penetrationRow = rowId === null ? "" : rowId;
     control.setAttribute("aria-label", `${line}: ${label.textContent}`);
     const pending = scope.invalid.get(key), raw = inputValue(field, rowId, scope);
+    const manufacturer = rowId !== null && manufacturerLabel(field, raw);
+    const options = [...new Set((field.options || []).map(value => manufacturer && manufacturerLabel(field, value) === manufacturer ? raw : value))];
     if (field.type === "select") {
       const empty = node("option", "", "Choose…"); empty.value = ""; control.append(empty);
-      const options = field.options || [];
-      for (const value of options) { const option = node("option", "", value); option.value = String(value); control.append(option); }
+      for (const value of options) { const option = node("option", "", manufacturerLabel(field, value) || value); option.value = String(value); control.append(option); }
       if (raw !== null && raw !== "" && !options.some(value => String(value) === String(raw))) {
-        const option = node("option", "", `Saved value: ${raw} (choose a listed value)`); option.value = String(raw); option.disabled = true; control.append(option);
+        const option = node("option", "", manufacturer || `Saved value: ${raw} (choose a listed value)`); option.value = String(raw); option.disabled = true; control.append(option);
       }
     } else {
       control.type = "text"; control.maxLength = 2000;
@@ -184,7 +189,7 @@
           if (!Number.isFinite(value) || Math.abs(value) > 1e12) error = "Enter a value between -1,000,000,000,000 and 1,000,000,000,000.";
         }
       } else if (field.type === "select") {
-        value = value === "" ? null : (field.options || []).find(item => String(item) === value);
+        value = value === "" ? null : options.find(item => String(item) === value);
         if (value === undefined) error = "Choose a listed value.";
       }
       if (error) scope.invalid.set(key, { value: control.value, error });
@@ -312,11 +317,33 @@
     } catch (error) { if (context === state.context) message(`Add to Library was not confirmed. ${error.message}`, true); }
     finally { state.creatingLibrary = false; status(); }
   }
-  function appendSchedule(inputs) {
+  function appendSchedule(inputs, libraryId) {
     if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
     if (state.schedule.draft.rows.length >= state.definition.capacity) throw new Error("The current schedule is full. Remove a row before adding another item.");
-    const row = newRow(); row.inputs = clone(inputs); state.schedule.draft.rows.push(row);
+    const row = newRow(); row.inputs = clone(inputs); if (libraryId) row.library_item_id = libraryId; state.schedule.draft.rows.push(row);
     state.rowEpochs.set(row.id, ++state.nextEpoch); state.removed = []; state.page = Math.floor((state.schedule.draft.rows.length - 1) / pageSize);
+    changed(row.id, state.schedule); return row;
+  }
+  function libraryQuantity(id) {
+    const rows = state.schedule.draft?.rows.filter(row => row.library_item_id === id) || [];
+    if (!rows.length) return undefined;
+    if (rows.some(row => state.schedule.invalid.has(keyFor(row.id, "O")))) return null;
+    return rows.reduce((sum, row) => sum + (row.inputs.O ?? 0), 0);
+  }
+  const libraryInputs = inputs => stable(Object.fromEntries(Object.entries(inputs).filter(([column, value]) => column !== "O" && value !== null && value !== "")));
+  function addLibraryQuantity(id, inputs) {
+    if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
+    const linked = state.schedule.draft.rows.find(row => row.library_item_id === id);
+    // Older projects did not record library identity. Adopt one exact match
+    // only. Combining old rows can remove fixed per-row charges such as AJ.
+    const row = linked || state.schedule.draft.rows.find(item => !item.library_item_id && libraryInputs(item.inputs) === libraryInputs(inputs));
+    const quantity = (row?.inputs.O ?? 0) + 1;
+    if (!numeric(quantity) || Math.abs(quantity) > 1e12) throw new Error("The resulting schedule quantity exceeds the supported range.");
+    if (!row) {
+      return appendSchedule({ ...inputs, O: 1 }, id);
+    }
+    row.library_item_id = id; row.inputs.O = quantity;
+    state.page = Math.floor(state.schedule.draft.rows.indexOf(row) / pageSize);
     changed(row.id, state.schedule); return row;
   }
   async function scheduleReceipt(row, label, context) {
@@ -325,8 +352,9 @@
     if (context !== state.context || !scheduleRow(row.id) || epoch !== state.rowEpochs.get(row.id)) return { added: true, id: row.id, total: null, message: "The item was added, but its schedule or row has since changed. Review the current schedule." };
     const output = state.schedule.result?.rows?.find(item => item.id === row.id), value = output?.outputs?.H;
     const total = numeric(value) && !output.errors?.length ? value : null;
-    const text = `${label} added using the current schedule prices and allowances. ${total === null ? "Recalculated price is unavailable. Review the schedule calculation." : `Recalculated item price: ${display(total, "currency")}.`}`;
-    message(text, total === null, state.schedule); return { added: true, id: row.id, total, message: text };
+    const quantity = scheduleRow(row.id).inputs.O;
+    const text = `${label} added using the current schedule prices and allowances.${row.library_item_id ? ` Quantity: ${quantity ?? 0}.` : ""} ${total === null ? "Recalculated price is unavailable. Review the schedule calculation." : `Recalculated item price: ${display(total, "currency")}.`}`;
+    message(text, total === null, state.schedule); return { added: true, id: row.id, quantity, total, message: text };
   }
   async function addToSchedule() {
     document.activeElement?.blur?.(); if (!state.draft || state.invalid.size || state.addingSchedule) return;
@@ -350,6 +378,7 @@
     } finally { state.updatingSchedule = false; status(); }
   }
   async function addLibraryItem(id) {
+    if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(id)) throw new Error("The library item ID is invalid.");
     if (state.addingLibrary) throw new Error("A library item is already being added to the schedule.");
     if (window.CeasefireLibraryEditor?.isOpen()) throw new Error("Save or cancel the open library edit before adding an item to the schedule.");
     document.activeElement?.blur?.(); const context = state.context; state.addingLibrary = true;
@@ -361,12 +390,17 @@
       }
       const targetContext = state.context;
       if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
+      const linked = state.schedule.draft.rows.find(row => row.library_item_id === id);
+      if (linked) {
+        const row = addLibraryQuantity(id, linked.inputs);
+        return await scheduleReceipt(row, "Library item", targetContext);
+      }
       const record = await request(`/api/libraries/penetration/${encodeURIComponent(id)}/edit`);
       if (targetContext !== state.context) throw new Error("The project changed while opening the library item. Nothing was added.");
       if (window.CeasefireLibraryEditor?.isOpen()) throw new Error("Save or cancel the open library edit before adding an item to the schedule.");
       checkDraft(record.draft, state.definition, true);
       if (record.definition?.source_sha256 !== state.definition.source_sha256) throw new Error("This library item does not match the current Firestopping Estimator calculation source.");
-      const row = appendSchedule(record.draft.rows[0].inputs);
+      const row = addLibraryQuantity(id, record.draft.rows[0].inputs);
       return await scheduleReceipt(row, record.library_id, targetContext);
     } finally { state.addingLibrary = false; }
   }
@@ -389,6 +423,7 @@
   }
   function renderSchedule() {
     if (!state.schedule.draft) return;
+    window.CeasefireLibraries?.scheduleChanged?.();
     const body = $("penetration-schedule-body"), previous = [...body.children];
     const existing = new Map(previous.filter(row => row.dataset.penetrationContext === String(state.context)).map(row => [row.dataset.penetrationId, row]));
     const quantityField = state.definition.row_fields.find(field => field.column === "O");
@@ -516,5 +551,5 @@
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
   $("penetration-pdf").addEventListener("click", () => download("pdf")); $("penetration-excel").addEventListener("click", () => download("xlsx"));
-  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem };
+  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity };
 })();

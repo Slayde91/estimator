@@ -65,6 +65,13 @@ and schedule allowances. **Edit** copies a schedule row into the current-item
 form; only **Update Schedule** applies those edits. **Cancel edit** restores the
 previous current item. Library additions leave both library navigation and the
 current item intact, with the recalculated price displayed beside the library action.
+Each library Add counts one item: its first addition creates a row with Item QTY 1,
+and later clicks increase that row's quantity. The library card shows the current
+schedule quantity, including manual edits, removal and Undo. A stored library item
+ID preserves this behavior across Save/Open without replacing edited row inputs.
+For older rows without this ID, an explicit Add adopts at most one row whose inputs
+match the library item exactly apart from quantity and empty values. Other existing
+rows remain unchanged, preserving their fixed per-row charges.
 
 Item QTY is editable in the schedule without changing the independent current item.
 Invalid or incomplete numeric text remains visible and blocks calculation;
@@ -76,8 +83,10 @@ The library editor applies its separate
 allowances only to that library item.
 
 The selected item and library editor share a seven-row cost table: Labour,
-Board, Collars, Mastic, Framing, Wrap and Other. Its five quantity values are
-the source product quantities BS/CB/CJ/CQ/CU multiplied by Item QTY. No rounding
+Board, Collars, Mastic, Framing, Wrap and Other. Its six quantity values are
+the source product quantities BS/CB/CJ/CQ/CU and the Mastic Qty input AC,
+each multiplied by Item QTY once. Mastic Qty is the same input priced by DO;
+the quantity display does not add the global material allowance. No rounding
 up is added. Task hours and costs include the existing global adjustments and
 quantity so the subtotals are exactly the original G/F/DK outputs. Setup/register
 hours come from the source named range; AI is allocated to Other materials and
@@ -87,18 +96,25 @@ additive display projection, not a replacement calculation. Raw outputs and
 export evidence remain complete. Summary and Multipliers remain available
 separately below the table. All table cells are centred. The schedule has a
 separate aggregate table: costs and task hours sum across schedule lines, with
-canonical schedule subtotals. Unit prices and quantities retain line and product
-identities rather than adding unlike rates or units. Summary and Multipliers
+canonical schedule subtotals. Matching product unit prices are shown once.
+Material quantities sum only for the same product, source context and unit;
+different rates stay separate in Unit Prices. Entries without a selected product
+remain per line, and grouped entries retain their contributing row IDs.
+Summary and Multipliers
 retain each line's values. Travel/LAFHA follows the existing schedule calculation.
 
 Save and Save As capture both estimates and the three existing calculators
 together. Project version 1 gains an optional `penetration` object containing
 only validated inputs and the source SHA-256. Its `draft` is the schedule;
 optional `composer` stores the independent current item's one-row draft and
-allowances. Old firestopping projects retain their full schedule and start a
+allowances. Rows may also carry an optional `library_item_id`, an opaque library
+identity outside workbook inputs. The same ID can occur once per draft; a matching
+composer copy remains independent. Old firestopping projects retain their full schedule and start a
 default current item; projects without firestopping inputs start empty. Older
 browser code cannot overwrite a project while omitting stored firestopping inputs
-or its composer. Unknown source hashes are rejected. Editing mode is transient;
+or its composer. A request-only tracking version also prevents older browser code
+from dropping saved library item IDs; it is not stored in the project file.
+Unknown source hashes are rejected. Editing mode is transient;
 a reopened current item is independent until explicitly added or used in a new edit.
 
 The project keeps its original pricing until the user explicitly applies new

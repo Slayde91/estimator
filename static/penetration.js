@@ -17,6 +17,19 @@
   const rowById = (id, scope = state) => scope.draft?.rows.find(row => row.id === id);
   const scheduleRow = id => rowById(id, state.schedule);
   const selected = () => rowById(state.selected);
+  const ordered = value => Array.isArray(value) ? value.map(ordered) : value && typeof value === "object"
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  const stable = value => JSON.stringify(ordered(value));
+  const canonicalValues = values => ordered(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])));
+  const canonicalRow = row => row && ({ id: row.id, inputs: canonicalValues(row.inputs) });
+  function canonicalDraft(draft, definition = state.definition) {
+    return draft && { globals: canonicalValues({ ...definition.defaults.globals, ...draft.globals }), rows: draft.rows.map(canonicalRow) };
+  }
+  const draftStamp = (draft, definition = state.definition) => stable(canonicalDraft(draft, definition));
+  const rowStamp = row => stable(canonicalRow(row));
+  function canonicalSnapshot(snapshot, definition = state.definition) {
+    return { draft: canonicalDraft(snapshot.draft, definition), composer: canonicalDraft(snapshot.composer, definition) };
+  }
   function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
   function shiftDecimal(value, places) { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); }
   function display(value, format = "number") {
@@ -30,7 +43,7 @@
   }
   function message(text = "", error = false, scope = state) { const el = $(scope === state ? "penetration-message" : "penetration-schedule-message"); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
   const persisted = () => ({ draft: state.schedule.draft, composer: state.draft });
-  function hasUnsavedChanges() { return !!state.draft && (JSON.stringify(persisted()) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0); }
+  function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0); }
   function status(text) {
     $("penetration-status").textContent = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
     const blocked = !state.draft || state.invalid.size > 0, scheduleBlocked = !state.schedule.draft || state.schedule.invalid.size > 0;
@@ -69,13 +82,13 @@
     const draft = clone(snapshot?.draft || definition.schedule_defaults || { globals: definition.defaults.globals, rows: [] });
     const composer = clone(snapshot?.composer || definition.defaults);
     checkDraft(draft, definition); checkDraft(composer, definition, true);
-    return { definition, draft, composer, saved: JSON.stringify({ draft, composer }) };
+    return { definition, draft, composer, saved: stable(canonicalSnapshot({ draft, composer }, definition)) };
   }
   function prepareDefaults(pricing = configuration()) { return prepareProject(null, pricing); }
   function applyProject(prepared) {
     ++state.context; ++state.requestRevision; ++state.composerEpoch; clearTimeout(state.timer); clearTimeout(state.schedule.timer);
     const composer = clone(prepared.composer || prepared.definition.defaults);
-    Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || JSON.stringify({ draft: prepared.draft, composer }),
+    Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
       selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null,
       revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map() });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
@@ -89,27 +102,27 @@
     if (context !== state.context) throw new Error("The project changed while loading firestopping inputs. Try again.");
     applyProject(prepared);
   }
-  function projectSnapshot() { return state.draft ? clone(persisted()) : undefined; }
+  function projectSnapshot() { return state.draft ? canonicalSnapshot(persisted()) : undefined; }
   function inputProblem() { return state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
-  function projectFingerprint() { return JSON.stringify({ context: state.context, ...persisted(), invalid: [...state.invalid], scheduleInvalid: [...state.schedule.invalid], edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch }); }
+  function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch }); }
   async function completeProjectSnapshot() { await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
   function acceptDraft(scope, draft, captured) {
     // An accepted receipt can normalize blanks without changing the edited row.
     // Advance its comparison value only while the original row and capture match.
-    const edit = scope === state.schedule && validEdit() && JSON.stringify(scope.draft) === JSON.stringify(captured)
-      && JSON.stringify(captured?.rows.find(row => row.id === state.edit.id)) === state.edit.target ? state.edit : null;
+    const edit = scope === state.schedule && validEdit() && draftStamp(scope.draft) === draftStamp(captured)
+      && rowStamp(captured?.rows.find(row => row.id === state.edit.id)) === state.edit.target ? state.edit : null;
     scope.draft = clone(draft);
-    if (edit && scheduleRow(edit.id)) edit.target = JSON.stringify(scheduleRow(edit.id));
+    if (edit && scheduleRow(edit.id)) edit.target = rowStamp(scheduleRow(edit.id));
   }
   function markProjectSaved(receipt, captured) {
     if (!receipt?.draft || !state.draft) return;
     const saved = { draft: receipt.draft, composer: receipt.composer || captured?.composer || state.definition.defaults };
     for (const [key, scope] of [["draft", state.schedule], ["composer", state]]) {
-      if (captured && !scope.invalid.size && JSON.stringify(scope.draft) === JSON.stringify(captured[key]) && JSON.stringify(scope.draft) !== JSON.stringify(saved[key])) {
+      if (captured && !scope.invalid.size && draftStamp(scope.draft) === draftStamp(captured[key]) && JSON.stringify(scope.draft) !== JSON.stringify(saved[key])) {
         acceptDraft(scope, saved[key], captured[key]); scope.revision++; scope.result = null;
       }
     }
-    state.saved = JSON.stringify(saved); state.selected = state.draft.rows[0].id; render();
+    state.saved = stable(canonicalSnapshot(saved)); state.selected = state.draft.rows[0].id; render();
   }
   function inputValue(field, rowId, scope = state) { return (rowId === null ? scope.draft.globals : rowById(rowId, scope)?.inputs)?.[field.column] ?? null; }
   function controlText(field, value, precise = false) {
@@ -218,15 +231,15 @@
       if (field) control.value = pending ? pending.value : controlText(field, inputValue(field, rowId, scope));
     }
   }
-  function composerStamp() { return JSON.stringify({ draft: state.draft, invalid: [...state.invalid], epoch: state.composerEpoch }); }
-  function validEdit() { return !!state.edit && !!scheduleRow(state.edit.id) && state.rowEpochs.get(state.edit.id) === state.edit.epoch && JSON.stringify(scheduleRow(state.edit.id)) === state.edit.target; }
+  function composerStamp() { return stable({ draft: canonicalDraft(state.draft), invalid: [...state.invalid], epoch: state.composerEpoch }); }
+  function validEdit() { return !!state.edit && !!scheduleRow(state.edit.id) && state.rowEpochs.get(state.edit.id) === state.edit.epoch && rowStamp(scheduleRow(state.edit.id)) === state.edit.target; }
   async function confirmReplace(title, detail, action, required) {
     if (!required) return true;
     if (!window.CeasefirePenetrationNavigation?.confirm) { message("Finish the current item before replacing it.", true); return false; }
     return window.CeasefirePenetrationNavigation.confirm(title, detail, action);
   }
   function defaultComposer() { const draft = clone(state.definition.defaults); draft.rows[0].inputs = { ...newRow(state).inputs, ...draft.rows[0].inputs }; return draft; }
-  function composerChanged() { return state.invalid.size > 0 || JSON.stringify(state.draft) !== JSON.stringify(defaultComposer()); }
+  function composerChanged() { return state.invalid.size > 0 || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
   function replaceComposer(draft, invalid = new Map()) {
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);
     state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id;
@@ -236,12 +249,12 @@
   async function selectRow(id) {
     document.activeElement?.blur?.();
     if (!scheduleRow(id) || state.schedule.invalid.size) return;
-    const context = state.context, stamp = composerStamp(), epoch = state.rowEpochs.get(id), rowStamp = JSON.stringify(scheduleRow(id));
+    const context = state.context, stamp = composerStamp(), epoch = state.rowEpochs.get(id), target = rowStamp(scheduleRow(id));
     const confirmed = await confirmReplace("Edit schedule item?", "Your current item will be kept so Cancel edit can restore it.", "Edit item", composerChanged());
-    if (!confirmed || context !== state.context || stamp !== composerStamp() || epoch !== state.rowEpochs.get(id) || rowStamp !== JSON.stringify(scheduleRow(id))) return;
+    if (!confirmed || context !== state.context || stamp !== composerStamp() || epoch !== state.rowEpochs.get(id) || target !== rowStamp(scheduleRow(id))) return;
     const before = state.edit?.before || { draft: clone(state.draft), invalid: [...state.invalid] };
     const draft = { globals: clone(state.schedule.draft.globals), rows: [clone(scheduleRow(id))] };
-    state.edit = { id, epoch, before, baseline: JSON.stringify(draft), target: rowStamp };
+    state.edit = { id, epoch, before, baseline: draftStamp(draft), target };
     replaceComposer(draft); window.CeasefirePenetrationNavigation?.show?.(); await calculate();
   }
   function newRow(scope = state.schedule) {
@@ -259,7 +272,7 @@
   async function cancelEdit() {
     document.activeElement?.blur?.(); if (!state.edit) return;
     const context = state.context, stamp = composerStamp(), edit = state.edit;
-    if (!await confirmReplace("Cancel schedule edit?", "Changes to this copy will be discarded and your previous current item restored.", "Cancel edit", state.invalid.size > 0 || JSON.stringify(state.draft) !== edit.baseline)) return;
+    if (!await confirmReplace("Cancel schedule edit?", "Changes to this copy will be discarded and your previous current item restored.", "Cancel edit", state.invalid.size > 0 || draftStamp(state.draft) !== edit.baseline)) return;
     if (context !== state.context || stamp !== composerStamp() || edit !== state.edit) return;
     state.edit = null; replaceComposer(edit.before.draft, edit.before.invalid); message(); await calculate();
   }

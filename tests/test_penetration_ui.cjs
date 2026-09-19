@@ -242,5 +242,25 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     else{h.audit.setRequest(async()=>result(canonical.draft));await h.audit.calculateSchedule();}
     assert.equal(h.byId('penetration-update-schedule').disabled,true);h.control('T').value='Obsolete edited copy';await h.control('T').emit('input');await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,null);if(conflict==='later edit')assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.123456789);
   });
+  for(const scopeName of ['composer','schedule'])await check(`${scopeName} normalization during Save preserves the snapshot, fingerprint and clean saved state`,async h=>{
+    h.audit.state.draft.rows[0].inputs={T:'Item',U:'',O:1.23456789012345};await h.audit.addToSchedule();await h.audit.selectRow('line-1');
+    const scope=scopeName==='composer'?h.audit.state:h.audit.state.schedule;scope.draft.globals={L:0,J:'No'};scope.draft.rows[0].inputs={U:'',T:'Item',O:1.23456789012345};
+    const captured=h.api.projectSnapshot(),stamp=h.api.projectFingerprint(),pending=deferred();h.audit.setRequest(()=>pending.promise);const calculating=scopeName==='composer'?h.audit.calculate():h.audit.calculateSchedule();await flush();
+    const normalized=copy(scope.draft);normalized.globals={M:0,K:null,J:'No',L:0};normalized.rows[0].inputs={O:1.23456789012345,T:'Item',U:null};pending.resolve(result(normalized));await calculating;
+    assert.equal(JSON.stringify(h.api.projectSnapshot()),JSON.stringify(captured));assert.equal(h.api.projectFingerprint(),stamp);h.api.markProjectSaved(copy(captured),captured);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.byId('penetration-update-schedule').disabled,false);assert.equal(h.api.projectSnapshot()[scopeName==='composer'?'composer':'draft'].rows[0].inputs.O,1.23456789012345);
+  });
+  for(const scopeName of ['composer','schedule'])await check(`${scopeName} genuine later changes remain dirty despite an earlier canonical save receipt`,async h=>{
+    h.audit.state.draft.rows[0].inputs={U:'',O:0};await h.audit.addToSchedule();const captured=h.api.projectSnapshot(),stamp=h.api.projectFingerprint();
+    const scope=scopeName==='composer'?h.audit.state:h.audit.state.schedule;scope.draft.rows[0].inputs.U=' ';scope.draft.rows[0].inputs.O=.00000000000001;h.audit.changed('line-1',scope);assert.notEqual(h.api.projectFingerprint(),stamp);h.api.markProjectSaved(copy(captured),captured);
+    assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(scope.draft.rows[0].inputs.U,' ');assert.equal(scope.draft.rows[0].inputs.O,.00000000000001);assert.equal(captured[scopeName==='composer'?'composer':'draft'].rows[0].inputs.O,0);
+  });
+  await check('Canonical fingerprints retain invalid raw text and transient project/composer/edit identities',async h=>{
+    await h.audit.addToSchedule();const original=h.api.projectFingerprint();h.audit.state.invalid.set('["line-1","O"]',{value:'1e-',error:'Invalid'});const invalid=h.api.projectFingerprint();assert.notEqual(invalid,original);h.audit.state.invalid.get('["line-1","O"]').value='1e+';assert.notEqual(h.api.projectFingerprint(),invalid);h.audit.state.invalid.clear();
+    assert.equal(h.api.projectFingerprint(),original);await h.audit.selectRow('line-1');const edited=h.api.projectFingerprint();assert.notEqual(edited,original);h.audit.state.composerEpoch++;assert.notEqual(h.api.projectFingerprint(),edited);const beforeContext=h.api.projectFingerprint();h.audit.state.context++;assert.notEqual(h.api.projectFingerprint(),beforeContext);
+  });
+  await check('Canonical snapshots preserve row order, literal whitespace, nulls and zero independently',async h=>{
+    h.audit.state.draft.rows[0].inputs={U:' ',O:0,T:''};await h.audit.addToSchedule();await h.audit.addToSchedule();const captured=h.api.projectSnapshot(),stamp=h.api.projectFingerprint();assert.equal(captured.composer.rows[0].inputs.U,' ');assert.equal(captured.composer.rows[0].inputs.O,0);assert.equal(captured.composer.rows[0].inputs.T,null);
+    h.audit.state.schedule.draft.rows.reverse();assert.notEqual(h.api.projectFingerprint(),stamp);assert.notEqual(h.api.projectSnapshot().draft.rows[0].id,captured.draft.rows[0].id);
+  });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

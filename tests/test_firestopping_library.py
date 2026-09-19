@@ -1,12 +1,17 @@
 """Synthetic item editing: pricing capture, persistence and isolation boundaries."""
 
 from copy import deepcopy
+import base64
+import hashlib
 import http.client
+from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
+
+from PIL import Image
 
 from estimator.catalog import ValidationError, configuration_catalog, validate_configuration
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
@@ -18,6 +23,11 @@ from test_reference_library import sample_library
 
 def editable_library(root):
     data, _, _ = sample_library(root)
+    diagram = BytesIO()
+    Image.new('RGB', (640, 360), '#f6f0e9').save(diagram, format='PNG')
+    diagram_bytes = diagram.getvalue()
+    (root / 'images/diagram-a.png').write_bytes(diagram_bytes)
+    data['images'][0]['sha256'] = hashlib.sha256(diagram_bytes).hexdigest()
     data['firestopping'] = {'source_sha256': 'a' * 64,
         'calculator_source_sha256': source_model()['source']['sha256'],
         'configuration': validate_configuration({'catalog': configuration_catalog({})})}
@@ -41,6 +51,7 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.store = Store(self.root / 'test.sqlite3')
         self.library = FirestoppingLibrary(self.root / 'library', self.store)
         self.source_bytes = (self.root / 'library/library.json').read_bytes()
+        self.source_image_bytes = (self.root / 'library/images/diagram-a.png').read_bytes()
 
     def body(self, edit):
         return {name: deepcopy(edit[name]) for name in ('draft', 'revision', 'pricing_token')}
@@ -100,6 +111,78 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(reopened.detail('penetration', 'pkb-002')['price']['amount'], 150)
         self.assertEqual(self.protected(), before)
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+
+    def test_source_diagram_upload_is_compressed_saved_thumbnails_and_can_revert(self):
+        opened = self.library.edit('pkb-001')
+        self.assertEqual(opened['diagram']['custom'], False)
+        self.assertTrue(opened['diagram']['available'])
+        source_full = self.library.diagram_asset('pkb-001')
+        source_thumb = self.library.diagram_asset('pkb-001', True)
+        self.assertEqual(source_full[0], self.source_image_bytes)
+        self.assertEqual(source_thumb[1], 'image/jpeg')
+        with Image.open(BytesIO(source_thumb[0])) as image:
+            self.assertLessEqual(image.width, 240)
+            self.assertLessEqual(image.height, 160)
+
+        upload = BytesIO()
+        Image.new('RGBA', (3200, 1200), (180, 40, 50, 180)).save(upload, format='PNG')
+        body = self.body(opened)
+        body['diagram'] = {'filename': 'site screenshot.PNG',
+                           'content_base64': base64.b64encode(upload.getvalue()).decode('ascii')}
+        saved = self.library.action('pkb-001', 'save', body)
+        self.assertTrue(saved['diagram']['custom'])
+        self.assertEqual(saved['diagram']['mime_type'], 'image/jpeg')
+        self.assertIn('editable item overlay', self.library.detail('penetration', 'pkb-001')['notice'])
+        self.assertLessEqual(saved['diagram']['width'], 2000)
+        self.assertLessEqual(saved['diagram']['height'], 2000)
+        full = self.library.diagram_asset('pkb-001')
+        thumb = self.library.diagram_asset('pkb-001', True)
+        self.assertTrue(full[0].startswith(b'\xff\xd8\xff'))
+        self.assertTrue(thumb[0].startswith(b'\xff\xd8\xff'))
+        self.assertLess(len(full[0]), len(upload.getvalue()))
+        with Image.open(BytesIO(thumb[0])) as image:
+            self.assertLessEqual(image.width, 240)
+            self.assertLessEqual(image.height, 160)
+        reopened = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.diagram_asset('pkb-001')[0], full[0])
+        self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+        self.assertEqual((self.root / 'library/images/diagram-a.png').read_bytes(), self.source_image_bytes)
+
+        remove = self.body(saved)
+        remove['diagram'] = None
+        reverted = reopened.action('pkb-001', 'save', remove)
+        self.assertFalse(reverted['diagram']['custom'])
+        self.assertTrue(reverted['diagram']['available'])
+        self.assertEqual(reopened.diagram_asset('pkb-001')[0], self.source_image_bytes)
+
+    def test_invalid_diagram_uploads_are_rejected_before_any_write(self):
+        original = self.body(self.library.edit('pkb-001'))
+        invalid = [
+            {'filename': 'diagram.svg', 'content_base64': base64.b64encode(b'<svg/>').decode()},
+            {'filename': 'diagram.png', 'content_base64': 'not-base64!'},
+            {'filename': 'diagram.jpg', 'content_base64': base64.b64encode(b'not an image').decode()},
+        ]
+        for diagram in invalid:
+            body = deepcopy(original)
+            body['diagram'] = diagram
+            with self.subTest(filename=diagram['filename']), self.assertRaises(ValidationError):
+                self.library.action('pkb-001', 'save', body)
+        self.assertEqual(self.library.edit('pkb-001')['revision'], 0)
+        self.assertIsNone(self.library.edits.image('pkb-001'))
+
+    def test_png_jpeg_and_webp_diagrams_are_accepted_and_normalized(self):
+        current = self.library.edit('pkb-001')
+        for extension, image_format in (('png', 'PNG'), ('jpg', 'JPEG'), ('webp', 'WEBP')):
+            payload = BytesIO()
+            Image.new('RGB', (900, 500), '#2f5d6c').save(payload, format=image_format)
+            body = self.body(current)
+            body['diagram'] = {'filename': f'screenshot.{extension}',
+                               'content_base64': base64.b64encode(payload.getvalue()).decode('ascii')}
+            with self.subTest(extension=extension):
+                current = self.library.action('pkb-001', 'save', body)
+                self.assertTrue(current['diagram']['custom'])
+                self.assertEqual(current['diagram']['mime_type'], 'image/jpeg')
+                self.assertTrue(self.library.diagram_asset('pkb-001')[0].startswith(b'\xff\xd8\xff'))
 
     def test_explicit_refresh_captures_saved_shared_rates_and_freezes_them(self):
         config = deepcopy(self.data['firestopping']['configuration'])
@@ -201,6 +284,15 @@ class FirestoppingApiTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def raw_request(self, suffix):
+        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        try:
+            connection.request('GET', '/api/libraries/penetration/pkb-001/' + suffix)
+            response = connection.getresponse()
+            return response.status, dict(response.getheaders()), response.read()
+        finally:
+            connection.close()
+
     def test_routes_conflicts_and_origin_guards(self):
         status, edit = self.request('GET', 'edit')
         self.assertEqual(status, 200)
@@ -212,6 +304,18 @@ class FirestoppingApiTests(unittest.TestCase):
         self.assertEqual(self.request('POST', 'save', body)[0], 200)
         self.assertEqual(self.request('POST', 'save', body)[0], 409)
         self.assertEqual(self.request('GET', 'edit')[1]['revision'], edit['revision'] + 1)
+
+    def test_diagram_and_thumbnail_routes_serve_valid_images(self):
+        for suffix, maximum in (('image', None), ('thumbnail', (240, 160))):
+            status, headers, payload = self.raw_request(suffix)
+            self.assertEqual(status, 200)
+            self.assertIn(headers['Content-Type'], {'image/png', 'image/jpeg'})
+            with Image.open(BytesIO(payload)) as image:
+                if maximum:
+                    self.assertLessEqual(image.width, maximum[0])
+                    self.assertLessEqual(image.height, maximum[1])
+        status, _, _ = self.raw_request('unknown')
+        self.assertEqual(status, 404)
 
 
 if __name__ == '__main__':

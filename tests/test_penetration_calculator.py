@@ -164,7 +164,7 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertIn('Cable Trays', fields['K']['options'])
         self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
         self.assertEqual(fields['U']['label'], 'System/Install Details')
-        self.assertTrue(fields['AG']['hidden'])
+        self.assertNotIn('hidden', fields['AG'])
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
             'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead'])
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
@@ -175,6 +175,14 @@ class PenetrationCalculationTests(unittest.TestCase):
                          ['AL', 'AM', 'AN', 'pipe_labour_hours', 'AO'])
         for field in pipe_fields:
             self.assertEqual(field['display_groups'], ['Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles'])
+        expected_steps = {'O': 1, 'AC': .25, 'register_allowance_hours': .05,
+            'AF': 1, 'AG': 1, 'AH': .25, 'AI': 1, 'AJ': 1, 'AM': 5,
+            'AO': 1, 'AQ': 5, 'AR': 5, 'AS': 5, 'AT': 1, 'AU': 1,
+            'AW': 5, 'AX': 5, 'AY': 1, 'AZ': 1, 'BB': 5, 'BC': 5,
+            'BD': 5, 'BE': 1, 'BF': 1, 'BG': 1}
+        self.assertEqual({column: fields[column]['step'] for column in expected_steps}, expected_steps)
+        self.assertNotIn('step', fields['AL'])
+        self.assertNotIn('step', fields['pipe_labour_hours'])
         existing = {'globals': {}, 'rows': [{'id': 'old', 'inputs': {'Q': None, 'R': 'Easy', 'V': 'FIREFLY', 'K': 'Legacy text'}}]}
         self.assertEqual(normalize_draft(existing)['rows'], existing['rows'])
         original = source_example()

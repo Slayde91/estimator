@@ -21,7 +21,8 @@ TASKS = (
 NOTE = ('Quantities, costs and task hours use this line’s Item QTY. '
         'Register allowance is separate from Additional Labour. '
         'Additional Labour includes the manual hours and the labour adjustment; Other includes the material adjustment. '
-        'Project allowances and substrate, access and complexity multipliers are excluded.')
+        'Project global material and labour adjustments apply later to the combined quote, including Firestopping. '
+        'Legacy Firestopping global allowances and substrate, access and complexity multipliers are excluded.')
 HOURS_PER_DAY = 8
 PRODUCT_COLUMNS = {'Additional Labour': 'W', 'Register allowance': 'W',
                    'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
@@ -241,7 +242,8 @@ def schedule_breakdown(result):
             'source_groups': source_groups,
             'note': ('Costs and task hours include schedule quantities. '
                      'Matching product unit prices are shown once; quantities total matching products, contexts and units. '
-                     'Project allowances and substrate, access and complexity multipliers are excluded.')}
+                     'Project global material and labour adjustments apply later to the combined quote, including Firestopping. '
+                     'Legacy Firestopping global allowances and substrate, access and complexity multipliers are excluded.')}
 
 
 def material_breakdown(result):

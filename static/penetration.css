@@ -9,6 +9,9 @@
 .penetration-schedule table{width:100%;min-width:960px}
 .penetration-schedule td{vertical-align:middle;max-width:300px;overflow-wrap:anywhere}
 .penetration-schedule td:nth-child(6),.penetration-schedule td:nth-child(7){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.penetration-schedule-diagram{width:92px;min-width:92px;text-align:center}
+.penetration-schedule-diagram img{display:block;width:80px;height:58px;margin:auto;border:1px solid var(--line);border-radius:7px;background:#fff;object-fit:contain}
+.penetration-schedule-diagram .helper{font-size:10px;white-space:normal}
 .penetration-schedule-quantity{position:relative;min-width:100px;max-width:150px;gap:4px}
 .penetration-schedule-quantity input{text-align:right;font-variant-numeric:tabular-nums}
 .penetration-schedule-quantity .penetration-field-error{white-space:normal;text-align:left}

@@ -6,12 +6,12 @@ const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const walk=node=>[node,...node.children.flatMap(walk)],text=node=>walk(node).map(el=>el.textContent).join(' ');
 const fixture=(draft=definition().defaults,extra={})=>({id:'legacy-row-4',library_id:'FL-ID-001',title:'FL-ID-001 — Synthetic item',revision:0,
   source_price:{amount:123.456789,currency:'AUD',label:'Workbook price'},price:{amount:123.456789,currency:'AUD',label:'Library price'},
-  draft:copy(draft),definition:definition(),result:result(draft),pricing_token:'workbook-token',pricing_basis:'workbook',pricing_label:'Original workbook rates',...extra});
+  draft:copy(draft),definition:definition(),result:result(draft),pricing_token:'workbook-token',pricing_basis:'workbook',pricing_label:'Original workbook rates',diagram:{available:true,custom:false,url:'/api/libraries/penetration/legacy-row-4/image',thumbnail_url:'/api/libraries/penetration/legacy-row-4/thumbnail'},...extra});
 function harness(){
   const h=projectHarness(),calls=[],returns=[];let shows=0,invalidations=0;
   h.context.window.CeasefireLibraryEditorNavigation={show(){shows++;},returnToLibrary(id){returns.push(id);}};
   h.context.window.CeasefireLibraries={invalidate(){invalidations++;}};
-  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,present,setRequest(fn){request=fn;}};})();`),h.context);
+  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,renderDiagram,queueDiagram,present,setRequest(fn){request=fn;}};})();`),h.context);
   const audit=h.context.libraryAudit,api=h.context.window.CeasefireLibraryEditor;
   audit.setRequest(async(id,action,payload)=>{calls.push({id,action,payload:payload&&copy(payload)});return fixture(payload?.draft,{revision:action==='save'?payload.revision+1:payload?.revision||0,pricing_token:payload?.pricing_token||'workbook-token'});});
   const control=(column,global=false)=>walk(h.byId('library-editor-fields')).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
@@ -29,6 +29,18 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     const draft=copy(metadata.defaults);draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.api.present(fixture(draft,{definition:metadata,result:result(draft,metadata)}));
     assert.match(text(h.byId('library-editor-groups')),/Penetration.*Cables\/Bundles.*Bulkhead/);assert.doesNotMatch(text(h.byId('library-editor-groups')),/Unlagged Pipes|Plastic Pipes/);
     h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('library-editor-fields')),/Diameter/);
+  });
+  await check('Library numeric fields use requested native steps and retain exact values',async h=>{
+    h.api.present(fixture());let quantity=h.control('O');assert.equal(quantity.type,'number');assert.equal(quantity.step,'1');quantity.value='2.3456789012345';await quantity.emit('input');assert.equal(h.audit.state.draft.rows[0].inputs.O,2.3456789012345);
+    h.audit.state.group='Substrate';h.audit.renderFields();const length=h.control('AW');assert.equal(length.type,'number');assert.equal(length.step,'5');
+    const metadata=allowanceDefinition();h.api.present(fixture(undefined,{definition:metadata,result:allowanceResult(definition().defaults,metadata)}));h.audit.state.group='Products and labour';h.audit.renderFields();const allowance=h.control('register_allowance_hours');assert.equal(allowance.type,'number');assert.equal(allowance.step,'0.05');
+  });
+  await check('Source diagram selection stays unsaved until Save and does not enter calculation requests',async h=>{
+    await h.api.open('legacy-row-4');assert.equal(h.byId('library-editor-diagram-image').src,'/api/libraries/penetration/legacy-row-4/image');assert.equal(h.api.hasUnsavedChanges(),false);
+    h.audit.queueDiagram('inspection screenshot.png','QUFB');assert.equal(h.api.hasUnsavedChanges(),true);assert.match(h.byId('library-editor-diagram-image').src,/^data:image\/png;base64,QUFB$/);assert.match(h.byId('library-editor-diagram-caption').textContent,/ready to compress/);
+    await h.audit.calculate();assert.equal(Object.hasOwn(h.calls.at(-1).payload,'diagram'),false);
+    await h.audit.save();assert.deepEqual(h.calls.at(-1).payload.diagram,{filename:'inspection screenshot.png',content_base64:'QUFB'});assert.equal(h.api.isOpen(),false);
+    h.api.present(fixture(undefined,{diagram:{available:true,custom:true,url:'/api/libraries/penetration/legacy-row-4/image'}}));await h.byId('library-editor-diagram-remove').emit('click');assert.equal(h.api.hasUnsavedChanges(),true);await h.audit.save();assert.equal(h.calls.at(-1).payload.diagram,null);
   });
   await check('Library automatic allowances remain raw and clean until manual input, retaining precise and zero overrides and reset',async h=>{
     const metadata=allowanceDefinition(),source=fixture(undefined,{definition:metadata,result:allowanceResult(definition().defaults,metadata)});h.api.present(source);h.audit.state.group='Products and labour';h.audit.renderFields();let control=h.control('register_allowance_hours');const before=copy(h.audit.state.draft);

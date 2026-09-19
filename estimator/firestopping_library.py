@@ -8,10 +8,16 @@ All prices are computed by the existing workbook calculator on the server.
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime, timezone
+import base64
+import binascii
 import hashlib
+from io import BytesIO
 import json
 import math
+from pathlib import Path
 import re
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, EFFECTIVE_GLOBALS,
@@ -34,6 +40,12 @@ MANUAL_RELATIONSHIP = 'Manually linked.'
 # durable range so a later supplier installation cannot renumber saved entries.
 USER_ID_START = 100001
 MAX_USER_ID = 999999999
+MAX_DIAGRAM_BYTES = 15 * 1_048_576
+MAX_DIAGRAM_PIXELS = 40_000_000
+DIAGRAM_SIZE = (2000, 2000)
+THUMBNAIL_SIZE = (240, 160)
+DIAGRAM_EXTENSIONS = {'.png': 'PNG', '.jpg': 'JPEG', '.jpeg': 'JPEG', '.webp': 'WEBP'}
+UNCHANGED = object()
 
 
 def empty_library():
@@ -53,6 +65,66 @@ def price(amount, label):
     if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount):
         raise ValidationError('The library item does not have a finite calculated price.')
     return {'amount': amount, 'currency': 'AUD', 'label': label}
+
+
+def _render_diagram(payload):
+    """Return bounded, browser-safe JPEG display and thumbnail versions."""
+    try:
+        with Image.open(BytesIO(payload)) as opened:
+            if opened.format not in {'PNG', 'JPEG', 'WEBP'}:
+                raise ValidationError('Choose a PNG, JPEG or WebP image.')
+            width, height = opened.size
+            if width < 1 or height < 1 or width * height > MAX_DIAGRAM_PIXELS:
+                raise ValidationError('The source diagram dimensions are too large.')
+            image = ImageOps.exif_transpose(opened)
+            image.load()
+    except ValidationError:
+        raise
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ValidationError('The source diagram is not a valid PNG, JPEG or WebP image.') from exc
+    if image.mode in {'RGBA', 'LA'} or 'transparency' in image.info:
+        rgba = image.convert('RGBA')
+        background = Image.new('RGB', rgba.size, 'white')
+        background.paste(rgba, mask=rgba.getchannel('A'))
+        image = background
+    else:
+        image = image.convert('RGB')
+    image.thumbnail(DIAGRAM_SIZE, Image.Resampling.LANCZOS)
+    full = BytesIO()
+    image.save(full, format='JPEG', quality=90, optimize=True, progressive=True)
+    thumbnail = image.copy()
+    thumbnail.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+    small = BytesIO()
+    thumbnail.save(small, format='JPEG', quality=86, optimize=True, progressive=True)
+    content = full.getvalue()
+    return {'sha256': hashlib.sha256(content).hexdigest(), 'mime_type': 'image/jpeg',
+            'width': image.width, 'height': image.height, 'image_data': content,
+            'thumbnail_data': small.getvalue()}
+
+
+def diagram_upload(value):
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {'filename', 'content_base64'}:
+        raise ValidationError('Choose one source diagram image to save.')
+    filename, content = value['filename'], value['content_base64']
+    if not isinstance(filename, str) or not filename or len(filename) > 255:
+        raise ValidationError('The source diagram filename is invalid.')
+    extension = Path(filename).suffix.lower()
+    if extension not in DIAGRAM_EXTENSIONS:
+        raise ValidationError('Choose a PNG, JPEG or WebP source diagram.')
+    if not isinstance(content, str) or not content or len(content) > ((MAX_DIAGRAM_BYTES + 2) // 3) * 4:
+        raise ValidationError('The source diagram must be no larger than 15 MB.')
+    try:
+        payload = base64.b64decode(content, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValidationError('The source diagram contains invalid image data.') from exc
+    if not 0 < len(payload) <= MAX_DIAGRAM_BYTES:
+        raise ValidationError('The source diagram must be no larger than 15 MB.')
+    rendered = _render_diagram(payload)
+    # The filename suffix is an early usability check. Pillow determines the
+    # actual format and rejects malformed or unsupported image content.
+    return rendered
 
 
 class LibraryEdits:
@@ -79,6 +151,16 @@ class LibraryEdits:
                     created_at TEXT NOT NULL,
                     PRIMARY KEY(penetration_id, technical_id)
                 );
+                CREATE TABLE IF NOT EXISTS firestopping_images (
+                    item_id TEXT PRIMARY KEY,
+                    sha256 TEXT NOT NULL,
+                    mime_type TEXT NOT NULL,
+                    width INTEGER NOT NULL,
+                    height INTEGER NOT NULL,
+                    image_data BLOB NOT NULL,
+                    thumbnail_data BLOB NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
             ''')
 
     def stamp(self):
@@ -97,6 +179,15 @@ class LibraryEdits:
     def links(self):
         with self.store.connect() as db:
             return list(db.execute('SELECT penetration_id,technical_id,penetration_source,technical_source FROM firestopping_links ORDER BY rowid'))
+
+    def image(self, key):
+        with self.store.connect() as db:
+            row = db.execute('SELECT sha256,mime_type,width,height,image_data,thumbnail_data,updated_at '
+                             'FROM firestopping_images WHERE item_id=?', (key,)).fetchone()
+        if row is None:
+            return None
+        return dict(zip(('sha256', 'mime_type', 'width', 'height', 'image_data',
+                         'thumbnail_data', 'updated_at'), row))
 
     def overlay_stamp(self):
         with self.store.connect() as db:
@@ -153,7 +244,7 @@ class LibraryEdits:
             db.execute('INSERT OR IGNORE INTO firestopping_prices VALUES(?,?)', (token, content))
         return token
 
-    def save(self, key, revision, source, data, snapshot):
+    def save(self, key, revision, source, data, snapshot, diagram=UNCHANGED):
         content = encoded(snapshot)
         token = hashlib.sha256(content.encode()).hexdigest()
         assert token == data['pricing_token']
@@ -166,6 +257,14 @@ class LibraryEdits:
             db.execute('INSERT INTO firestopping_items VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET '
                        'revision=excluded.revision,source_sha256=excluded.source_sha256,updated_at=excluded.updated_at,data=excluded.data',
                        (key, revision + 1, source, timestamp(), encoded(data)))
+            if diagram is None:
+                db.execute('DELETE FROM firestopping_images WHERE item_id=?', (key,))
+            elif diagram is not UNCHANGED:
+                db.execute('INSERT INTO firestopping_images VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET '
+                           'sha256=excluded.sha256,mime_type=excluded.mime_type,width=excluded.width,height=excluded.height,'
+                           'image_data=excluded.image_data,thumbnail_data=excluded.thumbnail_data,updated_at=excluded.updated_at',
+                           (key, diagram['sha256'], diagram['mime_type'], diagram['width'], diagram['height'],
+                            diagram['image_data'], diagram['thumbnail_data'], timestamp()))
 
 
 class FirestoppingLibrary(ReferenceLibrary):
@@ -175,6 +274,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         self._effective_stamp = None
         self._effective = None
         self._price_cache = OrderedDict()
+        self._diagram_cache = OrderedDict()
 
     def _load(self):
         base = super()._load()
@@ -408,8 +508,47 @@ class FirestoppingLibrary(ReferenceLibrary):
             result = super().detail(kind, key)
             if kind == 'penetration':
                 self._effective_prices([result])
+                result['diagram'] = self._diagram_info(key, result)
+                if result['diagram']['custom']:
+                    result['notice'] = ('This item has saved edits. The displayed source diagram is an editable item overlay; '
+                                        'supplier evidence and technical references still describe the original workbook item.')
             result.pop('estimate', None)
             return result
+
+    def _diagram_info(self, key, item):
+        saved = self.edits.image(key)
+        available = saved is not None or bool(item.get('images'))
+        result = {'available': available, 'custom': saved is not None,
+                  'url': f'/api/libraries/penetration/{key}/image' if available else None,
+                  'thumbnail_url': f'/api/libraries/penetration/{key}/thumbnail' if available else None}
+        if saved:
+            result.update({name: saved[name] for name in ('sha256', 'mime_type', 'width', 'height', 'updated_at')})
+        return result
+
+    def diagram_asset(self, key, thumbnail=False):
+        """Serve a saved diagram or the first immutable source diagram."""
+        with self._lock:
+            identifier(key)
+            data = self._load()
+            if not data or key not in data['_records']['penetration']:
+                raise ReferenceNotFound()
+            saved = self.edits.image(key)
+            if saved:
+                payload = saved['thumbnail_data'] if thumbnail else saved['image_data']
+                return payload, saved['mime_type'], f'{key}{"-thumbnail" if thumbnail else ""}.jpg'
+            images = data['_records']['penetration'][key].get('images', [])
+            if not images:
+                raise ReferenceNotFound()
+            payload, mime, filename = super().asset(images[0]['id'], False)
+            if not thumbnail:
+                return payload, mime, filename
+            cache_key = (images[0]['id'], hashlib.sha256(payload).hexdigest())
+            if cache_key not in self._diagram_cache:
+                self._diagram_cache[cache_key] = _render_diagram(payload)['thumbnail_data']
+                self._diagram_cache.move_to_end(cache_key)
+                while len(self._diagram_cache) > 256:
+                    self._diagram_cache.popitem(last=False)
+            return self._diagram_cache[cache_key], 'image/jpeg', f'{key}-thumbnail.jpg'
 
     def _response(self, key, draft, revision, snapshot, token, result=None):
         draft = self._library_draft(draft)
@@ -425,7 +564,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 'source_price': deepcopy(original['price']), 'price': current_price, 'draft': draft,
                 'definition': result['definition'], 'result': result, 'pricing_token': token,
                 'pricing_basis': snapshot['basis'], 'pricing_label': snapshot['label'],
-                'configuration': deepcopy(snapshot['configuration'])}
+                'configuration': deepcopy(snapshot['configuration']), 'diagram': detail['diagram']}
 
     def service_types(self):
         with self._lock:
@@ -556,8 +695,10 @@ class FirestoppingLibrary(ReferenceLibrary):
         with self._lock:
             if action not in {'calculate', 'refresh-pricing', 'save'}:
                 raise ReferenceNotFound()
-            if not isinstance(body, dict) or set(body) != {'draft', 'revision', 'pricing_token'}:
-                raise ValidationError('Include the item draft, revision and captured pricing token only.')
+            required = {'draft', 'revision', 'pricing_token'}
+            allowed = required | ({'diagram'} if action == 'save' else set())
+            if not isinstance(body, dict) or not required.issubset(body) or set(body) - allowed:
+                raise ValidationError('Include the item draft, revision, captured pricing token and optional source diagram only.')
             revision = body['revision']
             if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
                 raise ValidationError('Invalid library item revision.')
@@ -573,6 +714,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             draft = self._library_draft(body['draft'])
             if len(draft['rows']) != 1:
                 raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
+            diagram = diagram_upload(body['diagram']) if action == 'save' and 'diagram' in body else UNCHANGED
             if action == 'refresh-pricing':
                 config = self.edits.store.configuration()
                 config['catalog'] = configuration_catalog(config)
@@ -586,6 +728,6 @@ class FirestoppingLibrary(ReferenceLibrary):
                 amount = price(result['rows'][0]['outputs'].get('H'), 'Saved item price')['amount']
                 edit = {'draft': draft, 'pricing_token': token, 'amount': amount}
                 self._validate_save(key, edit)
-                self.edits.save(key, revision, source['source_sha256'], edit, snapshot)
+                self.edits.save(key, revision, source['source_sha256'], edit, snapshot, diagram)
                 revision += 1
             return self._response(key, draft, revision, snapshot, token, result)

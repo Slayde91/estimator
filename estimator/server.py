@@ -129,6 +129,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if any(len(values) != 1 for values in query.values()):
                         raise ValidationError('Use one value per library search option.')
                     self.send_payload(200, libraries.listing(route.rsplit('/', 1)[1], **{key: values[0] for key, values in query.items()}))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(image|thumbnail)', route):
+                    key, variant = route.split('/')[-2:]
+                    payload, content_type, filename = libraries.diagram_asset(key, variant == 'thumbnail')
+                    self.send_payload(200, payload, content_type,
+                                      {'Content-Disposition': f'inline; filename="{filename}"'})
                 elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/edit', route):
                     self.send_payload(200, libraries.edit(route.split('/')[-2]))
                 elif re.fullmatch(r'/api/libraries/(penetration|technical)/[a-z0-9][a-z0-9_-]{0,119}', route):

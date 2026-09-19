@@ -112,17 +112,24 @@ or current-project pricing, and does not save the library item. The captured
 rates remain fixed even if shared prices change again while the editor is open.
 
 **Save Library Item** stores the individual item's inputs and chosen pricing
-snapshot. Reopening it uses those saved values; future shared pricing changes
-have no automatic effect. Successful saving refreshes its displayed price,
-searchable fields and related-link title. **Cancel** returns to the library and
-discards only this item session. Project **Save / Save As** remains separate.
+snapshot. The same editor accepts a PNG, JPEG or WebP screenshot as the item's
+source diagram. Images up to 15 MB are decoded, orientation-corrected, reduced
+to a maximum 2000 × 2000 pixels and stored as a high-quality JPEG with a separate
+240 × 160 thumbnail. The full image appears in the library detail and the
+thumbnail appears in each matching Firestopping Schedule row. Reopening uses
+those saved values; future shared pricing changes have no automatic effect.
+Successful saving refreshes its displayed price, searchable fields,
+related-link title and diagram. **Cancel** returns to the library and discards
+only this item session. Project **Save / Save As** remains separate.
 If another window saves the item first, saving reports a conflict and retains
 the current draft instead of overwriting the newer revision.
 
 Item saves are overlays in the application's SQLite database, with deduplicated
-immutable pricing snapshots. Neither saving nor refreshing rewrites the source
-workbook, supplier bundle, PDFs, shared prices or project files. Back up the
-application database as well as the local supplier bundle to retain these edits.
+immutable pricing snapshots. Uploaded diagrams are stored in the same database
+as an item overlay; removing one reveals the immutable supplier diagram again
+when it exists. Neither saving nor refreshing rewrites the source workbook,
+supplier bundle, PDFs, shared prices or project files. Back up the application
+database as well as the local supplier bundle to retain these edits.
 Displayed library prices are recalculated from those frozen snapshots using the
 effective policy, so historical cached amounts cannot restore removed allowances.
 List pages batch compatible items and cache by exact inputs, pricing and policy;
@@ -136,9 +143,10 @@ they are not technical report system IDs. Description or diagram matches must
 retain their stated basis and any ambiguity. Related references are navigation
 links, not a new technical selection or a claim of project suitability.
 
-After an item is edited, its technical links and source diagrams still describe
-the original workbook entry. The item and links from the Technical Library show
-this distinction; editing does not generate or reassess technical relationships.
+After an item is edited, its technical links and immutable supplier diagrams
+still describe the original workbook entry. A saved user diagram is a separate
+item overlay and replaces the supplier diagram in that item's main gallery;
+editing it does not generate or reassess technical relationships.
 
 Entries without sufficient source evidence remain searchable without invented
 links. Reports from one manufacturer do not support another manufacturer's
@@ -202,9 +210,13 @@ text cells, with keyboard-accessible horizontal scrolling on narrow screens.
 
 `GET /api/libraries/penetration/{id}/edit` returns one item draft, its definition
 and server-calculated result, revision, source/current price and opaque
-`pricing_token`. The corresponding POST routes `/calculate`, `/refresh-pricing`
-and `/save` accept exactly `{draft, revision, pricing_token}`. The client cannot
-submit calculated prices or an arbitrary pricing configuration. Saved input
+`pricing_token`, and source-diagram metadata. The corresponding POST routes
+`/calculate` and `/refresh-pricing` accept exactly
+`{draft, revision, pricing_token}`. `/save` also accepts an optional `diagram`
+value containing `{filename, content_base64}` or `null` to remove the saved
+overlay. `GET /api/libraries/penetration/{id}/image` returns the display image
+and `/thumbnail` returns the schedule thumbnail. The client cannot submit
+calculated prices or an arbitrary pricing configuration. Saved input
 revisions and source fingerprints prevent silent replacement after concurrent
 edits or an incompatible source update.
 

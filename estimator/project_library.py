@@ -96,7 +96,8 @@ def file_fingerprint(path):
 
 
 def _preserve_penetration_inputs(path, request):
-    if "penetration" in request:
+    incoming = request.get("penetration")
+    if isinstance(incoming, dict) and "composer" in incoming:
         return
     existing, _ = _read_file(path)
     try:
@@ -104,7 +105,9 @@ def _preserve_penetration_inputs(path, request):
     except (ValueError, UnicodeDecodeError, RecursionError):
         return
     if isinstance(snapshot, dict) and has_project_identity(existing) and "penetration" in snapshot:
-        raise ValidationError("Refresh the application and reload this project before saving its Firestopping Estimator inputs.")
+        previous = snapshot["penetration"]
+        if "penetration" not in request or isinstance(previous, dict) and "composer" in previous:
+            raise ValidationError("Refresh the application and reload this project before saving its Firestopping Estimator inputs.")
 
 
 def _file_id(folder, name):

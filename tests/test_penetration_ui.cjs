@@ -6,40 +6,6 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
-  await check('Schedule quantity edits preserve the active DOM and precision while totals recalculate',async h=>{
-    h.audit.addRow();await flush();h.audit.selectRow('line-1');
-    const body=h.byId('penetration-schedule-body'),row=body.children[1],quantity=row.querySelectorAll('[data-penetration-field]')[0];
-    await quantity.focus();quantity.value='2.345678901234';quantity.selectionStart=quantity.selectionEnd=14;await quantity.emit('input');
-    assert.equal(body.children[1],row);assert.equal(row.querySelectorAll('[data-penetration-field]')[0],quantity);assert.equal(h.context.document.activeElement,quantity);assert.equal(quantity.selectionEnd,14);
-    assert.equal(h.audit.state.selected,'line-1');assert.equal(h.api.projectSnapshot().draft.rows[1].inputs.O,2.345678901234);assert.equal(h.control('O','line-1').value,'');
-    h.audit.setRequest(async(path,payload)=>{const receipt=result(payload.draft);receipt.rows[1].outputs.H=payload.draft.rows[1].inputs.O*10;return receipt;});
-    await h.audit.calculate();assert.equal(body.children[1],row);assert.equal(quantity.value,'2.345678901234');assert.equal(h.context.document.activeElement,quantity);assert.equal(row.children[4].textContent,'$23.46');
-    assert.equal(quantity.getAttribute('aria-label'),'Line 2: Item QTY');await quantity.blur();assert.equal(quantity.value,'2.35');await quantity.focus();assert.equal(quantity.value,'2.345678901234');
-  });
-  await check('Schedule and item quantity controls mirror invalid text and corrections without losing either draft',async h=>{
-    const quantity=h.byId('penetration-schedule-body').children[0].querySelectorAll('[data-penetration-field]')[0];
-    await quantity.focus();quantity.value='1e-';await quantity.emit('input');
-    assert.equal(h.control('O').value,'1e-');assert.equal(h.control('O').getAttribute('aria-invalid'),'true');assert.equal(h.byId('penetration-pdf').disabled,true);
-    h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(quantity.value,'1e-');
-    h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');
-    await quantity.blur();const item=h.control('O');await item.focus();item.value='3.14159265358979';await item.emit('input');
-    assert.equal(quantity.getAttribute('aria-invalid'),'false');assert.equal(quantity.value,'3.14');assert.equal(item.value,'3.14159265358979');assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.14159265358979);
-    await item.blur();await quantity.focus();assert.equal(quantity.value,'3.14159265358979');
-  });
-  await check('A later schedule quantity edit rejects stale results and replacement projects reject detached quantity controls',async h=>{
-    const quantity=h.byId('penetration-schedule-body').children[0].querySelectorAll('[data-penetration-field]')[0],pending=deferred();
-    await quantity.focus();quantity.value='2';await quantity.emit('input');h.audit.setRequest(()=>pending.promise);const calculating=h.audit.calculate();await flush();
-    const captured=h.api.projectSnapshot().draft;quantity.value='4.12345678901234';await quantity.emit('input');pending.resolve(result(captured));await calculating;
-    assert.equal(h.audit.state.result,null);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,4.12345678901234);assert.equal(quantity.value,'4.12345678901234');
-    h.api.applyProject({definition:definition(),draft:definition().defaults,saved:JSON.stringify(definition().defaults)});quantity.value='99';await quantity.emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,undefined);
-  });
-  await check('Additional Allowances contains one project-wide global draft across selected items',async h=>{
-    assert.equal(h.byId('penetration-project-allowances').hidden,true);h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('penetration-project-allowances').hidden,false);
-    const allowance=h.control('L',null);await allowance.focus();allowance.value='12.3456789012345';await allowance.emit('input');await allowance.blur();
-    h.audit.addRow();await flush();h.audit.state.group='Additional Allowances';h.audit.renderFields();await h.control('L',null).focus();assert.equal(h.control('L',null).value,'12.3456789012345');
-    assert.equal(h.api.projectSnapshot().draft.globals.L,.123456789012345);assert(h.api.projectSnapshot().draft.rows.every(row=>row.inputs.L===undefined));
-    h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.byId('penetration-project-allowances').hidden,true);
-  });
   await check('The shared breakdown preserves seven server rows, five contextual quantities and server subtotals without deriving amounts',async h=>{
     const labels=['Labour','Board','Collars','Mastic','Framing','Wrap','Other'];
     const rows=labels.map((label,index)=>({label,unit_prices:[{value:10+index,format:'currency'}],material_quantities:[],material_costs:index,labour_costs:index*2,task_hours:index/10}));
@@ -69,25 +35,11 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.doesNotMatch(text(rendered),/Material quantities|Unit prices|Labour days/);
     delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable.*Summary.*Substrate cost.*Multipliers/);
   });
-  await check('New rows apply Standard defaults while loaded historical blanks stay blank',async h=>{
-    h.audit.state.definition.row_fields.push({column:'Q',label:'Access',type:'select',group:'Penetration',default:'Standard',options:['Standard']},{column:'R',label:'Complexity',type:'select',group:'Penetration',default:'Standard',options:['Standard']});
-    h.audit.addRow();await flush();assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[1].inputs),{Q:'Standard',R:'Standard'});assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),{});
-  });
-  await check('Add to Library captures one row and prices without replacing later edits; duplicate capture reuses its key',async h=>{
-    let sequence=0;h.context.crypto={randomUUID:()=>`capture-${++sequence}`};let invalidations=0;h.context.window.CeasefireLibraries={invalidate(){invalidations++;}};
-    h.audit.addRow();await flush();h.audit.state.draft.rows[0].inputs.T='Other line';h.audit.state.draft.rows[1].inputs={T:'Captured service',O:1.23456789012345};
-    const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return pending.promise;});
-    const capturing=h.audit.addToLibrary();assert.equal(h.byId('penetration-add-to-library').disabled,true);await h.audit.addToLibrary();assert.equal(calls.length,1);
-    h.audit.state.draft.rows[1].inputs.T='Later';pending.resolve({id:'new-1',library_id:'FL-ID-898',draft:calls[0].payload.draft,price:{amount:12.34},created:true});await capturing;
-    assert.equal(calls[0].payload.draft.rows.length,1);assert.equal(calls[0].payload.draft.rows[0].inputs.T,'Captured service');assert.equal(calls[0].payload.draft.rows[0].inputs.O,1.23456789012345);assert.deepEqual(calls[0].payload.configuration,h.pricing);
-    assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Other line');assert.equal(h.api.projectSnapshot().draft.rows[1].inputs.T,'Later');assert.match(h.byId('penetration-message').textContent,/later edits are not included/);assert.equal(invalidations,1);
-    h.audit.state.draft.rows[1].inputs.T='Captured service';await h.audit.addToLibrary();assert.equal(calls[1].payload.idempotency_key,calls[0].payload.idempotency_key);
-  });
   await check('An uncertain library save retries the same key and does not claim success',async h=>{
     h.context.crypto={randomUUID:()=> 'stable-capture'};const keys=[];h.audit.state.draft.rows[0].inputs={T:'Pipe',O:1};
     h.audit.setRequest(async(path,payload)=>{keys.push(payload.idempotency_key);throw new Error('Connection lost');});
     await h.audit.addToLibrary();assert.match(h.byId('penetration-message').textContent,/not confirmed/);await h.audit.addToLibrary();assert.deepEqual(keys,['stable-capture','stable-capture']);
-    assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Pipe');assert.equal(h.byId('penetration-add-to-library').disabled,false);
+    assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,'Pipe');assert.equal(h.byId('penetration-add-to-library').disabled,false);
   });
   await check('Calculation normalization and object ordering do not duplicate an uncertain library capture',async h=>{
     let sequence=0;h.context.crypto={randomUUID:()=>`canonical-capture-${++sequence}`};const captured=[];
@@ -104,86 +56,6 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     await h.audit.addToLibrary();assert.equal(captured[0].idempotency_key,captured[1].idempotency_key);assert.deepEqual(captured[0].draft,captured[1].draft);
     assert.deepEqual(captured[0].draft.globals,{J:'No',K:null,L:0,M:0});assert.equal(captured[0].draft.rows[0].inputs.U,null);
     assert.match(h.byId('penetration-message').textContent,/already in/);assert.doesNotMatch(h.byId('penetration-message').textContent,/later edits/);
-  });
-  await check('Add to Schedule copies only item inputs and recalculates with current project prices and allowances',async h=>{
-    h.audit.state.draft.rows[0].inputs.T='Existing unsaved item';h.audit.state.draft.globals.L=.17345;
-    const original=h.api.projectSnapshot(),item={library_id:'FL-ID-898',definition:definition(),draft:{globals:{J:'Yes',L:.99},rows:[{id:'library-row',inputs:{T:'Library pipe',O:1.23456789012345,Q:null,R:'Standard'}}]},configuration:{rates:{different:{price:999}}}};
-    const calls=[];h.audit.setRequest(async(path,payload)=>{calls.push({path,payload:payload&&copy(payload)});return path.endsWith('/edit')?item:result(payload.draft);});
-    const added=await h.api.addLibraryItem('library-id');const after=h.api.projectSnapshot();assert.equal(added.added,true);assert.deepEqual(copy(after.draft.globals),copy(original.draft.globals));assert.deepEqual(copy(after.draft.rows[0]),copy(original.draft.rows[0]));
-    assert.deepEqual(copy(after.draft.rows[1].inputs),item.draft.rows[0].inputs);assert.notEqual(after.draft.rows[1].id,'library-row');assert.deepEqual(calls.at(-1).payload.configuration,h.pricing);
-    assert.equal(item.draft.rows[0].id,'library-row');assert.match(h.byId('penetration-message').textContent,/current schedule prices and project allowances/);assert.match(h.byId('penetration-message').textContent,/123\.46/);assert.equal(h.api.hasUnsavedChanges(),true);
-  });
-  await check('Empty schedule placeholder is replaced; full or invalid schedules and open library edits reject transfers',async h=>{
-    const item={library_id:'FL-ID-898',definition:definition(),draft:{globals:{},rows:[{id:'source',inputs:{T:'Pipe',O:1}}]}};
-    h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?item:result(payload.draft));await h.api.addLibraryItem('item');assert.equal(h.api.projectSnapshot().draft.rows.length,1);
-    h.audit.state.definition.capacity=1;await assert.rejects(h.api.addLibraryItem('item'),/full/);assert.equal(h.api.projectSnapshot().draft.rows.length,1);
-    h.control('O',h.audit.state.selected).value='bad';await h.control('O',h.audit.state.selected).emit('input');await assert.rejects(h.api.addLibraryItem('item'),/invalid/);
-    h.context.window.CeasefireLibraryEditor={isOpen:()=>true};await assert.rejects(h.api.addLibraryItem('item'),/Save or cancel/);
-  });
-  await check('Late library transfers cannot add to a replacement project; double-clicks and wrong sources reject',async h=>{
-    const pending=deferred(),item={library_id:'FL-ID-898',definition:definition(),draft:{globals:{},rows:[{id:'source',inputs:{T:'Pipe',O:1}}]}};
-    h.audit.setRequest(()=>pending.promise);const work=h.api.addLibraryItem('item');await flush();await assert.rejects(h.api.addLibraryItem('item'),/already being added/);
-    h.api.applyProject({definition:definition(),draft:definition().defaults,saved:JSON.stringify(definition().defaults)});pending.resolve(item);await assert.rejects(work,/project changed/);assert.deepEqual(copy(h.api.projectSnapshot().draft),definition().defaults);
-    h.audit.setRequest(async()=>({...item,definition:{...definition(),source_sha256:'different'}}));await assert.rejects(h.api.addLibraryItem('item'),/calculation source/);assert.deepEqual(copy(h.api.projectSnapshot().draft),definition().defaults);
-  });
-  await check('A library editor opened during either transfer request prevents schedule mutation',async h=>{
-    const pending=deferred(),before=h.api.projectSnapshot();let editorOpen=false;
-    h.context.window.CeasefireLibraryEditor={isOpen:()=>editorOpen};h.audit.setRequest(()=>pending.promise);
-    const work=h.api.addLibraryItem('item');editorOpen=true;
-    pending.resolve({library_id:'FL-ID-100001',definition:definition(),draft:{globals:{},rows:[{id:'source',inputs:{T:'Pipe',O:1}}]}});
-    await assert.rejects(work,/Save or cancel/);assert.deepEqual(h.api.projectSnapshot(),before);
-    const unopened=harness(),loading=deferred();let openDuringLoad=false;
-    unopened.context.window.CeasefireLibraryEditor={isOpen:()=>openDuringLoad};unopened.audit.setRequest(()=>loading.promise);
-    const initial=unopened.api.addLibraryItem('item');openDuringLoad=true;loading.resolve(definition());
-    await assert.rejects(initial,/Save or cancel/);assert.equal(unopened.api.projectSnapshot(),undefined);
-  });
-  await check('Blank schedules, metadata groups and server outputs retain source semantics',async h=>{
-    assert.deepEqual(copy(h.api.projectSnapshot().draft),definition().defaults);assert.equal(h.api.hasUnsavedChanges(),false);
-    assert.equal(h.control('T').getAttribute('aria-label'),'Line 1: Items/Services');assert.equal(h.control('U').getAttribute('aria-label'),'Line 1: System/Install Details');
-    h.control('T').value='Exact service description';await h.control('T').emit('input');h.control('U').value='Exact installation description';await h.control('U').emit('input');
-    await h.audit.calculate();assert.match(text(h.byId('penetration-summary')),/123\.46/);
-    assert.match(text(h.byId('penetration-breakdown')),/0\.00/);assert.match(text(h.byId('penetration-breakdown')),/#VALUE!/);
-    assert.equal(h.calls.at(-1).payload.draft.rows.length,1);assert.deepEqual(h.calls.at(-1).payload.configuration,h.pricing);
-    assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.T,'Exact service description');assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.U,'Exact installation description');assert.equal(h.audit.state.definition.row_fields.find(field=>field.column==='T').label,'Item(s)');assert.equal(h.audit.state.definition.row_fields.find(field=>field.column==='U').label,'System');
-  });
-  await check('Focus and blur preserve exact numeric precision; percentages use source fractions',async h=>{
-    const quantity=h.control('O');quantity.value='12.3456789012345';await quantity.emit('input');await quantity.blur();assert.equal(quantity.value,'12.35');await quantity.focus();assert.equal(quantity.value,'12.3456789012345');assert.equal(quantity.selectionStart,0);assert.equal(quantity.selectionEnd,quantity.value.length);
-    await quantity.blur();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,12.3456789012345);
-    const global=h.control('L',null);global.value='12.3456789012345';await global.emit('input');assert.equal(h.api.projectSnapshot().draft.globals.L,0.123456789012345);await global.blur();await global.focus();assert.equal(global.value,'12.3456789012345');
-    global.value='';await global.emit('input');assert.equal(h.api.projectSnapshot().draft.globals.L,null);
-  });
-  await check('Invalid raw text survives groups and row selection, blocks save/export and clears stale totals',async h=>{
-    await h.audit.calculate();h.audit.addRow();await flush();h.audit.selectRow('line-1');
-    h.control('O').value='1e-';await h.control('O').emit('input');assert.equal(h.control('O').getAttribute('aria-invalid'),'true');assert.equal(h.audit.state.result,null);
-    h.audit.state.group='Products and labour';h.audit.renderFields();h.audit.selectRow('line-2');h.audit.selectRow('line-1');h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');
-    await assert.rejects(h.api.completeProjectSnapshot(),/marked invalid/);assert.equal(h.byId('penetration-pdf').disabled,true);assert.equal(h.byId('penetration-add').disabled,true);
-    let fetched=false;h.context.fetch=()=>{fetched=true;};await h.audit.download('pdf');assert.equal(fetched,false);
-    h.control('O').value='1.00000000000001';await h.control('O').emit('input');assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,1.00000000000001);
-  });
-  await check('Historical dropdown values remain visible without a custom-value bypass',async h=>{
-    h.audit.state.draft.rows[0].inputs.J='Legacy service';h.audit.renderFields();const control=h.control('J');
-    assert.equal(control.value,'Legacy service');assert.equal(control.children.at(-1).disabled,true);assert.match(control.children.at(-1).textContent,/choose a listed value/);
-    control.value='Invented';await control.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.J,'Legacy service');assert.match(h.api.inputProblem(),/invalid/);
-    control.value='HVAC';await control.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.J,'HVAC');
-  });
-  await check('Add, accessible remove and Undo preserve all values; editing the sole placeholder invalidates Undo',async h=>{
-    h.audit.state.draft.rows[0].inputs={T:'Exact marker',AG:0.123456789012345};h.audit.addRow();await flush();h.audit.removeRow('line-1');await flush();h.audit.undoRemove();await flush();
-    assert.deepEqual(copy(h.audit.state.draft.rows[0].inputs),{T:'Exact marker',AG:0.123456789012345});
-    const button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.getAttribute('aria-label'),'Remove penetration line 1');assert.equal(button.title,'Remove line 1');
-    h.audit.removeRow('line-2');h.audit.removeRow('line-1');await flush();assert.equal(h.audit.state.draft.rows.length,1);assert.deepEqual(copy(h.audit.state.draft.rows[0].inputs),{});
-    h.control('T').value='New placeholder data';await h.control('T').emit('input');h.audit.undoRemove();assert.equal(h.audit.state.draft.rows[0].inputs.T,'New placeholder data');
-  });
-  await check('A thousand rows render bounded pages while calculation retains offscreen precise values',async h=>{
-    const d=definition().defaults;d.rows=Array.from({length:1000},(_,i)=>({id:`line-${i+1}`,inputs:i===999?{T:'Last',O:9.123456789012345}:{}}));
-    h.api.applyProject(await h.api.prepareProject({draft:d}));assert.equal(h.byId('penetration-schedule-body').children.length,50);assert.equal(h.byId('penetration-add').disabled,true);
-    h.audit.selectRow('line-1000');assert.equal(h.control('O','line-1000').value,'9.12');await h.audit.calculate();
-    assert.equal(h.calls.at(-1).payload.draft.rows.length,1000);assert.equal(h.calls.at(-1).payload.draft.rows[999].inputs.O,9.123456789012345);assert.match(text(h.byId('penetration-row-count')),/951–1000/);
-  });
-  await check('Editing a reused placeholder ID prevents older Undo entries from creating duplicate rows',async h=>{
-    h.audit.state.draft.rows[0].inputs.T='First item';h.audit.addRow();await flush();
-    h.audit.removeRow('line-1');h.audit.removeRow('line-2');await flush();
-    h.control('T').value='Replacement item';await h.control('T').emit('input');h.audit.undoRemove();
-    const rows=h.api.projectSnapshot().draft.rows;assert.equal(rows.length,1);assert.equal(rows[0].inputs.T,'Replacement item');assert.equal(new Set(rows.map(row=>row.id)).size,rows.length);
   });
   for(const transition of ['edit','new project','pricing'])await check(`Late calculations cannot overwrite a later ${transition}`,async h=>{
     const old=deferred(),captured=copy(h.audit.state.draft);h.audit.setRequest(()=>old.promise);const calculating=h.audit.calculate();await flush();
@@ -203,28 +75,6 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const stale=definition();stale.row_fields[4].options=['Wrong historical price'];old.resolve(stale);await changing;assert.deepEqual(copy(h.audit.state.definition.row_fields[4].options),['Installer']);
     assert.equal(quantity.value,'3.14159265358979');assert.equal(h.audit.state.draft.rows[0].inputs.O,3.14159265358979);
   });
-  await check('Save receipts adopt canonical captured drafts but preserve later edits and invalid text',async h=>{
-    const captured=h.api.projectSnapshot(),receipt=copy(captured);receipt.draft.rows[0].inputs.T='Canonical';h.api.markProjectSaved(receipt,captured);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.audit.state.draft.rows[0].inputs.T,'Canonical');
-    const next=h.api.projectSnapshot();h.control('T').value='Later';await h.control('T').emit('input');h.api.markProjectSaved(next,next);assert.equal(h.audit.state.draft.rows[0].inputs.T,'Later');assert.equal(h.api.hasUnsavedChanges(),true);
-    const invalidCapture=h.api.projectSnapshot();h.control('O').value='bad';await h.control('O').emit('input');h.api.markProjectSaved(invalidCapture,invalidCapture);assert.equal(h.control('O').value,'bad');assert.equal(h.api.hasUnsavedChanges(),true);
-  });
-  await check('Older files prepare blank defaults without mutating current inputs; wrong source hashes reject',async h=>{
-    h.control('T').value='Keep';await h.control('T').emit('input');const before=h.api.projectSnapshot();const prepared=await h.api.prepareProject(undefined);
-    assert.deepEqual(copy(prepared.draft),definition().defaults);assert.deepEqual(copy(h.api.projectSnapshot()),copy(before));
-    await assert.rejects(h.api.prepareProject({source_sha256:'wrong',draft:before.draft}),/different source workbook/);assert.deepEqual(copy(h.api.projectSnapshot()),copy(before));
-  });
-  for(const kind of ['pdf','xlsx'])await check(`${kind} captures precise inputs, pricing, identity and destination synchronously`,async h=>{
-    h.control('O').value='123.456789012345';await h.control('O').emit('input');const pending=deferred();let sent;
-    h.context.fetch=(path,options)=>{sent={path,body:JSON.parse(options.body)};return pending.promise;};const saving=h.audit.download(kind);
-    assert.equal(sent.body.draft.rows[0].inputs.O,123.456789012345);assert.equal(sent.body.download.project_token,'original-token');assert.equal(sent.body.project_details.client,'Original client');
-    h.target.project_token='later-save-as';h.details.client='Later client';h.pricing.rates.original.price=99;h.api.applyProject(await h.api.prepareDefaults());
-    pending.resolve({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Original/report.${kind}`,filename:`report.${kind}`,destination:'project'})});await saving;
-    assert.match(h.byId('penetration-message').textContent,/C:\/Original\/report/);assert.match(h.byId('penetration-message').textContent,/later changes are not included/);assert.deepEqual(copy(h.audit.state.draft.rows[0].inputs),{});
-  });
-  await check('Failed or unconfirmed downloads leave the draft intact and show actionable errors',async h=>{
-    h.context.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false})});await h.audit.download('pdf');assert.match(h.byId('penetration-message').textContent,/did not confirm/);assert.equal(h.byId('penetration-pdf').disabled,false);
-    h.audit.setRequest(async()=>{throw new Error('Calculation unavailable');});await h.audit.calculate();assert.match(h.byId('penetration-message').textContent,/Calculation unavailable/);assert.equal(h.audit.state.result,null);
-  });
   await check('Numeric API bounds remain visibly invalid without replacing the last valid input',async h=>{
     const input=h.control('O');input.value='1000000000000';await input.emit('input');assert.equal(h.api.inputProblem(),'');
     for(const value of ['1000000000000.01','-1000000000000.01','1e309']){input.value=value;await input.emit('input');assert.equal(input.getAttribute('aria-invalid'),'true');assert.equal(h.audit.state.draft.rows[0].inputs.O,1000000000000);}
@@ -232,7 +82,149 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Summary formula errors disclose the affected cell and message alongside unavailable totals',async h=>{
     h.audit.setRequest(async(path,payload)=>({...result(payload.draft),summary:{grand_total:'#VALUE!'},errors:[{row_id:null,cell:'H2',message:'A source formula returned #VALUE!'}]}));
-    await h.audit.calculate();assert.match(text(h.byId('penetration-summary')),/#VALUE!/);assert.match(h.byId('penetration-summary-notes').textContent,/H2: A source formula returned #VALUE!/);assert.equal(h.byId('penetration-status').textContent,'Review calculation');
+    await h.audit.calculate();assert.match(text(h.byId('penetration-summary')),/#VALUE!/);assert.match(h.byId('penetration-summary-notes').textContent,/H2: A source formula returned #VALUE!/);
+  });
+
+  await check('Fresh projects have an empty schedule and one independent composer; opening schedule does not calculate composer',async h=>{
+    assert.deepEqual(copy(h.api.projectSnapshot().draft),definition().schedule_defaults);assert.deepEqual(copy(h.api.projectSnapshot().composer),definition().defaults);
+    const count=h.calls.length;await h.api.openSchedule();assert.equal(h.calls.length,count+1);assert.equal(h.calls.at(-1).payload.draft.rows.length,0);assert.equal(h.audit.state.result,null);
+    await h.api.open();assert.equal(h.calls.at(-1).payload.draft.rows.length,1);assert.equal(h.api.hasUnsavedChanges(),false);
+  });
+  await check('Composer inputs and allowances never change schedule calculation or global fields',async h=>{
+    h.control('O').value='2.3456789012345';await h.control('O').emit('input');h.control('L',null).value='12.3456789012345';await h.control('L',null).emit('input');
+    assert.equal(h.api.projectSnapshot().composer.globals.L,.123456789012345);assert.equal(h.api.projectSnapshot().draft.globals.L,0);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+    await h.audit.calculate();assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.O,2.3456789012345);assert.equal(h.audit.state.schedule.result,null);
+    h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('penetration-project-allowances').hidden,false);
+    const scheduleGlobal=h.byId('penetration-schedule-global-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField==='L');scheduleGlobal.value='7.6543210987654';await scheduleGlobal.emit('input');
+    assert.equal(h.api.projectSnapshot().draft.globals.L,.076543210987654);assert.equal(h.api.projectSnapshot().composer.globals.L,.123456789012345);
+  });
+  await check('Adding composer copies inputs only, keeps independent allowances and displays recalculated schedule receipt',async h=>{
+    h.audit.state.draft.rows[0].inputs={T:'Pipe',O:1.23456789012345};h.audit.state.draft.globals.L=.9;h.audit.state.schedule.draft.globals.L=.17;
+    const composer=copy(h.api.projectSnapshot().composer);const receipt=await h.audit.addToSchedule();assert.equal(receipt.added,true);assert.equal(receipt.total,123.456789);
+    assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),composer.rows[0].inputs);assert.equal(h.calls.at(-1).payload.draft.globals.L,.17);
+    await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);assert.match(receipt.message,/current schedule prices and allowances/);
+  });
+  await check('Inline schedule quantity retains focus, exact precision and stable DOM without touching the composer',async h=>{
+    await h.audit.addToSchedule();const body=h.byId('penetration-schedule-body'),row=body.children[0],quantity=row.children[5].querySelectorAll('[data-penetration-field]')[0];
+    await quantity.focus();quantity.value='2.345678901234';quantity.selectionStart=quantity.selectionEnd=14;await quantity.emit('input');assert.equal(body.children[0],row);assert.equal(h.context.document.activeElement,quantity);assert.equal(quantity.selectionEnd,14);
+    assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,2.345678901234);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.O,undefined);
+    h.audit.setRequest(async(path,payload)=>{const r=result(payload.draft);r.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return r;});await h.audit.calculateSchedule();assert.equal(body.children[0],row);assert.equal(quantity.value,'2.345678901234');assert.equal(row.children[6].textContent,'$23.46');
+    await quantity.blur();assert.equal(quantity.value,'2.35');await quantity.focus();assert.equal(quantity.value,'2.345678901234');
+  });
+  await check('Invalid text stays in its own scope, blocks persistence, and schedule exports ignore unrelated invalid composer input',async h=>{
+    await h.audit.addToSchedule();const quantity=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];
+    quantity.value='1e-';await quantity.emit('input');assert.equal(h.control('O').value,'');assert.equal(h.byId('penetration-pdf').disabled,true);await assert.rejects(h.api.completeProjectSnapshot(),/marked invalid/);
+    quantity.value='3.14159265358979';await quantity.emit('input');h.control('O').value='bad';await h.control('O').emit('input');assert.equal(h.byId('penetration-pdf').disabled,false);assert.equal(quantity.value,'3.14');
+    h.audit.state.group='Products and labour';h.audit.renderFields();h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'bad');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.14159265358979);
+  });
+  await check('Edit creates a copy; Update is explicit and Cancel restores the previous composer including raw invalid input',async h=>{
+    h.audit.state.draft.rows[0].inputs={T:'Scheduled',O:2};await h.audit.addToSchedule();h.control('T').value='Prior current item';await h.control('T').emit('input');h.control('O').value='1e-';await h.control('O').emit('input');
+    await h.audit.selectRow('line-1');assert.equal(h.control('T').value,'Scheduled');h.control('T').value='Edited copy';await h.control('T').emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Scheduled');
+    await h.audit.cancelEdit();assert.equal(h.control('T').value,'Prior current item');assert.equal(h.control('O').value,'1e-');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Scheduled');
+    await h.audit.selectRow('line-1');h.control('T').value='Updated';await h.control('T').emit('input');await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Updated');assert.equal(h.audit.state.edit,null);
+  });
+  await check('New item preserves schedule, applies defaults, and declined replacement keeps dirty composer',async h=>{
+    h.control('T').value='Keep';await h.control('T').emit('input');await h.audit.addToSchedule();h.audit.state.definition.row_fields.push({column:'Q',type:'select',group:'Penetration',label:'Access',default:'Standard',options:['Standard']});
+    h.context.window.CeasefirePenetrationNavigation.confirm=async()=>false;await h.audit.addRow();assert.equal(h.control('T').value,'Keep');
+    h.context.window.CeasefirePenetrationNavigation.confirm=async()=>true;await h.audit.addRow();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.Q,'Standard');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,undefined);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Keep');
+  });
+  for(const transition of ['composer edit','project replacement','remove and reuse'])await check(`Deferred Edit confirmation cannot overwrite after ${transition}`,async h=>{
+    h.control('T').value='Before';await h.control('T').emit('input');await h.audit.addToSchedule();const pending=deferred();h.context.window.CeasefirePenetrationNavigation.confirm=()=>pending.promise;const editing=h.audit.selectRow('line-1');await flush();
+    if(transition==='composer edit'){h.control('T').value='Later';await h.control('T').emit('input');}
+    if(transition==='project replacement')h.api.applyProject(await h.api.prepareDefaults());
+    if(transition==='remove and reuse'){h.audit.removeRow('line-1');await flush();await h.audit.addToSchedule();}
+    pending.resolve(true);await editing;assert.equal(h.audit.state.edit,null);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,transition==='project replacement'?undefined:transition==='composer edit'?'Later':'Before');
+  });
+  await check('Deleted or changed schedule targets cannot be overwritten by an earlier edited copy, even after ID reuse or Undo',async h=>{
+    await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Old edit';await h.control('T').emit('input');h.audit.removeRow('line-1');await flush();h.audit.undoRemove();await flush();await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);
+    await h.audit.selectRow('line-1');const qty=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];qty.value='4';await qty.emit('input');await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,4);
+  });
+  await check('Add another copy while editing does not update the original target',async h=>{
+    await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Copy';await h.control('T').emit('input');await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);assert.equal(h.api.projectSnapshot().draft.rows[1].inputs.T,'Copy');assert.equal(h.audit.state.edit.id,'line-1');
+  });
+  await check('Library transfer preserves composer including invalid text and view, uses schedule prices and returns a receipt',async h=>{
+    h.control('T').value='Unsaved composer';await h.control('T').emit('input');h.control('O').value='bad';await h.control('O').emit('input');h.audit.state.schedule.draft.globals.L=.17345;let navigation=0;h.context.window.CeasefirePenetrationNavigation.show=()=>navigation++;
+    const item={library_id:'FL-ID-898',definition:definition(),draft:{globals:{L:.99},rows:[{id:'library-row',inputs:{T:'Library pipe',O:1.23456789012345}}]}};
+    h.audit.setRequest(async(path,payload)=>path.endsWith('/edit')?item:result(payload.draft));const before=copy(h.api.projectSnapshot().composer),receipt=await h.api.addLibraryItem('library-id');
+    assert.deepEqual(copy(h.api.projectSnapshot().composer),before);assert.equal(h.control('O').value,'bad');assert.equal(navigation,0);assert.equal(receipt.total,123.456789);assert.match(receipt.message,/123\.46/);assert.equal(h.api.projectSnapshot().draft.globals.L,.17345);
+  });
+  await check('Failed library schedule calculation leaves the added item with an explicit unavailable price',async h=>{
+    h.audit.setRequest(async(path)=>{if(path.endsWith('/edit'))return{library_id:'FL-ID-1',definition:definition(),draft:definition().defaults};throw new Error('Service unavailable');});const receipt=await h.api.addLibraryItem('one');assert.equal(receipt.added,true);assert.equal(receipt.total,null);assert.match(receipt.message,/price is unavailable/);assert.equal(h.api.projectSnapshot().draft.rows.length,1);
+  });
+  for(const transition of ['project','editor','source'])await check(`Library transfer rejects a late ${transition} mismatch without adding rows`,async h=>{
+    const pending=deferred();h.audit.setRequest(()=>pending.promise);const transfer=h.api.addLibraryItem('one');await flush();
+    if(transition==='project')h.api.applyProject(await h.api.prepareDefaults());if(transition==='editor')h.context.window.CeasefireLibraryEditor={isOpen:()=>true};
+    const metadata=definition();if(transition==='source')metadata.source_sha256='other';pending.resolve({library_id:'FL-ID-1',definition:metadata,draft:metadata.defaults});await assert.rejects(transfer);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+  });
+  await check('Double library clicks, capacity and invalid schedule inputs cannot add duplicate or hidden rows',async h=>{
+    const pending=deferred();h.audit.setRequest(()=>pending.promise);const transfer=h.api.addLibraryItem('one');await assert.rejects(h.api.addLibraryItem('one'),/already being added/);pending.resolve({definition:definition(),draft:definition().defaults,library_id:'FL-ID-1'});await transfer;
+    h.audit.state.definition.capacity=1;await assert.rejects(h.api.addLibraryItem('one'),/full/);assert.equal(h.api.projectSnapshot().draft.rows.length,1);
+    h.audit.state.schedule.invalid.set('["line-1","O"]',{value:'bad',error:'bad'});await assert.rejects(h.api.addLibraryItem('one'),/marked invalid/);
+  });
+  await check('Add to Library captures composer only and preserves later edits while reusing its retry key',async h=>{
+    let sequence=0;h.context.crypto={randomUUID:()=>`capture-${++sequence}`};h.control('T').value='Captured';await h.control('T').emit('input');await h.audit.addToSchedule();const pending=deferred(),calls=[];
+    h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});const capture=h.audit.addToLibrary();assert.equal(h.byId('penetration-add-to-library').disabled,true);await h.audit.addToLibrary();assert.equal(calls.length,1);
+    h.control('T').value='Later';await h.control('T').emit('input');pending.resolve({id:'new',library_id:'FL-ID-100001',draft:calls[0].draft,price:{amount:1}});await capture;assert.equal(calls[0].draft.rows.length,1);assert.equal(calls[0].draft.rows[0].inputs.T,'Captured');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Captured');assert.equal(h.control('T').value,'Later');assert.match(h.byId('penetration-message').textContent,/later edits/);
+    h.control('T').value='Captured';await h.control('T').emit('input');await h.audit.addToLibrary();assert.equal(calls[1].idempotency_key,calls[0].idempotency_key);
+  });
+  await check('Remove and Undo allow a truly empty schedule and retain precision without affecting composer',async h=>{
+    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Remove line 1');assert.equal(button.getAttribute('aria-label'),'Remove penetration line 1');
+    h.audit.removeRow('line-1');await flush();assert.equal(h.api.projectSnapshot().draft.rows.length,0);h.audit.undoRemove();await flush();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.AG,.123456789012345);assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);
+  });
+  await check('A thousand scheduled rows render bounded pages and retain every precise row in calculations',async h=>{
+    const draft=definition().schedule_defaults;draft.rows=Array.from({length:1000},(_,i)=>({id:`line-${i+1}`,inputs:i===999?{K:'Last service',L:'Core hole',M:'Floor',N:'120/120/120',O:9.123456789012345}:{}}));h.api.applyProject(await h.api.prepareProject({draft}));assert.equal(h.byId('penetration-schedule-body').children.length,50);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.equal(h.byId('penetration-add').disabled,false);
+    h.audit.state.page=19;h.audit.renderSchedule();await h.audit.calculateSchedule();assert.equal(h.calls.at(-1).payload.draft.rows.length,1000);assert.equal(h.calls.at(-1).payload.draft.rows[999].inputs.O,9.123456789012345);assert.match(text(h.byId('penetration-row-count')),/951–1000/);const row=h.byId('penetration-schedule-body').children[49];assert.deepEqual(row.children.slice(1,5).map(el=>el.textContent),['Last service','Core hole','Floor','120/120/120']);
+  });
+  for(const transition of ['edit','new project','pricing'])await check(`Late schedule calculations cannot overwrite a later ${transition}`,async h=>{
+    await h.audit.addToSchedule();const pending=deferred(),captured=copy(h.api.projectSnapshot().draft);h.audit.setRequest(()=>pending.promise);const calculating=h.audit.calculateSchedule();await flush();
+    if(transition==='edit'){const qty=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];qty.value='7.123456789';await qty.emit('input');}if(transition==='new project')h.api.applyProject(await h.api.prepareDefaults());if(transition==='pricing')h.pricing.rates.original.price=2;
+    const stale=result(captured);stale.draft.rows[0].inputs.O=999;pending.resolve(stale);await calculating;assert.notEqual(h.api.projectSnapshot().draft.rows[0]?.inputs.O,999);
+  });
+  await check('Detached composer and schedule controls cannot mutate replacements with reused row IDs',async h=>{
+    await h.audit.addToSchedule();const oldComposer=h.control('T'),oldQty=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];await h.audit.addRow();oldComposer.value='stale';await oldComposer.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,undefined);
+    h.audit.removeRow('line-1');await flush();await h.audit.addToSchedule();oldQty.value='999';await oldQty.emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,undefined);
+  });
+  await check('Save receipts preserve both scopes, later edits and invalid text; reopening clears edit mode only',async h=>{
+    await h.audit.addToSchedule();await h.audit.selectRow('line-1');const captured=h.api.projectSnapshot(),receipt=copy(captured);receipt.composer.rows[0].inputs.T='Canonical';h.api.markProjectSaved(receipt,captured);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.control('T').value,'Canonical');
+    const next=h.api.projectSnapshot();h.control('T').value='Later';await h.control('T').emit('input');const qty=h.byId('penetration-schedule-body').children[0].children[5].querySelectorAll('[data-penetration-field]')[0];qty.value='8.123456789';await qty.emit('input');h.api.markProjectSaved(next,next);assert.equal(h.control('T').value,'Later');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,8.123456789);assert.equal(h.api.hasUnsavedChanges(),true);
+    h.control('O').value='bad';await h.control('O').emit('input');h.api.markProjectSaved(next,next);assert.equal(h.control('O').value,'bad');const prepared=await h.api.prepareProject(h.api.projectSnapshot());h.api.applyProject(prepared);assert.equal(h.audit.state.edit,null);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.T,'Later');
+  });
+  await check('Legacy schedules stay exact and get a separate fresh composer; wrong source hashes reject',async h=>{
+    const draft={globals:{L:.12345},rows:[{id:'old',inputs:{T:'Historical',Q:null,R:null}}]},prepared=await h.api.prepareProject({draft});assert.deepEqual(copy(prepared.draft),draft);assert.deepEqual(copy(prepared.composer),definition().defaults);assert.equal(h.api.projectSnapshot().draft.rows.length,0);await assert.rejects(h.api.prepareProject({draft,source_sha256:'wrong'}),/different source workbook/);
+  });
+  await check('Historical dropdown values stay visible without custom input and percentage focus retains precision',async h=>{
+    h.audit.state.draft.rows[0].inputs.J='Legacy';h.audit.renderFields();const input=h.control('J');assert.equal(input.children.at(-1).disabled,true);input.value='Invented';await input.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.J,'Legacy');input.value='HVAC';await input.emit('change');assert.equal(h.api.inputProblem(),'');
+    const allowance=h.control('L',null);allowance.value='12.3456789012345';await allowance.emit('input');await allowance.blur();assert.equal(allowance.value,'12.35');await allowance.focus();assert.equal(allowance.value,'12.3456789012345');assert.equal(h.api.projectSnapshot().composer.globals.L,.123456789012345);
+  });
+  for(const kind of ['pdf','xlsx'])await check(`${kind} exports schedule only and captures precision, prices, details and destination before later edits`,async h=>{
+    h.control('O').value='123.456789012345';await h.control('O').emit('input');await h.audit.addToSchedule();h.control('O').value='99';await h.control('O').emit('input');const pending=deferred();let sent;h.context.fetch=(path,options)=>{sent={path,body:JSON.parse(options.body)};return pending.promise;};const saving=h.audit.download(kind);
+    assert.equal(sent.body.draft.rows[0].inputs.O,123.456789012345);assert.equal(sent.body.composer,undefined);assert.equal(sent.body.download.project_token,'original-token');assert.equal(sent.body.project_details.client,'Original client');h.target.project_token='later';h.details.client='Later';h.pricing.rates.original.price=99;h.api.applyProject(await h.api.prepareDefaults());
+    pending.resolve({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Original/report.${kind}`,filename:`report.${kind}`,destination:'project'})});await saving;assert.match(h.byId('penetration-schedule-message').textContent,/C:\/Original\/report/);assert.match(h.byId('penetration-schedule-message').textContent,/later changes are not included/);
+  });
+  await check('Unconfirmed downloads preserve drafts and disclose an actionable error',async h=>{
+    const before=h.api.projectSnapshot();h.context.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false})});await h.audit.download('pdf');assert.match(h.byId('penetration-schedule-message').textContent,/did not confirm/);assert.deepEqual(copy(h.api.projectSnapshot()),copy(before));
+  });
+  await check('Aggregate renderer retains server totals, line-labelled quantities and Summary/Multipliers without deriving amounts',async h=>{
+    const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{label:'Substrate cost',value:41.23,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{label:'Access',value:.125,format:'percent'}]}]}]};
+    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.match(content,/#VALUE!/);assert.match(content,/Summary.*Line 1.*Substrate cost.*41\.23/);assert.match(content,/Multipliers.*Line 2.*Access.*12\.50%/);assert.deepEqual(copy(output),original);
+  });
+  await check('Pending composer Add appends once, disables its action, and shows recalculated feedback in the current item view',async h=>{
+    const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});
+    const adding=h.audit.addToSchedule();await flush();assert.equal(h.byId('penetration-add-to-schedule').disabled,true);await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.equal(calls.length,1);
+    h.control('T').value='Later composer edit';await h.control('T').emit('input');pending.resolve(result(calls[0].draft));await adding;assert.equal(h.byId('penetration-add-to-schedule').disabled,false);assert.match(h.byId('penetration-message').textContent,/Recalculated item price: \$123\.46/);assert.match(h.byId('penetration-message').textContent,/Later edits to the current item are not included/);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);
+    h.audit.setRequest(async(path,payload)=>result(payload.draft));await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);
+  });
+  await check('A pending receipt cannot report a replacement row as the original item or overwrite a new composer message',async h=>{
+    const pending=deferred();let captured;h.audit.setRequest(async(path,payload)=>{captured=copy(payload.draft);return pending.promise;});const adding=h.audit.addToSchedule();await flush();
+    h.audit.removeRow('line-1');h.audit.state.schedule.draft.rows.push({id:'line-1',inputs:{T:'Replacement'}});h.audit.state.rowEpochs.set('line-1',++h.audit.state.nextEpoch);h.audit.state.composerEpoch++;h.byId('penetration-message').textContent='New item feedback';
+    pending.resolve(result(captured));const receipt=await adding;assert.equal(receipt.total,null);assert.match(receipt.message,/row has since changed/);assert.equal(h.byId('penetration-message').textContent,'New item feedback');
+  });
+  await check('Pending Update writes once, keeps later composer edits, and does not announce success on a replacement project',async h=>{
+    await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Updated';await h.control('T').emit('input');const pending=deferred();let calls=0,captured;h.audit.setRequest(async(path,payload)=>{calls++;captured=copy(payload.draft);return pending.promise;});const updating=h.audit.updateSchedule();await flush();await h.audit.updateSchedule();assert.equal(calls,1);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Updated');
+    h.api.applyProject(await h.api.prepareDefaults());pending.resolve(result(captured));await updating;assert.equal(h.api.projectSnapshot().draft.rows.length,0);assert.doesNotMatch(h.byId('penetration-message').textContent,/updated/);
+  });
+  await check('A schedule initialization failure reveals its error in the schedule workspace',async h=>{
+    h.audit.state.draft=null;h.audit.state.schedule.draft=null;h.pricing.rates.original.price=99;h.audit.setRequest(async()=>{throw new Error('Definition unavailable');});h.byId('penetration-schedule-workspace').hidden=true;await h.api.openSchedule();assert.equal(h.byId('penetration-schedule-workspace').hidden,false);assert.match(h.byId('penetration-schedule-message').textContent,/Definition unavailable/);
   });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

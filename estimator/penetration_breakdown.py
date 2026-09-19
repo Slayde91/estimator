@@ -146,3 +146,53 @@ def add_breakdowns(result, source):
     for row in result['rows']:
         row['breakdown'] = line_breakdown(row, result['draft']['globals'], miscellaneous)
     return result
+
+
+def schedule_breakdown(result):
+    """Aggregate adjusted costs, retaining line/product identities for other values.
+
+    Prices and quantities are intentionally not added: even one task can use
+    different products, sizes and measurement bases across schedule lines.
+    The footer is the canonical calculation summary, not a rounded re-sum.
+    """
+    products = {'Labour': 'W', 'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
+                'Framing': 'Z', 'Wrap': 'AA', 'Other': 'AE'}
+    rows = []
+    for task, product_column in products.items():
+        entries = [(index, row, next(item for item in row['breakdown']['rows'] if item['label'] == task))
+                   for index, row in enumerate(result['rows'], 1)]
+        combined = {'label': task, 'unit_prices': [], 'material_quantities': []}
+        for index, row, item in entries:
+            product = row['inputs'].get(product_column)
+            for key in ('unit_prices', 'material_quantities'):
+                for value in item[key]:
+                    if value['value'] in (None, ''):
+                        continue
+                    label = ' · '.join(str(part) for part in
+                                       (f'Line {index}', product, value.get('label')) if part not in (None, ''))
+                    combined[key].append({**value, 'label': label, 'row_id': row['id'],
+                                          'product_column': product_column, 'product': product})
+        for key in ('material_costs', 'labour_costs', 'task_hours'):
+            combined[key] = _compute(lambda: sum(_number(item[key]) for _, _, item in entries))
+        rows.append(combined)
+
+    source_groups = []
+    for group in ('Summary', 'Multipliers'):
+        fields = [field for field in result['definition']['output_fields'] if field['group'] == group]
+        source_rows = []
+        for index, row in enumerate(result['rows'], 1):
+            values = [{key: field.get(key, '') for key in ('column', 'label', 'format', 'units')}
+                      | {'value': _source_value(row['outputs'][field['column']])}
+                      for field in fields if row['outputs'].get(field['column']) not in (None, '')]
+            if values:
+                source_rows.append({'row_id': row['id'], 'label': f'Line {index}', 'values': values})
+        source_groups.append({'label': group, 'rows': source_rows})
+    summary = result['summary']
+    return {'basis': 'adjusted_schedule', 'rows': rows,
+            'totals': {'material_costs': _source_value(summary['materials']),
+                       'labour_costs': _source_value(summary['labour']),
+                       'task_hours': _source_value(summary['labour_hours'])},
+            'source_groups': source_groups,
+            'note': ('Costs and task hours include schedule quantities and allowances. '
+                     'Unit prices and material quantities retain their line and product. '
+                     'Summary and multiplier values are shown per line; project travel is included once in the schedule total.')}

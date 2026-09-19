@@ -540,6 +540,7 @@
     $("firestopping-library-editor").hidden = !libraryEditor;
     $("estimator-penetration").setAttribute("aria-labelledby", libraryEditor ? "library-editor-heading" : "penetration-heading");
     if (kind === "penetration" && !libraryEditor) return window.CeasefirePenetrations?.open();
+    if (kind === "estimate") return window.CeasefirePenetrations?.openSchedule?.();
   }
 
   function selectLibrary(kind, selection) {
@@ -1468,6 +1469,8 @@
   window.CeasefireLibraryNavigation = { open: selectLibrary };
   window.CeasefirePenetrationNavigation = {
     show() { state.estimatorKind = "penetration"; return showView("estimate"); },
+    showSchedule() { state.estimatorKind = "estimate"; return showView("estimate"); },
+    confirm: confirmReplace,
   };
   window.CeasefireLibraryEditorNavigation = {
     show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("estimate"); },

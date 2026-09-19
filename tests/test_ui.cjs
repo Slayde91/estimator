@@ -622,6 +622,14 @@ let passed=0;
   assert.deepEqual(copy({inputs:audit.state.inputs,draft:audit.state.draft}),protectedState);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'penetration-heading');
   context.window.CeasefirePenetrations=priorPenetrations;context.window.CeasefireLibraries=priorLibraries;delete context.window.CeasefireLibraryEditor;passed++;
 
+  // Main Estimator navigation opens only the committed schedule calculation;
+  // the independent current item is opened explicitly in its own workspace.
+  setup();const workspaceOpens=[];
+  context.window.CeasefirePenetrations={open(){workspaceOpens.push('item');},openSchedule(){workspaceOpens.push('schedule');}};
+  context.window.CeasefirePenetrationNavigation.showSchedule();assert.equal(audit.state.estimatorKind,'estimate');assert.equal(byId('estimator-main').hidden,false);
+  context.window.CeasefirePenetrationNavigation.show();assert.equal(audit.state.estimatorKind,'penetration');
+  assert.deepEqual(workspaceOpens,['schedule','item']);context.window.CeasefirePenetrations=priorPenetrations;passed++;
+
   const markup=fs.readFileSync('static/index.html','utf8');
   const actionCss=fs.readFileSync('static/styles.css','utf8');
   assert.doesNotMatch(markup,/id="save-quote"/);assert.match(markup,/id="save-project"[^>]*class="button save-button"/);

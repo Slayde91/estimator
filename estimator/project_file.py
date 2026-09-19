@@ -167,14 +167,17 @@ def _portable_inputs(calculator_id, value):
 
 def _portable_penetration(value, *, saved=False):
     """Keep the separate estimator draft tied to its immutable workbook source."""
-    from .penetration_calculator import normalize_draft, source_model as penetration_source
-    expected = {"draft", "source_sha256"} if saved else {"draft"}
-    if not isinstance(value, dict) or set(value) != expected:
-        raise ValidationError("Firestopping Estimator projects must contain their input draft and source version only.")
+    from .penetration_calculator import normalize_composer, normalize_draft, source_model as penetration_source
+    required = {"draft", "source_sha256"} if saved else {"draft"}
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {"composer"}:
+        raise ValidationError("Firestopping Estimator projects must contain their schedule, optional composer and source version only.")
     source_hash = penetration_source()["source"]["sha256"]
     if saved and value["source_sha256"] != source_hash:
         raise ValidationError("The project uses a different Firestopping Estimator workbook version.")
-    return {"source_sha256": source_hash, "draft": normalize_draft(value["draft"])}
+    result = {"source_sha256": source_hash, "draft": normalize_draft(value["draft"])}
+    if "composer" in value:
+        result["composer"] = normalize_composer(value["composer"])
+    return result
 
 
 def export_project(store, request):

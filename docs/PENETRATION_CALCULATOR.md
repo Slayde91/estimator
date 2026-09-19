@@ -1,9 +1,9 @@
 # Firestopping Estimator
 
-The Estimator page contains two independently editable estimates: the existing
-Estimator and the Firestopping Estimator. They share project details and one
-effective pricing snapshot. Their totals are separate; neither is automatically
-added to the other.
+The main Estimator contains the Firestopping Schedule below Material Requirements
+& Output. The Firestopping Estimator is an independent single-item calculator.
+They share project details and one effective pricing snapshot. The existing
+estimate and firestopping schedule totals remain separate.
 
 The visible name is Firestopping Estimator. Source filenames, the internal
 `penetration` project key and `/api/penetration` routes remain unchanged for
@@ -41,7 +41,10 @@ rather than silently truncated. Other estimators retain their existing limits.
 
 The original source includes one schedule item. Additional app items copy its
 row formulas with Excel-relative-reference semantics, and summary SUM ranges
-extend over all rows. The app supports 1–1,000 rows. The original workbook's
+extend over all rows. The app supports 0–1,000 schedule rows; the current-item
+calculator always has one row. An empty schedule overlays zero summary and
+BREAKDOWN outputs and clears template inputs, so it charges no travel or setup.
+The original workbook's
 formulas in the packaged source are not rewritten. Project allowances remain the
 source constants (LISTS BY2 = 650 and BZ2 = 2080), with the original global LAFHA,
 day and percentage inputs. The source image cell S4 already contains a cached
@@ -49,17 +52,27 @@ day and percentage inputs. The source image cell S4 already contains a cached
 
 ## Project and output behavior
 
-A new penetration schedule starts with one blank row. Input groups separate
+A new Firestopping Schedule starts empty. Its columns include Service Type,
+Penetration Type, Substrate Orientation, FRL and editable Item QTY. A separate
+current item starts blank. Input groups separate
 Penetration, Products and labour, Additional Allowances, Pipes, Cabletrays,
-Substrate and Bulkhead. The selected item's calculated detail and
-the complete schedule totals are shown separately. Numeric inputs retain their
+Substrate and Bulkhead. The current item's calculated detail and
+the complete schedule totals are calculated independently. Numeric inputs retain their
 full stored precision; percentages are shown and edited as percentages.
 
-Item QTY is editable in the schedule and mirrors the selected item's input.
+**Add to Schedule** copies the current item's inputs using current project prices
+and schedule allowances. **Edit** copies a schedule row into the current-item
+form; only **Update Schedule** applies those edits. **Cancel edit** restores the
+previous current item. Library additions leave both library navigation and the
+current item intact, with the recalculated price displayed beside the library action.
+
+Item QTY is editable in the schedule without changing the independent current item.
 Invalid or incomplete numeric text remains visible and blocks calculation;
 asynchronous results do not interrupt typing or replace newer inputs. Project
-LAFHA, travel days and global percentages appear under Additional Allowances
-and retain their project-wide scope. The library editor applies its separate
+LAFHA, travel days and global percentages appear under Schedule allowances in
+the main Estimator. The current item has independent allowances under Additional
+Allowances; adding or updating a schedule line uses the schedule allowances.
+The library editor applies its separate
 allowances only to that library item.
 
 The selected item and library editor share a seven-row cost table: Labour,
@@ -72,20 +85,28 @@ AJ to Labour costs. The canonical DK result controls the source hours gate.
 Blanks, zeros, negatives and calculation errors remain distinct. This is an
 additive display projection, not a replacement calculation. Raw outputs and
 export evidence remain complete. Summary and Multipliers remain available
-separately below the table.
+separately below the table. All table cells are centred. The schedule has a
+separate aggregate table: costs and task hours sum across schedule lines, with
+canonical schedule subtotals. Unit prices and quantities retain line and product
+identities rather than adding unlike rates or units. Summary and Multipliers
+retain each line's values. Travel/LAFHA follows the existing schedule calculation.
 
 Save and Save As capture both estimates and the three existing calculators
 together. Project version 1 gains an optional `penetration` object containing
-only validated inputs and the source SHA-256. Older projects open with a blank
-penetration schedule. Older browser code cannot overwrite a project containing
-penetration inputs while omitting them. Unknown source hashes are rejected.
+only validated inputs and the source SHA-256. Its `draft` is the schedule;
+optional `composer` stores the independent current item's one-row draft and
+allowances. Old firestopping projects retain their full schedule and start a
+default current item; projects without firestopping inputs start empty. Older
+browser code cannot overwrite a project while omitting stored firestopping inputs
+or its composer. Unknown source hashes are rejected. Editing mode is transient;
+a reopened current item is independent until explicitly added or used in a new edit.
 
 The project keeps its original pricing until the user explicitly applies new
 project pricing or selects Use current pricing. Editing the shared library does
 not change a saved project's original snapshot. Price changes recalculate both
 estimates independently while preserving their entered quantities.
 
-PDF and XLSX exports calculate the captured draft and its pricing once. Both
+Schedule PDF and XLSX exports calculate only the captured schedule and its pricing once. Both
 include project details, totals, schedule, inputs, calculated detail and any
 errors. The XLSX register contains literal values, not executable formulas or
 links, and preserves numeric precision. Downloads use the opened/saved project

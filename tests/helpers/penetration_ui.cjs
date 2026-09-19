@@ -4,7 +4,7 @@ const copy = value => JSON.parse(JSON.stringify(value));
 function definition() {
   const field = (column,label,type,group,format='number',options=[]) => ({column,label,type,group,format,options,units:'',default:null});
   return {id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
-    defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},groups:['Penetration','Products and labour','Additional Allowances'],
+    defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},schedule_defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[]},groups:['Penetration','Products and labour','Additional Allowances'],
     global_fields:[field('J','LAFHA','select','Global settings','text',['No','Yes']),field('L','Global Labour','number','Global settings','percent')],
     row_fields:[field('T','Item(s)','text','Penetration','text'),field('U','System','text','Penetration','text'),field('O','Item QTY','number','Penetration'),field('J','Type','select','Penetration','text',['HVAC','Electrical']),field('W','Workers','select','Products and labour','text',['Installer']),field('AG','Material Wastage %','number','Products and labour','percent')],
     output_fields:[field('H','Item total','number','Summary','currency'),field('BQ','Wrap SQM Required','number','Material quantities'),field('DI','Labour days','number','Labour')]};
@@ -15,7 +15,7 @@ function result(draft,metadata=definition()) {
 }
 function install(context) {
   vm.runInContext(fs.readFileSync('static/penetration-breakdown.js','utf8'),context);
-  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,addToLibrary,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
+  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,calculateSchedule,addToLibrary,addToSchedule,updateSchedule,cancelEdit,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
   vm.runInContext(source,context);
   const audit=context.penAudit,calls=[];
   audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return path.endsWith('/definition')?definition():result(payload.draft);});
@@ -38,7 +38,7 @@ function harness() {
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   Object.assign(document,{getElementById:byId,createElement:element});
   const pricing={inventory:{},rates:{original:{price:1}}},details={client:'Original client'},target={project_token:'original-token'};
-  const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
+  const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   const pen=install(context);

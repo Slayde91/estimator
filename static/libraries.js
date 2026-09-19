@@ -151,11 +151,19 @@
     const token = {}, context = actionContext(pane); pane.addPending.set(id, token); pane.addErrors.delete(id); message(pane);
     for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { status.textContent = ""; status.hidden = true; }
     for (const control of pane.scheduleButtons.values()) if (control.dataset.libraryAdd === id) control.disabled = true;
-    try { await window.CeasefirePenetrations.addLibraryItem(id); }
+    try {
+      const receipt = await window.CeasefirePenetrations.addLibraryItem(id);
+      if (context === actionContext(pane) && receipt?.added) {
+        const text = receipt.message || "Added to the Firestopping Schedule using its current prices and allowances.";
+        for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) {
+          status.textContent = text; status.hidden = false; status.className = "message library-action-message";
+        }
+      }
+    }
     catch (error) {
       if (context === actionContext(pane)) {
         const text = `The library item could not be added to the schedule. ${error.message}`; pane.addErrors.set(id, text);
-        for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { status.textContent = text; status.hidden = false; }
+        for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) { status.textContent = text; status.hidden = false; status.className = "message error library-action-message"; }
       }
     }
     finally {

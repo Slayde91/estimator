@@ -140,6 +140,7 @@ def definition(configuration=None, service_types=None):
             **({'quantity_context': QUANTITY_OUTPUT_CONTEXTS[col]} if col in QUANTITY_OUTPUT_CONTEXTS else {})})
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
+        'schedule_defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': []},
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS),
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
 
@@ -153,8 +154,8 @@ def normalize_draft(draft):
     rows = draft.get('rows', [{'id': 'line-1', 'inputs': {}}])
     if not isinstance(globals_in, dict) or set(globals_in) - set(GLOBAL_DEFAULTS):
         raise ValidationError('Unknown penetration global input.')
-    if not isinstance(rows, list) or not 1 <= len(rows) <= CAPACITY:
-        raise ValidationError(f'Penetration schedule must contain 1 to {CAPACITY} rows.')
+    if not isinstance(rows, list) or not 0 <= len(rows) <= CAPACITY:
+        raise ValidationError(f'Penetration schedule must contain 0 to {CAPACITY} rows.')
 
     def checked(value, text, label):
         if value is None or value == '':
@@ -184,6 +185,16 @@ def normalize_draft(draft):
         seen.add(identifier)
         result.append({'id': identifier, 'inputs': {col: checked(value, col in TEXT_COLUMNS, col) for col, value in inputs.items()}})
     return {'globals': globals_out, 'rows': result}
+
+
+def normalize_composer(draft):
+    """The independent item editor always owns exactly one input row."""
+    if not isinstance(draft, dict):
+        raise ValidationError('The Firestopping composer must contain exactly one row.')
+    result = normalize_draft(draft)
+    if len(result['rows']) != 1:
+        raise ValidationError('The Firestopping composer must contain exactly one row.')
+    return result
 
 
 class PenetrationEngine(WorkbookEngine):
@@ -285,6 +296,15 @@ def engine_for_draft(draft, configuration=None):
     formulas = {a: c for a, c in calc.items() if a.endswith('4') and 'formula' in c}
     overlays, _ = inventory_lists(configuration)
     inputs = {'LISTS': overlays, 'CALC': {col + '2': value for col, value in draft['globals'].items()}}
+    if not draft['rows']:
+        # The workbook has one physical template row. An empty application
+        # schedule has no template item or travel/setup charge to calculate.
+        # Inputs overlay that boundary; the immutable source formulas stay intact.
+        inputs['CALC'].update({col + '4': None for col in ROW_COLUMNS})
+        inputs['CALC'].update({address: 0 for address in SUMMARY_COLUMNS})
+        inputs['BREAKDOWN'] = {address: 0 for address, cell in _sheet('BREAKDOWN')['cells'].items()
+                               if 'formula' in cell}
+        return PenetrationEngine(model, inputs), draft
     for index, row in enumerate(draft['rows'], 4):
         for col in ROW_COLUMNS:
             inputs['CALC'][col + str(index)] = row['inputs'].get(col)
@@ -333,6 +353,8 @@ def calculate(draft, configuration=None):
         summary['labour_hours'] = error.code
         errors.append({'row_id': None, 'cell': 'DK4:DK' + str(len(rows) + 3), 'message': error.code})
     breakdown = {address: engine.value('BREAKDOWN', address) for address, cell in _sheet('BREAKDOWN')['cells'].items() if 'formula' in cell}
-    from .penetration_breakdown import add_breakdowns
-    return add_breakdowns({'source_sha256': source_model()['source']['sha256'], 'draft': draft, 'summary': summary,
+    from .penetration_breakdown import add_breakdowns, schedule_breakdown
+    result = add_breakdowns({'source_sha256': source_model()['source']['sha256'], 'draft': draft, 'summary': summary,
         'summary_cells': summary_cells, 'rows': rows, 'errors': errors, 'breakdown_cells': breakdown, 'definition': spec}, source_model())
+    result['schedule_breakdown'] = schedule_breakdown(result)
+    return result

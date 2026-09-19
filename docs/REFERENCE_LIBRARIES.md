@@ -36,7 +36,8 @@ Technical References**, together with the existing search and filters.
 ## Adding items to the library and schedule
 
 **Add to Library**, beside the selected estimator item's inputs, captures that
-one row, its project allowances and its current effective pricing. The server
+one row and its current effective pricing, retaining historical global inputs
+only for compatibility. The server
 calculates its price and stores the inputs and pricing snapshot separately from
 the supplier bundle. Later project or shared-price changes do not change the
 saved library item. Repeated requests for the same capture return the saved
@@ -50,13 +51,14 @@ is transactional across concurrent requests. Imported IDs must be below that
 range. New entries support the same edit/save/reopen workflow as imported items.
 
 **Add to Schedule** copies an item's saved inputs into the current Firestopping
-Estimator. It retains the current schedule's prices and project allowances and
+Estimator. It uses the current schedule's prices and effective calculation policy and
 shows the recalculated item price. Existing schedule rows and unsaved edits
 remain intact; a single unused starting row is replaced. The stored library
 item stays unchanged. Save the project separately to retain the new schedule row.
 
-New estimator rows default **Access** and **Complexity** to **Standard**. Loading
-an existing row retains its values, including deliberate blanks. **Service Type**
+**Access** and **Complexity** are no longer input controls, and **Substrate** is
+descriptive. Global allowances and those three multipliers have no calculation
+effect, including for historical items; raw saved values are retained. **Service Type**
 is a dropdown containing the library's service types plus Cable Trays, Busbar
 Trunking, Fire Dampers, Flexible Ducts, Linear Joints and Movement Joints.
 **Manufacturer** offers Promat, Trafalgar, Boss, Firefly, Hilti, Snap and Fendix.
@@ -121,6 +123,10 @@ Item saves are overlays in the application's SQLite database, with deduplicated
 immutable pricing snapshots. Neither saving nor refreshing rewrites the source
 workbook, supplier bundle, PDFs, shared prices or project files. Back up the
 application database as well as the local supplier bundle to retain these edits.
+Displayed library prices are recalculated from those frozen snapshots using the
+effective policy, so historical cached amounts cannot restore removed allowances.
+List pages batch compatible items and cache by exact inputs, pricing and policy;
+original stored amounts remain available as source evidence in the editor.
 
 ## Relationships
 

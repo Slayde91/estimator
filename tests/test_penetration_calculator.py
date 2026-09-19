@@ -48,7 +48,9 @@ class PenetrationSourceTests(unittest.TestCase):
                     draft['rows'][row - 4]['inputs'][column] = value
                 else:
                     self.assertIsNone(value, f'Unexpected nonblank input {scenario["id"]}:{address}')
-            engine, _ = engine_for_draft(draft, scenario.get('configuration'))
+            # The native fixture proves the unchanged source engine; the
+            # authorized application policy is tested independently.
+            engine, _ = engine_for_draft(draft, scenario.get('configuration'), effective=False)
             if scenario.get('configuration'):
                 for address, expected in scenario['inputs']['LISTS'].items():
                     self.assertEqual(engine.inputs['LISTS'][address], expected,
@@ -85,7 +87,7 @@ class PenetrationSourceTests(unittest.TestCase):
         self.assertEqual(len(model['list_lookups']), 19)
 
     def test_every_source_calculation_matches_independent_saved_excel_caches(self):
-        engine, _ = engine_for_draft(source_example())
+        engine, _ = engine_for_draft(source_example(), effective=False)
         count = 0
         for sheet in source_model()['sheets']:
             if sheet['name'] not in ('CALC', 'BREAKDOWN'):
@@ -153,8 +155,10 @@ class PenetrationCalculationTests(unittest.TestCase):
     def test_new_row_defaults_and_descriptive_choices_preserve_existing_inputs(self):
         spec = definition(service_types=['Saved custom service'])
         fields = {field['column']: field for field in spec['row_fields']}
-        self.assertEqual(spec['defaults']['rows'][0]['inputs'], {'Q': 'Standard', 'R': 'Standard'})
-        self.assertEqual((fields['Q']['default'], fields['R']['default']), ('Standard', 'Standard'))
+        self.assertEqual(spec['defaults']['rows'][0]['inputs'], {})
+        self.assertNotIn('Q', fields)
+        self.assertNotIn('R', fields)
+        self.assertEqual(spec['global_fields'], [])
         self.assertEqual(fields['K']['type'], 'select')
         self.assertIn('Saved custom service', fields['K']['options'])
         self.assertIn('Cable Trays', fields['K']['options'])
@@ -174,17 +178,20 @@ class PenetrationCalculationTests(unittest.TestCase):
             self.assertEqual((outputs[col]['format'], outputs[col]['units']), ('percent', '%'))
         self.assertEqual(outputs['H']['format'], 'currency')
         self.assertEqual(outputs['DK']['format'], 'number')
-        self.assertEqual(calculate(source_example())['rows'][0]['outputs']['BI'], .02)
+        self.assertEqual(calculate(source_example())['rows'][0]['outputs']['BI'], 0)
 
-    def test_multirow_aggregates_travel_once_and_preserves_source_precision(self):
+    def test_multirow_ignores_removed_travel_and_preserves_source_precision(self):
         draft = source_example()
         draft['rows'].append({'id': 'second', 'inputs': deepcopy(draft['rows'][0]['inputs'])})
         draft['globals']['K'] = 1.125
         result = calculate(draft)
         self.assertEqual(result['errors'], [])
-        self.assertAlmostEqual(result['summary']['grand_total'], 2 * 847.1201322786885 + 2080 * 1.125, places=10)
+        # Original direct labour/material costs, without substrate or travel.
+        self.assertAlmostEqual(result['summary']['grand_total'], 2 * (494 + 336.50993360655735), places=10)
         self.assertEqual(result['summary']['labour_hours'], 3.8)
-        self.assertEqual(result['summary']['total_days'], 3.8 / 8 + 1.125)
+        self.assertEqual(result['summary']['total_days'], 3.8 / 8)
+        self.assertEqual(result['summary']['travel_lafha'], '')
+        self.assertEqual(result['draft']['globals']['K'], 1.125)
         self.assertEqual(result['rows'][0]['outputs'], result['rows'][1]['outputs'])
 
     def test_shared_supplier_markup_updates_price_without_changing_saved_snapshot(self):
@@ -252,10 +259,10 @@ class PenetrationCalculationTests(unittest.TestCase):
             draft['rows'][0]['inputs'][col] = 'Unlisted choice'
         result = calculate(draft)
         self.assertEqual({error['cell'] for error in result['rows'][0]['errors']},
-                         {'J4', 'L4', 'M4', 'N4', 'P4', 'Q4', 'R4'})
-        self.assertEqual(result['rows'][0]['outputs']['BI'], '')
-        self.assertEqual(result['rows'][0]['outputs']['BJ'], '')
-        self.assertEqual(result['rows'][0]['outputs']['BK'], '')
+                         {'J4', 'L4', 'M4', 'N4', 'P4'})
+        self.assertEqual(result['rows'][0]['outputs']['BI'], 0)
+        self.assertEqual(result['rows'][0]['outputs']['BJ'], 0)
+        self.assertEqual(result['rows'][0]['outputs']['BK'], 0)
         self.assertEqual(result['draft']['rows'][0]['inputs']['P'], 'Unlisted choice')
 
     def test_source_labour_band_next_larger_and_maximum_fallback(self):

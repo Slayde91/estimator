@@ -205,6 +205,12 @@ class _Report:
             return "Unavailable: " + _text(self.errors[cell])
         return _number(self.cells.get(cell), **formatting)
 
+    def summary_value(self, key, cell, **formatting):
+        if 'firestopping' not in self.result:
+            return self.value(cell, **formatting)
+        value = self.result['summary'].get(key)
+        return 'Unavailable' if value is None else _number(value, **formatting)
+
     def input(self, cell, **formatting):
         value = self.inputs.get(cell)
         if formatting or _numeric(value):
@@ -321,12 +327,12 @@ class _Report:
             ]))
             self.story.extend([alert, Spacer(1, 12)])
         totals = [
-            ("Labour", "F2"), ("Material", "F3"), ("Access", "F4"),
-            ("Travel / accommodation", "F5"), ("Subtotal", "F6"),
-            ("Fixed adjustment", "D27"), ("Grand total", "F7"),
+            ("Labour", "labour", "F2"), ("Material", "material", "F3"), ("Access", "access", "F4"),
+            ("Travel / accommodation", "travel", "F5"), ("Subtotal", "subtotal", "F6"),
+            ("Fixed adjustment", None, "D27"), ("Grand total", "total", "F7"),
         ]
-        rows = [[self.detail(label), self.p(self.value(cell, money=True), "numeric")]
-                for label, cell in totals]
+        rows = [[self.detail(label), self.p(self.summary_value(key, cell, money=True) if key else self.value(cell, money=True), "numeric")]
+                for label, key, cell in totals]
         total_table = self.table(["Quote amount", "Amount ($)"], rows, [_WIDTH * .68, _WIDTH * .32])
         total_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 7), (-1, 7), colors.HexColor("#E8EEF0")),
@@ -337,8 +343,8 @@ class _Report:
         self.story.append(KeepTogether([total_table]))
         self.story.append(self.p("Project measures", "subheading"))
         checks = [
-            [self.p("Total project days", "cell"), self.p(self.value("F10"), "numeric")],
-            [self.p("Rate per project area / item", "cell"), self.p(self.value("F8", money=True), "numeric")],
+            [self.p("Total project days", "cell"), self.p(self.summary_value("days", "F10"), "numeric")],
+            [self.p("Rate per project area / item", "cell"), self.p(self.summary_value("rate", "F8", money=True), "numeric")],
         ]
         self.story.append(self.table(["Calculated output", "Recorded value"], checks, [_WIDTH * .68, _WIDTH * .32], compact=True))
         self.story.extend([
@@ -372,6 +378,25 @@ class _Report:
         self.story.append(self.table(
             ["Material / yield", "Coverage", "Adjusted base units", "Wastage % / units", "Priced units", "Unit sell rate", "Line amount"],
             rows, widths))
+        if 'firestopping' in self.result:
+            self.story.extend([PageBreak(), self.p('Firestopping schedule materials', 'section')])
+            self.story.append(self.p(
+                'The schedule is included once in the quote summary. These quantities and sell rates use the recorded pricing snapshot. '
+                'Shared Board and Wrap task hours are allocated by each line\'s calculated material quantities; labour days use eight hours per day. '
+                'Setup labour is shown separately below.', 'small'))
+            entries = [item for item in self.result.get('materials', []) if item.get('source') == 'firestopping']
+            if entries:
+                rows = [[self.detail(item['name']),
+                         self.p(_number(item.get('quantity')), 'numeric'),
+                         self.p(_number(item.get('price'), money=True), 'numeric'),
+                         self.p(_number(item.get('total'), money=True), 'numeric'),
+                         self.p(_number(item.get('days')), 'numeric')] for item in entries]
+                material_table = self.table(['Product / context', 'Quantity', 'Unit sell rate', 'Line amount', 'Labour days'],
+                    rows, [203, 70, 85, 90, _WIDTH - 448], compact=True)
+                material_table.splitInRow = 0
+                self.story.append(material_table)
+            else:
+                self.story.append(self.p('No Firestopping material quantities.', 'small'))
 
     def labour_and_additions(self):
         self.story.extend([PageBreak(), self.p("Labour and masking", "section")])
@@ -393,6 +418,24 @@ class _Report:
             "Pinning days: " + self.value("B37") + ". They mirror meshing days and carry no separate labour charge. "
             "Total task labour: " + self.value("B44") +
             " days / " + self.value("B45") + " weeks.", "small"))
+
+        if 'firestopping' in self.result:
+            self.story.append(self.p('Firestopping schedule labour', 'subheading'))
+            tasks = self.result.get('labour', {}).get('firestopping_tasks', [])
+            rows = [[self.detail(item['name']), self.p(_number(item.get('task_hours')), 'numeric'),
+                     self.p(_number(item.get('days')), 'numeric'),
+                     self.p(_number(item.get('total'), money=True), 'numeric')] for item in tasks]
+            schedule_summary = self.result['firestopping']['result']['summary']
+            rows.append([self.detail('Firestopping total'),
+                         self.p(_number(schedule_summary.get('labour_hours')), 'numeric'),
+                         self.p(_number(schedule_summary.get('total_days')), 'numeric'),
+                         self.p(_number(schedule_summary.get('labour'), money=True), 'numeric')])
+            self.story.append(self.table(['Task', 'Task hours', 'Labour days', 'Labour amount'], rows,
+                [223, 80, 80, _WIDTH - 383], compact=True))
+            self.story.append(self.p(
+                'Firestopping Labour includes source setup time and fixed labour adjustments. '
+                'Fixed monetary adjustments do not create task hours. These task totals include the hours allocated to material rows; '
+                'they are included once in the combined quote total.', 'small'))
 
         self.story.append(self.p("Masking / cleaning", "subheading"))
         # Older saved quotes lack this additive presentation field. The helper

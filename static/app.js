@@ -22,6 +22,7 @@
     ["Access panels", "Number of panels"], ["PromaMesh / fan enclosures", "m²"],
     ["Primer", "m²"], ["Topcoat", "m²"], ["Board", "m²"], ["Mastic", "Linear metres"],
   ];
+  const coverageTeams = { B15: "D2", B16: "D3", B18: "D6", B19: "D8", B20: "D4", B21: "D5", B22: "D9", B23: "D10" };
   const groups = {
     access_hire: "Access hire", labour_rates: "Labour", masking_rates: "Masking",
     freight_rates: "Freight", LAFHA_rates: "Accommodation", travel_rates: "Travel",
@@ -86,11 +87,29 @@
     return editedNumber(control, isPercent(field));
   }
 
-  function inputProblem() { return [...state.inputErrors.values()][0] || ""; }
+  function coverageNeedsTeam(cell) {
+    const team = coverageTeams[cell]; if (!team) return false;
+    const value = Object.hasOwn(state.inputs, team) ? state.inputs[team] : fieldByCell(team)?.default;
+    return value === null || value === "" || typeof value === "string" && value.toLowerCase() === "n/a";
+  }
+
+  function validateCoverageTeams() {
+    for (const cell of Object.keys(coverageTeams)) {
+      const value = Object.hasOwn(state.inputs, cell) ? state.inputs[cell] : fieldByCell(cell)?.default;
+      const blocked = isNumber(value) && value !== 0 && coverageNeedsTeam(cell);
+      if (blocked && !state.inputDrafts.has(cell)) state.inputErrors.set(cell, "Select Teams");
+      else if (!blocked && state.inputErrors.get(cell) === "Select Teams") state.inputErrors.delete(cell);
+      const control = $(`input-${cell}`), error = state.inputErrors.get(cell);
+      if (error) control?.setAttribute("aria-invalid", "true"); else control?.removeAttribute("aria-invalid");
+      control?.setCustomValidity?.(error || "");
+    }
+  }
+
+  function inputProblem() { validateCoverageTeams(); return [...state.inputErrors.values()][0] || window.CeasefirePenetrations?.scheduleProblem?.() || ""; }
 
   function showInputProblems() {
     clearResults("Check inputs");
-    const box = $("calculation-errors"); box.textContent = [...state.inputErrors.values()].join("\n"); box.hidden = false;
+    const box = $("calculation-errors"); box.textContent = [...state.inputErrors.values(), window.CeasefirePenetrations?.scheduleProblem?.()].filter(Boolean).join("\n"); box.hidden = false;
     for (const cell of state.inputErrors.keys()) $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
   }
 
@@ -196,6 +215,12 @@
     control.addEventListener("input", () => {
       state.inputRevision++;
       let value = control.value;
+      if (coverageNeedsTeam(field.cell) && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0) {
+        control.value = state.inputDrafts.has(field.cell) ? state.inputDrafts.get(field.cell) : estimateControlValue(field, state.inputs[field.cell]);
+        validateCoverageTeams(); message("Select Teams", true);
+        if (state.inputErrors.size) showInputProblems();
+        return;
+      }
       if (field.type === "number") value = editedEstimateNumber(control, field);
       if (field.type === "number" && typeof value === "string" && value !== "") {
         state.inputErrors.set(field.cell, `${field.label}: ${value}.`);
@@ -206,6 +231,9 @@
       state.inputErrors.delete(field.cell); state.inputDrafts.delete(field.cell);
       control.removeAttribute("aria-invalid"); control.setCustomValidity?.("");
       state.inputs[field.cell] = value;
+      validateCoverageTeams();
+      if (state.inputErrors.get(Object.keys(coverageTeams).find(cell => coverageTeams[cell] === field.cell)) === "Select Teams") message("Select Teams", true);
+      else if ($("app-message").textContent === "Select Teams" && ![...state.inputErrors.values()].includes("Select Teams")) message("");
       updateDirty();
       scheduleCalculation();
     });
@@ -289,6 +317,8 @@
       additionCard,
       inputCard("Other estimate inputs", remainder),
     ]) if (card) after.append(card);
+    validateCoverageTeams();
+    if ([...state.inputErrors.values()].includes("Select Teams")) showInputProblems();
   }
 
   function clearResults(status) {
@@ -310,7 +340,7 @@
     state.result = null;
     clearTimeout(state.timer);
     if (state.controller) state.controller.abort();
-    if (state.inputErrors.size) { showInputProblems(); return; }
+    if (inputProblem()) { showInputProblems(); return; }
     clearResults("Calculating…");
     state.timer = setTimeout(() => { calculate(); }, 180);
   }
@@ -319,13 +349,13 @@
     clearTimeout(state.timer);
     const revision = ++state.revision;
     if (state.controller) state.controller.abort();
-    if (state.inputErrors.size) { showInputProblems(); return null; }
+    if (inputProblem()) { showInputProblems(); return null; }
     state.controller = new AbortController();
     clearResults("Calculating…");
     try {
       const result = await request("/api/calculate", {
         method: "POST", signal: state.controller.signal,
-        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow }),
+        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow, ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}) }),
       });
       if (revision !== state.revision) return null;
       state.result = result;
@@ -455,7 +485,9 @@
       const quoteContext = state.quoteContext;
       const inputRevision = state.inputRevision;
       const details = quoteDetails();
-      const payload = { title, inputs, workflow, measurements, configuration, ...details };
+      const penetration = window.CeasefirePenetrations?.quoteSnapshot?.();
+      const penetrationStamp = window.CeasefirePenetrations?.quoteFingerprint?.();
+      const payload = { title, inputs, workflow, measurements, configuration, ...details, ...(penetration ? { penetration } : {}) };
       const saved = await request(state.quote ? `/api/quotes/${encodeURIComponent(state.quote.id)}` : "/api/quotes", { method: state.quote ? "PUT" : "POST", body: JSON.stringify(payload) });
       if (quoteContext !== state.quoteContext) { message(`Saved “${title}”. Your currently open estimate has been kept.`); return; }
       const pricingChangedDuringSave = JSON.stringify(state.quoteConfiguration || state.configuration) !== JSON.stringify(configuration);
@@ -466,7 +498,7 @@
       if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
       if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      const changedDuringSave = pricingChangedDuringSave || state.inputRevision !== inputRevision || state.inputErrors.size > 0 || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
+      const changedDuringSave = pricingChangedDuringSave || state.inputRevision !== inputRevision || state.inputErrors.size > 0 || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp || JSON.stringify(window.CeasefirePenetrations?.quoteSnapshot?.()) !== JSON.stringify(penetration) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
       message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
     } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
@@ -500,8 +532,11 @@
       const quote = await request(`/api/quotes/${encodeURIComponent(id)}`);
       if (loadRevision !== state.quoteLoadRevision) return;
       const captured = projectStamp();
-      const [prepared, penetration] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration)]);
-      if (!await confirmReplace("Open this older estimate?", "This record contains the estimate and its original pricing only. The current estimate will be replaced; the penetration schedule and all three calculators will start from defaults. Save As can then save them together.", "Open older estimate")) return;
+      const [prepared, penetration] = await Promise.all([window.CeasefireCalculators.prepareDefaults(), quote.penetration
+        ? window.CeasefirePenetrations?.prepareProject(quote.penetration, quote.configuration || state.configuration)
+        : window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration)]);
+      const scope = quote.penetration ? "This record contains the estimate, its firestopping schedule and original pricing. The current item and other calculators will start from defaults." : "This record contains the estimate and its original pricing only. The penetration schedule and all three calculators will start from defaults.";
+      if (!await confirmReplace("Open this older estimate?", `${scope} The current estimate will be replaced. Save As can then save them together.`, "Open older estimate")) return;
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
@@ -1203,12 +1238,13 @@
       configuration: clone(state.quoteConfiguration || state.configuration),
       workflow: state.workflow,
       measurements: $("measurements").value,
+      ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}),
       ...(state.quote ? { source_quote_id: state.quote.id } : {}),
     };
   }
 
   function projectEstimate() {
-    const payload = reportPayload(); delete payload.source_quote_id; return payload;
+    const payload = reportPayload(); delete payload.source_quote_id; delete payload.penetration; return payload;
   }
 
   function projectStamp() {
@@ -1404,6 +1440,7 @@
     const payload = reportPayload();
     const quoteContext = state.quoteContext;
     const capturedPayload = JSON.stringify(payload);
+    const penetrationStamp = window.CeasefirePenetrations?.quoteFingerprint?.();
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
     const reportPath = savedReportId ? `/api/quotes/${encodeURIComponent(savedReportId)}/report.pdf` : "/api/quote-report";
     button.disabled = true;
@@ -1411,7 +1448,7 @@
     button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload);
-      const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload());
+      const estimateChanged = quoteContext !== state.quoteContext || capturedPayload !== JSON.stringify(reportPayload()) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp;
       message(estimateChanged
         ? `PDF saved to ${saved.path} for “${payload.title}” using ${savedReportId ? "its saved result and pricing snapshot" : "the inputs and pricing captured when you clicked Download PDF"}. Later edits are not included.`
         : `PDF saved to ${saved.path} for “${payload.title}”.`);
@@ -1463,7 +1500,13 @@
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
   window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration) || window.CeasefireLibraryEditor?.hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ""; } });
-  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus,
+  function scheduleChanged() {
+    const stamp = window.CeasefirePenetrations?.quoteFingerprint?.();
+    if (stamp === state.firestoppingStamp) return;
+    state.firestoppingStamp = stamp;
+    if (state.initialized) { updateDirty(); scheduleCalculation(); }
+  }
+  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   window.CeasefireLibraryNavigation = { open: selectLibrary };

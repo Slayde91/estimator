@@ -47,7 +47,7 @@ def fields(catalog=None):
     return output
 
 
-def normalize_inputs(inputs, catalog=None):
+def normalize_inputs(inputs, catalog=None, *, require_teams=True):
     if not isinstance(inputs, dict):
         raise ValidationError("Calculator inputs must be an object keyed by input cell.")
     schema = {f["cell"]: f for f in fields(catalog)}
@@ -67,6 +67,16 @@ def normalize_inputs(inputs, catalog=None):
         elif not isinstance(value, str) or len(value) > 10000:
             raise ValidationError(f"{key} must be text of at most 10000 characters.")
         result[key] = value
+    if not require_teams:
+        # Read-only project recovery validates and preserves the original input
+        # values but returns no calculated quote until the user selects teams.
+        return result
+    for row, _, _, _, team in LINES:
+        if team is None or result[f"B{row}"] in (None, "", 0):
+            continue
+        selected = result[team]
+        if selected is None or selected == "" or selected.casefold() == "n/a":
+            raise ValidationError("Select Teams")
     return result
 
 

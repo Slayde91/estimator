@@ -107,6 +107,9 @@
     applyProject(prepared);
   }
   function projectSnapshot() { return state.draft ? canonicalSnapshot(persisted()) : undefined; }
+  function quoteSnapshot() { return state.schedule.draft ? { draft: canonicalDraft(state.schedule.draft) } : undefined; }
+  function quoteFingerprint() { return stable({ context: state.context, ...quoteSnapshot(), invalid: [...state.schedule.invalid] }); }
+  function scheduleProblem() { return state.schedule.invalid.size ? "Correct the firestopping schedule input marked invalid before calculating the quote." : ""; }
   function inputProblem() { return state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
   function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch }); }
   async function completeProjectSnapshot() { await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
@@ -220,13 +223,9 @@
     const fields = node("div", "penetration-fields");
     for (const field of state.definition.row_fields.filter(field => field.group === state.group)) fields.append(makeControl(field, row.id));
     $("penetration-row-fields").replaceChildren(fields);
-    const globals = node("div", "penetration-fields");
-    for (const field of state.definition.global_fields) globals.append(makeControl(field, null));
-    $("penetration-global-fields").replaceChildren(globals);
-    $("penetration-project-allowances").hidden = !["Additional Allowances", "Additional materials and labour"].includes(state.group);
   }
   function refreshControls() {
-    for (const parent of [$("penetration-row-fields"), $("penetration-global-fields"), $("penetration-schedule-body"), $("penetration-schedule-global-fields")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
+    for (const parent of [$("penetration-row-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
       const rowId = control.dataset.penetrationRow || null, key = keyFor(rowId, control.dataset.penetrationField);
       const scope = control.dataset.penetrationScope === "schedule" ? state.schedule : state;
       const pending = scope.invalid.get(key), problem = control.parentNode.children[2];
@@ -282,9 +281,7 @@
     state.edit = null; replaceComposer(edit.before.draft, edit.before.invalid); message(); await calculate();
   }
   function renderScheduleGlobals() {
-    const fields = node("div", "penetration-fields");
-    for (const field of state.definition.global_fields) fields.append(makeControl(field, null, false, state.schedule));
-    $("penetration-schedule-global-fields").replaceChildren(fields);
+    // Old saved global inputs remain portable; the current policy excludes them.
   }
   function libraryDraft(row) {
     const normalized = values => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
@@ -353,7 +350,7 @@
     const output = state.schedule.result?.rows?.find(item => item.id === row.id), value = output?.outputs?.H;
     const total = numeric(value) && !output.errors?.length ? value : null;
     const quantity = scheduleRow(row.id).inputs.O;
-    const text = `${label} added using the current schedule prices and allowances.${row.library_item_id ? ` Quantity: ${quantity ?? 0}.` : ""} ${total === null ? "Recalculated price is unavailable. Review the schedule calculation." : `Recalculated item price: ${display(total, "currency")}.`}`;
+    const text = `${label} added using the current schedule prices.${row.library_item_id ? ` Quantity: ${quantity ?? 0}.` : ""} ${total === null ? "Recalculated price is unavailable. Review the schedule calculation." : `Recalculated item price: ${display(total, "currency")}.`}`;
     message(text, total === null, state.schedule); return { added: true, id: row.id, quantity, total, message: text };
   }
   async function addToSchedule() {
@@ -374,7 +371,7 @@
     state.updatingSchedule = true;
     state.edit = null;
     try { changed(row.id, state.schedule); renderFields(); await calculate(state.schedule);
-      if (context === state.context && epoch === state.composerEpoch) message("Schedule item updated using the schedule prices and allowances.");
+      if (context === state.context && epoch === state.composerEpoch) message("Schedule item updated using the schedule prices.");
     } finally { state.updatingSchedule = false; status(); }
   }
   async function addLibraryItem(id) {
@@ -424,6 +421,7 @@
   function renderSchedule() {
     if (!state.schedule.draft) return;
     window.CeasefireLibraries?.scheduleChanged?.();
+    window.CeasefireProject?.scheduleChanged?.();
     const body = $("penetration-schedule-body"), previous = [...body.children];
     const existing = new Map(previous.filter(row => row.dataset.penetrationContext === String(state.context)).map(row => [row.dataset.penetrationId, row]));
     const quantityField = state.definition.row_fields.find(field => field.column === "O");
@@ -462,14 +460,14 @@
   }
   function renderSummary(scope = state) {
     const prefix = scope === state ? "penetration" : "penetration-schedule";
-    const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
+    const labels = { materials: "Materials", labour: "Labour", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
     $(`${prefix}-summary`).replaceChildren(...Object.entries(labels).map(([key, label]) => {
       const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(scope.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
     }));
     const errors = scope.result?.errors || [], globalErrors = errors.filter(error => !error.row_id).map(error => `${error.cell}: ${error.message}`);
     $(`${prefix}-summary-notes`).textContent = errors.length
       ? [`${errors.length} calculation ${errors.length === 1 ? "issue" : "issues"}. Review the affected inputs and totals.`, ...globalErrors].join("\n")
-      : scope === state ? "Current item only. Its allowances are independent of the schedule." : "Totals include every schedule item and the schedule allowances.";
+      : scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.";
   }
   function renderBreakdown(scope = state) {
     if (scope === state.schedule) $("penetration-schedule-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.renderSchedule(state.definition, scope.result));
@@ -551,5 +549,5 @@
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
   $("penetration-pdf").addEventListener("click", () => download("pdf")); $("penetration-excel").addEventListener("click", () => download("xlsx"));
-  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity };
+  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity };
 })();

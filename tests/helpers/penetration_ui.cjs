@@ -4,9 +4,10 @@ const copy = value => JSON.parse(JSON.stringify(value));
 function definition() {
   const field = (column,label,type,group,format='number',options=[]) => ({column,label,type,group,format,options,units:'',default:null});
   return {id:'penetration',title:'Firestopping Estimator',source_sha256:'penetration-source',capacity:1000,
-    defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},schedule_defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[]},groups:['Penetration','Products and labour','Additional Allowances'],
+    defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{}}]},schedule_defaults:{globals:{J:'No',K:null,L:0,M:0},rows:[]},groups:['Penetration','Products and labour','Additional Allowances','Substrate'],
+    // Legacy metadata may still describe globals; current views must not render them.
     global_fields:[field('J','LAFHA','select','Global settings','text',['No','Yes']),field('L','Global Labour','number','Global settings','percent')],
-    row_fields:[field('T','Item(s)','text','Penetration','text'),field('U','System','text','Penetration','text'),field('O','Item QTY','number','Penetration'),field('J','Type','select','Penetration','text',['HVAC','Electrical']),field('W','Workers','select','Products and labour','text',['Installer']),field('AG','Material Wastage %','number','Products and labour','percent')],
+    row_fields:[field('T','Item(s)','text','Penetration','text'),field('U','System','text','Penetration','text'),field('O','Item QTY','number','Penetration'),field('J','Type','select','Penetration','text',['HVAC','Electrical']),field('W','Workers','select','Products and labour','text',['Installer']),field('AG','Material Wastage %','number','Additional Allowances','percent'),field('AW','Length','number','Substrate')],
     output_fields:[field('H','Item total','number','Summary','currency'),field('BQ','Wrap SQM Required','number','Material quantities'),field('DI','Labour days','number','Labour')]};
 }
 function result(draft,metadata=definition()) {
@@ -42,7 +43,7 @@ function harness() {
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   const pen=install(context);
-  const control=(column,row='line-1')=>[...byId('penetration-row-fields').querySelectorAll('[data-penetration-field]'),...byId('penetration-global-fields').querySelectorAll('[data-penetration-field]')].find(el=>el.dataset.penetrationField===column&&el.dataset.penetrationRow===(row||''));
+  const control=(column,row='line-1')=>byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField===column&&el.dataset.penetrationRow===(row||''));
   return {context,byId,element,control,pricing,details,target,timers,...pen};
 }
 module.exports={copy,definition,result,install,harness};

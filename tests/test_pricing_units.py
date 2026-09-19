@@ -39,7 +39,8 @@ class PricingUnitTests(unittest.TestCase):
         catalog['rate_groups']['primers'][0]['yield_unit'] = 'm² / drum; coverage'
         catalog['rate_groups']['topcoats'][0]['yield_unit'] = 'm² / 20 kg'
         configuration = {'catalog': catalog, 'rates': {'primers:1': {'yield': 71, 'price': 401.25}}}
-        inputs = {'D20': '20kg SBR Latex - Promat', 'B20': 142, 'D21': '20kg SBR Latex - Promat', 'B21': 142}
+        inputs = {'D20': '20kg SBR Latex - Promat', 'B20': 142, 'D4': '1 Team - 1x',
+                  'D21': '20kg SBR Latex - Promat', 'B21': 142, 'D5': '1 Team - 1x'}
         before = calculate(inputs, configuration)
         exported = export_pricing_workbook(configuration)
         book = load_workbook(BytesIO(exported))
@@ -169,7 +170,7 @@ class PricingUnitTests(unittest.TestCase):
             store = Store(path)
             custom = {'inventory': {'204': {'supplier_price': 300}}, 'rates': {'primers:1': {'yield': 71}}}
             store.save_configuration(custom)
-            quote = store.save_quote({'title': 'Frozen library', 'inputs': {'D20': '20kg SBR Latex - Promat', 'B20': 142}})
+            quote = store.save_quote({'title': 'Frozen library', 'inputs': {'D20': '20kg SBR Latex - Promat', 'B20': 142, 'D4': '1 Team - 1x'}})
             self.assertEqual(Store(path).configuration(), custom)
             store.save_configuration({'inventory': {}, 'rates': {}})
             self.assertEqual(Store(path).configuration(), {'inventory': {}, 'rates': {}})

@@ -14,25 +14,33 @@ function harness(){
   vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,present,setRequest(fn){request=fn;}};})();`),h.context);
   const audit=h.context.libraryAudit,api=h.context.window.CeasefireLibraryEditor;
   audit.setRequest(async(id,action,payload)=>{calls.push({id,action,payload:payload&&copy(payload)});return fixture(payload?.draft,{revision:action==='save'?payload.revision+1:payload?.revision||0,pricing_token:payload?.pricing_token||'workbook-token'});});
-  const control=(column,global=false)=>walk(h.byId(global?'library-editor-globals':'library-editor-fields')).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
+  const control=(column,global=false)=>walk(h.byId('library-editor-fields')).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
   return{...h,projectApi:h.api,api,audit,calls,returns,control,shows:()=>shows,invalidations:()=>invalidations};
 }
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
-  await check('Library price uses the item total while the summary retains separate project allowances',async h=>{
+  await check('Library price uses the item total independently of the server summary total',async h=>{
     const item=fixture();item.result.summary.grand_total=523.456789;
     h.api.present(item);assert.match(text(h.byId('library-editor-price')),/123\.46/);assert.doesNotMatch(text(h.byId('library-editor-price')),/523\.46/);assert.match(text(h.byId('library-editor-summary')),/523\.46/);
   });
-  await check('Item allowances share the Additional Allowances group and breakdown uses the source projection',async h=>{
-    await h.api.open('legacy-row-4');assert.equal(h.byId('library-editor-project-allowances').hidden,true);
-    h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('library-editor-project-allowances').hidden,false);
-    assert.equal(h.control('L',true).value,'0.00');
+  await check('Unavailable current library prices never fall back to historical workbook charges and zero remains a valid current price',async h=>{
+    for(const value of [null,undefined,'#VALUE!',0]){
+      const item=fixture();item.price.amount=987.65;item.source_price.amount=654.32;item.result.rows[0].outputs.H=value;const original=copy(item);
+      h.api.present(item);assert.equal(h.byId('library-editor-price').textContent,value===0?'$0.00':value==='#VALUE!'?'#VALUE!':'—');assert.deepEqual(copy(item),original);
+    }
+    const unavailable=fixture(undefined,{result:null,price:{amount:null},source_price:{amount:654.32}});h.api.present(unavailable);assert.equal(h.byId('library-editor-price').textContent,'—');
+    const current=fixture(undefined,{result:null,price:{amount:321.09},source_price:{amount:654.32}});h.api.present(current);assert.equal(h.byId('library-editor-price').textContent,'$321.09');
+  });
+  await check('Raw library globals remain portable but uneditable and the breakdown uses the source projection',async h=>{
+    const item=fixture();item.draft.globals={J:'Yes',K:3.14159265358979,L:.123456789012345,M:27.123456789};h.api.present(item);const original=copy(item.draft.globals);
+    for(const group of item.definition.groups){h.audit.state.group=group;h.audit.renderFields();assert.ok(walk(h.byId('library-editor-fields')).filter(node=>node.dataset.libraryEditorField).every(control=>control.dataset.libraryEditorGlobal==='false'));assert.equal(h.control('L',true),undefined);}
     const nodes=walk(h.byId('library-editor-breakdown')),table=nodes.find(node=>node.tagName==='table');assert.ok(table);
     assert.match(text(table),/Unit Prices.*Material Quantities.*Material Costs.*Labour Costs.*Task Hours/);
     assert.match(text(table),/Pipes.*0.*#VALUE!/);assert.match(text(table),/Subtotal.*65\.43.*58\.02.*#VALUE!/);
     assert.doesNotMatch(text(h.byId('library-editor-summary')),/Labour hours/);
-    h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.byId('library-editor-project-allowances').hidden,true);
+    h.audit.state.group='Penetration';h.audit.renderFields();h.control('T').value='Edited row only';await h.control('T').emit('input');await h.audit.calculate();assert.deepEqual(h.calls.at(-1).payload.draft.globals,original);await h.audit.save();const saved=copy(h.calls.at(-1).payload.draft);assert.deepEqual(saved.globals,original);h.api.present(fixture(saved));assert.deepEqual(copy(h.audit.state.draft.globals),original);
+    const html=fs.readFileSync('static/index.html','utf8');for(const id of ['library-editor-project-allowances','library-editor-globals'])assert.ok(!html.includes(`id="${id}"`),`${id} must not remain in HTML`);
   });
   await check('Opening the library item leaves the full project state and raw invalid inputs intact',async h=>{
     const project=h.context.penAudit;project.state.draft.rows[0].inputs.T='Unsaved project';project.makeControl(definition().row_fields.find(f=>f.column==='O'),'line-1');
@@ -42,8 +50,8 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
   });
   await check('Precise numeric and percentage inputs stay exact; invalid text survives input groups',async h=>{
     await h.api.open('legacy-row-4');let input=h.control('O');input.value='12.3456789012345';await input.emit('input');await input.blur();assert.equal(input.value,'12.35');await input.focus();assert.equal(input.value,'12.3456789012345');assert.equal(input.selectionEnd,input.value.length);
-    const percent=h.control('L',true);percent.value='12.3456789012345';await percent.emit('input');assert.equal(h.audit.state.draft.globals.L,0.123456789012345);
-    input.value='1e-';await input.emit('input');h.audit.state.group='Products and labour';h.audit.renderFields();h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');assert.equal(h.audit.state.draft.rows[0].inputs.O,12.3456789012345);assert.equal(h.byId('library-editor-save').disabled,true);assert.equal(h.audit.state.result,null);
+    h.audit.state.group='Additional Allowances';h.audit.renderFields();const percent=h.control('AG');percent.value='12.3456789012345';await percent.emit('input');await percent.blur();assert.equal(percent.value,'12.35');await percent.focus();assert.equal(percent.value,'12.3456789012345');assert.equal(h.audit.state.draft.rows[0].inputs.AG,0.123456789012345);
+    h.audit.state.group='Penetration';h.audit.renderFields();input=h.control('O');input.value='1e-';await input.emit('input');h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.control('AG').value,'12.35');h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'1e-');assert.equal(h.audit.state.draft.rows[0].inputs.O,12.3456789012345);assert.equal(h.byId('library-editor-save').disabled,true);assert.equal(h.audit.state.result,null);
   });
   await check('Calculation sends only the one-row draft, item revision and opaque pricing token',async h=>{
     await h.api.open('legacy-row-4');assert.equal(h.control('T').getAttribute('aria-label'),'Library item: Items/Services');assert.equal(h.control('U').getAttribute('aria-label'),'Library item: System/Install Details');h.control('T').value='Exact service description';await h.control('T').emit('input');h.control('U').value='Exact installation description';await h.control('U').emit('input');h.control('O').value='1.23456789012345';await h.control('O').emit('input');await h.audit.calculate();

@@ -75,7 +75,7 @@ class PenetrationScheduleTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(build_penetration_register(result, result['definition'], {})))
         self.assertFalse(any(row[0].value for row in workbook['Schedule'].iter_rows(min_row=5)))
         summary_values = {row[0].value: row[1].value for row in workbook['Summary'].iter_rows()}
-        for name in ('Labour', 'Materials', 'Travel / LAFHA', 'Grand total'):
+        for name in ('Labour', 'Materials', 'Grand total'):
             self.assertEqual(summary_values[name], 0)
         pdf = PdfReader(BytesIO(render_penetration_pdf(result, result['definition'], {})))
         text = '\n'.join(page.extract_text() for page in pdf.pages)
@@ -168,7 +168,8 @@ class PenetrationScheduleTests(unittest.TestCase):
         without = calculate(no_travel)
         source_lists = next(sheet for sheet in source_model()['sheets'] if sheet['name'] == 'LISTS')['cells']
         expected_travel = source_lists['BZ2']['value'] * draft['globals']['K']
-        self.assertAlmostEqual(result['summary']['grand_total'] - without['summary']['grand_total'], expected_travel)
+        self.assertEqual(result['summary'], without['summary'])
+        self.assertIn(result['summary']['travel_lafha'], ('', 0))
         self.assertEqual(draft, before)
 
     def test_matching_products_deduplicate_prices_and_total_mastic_and_other_quantities(self):
@@ -261,7 +262,7 @@ class PenetrationScheduleTests(unittest.TestCase):
         quantities = next(task for task in table['rows'] if task['label'] == 'Board')['material_quantities']
         self.assertEqual(quantities[0]['value'], '#DIV/0!')
         self.assertFalse(any(value['value'] == '' for value in quantities))
-        self.assertEqual(table['source_groups'][1]['rows'][0]['values'][0]['value'], 0)
+        self.assertEqual([group['label'] for group in table['source_groups']], ['Summary'])
         self.assertEqual(result, before)
 
     def test_calculation_error_remains_visible_in_aggregate_and_canonical_footer(self):

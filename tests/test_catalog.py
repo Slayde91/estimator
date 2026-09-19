@@ -153,7 +153,8 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(result["rate_groups"]["topcoats"][0]["yield"], 142)
 
     def test_blank_and_empty_text_yield_overrides_keep_distinct_excel_errors(self):
-        inputs = {"D16": "Promat Promamesh", "B16": 10}
+        team = next(item['name'] for item in self.data['rate_groups']['labour_rates'] if item['name'].casefold() != 'n/a')
+        inputs = {"D16": "Promat Promamesh", "B16": 10, "D3": team}
         physical_blank = calculate(inputs, {"rates": {"mesh:2": {"yield": None}}})
         empty_text = calculate(inputs, {"rates": {"mesh:2": {"yield": ""}}})
         self.assertEqual(physical_blank["cells"]["F16"], 0)
@@ -240,7 +241,8 @@ class ReplacementCatalogTests(unittest.TestCase):
         result = effective_catalog({"catalog": self.data, "rates": {rate["id"]: {"yield": 3.25, "price": 99}}})
         self.assertTrue(has_yield(result["rate_groups"]["boards"][0]))
         self.assertEqual(result["rate_groups"]["boards"][0]["yield"], 3.25)
-        calculated = calculate({"D22": rate["name"], "B22": 6.5}, {"catalog": result})
+        team = next(item['name'] for item in result['rate_groups']['labour_rates'] if item['name'].casefold() != 'n/a')
+        calculated = calculate({"D22": rate["name"], "B22": 6.5, "D9": team}, {"catalog": result})
         self.assertEqual(calculated["cells"]["F22"], 3.25)
         self.assertEqual(calculated["cells"]["A97"], 99)
 

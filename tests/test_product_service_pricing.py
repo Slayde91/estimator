@@ -77,7 +77,8 @@ class ProductServicePricingTests(unittest.TestCase):
         self.assertEqual(product_service_name(None, [{'name': '  standalone name  '}]), '  standalone name  ')
 
     def test_metadata_edit_does_not_change_identity_prices_yields_or_calculation(self):
-        inputs = {'B20': 284, 'D20': '20kg SBR Latex - Promat', 'B21': 142, 'D21': '20kg SBR Latex - Promat'}
+        inputs = {'B20': 284, 'D20': '20kg SBR Latex - Promat', 'D4': '1 Team - 1x',
+                  'B21': 142, 'D21': '20kg SBR Latex - Promat', 'D5': '1 Team - 1x'}
         before = effective_catalog({})
         renamed = {'inventory': {'204': {'product_service': 'SBR latex primer and topcoat, 20 kg'}}}
         after = effective_catalog(renamed)

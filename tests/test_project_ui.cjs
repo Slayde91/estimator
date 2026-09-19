@@ -64,7 +64,7 @@ function harness({ penetration = false } = {}) {
   const appEnd = /  bootstrap\(\);\s*\}\)\(\);\s*$/;
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
-    globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate,
+    globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,
       setRequest(fn) { request = fn; }};
   })();`);
@@ -614,6 +614,47 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async()=>incoming);await h.loadAccepted();await flush();const before=h.snapshot();
     pending.resolve(penetrationHelper.result({globals:{J:'No',K:null,L:0,M:0},rows:[{id:'line-1',inputs:{T:'Stale response',O:999}}]}));
     await calculating;await flush();assert.deepEqual(h.snapshot(),before);assert.equal(h.pen.api.hasUnsavedChanges(),false);
+  });
+  await penetrationCheck('Quote calculation and report capture schedule only while native files retain separate drafts',async h=>{
+    h.pen.audit.state.draft.rows[0].inputs={T:'Unscheduled composer',O:99};
+    h.pen.audit.state.schedule.draft.rows=[{id:'scheduled',library_item_id:'FL-2',inputs:{T:'Scheduled material',O:3}}];
+    let sent;h.app.setRequest(async(path,options)=>{sent={path,payload:JSON.parse(options.body)};return {summary:{material:123.45,labour:87,total:210.45,days:.75},materials:[{name:'Batt · Substrate',quantity:1.23456789,price:100,total:123.456789,days:.125}],cells:{},errors:{},labour:{tasks:[],total_days:.75}};});
+    await h.app.calculate();assert.equal(sent.path,'/api/calculate');
+    assert.deepEqual(sent.payload.penetration,copy(h.pen.api.quoteSnapshot()));
+    assert.equal(sent.payload.penetration.draft.rows.length,1);assert.equal(sent.payload.penetration.draft.rows[0].inputs.O,3);
+    assert.equal(h.byId('sum-total').textContent,'$210.45');
+    assert.equal(h.byId('material-results').children[0].children[0].textContent,'Batt · Substrate');
+    assert.equal(h.byId('material-results').children[0].children[4].textContent,'0.13');
+    assert.deepEqual(copy(h.app.reportPayload().penetration),sent.payload.penetration);
+    assert.equal(h.app.projectEstimate().penetration,undefined);
+    assert.equal(h.pen.api.projectSnapshot().composer.rows[0].inputs.O,99);
+  });
+  await penetrationCheck('Schedule edits invalidate pending combined totals but composer edits do not',async h=>{
+    h.app.state.initialized=true;h.context.window.CeasefireProject.scheduleChanged();
+    const pending=deferred();h.app.setRequest(()=>pending.promise);
+    const calculating=h.app.calculate();await flush();const revision=h.app.state.revision;
+    h.pen.audit.state.draft.rows[0].inputs.O=99;h.pen.audit.changed('line-1');
+    assert.equal(h.app.state.revision,revision);
+    h.pen.audit.state.schedule.draft.rows=[{id:'scheduled',inputs:{O:2}}];h.pen.audit.changed('scheduled',h.pen.audit.state.schedule);
+    assert.ok(h.app.state.revision>revision);assert.equal(h.byId('sum-total').textContent,'—');
+    pending.resolve({summary:{total:999999},cells:{},materials:[],errors:{}});await calculating;
+    assert.equal(h.app.state.result,null);assert.equal(h.byId('sum-total').textContent,'—');
+  });
+  await penetrationCheck('Invalid schedule quantity blocks quote calculations without blocking an unscheduled composer',async h=>{
+    let requests=0;h.app.setRequest(async()=>{requests++;return {summary:{},cells:{},materials:[],errors:{}};});
+    h.pen.audit.state.invalid.set('["line-1","O"]',{value:'bad',error:'Invalid number'});
+    await h.app.calculate();assert.equal(requests,1);
+    h.pen.audit.state.schedule.invalid.set('["scheduled","O"]',{value:'bad',error:'Invalid number'});
+    await h.app.calculate();assert.equal(requests,1);assert.match(h.byId('calculation-errors').textContent,/firestopping schedule input/);
+  });
+  await penetrationCheck('Invalid raw schedule entry during quote saving remains dirty even when parsed values match the saved draft',async h=>{
+    const pending=deferred();let payload;
+    h.app.setRequest((path,options)=>{payload=JSON.parse(options.body);return pending.promise;});
+    const saving=h.app.saveQuote();await flush();
+    h.pen.audit.state.schedule.invalid.set('["scheduled","O"]',{value:'1e',error:'Invalid number'});
+    pending.resolve({...payload,id:'saved-quote'});await saving;
+    assert.equal(h.app.state.dirty,true);assert.match(h.byId('app-message').textContent,/Changes made while saving still need/);
+    assert.equal(h.pen.audit.state.schedule.invalid.get('["scheduled","O"]').value,'1e');
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

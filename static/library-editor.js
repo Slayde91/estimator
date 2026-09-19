@@ -93,14 +93,12 @@
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     }));
     const fields = node("div", "library-editor-fields"); fields.append(...state.definition.row_fields.filter(field => field.group === state.group).map(field => makeControl(field, false))); $("library-editor-fields").replaceChildren(fields);
-    const globals = node("div", "library-editor-fields"); globals.append(...state.definition.global_fields.map(field => makeControl(field, true))); $("library-editor-globals").replaceChildren(globals);
-    $("library-editor-project-allowances").hidden = state.group !== "Additional Allowances";
   }
   function renderOutputs() {
-    const price = state.result?.rows?.[0]?.outputs?.H ?? (!hasUnsavedChanges() ? state.record.price?.amount ?? state.record.source_price?.amount : null);
+    const price = state.result ? state.result.rows?.[0]?.outputs?.H : (!hasUnsavedChanges() ? state.record.price?.amount : null);
     $("library-editor-price").textContent = display(price, "currency");
     $("library-editor-pricing-basis").textContent = state.record.pricing_label || "Workbook prices";
-    const labels = { materials: "Materials", labour: "Labour", access: "Access", travel_lafha: "Travel / accommodation", other_allowances: "Other allowances", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
+    const labels = { materials: "Materials", labour: "Labour", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
     $("library-editor-summary").replaceChildren(...Object.entries(labels).map(([key, label]) => { const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(state.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line; }));
     const errors = state.result?.errors || [];
     $("library-editor-summary-notes").textContent = errors.length ? errors.map(error => `${error.cell}: ${error.message}`).join("\n") : "Calculated from this library item's inputs and selected pricing basis.";

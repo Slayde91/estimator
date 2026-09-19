@@ -21,13 +21,15 @@ Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` i
 The **Estimator** tab has two tiles. **Estimator** includes the **Firestopping
 Schedule** below Material Requirements & Output, with its own totals and
 PDF/XLSX downloads. **Firestopping Estimator** calculates one current item;
-**Add to Schedule** copies it into the schedule using the schedule's allowances
-and current project prices. Editing the current item does not change existing
+**Add to Schedule** copies it into the schedule using current project prices.
+Editing the current item does not change existing
 schedule lines. **Edit** loads a copy of a schedule line; **Update Schedule**
 explicitly applies it, and **Cancel edit** restores the previous current item.
 Both use the same project details and pricing library, and are saved together.
-The existing estimate and firestopping totals remain separate. The supplied
-workbook formulas remain intact.
+Scheduled materials, labour costs and days also contribute once to the main
+quote totals and exports. Global firestopping allowances and substrate, access
+and complexity multipliers no longer affect estimates. The supplied workbook
+formulas remain intact as the source reference.
 See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
 
 The **Libraries** tab has **Pricing Library**, **Firestopping Library** and
@@ -55,7 +57,7 @@ price beside the item. The current item in the Firestopping Estimator is retaine
 
 1. Enter **Project No.**, **Client** and **Site Address**. The quote name is generated as `Project No.- Client- Site Address`, omitting empty parts.
 2. Enter assessed coverage, product units, daily outputs, labour teams and allowances. Percentage controls display percentages: enter `10` for 10%.
-3. Review the live total, **Material Breakdown** and **Labour Breakdown**. The labour table shows task, masking, extra-labour and mobilisation days leading to total project days, without a separate task-labour subtotal row. Pinning is included in meshing days. Use the main **NOTES** field for general notes. The separate historical Notes field is hidden; its stored text is retained.
+3. Review the live total, **Material Breakdown** and **Labour Breakdown**. Firestopping Schedule materials, labour costs and days are included once in the quote and its PDF. Each firestopping product/context has its own quantity, unit sell rate, total and labour days; shared Board/Wrap hours are split by calculated quantities using eight hours per day. The labour table includes task, masking, extra-labour and mobilisation days. Pinning is included in meshing days. Use the main **NOTES** field for general notes. The separate historical Notes field is hidden; its stored text is retained.
 4. Click **Save As** to choose a folder and filename for the estimate, its complete pricing library and all three calculators. **Save** updates the currently opened or saved project file without another file dialog. If no project file is open, use **Save As** first. Reopen a file through **Saved projects** or the native **Load Project** dialog; use **Use current pricing** when you want to replace its original prices with the last saved shared library. A file changed or removed outside the app must be reopened or saved through **Save As** before it can be overwritten.
 5. In **Libraries → Pricing Library**, choose **Shared library** or **Current project pricing**. Each product has one row with an editable **Product/Service** label, supplier price, markup, uses and one yield. Existing selection keys and independent rate overrides remain intact; **Show rate overrides** reveals the rate editor when needed. Yield units are read-only and follow the calculation. Filter by **Used in Estimator** or search for an item or use; unused products and standalone rates remain available. **Save pricing** stores shared-library edits, while **Apply project pricing** updates only the active estimate. **Save / Save As** stores its project prices in the project file.
 6. Use **Download PDF** for a branded quote report named **CEASEFIRE-Estimate.pdf**. An unchanged saved quote uses its stored results and original pricing. A new or edited estimate uses the inputs and pricing captured when you click, without saving the estimate. PDF download is the report action; the separate Print button has been removed.
@@ -69,6 +71,8 @@ The PDF omits the workflow subtitle beneath the quote title, the Work summary se
 The estimator and PDF present business labels instead of raw worksheet cell addresses. Internal formula mappings and saved calculation evidence remain available in the code and developer documentation; the calculation engine is unchanged.
 
 The quote name is read-only: for example, project `CF-1042`, client `Example Client` and site `10 High Street` produce `CF-1042- Example Client- 10 High Street`. Partial details use only the populated parts. Older quotes retain their manual names until details are entered; a new estimate without details is called `Untitled quote`. Details and the generated work summary are saved with the quote. The summary describes recorded work only; it is produced locally from the existing calculation, with no external AI or inferred technical rules.
+
+Coverage required needs a selected labour team for Spraying, Meshing, Access panels, Fan enclosure mesh, Primer, Topcoat, Board and Mastic. A nonzero entry with its team set to N/A or blank is rejected with **Select Teams**; Pins / clips are exempt. Deselecting a team preserves existing coverage but blocks calculations and saving until a team is selected or coverage is cleared. This rule is enforced by the server as well as the form. Older project files with missing teams can still be opened for correction; their totals remain unavailable until corrected.
 
 The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/cleaning (%), Coverage required, Wastage %, Global Material Adjustment (%), Global Labour Adjustment (%), Mobilisation count and Administration count. Fractional entries show an error and must be corrected before saving or downloading. Global Adjustment ($) displays currency, including negative deductions. Daily output and extra labour days still accept decimals. Hover over Coverage required and Daily output fields to see their units. Primer, Topcoat and Board daily outputs are product quantities, rather than square metres; coverage remains in m². Existing fractional values in saved quotes or project files remain exact until deliberately edited; viewing or saving them does not round them. Calculated amounts, PDF values and Excel numeric formats retain two-decimal presentation without rounding the underlying calculations. The separate Calculators controls retain all entered digits. Percentage controls convert percentages to stored fractions. Product names, item codes and free-text notes keep their original text.
 

@@ -150,8 +150,20 @@ def compile_work_summary(workflow, result):
         adjustments.append("fixed adjustment " + value("D27", money=True))
     if adjustments:
         lines.append("Adjustments: " + "; ".join(adjustments) + ".")
+    if 'firestopping' in result:
+        schedule = result['firestopping']['result']
+        schedule_summary = schedule['summary']
+        count = len(schedule['rows'])
+        lines.append('Firestopping schedule: ' + str(count) + (' line' if count == 1 else ' lines') + '; materials ' +
+                     _number(schedule_summary.get('materials'), money=True) + '; labour ' +
+                     _number(schedule_summary.get('labour'), money=True) + '. Included once in the quote totals.')
+        summary = result['summary']
+        days = 'unavailable' if summary.get('days') is None else _number(summary['days'])
+        total = 'unavailable' if summary.get('total') is None else _number(summary['total'], money=True)
+    else:
+        days, total = value('F10'), value('F7', money=True)
     lines.append("Project measure: " + value("B8") + " area / items; total project duration " +
-                 value("F10") + " days; quote total " + value("F7", money=True) + ".")
+                 days + " days; quote total " + total + ".")
     if errors:
         lines.append("Some calculated amounts or durations are unavailable. Review the calculation errors before relying on this estimate.")
     return "\n".join(lines)

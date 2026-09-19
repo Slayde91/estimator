@@ -20,7 +20,11 @@ from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
 
 CAPACITY = 1000
 GLOBAL_DEFAULTS = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
-ROW_DEFAULTS = {'Q': 'Standard', 'R': 'Standard'}
+# Explicit application policy; original workbook formulas and saved inputs remain
+# available for provenance. Removed allowances never affect effective estimates.
+EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
+CALCULATION_POLICY_VERSION = 'firestopping-no-global-allowances-or-multipliers-v1'
+ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
     'Access Panel', 'Blank Seal', 'Cable Bundles', 'Coaxial Cables', 'Conduit',
@@ -117,6 +121,8 @@ def definition(configuration=None, service_types=None):
     }
     for group, columns in GROUP_COLUMNS.items():
         for col in columns:
+            if col in ('Q', 'R'):
+                continue
             options = selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, [])
             label = {'T': 'Items/Services', 'U': 'System/Install Details'}.get(col, calc[col + '3']['value'])
             fields.append({'column': col, 'address': col + '4', 'label': label,
@@ -124,10 +130,6 @@ def definition(configuration=None, service_types=None):
                 'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
                 'format': 'percent' if col in PERCENT_COLUMNS else 'currency' if col in ('AI', 'AJ') else 'text' if col in TEXT_COLUMNS else 'number',
                 'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hours' if col == 'AH' else ''})
-    global_fields = [{'column': col, 'address': col + '2', 'label': calc[col + '1']['value'],
-        'type': 'select' if col == 'J' else 'number', 'options': ['Yes', 'No'] if col == 'J' else [],
-        'group': 'Additional Allowances', 'scope': 'project', 'default': value, 'format': 'percent' if col in ('L', 'M') else 'text' if col == 'J' else 'number',
-        'units': '%' if col in ('L', 'M') else 'days' if col == 'K' else ''} for col, value in GLOBAL_DEFAULTS.items()]
     output_fields = []
     for address, cell in sorted(calc.items(), key=lambda item: coordinates(item[0])[1]):
         if not address.endswith('4') or 'formula' not in cell:
@@ -141,7 +143,8 @@ def definition(configuration=None, service_types=None):
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
         'schedule_defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': []},
-        'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS),
+        'global_fields': [], 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS),
+        'allowed_input_columns': list(ROW_COLUMNS), 'calculation_policy': CALCULATION_POLICY_VERSION,
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
 
 
@@ -297,14 +300,15 @@ def _copy_row_formula(formula, destination):
         for i, part in enumerate(re.split(r'("(?:[^"]|"")*")', formula)))
 
 
-def engine_for_draft(draft, configuration=None):
+def engine_for_draft(draft, configuration=None, *, effective=True):
     draft = normalize_draft(draft)
     model = dict(source_model())
     model['sheets'] = [dict(s, cells=dict(s['cells'])) if s['name'] == 'CALC' else s for s in model['sheets']]
     calc = next(s for s in model['sheets'] if s['name'] == 'CALC')['cells']
     formulas = {a: c for a, c in calc.items() if a.endswith('4') and 'formula' in c}
     overlays, _ = inventory_lists(configuration)
-    inputs = {'LISTS': overlays, 'CALC': {col + '2': value for col, value in draft['globals'].items()}}
+    globals_ = EFFECTIVE_GLOBALS if effective else draft['globals']
+    inputs = {'LISTS': overlays, 'CALC': {col + '2': value for col, value in globals_.items()}}
     if not draft['rows']:
         # The workbook has one physical template row. An empty application
         # schedule has no template item or travel/setup charge to calculate.
@@ -317,6 +321,10 @@ def engine_for_draft(draft, configuration=None):
     for index, row in enumerate(draft['rows'], 4):
         for col in ROW_COLUMNS:
             inputs['CALC'][col + str(index)] = row['inputs'].get(col)
+        if effective:
+            # These are additive source surcharges, so zero removes the effect
+            # regardless of historical P/Q/R values or changed lookup prices.
+            inputs['CALC'].update({col + str(index): 0 for col in ('BI', 'BJ', 'BK')})
         for address, cell in formulas.items():
             if index != 4:
                 calc[address[:-1] + str(index)] = dict(cell, formula=_copy_row_formula(cell['formula'], index))
@@ -339,7 +347,7 @@ def calculate(draft, configuration=None):
             except FormulaError as error:
                 output[field['column']] = error.code
                 row_errors.append({'cell': address, 'message': error.code})
-        for col in (*PRICE_COLUMNS, *CHOICE_NAMES):
+        for col in (*PRICE_COLUMNS, *(col for col in CHOICE_NAMES if col not in ('Q', 'R'))):
             value = row['inputs'].get(col)
             options = next(f['options'] for f in spec['row_fields'] if f['column'] == col)
             if value and value.casefold() not in {v.casefold() for v in options}:
@@ -362,8 +370,10 @@ def calculate(draft, configuration=None):
         summary['labour_hours'] = error.code
         errors.append({'row_id': None, 'cell': 'DK4:DK' + str(len(rows) + 3), 'message': error.code})
     breakdown = {address: engine.value('BREAKDOWN', address) for address, cell in _sheet('BREAKDOWN')['cells'].items() if 'formula' in cell}
-    from .penetration_breakdown import add_breakdowns, schedule_breakdown
-    result = add_breakdowns({'source_sha256': source_model()['source']['sha256'], 'draft': draft, 'summary': summary,
+    from .penetration_breakdown import add_breakdowns, material_breakdown, schedule_breakdown
+    result = add_breakdowns({'source_sha256': source_model()['source']['sha256'], 'calculation_policy': CALCULATION_POLICY_VERSION,
+        'draft': draft, 'summary': summary,
         'summary_cells': summary_cells, 'rows': rows, 'errors': errors, 'breakdown_cells': breakdown, 'definition': spec}, source_model())
     result['schedule_breakdown'] = schedule_breakdown(result)
+    result['material_breakdown'] = material_breakdown(result)
     return result

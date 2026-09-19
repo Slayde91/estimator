@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict');
+const assert=require('node:assert/strict'),fs=require('node:fs');
 const {copy,definition,result,harness}=require('./helpers/penetration_ui.cjs');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
@@ -27,13 +27,13 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const table=rendered.children[1].children[0],line=table.children[2].children[0];assert.equal(line.children[0].children.length,0);assert.equal(line.children[3].textContent,'$0.00');assert.equal(line.children[4].textContent,'—');
     assert.match(text(h.context.window.CeasefirePenetrationBreakdown.render(definition(),{outputs:{},errors:[]})),/unavailable/);
   });
-  await check('Summary and Multipliers preserve source costs and adjustments beside the consolidated table',async h=>{
+  await check('Summary retains item totals while removed allowance outputs and Multipliers stay absent without changing source values',async h=>{
     const metadata=definition();metadata.output_fields.push({column:'B',label:'Substrate cost',group:'Summary',format:'currency'},{column:'BI',label:'Complexity',group:'Multipliers',format:'percent'},{column:'BJ',label:'Access',group:'Multipliers',format:'percent'});
     const row=result(metadata.defaults).rows[0];Object.assign(row.outputs,{B:37.89123,BI:.123456789,BJ:'#VALUE!'});
-    const rendered=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row),sections=rendered.children.filter(child=>child.tagName==='details');
-    assert.deepEqual(sections.map(section=>section.children[0].textContent),['Summary','Multipliers']);assert.match(text(sections[0]),/Substrate cost.*\$37\.89/);assert.match(text(sections[1]),/Complexity.*12\.35%.*Access.*#VALUE!/);
-    assert.doesNotMatch(text(rendered),/Material quantities|Unit prices|Labour days/);
-    delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable.*Summary.*Substrate cost.*Multipliers/);
+    const original=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row),sections=rendered.children.filter(child=>child.tagName==='details');
+    assert.deepEqual(sections.map(section=>section.children[0].textContent),['Summary']);assert.match(text(sections[0]),/Item total.*\$123\.46/);assert.deepEqual(copy(row),original);
+    assert.doesNotMatch(text(rendered),/Substrate cost|37\.89|Multipliers|Complexity|12\.35%|Access|Material quantities|Unit prices|Labour days/);
+    delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable.*Summary.*Item total/);assert.doesNotMatch(text(unavailable),/Substrate cost|Multipliers|Complexity|Access/);
   });
   await check('An uncertain library save retries the same key and does not claim success',async h=>{
     h.context.crypto={randomUUID:()=> 'stable-capture'};const keys=[];h.audit.state.draft.rows[0].inputs={T:'Pipe',O:1};
@@ -90,19 +90,28 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const count=h.calls.length;await h.api.openSchedule();assert.equal(h.calls.length,count+1);assert.equal(h.calls.at(-1).payload.draft.rows.length,0);assert.equal(h.audit.state.result,null);
     await h.api.open();assert.equal(h.calls.at(-1).payload.draft.rows.length,1);assert.equal(h.api.hasUnsavedChanges(),false);
   });
-  await check('Composer inputs and allowances never change schedule calculation or global fields',async h=>{
-    h.control('O').value='2.3456789012345';await h.control('O').emit('input');h.control('L',null).value='12.3456789012345';await h.control('L',null).emit('input');
-    assert.equal(h.api.projectSnapshot().composer.globals.L,.123456789012345);assert.equal(h.api.projectSnapshot().draft.globals.L,0);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
-    await h.audit.calculate();assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.O,2.3456789012345);assert.equal(h.audit.state.schedule.result,null);
-    h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('penetration-project-allowances').hidden,false);
-    const scheduleGlobal=h.byId('penetration-schedule-global-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField==='L');scheduleGlobal.value='7.6543210987654';await scheduleGlobal.emit('input');
-    assert.equal(h.api.projectSnapshot().draft.globals.L,.076543210987654);assert.equal(h.api.projectSnapshot().composer.globals.L,.123456789012345);
+  await check('Raw composer and schedule globals survive editing, calculation and reopening without editable allowance controls',async h=>{
+    const snapshot={draft:copy(definition().schedule_defaults),composer:copy(definition().defaults)};
+    snapshot.composer.globals={J:'Yes',K:3.14159265358979,L:.123456789012345,M:27.123456789};snapshot.draft.globals={J:'No',K:null,L:.076543210987654,M:0};
+    h.api.applyProject(await h.api.prepareProject(snapshot));
+    h.control('O').value='2.3456789012345';await h.control('O').emit('input');
+    assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+    await h.audit.calculate();assert.equal(h.calls.at(-1).payload.draft.rows[0].inputs.O,2.3456789012345);assert.deepEqual(copy(h.calls.at(-1).payload.draft.globals),snapshot.composer.globals);assert.equal(h.audit.state.schedule.result,null);
+    await h.audit.calculateSchedule();assert.deepEqual(copy(h.calls.at(-1).payload.draft.globals),snapshot.draft.globals);
+    for(const group of h.audit.state.definition.groups){h.audit.state.group=group;h.audit.renderFields();assert.ok(h.byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').every(control=>control.dataset.penetrationRow==='line-1'));assert.equal(h.control('L',null),undefined);}
+    const captured=h.api.projectSnapshot();h.api.markProjectSaved(captured,captured);assert.equal(h.api.hasUnsavedChanges(),false);h.api.applyProject(await h.api.prepareProject(captured));
+    assert.deepEqual(copy(h.api.projectSnapshot().composer.globals),snapshot.composer.globals);assert.deepEqual(copy(h.api.projectSnapshot().draft.globals),snapshot.draft.globals);
+    const html=fs.readFileSync('static/index.html','utf8');for(const id of ['penetration-project-allowances','penetration-global-fields','penetration-schedule-global-fields'])assert.ok(!html.includes(`id="${id}"`),`${id} must not remain in HTML`);
   });
-  await check('Adding composer copies inputs only, keeps independent allowances and displays recalculated schedule receipt',async h=>{
+  await check('Substrate inputs remain available in the current item after allowance controls are removed',async h=>{
+    const button=h.byId('penetration-input-groups').children.find(button=>button.textContent==='Substrate');assert.ok(button);await button.emit('click');assert.equal(button.dataset.penetrationGroup,'Substrate');
+    const length=h.control('AW');assert.ok(length);length.value='450.123456789';await length.emit('input');await h.audit.calculate();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AW,450.123456789);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+  });
+  await check('Adding composer copies inputs only, preserves independent raw globals and displays recalculated schedule receipt',async h=>{
     h.audit.state.draft.rows[0].inputs={T:'Pipe',O:1.23456789012345};h.audit.state.draft.globals.L=.9;h.audit.state.schedule.draft.globals.L=.17;
     const composer=copy(h.api.projectSnapshot().composer);const receipt=await h.audit.addToSchedule();assert.equal(receipt.added,true);assert.equal(receipt.total,123.456789);
     assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),composer.rows[0].inputs);assert.equal(h.calls.at(-1).payload.draft.globals.L,.17);
-    await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);assert.match(receipt.message,/current schedule prices and allowances/);
+    await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);assert.match(receipt.message,/current schedule prices/);assert.doesNotMatch(receipt.message,/allowances/);
   });
   await check('Inline schedule quantity retains focus, exact precision and stable DOM without touching the composer',async h=>{
     await h.audit.addToSchedule();const body=h.byId('penetration-schedule-body'),row=body.children[0],quantity=row.children[5].querySelectorAll('[data-penetration-field]')[0];
@@ -194,7 +203,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Historical dropdown values stay visible without custom input and percentage focus retains precision',async h=>{
     h.audit.state.draft.rows[0].inputs.J='Legacy';h.audit.renderFields();const input=h.control('J');assert.equal(input.children.at(-1).disabled,true);input.value='Invented';await input.emit('change');assert.equal(h.audit.state.draft.rows[0].inputs.J,'Legacy');input.value='HVAC';await input.emit('change');assert.equal(h.api.inputProblem(),'');
-    const allowance=h.control('L',null);allowance.value='12.3456789012345';await allowance.emit('input');await allowance.blur();assert.equal(allowance.value,'12.35');await allowance.focus();assert.equal(allowance.value,'12.3456789012345');assert.equal(h.api.projectSnapshot().composer.globals.L,.123456789012345);
+    h.audit.state.group='Additional Allowances';h.audit.renderFields();const allowance=h.control('AG');allowance.value='12.3456789012345';await allowance.emit('input');await allowance.blur();assert.equal(allowance.value,'12.35');await allowance.focus();assert.equal(allowance.value,'12.3456789012345');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AG,.123456789012345);
   });
   for(const kind of ['pdf','xlsx'])await check(`${kind} exports schedule only and captures precision, prices, details and destination before later edits`,async h=>{
     h.control('O').value='123.456789012345';await h.control('O').emit('input');await h.audit.addToSchedule();h.control('O').value='99';await h.control('O').emit('input');const pending=deferred();let sent;h.context.fetch=(path,options)=>{sent={path,body:JSON.parse(options.body)};return pending.promise;};const saving=h.audit.download(kind);
@@ -204,9 +213,9 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('Unconfirmed downloads preserve drafts and disclose an actionable error',async h=>{
     const before=h.api.projectSnapshot();h.context.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false})});await h.audit.download('pdf');assert.match(h.byId('penetration-schedule-message').textContent,/did not confirm/);assert.deepEqual(copy(h.api.projectSnapshot()),copy(before));
   });
-  await check('Aggregate renderer retains server totals, line-labelled quantities and Summary/Multipliers without deriving amounts',async h=>{
-    const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{label:'Substrate cost',value:41.23,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{label:'Access',value:.125,format:'percent'}]}]}]};
-    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.match(content,/#VALUE!/);assert.match(content,/Summary.*Line 1.*Substrate cost.*41\.23/);assert.match(content,/Multipliers.*Line 2.*Access.*12\.50%/);assert.deepEqual(copy(output),original);
+  await check('Aggregate renderer retains server totals and line-labelled Summary while hiding allowance outputs and Multipliers without deriving amounts',async h=>{
+    const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{column:'B',label:'Substrate cost',value:41.23,format:'currency'},{column:'H',label:'Item total',value:123.456789,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{column:'BJ',label:'Access',value:.125,format:'percent'}]}]}]};
+    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.match(content,/#VALUE!/);assert.match(content,/Summary.*Line 1.*Item total.*123\.46/);assert.doesNotMatch(content,/Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
   });
   await check('Pending composer Add appends once, disables its action, and shows recalculated feedback in the current item view',async h=>{
     const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});

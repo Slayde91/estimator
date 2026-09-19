@@ -12,15 +12,18 @@ from .excel_engine import column_name, column_number
 
 TASKS = (
     ('Board', 'CX', 'DM', 'DE', (('CJ', 'Substrate'), ('CQ', 'Bulkhead'))),
-    ('Collars', 'CY', 'DN', 'DF', ()),
+    ('Collars', 'CY', 'DN', 'DF', (('AN', 'Collars'),)),
     ('Mastic', 'CZ', 'DO', 'DG', (('AC', 'Mastic Qty'),)),
     ('Framing', 'DA', 'DP', 'DH', (('CU', 'Bulkhead'),)),
     ('Wrap', 'DB', 'DQ', 'DI', (('BS', 'Pipes'), ('CB', 'Cabletrays'))),
-    ('Other', 'DC', 'DR', 'DJ', ()),
+    ('Other', 'DC', 'DR', 'DJ', (('AF', 'Additional material'),)),
 )
-NOTE = ('Quantities use this line’s Item QTY. Costs and task hours include the applicable allowances. '
+NOTE = ('Quantities, costs and task hours use this line’s Item QTY. '
         'Labour includes setup/register time and the labour adjustment; Other includes the material adjustment. '
-        'Substrate, complexity, access and travel/LAFHA are shown separately.')
+        'Project allowances and substrate, access and complexity multipliers are excluded.')
+HOURS_PER_DAY = 8
+PRODUCT_COLUMNS = {'Labour': 'W', 'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
+                   'Framing': 'Z', 'Wrap': 'AA', 'Other': 'AE'}
 
 
 class _Unavailable(Exception):
@@ -77,11 +80,14 @@ def _miscellaneous_hours(model):
     return _compute(lambda: sum(_number(cell.get('value')) for cell in values))
 
 
-def line_breakdown(row, globals_, miscellaneous_hours):
+def line_breakdown(row, globals_, miscellaneous_hours, *, effective=True):
     inputs, outputs = row['inputs'], row['outputs']
     quantity = inputs.get('O')
-    labour_factor = _compute(lambda: (1 + _number(globals_.get('L'))) * _number(quantity))
-    material_factor = _compute(lambda: (1 + _number(globals_.get('M'))) * _number(quantity))
+    # Legacy globals are retained in saved inputs, but no longer affect pricing.
+    labour_factor = material_factor = _source_value(quantity)
+    if not effective:  # Source-oracle verification only; never an application path.
+        labour_factor = _compute(lambda: (1 + _number(globals_.get('L'))) * _number(quantity))
+        material_factor = _compute(lambda: (1 + _number(globals_.get('M'))) * _number(quantity))
     total_hours = outputs.get('DK')
 
     def hours(value):
@@ -125,7 +131,9 @@ def line_breakdown(row, globals_, miscellaneous_hours):
         for column, context in quantities:
             # AC is the source Mastic Qty input; DO prices AC and G applies O.
             # Like the source-derived quantities, its display uses Item QTY once.
-            value = inputs.get(column) if column == 'AC' else outputs.get(column)
+            value = inputs.get(column) if column in ('AC', 'AN', 'AF') else outputs.get(column)
+            if column == 'AF' and value not in (None, ''):
+                value = _compute(lambda: _number(value) * (1 + _number(inputs.get('AG'))))
             scaled = value if value in (None, '') else _compute(lambda: _number(value) * _number(quantity))
             quantity_values.append({'column': column, 'label': context, 'value': scaled,
                                     'format': 'number', 'units': ''})
@@ -142,11 +150,11 @@ def line_breakdown(row, globals_, miscellaneous_hours):
                        'task_hours': _source_value(outputs.get('DK'))}, 'note': note}
 
 
-def add_breakdowns(result, source):
+def add_breakdowns(result, source, *, effective=True):
     """Attach view data only after the source calculation has completed."""
     miscellaneous = _miscellaneous_hours(source)
     for row in result['rows']:
-        row['breakdown'] = line_breakdown(row, result['draft']['globals'], miscellaneous)
+        row['breakdown'] = line_breakdown(row, result['draft']['globals'], miscellaneous, effective=effective)
     return result
 
 
@@ -157,8 +165,7 @@ def schedule_breakdown(result):
     Entries without a selected product keep their individual line identities.
     The footer is the canonical calculation summary, not a rounded re-sum.
     """
-    products = {'Labour': 'W', 'Board': 'X', 'Collars': 'Y', 'Mastic': 'AB',
-                'Framing': 'Z', 'Wrap': 'AA', 'Other': 'AE'}
+    products = PRODUCT_COLUMNS
     rows = []
     for task, product_column in products.items():
         entries = [(index, row, next(item for item in row['breakdown']['rows'] if item['label'] == task))
@@ -194,8 +201,9 @@ def schedule_breakdown(result):
         rows.append(combined)
 
     source_groups = []
-    for group in ('Summary', 'Multipliers'):
-        fields = [field for field in result['definition']['output_fields'] if field['group'] == group]
+    for group in ('Summary',):
+        fields = [field for field in result['definition']['output_fields']
+                  if field['group'] == group and field['column'] not in ('B', 'C', 'D', 'E')]
         source_rows = []
         for index, row in enumerate(result['rows'], 1):
             values = [{key: field.get(key, '') for key in ('column', 'label', 'format', 'units')}
@@ -210,6 +218,62 @@ def schedule_breakdown(result):
                        'labour_costs': _source_value(summary['labour']),
                        'task_hours': _source_value(summary['labour_hours'])},
             'source_groups': source_groups,
-            'note': ('Costs and task hours include schedule quantities and allowances. '
+            'note': ('Costs and task hours include schedule quantities. '
                      'Matching product unit prices are shown once; quantities total matching products, contexts and units. '
-                     'Summary and multiplier values are shown per line; project travel is included once in the schedule total.')}
+                     'Project allowances and substrate, access and complexity multipliers are excluded.')}
+
+
+def material_breakdown(result):
+    """Project schedule products into the quote's material and labour-day rows.
+
+    Board and Wrap share one source task per line. Their hours are allocated
+    proportionally to that line's calculated quantities, before aggregation.
+    Never round quantities, prices or hours before the display/export boundary.
+    """
+    materials, grouped = [], {}
+    for index, row in enumerate(result['rows'], 1):
+        for task in row['breakdown']['rows']:
+            quantities = [value for value in task['material_quantities']
+                          if value['value'] not in (None, '')]
+            if not quantities:
+                continue
+            total_quantity = _compute(lambda: sum(_number(value['value']) for value in quantities))
+            hours = task['task_hours']
+            allocated = 0
+            for position, value in enumerate(quantities):
+                quantity = _source_value(value['value'])
+                if total_quantity == 0 or hours in (None, ''):
+                    share = 0
+                elif position == len(quantities) - 1:
+                    share = _compute(lambda: _number(hours) - _number(allocated))
+                else:
+                    share = _compute(lambda: _number(hours) * _number(quantity) / _number(total_quantity))
+                allocated = _compute(lambda: _number(allocated) + _number(share))
+                product = row['inputs'].get(PRODUCT_COLUMNS[task['label']])
+                price = _source_value(task['unit_prices'][0]['value'])
+                context = value.get('label', '')
+                key = (product, task['label'], value['column'], context, value.get('units', ''), price,
+                       row['id'] if product in (None, '') else None)
+                if key not in grouped:
+                    item = {'source': 'firestopping', 'name': ' · '.join(str(part) for part in
+                            (product or f"Line {index} {task['label']}", context) if part),
+                            'product': product, 'context': context, 'quantity': quantity,
+                            'price': price, 'task_hours': share, 'row_ids': [],
+                            'quantity_column': value['column'], 'units': value.get('units', '')}
+                    grouped[key] = item
+                    materials.append(item)
+                else:
+                    item = grouped[key]
+                    item['quantity'] = _compute(lambda: _number(item['quantity']) + _number(quantity))
+                    item['task_hours'] = _compute(lambda: _number(item['task_hours']) + _number(share))
+                item['row_ids'].append(row['id'])
+        adjustment = row['inputs'].get('AI')
+        if adjustment not in (None, '', 0):
+            amount = _compute(lambda: _number(adjustment) * _number(row['inputs'].get('O')))
+            materials.append({'source': 'firestopping', 'name': f'Line {index} · Material adjustment',
+                              'product': None, 'context': 'Material adjustment', 'quantity': 1,
+                              'price': amount, 'task_hours': 0, 'row_ids': [row['id']], 'units': ''})
+    for item in materials:
+        item['total'] = _compute(lambda: _number(item['quantity']) * _number(item['price']))
+        item['days'] = _compute(lambda: _number(item['task_hours']) / HOURS_PER_DAY)
+    return materials

@@ -22,12 +22,13 @@
   function sourceGroups(container, definition, row) {
     if (Array.isArray(row.breakdown?.source_groups)) {
       for (const group of row.breakdown.source_groups) {
+        if (group.label === "Multipliers") continue;
         const section = node("details", "penetration-output-group"); section.append(node("summary", "", group.label));
         if (!group.rows.length) section.append(node("p", "helper", "No schedule items."));
         for (const item of group.rows) {
           section.append(node("h4", "penetration-source-line", item.label));
           const list = node("dl", "cost-list");
-          for (const field of item.values) {
+          for (const field of item.values.filter(field => !["B", "C", "D", "E", "BI", "BJ", "BK"].includes(field.column))) {
             const line = node("div"); line.append(node("dt", "", field.label + (field.units ? ` (${field.units})` : "")), node("dd", "", display(field.value, field.format))); list.append(line);
           }
           section.append(list);
@@ -36,8 +37,8 @@
       }
       return;
     }
-    for (const group of ["Summary", "Multipliers"]) {
-      const fields = (definition?.output_fields || []).filter(field => field.group === group);
+    for (const group of ["Summary"]) {
+      const fields = (definition?.output_fields || []).filter(field => field.group === group && !["B", "C", "D", "E"].includes(field.column));
       if (!fields.length) continue;
       const section = node("details", "penetration-output-group"), list = node("dl", "cost-list");
       section.append(node("summary", "", group));

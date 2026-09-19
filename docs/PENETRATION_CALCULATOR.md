@@ -2,8 +2,9 @@
 
 The main Estimator contains the Firestopping Schedule below Material Requirements
 & Output. The Firestopping Estimator is an independent single-item calculator.
-They share project details and one effective pricing snapshot. The existing
-estimate and firestopping schedule totals remain separate.
+They share project details and one effective pricing snapshot. Schedule materials,
+labour costs and days are included once in the main quote summary and quote PDF.
+The independent current item contributes only after it is added to the schedule.
 
 The visible name is Firestopping Estimator. Source filenames, the internal
 `penetration` project key and `/api/penetration` routes remain unchanged for
@@ -44,10 +45,14 @@ row formulas with Excel-relative-reference semantics, and summary SUM ranges
 extend over all rows. The app supports 0–1,000 schedule rows; the current-item
 calculator always has one row. An empty schedule overlays zero summary and
 BREAKDOWN outputs and clears template inputs, so it charges no travel or setup.
-The original workbook's
-formulas in the packaged source are not rewritten. Project allowances remain the
-source constants (LISTS BY2 = 650 and BZ2 = 2080), with the original global LAFHA,
-day and percentage inputs. The source image cell S4 already contains a cached
+The original workbook's formulas and constants in the packaged source are not
+rewritten. The effective application policy disables global LAFHA, travel days,
+labour/material percentages and substrate/access/complexity surcharges. It
+overlays J2:M2 with No/0/0/0 and BI/BJ/BK with zero for every row, regardless of
+legacy inputs or current pricing. Historical inputs remain portable but cannot
+reactivate those effects. Explicit row materials, manual hours and adjustments
+(AE:AJ), quantity, wastage and source setup/register time remain active.
+The source image cell S4 already contains a cached
 `#VALUE!`; it is not a financial formula or an editable estimating input.
 
 ## Project and output behavior
@@ -61,7 +66,7 @@ the complete schedule totals are calculated independently. Numeric inputs retain
 full stored precision; percentages are shown and edited as percentages.
 
 **Add to Schedule** copies the current item's inputs using current project prices
-and schedule allowances. **Edit** copies a schedule row into the current-item
+and the effective calculation policy. **Edit** copies a schedule row into the current-item
 form; only **Update Schedule** applies those edits. **Cancel edit** restores the
 previous current item. Library additions leave both library navigation and the
 current item intact, with the recalculated price displayed beside the library action.
@@ -75,33 +80,47 @@ rows remain unchanged, preserving their fixed per-row charges.
 
 Item QTY is editable in the schedule without changing the independent current item.
 Invalid or incomplete numeric text remains visible and blocks calculation;
-asynchronous results do not interrupt typing or replace newer inputs. Project
-LAFHA, travel days and global percentages appear under Schedule allowances in
-the main Estimator. The current item has independent allowances under Additional
-Allowances; adding or updating a schedule line uses the schedule allowances.
-The library editor applies its separate
-allowances only to that library item.
+asynchronous results do not interrupt typing or replace newer inputs. Current-item
+and schedule global allowance controls, Access and Complexity are omitted.
+Substrate remains descriptive. Library edits and existing saved items use the
+same effective policy; their frozen product and labour prices remain independent.
 
 The selected item and library editor share a seven-row cost table: Labour,
-Board, Collars, Mastic, Framing, Wrap and Other. Its six quantity values are
-the source product quantities BS/CB/CJ/CQ/CU and the Mastic Qty input AC,
-each multiplied by Item QTY once. Mastic Qty is the same input priced by DO;
-the quantity display does not add the global material allowance. No rounding
-up is added. Task hours and costs include the existing global adjustments and
-quantity so the subtotals are exactly the original G/F/DK outputs. Setup/register
+Board, Collars, Mastic, Framing, Wrap and Other. Quantity values use the source
+BS/CB/CJ/CQ/CU product quantities, Mastic Qty AC, collar multiplier AN and
+additional material AF with its AG wastage, each multiplied by Item QTY once.
+No rounding up or global allowance is added. Task hours and costs use Item QTY
+and reconcile to the effective G/F/DK outputs. Setup/register
 hours come from the source named range; AI is allocated to Other materials and
 AJ to Labour costs. The canonical DK result controls the source hours gate.
-Blanks, zeros, negatives and calculation errors remain distinct. This is an
-additive display projection, not a replacement calculation. Raw outputs and
-export evidence remain complete. Summary and Multipliers remain available
-separately below the table. All table cells are centred. The schedule has a
+Blanks, zeros, negatives and calculation errors remain distinct. This is a
+display projection. Summary remains available below the table; removed allowance
+and multiplier values are omitted from the UI and exports. All table cells are
+centred. The schedule has a
 separate aggregate table: costs and task hours sum across schedule lines, with
 canonical schedule subtotals. Matching product unit prices are shown once.
 Material quantities sum only for the same product, source context and unit;
 different rates stay separate in Unit Prices. Entries without a selected product
 remain per line, and grouped entries retain their contributing row IDs.
-Summary and Multipliers
-retain each line's values. Travel/LAFHA follows the existing schedule calculation.
+Summary retains each line's effective values.
+
+Each material quantity also appears as a product/context row in the main
+Material Breakdown, with its unit sell rate, exact quantity multiplied by rate,
+and allocated task hours divided by eight. Allocation happens per schedule line
+before matching product/context/rate rows are grouped. The combined Board task
+is split between Substrate and Bulkhead in proportion to their calculated
+quantities; Wrap is split between Pipes and Cabletrays in the same way. The last
+share retains any floating-point remainder so each task's hours are counted once.
+Zero total quantities do not receive invented labour days. Setup time remains
+in Labour Breakdown, and monetary adjustments do not create hours. Explicit AI
+material adjustments appear separately with quantity one and their extended rate.
+
+The combined quote leaves original main-estimator cells unchanged and adds the
+schedule's canonical material cost, labour cost and days once to its summary.
+Main-estimator percentage allowances are not applied again to firestopping.
+Native projects store the schedule and composer separately; quote snapshots also
+freeze the schedule used for their combined result. Older stored quote results
+remain unchanged until explicitly recalculated.
 
 Save and Save As capture both estimates and the three existing calculators
 together. Project version 1 gains an optional `penetration` object containing
@@ -136,7 +155,8 @@ Run the focused calculation and integration checks with:
 python -m unittest tests.test_penetration_calculator tests.test_penetration_integration -v
 ```
 
-The cached source example matches all 76 CALC/BREAKDOWN outputs. The committed
+The raw source engine (`engine_for_draft(..., effective=False)`, used only by
+source regression tests) matches all 76 cached CALC/BREAKDOWN outputs. The committed
 `tests/fixtures/penetration_excel_oracle.json.gz` independently records **49
 Microsoft Excel scenarios and 3,786 formula outputs**, all matched by the app
 with zero differences at absolute tolerance 1e-10 / relative tolerance 1e-12.

@@ -122,7 +122,7 @@ class ProjectFileTests(unittest.TestCase):
         patch = {"product_service": label, "price": 401.1234567890123, "yield": 71.9876543210987}
         configuration = {"catalog": catalog, "inventory": {}, "rates": {identity: patch}}
         self.sender.save_configuration(configuration)
-        estimate = {"title": "Standalone service project", "inputs": {"D20": lookup_name, "B20": 142}}
+        estimate = {"title": "Standalone service project", "inputs": {"D20": lookup_name, "B20": 142, "D4": "1 Team - 1x"}}
         saved_quote = self.sender.save_quote(estimate)
         reopened_quote = self.sender.quote(saved_quote["id"])
         self.assertEqual(reopened_quote["configuration"]["rates"][identity], patch)

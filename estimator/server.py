@@ -10,7 +10,8 @@ import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from .calculator import calculate, fields, labour_breakdown
+from .calculator import fields, labour_breakdown
+from .estimate_composition import calculate
 from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, validate_configuration, ValidationError
 from .presentation import calculation_error_details
 from .quote_details import compile_work_summary
@@ -348,12 +349,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     quote["id"] = None
                     self.send_report(quote, "Current estimate", destination)
                 elif route == "/api/calculate" and self.command == "POST":
-                    if set(body) - {"inputs", "configuration", "workflow"}:
+                    if set(body) - {"inputs", "configuration", "workflow", "penetration"}:
                         raise ValidationError("Unknown calculation request fields.")
                     workflow = body.get("workflow", WORKFLOWS[0])
                     if not isinstance(workflow, str) or len(workflow) > 200:
                         raise ValidationError("Workflow must be text of at most 200 characters.")
-                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()))
+                    if 'penetration' in body and body['penetration'] is None:
+                        raise ValidationError('Include the Firestopping schedule draft only in the estimate.')
+                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()), body.get('penetration'))
                     self.send_payload(200, {**result, "error_details": calculation_error_details(result),
                                             "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":

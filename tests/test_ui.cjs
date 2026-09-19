@@ -645,5 +645,23 @@ let passed=0;
   assert.ok(markup.indexOf('id="breakdown-heading"')<markup.indexOf('id="labour-breakdown"'));assert.doesNotMatch(markup,/id="notes-heading"|id="calculated-notes"|Quote notes and material requirements/);
   assert.match(markup,/<th scope="col" class="numeric">Days<\/th>/);assert.match(markup,/Pinning is included in meshing days/);
 
+  // Every material's own team gates entry; pins/clips stay independent.
+  const teamMap={B15:'D2',B16:'D3',B18:'D6',B19:'D8',B20:'D4',B21:'D5',B22:'D9',B23:'D10'};
+  for(const [cell,team] of Object.entries(teamMap)){
+    setup();audit.state.inputs={...Object.fromEntries(Object.values(teamMap).map(key=>[key,'1 Team - 1x'])),[cell]:0,[team]:'N/A'};
+    const coverage=audit.makeControl({cell,label:'Coverage required',type:'number'},true),selector=audit.makeControl({cell:team,label:'Labour',type:'select',options:['N/A','1 Team - 1x']},true);
+    for(const rejected of ['2','-2','2.5']){coverage.value=rejected;await coverage.emit('input');assert.equal(audit.state.inputs[cell],0);assert.equal(coverage.value,'0');assert.equal(byId('app-message').textContent,'Select Teams');}
+    selector.value='1 Team - 1x';await selector.emit('input');coverage.value='3';await coverage.emit('input');assert.equal(audit.state.inputs[cell],3);assert.equal(audit.state.inputErrors.size,0);
+    selector.value='N/A';await selector.emit('input');assert.equal(audit.state.inputs[cell],3);assert.equal(audit.state.inputErrors.get(cell),'Select Teams');assert.equal(byId('app-message').textContent,'Select Teams');
+    let requests=0;audit.setRequest(async()=>{requests++;});await audit.calculate();await audit.saveQuote();assert.equal(requests,0);assert.equal(byId('calculation-errors').textContent,'Select Teams');assert.equal(byId('sum-total').textContent,'—');
+    selector.value='1 Team - 1x';await selector.emit('input');assert.equal(audit.state.inputs[cell],3);assert.equal(audit.state.inputErrors.has(cell),false);
+    selector.value='N/A';await selector.emit('input');coverage.value='0';await coverage.emit('input');assert.equal(audit.state.inputs[cell],0);assert.equal(audit.state.inputErrors.size,0);
+  }passed++;
+  setup();audit.state.inputs={B17:0,...Object.fromEntries(Object.values(teamMap).map(key=>[key,'N/A']))};const pins=audit.makeControl({cell:'B17',label:'Pins / clips coverage',type:'number'},true);pins.value='12';await pins.emit('input');assert.equal(audit.state.inputs.B17,12);assert.equal(audit.state.inputErrors.size,0);passed++;
+  // Loaded forbidden coverage is retained for correction; direct recalculation cannot display stale totals.
+  setup();audit.state.fields=copy(numericFields);audit.state.inputs=Object.fromEntries(numericFields.map(field=>[field.cell,field.default]));audit.state.inputs.B22=14.123456789;audit.state.inputs.D9='n/a';audit.renderInputs();assert.equal(audit.state.inputs.B22,14.123456789);assert.equal(audit.state.inputErrors.get('B22'),'Select Teams');
+  let blockedCalls=0;audit.setRequest(async()=>{blockedCalls++;});await audit.calculate();assert.equal(blockedCalls,0);assert.equal(byId('calculation-errors').textContent,'Select Teams');passed++;
+  // Selecting a team never removes an unrelated malformed number or its exact raw text.
+  setup();audit.state.inputs={B15:5,D2:'N/A',B28:0};audit.state.inputErrors.set('B28','Invalid money');audit.state.inputDrafts.set('B28','$bad');const fixTeam=audit.makeControl({cell:'D2',label:'Team',type:'select',options:['N/A','1 Team - 1x']},true);fixTeam.value='1 Team - 1x';await fixTeam.emit('input');assert.equal(audit.state.inputErrors.get('B28'),'Invalid money');assert.equal(audit.state.inputDrafts.get('B28'),'$bad');assert.equal(audit.state.inputs.B15,5);passed++;
   console.log(`${passed} UI metadata, precision, summary and race checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

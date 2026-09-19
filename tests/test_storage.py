@@ -132,7 +132,7 @@ class StorageTests(unittest.TestCase):
         rate = replacement["catalog"]["rate_groups"]["boards"][0]
         rate.update(source={}, price_mode="override", price=19, **{"yield": 2.5})
         self.store.save_configuration(replacement)
-        quote = self.store.save_quote({"title": "Imported board", "inputs": {"D15": "Replacement spray", "D22": rate["name"], "B22": 5}})
+        quote = self.store.save_quote({"title": "Imported board", "inputs": {"D15": "Replacement spray", "D22": rate["name"], "B22": 5, "D9": "1 Team - 1x"}})
         self.assertEqual(quote["configuration"]["rates"][rate["id"]], {"price": 19, "yield": 2.5})
         self.assertEqual(quote["result"]["cells"]["F22"], 2.5)
         replacement["catalog"]["rate_groups"]["boards"] = []

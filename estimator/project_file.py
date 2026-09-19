@@ -191,7 +191,11 @@ def export_project(store, request):
     estimate = request["estimate"]
     if not isinstance(estimate, dict) or set(estimate) - ESTIMATE_FIELDS:
         raise ValidationError("Project estimate contains unknown fields; include inputs and pricing, not calculated results.")
-    prepared = store.prepare_quote(estimate)
+    penetration = _portable_penetration(request["penetration"]) if "penetration" in request else None
+    quote_inputs = dict(estimate)
+    if penetration is not None:
+        quote_inputs['penetration'] = {key: penetration[key] for key in ('source_sha256', 'draft')}
+    prepared = store.prepare_quote(quote_inputs)
     drafts = request.get("calculators", {})
     if not isinstance(drafts, dict) or set(drafts) - set(CALCULATOR_IDS):
         raise ValidationError("Project calculators must use the three available calculator names.")
@@ -217,8 +221,8 @@ def export_project(store, request):
         "estimate": {key: prepared[key] for key in sorted(ESTIMATE_FIELDS)},
         "calculators": calculators,
     }
-    if "penetration" in request:
-        snapshot["penetration"] = _portable_penetration(request["penetration"])
+    if penetration is not None:
+        snapshot["penetration"] = penetration
     payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
     if len(payload) > MAX_PROJECT_FILE:
         raise ValidationError("The project file must be at most 16 MB.")
@@ -275,7 +279,10 @@ def load_project_bytes(store, payload):
         normalized[calculator_id] = {"inputs": inputs, "source_sha256": source_hash,
                                      "schedule_rows": normalize_schedule_rows(calculator_id, inputs, calculator.get('schedule_rows'))}
     penetration = _portable_penetration(snapshot["penetration"], saved=True) if "penetration" in snapshot else None
-    prepared = store.prepare_quote(estimate)
+    quote_inputs = dict(estimate)
+    if penetration is not None:
+        quote_inputs['penetration'] = {key: penetration[key] for key in ('source_sha256', 'draft')}
+    prepared = store.prepare_quote(quote_inputs, read_only=True)
     # This is a new active draft, never a reference to a local saved quote.
     prepared["id"] = None
     metadata = fields(effective_catalog(prepared["configuration"]))

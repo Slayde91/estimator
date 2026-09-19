@@ -60,6 +60,7 @@ class WorkSummaryTests(unittest.TestCase):
     def test_active_materials_masking_additions_and_adjustments_are_described(self):
         data = baseline()
         inputs = {f"B{row}": 10 for row in range(15, 24)}
+        inputs.update({f'D{row}': '1 Team - 1x' for row in range(2, 11)})
         selection_groups = {"B2": "access_hire", "B3": "freight_rates", "B5": "freight_rates",
                             "B6": "LAFHA_rates", "B7": "travel_rates"}
         inputs.update({cell: next(rate["name"] for rate in data["rate_groups"][group] if rate["name"] != "N/A")

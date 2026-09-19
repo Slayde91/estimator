@@ -175,6 +175,14 @@ class LegacyPricingWorkbookTests(unittest.TestCase):
             for source, expected in case.get("lookupOverrides", {}).items():
                 rate_id, field = source_index[source.replace("Lists!", "")]
                 config["rates"].setdefault(rate_id, {})[field] = expected
+            if case["id"] == "dropdown-D2-00":
+                # This native scenario intentionally enters coverage with no team.
+                # The new entry rule rejects it before calculation in either format.
+                self.assertEqual(case["inputs"]["D2"], "N/A")
+                self.assertNotEqual(case["inputs"]["B15"], 0)
+                with self.subTest(scenario=case["id"]), self.assertRaisesRegex(ValidationError, "^Select Teams$"):
+                    calculate(case["inputs"], config)
+                continue
             actual = calculate(case["inputs"], config)["cells"]
             for cell, expected in case["expected"].items():
                 with self.subTest(scenario=case["id"], cell=cell):
@@ -259,7 +267,7 @@ class LegacyPricingWorkbookTests(unittest.TestCase):
         self.assertEqual(configuration, before)
         self.assertEqual(result["summary"]["inventory"]["updated"], 0)
         self.assertEqual(result["summary"]["rates"]["updated"], 0)
-        inputs = {"B15": 18.75, "B19": 50.5, "D19": baseline()["rate_groups"]["boards"][0]["name"]}
+        inputs = {"B15": 18.75, "B19": 50.5, "D8": "1 Team - 1x", "D19": baseline()["rate_groups"]["boards"][0]["name"]}
         self.assertEqual(calculate(inputs, configuration)["cells"], calculate(inputs, result["configuration"])["cells"])
 
     def test_add_remove_products_choices_and_move_group_preserves_explicit_ids(self):
@@ -295,7 +303,7 @@ class LegacyPricingWorkbookTests(unittest.TestCase):
                 workbook["Rates"].cell(row, 7, yield_type)
                 workbook["Rates"].cell(row, 8).value = value
             result = self.imported(modify(self.exported, edit))
-            self.assertEqual(calculate({"D16": "Promat Promamesh", "B16": 10}, result["configuration"])["cells"]["B68"], expected)
+            self.assertEqual(calculate({"D16": "Promat Promamesh", "B16": 10, "D3": "1 Team - 1x"}, result["configuration"])["cells"]["B68"], expected)
 
     def test_invalid_ids_links_names_headers_numbers_and_yields_are_rejected(self):
         def change(sheet, identity, column, value):
@@ -471,7 +479,7 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
                 for before, after in zip(rates, catalog["rate_groups"][group]):
                     for key in ("id", "name", "inventory_id", "price", "yield"):
                         self.assertEqual(after[key], before[key], (group, key))
-            for inputs in ({}, {"B15": 37.625, "B16": 60, "B9": .17, "B27": .125}, {"D6": "1 Team (sheeting) - 1x "}, {"C15": 0}):
+            for inputs in ({}, {"B15": 37.625, "B16": 60, "D3": "1 Team - 1x", "B9": .17, "B27": .125}, {"D6": "1 Team (sheeting) - 1x "}, {"C15": 0}):
                 self.assertEqual(calculate(inputs)["cells"], calculate(inputs, result["configuration"])["cells"])
 
     def test_links_and_custom_dropdown_order_survive_sorting_collapse_and_filters(self):
@@ -492,8 +500,8 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
         self.assertEqual({r["id"]: r for r in before["inventory"]}, {r["id"]: r for r in after["inventory"]})
         for group, rates in before["rate_groups"].items():
             self.assertEqual([r["id"] for r in after["rate_groups"][group]], [r["id"] for r in rates])
-        self.assertEqual(calculate({"D20": "20kg SBR Latex - Promat", "B20": 280}, current)["cells"],
-                         calculate({"D20": "20kg SBR Latex - Promat", "B20": 280}, result["configuration"])["cells"])
+        self.assertEqual(calculate({"D20": "20kg SBR Latex - Promat", "B20": 280, "D4": "1 Team - 1x"}, current)["cells"],
+                         calculate({"D20": "20kg SBR Latex - Promat", "B20": 280, "D4": "1 Team - 1x"}, result["configuration"])["cells"])
 
     def test_inventory_and_independent_use_edits_keep_price_and_yield_ownership(self):
         def edit(workbook):
@@ -544,7 +552,7 @@ class CombinedPricingWorkbookTests(unittest.TestCase):
                 combined_cell(sheet, "Use", "mesh:2", "Yield").value = value
                 append_combined(sheet, **{"Row type": "Inventory", "Name": "Unused item", "Pricing mode": "Manual", "Sell price / rate": 42, "Markup": 0})
             result = self.imported(modify(self.exported, edit))
-            self.assertEqual(calculate({"D16": "Promat Promamesh", "B16": 10}, result["configuration"])["cells"]["B68"], expected)
+            self.assertEqual(calculate({"D16": "Promat Promamesh", "B16": 10, "D3": "1 Team - 1x"}, result["configuration"])["cells"]["B68"], expected)
             self.assertTrue(result["configuration"]["catalog"]["inventory"][-1]["id"].startswith("inv_"))
             again = self.imported(export_combined_pricing_workbook(result["configuration"]), result["configuration"])
             self.assertEqual(again["summary"]["inventory"]["added"], 0)

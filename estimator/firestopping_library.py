@@ -5,6 +5,7 @@ records; neither the shared pricing library nor a project's draft is changed.
 All prices are computed by the existing workbook calculator on the server.
 """
 
+from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
@@ -13,7 +14,9 @@ import math
 import re
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
-from .penetration_calculator import calculate, definition, normalize_draft, source_model
+from .penetration_calculator import (CALCULATION_POLICY_VERSION, EFFECTIVE_GLOBALS,
+                                    calculate, definition, engine_for_draft,
+                                    normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -170,6 +173,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         self.edits = LibraryEdits(store)
         self._effective_stamp = None
         self._effective = None
+        self._price_cache = OrderedDict()
 
     def _load(self):
         base = super()._load()
@@ -215,6 +219,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                     item['editable'] = False
                 else:
                     self._apply_edit(item, edit)
+            item['fields'] = [field for field in item['fields'] if field.get('column') not in ('Q', 'R')]
         items = {item['id']: item for item in library['items']}
         technical = {item['id']: item for item in data['libraries']['technical']['items']}
         pairs = {(link['penetration_id'], link['technical_id']) for link in data['links']}
@@ -301,10 +306,91 @@ class FirestoppingLibrary(ReferenceLibrary):
         token = hashlib.sha256(encoded(snapshot).encode()).hexdigest()
         return item, source, saved, snapshot, token
 
+    def _effective_prices(self, items):
+        """Price only the requested page against each item's frozen snapshot.
+
+        Supplier amounts and saved historical amounts remain immutable. Batch
+        compatible rows so a page hydrates its pricing lookups once, and bound
+        the in-memory cache independently of the installed library size.
+        """
+        base = super()._load()
+        created, saved = self.edits.created(), self.edits.all()
+        snapshots, groups = {}, {}
+        for item in items:
+            key = item['id']
+            try:
+                if not item.get('editable'):
+                    raise LibraryConflict('This item has no compatible calculation inputs; its current price is unavailable.')
+                own = created.get(key)
+                original = own['item'] if own else base['_records']['penetration'][key]
+                edit = saved.get(key)
+                if edit or own:
+                    token = (edit or own)['pricing_token']
+                    if token not in snapshots:
+                        snapshots[token] = self.edits.snapshot(token)['configuration']
+                else:
+                    source = base['firestopping']
+                    if source['calculator_source_sha256'] != source_model()['source']['sha256']:
+                        raise LibraryConflict('The library calculation source differs from this estimator version.')
+                    token = 'source'
+                    if token not in snapshots:
+                        snapshots[token] = validate_configuration(source['configuration'])
+                draft = normalize_draft(edit['draft'] if edit else original['estimate']['draft'])
+                if len(draft['rows']) != 1:
+                    raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
+                configuration = snapshots[token]
+                # A source bundle may change its frozen pricing while retaining
+                # item IDs. Hash actual configuration, not just an item alias.
+                if token not in groups:
+                    groups[token] = {'configuration': configuration,
+                        'configuration_hash': hashlib.sha256(encoded(configuration).encode()).hexdigest(), 'entries': []}
+                group = groups[token]
+                cache_key = (CALCULATION_POLICY_VERSION, group['configuration_hash'],
+                             hashlib.sha256(encoded(draft).encode()).hexdigest())
+                if cache_key in self._price_cache:
+                    self._price_cache.move_to_end(cache_key)
+                    item['price'] = deepcopy(self._price_cache[cache_key])
+                    if item['price'] is None:
+                        item['price_error'] = 'The current calculation does not have a finite item price.'
+                else:
+                    group['entries'].append((item, draft['rows'][0]['inputs'], cache_key))
+            except (ValidationError, KeyError) as error:
+                item['price'] = None
+                item['price_error'] = str(error)
+        for group in groups.values():
+            entries = group['entries']
+            if not entries:
+                continue
+            draft = {'globals': EFFECTIVE_GLOBALS,
+                     'rows': [{'id': f'price-{index}', 'inputs': inputs}
+                              for index, (_, inputs, _) in enumerate(entries)]}
+            engine, _ = engine_for_draft(draft, group['configuration'])
+            for index, (item, _, cache_key) in enumerate(entries, 4):
+                amount = engine.value('CALC', f'H{index}')
+                current = (price(amount, 'Library price') if isinstance(amount, (int, float))
+                           and not isinstance(amount, bool) and math.isfinite(amount) else None)
+                item['price'] = current
+                if current is None:
+                    item['price_error'] = 'The current calculation does not have a finite item price.'
+                self._price_cache[cache_key] = deepcopy(current)
+                self._price_cache.move_to_end(cache_key)
+                while len(self._price_cache) > 2048:
+                    self._price_cache.popitem(last=False)
+
+    def listing(self, kind, **query):
+        with self._lock:
+            result = super().listing(kind, **query)
+            if kind == 'penetration':
+                self._effective_prices(result['items'])
+            return result
+
     def detail(self, kind, key):
-        result = super().detail(kind, key)
-        result.pop('estimate', None)
-        return result
+        with self._lock:
+            result = super().detail(kind, key)
+            if kind == 'penetration':
+                self._effective_prices([result])
+            result.pop('estimate', None)
+            return result
 
     def _response(self, key, draft, revision, snapshot, token, result=None):
         draft = normalize_draft(draft)

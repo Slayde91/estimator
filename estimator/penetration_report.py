@@ -14,15 +14,18 @@ from .report import ROOT, _Report, _company_header, _register_fonts, _number, _n
 
 SUMMARY = (
     ('Labour', 'labour'), ('Materials', 'materials'),
-    ('Other allowances', 'other_allowances'), ('Access', 'access'),
-    ('Travel / LAFHA', 'travel_lafha'), ('Grand total', 'grand_total'),
+    ('Grand total', 'grand_total'),
     ('Total days', 'total_days'),
 )
 SCHEDULE = (
-    ('Service', 'K'), ('Quantity', 'O'), ('Labour', 'F'), ('Materials', 'G'),
-    ('Substrate', 'B'), ('Complexity', 'C'), ('Access', 'E'),
-    ('Travel / LAFHA', 'D'), ('Item total', 'H'),
+    ('Service', 'K'), ('Quantity', 'O'), ('Substrate', 'P'),
+    ('Labour', 'F'), ('Materials', 'G'), ('Item total', 'H'),
 )
+
+
+def _visible_outputs(definition):
+    return [field for field in definition['output_fields']
+            if field['column'] not in ('B', 'C', 'D', 'E', 'BI', 'BJ', 'BK')]
 
 
 def _value(row, column):
@@ -71,7 +74,7 @@ def render_penetration_pdf(result, definition, project_details):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
-    widths = [content * part for part in (.045, .175, .065, .10, .10, .10, .10, .07, .115, .13)]
+    widths = [content * part for part in (.045, .245, .09, .2, .14, .14, .14)]
     report.story.append(report.table(['Line'] + [label for label, _ in SCHEDULE], [
         [report.p(str(index), 'cell')] + [report.p(_display(_value(row, col), fields_by_column[col]), 'cell') for _, col in SCHEDULE]
         for index, row in enumerate(result['rows'], 1)], widths, compact=True))
@@ -79,7 +82,7 @@ def render_penetration_pdf(result, definition, project_details):
         report.story.extend([PageBreak(), report.p(f'Line {index}', 'section')])
         for heading, fields, values in (
                 ('Inputs', definition['row_fields'], row['inputs']),
-                ('Calculated detail', definition['output_fields'], row['outputs'])):
+                ('Calculated detail', _visible_outputs(definition), row['outputs'])):
             records = [[report.p(field['label'], 'cell'), report.p(_display(values.get(field['column']), field), 'cell')]
                        for field in fields if values.get(field['column']) not in (None, '')]
             if records:
@@ -88,11 +91,6 @@ def render_penetration_pdf(result, definition, project_details):
                                                  [content * .44, content * .56], compact=True))
         for error in row.get('errors', []):
             report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
-    report.story.extend([CondPageBreak(65), report.p('Global inputs', 'subheading')])
-    global_fields = definition['global_fields']
-    report.story.append(report.table([field['label'] for field in global_fields], [[
-        report.p(_display(result['draft']['globals'].get(field['column']), field), 'cell')
-        for field in global_fields]], [content / len(global_fields)] * len(global_fields), compact=True))
     for error in result.get('errors', []):
         if not error.get('row_id'):
             report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
@@ -132,12 +130,7 @@ def build_penetration_register(result, definition, project_details):
                  [[label, result['summary'].get(key)] for label, key in SUMMARY], [36, 64])
     for offset, (_, key) in enumerate(SUMMARY):
         summary.cell(first + offset, 2).number_format = _excel_format({'format': 'number' if key == 'total_days' else 'currency'})
-    first = row + 1
-    _table(summary, row, ['Global input', 'Value'],
-           [[field['label'], result['draft']['globals'].get(field['column'])] for field in definition['global_fields']], [36, 64])
-    for offset, field in enumerate(definition['global_fields']):
-        summary.cell(first + offset, 2).number_format = _excel_format(field)
-    widths = [9, 35, 14, 20, 20, 20, 20, 20, 20, 22]
+    widths = [9, 35, 14, 28, 20, 20, 22]
     schedule = _sheet(workbook, 'Schedule', 'PENETRATION SCHEDULE', widths)
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
     _table(schedule, 4, ['Line'] + [label for label, _ in SCHEDULE],
@@ -145,7 +138,7 @@ def build_penetration_register(result, definition, project_details):
             for index, row in enumerate(result['rows'], 1)], widths,
            formats={index: _excel_format(fields_by_column[column]) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
     for title, fields, key in [('Inputs', definition['row_fields'], 'inputs'),
-                               ('Calculated detail', definition['output_fields'], 'outputs')]:
+                               ('Calculated detail', _visible_outputs(definition), 'outputs')]:
         widths = [9, 42, 85, 20]
         sheet = _sheet(workbook, title, title.upper(), widths)
         _table(sheet, 4, ['Line', 'Parameter', 'Value', 'Units'],

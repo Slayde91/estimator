@@ -3,17 +3,45 @@ import math
 from pathlib import Path
 import unittest
 
-from estimator.calculator import calculate, fields, labour_breakdown, masking_breakdown, specification
+from estimator.calculator import LINES, calculate, fields, labour_breakdown, masking_breakdown, specification
 from estimator.catalog import baseline, effective_catalog, catalog_signature, ValidationError
 
 
 class CalculatorTests(unittest.TestCase):
+    def test_nonzero_coverage_requires_its_own_team_for_every_material_except_pins(self):
+        expected = {15: "D2", 16: "D3", 18: "D6", 19: "D8", 20: "D4", 21: "D5", 22: "D9", 23: "D10"}
+        self.assertEqual({row: team for row, _, _, _, team in LINES if team}, expected)
+        for row, team in expected.items():
+            for selection in ("N/A", "n/a", "", None):
+                for coverage in (1, -1, .123456789012345):
+                    with self.subTest(row=row, team=team, selection=selection, coverage=coverage):
+                        inputs = {f"B{row}": coverage, team: selection}
+                        before = dict(inputs)
+                        with self.assertRaisesRegex(ValidationError, "^Select Teams$"):
+                            calculate(inputs)
+                        self.assertEqual(inputs, before)
+            for coverage in (0, "", None):
+                with self.subTest(row=row, coverage=coverage):
+                    result = calculate({f"B{row}": coverage, team: "N/A"})
+                    self.assertEqual(result["inputs"][f"B{row}"], coverage)
+            allowed = calculate({f"B{row}": .123456789012345, team: "1 Team - 1x"})
+            self.assertEqual(allowed["inputs"][f"B{row}"], .123456789012345)
+        pins = calculate({"B17": 20, **{team: "N/A" for team in expected.values()}})
+        self.assertEqual(pins["inputs"]["B17"], 20)
+        self.assertEqual(pins["errors"], {})
+
+    def test_unmatched_historical_team_keeps_its_existing_lookup_error(self):
+        result = calculate({"B15": 2, "D2": "Unknown historic team"})
+        self.assertEqual(result["inputs"]["D2"], "Unknown historic team")
+        self.assertEqual(result["errors"]["A65"], "#N/A")
+        self.assertIsNone(result["summary"]["total"])
+
     def test_product_service_labels_keep_existing_selections_and_calculations(self):
         original = effective_catalog()
         primer = next(rate for rate in original["rate_groups"]["primers"] if rate["inventory_id"] == "204")
         standalone = original["rate_groups"]["labour_rates"][0]
         standalone.update(inventory_id=None, price_mode="override")
-        inputs = {"D20": primer["name"], "B20": 142, "E26": standalone["name"], "F26": 1}
+        inputs = {"D20": primer["name"], "B20": 142, "D4": "1 Team - 1x", "E26": standalone["name"], "F26": 1}
         configuration = {"catalog": original, "inventory": {"204": {"product_service": "Promat SBR Latex primer / topcoat, 20 kg"}},
                          "rates": {standalone["id"]: {"product_service": "Existing labour service, relabelled"}}}
         changed = effective_catalog(configuration)
@@ -58,9 +86,10 @@ class CalculatorTests(unittest.TestCase):
                 calculate(inputs)
 
     def test_no_rounding_of_material_quantity_or_money_before_totals(self):
-        result = calculate({"B15": 0.5, "B9": 0, "D2": "N/A", "F27": 0, "F28": 0})
+        result = calculate({"B15": 0.5, "B9": 0, "D2": "1 Team - 1x", "F27": 0, "F28": 0})
         self.assertEqual(result["cells"]["D35"], 0.6)
-        self.assertTrue(math.isclose(result["summary"]["total"], 43.1262, abs_tol=1e-12))
+        self.assertTrue(math.isclose(result["cells"]["F63"], 43.1262, abs_tol=1e-12))
+        self.assertEqual(result["summary"]["total"], result["cells"]["F63"] + result["cells"]["F65"])
         self.assertIn("1 x Promat Cafco 300", result["notes"])
 
     def test_notes_that_resemble_excel_errors_are_literal_text(self):
@@ -82,7 +111,8 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(specification()["formulas"]["F10"].strip(), "= SUM(B44,B53,C119)+0.5*C112")
         self.assertEqual(specification()["formulas"]["B44"], "=SUM(B41,B35,B36,B42,B43,B40,B38,B39)")
         for inputs in ({}, {"B15": 75, "B16": 120, "B18": 3, "B19": 12, "B20": 20, "B21": 20, "B22": 10, "B23": 5,
-                           "B9": .2, "B27": .125, "F26": 2.75, "F27": 3},
+                           "B9": .2, "B27": .125, "F26": 2.75, "F27": 3,
+                           **{team: "1 Team - 1x" for _, _, _, _, team in LINES if team}},
                        {"B15": 18.125, "B9": 0, "B27": -.25, "F26": 0, "F27": 0}):
             with self.subTest(inputs=inputs):
                 result = calculate(inputs)
@@ -153,6 +183,14 @@ class ExcelOracleTests(unittest.TestCase):
                 for source, expected in scenario.get("lookupOverrides", {}).items():
                     rate_id, field = source_index[source.replace("Lists!", "")]
                     configuration["rates"].setdefault(rate_id, {})[field] = expected
+                if scenario["id"] == "dropdown-D2-00":
+                    # This source scenario has nonzero coverage with N/A labour.
+                    # The user-requested entry rule now rejects it before formulas run.
+                    self.assertEqual(scenario["inputs"]["D2"], "N/A")
+                    self.assertNotEqual(scenario["inputs"]["B15"], 0)
+                    with self.assertRaisesRegex(ValidationError, "^Select Teams$"):
+                        calculate(scenario["inputs"], configuration)
+                    continue
                 actual = calculate(scenario["inputs"], configuration)
                 # Reconcile the report's non-overlapping cost components to Excel,
                 # using the independently captured workbook totals as the oracle.

@@ -1,4 +1,4 @@
-"""Adjusted display reconciliation against source outputs, never new pricing rules."""
+"""Raw source reconciliation and the effective firestopping display policy."""
 
 from copy import deepcopy
 import gzip
@@ -8,9 +8,13 @@ from pathlib import Path
 import re
 import unittest
 
-from estimator.penetration_breakdown import add_breakdowns, line_breakdown
+from estimator.penetration_breakdown import add_breakdowns, line_breakdown, material_breakdown
 from estimator.penetration_calculator import GLOBAL_DEFAULTS, ROW_COLUMNS, source_model
 from test_penetration_calculator import source_example
+
+
+def source_breakdown(row, globals_, miscellaneous):
+    return line_breakdown(row, globals_, miscellaneous, effective=False)
 
 
 def synthetic_row(quantity=3, labour_allowance=.2, material_allowance=.1):
@@ -43,7 +47,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
     def test_adjusted_components_include_each_allowance_once_and_preserve_raw_values(self):
         row, globals_ = synthetic_row()
         original = deepcopy(row)
-        table = line_breakdown(row, globals_, .25)
+        table = source_breakdown(row, globals_, .25)
         self.assertEqual([value['label'] for value in table['rows']],
                          ['Labour', 'Board', 'Collars', 'Mastic', 'Framing', 'Wrap', 'Other'])
         self.assertEqual(table['totals'], {'material_costs': row['outputs']['G'],
@@ -57,7 +61,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
         self.assertAlmostEqual(indexed['Other']['labour_costs'], 86.4)
         quantities = {value['column']: value['value'] for entry in table['rows']
                       for value in entry['material_quantities']}
-        self.assertEqual(quantities, {'BS': .75, 'CB': 1.5, 'CJ': 2.25, 'CQ': 3, 'CU': 3.75, 'AC': None})
+        self.assertEqual(quantities, {'BS': .75, 'CB': 1.5, 'CJ': 2.25, 'CQ': 3, 'CU': 3.75, 'AC': None, 'AN': None, 'AF': None})
         self.assertEqual(indexed['Labour']['unit_prices'][0]['value'], 40)
         self.assert_reconciles(table)
         self.assertEqual(row, original)
@@ -87,7 +91,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
                 rows.append({**deepcopy(draft_row), 'outputs': outputs, 'errors': []})
             result = {'draft': draft, 'rows': rows, 'unrelated': {'exact': 1.123456789012345}}
             original = deepcopy(result)
-            add_breakdowns(result, source_model())
+            add_breakdowns(result, source_model(), effective=False)
             for row in result['rows']:
                 table = row.pop('breakdown')
                 with self.subTest(scenario=scenario['id'], row=row['id']):
@@ -118,7 +122,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
                 row['outputs']['AC'] = 987654  # It is an input, never a calculated output.
                 globals_['M'] = 7
                 original = deepcopy(row)
-                value = next(item for item in line_breakdown(row, globals_, .25)['rows']
+                value = next(item for item in source_breakdown(row, globals_, .25)['rows']
                              if item['label'] == 'Mastic')['material_quantities'][0]
                 self.assertEqual(value, {'column': 'AC', 'label': 'Mastic Qty', 'value': expected,
                                          'format': 'number', 'units': ''})
@@ -129,7 +133,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
             with self.subTest(other_hours=other_hours):
                 row, globals_ = synthetic_row()
                 row['outputs'].update(DJ=other_hours, DK='', F=11)
-                table = line_breakdown(row, globals_, .25)
+                table = source_breakdown(row, globals_, .25)
                 self.assertTrue(all(item['task_hours'] == '' for item in table['rows']))
                 self.assertEqual([item['labour_costs'] for item in table['rows']], [11, '', '', '', '', '', ''])
                 self.assertEqual(table['totals']['task_hours'], '')
@@ -142,7 +146,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
                 row, globals_ = synthetic_row(quantity, labour, material)
                 if row['outputs']['G'] == 0:
                     row['outputs']['G'] = ''
-                table = line_breakdown(row, globals_, .25)
+                table = source_breakdown(row, globals_, .25)
                 self.assertEqual(table['totals']['material_costs'], row['outputs']['G'])
                 self.assertEqual(table['totals']['labour_costs'], row['outputs']['F'])
                 self.assertEqual(table['totals']['task_hours'], row['outputs']['DK'])
@@ -150,20 +154,20 @@ class PenetrationBreakdownTests(unittest.TestCase):
         row, globals_ = synthetic_row(0)
         row['inputs']['AJ'] = 0
         row['outputs'].update(F='', G='', DK=0)
-        table = line_breakdown(row, globals_, .25)
+        table = source_breakdown(row, globals_, .25)
         self.assertEqual(table['totals'], {'material_costs': '', 'labour_costs': '', 'task_hours': 0})
 
     def test_errors_propagate_to_dependent_components_and_canonical_footer(self):
         row, globals_ = synthetic_row()
         row['outputs'].update(DE='#VALUE!', DK='#VALUE!', F='#VALUE!', DM='#DIV/0!', G='#DIV/0!')
-        table = line_breakdown(row, globals_, .25)
+        table = source_breakdown(row, globals_, .25)
         self.assertTrue(all(item['task_hours'] == '#VALUE!' for item in table['rows']))
         self.assertTrue(all(item['labour_costs'] == '#VALUE!' for item in table['rows']))
         self.assertEqual(table['rows'][1]['material_costs'], '#DIV/0!')
         self.assertEqual(table['rows'][2]['material_costs'], 66)
         self.assertEqual(table['totals'], {'material_costs': '#DIV/0!', 'labour_costs': '#VALUE!', 'task_hours': '#VALUE!'})
         row['outputs'].update(CW=float('inf'), F=float('inf'))
-        table = line_breakdown(row, globals_, .25)
+        table = source_breakdown(row, globals_, .25)
         self.assertEqual(table['rows'][0]['unit_prices'][0]['value'], '#NUM!')
         self.assertEqual(table['totals']['labour_costs'], '#NUM!')
         self.assertTrue(math.isinf(row['outputs']['F']))
@@ -173,10 +177,10 @@ class PenetrationBreakdownTests(unittest.TestCase):
         model = {'defined_names': {'misc_labour': 'Settings!$D$7:$E$8'},
                  'sheets': [{'name': 'Settings', 'cells': {'E7': {'value': .3}, 'E8': {'value': .1}}}]}
         result = {'draft': {'globals': globals_}, 'rows': [row]}
-        add_breakdowns(result, model)
+        add_breakdowns(result, model, effective=False)
         self.assertAlmostEqual(result['rows'][0]['breakdown']['rows'][0]['task_hours'], 1.44)
         model['sheets'][0]['cells']['E7'] = {'formula': '=1/0'}
-        add_breakdowns(result, model)
+        add_breakdowns(result, model, effective=False)
         self.assertEqual(result['rows'][0]['breakdown']['rows'][0]['task_hours'], '#VALUE!')
 
 

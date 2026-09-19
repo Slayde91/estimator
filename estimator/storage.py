@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 import uuid
 
-from .calculator import calculate
+from .estimate_composition import calculate, calculate_for_load, normalize_penetration
 from .catalog import catalog_signature, configuration_catalog, effective_catalog, has_yield, validate_catalog, validate_configuration, ValidationError
 from .quote_details import QUOTE_DETAIL_LIMITS, compile_work_summary, compose_quote_title, validate_quote_details
 
@@ -108,9 +108,9 @@ class Store:
             raise KeyError(quote_id)
         return json.loads(row[0])
 
-    def prepare_quote(self, data, quote_id=None):
+    def prepare_quote(self, data, quote_id=None, *, read_only=False):
         """Validate and calculate a pricing snapshot without writing a quote."""
-        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements", *QUOTE_DETAIL_LIMITS}:
+        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements", "penetration", *QUOTE_DETAIL_LIMITS}:
             raise ValidationError("Quote contains unknown fields.")
         previous = self.quote(quote_id) if quote_id else None
         details = validate_quote_details(data, previous)
@@ -145,13 +145,19 @@ class Store:
             for rates in catalog["rate_groups"].values() for rate in rates
         }
         configuration["catalog_signature"] = catalog_signature(catalog)
-        result = calculate(data.get("inputs", prior.get("inputs", {})), configuration)
+        # Omission on a quote update preserves the saved schedule. Clearing it
+        # requires an explicit empty draft, so an older client cannot drop it.
+        penetration = normalize_penetration(data.get('penetration', prior.get('penetration'))) if 'penetration' in data or 'penetration' in prior else None
+        calculate_result = calculate_for_load if read_only else calculate
+        result = calculate_result(data.get("inputs", prior.get("inputs", {})), configuration, penetration)
         quote = {"id": quote_id or str(uuid.uuid4()), "title": title.strip(),
                  **details, "work_summary": compile_work_summary(workflow, result),
                  "updated_at": datetime.now(timezone.utc).isoformat(), "workflow": workflow,
                  "measurements": measurements, "inputs": result["inputs"],
                  "configuration": configuration, "result": result,
                  "source_hashes": catalog["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
+        if penetration is not None:
+            quote['penetration'] = penetration
         return quote
 
     def save_quote(self, data, quote_id=None):

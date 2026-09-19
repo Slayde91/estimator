@@ -50,22 +50,23 @@ class ReportTests(unittest.TestCase):
         cls.reader = PdfReader(BytesIO(cls.payload))
         cls.text = pdf_text(cls.payload)
 
-    def test_all_cost_lines_and_totals_come_from_excel(self):
+    def test_all_effective_cost_lines_and_totals_come_from_the_frozen_result(self):
         compact = "".join(self.text.split())
-        expected = self.scenario["expected"]
-        # Actual priced component cells, independently recorded from Excel.
-        amounts = [expected[f"F{row}"] for row in (63, 65, 68, 70, 73, 77, 79, 82, 84, 87, 89, 92, 94, 97, 99, 102, 104)]
-        amounts += [expected[f"D{row}"] for row in range(112, 120)]
-        amounts += [expected["B51"] * expected["B53"], expected["B52"] * expected["B53"], expected["B57"], expected["D27"]]
+        result = self.quote["result"]
+        cells = result["cells"]
+        amounts = [cells[f"F{row}"] for row in (63, 65, 68, 70, 73, 77, 79, 82, 84, 87, 89, 92, 94, 97, 99, 102, 104)]
+        amounts += [cells[f"D{row}"] for row in range(112, 120)]
+        amounts += [result["masking"]["labour_total"], result["masking"]["material_base_total"],
+                    result["global_adjustments"]["material"]["amount"],
+                    result["global_adjustments"]["labour"]["amount"], cells["D27"]]
         for amount in amounts:
             with self.subTest(amount=amount):
                 self.assertIn(money_text(amount), compact)
-        for cell in ("F2", "F3", "F4", "F5", "F6", "F7", "F8", "D27"):
-            self.assertIn(money_text(expected[cell]), compact, cell)
-        for label in ("Material breakdown", "Labour and masking", "Pins / clips", "Masking labour", "Masking materials", "Masking material adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Quote notes"):
+        for key in ("labour", "material", "access", "travel", "subtotal", "total", "rate"):
+            self.assertIn(money_text(result["summary"][key]), compact, key)
+        for label in ("Material breakdown", "Labour and masking", "Pins / clips", "Masking labour", "Masking materials", "Global material adjustment", "Global labour adjustment", "Mobilisation", "Administration", "Material freight", "Access freight", "Access hire", "Travel", "Accommodation", "Extra labour", "Fixed adjustment", "Quote notes"):
             self.assertIn(label, self.text)
-        for token in ("1.66", "1.91", "27.59"):
-            self.assertIn(token, self.text, "Do not split a priced quantity across lines")
+        self.assertNotIn("Masking material adjustment", self.text)
         self.assertIn("unrounded", self.text)
         self.assertIn("123.45 m²", self.text)
         self.assertNotRegex(self.text, r"\b\d[\d,]*\.\d{3,}\b")
@@ -118,9 +119,10 @@ class ReportTests(unittest.TestCase):
                       "Generated material and allowance notes"):
             self.assertNotIn(token, text)
         for token in ("Material breakdown", "Material / yield", "Line amount", "Labour and masking",
-                      "Masking / cleaning", "Masking labour", "Masking materials", "Masking material adjustment",
-                      "Additions and project costs"):
+                      "Masking / cleaning", "Masking labour", "Masking materials", "Global material adjustment",
+                      "Global labour adjustment", "Additions and project costs"):
             self.assertIn(token, text)
+        self.assertNotIn("Masking material adjustment", text)
         quote.pop("work_summary")
         before = deepcopy(quote)
         with patch("estimator.calculator.calculate", side_effect=AssertionError("Report recalculated")), patch("estimator.catalog.baseline", side_effect=AssertionError("Report consulted current prices")):
@@ -181,7 +183,8 @@ class ReportTests(unittest.TestCase):
                     with patch("estimator.calculator.calculate", side_effect=AssertionError("Report recalculated")), patch("estimator.catalog.baseline", side_effect=AssertionError("Report consulted current prices")):
                         text = pdf_text(render_quote_pdf(quote))
                     self.assertNotIn(workflow or "Workflow not recorded", text)
-                    for retained in (quote["title"], report_kind, "Quote details", quote["measurements"], "$147,070.68"):
+                    for retained in (quote["title"], report_kind, "Quote details", quote["measurements"],
+                                     money_text(quote["result"]["summary"]["total"])):
                         self.assertIn(retained, text)
                     self.assertEqual(quote, before)
 
@@ -246,12 +249,15 @@ class ReportTests(unittest.TestCase):
 
     def test_older_saved_snapshot_never_reads_current_pricing_or_recalculates(self):
         quote = deepcopy(self.quote)
+        quote["result"] = calculate(self.scenario["inputs"])
         quote["result"].pop("masking")
         before = deepcopy(quote)
         with patch("estimator.calculator.calculate", side_effect=AssertionError("Report recalculated")), patch("estimator.catalog.baseline", side_effect=AssertionError("Report consulted current prices")):
             text = pdf_text(render_quote_pdf(quote))
         self.assertNotIn("Unavailable", text)
         self.assertIn("$147,070.68", text)
+        self.assertIn("Masking material adjustment", text)
+        self.assertNotIn("Global material adjustment", text)
         self.assertEqual(quote, before)
 
 

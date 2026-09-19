@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from estimator.catalog import baseline, effective_catalog, ValidationError
+from estimator.estimate_composition import calculate as calculate_quote
 from estimator.quote_details import compile_work_summary
 from estimator.storage import Store
 
@@ -49,19 +50,18 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(reopened["summary"], quote["result"]["summary"])
 
     def test_catalogue_reordering_cannot_reinterpret_a_saved_rate_id(self):
-        from estimator.calculator import calculate
         quote = self.store.save_quote({"title": "Stable identities", "inputs": {"B15": 10}})
         changed = baseline()
         changed["rate_groups"]["sprays"][1]["name"] = "A different product"
         with patch("estimator.catalog.baseline", return_value=changed):
-            recalculated = calculate(quote["inputs"], quote["configuration"])
+            recalculated = calculate_quote(quote["inputs"], quote["configuration"])
             self.assertEqual(recalculated, quote["result"])
             # Older records have no embedded catalog. Keep their original guard
             # rather than silently reinterpreting positional IDs after a change.
             legacy_configuration = deepcopy(quote["configuration"])
             del legacy_configuration["catalog"]
             with self.assertRaisesRegex(ValidationError, "catalogue structure"):
-                calculate(quote["inputs"], legacy_configuration)
+                calculate_quote(quote["inputs"], legacy_configuration)
         self.assertEqual(self.store.quote(quote["id"])["result"], quote["result"])
 
     def test_resaving_with_original_pricing_retains_original_source_hashes(self):
@@ -155,7 +155,6 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(self.store.quote(quote["id"])["result"]["errors"]["B35"], "#DIV/0!")
 
     def test_quote_metadata_derives_title_and_survives_restart(self):
-        from estimator.calculator import calculate
         quote = self.store.save_quote({"title": "ignored manual title", "project_no": " P-42 ",
                                        "client": " Client Ltd ", "site_address": " 12 Main Street ",
                                        "workflow": "Fire wrap to ductwork", "inputs": {"B15": 12.345}})
@@ -163,7 +162,7 @@ class StorageTests(unittest.TestCase):
         self.assertEqual((quote["project_no"], quote["client"], quote["site_address"]), ("P-42", "Client Ltd", "12 Main Street"))
         self.assertEqual(quote["work_summary"], compile_work_summary(quote["workflow"], quote["result"]))
         self.assertIn("quantity 12.35", quote["work_summary"])
-        self.assertEqual(quote["result"], calculate({"B15": 12.345}))
+        self.assertEqual(quote["result"], calculate_quote({"B15": 12.345}))
         self.assertEqual(Store(self.store.path).quote(quote["id"]), quote)
         self.assertEqual(self.store.list_quotes()[0]["title"], quote["title"])
 

@@ -23,6 +23,7 @@
     ["Primer", "m²"], ["Topcoat", "m²"], ["Board", "m²"], ["Mastic", "Linear metres"],
   ];
   const coverageTeams = { B15: "D2", B16: "D3", B18: "D6", B19: "D8", B20: "D4", B21: "D5", B22: "D9", B23: "D10" };
+  const materialTeams = { 15: "D2", 16: "D3", 17: "D3", 18: "D6", 19: "D8", 20: "D4", 21: "D5", 22: "D9", 23: "D10" };
   const groups = {
     access_hire: "Access hire", labour_rates: "Labour", masking_rates: "Masking",
     freight_rates: "Freight", LAFHA_rates: "Accommodation", travel_rates: "Travel",
@@ -102,6 +103,14 @@
       const control = $(`input-${cell}`), error = state.inputErrors.get(cell);
       if (error) control?.setAttribute("aria-invalid", "true"); else control?.removeAttribute("aria-invalid");
       control?.setCustomValidity?.(error || "");
+    }
+  }
+
+  function updateMaterialRowVisibility() {
+    for (const row of $("material-inputs").children) {
+      const team = materialTeams[Number(row.dataset.materialRow)];
+      const value = Object.hasOwn(state.inputs, team) ? state.inputs[team] : fieldByCell(team)?.default;
+      row.hidden = typeof value === "string" && value.trim().toLowerCase() === "n/a";
     }
   }
 
@@ -232,6 +241,7 @@
       control.removeAttribute("aria-invalid"); control.setCustomValidity?.("");
       state.inputs[field.cell] = value;
       validateCoverageTeams();
+      if (Object.values(materialTeams).includes(field.cell)) updateMaterialRowVisibility();
       if (state.inputErrors.get(Object.keys(coverageTeams).find(cell => coverageTeams[cell] === field.cell)) === "Select Teams") message("Select Teams", true);
       else if ($("app-message").textContent === "Select Teams" && ![...state.inputErrors.values()].includes("Select Teams")) message("");
       updateDirty();
@@ -243,6 +253,10 @@
     if (compact) return control;
     const label = node("label", "field");
     const caption = node("span", "", field.label || "Estimate input");
+    if (field.cell === "B9") {
+      const help = "Masking/cleaning is a percentage of Spray labour.";
+      caption.title = help; control.title = help; control.setAttribute("aria-description", help);
+    }
     if (isPercent(field) && !(field.label || "").includes("%")) caption.append(document.createTextNode(" (%)"));
     label.append(caption, control);
     return label;
@@ -285,6 +299,7 @@
     for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour), inputCard("Masking/Cleaning", masking)]) if (card) before.append(card);
     for (let row = 15; row <= 23; row++) {
       const tr = node("tr");
+      tr.dataset.materialRow = String(row);
       const title = node("td", "material-label", materialNames[row - 15][0]);
       title.append(node("small", "", materialNames[row - 15][1]));
       tr.append(title);
@@ -310,6 +325,7 @@
       tr.append(yieldCell);
       materials.append(tr);
     }
+    updateMaterialRowVisibility();
     const additionCard = inputCard("Additions", additions);
     additionCard?.querySelector(".fields").classList.add("two-columns");
     for (const card of [
@@ -324,7 +340,7 @@
   function clearResults(status) {
     $("calculation-status").textContent = status;
     document.querySelector(".summary-card").setAttribute("aria-busy", "true");
-    for (const key of ["labour", "material", "access", "travel", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
+    for (const key of ["labour", "material", "access", "travel", "material-adjustment", "labour-adjustment", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
@@ -379,6 +395,8 @@
     const errors = result.errors || {};
     for (const key of ["labour", "material", "access", "travel", "subtotal", "total", "rate"]) $(`sum-${key}`).textContent = formatMoney(summary[key]);
     $("sum-days").textContent = formatNumber(summary.days);
+    $("sum-material-adjustment").textContent = formatMoney(result.global_adjustments?.material?.amount);
+    $("sum-labour-adjustment").textContent = formatMoney(result.global_adjustments?.labour?.amount);
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
     const materialRows = [];

@@ -328,15 +328,26 @@ class _Report:
             self.story.extend([alert, Spacer(1, 12)])
         totals = [
             ("Labour", "labour", "F2"), ("Material", "material", "F3"), ("Access", "access", "F4"),
-            ("Travel / accommodation", "travel", "F5"), ("Subtotal", "subtotal", "F6"),
-            ("Fixed adjustment", None, "D27"), ("Grand total", "total", "F7"),
+            ("Travel / accommodation", "travel", "F5"),
         ]
-        rows = [[self.detail(label), self.p(self.summary_value(key, cell, money=True) if key else self.value(cell, money=True), "numeric")]
+        rows = [[self.detail(label), self.p(self.summary_value(key, cell, money=True), "numeric")]
                 for label, key, cell in totals]
+        adjustments = self.result.get("global_adjustments")
+        if isinstance(adjustments, dict):
+            rows.extend([
+                [self.detail("Global material adjustment"), self.p(_number(adjustments.get("material", {}).get("amount"), money=True), "numeric")],
+                [self.detail("Global labour adjustment"), self.p(_number(adjustments.get("labour", {}).get("amount"), money=True), "numeric")],
+            ])
+        rows.extend([
+            [self.detail("Subtotal"), self.p(self.summary_value("subtotal", "F6", money=True), "numeric")],
+            [self.detail("Fixed adjustment"), self.p(self.value("D27", money=True), "numeric")],
+            [self.detail("Grand total"), self.p(self.summary_value("total", "F7", money=True), "numeric")],
+        ])
         total_table = self.table(["Quote amount", "Amount ($)"], rows, [_WIDTH * .68, _WIDTH * .32])
+        grand_row = len(rows)
         total_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 7), (-1, 7), colors.HexColor("#E8EEF0")),
-            ("LINEABOVE", (0, 7), (-1, 7), 1, _RED),
+            ("BACKGROUND", (0, grand_row), (-1, grand_row), colors.HexColor("#E8EEF0")),
+            ("LINEABOVE", (0, grand_row), (-1, grand_row), 1, _RED),
         ]))
         # This is a fixed-size financial summary, so its grand total stays on
         # the same page as its component amounts even with long quote details.
@@ -356,10 +367,17 @@ class _Report:
 
     def materials(self):
         self.story.extend([PageBreak(), self.p("Material breakdown", "section")])
-        self.story.append(self.p(
-            "All nine material lines are included, including zero quantities. Coverage is the estimator's input. "
-            "Adjusted base units include the global material adjustment; wastage is then added. "
-            "Fractional priced quantities are preserved.", "small"))
+        if "global_adjustments" in self.result:
+            material_note = ("All nine source material lines are included, including zero quantities. Coverage is the estimator's input. "
+                "Wastage is included in each source line. The global material percentage is applied once to the combined main and Firestopping material cost in the quote summary. "
+                "Fractional priced quantities are preserved.")
+            base_heading = "Base units"
+        else:
+            material_note = ("All nine material lines are included, including zero quantities. Coverage is the estimator's input. "
+                "Adjusted base units include the recorded global material adjustment; wastage is then added. "
+                "Fractional priced quantities are preserved.")
+            base_heading = "Adjusted base units"
+        self.story.append(self.p(material_note, "small"))
         rows = []
         for label, row, price_row, _, _, _ in _LINES:
             unit = "bags / drums / rolls" if row == 15 else "panels" if row == 18 else "linear m" if row == 23 else "m²"
@@ -376,7 +394,7 @@ class _Report:
             ])
         widths = [133, 54, 62, 59, 63, 65, _WIDTH - 436]
         self.story.append(self.table(
-            ["Material / yield", "Coverage", "Adjusted base units", "Wastage % / units", "Priced units", "Unit sell rate", "Line amount"],
+            ["Material / yield", "Coverage", base_heading, "Wastage % / units", "Priced units", "Unit sell rate", "Line amount"],
             rows, widths))
         if 'firestopping' in self.result:
             self.story.extend([PageBreak(), self.p('Firestopping schedule materials', 'section')])
@@ -454,9 +472,10 @@ class _Report:
             [self.detail("Masking materials", self.input("B10")),
              self.p(self.value("B53"), "numeric"), self.p(self.value("B52", money=True), "numeric"),
              self.p(_number(masking.get("material_base_total"), money=True), "numeric")],
-            [self.detail("Masking material adjustment"), self.p("", "numeric"), self.p("", "numeric"),
-             self.p(self.value("B57", money=True), "numeric")],
         ]
+        if "global_adjustments" not in self.result:
+            masking_rows.append([self.detail("Masking material adjustment"), self.p("", "numeric"), self.p("", "numeric"),
+                                 self.p(self.value("B57", money=True), "numeric")])
         self.story.append(self.table(["Component", "Days", "Rate per day", "Amount"], masking_rows,
                                      [221, 70, 108, _WIDTH - 399], compact=True))
 
@@ -478,7 +497,9 @@ class _Report:
             "; administration quantity = " + self.input("F28") +
             "; access quantity = " + self.input("B4") +
             ". Access hire uses weekly rates. Fixed adjustment: " + self.value("D27", money=True) +
-            ". All additions and the fixed adjustment are included in the quote summary.", "small"))
+            ". All additions and the fixed adjustment are included in the quote summary. " +
+            ("The global material and labour percentages are shown separately in the summary and apply once to their combined main and Firestopping cost bases."
+             if "global_adjustments" in self.result else ""), "small"))
 
     def notes(self):
         self.story.extend([PageBreak(), self.p("Quote notes", "section")])

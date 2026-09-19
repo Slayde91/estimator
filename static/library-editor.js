@@ -13,7 +13,11 @@
   const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
-  const fieldGroups = () => state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))];
+  const fieldGroups = () => (state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))]).filter(group => {
+    const rule = state.definition.group_visibility?.[group];
+    return !rule || (rule.values || []).includes(state.draft?.rows?.[0]?.inputs?.[rule.column]);
+  });
+  const fieldInGroup = (field, group) => !field.hidden && (field.display_groups || [field.group]).includes(group);
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
   const hasUnsavedChanges = () => state.open && !!state.record && (stamp() !== state.baseline || state.invalid.size > 0);
   async function request(id, action, payload) {
@@ -84,6 +88,7 @@
       }
       if (error) state.invalid.set(key, { value: control.value, error }); else { state.invalid.delete(key); values(global)[field.column] = value; }
       showProblem(error); changed();
+      if (!error && ["J", "K"].includes(field.column)) renderFields();
     });
     control.addEventListener("blur", () => {
       if (session !== state.session) return;
@@ -116,7 +121,7 @@
       const button = node("button", "penetration-group", group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("aria-pressed", String(group === state.group));
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     }));
-    const fields = node("div", "library-editor-fields"); fields.append(...state.definition.row_fields.filter(field => field.group === state.group).map(field => makeControl(field, false))); $("library-editor-fields").replaceChildren(fields);
+    const fields = node("div", "library-editor-fields"); fields.append(...state.definition.row_fields.filter(field => fieldInGroup(field, state.group)).map(field => makeControl(field, false))); $("library-editor-fields").replaceChildren(fields);
   }
   function renderOutputs() {
     const price = state.result ? state.result.rows?.[0]?.outputs?.H : (!hasUnsavedChanges() ? state.record.price?.amount : null);

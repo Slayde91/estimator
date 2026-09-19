@@ -64,8 +64,11 @@ The source image cell S4 already contains a cached
 A new Firestopping Schedule starts empty. Its columns include Service Type,
 Penetration Type, Substrate Orientation, FRL and editable Item QTY. A separate
 current item starts blank. Input groups separate
-Penetration, Products and labour, Additional Allowances, Pipes, Cabletrays,
-Substrate and Bulkhead. The current item's calculated detail and
+Penetration, Products and labour, Additional Allowances, Unlagged Pipes,
+Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
+group matching Service Type is shown, and Bulkhead is shown only when Type is
+Bulkheads. The obsolete Material Wastage input is retained in raw saved inputs
+but hidden from both editors. The current item's calculated detail and
 the complete schedule totals are calculated independently. Numeric inputs retain their
 full stored precision; percentages are shown and edited as percentages.
 
@@ -96,11 +99,13 @@ adjustment; those hours are no longer duplicated under Other. Register allowance
 uses the selected Workers unit price (CW), as does Pipe Labour. Quantity values use the source
 BS/CB/CJ/CQ/CU product quantities, Mastic Qty AC, collar multiplier AN and
 additional material AF with its AG wastage, each multiplied by Item QTY once.
-No rounding up or global allowance is added. Collar quantities appear only when
+No rounding up or main-quote global allowance is added inside the independent
+Firestopping calculation. Collar quantities appear only when
 a collar product is selected; the underlying Pipes Multiplier remains available
 to pipe-wrap calculations. Task hours and costs use Item QTY and reconcile to
-the effective G/F/DK outputs. AI is allocated to Other materials and AJ to
-Additional Labour costs once per line, without multiplication by Item QTY.
+the effective G/F/DK outputs. AI is allocated to Other materials and is
+multiplied by Item QTY; AJ is allocated to Additional Labour costs once per
+line, without multiplication by Item QTY.
 The canonical DK result controls the effective hours gate.
 Blanks, zeros, negatives and calculation errors remain distinct. This is a
 display projection. Summary remains available below the table; removed allowance
@@ -145,10 +150,12 @@ These rules apply to current items, existing library items, schedules and quote
 exports. The calculation policy version invalidates cached library prices.
 Original source formulas and the source-oracle calculation path remain intact.
 
-Each material quantity also appears as a product/context row in the main
-Material Breakdown, with its unit sell rate, exact quantity multiplied by rate,
-and allocated task hours divided by eight. Allocation happens per schedule line
-before matching product/context/rate rows are grouped. The combined Board task
+Each material quantity also appears in the main Material Breakdown, with its
+unit sell rate, exact quantity multiplied by rate, and allocated task hours
+divided by eight. Allocation happens per schedule item before rows with the same
+selected product are reconciled across contexts and captured rates. Quantities,
+line amounts and hours are summed; the displayed sell rate is the exact weighted
+average when captured rates differ. The combined Board task
 is split between Substrate and Bulkhead in proportion to their calculated
 quantities; Wrap is split between Pipes and Cabletrays in the same way. The last
 share retains any floating-point remainder so each task's hours are counted once.
@@ -157,9 +164,11 @@ and Additional Labour remain separate in Labour Breakdown; monetary adjustments
 do not create hours. Explicit AI
 material adjustments appear separately with quantity one and their extended rate.
 
-The combined quote leaves original main-estimator cells unchanged and adds the
-schedule's canonical material cost, labour cost and days once to its summary.
-Main-estimator percentage allowances are not applied again to firestopping.
+The source-oracle path retains the original workbook formulas. The application
+quote path calculates the main components without the two workbook percentage
+adjustments, adds the schedule's canonical material cost, labour cost and days,
+then applies the global material and global labour percentages once to their
+respective combined cost bases. Fixed adjustment remains a separate dollar value.
 Native projects store the schedule and composer separately; quote snapshots also
 freeze the schedule used for their combined result. Older stored quote results
 remain unchanged until explicitly recalculated.

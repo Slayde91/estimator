@@ -67,6 +67,21 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(self.library.edits.stamp(), (0, 0))
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
 
+    def test_collar_pipe_labour_removes_only_the_duplicate_effective_additional_hours(self):
+        collar = {'globals': {}, 'rows': [{'id': 'collar', 'inputs': {
+            'Y': 'Selected collar', 'AL': 50, 'AN': 1, 'AH': .25, 'O': 1}}]}
+        before = deepcopy(collar)
+        effective = self.library._library_draft(collar)
+        self.assertIsNone(effective['rows'][0]['inputs']['AH'])
+        self.assertEqual(collar, before)
+        no_collar = deepcopy(collar)
+        no_collar['rows'][0]['inputs']['Y'] = None
+        self.assertEqual(self.library._library_draft(no_collar)['rows'][0]['inputs']['AH'], .25)
+        no_pipe = deepcopy(collar)
+        no_pipe['rows'][0]['inputs']['AL'] = None
+        self.assertEqual(self.library._library_draft(no_pipe)['rows'][0]['inputs']['AH'], .25)
+        self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+
     def test_save_reopen_updates_price_search_filters_and_reciprocal_links(self):
         before = self.protected()
         body = self.body(self.library.edit('pkb-001'))

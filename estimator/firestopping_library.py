@@ -17,6 +17,7 @@ from .catalog import ValidationError, configuration_catalog, validate_configurat
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, EFFECTIVE_GLOBALS,
                                     calculate, definition, engine_for_draft,
                                     normalize_draft, source_model)
+from .penetration_labour import resolve_labour
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -246,6 +247,24 @@ class FirestoppingLibrary(ReferenceLibrary):
         return data
 
     @staticmethod
+    def _library_draft(draft):
+        """Apply library-only cleanup without rewriting supplier or saved bytes.
+
+        Collar entries with resolved Pipe Labour no longer retain the old
+        Additional Labour allowance as a duplicate charge. The immutable source
+        draft remains available through the installed bundle.
+        """
+        effective = normalize_draft(draft)
+        if len(effective['rows']) != 1:
+            return effective
+        inputs = effective['rows'][0]['inputs']
+        labour = resolve_labour(inputs)
+        if (inputs.get('Y') not in (None, '') and inputs.get('AH') not in (None, '')
+                and not labour['errors'] and labour['pipe_hours'] is not None):
+            inputs['AH'] = None
+        return effective
+
+    @staticmethod
     def _service_size(item, inputs):
         item['fields'] = [field for field in item['fields'] if field['label'] != FIELD_LABEL]
         position = next((i+1 for i, field in enumerate(item['fields']) if field.get('column') == 'K'), 1)
@@ -335,7 +354,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                     token = 'source'
                     if token not in snapshots:
                         snapshots[token] = validate_configuration(source['configuration'])
-                draft = normalize_draft(edit['draft'] if edit else original['estimate']['draft'])
+                draft = self._library_draft(edit['draft'] if edit else original['estimate']['draft'])
                 if len(draft['rows']) != 1:
                     raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
                 configuration = snapshots[token]
@@ -393,7 +412,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             return result
 
     def _response(self, key, draft, revision, snapshot, token, result=None):
-        draft = normalize_draft(draft)
+        draft = self._library_draft(draft)
         if len(draft['rows']) != 1:
             raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
         result = result if result is not None else calculate(draft, snapshot['configuration'])
@@ -458,7 +477,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             request_key = body['idempotency_key']
             if not isinstance(request_key, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{15,127}', request_key):
                 raise ValidationError('Use a unique idempotency key of 16 to 128 letters, digits, underscores or hyphens.')
-            draft = normalize_draft(body['draft'])
+            draft = self._library_draft(body['draft'])
             if len(draft['rows']) != 1:
                 raise ValidationError('Select exactly one calculation row to add to the library.')
             inputs = draft['rows'][0]['inputs']
@@ -551,7 +570,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             snapshot = workbook if token == workbook_token else self.edits.snapshot(token)
             if snapshot['source_sha256'] != source['source_sha256']:
                 raise LibraryConflict('The captured pricing belongs to another library version. Reopen the item before saving.')
-            draft = normalize_draft(body['draft'])
+            draft = self._library_draft(body['draft'])
             if len(draft['rows']) != 1:
                 raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
             if action == 'refresh-pricing':

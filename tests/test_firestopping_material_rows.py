@@ -24,18 +24,17 @@ class FirestoppingMaterialRowsTests(unittest.TestCase):
         result = {'rows': [line('one', 2, 1, 3, 2), line('two', 1, 2, 0, 3)]}
         before = deepcopy(result)
         rows = material_breakdown(result)
-        board = {item['context']: item for item in rows if item['product'] == 'Batt'}
-        self.assertEqual(board['Substrate']['quantity'], 4)
-        self.assertEqual(board['Substrate']['price'], 10)
-        self.assertEqual(board['Substrate']['total'], 40)
-        self.assertEqual(board['Substrate']['task_hours'], 4)
-        self.assertEqual(board['Substrate']['days'], .5)
-        self.assertEqual(board['Bulkhead']['quantity'], 6)
-        self.assertEqual(board['Bulkhead']['task_hours'], 3)
-        self.assertEqual(board['Bulkhead']['days'], .375)
-        wrap = {item['context']: item for item in rows if item['product'] == 'Wrap roll'}
-        self.assertEqual(wrap['Pipes']['task_hours'], 1.5)
-        self.assertEqual(wrap['Cabletrays']['task_hours'], 4.5)
+        board = next(item for item in rows if item['product'] == 'Batt')
+        self.assertEqual(board['context'], 'Substrate + Bulkhead')
+        self.assertEqual(board['quantity'], 10)
+        self.assertEqual(board['price'], 10)
+        self.assertEqual(board['total'], 100)
+        self.assertEqual(board['task_hours'], 7)
+        self.assertEqual(board['days'], .875)
+        wrap = next(item for item in rows if item['product'] == 'Wrap roll')
+        self.assertEqual(wrap['context'], 'Pipes + Cabletrays')
+        self.assertEqual(wrap['task_hours'], 6)
+        self.assertEqual(wrap['days'], .75)
         self.assertTrue(all(item['row_ids'] == ['one', 'two'] for item in rows))
         self.assertEqual(result, before)
 
@@ -56,7 +55,10 @@ class FirestoppingMaterialRowsTests(unittest.TestCase):
         first, second = line('one', 1, 1, 3, 2), line('two', 1, 1, 3, 2)
         next(task for task in second['breakdown']['rows'] if task['label'] == 'Board')['unit_prices'][0]['value'] = 10.00000000000002
         rows = material_breakdown({'rows': [first, second]})
-        self.assertEqual(len([item for item in rows if item['product'] == 'Batt']), 4)
+        batt = [item for item in rows if item['product'] == 'Batt']
+        self.assertEqual(len(batt), 1)
+        self.assertEqual(batt[0]['total'], 80.00000000000009)
+        self.assertEqual(batt[0]['price'], batt[0]['total'] / batt[0]['quantity'])
         first['inputs']['X'] = second['inputs']['X'] = None
         rows = material_breakdown({'rows': [first, second]})
         self.assertEqual(len([item for item in rows if item['product'] is None]), 4)
@@ -64,9 +66,10 @@ class FirestoppingMaterialRowsTests(unittest.TestCase):
     def test_no_rounding_and_error_values_are_retained(self):
         row = line('one', 1.23456789012345, .123456789012345, .987654321098765, 2)
         rows = material_breakdown({'rows': [row]})
-        substrate = next(item for item in rows if item['context'] == 'Substrate')
-        self.assertEqual(substrate['quantity'], .123456789012345 * 1.23456789012345)
-        self.assertEqual(substrate['total'], substrate['quantity'] * 10)
+        board = next(item for item in rows if item['product'] == 'Batt')
+        expected = (.123456789012345 + .987654321098765) * 1.23456789012345
+        self.assertEqual(board['quantity'], expected)
+        self.assertAlmostEqual(board['total'], expected * 10)
         for item in next(task for task in row['breakdown']['rows'] if task['label'] == 'Board')['material_quantities']:
             item['value'] = '#DIV/0!'
         rows = material_breakdown({'rows': [row]})

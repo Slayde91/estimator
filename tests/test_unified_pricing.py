@@ -14,8 +14,9 @@ import unittest
 
 from openpyxl import load_workbook
 
-from estimator.calculator import calculate, specification
+from estimator.calculator import specification
 from estimator.catalog import baseline, effective_catalog
+from estimator.estimate_composition import calculate
 from estimator.server import create_server
 from estimator.storage import Store
 

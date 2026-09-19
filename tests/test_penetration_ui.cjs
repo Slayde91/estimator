@@ -6,6 +6,18 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
+    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Bulkhead'];metadata.group_visibility={
+      'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
+      'Cables/Bundles':{column:'K',values:['Cable Bundles']},Bulkhead:{column:'J',values:['Bulkheads']}};
+    for(const group of metadata.groups.slice(1))metadata.row_fields.push({column:`field-${group}`,label:group,group,type:'number',format:'number',units:'',options:[],default:null});
+    metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
+    h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes'};h.audit.renderFields();
+    assert.match(text(h.byId('penetration-input-groups')),/Penetration.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|Bulkhead/);
+    h.audit.state.draft.rows[0].inputs.K='Plastic Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
+    h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
+    h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
+  });
   await check('Automatic allowances display server defaults without dirtying inputs and support precise manual, zero and reset values',async h=>{
     const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Products and labour';h.audit.renderFields();
     h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata));const before=copy(h.api.projectSnapshot());
@@ -202,7 +214,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.control('T').value='Captured';await h.control('T').emit('input');await h.audit.addToLibrary();assert.equal(calls[1].idempotency_key,calls[0].idempotency_key);
   });
   await check('Remove and Undo allow a truly empty schedule and retain precision without affecting composer',async h=>{
-    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Remove line 1');assert.equal(button.getAttribute('aria-label'),'Remove penetration line 1');
+    h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Remove item 1');assert.equal(button.getAttribute('aria-label'),'Remove firestopping item 1');
     h.audit.removeRow('line-1');await flush();assert.equal(h.api.projectSnapshot().draft.rows.length,0);h.audit.undoRemove();await flush();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.AG,.123456789012345);assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);
   });
   await check('A thousand scheduled rows render bounded pages and retain every precise row in calculations',async h=>{

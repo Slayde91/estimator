@@ -158,7 +158,7 @@
     const key = keyFor(rowId, field.column), wrapper = node(field.automatic_default ? "div" : "label", "field"), label = node("span", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : ""));
     const control = node(field.type === "select" ? "select" : "input"), problem = node("small", "penetration-field-error");
     if (compact) { wrapper.className += " penetration-schedule-quantity"; label.className = "sr-only"; control.dataset.penetrationScheduleQuantity = rowId; }
-    const line = rowId === null ? (scope === state ? "Current item" : "Schedule") : `Line ${scope.draft.rows.findIndex(row => row.id === rowId) + 1}`;
+    const line = rowId === null ? (scope === state ? "Current item" : "Schedule") : `Item ${scope.draft.rows.findIndex(row => row.id === rowId) + 1}`;
     control.dataset.penetrationScope = scope === state ? "composer" : "schedule";
     control.dataset.penetrationField = field.column; control.dataset.penetrationRow = rowId === null ? "" : rowId;
     control.setAttribute("aria-label", `${line}: ${label.textContent}`);
@@ -206,6 +206,7 @@
       if (error) scope.invalid.set(key, { value: control.value, error });
       else { scope.invalid.delete(key); (rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs)[field.column] = value; }
       showProblem(error); changed(rowId, scope);
+      if (scope === state && !error && ["J", "K"].includes(field.column)) renderFields();
     };
     control.addEventListener(field.type === "select" ? "change" : "input", apply);
     control.addEventListener("blur", () => {
@@ -236,9 +237,18 @@
     return wrapper;
   }
   function fieldsActive() { return !!document.activeElement?.dataset?.penetrationField; }
+  function visibleGroups(inputs) {
+    return state.definition.groups.filter(group => {
+      const rule = state.definition.group_visibility?.[group];
+      return !rule || (rule.values || []).includes(inputs?.[rule.column]);
+    });
+  }
+  function fieldInGroup(field, group) {
+    return !field.hidden && (field.display_groups || [field.group]).includes(group);
+  }
   function renderFields() {
     if (!state.draft) return;
-    const row = selected(), groups = state.definition.groups;
+    const row = selected(), groups = visibleGroups(row.inputs);
     if (!groups.includes(state.group)) state.group = groups[0];
     const buttons = groups.map(group => {
       const button = node("button", "penetration-group", group); button.type = "button"; button.dataset.penetrationGroup = group;
@@ -248,7 +258,7 @@
     $("penetration-input-groups").replaceChildren(...buttons);
     $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${row.inputs.T || "Item details"}`;
     const fields = node("div", "penetration-fields");
-    for (const field of state.definition.row_fields.filter(field => field.group === state.group)) fields.append(makeControl(field, row.id));
+    for (const field of state.definition.row_fields.filter(field => fieldInGroup(field, state.group))) fields.append(makeControl(field, row.id));
     $("penetration-row-fields").replaceChildren(fields);
   }
   function refreshControls() {
@@ -465,11 +475,11 @@
       const values = [line, row.inputs.K || "—", row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), invalid ? "Check input" : result?.errors?.length ? "Review calculation" : state.schedule.calculating ? "Calculating…" : result ? "Calculated" : "—"];
       values.forEach((value, column) => { if (column !== 5) tr.children[column].textContent = String(value); });
       if (!quantityField) tr.children[5].textContent = display(row.inputs.O);
-      for (const control of tr.children[5].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Line ${line}: ${fieldLabel(quantityField)}`);
-      const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit penetration line ${line}`); edit.addEventListener("click", () => selectRow(row.id));
+      for (const control of tr.children[5].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Item ${line}: ${fieldLabel(quantityField)}`);
+      const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit firestopping item ${line}`); edit.addEventListener("click", () => selectRow(row.id));
       const remove = node("button", "button secondary penetration-remove"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
-      remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove line ${line}`; remove.setAttribute("aria-label", `Remove penetration line ${line}`); remove.disabled = state.schedule.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
+      remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove item ${line}`; remove.setAttribute("aria-label", `Remove firestopping item ${line}`); remove.disabled = state.schedule.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
       actions.append(edit, remove);
       if (tr.children[8]) tr.children[8].replaceChildren(edit, remove); else tr.append(actions);
       return tr;
@@ -478,7 +488,7 @@
     // its selection while inputs and server results update around it.
     if (rows.length !== previous.length || rows.some((row, index) => row !== previous[index])) body.replaceChildren(...rows);
     refreshControls();
-    const count = $("penetration-row-count"); count.replaceChildren(node("span", "", `${state.schedule.draft.rows.length} ${state.schedule.draft.rows.length === 1 ? "row" : "rows"} · Capacity ${state.definition.capacity}`));
+    const count = $("penetration-row-count"); count.replaceChildren(node("span", "", `${state.schedule.draft.rows.length} ${state.schedule.draft.rows.length === 1 ? "item" : "items"} · Capacity ${state.definition.capacity}`));
     if (state.schedule.draft.rows.length > pageSize) {
       const previous = node("button", "button secondary", "Previous rows"), next = node("button", "button secondary", "Next rows"); previous.type = next.type = "button";
       previous.disabled = state.page === 0; next.disabled = (state.page + 1) * pageSize >= state.schedule.draft.rows.length;

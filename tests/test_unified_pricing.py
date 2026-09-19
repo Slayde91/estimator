@@ -21,7 +21,7 @@ from estimator.storage import Store
 
 
 SHARED_INPUTS = {
-    'D4': '1 Team - 1x',
+    'D3': '1 Team - 1x', 'D4': '1 Team - 1x', 'D5': '1 Team - 1x',
     'B16': 10, 'D16': 'Promat Promamesh', 'E16': 0,
     'B20': 142, 'D20': '20kg SBR Latex - Promat', 'E20': 0,
     'B21': 284, 'D21': '20kg SBR Latex - Promat', 'E21': 0,

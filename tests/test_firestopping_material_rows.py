@@ -47,8 +47,14 @@ class FirestoppingMaterialRowsTests(unittest.TestCase):
         self.assertEqual(indexed['Collar']['quantity'], 5)
         self.assertEqual(indexed['Collar']['days'], .5 / 8)  # AN does not multiply DF.
         self.assertEqual(indexed['Other material']['quantity'], 3 * 1.1 * 2.5)
+        self.assertAlmostEqual(indexed['Other material']['coverage'], 7.5)
+        self.assertAlmostEqual(indexed['Other material']['base_units'], 7.5)
+        self.assertAlmostEqual(indexed['Other material']['wastage_units'], .75)
+        self.assertEqual(indexed['Other material']['wastage_percent'], .1)
         self.assertEqual(indexed['Other material']['days'], 0)  # Manual hours are Additional Labour.
         self.assertEqual(indexed['Frame']['quantity'], 5)
+        self.assertEqual(indexed['Collar']['base_units'], 5)
+        self.assertIsNone(indexed['Collar']['wastage_percent'])
         self.assertEqual(indexed['Frame']['days'], .75 / 8)
 
     def test_rates_contexts_and_unselected_products_are_not_collapsed(self):

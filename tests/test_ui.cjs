@@ -498,6 +498,7 @@ let passed=0;
 
   // B12 has no second editor anywhere in the form; all other inputs and the main NOTES remain.
   setup();audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.fields.find(field=>field.cell==='D7').label='Masking/Cleaning labour';
   audit.state.inputs=Object.fromEntries(audit.state.fields.map(field=>[field.cell,field.default??'']));
   audit.state.inputs.B12='Historical workbook note';byId('measurements').value='Visible main note';
   const hiddenNotesInputs=JSON.stringify(audit.state.inputs),hiddenNotesFields=JSON.stringify(audit.state.fields);
@@ -511,15 +512,23 @@ let passed=0;
   assert.match(fs.readFileSync('static/index.html','utf8'),/<textarea[^>]*id="measurements"/);passed++;
 
   // Material requirement rows follow their labour selections, and masking help explains its basis.
-  setup();audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  setup();audit.setRenderInputs(audit.renderInputs);audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.fields.find(field=>field.cell==='D7').label='Masking/Cleaning labour';
   audit.state.inputs=Object.fromEntries(audit.state.fields.map(field=>[field.cell,field.default??'']));
-  for(const cell of ['D2','D3','D4','D5','D6','D8','D9','D10'])audit.state.inputs[cell]='N/A';
+  for(const cell of ['D2','D3','D4','D5','D6','D7','D8','D9','D10'])audit.state.inputs[cell]='N/A';
   audit.renderInputs();
   assert.deepEqual(byId('material-inputs').children.map(row=>row.hidden),[true,true,true,true,true,true,true,true,true]);
+  assert.ok(!inputDescendants(byId('input-sections')).some(node=>node.textContent==='Masking/Cleaning'));
+  let maskingTeam=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='D7');
+  assert.equal(maskingTeam.parent.children[0].textContent,'Masking/Cleaning labour');
+  maskingTeam.value='1 Team - 1x';await maskingTeam.emit('input');
+  assert.ok(inputDescendants(byId('input-sections')).some(node=>node.textContent==='Masking/Cleaning'));
   const maskingControl=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='B9');
   assert.equal(maskingControl.title,'Masking/cleaning is a percentage of Spray labour.');
   assert.equal(maskingControl.getAttribute('aria-description'),'Masking/cleaning is a percentage of Spray labour.');
   assert.equal(maskingControl.parent.children[0].title,'Masking/cleaning is a percentage of Spray labour.');
+  maskingTeam=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='D7');maskingTeam.value='N/A';await maskingTeam.emit('input');
+  assert.ok(!inputDescendants(byId('input-sections')).some(node=>node.textContent==='Masking/Cleaning'));
   const sprayTeam=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='D2');sprayTeam.value='1 Team - 1x';await sprayTeam.emit('input');
   assert.equal(byId('material-inputs').children[0].hidden,false);assert.ok(byId('material-inputs').children.slice(1).every(row=>row.hidden));
   const html=fs.readFileSync('static/index.html','utf8');

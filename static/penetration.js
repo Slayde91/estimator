@@ -258,7 +258,8 @@
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     });
     $("penetration-input-groups").replaceChildren(...buttons);
-    $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${row.inputs.T || "Item details"}`;
+    const identity = [row.inputs.J, row.inputs.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
+    $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${identity || "Item details"}`;
     const fields = node("div", "penetration-fields");
     for (const field of state.definition.row_fields.filter(field => fieldInGroup(field, state.group))) fields.append(makeControl(field, row.id));
     $("penetration-row-fields").replaceChildren(fields);

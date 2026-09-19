@@ -28,6 +28,11 @@ collection omits these rules.
 | F10 | Total days including masking, extra days and mobilisation allowance |
 | B30 | Generated notes and rounded purchasing quantities |
 
+The Estimator presents D7 as **Masking/Cleaning labour**. When D7 is `N/A`, the
+Masking/Cleaning percentage and type card is hidden; selecting an active labour
+rate shows it again. This is presentation logic over the unchanged workbook
+field and formulas.
+
 The saved Calculator has all nine coverage inputs at zero; B8 is 30; B9 is 30%;
 all adjustments are zero; extra days are zero; mobilisation and administration
 quantities are one. Spray and masking labour use `1 Team - 1x`. Other task labour

@@ -20,6 +20,16 @@ function harness(){
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Library editor shows only the pipe category and Bulkhead relevant to the item',async h=>{
+    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Bulkhead'];metadata.group_visibility={
+      'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
+      'Cables/Bundles':{column:'K',values:['Cable Bundles']},Bulkhead:{column:'J',values:['Bulkheads']}};
+    for(const group of metadata.groups.slice(1))metadata.row_fields.push({column:`field-${group}`,label:group,group,type:'number',format:'number',units:'',options:[],default:null});
+    metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
+    const draft=copy(metadata.defaults);draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.api.present(fixture(draft,{definition:metadata,result:result(draft,metadata)}));
+    assert.match(text(h.byId('library-editor-groups')),/Penetration.*Cables\/Bundles.*Bulkhead/);assert.doesNotMatch(text(h.byId('library-editor-groups')),/Unlagged Pipes|Plastic Pipes/);
+    h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('library-editor-fields')),/Diameter/);
+  });
   await check('Library automatic allowances remain raw and clean until manual input, retaining precise and zero overrides and reset',async h=>{
     const metadata=allowanceDefinition(),source=fixture(undefined,{definition:metadata,result:allowanceResult(definition().defaults,metadata)});h.api.present(source);h.audit.state.group='Products and labour';h.audit.renderFields();let control=h.control('register_allowance_hours');const before=copy(h.audit.state.draft);
     assert.equal(control.value,'0.25');assert.equal(h.api.hasUnsavedChanges(),false);await control.focus();await control.blur();assert.deepEqual(copy(h.audit.state.draft),before);

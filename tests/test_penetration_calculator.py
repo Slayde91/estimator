@@ -164,6 +164,17 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertIn('Cable Trays', fields['K']['options'])
         self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
         self.assertEqual(fields['U']['label'], 'System/Install Details')
+        self.assertTrue(fields['AG']['hidden'])
+        self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
+            'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead'])
+        self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
+        self.assertIn('Plastic Pipes', spec['group_visibility']['Plastic Pipes']['values'])
+        self.assertIn('Cable Bundles', spec['group_visibility']['Cables/Bundles']['values'])
+        pipe_fields = [field for field in spec['row_fields'] if field['group'] == 'Pipes']
+        self.assertEqual([field['column'] for field in pipe_fields],
+                         ['AL', 'AM', 'AN', 'pipe_labour_hours', 'AO'])
+        for field in pipe_fields:
+            self.assertEqual(field['display_groups'], ['Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles'])
         existing = {'globals': {}, 'rows': [{'id': 'old', 'inputs': {'Q': None, 'R': 'Easy', 'V': 'FIREFLY', 'K': 'Legacy text'}}]}
         self.assertEqual(normalize_draft(existing)['rows'], existing['rows'])
         original = source_example()

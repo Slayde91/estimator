@@ -89,7 +89,7 @@ All 64 unlocked, populated input cells are captured with their original value, l
 
 All 151 Calculator formulas and their original cached outputs are retained in `calculator.json`. OOXML shared formulas are expanded with relative and absolute references preserved. Calculation rows 60:122 are hidden in the source, but they are included in the extraction. `A1` is an existing literal `#VALUE!` with no dependents; it is excluded from the quote engine. `B56` is a locked blank referenced by SUM and must remain zero-like, not an invented new adjustment formula.
 
-For each material row, global material adjustment changes the required quantity before wastage. Adjusted quantity multiplied by the looked-up rate determines material sell cost. Labour days use adjusted, wasted material quantity divided by the daily output, followed by global labour adjustment. Source formulas take precedence over assumptions about how those quantities should normally work.
+In the preserved source formulas, global material adjustment changes each required quantity before wastage, and global labour adjustment changes calculated labour days. The source-oracle calculator continues to execute those formulas exactly. The application quote policy runs those component formulas with both percentages at zero, combines main-estimate and Firestopping material and labour costs, then applies each entered percentage once to its complete cost base. The quote summary and PDF show both adjustment amounts separately.
 
 | Material input | Base quantity formula | Yield lookup | Wasted quantity | Sell output |
 | --- | --- | --- | --- | --- |
@@ -103,7 +103,7 @@ For each material row, global material adjustment changes the required quantity 
 | B22 board square metres | B97 = B22 / F22 × (1 + B26) | boards column 3 | D97 | F97 |
 | B23 mastic linear metres | B102 = B23 / F23 × (1 + B26) | mastic column 3 | D102 | F102 |
 
-`F2:F5` split labour, material, access and travel/accommodation totals. `F6` sums them; `F7` adds fixed adjustment B28; `F8` divides by project quantity B8. The detailed calculation total D28 is also retained for reconciliation. Masking, global adjustments, access duration, and additions follow their literal formulas, including repeated adjustments where present. Access B2's label says per day, but its dropdown contains weekly rates and C116 calculates `(F10/5)*B4`; preserve that behavior.
+`F2:F5` split labour, material, access and travel/accommodation totals. `F6` sums them; `F7` adds fixed adjustment B28; `F8` divides by project quantity B8. The detailed calculation total D28 is also retained for source reconciliation. The direct source-oracle path preserves the literal masking and repeated-adjustment formulas. The application quote composition records the effective combined percentage amounts in `global_adjustments` and overlays F2, F3, F6, F7 and F8 with its once-only totals. Access B2's label says per day, but its dropdown contains weekly rates and C116 calculates `(F10/5)*B4`; preserve that behavior.
 
 Prices and durations are not rounded inside their arithmetic. Two-decimal number formatting is presentation. B30 material notes use `ROUNDUP(...,0)` for purchasing counts; this does not round the quantities used to price the estimate.
 

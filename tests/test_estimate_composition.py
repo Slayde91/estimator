@@ -44,22 +44,45 @@ class EstimateCompositionTests(unittest.TestCase):
 
     def test_combines_canonical_totals_once_preserving_cells_and_all_task_hours(self):
         inputs = {'B15': 5.123456789, 'B8': 20, 'B26': .4, 'B27': .3, 'B28': 17}
-        base = base_calculate(inputs)
+        source = base_calculate(inputs)
+        base = base_calculate({**inputs, 'B26': 0, 'B27': 0})
         draft = schedule()
         before = deepcopy(draft)
         fire = schedule_calculate(draft)
         result = calculate(inputs, {}, {'draft': draft})
+        self.assertEqual(result['calculation_policy'], 'combined-global-cost-adjustments-v1')
         self.assertEqual(draft, before)
-        self.assertEqual(result['cells'], base['cells'])
-        self.assertEqual(result['inputs'], base['inputs'])
+        self.assertEqual(base_calculate(inputs), source)
+        self.assertEqual(result['inputs'], source['inputs'])
+        for cell, value in base['cells'].items():
+            if cell not in {'B26', 'B27', 'F2', 'F3', 'F6', 'F7', 'F8'}:
+                self.assertEqual(result['cells'][cell], value, cell)
+        self.assertEqual(result['cells']['B26'], .4)
+        self.assertEqual(result['cells']['B27'], .3)
         self.assertEqual(result['base_summary'], base['summary'])
-        for output, source in [('labour', 'labour'), ('material', 'materials'), ('access', 'access'),
-                               ('travel', 'travel_lafha'), ('days', 'total_days'),
-                               ('subtotal', 'grand_total'), ('total', 'grand_total')]:
-            self.assertEqual(result['summary'][output], base['summary'][output] + (fire['summary'][source] or 0))
+        combined_material = base['summary']['material'] + fire['summary']['materials']
+        combined_labour = base['summary']['labour'] + fire['summary']['labour']
+        material_adjustment = result['global_adjustments']['material']
+        labour_adjustment = result['global_adjustments']['labour']
+        self.assertEqual((material_adjustment['percent'], material_adjustment['base'], material_adjustment['amount']),
+                         (.4, combined_material, combined_material * .4))
+        self.assertEqual((labour_adjustment['percent'], labour_adjustment['base'], labour_adjustment['amount']),
+                         (.3, combined_labour, combined_labour * .3))
+        self.assertAlmostEqual(material_adjustment['total'], combined_material * 1.4)
+        self.assertAlmostEqual(labour_adjustment['total'], combined_labour * 1.3)
+        self.assertAlmostEqual(result['summary']['material'], combined_material * 1.4)
+        self.assertAlmostEqual(result['summary']['labour'], combined_labour * 1.3)
+        self.assertEqual(result['summary']['access'], base['summary']['access'] + (fire['summary']['access'] or 0))
+        self.assertEqual(result['summary']['travel'], base['summary']['travel'] + (fire['summary']['travel_lafha'] or 0))
+        self.assertEqual(result['summary']['days'], base['summary']['days'] + fire['summary']['total_days'])
+        expected_subtotal = sum(result['summary'][key] for key in ('labour', 'material', 'access', 'travel'))
+        self.assertEqual(result['summary']['subtotal'], expected_subtotal)
+        self.assertEqual(result['summary']['total'], expected_subtotal + 17)
         self.assertEqual(result['summary']['rate'], result['summary']['total'] / 20)
         self.assertEqual(result['materials'][:9], base['materials'])
-        self.assertEqual(result['materials'][9:], fire['material_breakdown'])
+        self.assertEqual(result['materials'][9:-1], fire['material_breakdown'])
+        self.assertEqual(result['materials'][-1]['name'], 'Global material adjustment')
+        self.assertEqual(result['materials'][-1]['total'], combined_material * .4)
         self.assertAlmostEqual(sum(task['days'] for task in result['labour']['firestopping_tasks']), fire['summary']['labour_hours'] / 8)
         self.assertEqual(result['labour']['total_days'], result['summary']['days'])
         self.assertEqual(result['labour']['task_days'], base['labour']['task_days'] + fire['summary']['labour_hours'] / 8)
@@ -70,7 +93,11 @@ class EstimateCompositionTests(unittest.TestCase):
         self.assertEqual(tasks['Firestopping · Register allowance']['task_hours'], .25 * 3.125)
         self.assertEqual(tasks['Firestopping · Other']['task_hours'], 0)
         self.assertEqual(tasks['Firestopping · Other']['total'], 0)
-        self.assertEqual(calculate(inputs), base)
+        main_only = calculate(inputs)
+        self.assertEqual(main_only['global_adjustments']['material']['base'], base['summary']['material'])
+        self.assertEqual(main_only['global_adjustments']['labour']['base'], base['summary']['labour'])
+        self.assertAlmostEqual(main_only['summary']['material'], base['summary']['material'] * 1.4)
+        self.assertAlmostEqual(main_only['summary']['labour'], base['summary']['labour'] * 1.3)
 
     def test_empty_schedule_adds_no_template_cost_or_hours(self):
         base = base_calculate({'B8': 1})

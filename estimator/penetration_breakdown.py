@@ -273,21 +273,36 @@ def material_breakdown(result):
                 product = row['inputs'].get(PRODUCT_COLUMNS[task['label']])
                 price = _source_value(task['unit_prices'][0]['value'])
                 context = value.get('label', '')
-                key = (product, task['label'], value['column'], context, value.get('units', ''), price,
-                       row['id'] if product in (None, '') else None)
+                units = value.get('units', '')
+                # A selected product is one commercial line even when the
+                # workbook uses it in more than one physical context. Keep
+                # blank products separate because they do not have an identity
+                # that can be reconciled safely.
+                key = ((product,) if product not in (None, '') else
+                       (None, task['label'], value['column'], context, units, row['id']))
+                contribution_total = _compute(lambda: _number(quantity) * _number(price))
                 if key not in grouped:
-                    item = {'source': 'firestopping', 'name': ' · '.join(str(part) for part in
-                            (product or f"Line {index} {task['label']}", context) if part),
+                    item = {'source': 'firestopping', 'name': (str(product) if product not in (None, '')
+                            else ' · '.join(str(part) for part in (f"Item {index} {task['label']}", context) if part)),
                             'product': product, 'context': context, 'quantity': quantity,
-                            'price': price, 'task_hours': share, 'row_ids': [],
-                            'quantity_column': value['column'], 'units': value.get('units', '')}
+                            'price': price, 'total': contribution_total, 'task_hours': share,
+                            'row_ids': [], 'contexts': [], 'quantity_columns': [], 'unit_labels': [],
+                            'quantity_column': value['column'], 'units': units}
                     grouped[key] = item
                     materials.append(item)
                 else:
                     item = grouped[key]
                     item['quantity'] = _compute(lambda: _number(item['quantity']) + _number(quantity))
+                    item['total'] = _compute(lambda: _number(item['total']) + _number(contribution_total))
                     item['task_hours'] = _compute(lambda: _number(item['task_hours']) + _number(share))
-                item['row_ids'].append(row['id'])
+                if row['id'] not in item['row_ids']:
+                    item['row_ids'].append(row['id'])
+                if context and context not in item['contexts']:
+                    item['contexts'].append(context)
+                if value['column'] not in item['quantity_columns']:
+                    item['quantity_columns'].append(value['column'])
+                if units and units not in item['unit_labels']:
+                    item['unit_labels'].append(units)
         adjustment = row['inputs'].get('AI')
         if adjustment not in (None, '', 0):
             amount = _compute(lambda: _number(adjustment) * _number(row['inputs'].get('O')))
@@ -295,6 +310,16 @@ def material_breakdown(result):
                               'product': None, 'context': 'Material adjustment', 'quantity': 1,
                               'price': amount, 'task_hours': 0, 'row_ids': [row['id']], 'units': ''})
     for item in materials:
-        item['total'] = _compute(lambda: _number(item['quantity']) * _number(item['price']))
+        if 'total' not in item:
+            item['total'] = _compute(lambda: _number(item['quantity']) * _number(item['price']))
+        elif item['product'] not in (None, '') and item['quantity'] not in (None, '', 0):
+            # Reconciled duplicate rows may have different captured rates. The
+            # displayed rate is their exact weighted average; the summed line
+            # amount remains authoritative.
+            item['price'] = _compute(lambda: _number(item['total']) / _number(item['quantity']))
+        if item.get('contexts'):
+            item['context'] = ' + '.join(item['contexts'])
+        if item.get('unit_labels'):
+            item['units'] = ' + '.join(item['unit_labels'])
         item['days'] = _compute(lambda: _number(item['task_hours']) / HOURS_PER_DAY)
     return materials

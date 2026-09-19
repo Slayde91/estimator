@@ -48,6 +48,22 @@ GROUP_COLUMNS = {
     'Substrate': 'AW AX AY AZ'.split(),
     'Bulkhead': 'BB BC BD BE BF BG'.split(),
 }
+PIPE_DISPLAY_GROUPS = {
+    'Unlagged Pipes': ('Unlagged Pipes', 'Lagged Pipes'),
+    'Plastic Pipes': ('Plastic Pipes', 'Conduit', 'Conduits'),
+    'Cables/Bundles': (
+        'Cable Bundles', 'Coaxial Cables', 'D1 Power Cables', 'D2 Comms Cables',
+        'Data Cable Bundles', 'Fire Resistant Cables', 'Mixed Service Bundle',
+        'Mixed Services', 'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils',
+        'Power Cable Bundles', 'Power Cables', 'Single Cables',
+        'TPS & Fire Alarm Cable Bundles',
+    ),
+}
+GROUP_VISIBILITY = {
+    'Bulkhead': {'column': 'J', 'values': ('Bulkheads',)},
+    **{group: {'column': 'K', 'values': services}
+       for group, services in PIPE_DISPLAY_GROUPS.items()},
+}
 ROW_COLUMNS = tuple(c for cols in GROUP_COLUMNS.values() for c in cols)
 TEXT_COLUMNS = set('J K L M N P Q R T U V W X Y Z AA AB AE'.split())
 PERCENT_COLUMNS = set('AG AO AU AZ BF BG'.split())
@@ -121,22 +137,33 @@ def definition(configuration=None, service_types=None):
         'V': list(MANUFACTURERS),
     }
     for group, columns in GROUP_COLUMNS.items():
+        display_groups = list(PIPE_DISPLAY_GROUPS) if group == 'Pipes' else None
         for col in columns:
             if col in ('Q', 'R'):
                 continue
             options = selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, [])
             label = {'T': 'Items/Services', 'U': 'System/Install Details', 'AH': 'Additional Labour'}.get(col, calc[col + '3']['value'])
-            fields.append({'column': col, 'address': col + '4', 'label': label,
+            field = {'column': col, 'address': col + '4', 'label': label,
                 'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES or col in descriptions else 'text' if col in TEXT_COLUMNS else 'number',
                 'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
                 'format': 'percent' if col in PERCENT_COLUMNS else 'currency' if col in ('AI', 'AJ') else 'text' if col in TEXT_COLUMNS else 'number',
-                'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hrs' if col == 'AH' else ''})
-            for key, field in APP_INPUT_FIELDS.items():
-                if field['after'] == col:
-                    fields.append({'column': key, 'address': None, 'label': field['label'],
-                        'type': 'number', 'options': [], 'group': field['group'], 'default': None,
+                'units': '%' if col in PERCENT_COLUMNS else 'mm' if col in 'AL AM AQ AR AS AW AX BB BC BD'.split() else 'hrs' if col == 'AH' else ''}
+            if display_groups:
+                field['display_groups'] = display_groups
+            if col == 'AG':
+                # The raw value remains in source, saved projects and exports;
+                # only the obsolete editor control is hidden.
+                field['hidden'] = True
+            fields.append(field)
+            for key, app_field in APP_INPUT_FIELDS.items():
+                if app_field['after'] == col and app_field['group'] == group:
+                    field = {'column': key, 'address': None, 'label': app_field['label'],
+                        'type': 'number', 'options': [], 'group': group, 'default': None,
                         'format': 'number', 'units': 'hrs', 'min': 0,
-                        'automatic_default': True, 'source': 'application'})
+                        'automatic_default': True, 'source': 'application'}
+                    if display_groups:
+                        field['display_groups'] = display_groups
+                    fields.append(field)
     output_fields = []
     for address, cell in sorted(calc.items(), key=lambda item: coordinates(item[0])[1]):
         if not address.endswith('4') or 'formula' not in cell:
@@ -150,7 +177,11 @@ def definition(configuration=None, service_types=None):
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
         'capacity': CAPACITY, 'defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
         'schedule_defaults': {'globals': deepcopy(GLOBAL_DEFAULTS), 'rows': []},
-        'global_fields': [], 'row_fields': fields, 'output_fields': output_fields, 'groups': list(GROUP_COLUMNS),
+        'global_fields': [], 'row_fields': fields, 'output_fields': output_fields,
+        'groups': [group for source in GROUP_COLUMNS
+                   for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))],
+        'group_visibility': {group: {'column': rule['column'], 'values': list(rule['values'])}
+                             for group, rule in GROUP_VISIBILITY.items()},
         'allowed_input_columns': [*ROW_COLUMNS, *APP_INPUT_FIELDS], 'calculation_policy': CALCULATION_POLICY_VERSION,
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
 

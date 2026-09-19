@@ -510,6 +510,24 @@ let passed=0;
   assert.equal(audit.reportPayload().inputs.B12,'Historical workbook note');assert.equal(audit.reportPayload().measurements,'Visible main note');
   assert.match(fs.readFileSync('static/index.html','utf8'),/<textarea[^>]*id="measurements"/);passed++;
 
+  // Material requirement rows follow their labour selections, and masking help explains its basis.
+  setup();audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.inputs=Object.fromEntries(audit.state.fields.map(field=>[field.cell,field.default??'']));
+  for(const cell of ['D2','D3','D4','D5','D6','D8','D9','D10'])audit.state.inputs[cell]='N/A';
+  audit.renderInputs();
+  assert.deepEqual(byId('material-inputs').children.map(row=>row.hidden),[true,true,true,true,true,true,true,true,true]);
+  const maskingControl=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='B9');
+  assert.equal(maskingControl.title,'Masking/cleaning is a percentage of Spray labour.');
+  assert.equal(maskingControl.getAttribute('aria-description'),'Masking/cleaning is a percentage of Spray labour.');
+  assert.equal(maskingControl.parent.children[0].title,'Masking/cleaning is a percentage of Spray labour.');
+  const sprayTeam=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='D2');sprayTeam.value='1 Team - 1x';await sprayTeam.emit('input');
+  assert.equal(byId('material-inputs').children[0].hidden,false);assert.ok(byId('material-inputs').children.slice(1).every(row=>row.hidden));
+  const html=fs.readFileSync('static/index.html','utf8');
+  assert.match(html,/<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
+  assert.match(html,/<summary><h3[^>]*>Schedule breakdown<\/h3><\/summary>/);
+  assert.match(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
+  assert.match(html,/<th scope="col">Item<\/th><th scope="col">Service Type<\/th>/);passed++;
+
   // Labour rows display source-projected days, preserve literal labels, and read the authoritative total.
   setup();const labourResult={summary:{days:16.987654321},cells:{},errors:{},materials:[],labour:{
     tasks:[{name:'Spray / wrap',days:1.23456789},{name:'Mesh <literal>',days:2},{name:'Access panels',days:0},{name:'Fan enclosure mesh',days:3},{name:'Primer',days:0},{name:'Topcoat',days:0},{name:'Board',days:1},{name:'Mastic',days:0}],

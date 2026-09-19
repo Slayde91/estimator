@@ -629,6 +629,18 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.app.projectEstimate().penetration,undefined);
     assert.equal(h.pen.api.projectSnapshot().composer.rows[0].inputs.O,99);
   });
+  for(const alreadyDirty of [false,true])await check(`First schedule initialization preserves ${alreadyDirty?'existing user edits':'a pristine estimate'} while still scheduling combined calculation`,async()=>{
+    const h=harness({penetration:true}),prepared=await h.pen.api.prepareDefaults();
+    h.app.state.initialized=true;h.app.state.dirty=alreadyDirty;
+    assert.equal(h.app.state.firestoppingStamp,undefined);const initialRevision=h.app.state.revision;
+    h.pen.api.applyProject(prepared);
+    assert.equal(h.app.state.dirty,alreadyDirty);assert.ok(h.app.state.revision>initialRevision);assert.equal(h.pen.api.hasUnsavedChanges(),false);assert.equal(h.pen.api.quoteSnapshot().draft.rows.length,0);
+    const revision=h.app.state.revision;h.context.window.CeasefireProject.scheduleChanged();assert.equal(h.app.state.revision,revision);assert.equal(h.app.state.dirty,alreadyDirty);
+    h.app.state.dirty=false;h.pen.audit.state.draft.rows[0].inputs.T='Independent current item';h.pen.audit.changed('line-1');
+    assert.equal(h.app.state.dirty,false);assert.equal(h.app.state.revision,revision);
+    h.pen.audit.state.schedule.draft.rows.push({id:'scheduled',inputs:{O:2}});h.pen.audit.changed('scheduled',h.pen.audit.state.schedule);
+    assert.equal(h.app.state.dirty,true);assert.ok(h.app.state.revision>revision);assert.equal(h.byId('sum-total').textContent,'—');
+  });
   await penetrationCheck('Schedule edits invalidate pending combined totals but composer edits do not',async h=>{
     h.app.state.initialized=true;h.context.window.CeasefireProject.scheduleChanged();
     const pending=deferred();h.app.setRequest(()=>pending.promise);

@@ -1503,8 +1503,9 @@
   function scheduleChanged() {
     const stamp = window.CeasefirePenetrations?.quoteFingerprint?.();
     if (stamp === state.firestoppingStamp) return;
+    const hadSchedule = state.firestoppingStamp !== undefined;
     state.firestoppingStamp = stamp;
-    if (state.initialized) { updateDirty(); scheduleCalculation(); }
+    if (state.initialized) { if (hadSchedule) updateDirty(); scheduleCalculation(); }
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     configuration: () => clone(state.quoteConfiguration || state.configuration),

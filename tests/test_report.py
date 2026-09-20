@@ -71,6 +71,21 @@ class ReportTests(unittest.TestCase):
         self.assertIn("123.45 m²", self.text)
         self.assertNotRegex(self.text, r"\b\d[\d,]*\.\d{3,}\b")
 
+    def test_labour_tables_have_requested_titles_order_and_total_rows(self):
+        compact = "".join(self.text.split())
+        self.assertIn("Ductwork,Steel,andBoardLabour", compact)
+        self.assertIn("Outputunits/dayDailysellrateDaysLineamount", compact)
+        self.assertIn("ComponentRateperdayDaysAmount", compact)
+        cells = self.quote['result']['cells']
+        labour_amount = sum(cells[f'F{row}'] for row in (65, 70, 79, 84, 89, 94, 99, 104))
+        additions_amount = sum(cells[f'D{row}'] for row in range(112, 120))
+        addition_days = (self.quote['result']['labour']['extra_days']
+                         + self.quote['result']['labour']['mobilisation_days'])
+        for token in (money_text(labour_amount),
+                      money_text(self.quote['result']['masking']['total']),
+                      money_text(additions_amount), f"{addition_days:.2f}Days"):
+            self.assertIn(token.replace(' ', ''), compact)
+
     def test_official_logo_and_fonts_are_embedded_on_each_page(self):
         self.assertEqual(sha256((ROOT / "static/ceasefire-logo.png").read_bytes()).hexdigest(), "b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7")
         self.assertGreaterEqual(len(self.reader.pages), 4)

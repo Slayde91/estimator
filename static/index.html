@@ -78,9 +78,14 @@
         <div id="penetration-message" class="message" role="status" hidden></div>
         <div id="penetration-loading" class="empty-state">Loading penetration fields…</div>
         <div id="penetration-workspace" hidden>
-          <div class="penetration-layout"><section class="card" aria-labelledby="penetration-row-heading"><div class="section-heading penetration-item-heading"><h3 id="penetration-row-heading">Current item</h3><div class="actions"><button id="penetration-add-to-library" type="button" class="button secondary">Add to Library</button><button id="penetration-add-to-schedule" type="button" class="button primary">Add to Schedule</button><button id="penetration-update-schedule" type="button" class="button primary" hidden>Update Schedule</button><button id="penetration-cancel-edit" type="button" class="button secondary" hidden>Cancel edit</button></div></div><div id="penetration-input-groups" class="penetration-group-choices" role="group" aria-label="Item input groups"></div><div id="penetration-row-fields"></div></section><aside class="card penetration-summary" aria-labelledby="penetration-summary-heading"><div class="section-heading"><h3 id="penetration-summary-heading">Current item summary</h3></div><dl id="penetration-summary" class="cost-list"></dl><div id="penetration-summary-notes" class="helper"></div></aside></div>
-          <section class="card" aria-labelledby="penetration-breakdown-heading"><div class="section-heading"><h3 id="penetration-breakdown-heading">Selected item breakdown</h3></div><div id="penetration-breakdown"></div></section>
-          <details class="penetration-source"><summary>Calculation source</summary><p id="penetration-source" class="helper"></p></details>
+          <div class="penetration-layout">
+            <div class="penetration-main">
+              <section class="card" aria-labelledby="penetration-row-heading"><div class="section-heading penetration-item-heading"><h3 id="penetration-row-heading">Current item</h3><div class="actions"><button id="penetration-add-to-library" type="button" class="button secondary">Add to Library</button><button id="penetration-add-to-schedule" type="button" class="button primary">Add to Schedule</button><button id="penetration-update-schedule" type="button" class="button primary" hidden>Update Schedule</button><button id="penetration-cancel-edit" type="button" class="button secondary" hidden>Cancel edit</button></div></div><div id="penetration-input-groups" class="penetration-group-choices" role="group" aria-label="Item input groups"></div><div id="penetration-row-fields"></div></section>
+              <section class="card" aria-labelledby="penetration-breakdown-heading"><div class="section-heading"><h3 id="penetration-breakdown-heading">Selected item breakdown</h3></div><div id="penetration-breakdown"></div></section>
+              <details class="penetration-source"><summary>Calculation source</summary><p id="penetration-source" class="helper"></p></details>
+            </div>
+            <aside class="card penetration-summary" aria-labelledby="penetration-summary-heading"><div class="section-heading"><h3 id="penetration-summary-heading">Item Summary</h3></div><dl id="penetration-summary" class="cost-list"></dl><div id="penetration-summary-notes" class="helper"></div></aside>
+          </div>
         </div>
         </div>
         <section id="firestopping-library-editor" aria-labelledby="library-editor-heading" hidden>

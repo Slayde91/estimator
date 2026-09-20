@@ -205,6 +205,20 @@ class _Report:
             return "Unavailable: " + _text(self.errors[cell])
         return _number(self.cells.get(cell), **formatting)
 
+    def total_cells(self, cells, **formatting):
+        """Total recorded snapshot cells without consulting current pricing."""
+        values = []
+        for cell in cells:
+            if cell in self.errors:
+                return "Unavailable: " + _text(self.errors[cell])
+            value = self.cells.get(cell)
+            if value in (None, ""):
+                value = 0
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                return "Unavailable"
+            values.append(value)
+        return _number(sum(values), **formatting)
+
     def summary_value(self, key, cell, **formatting):
         if 'firestopping' not in self.result:
             return self.value(cell, **formatting)
@@ -217,7 +231,7 @@ class _Report:
             return _number(value, blank="Blank", **formatting)
         return "Blank" if value is None or value == "" else _text(value)
 
-    def table(self, headings, rows, widths, *, compact=False):
+    def table(self, headings, rows, widths, *, compact=False, total_rows=0):
         # Numeric tokens must not wrap midway through their decimal digits.
         # Most values fit at the normal font size after column allocation; a
         # modest font reduction handles longer quantities without losing digits.
@@ -232,7 +246,7 @@ class _Report:
         data = [[self.p(heading, "head") for heading in headings]] + fitted_rows
         table = LongTable(data, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
         padding = 4 if compact else 6
-        table.setStyle(TableStyle([
+        styles = [
             ("BACKGROUND", (0, 0), (-1, 0), _INK),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -243,7 +257,13 @@ class _Report:
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, _LIGHT]),
             ("LINEBELOW", (0, 0), (-1, 0), 0.5, _INK),
             ("LINEBELOW", (0, 1), (-1, -1), 0.35, _LINE),
-        ]))
+        ]
+        if total_rows:
+            styles.extend([
+                ("BACKGROUND", (0, -total_rows), (-1, -1), _PALE_RED),
+                ("LINEABOVE", (0, -total_rows), (-1, -total_rows), 0.8, _RED),
+            ])
+        table.setStyle(TableStyle(styles))
         return table
 
     def fit_numeric(self, paragraph, available_width):
@@ -427,38 +447,44 @@ class _Report:
 
     def labour_and_additions(self):
         self.story.extend([PageBreak(), self.p("Labour and masking", "section")])
+        self.story.append(self.p("Ductwork, Steel, and Board Labour", "subheading"))
         rows = []
+        labour_amount_cells = []
         for label, row, _, req_row, labour_row, team in _LINES:
             if labour_row is None:
                 continue
+            labour_amount_cells.append(f"F{labour_row}")
             rows.append([
                 self.detail(label),
                 self.p(self.input(team), "cell"),
                 self.p(self.input(f"C{row}"), "numeric"),
-                self.p(self.value(f"B{req_row}"), "numeric"),
                 self.p(self.value(f"A{labour_row}", money=True), "numeric"),
+                self.p(self.value(f"B{req_row}"), "numeric"),
                 self.p(self.value(f"F{labour_row}", money=True), "numeric"),
             ])
-        widths = [88, 109, 56, 65, 92, _WIDTH - 410]
-        self.story.append(self.table(["Task", "Labour selection", "Output units / day", "Days", "Daily sell rate", "Line amount"], rows, widths, compact=True))
+        rows.append([self.detail("Total"), self.p("", "cell"), self.p("", "numeric"),
+                     self.p("", "numeric"), self.p(self.value("B44"), "numeric"),
+                     self.p(self.total_cells(labour_amount_cells, money=True), "numeric")])
+        widths = [88, 109, 56, 92, 65, _WIDTH - 410]
+        self.story.append(self.table(["Task", "Labour selection", "Output units / day", "Daily sell rate", "Days", "Line amount"], rows, widths, compact=True, total_rows=1))
         self.story.append(self.p(
             "Pinning days: " + self.value("B37") + ". They mirror meshing days and carry no separate labour charge. "
             "Total task labour: " + self.value("B44") +
             " days / " + self.value("B45") + " weeks.", "small"))
 
         if 'firestopping' in self.result:
-            self.story.append(self.p('Firestopping schedule labour', 'subheading'))
+            self.story.append(self.p('Firestopping Labour', 'subheading'))
             tasks = self.result.get('labour', {}).get('firestopping_tasks', [])
             rows = [[self.detail(item['name']), self.p(_number(item.get('task_hours')), 'numeric'),
                      self.p(_number(item.get('days')), 'numeric'),
                      self.p(_number(item.get('total'), money=True), 'numeric')] for item in tasks]
             schedule_summary = self.result['firestopping']['result']['summary']
-            rows.append([self.detail('Firestopping total'),
+            rows.append([self.detail('Total'),
                          self.p(_number(schedule_summary.get('labour_hours')), 'numeric'),
                          self.p(_number(schedule_summary.get('total_days')), 'numeric'),
                          self.p(_number(schedule_summary.get('labour'), money=True), 'numeric')])
             self.story.append(self.table(['Task', 'Task hours', 'Labour days', 'Labour amount'], rows,
-                [223, 80, 80, _WIDTH - 383], compact=True))
+                [223, 80, 80, _WIDTH - 383], compact=True, total_rows=1))
             labour_note = ('Register allowance shows the resolved registration time. Additional Labour includes entered extra hours and fixed labour adjustments. '
                 if any(item.get('name', '').endswith('Register allowance') for item in tasks)
                 else 'Firestopping Labour includes source setup time and fixed labour adjustments. ')
@@ -474,17 +500,20 @@ class _Report:
         masking = self.result.get("masking") or masking_breakdown(self.result)
         masking_rows = [
             [self.detail("Masking/Cleaning labour", self.input("D7")),
-             self.p(self.value("B53"), "numeric"), self.p(self.value("B51", money=True), "numeric"),
+             self.p(self.value("B51", money=True), "numeric"), self.p(self.value("B53"), "numeric"),
              self.p(_number(masking.get("labour_total"), money=True), "numeric")],
             [self.detail("Masking materials", self.input("B10")),
-             self.p(self.value("B53"), "numeric"), self.p(self.value("B52", money=True), "numeric"),
+             self.p(self.value("B52", money=True), "numeric"), self.p("", "numeric"),
              self.p(_number(masking.get("material_base_total"), money=True), "numeric")],
         ]
         if "global_adjustments" not in self.result:
             masking_rows.append([self.detail("Masking material adjustment"), self.p("", "numeric"), self.p("", "numeric"),
                                  self.p(self.value("B57", money=True), "numeric")])
-        self.story.append(self.table(["Component", "Days", "Rate per day", "Amount"], masking_rows,
-                                     [221, 70, 108, _WIDTH - 399], compact=True))
+        masking_rows.append([self.detail("Total"), self.p("", "numeric"),
+                             self.p(self.value("B53"), "numeric"),
+                             self.p(_number(masking.get("total"), money=True), "numeric")])
+        self.story.append(self.table(["Component", "Rate per day", "Days", "Amount"], masking_rows,
+                                     [221, 108, 70, _WIDTH - 399], compact=True, total_rows=1))
 
         self.story.extend([PageBreak(), self.p("Additions and project costs", "section")])
         rows = []
@@ -496,8 +525,16 @@ class _Report:
                 self.p(self.value(f"B{row}", money=True), "numeric"),
                 self.p(self.value(f"D{row}", money=True), "numeric"),
             ])
+        labour = self.result.get('labour', {})
+        addition_days = [labour.get('extra_days'), labour.get('mobilisation_days')]
+        total_days = (sum(addition_days) if all(_numeric(value) for value in addition_days)
+                      else None)
+        rows.append([self.detail("Total"), self.p("Labour total", "cell"),
+                     self.p(_number(total_days) + " Days" if total_days is not None else "Unavailable Days", "numeric"),
+                     self.p("", "numeric"),
+                     self.p(self.total_cells([f"D{row}" for row, *_ in _ADDITIONS], money=True), "numeric")])
         self.story.append(self.table(["Item / selection", "Category", "Adjusted qty", "Unit sell rate", "Amount"], rows,
-                                     [187, 57, 83, 92, _WIDTH - 419], compact=True))
+                                     [187, 57, 83, 92, _WIDTH - 419], compact=True, total_rows=1))
         self.story.append(self.p(
             "Entered additions: extra days = " + self.input("F26") +
             "; mobilisation quantity = " + self.input("F27") +

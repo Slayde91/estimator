@@ -548,6 +548,12 @@ let passed=0;
   assert.equal(labourRows()[11].children[0].textContent,'Total project days');assert.equal(labourRows()[11].children[1].textContent,'16.99');assert.equal(byId('sum-days').textContent,'16.99');
   assert.equal(labourRows()[0].children[0].scope,'row');assert.equal(JSON.stringify(labourResult),labourBefore);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
 
+  // Detailed Firestopping tasks reconcile to one Labour Breakdown row.
+  const reconciled=copy(labourResult);reconciled.labour.tasks.push(
+    {source:'firestopping',name:'Firestopping · Collars',days:.1875},
+    {source:'firestopping',name:'Firestopping · Mastic',days:.3125});reconciled.labour.firestopping_days=.5;
+  audit.renderResults(reconciled);assert.equal(labourRows().filter(row=>row.children[0].textContent==='Firestopping').length,1);assert.equal(labourRows().find(row=>row.children[0].textContent==='Firestopping').children[1].textContent,'0.50');assert.ok(!labourRows().some(row=>row.children[0].textContent.startsWith('Firestopping ·')));passed++;
+
   // Missing and failed labour values remain unavailable or explicit errors rather than plausible zero days.
   const missingLabour=copy(labourResult);missingLabour.labour.tasks[0].days=null;missingLabour.labour.masking_days='#DIV/0!';missingLabour.labour.mobilisation_days='';missingLabour.labour.total_days='#N/A';
   audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'#DIV/0!');assert.equal(labourRows()[10].children[1].textContent,'—');assert.equal(labourRows()[11].children[1].textContent,'#N/A');

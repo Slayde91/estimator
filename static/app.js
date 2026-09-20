@@ -418,7 +418,8 @@
         const row = node("tr", className), labelCell = node("th", "", label);
         labelCell.scope = "row"; row.append(labelCell, node("td", "numeric", formatNumber(days))); labourRows.push(row);
       };
-      for (const task of labour.tasks || []) addDays(task.name, task.days);
+      for (const task of labour.tasks || []) if (task.source !== "firestopping") addDays(task.name, task.days);
+      if ((labour.tasks || []).some(task => task.source === "firestopping")) addDays("Firestopping", labour.firestopping_days);
       addDays("Masking / cleaning", labour.masking_days);
       addDays("Extra labour", labour.extra_days);
       addDays("Mobilisation allowance", labour.mobilisation_days);

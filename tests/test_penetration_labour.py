@@ -11,7 +11,7 @@ from estimator.firestopping_library import FirestoppingLibrary
 from estimator.penetration_calculator import (
     ROW_COLUMNS, calculate, definition, engine_for_draft, normalize_draft, source_model,
 )
-from estimator.penetration_labour import APP_INPUT_FIELDS, resolve_labour
+from estimator.penetration_labour import APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS, resolve_labour
 from estimator.storage import Store
 from test_firestopping_library import editable_library
 from test_penetration_calculator import source_example
@@ -68,18 +68,23 @@ class LabourPolicyTests(unittest.TestCase):
             self.assertEqual(set(normalized['rows'][0]['inputs']), set(draft['rows'][0]['inputs']))
             self.assertEqual(draft, before)
         policy = resolve_labour({'AL': 100, 'AN': 2, 'Y': self.collar,
-                                 'register_allowance_hours': 0, 'pipe_labour_hours': 0})
+                                 'pipe_labour_hours': 0}, {'register_allowance_hours': 0})
         self.assertEqual((policy['register_hours'], policy['pipe_hours'], policy['pipe_task_hours']), (0, 0, 0))
-        self.assertEqual(policy['input_defaults'], {'register_allowance_hours': .25, 'pipe_labour_hours': .30})
+        self.assertEqual(policy['input_defaults'], {'register_allowance_hours': 0, 'pipe_labour_hours': .30})
 
     def test_manual_inputs_require_finite_nonnegative_numbers_and_preserve_precision(self):
-        for key in APP_INPUT_FIELDS:
+        for key in (*APP_INPUT_FIELDS, *LEGACY_APP_INPUT_FIELDS):
             for value in (-.001, True, '0.25', float('inf'), float('nan'), 10 ** 1000):
                 with self.subTest(key=key, value=str(value)), self.assertRaises(ValidationError):
                     normalize_draft({'rows': [{'id': 'one', 'inputs': {key: value}}]})
             value = .123456789012345
-            draft = normalize_draft({'rows': [{'id': 'one', 'inputs': {key: value}}]})
-            self.assertEqual(draft['rows'][0]['inputs'][key], value)
+            inputs = {key: value, **({'Y': self.collar} if key == 'pipe_labour_hours' else {})}
+            draft = normalize_draft({'rows': [{'id': 'one', 'inputs': inputs}]})
+            if key in LEGACY_APP_INPUT_FIELDS:
+                self.assertNotIn(key, draft['rows'][0]['inputs'])
+                self.assertEqual(draft['globals'][key], value)
+            else:
+                self.assertEqual(draft['rows'][0]['inputs'][key], value)
 
     def test_definition_exposes_application_fields_without_forged_workbook_addresses(self):
         spec = definition()
@@ -95,6 +100,12 @@ class LabourPolicyTests(unittest.TestCase):
             self.assertTrue(field['automatic_default'])
             self.assertNotIn(key, ROW_COLUMNS)
             self.assertIn(key, spec['allowed_input_columns'])
+        self.assertNotIn('register_allowance_hours', columns)
+        self.assertIn('register_allowance_hours', spec['allowed_input_columns'])
+        register = next(field for field in spec['global_fields']
+                        if field['column'] == 'register_allowance_hours')
+        self.assertEqual((register['label'], register['units'], register['default'], register['step']),
+                         ('Register Allowance', 'hrs', .25, .05))
         self.assertEqual(self.fields['AH']['label'], 'Additional Labour')
         self.assertEqual(next(field for field in spec['output_fields'] if field['column'] == 'DF')['label'],
                          'Pipes Task Hours')
@@ -107,7 +118,8 @@ class LabourPolicyTests(unittest.TestCase):
         self.assertEqual(automatic['summary']['total_days'], .5 / 8)
         self.assertEqual(row['input_defaults']['register_allowance_hours'], .25)
         self.assertNotIn('register_allowance_hours', row['inputs'])
-        zero = self.result(register_allowance_hours=0)
+        zero = calculate({'globals': {'register_allowance_hours': 0}, 'rows': [{
+            'id': 'one', 'inputs': {'W': self.worker, 'O': 2}}]})
         self.assertEqual(zero['summary']['grand_total'], '')
         for draft in (None, {'rows': []}, {'rows': [{'id': 'blank', 'inputs': {'W': self.worker}}]}):
             empty = calculate(draft)
@@ -115,8 +127,9 @@ class LabourPolicyTests(unittest.TestCase):
             self.assertEqual(empty['summary']['labour_hours'], 0)
 
     def test_pipe_count_and_item_quantity_each_scale_once_and_adjustment_stays_per_line(self):
-        result = self.result(Y=self.collar, AL=51, AN=3, AH=.7, AJ=17,
-                             register_allowance_hours=.4)
+        result = calculate({'globals': {'register_allowance_hours': .4}, 'rows': [{
+            'id': 'one', 'inputs': {'W': self.worker, 'O': 2, 'Y': self.collar,
+                                    'AL': 51, 'AN': 3, 'AH': .7, 'AJ': 17}}]})
         row = result['rows'][0]
         self.assertEqual(row['outputs']['DF'], .3 * 3)
         self.assertEqual(row['outputs']['DJ'], .7)
@@ -124,14 +137,23 @@ class LabourPolicyTests(unittest.TestCase):
         self.assertAlmostEqual(row['outputs']['F'], row['outputs']['DK'] * row['outputs']['CW'] + 17)
         self.assertAlmostEqual(result['summary']['total_days'], row['outputs']['DK'] / 8)
 
-    def test_clearing_collar_keeps_manual_hours_but_removes_pipe_charge(self):
+    def test_clearing_collar_removes_manual_hours_and_pipe_charge(self):
         result = self.result(AL=50, AN=4, pipe_labour_hours=1.25)
         row = result['rows'][0]
-        self.assertEqual(row['inputs']['pipe_labour_hours'], 1.25)
-        self.assertEqual(row['labour_policy']['pipe_hours'], 1.25)
+        self.assertNotIn('pipe_labour_hours', row['inputs'])
+        self.assertIsNone(row['input_defaults']['pipe_labour_hours'])
+        self.assertIsNone(row['labour_policy']['pipe_hours'])
         self.assertEqual(row['outputs']['DF'], '')
         self.assertEqual(row['outputs']['DK'], .5)
         self.assertEqual(result['errors'], [])
+
+    def test_project_pipe_band_settings_change_automatic_hours(self):
+        draft = {'globals': {'pipe_labour_100_hours': .75}, 'rows': [{
+            'id': 'one', 'inputs': {'W': self.worker, 'O': 1, 'Y': self.collar,
+                                    'AL': 75, 'AN': 2}}]}
+        result = calculate(draft)
+        self.assertEqual(result['rows'][0]['input_defaults']['pipe_labour_hours'], .75)
+        self.assertEqual(result['rows'][0]['outputs']['DF'], 1.5)
 
     def test_manual_zero_bypasses_missing_diameter_and_null_resets_to_validation(self):
         zero = self.result(Y=self.collar, AN=2, pipe_labour_hours=0)
@@ -153,8 +175,11 @@ class LabourPolicyTests(unittest.TestCase):
         before, source = deepcopy(draft), deepcopy(source_model())
         result = calculate(draft)
         self.assertEqual(result['rows'][0]['outputs']['DK'], .1 * 2)
-        self.assertEqual(result['rows'][1]['outputs']['DK'], (.5 * 4 + .2) * 3)
-        self.assertAlmostEqual(result['summary']['labour_hours'], .2 + 6.6)
+        self.assertEqual(result['rows'][1]['outputs']['DK'], (.5 * 4 + .1) * 3)
+        self.assertAlmostEqual(result['summary']['labour_hours'], .2 + 6.3)
+        self.assertEqual(result['draft']['globals']['register_allowance_hours'], .1)
+        self.assertTrue(all('register_allowance_hours' not in row['inputs']
+                            for row in result['draft']['rows']))
         self.assertEqual(draft, before)
         self.assertEqual(source_model(), source)
         raw_draft = source_example()
@@ -166,7 +191,8 @@ class LabourPolicyTests(unittest.TestCase):
         self.assertFalse(preserved.formula_overrides.get('CALC'))
 
     def test_tiny_explicit_register_allowance_is_not_rounded_away(self):
-        result = self.result(register_allowance_hours=1e-12)
+        result = calculate({'globals': {'register_allowance_hours': 1e-12}, 'rows': [{
+            'id': 'one', 'inputs': {'W': self.worker, 'O': 2}}]})
         self.assertEqual(result['rows'][0]['outputs']['DK'], 2e-12)
 
     def test_nonpositive_task_base_gate_remains_but_positive_base_keeps_signed_item_quantity(self):
@@ -202,14 +228,15 @@ class LabourLibraryPolicyTests(unittest.TestCase):
             self.assertIsNone(opened['price'])
             self.assertTrue(any(error['cell'] == 'pipe_labour_hours' for error in opened['result']['errors']))
             request = {key: deepcopy(opened[key]) for key in ('draft', 'revision', 'pricing_token')}
-            request['draft']['rows'][0]['inputs'].update(pipe_labour_hours=.123456789012345,
-                                                       register_allowance_hours=0)
+            request['draft']['rows'][0]['inputs'].update(pipe_labour_hours=.123456789012345)
+            request['draft']['globals']['register_allowance_hours'] = 0
             saved = library.action(original['id'], 'save', request)
             self.assertEqual(saved['result']['errors'], [])
             reopened = FirestoppingLibrary(path.parent, store).edit(original['id'])
             self.assertEqual(reopened['draft'], saved['draft'])
             self.assertEqual(reopened['price'], saved['price'])
-            self.assertEqual(reopened['draft']['rows'][0]['inputs']['register_allowance_hours'], 0)
+            self.assertEqual(reopened['draft']['globals']['register_allowance_hours'], 0)
+            self.assertNotIn('register_allowance_hours', reopened['draft']['rows'][0]['inputs'])
             self.assertEqual(path.read_bytes(), before)
 
 

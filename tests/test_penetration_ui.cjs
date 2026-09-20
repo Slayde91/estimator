@@ -7,9 +7,10 @@ let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
   await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
-    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Bulkhead'];metadata.group_visibility={
+    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_visibility={
       'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
-      'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Bulkhead:{column:'J',values:['Bulkheads']}};
+      'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Substrate:{column:'L',values:['Oversized']},Bulkhead:{column:'J',values:['Bulkheads']}};
+    metadata.row_fields.push({column:'L',label:'Penetration Type',group:'Penetration',type:'select',format:'text',units:'',options:['Core Hole','Oversized'],default:null});
     for(const group of metadata.groups.slice(1))metadata.row_fields.push({column:`field-${group}`,label:group,group,type:'number',format:'number',units:'',options:[],default:null});
     metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
     h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes',T:'Long source description'};h.audit.renderFields();
@@ -18,6 +19,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.state.draft.rows[0].inputs.K='Plastic Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
     h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
     h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Cabletrays/);
+    assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Substrate/);const penetrationType=h.control('L');penetrationType.value='Oversized';await penetrationType.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
     h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · D1 Power Cables');
     h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
   });
@@ -25,20 +27,20 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     let quantity=h.control('O');assert.equal(quantity.type,'number');assert.equal(quantity.step,'1');
     h.audit.state.group='Substrate';h.audit.renderFields();const length=h.control('AW');assert.equal(length.type,'number');assert.equal(length.step,'5');
     length.value='12.3456789012345';await length.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AW,12.3456789012345);
-    const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Products and labour';h.audit.renderFields();const allowance=h.control('register_allowance_hours');assert.equal(allowance.type,'number');assert.equal(allowance.step,'0.05');
+    const metadata=allowanceDefinition();h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);h.audit.state.group='SETTINGS';h.audit.renderFields();const allowance=h.control('register_allowance_hours',null);assert.equal(allowance.type,'number');assert.equal(allowance.step,'0.05');
   });
   await check('Automatic allowances display server defaults without dirtying inputs and support precise manual, zero and reset values',async h=>{
-    const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Products and labour';h.audit.renderFields();
+    const metadata=allowanceDefinition();h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);const clean=copy(h.api.projectSnapshot());h.api.markProjectSaved(clean,clean);h.audit.state.group='Pipes';h.audit.renderFields();
     h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata));const before=copy(h.api.projectSnapshot());
-    let control=h.control('register_allowance_hours');await control.focus();assert.equal(control.value,'');await h.audit.calculate();assert.equal(control.value,'');assert.match(text(control.parentNode),/Automatic: 0\.25 hrs/);await control.blur();assert.equal(control.value,'0.25');assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.api.hasUnsavedChanges(),false);
-    await control.focus();assert.equal(control.value,'0.25');await control.blur();assert.deepEqual(copy(h.api.projectSnapshot()),before);
-    for(const value of [0,.123456789012345]){await control.focus();control.value=String(value);await control.emit('input');await control.blur();await h.audit.calculate();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,value);await control.focus();assert.equal(control.value,String(value));await control.blur();assert.match(text(control.parentNode),/Manual allowance/);}
-    control.value='-1';await control.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,.123456789012345);
-    await control.parentNode.children[3].children[1].emit('click');await h.audit.calculate();assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,null);assert.equal(control.value,'0.25');
-    await control.focus();control.value='';await control.emit('input');await control.blur();await h.audit.calculate();assert.equal(control.value,'0.25');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.register_allowance_hours,null);
+    let control=h.control('pipe_labour_hours');await control.focus();assert.equal(control.value,'');await h.audit.calculate();assert.equal(control.value,'');assert.match(text(control.parentNode),/Automatic: 0\.30 hrs/);await control.blur();assert.equal(control.value,'0.30');assert.deepEqual(copy(h.api.projectSnapshot()),before);assert.equal(h.api.hasUnsavedChanges(),false);
+    await control.focus();assert.equal(control.value,'0.3');await control.blur();assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    for(const value of [0,.123456789012345]){await control.focus();control.value=String(value);await control.emit('input');await control.blur();await h.audit.calculate();assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,value);await control.focus();assert.equal(control.value,String(value));await control.blur();assert.match(text(control.parentNode),/Manual allowance/);}
+    control.value='-1';await control.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,.123456789012345);
+    await control.parentNode.children[3].children[1].emit('click');await h.audit.calculate();assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,null);assert.equal(control.value,'0.30');
+    await control.focus();control.value='';await control.emit('input');await control.blur();await h.audit.calculate();assert.equal(control.value,'0.30');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,null);
   });
   await check('Changed backend defaults refresh idle automatic fields without overwriting focused or manual values and stale responses stay rejected',async h=>{
-    const metadata=allowanceDefinition();h.audit.state.definition=metadata;h.audit.state.group='Pipes';h.audit.renderFields();let automatic=.3123456789;
+    const metadata=allowanceDefinition();h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);const clean=copy(h.api.projectSnapshot());h.api.markProjectSaved(clean,clean);h.audit.state.group='Pipes';h.audit.renderFields();let automatic=.3123456789;
     h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata,{pipe_labour_hours:automatic,register_allowance_hours:.25}));await h.audit.calculate();const pipe=h.control('pipe_labour_hours'),diameter=h.control('AL');await pipe.focus();assert.equal(pipe.value,String(automatic));
     automatic=.7123456789;await h.audit.calculate();assert.equal(pipe.value,'0.3123456789');await pipe.blur();assert.equal(pipe.value,'0.71');assert.equal(h.api.hasUnsavedChanges(),false);
     diameter.value='200';await diameter.emit('input');assert.equal(pipe.value,'');await h.audit.calculate();assert.equal(pipe.value,'0.71');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,undefined);
@@ -47,8 +49,8 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.setRequest(async(path,payload)=>allowanceResult(payload.draft,metadata,{pipe_labour_hours:null,register_allowance_hours:.25}));await pipe.parentNode.children[3].children[1].emit('click');await h.audit.calculate();assert.equal(pipe.value,'');assert.match(text(pipe.parentNode),/No automatic value/);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.pipe_labour_hours,null);
   });
   await check('Named allowance overrides survive Add, explicit Update, Remove Undo and project Save Open without changing independent composer state',async h=>{
-    const metadata=allowanceDefinition();h.audit.setRequest(async(path,payload)=>path.endsWith('/definition')?metadata:allowanceResult(payload.draft,metadata));h.audit.state.definition=metadata;
-    Object.assign(h.audit.state.draft.rows[0].inputs,{T:'Allowance fixture',O:2,register_allowance_hours:0,pipe_labour_hours:.3456789012345});await h.audit.addToSchedule();const original=copy(h.api.projectSnapshot());assert.deepEqual(original.draft.rows[0].inputs,original.composer.rows[0].inputs);
+    const metadata=allowanceDefinition();h.audit.setRequest(async(path,payload)=>path.endsWith('/definition')?metadata:allowanceResult(payload.draft,metadata));h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);
+    Object.assign(h.audit.state.draft.rows[0].inputs,{T:'Allowance fixture',O:2,pipe_labour_hours:.3456789012345});await h.audit.addToSchedule();const original=copy(h.api.projectSnapshot());assert.deepEqual(original.draft.rows[0].inputs,original.composer.rows[0].inputs);
     const id=original.draft.rows[0].id;await h.audit.selectRow(id);h.audit.state.group='Pipes';h.audit.renderFields();const pipe=h.control('pipe_labour_hours',id);pipe.value='.4567890123456';await pipe.emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.pipe_labour_hours,.3456789012345);await h.audit.updateSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.pipe_labour_hours,.4567890123456);
     h.audit.removeRow(id);h.audit.undoRemove();const saved=copy(h.api.projectSnapshot());h.api.markProjectSaved(saved,saved);assert.equal(h.api.hasUnsavedChanges(),false);h.api.applyProject(await h.api.prepareProject(saved));assert.deepEqual(copy(h.api.projectSnapshot()),saved);assert.equal(h.api.hasUnsavedChanges(),false);
   });
@@ -148,6 +150,27 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const captured=h.api.projectSnapshot();h.api.markProjectSaved(captured,captured);assert.equal(h.api.hasUnsavedChanges(),false);h.api.applyProject(await h.api.prepareProject(captured));
     assert.deepEqual(copy(h.api.projectSnapshot().composer.globals),snapshot.composer.globals);assert.deepEqual(copy(h.api.projectSnapshot().draft.globals),snapshot.draft.globals);
     const html=fs.readFileSync('static/index.html','utf8');for(const id of ['penetration-project-allowances','penetration-global-fields','penetration-schedule-global-fields'])assert.ok(!html.includes(`id="${id}"`),`${id} must not remain in HTML`);
+  });
+  await check('SETTINGS synchronizes pipe bands and contextual Waste fields across composer and schedule',async h=>{
+    const metadata=definition();metadata.groups.push('SETTINGS');
+    metadata.global_fields=[
+      {column:'register_allowance_hours',label:'Register Allowance',group:'SETTINGS',type:'number',format:'number',units:'hrs',options:[],default:.25,min:0,step:.05,help:'Register Allowance hours applied to every Firestopping item.'},
+      {column:'pipe_labour_50_hours',label:'Pipe Labour up to 50 mm',group:'SETTINGS',type:'number',format:'number',units:'hrs',options:[],default:.25,min:0,step:.05,help:'Pipe Labour hours per collar for pipe diameters up to 50 mm.'},
+      {column:'waste_pipes',label:'Waste',group:'SETTINGS',type:'number',format:'percent',units:'%',options:[],default:0,min:0,step:1,help:'Applies to Unlagged Pipes, Plastic Pipes and Cables/Bundles.'}
+    ];
+    for(const draft of [metadata.defaults,metadata.schedule_defaults])Object.assign(draft.globals,{register_allowance_hours:.25,pipe_labour_50_hours:.25,waste_pipes:0});
+    h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);
+    h.audit.state.group='SETTINGS';h.audit.renderFields();
+    const waste=h.control('waste_pipes',null),pipe=h.control('pipe_labour_50_hours',null),register=h.control('register_allowance_hours',null);assert.ok(waste&&pipe&&register);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.match(waste.title,/Cables\/Bundles/);assert.equal(register.parentNode.children[0].textContent,'Register Allowance (hrs)');
+    waste.value='12.5';await waste.emit('input');assert.equal(h.audit.state.schedule.draft.globals.waste_pipes,.125);assert.equal(h.audit.state.draft.globals.waste_pipes,.125);
+    pipe.value='.4';await pipe.emit('input');assert.equal(h.audit.state.schedule.draft.globals.pipe_labour_50_hours,.4);assert.equal(h.audit.state.draft.globals.pipe_labour_50_hours,.4);
+    register.value='.15';await register.emit('input');assert.equal(h.audit.state.schedule.draft.globals.register_allowance_hours,.15);assert.equal(h.audit.state.draft.globals.register_allowance_hours,.15);
+    assert.equal(waste.dataset.penetrationScope,'schedule');assert.equal(waste.dataset.penetrationRow,'');
+  });
+  await check('Item Summary uses the sticky quote-summary pattern and the requested title',async h=>{
+    const html=fs.readFileSync('static/index.html','utf8'),css=fs.readFileSync('static/penetration.css','utf8');
+    assert.match(html,/id="penetration-summary-heading">Item Summary</);assert.doesNotMatch(html,/Current item summary/);assert.match(css,/\.penetration-summary\{position:sticky;top:116px;align-self:start\}/);
+    const main=html.indexOf('class="penetration-main"'),breakdown=html.indexOf('aria-labelledby="penetration-breakdown-heading"'),summary=html.indexOf('class="card penetration-summary"');assert.ok(main>0&&main<breakdown&&breakdown<summary);
   });
   await check('Substrate inputs remain available in the current item after allowance controls are removed',async h=>{
     const button=h.byId('penetration-input-groups').children.find(button=>button.textContent==='Substrate');assert.ok(button);await button.emit('click');assert.equal(button.dataset.penetrationGroup,'Substrate');

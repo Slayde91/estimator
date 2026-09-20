@@ -56,7 +56,7 @@ class EffectiveFirestoppingPolicyTests(unittest.TestCase):
         self.assertEqual(engine.value('CALC', 'H4'), expected)
         self.assertEqual(engine.value('CALC', 'D2'), '')
         self.assertEqual({col: engine.inputs['CALC'][col+'2'] for col in EFFECTIVE_GLOBALS}, EFFECTIVE_GLOBALS)
-        self.assertEqual(preserved['globals'], draft['globals'])
+        self.assertEqual(preserved['globals'], normalize_draft(draft)['globals'])
         raw, _ = engine_for_draft(draft, effective=False)
         self.assertNotEqual(raw.value('CALC', 'H4'), expected)
         self.assertGreater(raw.value('CALC', 'D2'), 0)
@@ -73,10 +73,12 @@ class EffectiveFirestoppingPolicyTests(unittest.TestCase):
             self.assertEqual(engine.value('CALC', 'H4'), first['rows'][0]['outputs']['H'])
         spec = definition()
         columns = {field['column'] for field in spec['row_fields']}
-        self.assertTrue({'P', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ'} <= columns)
+        self.assertTrue({'P', 'AE', 'AF', 'AH', 'AI', 'AJ'} <= columns)
+        self.assertNotIn('AG', columns)
         self.assertFalse({'Q', 'R'} & columns)
         self.assertTrue({'Q', 'R'} <= set(spec['allowed_input_columns']))
-        self.assertEqual(spec['global_fields'], [])
+        self.assertEqual(len(spec['global_fields']), 13)
+        self.assertTrue(all(field['group'] == 'SETTINGS' for field in spec['global_fields']))
 
     def test_project_roundtrip_preserves_inactive_values_without_restoring_effects(self):
         with tempfile.TemporaryDirectory() as temporary:

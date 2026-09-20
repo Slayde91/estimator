@@ -32,6 +32,10 @@ and how many have no linked technical references. These are whole-library
 counts, independent of the current search or page. **Technical Reference**
 filters the list by **Any**, **Linked Technical References**, or **No Linked
 Technical References**, together with the existing search and filters.
+Each Firestopping result and detail has a trash button. The application asks for
+confirmation before deletion. A confirmed deletion hides the item persistently
+and removes its saved edit, uploaded diagram and manual technical links in one
+database transaction. Supplier source files remain unchanged.
 
 ## Adding items to the library and schedule
 

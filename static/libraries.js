@@ -46,7 +46,8 @@
     if (state.panes.has(kind)) return state.panes.get(kind);
     const pane = { kind, search: "", filters: {}, offset: 0, limit: 50, data: null, dataQuery: null, detail: null, selected: null,
       listRevision: 0, detailRevision: 0, openRevision: 0, listAbort: null, detailAbort: null, timer: null, filterStamp: null, busy: false,
-      linkSession: null, addPending: new Map(), addErrors: new Map(), scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map() };
+      linkSession: null, addPending: new Map(), addErrors: new Map(), deletePending: new Set(), deleteButtons: new Map(),
+      scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map() };
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
     pane.notice = node("p", "helper library-notice"); pane.notice.hidden = true;
@@ -116,6 +117,7 @@
     const total = integer(data.total);
     pane.count.textContent = total ? `Showing ${pane.offset + 1}–${Math.min(pane.offset + items.length, total)} of ${total} records` : "No matching records.";
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("list:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
+    for (const key of pane.deleteButtons.keys()) if (key.startsWith("list:")) pane.deleteButtons.delete(key);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("list:")) pane.quantityBadges.delete(key);
     pane.results.replaceChildren(...(items.length ? items.map(item => {
       const card = node("article", "library-result"), title = button(item.title || item.id, () => navigate(pane.kind, item.id), "library-record-link");
@@ -163,7 +165,37 @@
     const link = button("Link Library Item", () => openLinkPicker(pane, item, link)); link.dataset.libraryLink = item.id;
     const add = button("Add to Schedule", () => addToSchedule(pane, item.id), "button primary"); add.dataset.libraryAdd = item.id; add.title = "Uses current schedule prices and allowances.";
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
-    add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(link, add, status); return actions;
+    const remove = button("", () => deleteItem(pane, item), "button secondary library-delete");
+    const icon = node("span", "library-trash-icon", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon);
+    remove.title = `Remove ${item.title || item.id} from the Firestopping Library`;
+    remove.setAttribute("aria-label", remove.title); remove.dataset.libraryDelete = item.id;
+    remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);
+    add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(link, add, remove, status); return actions;
+  }
+  async function deleteItem(pane, item) {
+    const id = item.id;
+    if (pane.deletePending.has(id)) return;
+    const confirm = window.CeasefirePenetrationNavigation?.confirm;
+    if (!confirm) { message(pane, "The deletion confirmation is unavailable. Reload the application and try again.", true); return; }
+    if (!await confirm("Remove Firestopping Library item?", `${item.title || id} will be removed from the Firestopping Library.`, "Remove item")) return;
+    pane.deletePending.add(id);
+    for (const control of pane.deleteButtons.values()) if (control.dataset.libraryDelete === id) control.disabled = true;
+    try {
+      const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(id)}/delete`, null, {});
+      if (receipt.deleted !== true || receipt.id !== id) throw new Error("The server did not confirm the deletion.");
+      const stillViewingDeletedItem = state.current === "penetration" && (pane.selected === id || pane.selected === null);
+      invalidate();
+      if (stillViewingDeletedItem) {
+        pane.selected = null; pane.detail = null; state.history = [];
+        await open("penetration", { list: true });
+        message(pane, `${item.title || id} was removed from the Firestopping Library.`);
+      }
+    } catch (error) {
+      message(pane, `The library item was not removed. ${error.message}`, true);
+    } finally {
+      pane.deletePending.delete(id);
+      for (const control of pane.deleteButtons.values()) if (control.dataset.libraryDelete === id) control.disabled = false;
+    }
   }
   async function addToSchedule(pane, id) {
     if (pane.addPending.has(id)) return;
@@ -359,6 +391,7 @@
     const content = [detailNavigation(pane), title];
     if (data.subtitle) content.push(node("p", "library-subtitle", data.subtitle));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
+    for (const key of pane.deleteButtons.keys()) if (key.startsWith("detail:")) pane.deleteButtons.delete(key);
     if (data.price || pane.kind === "penetration") {
       const commercial = node("div", "library-record-commercial");
       if (data.price) commercial.append(node("p", "library-record-price", `${priceLabel(data.price)}: ${priceText(data.price)}`));

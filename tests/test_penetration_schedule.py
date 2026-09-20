@@ -51,7 +51,7 @@ class PenetrationScheduleTests(unittest.TestCase):
         draft = {'globals': {'J': 'Yes', 'K': 7.25, 'L': .35, 'M': .45}, 'rows': []}
         before_source = deepcopy(source_model())
         result = calculate(draft)
-        self.assertEqual(result['draft'], draft)
+        self.assertEqual(result['draft'], normalize_draft(draft))
         self.assertEqual(result['rows'], [])
         self.assertEqual(result['errors'], [])
         self.assertTrue(all(value == 0 for value in result['summary'].values()))
@@ -107,7 +107,8 @@ class PenetrationScheduleTests(unittest.TestCase):
                 payload = export_project(self.store, request)
                 loaded = load_project_bytes(self.store, payload)
                 self.assertEqual(loaded['penetration'], {'source_sha256': self.spec['source_sha256'],
-                                 'draft': draft, 'composer': composer})
+                                 'draft': normalize_draft(draft),
+                                 'composer': normalize_composer(composer)})
                 self.assertEqual(request, original)
                 before = calculate(draft, loaded['estimate']['configuration'])
                 self.store.save_configuration({'inventory': {'0': {'sales_price': 876.54321}}})
@@ -119,7 +120,8 @@ class PenetrationScheduleTests(unittest.TestCase):
         draft = self.mixed_schedule()
         payload = export_project(self.store, {'estimate': {}, 'penetration': {'draft': draft}})
         self.assertEqual(load_project_bytes(self.store, payload)['penetration'],
-                         {'source_sha256': self.spec['source_sha256'], 'draft': draft})
+                         {'source_sha256': self.spec['source_sha256'],
+                          'draft': normalize_draft(draft)})
 
     def test_project_rejects_invalid_composer_and_source_version(self):
         valid = json.loads(export_project(self.store, {'estimate': {}, 'penetration': {

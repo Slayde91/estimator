@@ -20,9 +20,8 @@ import re
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
-from .penetration_calculator import (CALCULATION_POLICY_VERSION, EFFECTIVE_GLOBALS,
-                                    calculate, definition, engine_for_draft,
-                                    normalize_draft, source_model)
+from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
+                                     definition, engine_for_draft, normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -160,6 +159,11 @@ class LibraryEdits:
                     thumbnail_data BLOB NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS firestopping_deleted (
+                    id TEXT PRIMARY KEY,
+                    source_sha256 TEXT NOT NULL,
+                    deleted_at TEXT NOT NULL
+                );
             ''')
 
     def stamp(self):
@@ -179,6 +183,12 @@ class LibraryEdits:
         with self.store.connect() as db:
             return list(db.execute('SELECT penetration_id,technical_id,penetration_source,technical_source FROM firestopping_links ORDER BY rowid'))
 
+    def deleted(self):
+        with self.store.connect() as db:
+            return {key: {'source_sha256': source, 'deleted_at': deleted}
+                    for key, source, deleted in db.execute(
+                        'SELECT id,source_sha256,deleted_at FROM firestopping_deleted')}
+
     def image(self, key):
         with self.store.connect() as db:
             row = db.execute('SELECT sha256,mime_type,width,height,image_data,thumbnail_data,updated_at '
@@ -191,7 +201,9 @@ class LibraryEdits:
     def overlay_stamp(self):
         with self.store.connect() as db:
             return tuple(db.execute('SELECT count(*),COALESCE(sum(revision),0) FROM firestopping_items').fetchone()) + tuple(
-                db.execute('SELECT (SELECT count(*) FROM firestopping_created),(SELECT count(*) FROM firestopping_links)').fetchone())
+                db.execute('SELECT (SELECT count(*) FROM firestopping_created),'
+                           '(SELECT count(*) FROM firestopping_links),'
+                           '(SELECT count(*) FROM firestopping_deleted)').fetchone())
 
     def create(self, request_key, request_hash, minimum, build, snapshot):
         """Allocate and insert in one write transaction, including retry identity."""
@@ -262,8 +274,18 @@ class LibraryEdits:
                 db.execute('INSERT INTO firestopping_images VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET '
                            'sha256=excluded.sha256,mime_type=excluded.mime_type,width=excluded.width,height=excluded.height,'
                            'image_data=excluded.image_data,thumbnail_data=excluded.thumbnail_data,updated_at=excluded.updated_at',
-                           (key, diagram['sha256'], diagram['mime_type'], diagram['width'], diagram['height'],
-                            diagram['image_data'], diagram['thumbnail_data'], timestamp()))
+                            (key, diagram['sha256'], diagram['mime_type'], diagram['width'], diagram['height'],
+                             diagram['image_data'], diagram['thumbnail_data'], timestamp()))
+
+    def delete(self, key, source):
+        """Hide one library item and remove all mutable overlays atomically."""
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('INSERT INTO firestopping_deleted VALUES(?,?,?)',
+                       (key, source, timestamp()))
+            db.execute('DELETE FROM firestopping_items WHERE id=?', (key,))
+            db.execute('DELETE FROM firestopping_images WHERE item_id=?', (key,))
+            db.execute('DELETE FROM firestopping_links WHERE penetration_id=?', (key,))
 
 
 class FirestoppingLibrary(ReferenceLibrary):
@@ -286,10 +308,14 @@ class FirestoppingLibrary(ReferenceLibrary):
         data = deepcopy({key: value for key, value in (base or empty_library()).items() if not key.startswith('_')})
         saved = self.edits.all()
         library = data['libraries']['penetration']
+        deleted = set(self.edits.deleted())
         existing = {item['id'] for item in library['items']}
         if existing.intersection(created):
             raise ValidationError('A supplier item conflicts with a saved user-created library identifier.')
         library['items'].extend(deepcopy(value['item']) for value in created.values())
+        library['items'] = [item for item in library['items'] if item['id'] not in deleted]
+        data['links'] = [link for link in data['links']
+                         if link['penetration_id'] not in deleted]
         filter_keys = {entry['key'] for entry in library.get('filters', [])}
         library.setdefault('filters', []).extend({'key': key, 'label': label} for key, (label, _) in FILTER_COLUMNS.items() if key not in filter_keys)
         aliases = set()
@@ -311,7 +337,18 @@ class FirestoppingLibrary(ReferenceLibrary):
                 item['editable'] = False
                 item['notice'] = 'This saved item uses another calculator source version. Its original inputs and price are retained.'
             draft_rows = item.get('estimate', {}).get('draft', {}).get('rows', [])
-            self._service_size(item, draft_rows[0].get('inputs', {}) if draft_rows else {})
+            source_inputs = draft_rows[0].get('inputs', {}) if draft_rows else {}
+            source_frl = source_inputs.get('N')
+            effective_frl = canonical_frl(source_frl)
+            if effective_frl:
+                for field in item['fields']:
+                    if field.get('column') == 'N' or field.get('label') == 'FRL':
+                        field['value'] = effective_frl
+                if source_frl not in (None, ''):
+                    item['subtitle'] = str(item.get('subtitle', '')).replace(str(source_frl), effective_frl)
+                if 'frl' in item.get('filter_values', {}):
+                    item['filter_values']['frl'] = [effective_frl]
+            self._service_size(item, source_inputs)
             edit = saved.get(item['id'])
             if edit:
                 if edit['source_sha256'] != source_hash:
@@ -359,24 +396,26 @@ class FirestoppingLibrary(ReferenceLibrary):
     @staticmethod
     def _apply_edit(item, edit):
         inputs = edit['draft']['rows'][0]['inputs']
+        presentation_inputs = dict(inputs)
+        presentation_inputs['N'] = canonical_frl(inputs.get('N'))
         for field in item['fields']:
             # Source workbook W is its former ID, while the estimator W begins
             # calculation inputs. Only the common description columns map here.
             column = field.get('column')
             if column in {'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'T', 'U', 'V'}:
-                value = inputs.get(column)
+                value = presentation_inputs.get(column)
                 field['value'] = '' if value is None else str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
-        item['title'] = item['library_id'] + ' — ' + str(inputs.get('K') or inputs.get('T') or 'Firestopping item')
-        item['subtitle'] = ' · '.join(str(inputs[col]) for col in ('V', 'N', 'P') if inputs.get(col))
-        item['summary'] = str(inputs.get('U') or inputs.get('T') or '')
+        item['title'] = item['library_id'] + ' — ' + str(presentation_inputs.get('K') or presentation_inputs.get('T') or 'Firestopping item')
+        item['subtitle'] = ' · '.join(str(presentation_inputs[col]) for col in ('V', 'N', 'P') if presentation_inputs.get(col))
+        item['summary'] = str(presentation_inputs.get('U') or presentation_inputs.get('T') or '')
         item['price'] = price(edit['amount'], 'Saved item price')
         item['fields'].insert(1, {'label': 'Saved library edit', 'value': edit['updated_at']})
         item['notice'] = ('This user-created item has saved edits. Review linked technical details against the current inputs.' if item.get('user_created') else
                           'This item has saved edits. Source diagrams describe the original workbook item; review technical references against the current inputs.')
-        FirestoppingLibrary._service_size(item, inputs)
+        FirestoppingLibrary._service_size(item, presentation_inputs)
         for key, col in {'manufacturer': 'V', 'service_type': 'K', 'penetration_type': 'L', 'orientation': 'M', 'frl': 'N', 'substrate': 'P'}.items():
             if key in item.get('filter_values', {}):
-                item['filter_values'][key] = [str(inputs[col])] if inputs.get(col) else []
+                item['filter_values'][key] = [str(presentation_inputs[col])] if presentation_inputs.get(col) else []
 
     @staticmethod
     def _source_hash(data):
@@ -384,6 +423,8 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     def _context(self, key):
         identifier(key)
+        if key in self.edits.deleted():
+            raise ReferenceNotFound()
         own = self.edits.created().get(key)
         if own:
             if own['calculator_source_sha256'] != source_model()['source']['sha256']:
@@ -446,10 +487,13 @@ class FirestoppingLibrary(ReferenceLibrary):
                 configuration = snapshots[token]
                 # A source bundle may change its frozen pricing while retaining
                 # item IDs. Hash actual configuration, not just an item alias.
-                if token not in groups:
-                    groups[token] = {'configuration': configuration,
-                        'configuration_hash': hashlib.sha256(encoded(configuration).encode()).hexdigest(), 'entries': []}
-                group = groups[token]
+                settings_hash = hashlib.sha256(encoded(draft['globals']).encode()).hexdigest()
+                group_key = token, settings_hash
+                if group_key not in groups:
+                    groups[group_key] = {'configuration': configuration,
+                        'configuration_hash': hashlib.sha256(encoded(configuration).encode()).hexdigest(),
+                        'globals': draft['globals'], 'entries': []}
+                group = groups[group_key]
                 cache_key = (CALCULATION_POLICY_VERSION, group['configuration_hash'],
                              hashlib.sha256(encoded(draft).encode()).hexdigest())
                 if cache_key in self._price_cache:
@@ -466,7 +510,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             entries = group['entries']
             if not entries:
                 continue
-            draft = {'globals': EFFECTIVE_GLOBALS,
+            draft = {'globals': group['globals'],
                      'rows': [{'id': f'price-{index}', 'inputs': inputs}
                               for index, (_, inputs, _) in enumerate(entries)]}
             engine, _ = engine_for_draft(draft, group['configuration'])
@@ -679,8 +723,14 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     def action(self, key, action, body):
         with self._lock:
-            if action not in {'calculate', 'refresh-pricing', 'save'}:
+            if action not in {'calculate', 'refresh-pricing', 'save', 'delete'}:
                 raise ReferenceNotFound()
+            if action == 'delete':
+                if not isinstance(body, dict) or body:
+                    raise ValidationError('Delete this Firestopping Library item without additional fields.')
+                _, source, _, _, _ = self._context(key)
+                self.edits.delete(key, source['source_sha256'])
+                return {'deleted': True, 'id': key}
             required = {'draft', 'revision', 'pricing_token'}
             allowed = required | ({'diagram'} if action == 'save' else set())
             if not isinstance(body, dict) or not required.issubset(body) or set(body) - allowed:

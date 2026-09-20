@@ -16,8 +16,10 @@ function result(draft,metadata=definition()) {
     rows:draft.rows.map(row=>({id:row.id,inputs:copy(row.inputs),outputs:{H:123.456789,BQ:0,DI:'#VALUE!'},errors:[],breakdown:{rows:[{label:'Wrap',unit_prices:[],material_quantities:[{label:'Pipes',value:0,units:'m²'}],material_costs:null,labour_costs:null,task_hours:'#VALUE!'}],totals:{material_costs:65.4321,labour_costs:58.024689,task_hours:'#VALUE!'}}}))};
 }
 function allowanceDefinition() {
-  const metadata=definition();metadata.groups.push('Pipes');
-  for(const [column,label,group] of [['register_allowance_hours','Register Allowance','Products and labour'],['pipe_labour_hours','Pipe Labour','Pipes']]) metadata.row_fields.push({column,label,group,type:'number',format:'number',units:'hrs',options:[],default:null,automatic_default:true,source:'application',address:null,min:0,...(column==='register_allowance_hours'?{step:.05}:{})});
+  const metadata=definition();metadata.groups.push('Pipes','SETTINGS');
+  metadata.global_fields=[{column:'register_allowance_hours',label:'Register Allowance',group:'SETTINGS',type:'number',format:'number',units:'hrs',options:[],default:.25,min:0,step:.05,source:'application',address:null}];
+  for(const draft of [metadata.defaults,metadata.schedule_defaults])draft.globals.register_allowance_hours=.25;
+  metadata.row_fields.push({column:'pipe_labour_hours',label:'Pipe Labour',group:'Pipes',type:'number',format:'number',units:'hrs',options:[],default:null,automatic_default:true,source:'application',address:null,min:0});
   metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',type:'number',format:'number',units:'mm',options:[],default:null});
   return metadata;
 }

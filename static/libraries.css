@@ -23,6 +23,8 @@
 .library-record-commercial .library-record-price{margin:0}
 .library-item-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
 .library-action-message{flex-basis:100%;margin:0}
+.library-delete{width:44px;height:44px;padding:10px}
+.library-trash-icon{display:block;width:20px;height:20px;font-size:18px;line-height:20px;text-align:center}
 .library-record-commercial .library-item-actions{margin:0}
 .library-summary{margin-bottom:20px;padding:18px 22px}
 .library-summary-table{width:100%;min-width:0;border-collapse:collapse}

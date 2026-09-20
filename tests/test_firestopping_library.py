@@ -15,6 +15,7 @@ from PIL import Image
 
 from estimator.catalog import ValidationError, configuration_catalog, validate_configuration
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
+from estimator.reference_library import ReferenceNotFound
 from estimator.penetration_calculator import definition, source_model
 from estimator.server import create_server
 from estimator.storage import Store
@@ -77,6 +78,33 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(self.protected(), before)
         self.assertEqual(self.library.edits.stamp(), (0, 0))
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+
+    def test_legacy_frl_is_canonical_in_source_and_saved_library_presentations(self):
+        path = self.root / 'library/library.json'
+        data = json.loads(path.read_text(encoding='utf-8'))
+        item = data['libraries']['penetration']['items'][0]
+        item['estimate']['draft']['rows'][0]['inputs']['N'] = '120 min'
+        item['fields'].append({'label': 'FRL', 'column': 'N', 'value': '120 min'})
+        item['subtitle'] = 'Sample manufacturer · 120 min · Concrete wall'
+        data['libraries']['penetration']['filters'].append({'key': 'frl', 'label': 'FRL'})
+        item.setdefault('filter_values', {})['frl'] = ['120 min']
+        path.write_text(json.dumps(data), encoding='utf-8')
+        library = FirestoppingLibrary(self.root / 'library', self.store)
+        detail = library.detail('penetration', 'pkb-001')
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field.get('column') == 'N'), '-/120/120')
+        self.assertIn('-/120/120', detail['subtitle'])
+        self.assertEqual(library.listing('penetration', frl='-/120/120')['total'], 1)
+        opened = library.edit('pkb-001')
+        legacy = deepcopy(opened['draft'])
+        legacy['rows'][0]['inputs']['N'] = '90 min'
+        snapshot = library._context('pkb-001')[3]
+        library.edits.save('pkb-001', 0, data['firestopping']['source_sha256'], {
+            'draft': legacy, 'pricing_token': opened['pricing_token'], 'amount': 150}, snapshot)
+        saved = library.detail('penetration', 'pkb-001')
+        self.assertEqual(next(field['value'] for field in saved['fields'] if field.get('column') == 'N'), '-/90/90')
+        self.assertIn('-/90/90', saved['subtitle'])
+        self.assertEqual(library.listing('penetration', frl='-/90/90')['total'], 1)
+        self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['N'], '-/90/90')
 
     def test_collar_pipe_labour_removes_only_the_duplicate_effective_additional_hours(self):
         collar = {'globals': {}, 'rows': [{'id': 'collar', 'inputs': {
@@ -262,6 +290,29 @@ class FirestoppingLibraryTests(unittest.TestCase):
         with self.assertRaises(LibraryConflict):
             self.library.edit('pkb-002')
 
+    def test_confirmed_delete_hides_item_and_removes_mutable_overlays_without_changing_source(self):
+        before = self.source_bytes
+        self.library.action('pkb-001', 'save', self.body(self.library.edit('pkb-001')))
+        receipt = self.library.action('pkb-001', 'delete', {})
+        self.assertEqual(receipt, {'deleted': True, 'id': 'pkb-001'})
+        self.assertEqual(self.library.listing('penetration')['total'], 1)
+        self.assertEqual(self.library.overview()['libraries'][0]['count'], 1)
+        with self.assertRaises(ReferenceNotFound):
+            self.library.detail('penetration', 'pkb-001')
+        with self.assertRaises(ReferenceNotFound):
+            self.library.edit('pkb-001')
+        reopened = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.listing('penetration')['total'], 1)
+        self.assertFalse(any(link['id'] == 'pkb-001'
+                             for link in reopened.detail('technical', 'report-a-v1')['links']))
+        with self.store.connect() as db:
+            self.assertEqual(db.execute('SELECT id FROM firestopping_deleted').fetchall(), [('pkb-001',)])
+            self.assertEqual(db.execute('SELECT count(*) FROM firestopping_items').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT count(*) FROM firestopping_links WHERE penetration_id=?', ('pkb-001',)).fetchone()[0], 0)
+        self.assertEqual((self.root / 'library/library.json').read_bytes(), before)
+        with self.assertRaises(ValidationError):
+            self.library.action('pkb-002', 'delete', {'unexpected': True})
+
 
 class FirestoppingApiTests(unittest.TestCase):
     @classmethod
@@ -323,6 +374,14 @@ class FirestoppingApiTests(unittest.TestCase):
                     self.assertLessEqual(image.height, maximum[1])
         status, _, _ = self.raw_request('unknown')
         self.assertEqual(status, 404)
+
+    def test_z_delete_route_requires_same_origin_and_empty_confirmed_request(self):
+        self.assertEqual(self.request('POST', 'delete', {}, {'Origin': 'https://example.com'})[0], 403)
+        self.assertEqual(self.request('POST', 'delete', {'unexpected': True})[0], 400)
+        status, receipt = self.request('POST', 'delete', {})
+        self.assertEqual((status, receipt), (200, {'deleted': True, 'id': 'pkb-001'}))
+        self.assertEqual(self.request('GET', 'edit')[0], 404)
+        self.assertEqual(self.request('POST', 'delete', {})[0], 404)
 
 
 if __name__ == '__main__':

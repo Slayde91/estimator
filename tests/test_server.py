@@ -92,6 +92,11 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Ceasefire", body)
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
+        status, headers, body = self.request("GET", "/fonts/Montserrat-Variable.ttf")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "font/ttf")
+        self.assertEqual(body, (ROOT / "static/fonts/Montserrat-Variable.ttf").read_bytes())
+        self.assertEqual(self.request("GET", "/fonts/OFL.txt")[0], 404)
 
     def test_official_logo_is_served_unchanged_with_image_content_type(self):
         status, headers, body = self.request("GET", "/ceasefire-logo.png")

@@ -5,7 +5,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import CondPageBreak, PageBreak, SimpleDocTemplate, Spacer
+from reportlab.platypus import SimpleDocTemplate, Spacer
 
 from .calculator_register import _sheet, _table
 from .pricing_workbook import _serialize_exact
@@ -92,11 +92,11 @@ def _excel_format(field):
 
 
 def render_penetration_pdf(result, definition, project_details):
-    """Show the summary, schedule, entered inputs and exact calculated outputs."""
+    """Show project details, totals and the compact calculated schedule."""
     _register_fonts()
     report = _Report({})
-    # Let long detail tables split on the current page. Keeping an entire
-    # table with its heading can otherwise strand the line title alone.
+    # Let long schedule tables split on the current page. Keeping an entire
+    # table with its heading can otherwise strand the schedule heading alone.
     report.styles['subheading'].keepWithNext = False
     report.styles['section'].keepWithNext = True
     width, height = landscape(A4)
@@ -115,13 +115,6 @@ def render_penetration_pdf(result, definition, project_details):
         [report.p(label, 'cell'), report.p(_display(result['summary'].get(key),
             {'format': 'currency' if key != 'total_days' else 'number'}), 'numeric')]
         for label, key in SUMMARY], [content * .65, content * .35]))
-    settings = [[report.p(field['label'], 'cell'),
-                 report.p(_display(result['draft']['globals'].get(field['column']), field), 'cell')]
-                for field in definition.get('global_fields', [])]
-    if settings:
-        report.story.extend([report.p('Settings', 'subheading'),
-                             report.table(['Setting', 'Value'], settings,
-                                          [content * .65, content * .35], compact=True)])
     if result.get('errors'):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
@@ -131,24 +124,8 @@ def render_penetration_pdf(result, definition, project_details):
         [report.p(str(index), 'cell')] + [report.p(_display(_value(row, col), fields_by_column[col]), 'cell') for _, col in SCHEDULE]
         for index, row in enumerate(result['rows'], 1)], widths, compact=True))
     for index, row in enumerate(result['rows'], 1):
-        report.story.extend([PageBreak(), report.p(f'Line {index}', 'section')])
-        for heading, fields, values in (
-                ('Inputs', definition['row_fields'], row['inputs']),
-                ('Calculated detail', _visible_outputs(definition), row['outputs'])):
-            records = []
-            source = _input_records(row, fields) if heading == 'Inputs' else (
-                (field, values.get(field['column']), '') for field in fields)
-            for field, value, basis in source:
-                if value in (None, ''):
-                    continue
-                rendered = _display(value, field) + (' (' + basis + ')' if basis else '')
-                records.append([report.p(field['label'], 'cell'), report.p(rendered, 'cell')])
-            if records:
-                report.story.extend([CondPageBreak(65), report.p(heading, 'subheading')])
-                report.story.append(report.table(['Parameter', 'Value'], records,
-                                                 [content * .44, content * .56], compact=True))
         for error in row.get('errors', []):
-            report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))
+            report.story.append(report.p(f"Line {index} · {error['cell']}: {error['message']}", 'alert'))
     for error in result.get('errors', []):
         if not error.get('row_id'):
             report.story.append(report.p(f"{error['cell']}: {error['message']}", 'alert'))

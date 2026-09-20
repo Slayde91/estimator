@@ -15,7 +15,7 @@
   // alignment/labels only; values, formulas, input keys and exports are untouched.
   const browserPresentation = {
     steel_vermiculite: {
-      CALCULATOR: { center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
+      CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I24"] }, // 8–9
       SETTINGS: {
         omit: ["A1"],
@@ -24,7 +24,8 @@
       },
     },
     steel_board: {
-      "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"] }, // 22
+      START: { hide: ["A1"], text: { A1: "" } },
+      "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
     ductwork: {
@@ -626,7 +627,7 @@
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
     const omittedRanges = [...(result?.omitted_ranges || metadata.omitted_ranges || []), ...(browserPresentation[entry.definition.id]?.[entry.sheet]?.omit || [])];
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: result?.settings_sections ?? metadata.settings_sections ?? [], display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: result?.settings_sections ?? metadata.settings_sections ?? [], display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {
@@ -668,7 +669,7 @@
     const content = rows.filter((row) => !schedule || row.row < schedule.header_row).map((row) => [row.row, row.cells.filter((cell) => !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column) && (cell.editable || (cell.value !== null && cell.value !== undefined && cell.value !== ""))).map((cell) => cell.column)]);
     const titleAddresses = new Set(metadata.presentation_tables.map((table) => table.title_address).filter(Boolean));
     const titles = rows.flatMap((row) => row.cells.filter((cell) => titleAddresses.has(cell.address || `${columnName(cell.column)}${row.row}`)).map((cell) => cell.value));
-    return JSON.stringify([{ ...pageDefinition(entry), section_spacing: result.section_spacing ?? metadata.section_spacing }, result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options, cell.allow_other, cell.error_style, cell.validation]))]);
+    return JSON.stringify([{ ...pageDefinition(entry), section_spacing: result.section_spacing ?? metadata.section_spacing }, result.visible_columns, metadata.omitted_rows, metadata.omitted_columns, metadata.omitted_ranges, metadata.hidden_addresses, metadata.presentation_tables, metadata.table_layout, metadata.display_column_order, metadata.display_text, metadata.display_cells, metadata.navigation_mode, metadata.settings_sections, metadata.display_table_order, metadata.schedule_heading, metadata.expand_tables, titles, content, result.option_sets || {}, rows.map((row) => row.cells.filter((cell) => cell.editable && !omittedColumns.has(cell.column) && !isOmitted(row.row, cell.column)).map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell.type, cell.options_ref || cell.options, cell.allow_other, cell.error_style, cell.validation]))]);
   }
 
   function presentationRole(cell) {
@@ -809,7 +810,7 @@
     entry.productTotalsElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
-    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), isOmitted = omittedCell(metadata);
+    const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), isOmitted = omittedCell(metadata);
     const visibleRows = result.rows.filter((row) => !omittedRows.has(row.row)).map((row) => ({ ...row, cells: row.cells.filter((cell) => !isOmitted(row.row, cell.column)) }));
     let columns = (result.visible_columns || Array.from({ length: result.max_column }, (_, index) => index + 1).filter((column) => !hidden.has(column))).filter((column) => !omittedColumns.has(column));
     columns = [...new Set([...metadata.display_column_order.map(columnNumber).filter((column) => columns.includes(column)), ...columns])];
@@ -994,7 +995,8 @@
         const sourceHeading = (!hasOwnHeader || headerRow === row.row) && (metadata.header_rows || []).includes(row.row);
         const matrixHeading = group === "matrix" && row.row === matrix.first || Boolean(definition) && headerRow === row.row;
         const section = sectionsByAddress.get(cell.address || `${columnName(column)}${row.row}`);
-        const display = browserCellDisplay(entry, cell.address || `${columnName(column)}${row.row}`, metadata.display_cells[cell.address || `${columnName(column)}${row.row}`] || {});
+        const address = cell.address || `${columnName(column)}${row.row}`;
+        const display = browserCellDisplay(entry, address, metadata.display_cells[address] || {});
         let role = display.role || (["SETTINGS", "PRODUCT SETTINGS"].includes(entry.sheet) && column === 1 && row.row === 1 ? "title" : presentationRole(cell));
         if (hasOwnHeader && row.row !== headerRow && role === "column_header" && !section) role = "body";
         if (definition?.table_kind === "form" && role === "section" && !section && !(merge && groupColumns.every((visible) => visible >= merge.start.column && visible <= merge.end.column))) role = "label";
@@ -1028,8 +1030,9 @@
           updateOutputCell(td, cell);
           if (sourceHeading) td.classList.add("calculator-source-heading");
         }
-        tr.append(td);
+        td.hidden = hiddenAddresses.has(address); tr.append(td);
       }
+      if (tr.children.length && [...tr.children].every((cell) => cell.hidden)) tr.hidden = true;
       renderedGroup.body.append(tr);
       if (!introPlaced && page.intro_address && row.cells.some((cell) => cell.address === page.intro_after_address)) {
         const intro = sourceCells.get(page.intro_address);

@@ -23,10 +23,12 @@
   <header class="app-header">
     <div class="brand-stack"><a class="brand" href="/" aria-label="Ceasefire Estimator home"><img class="brand-logo" src="/ceasefire-logo.png" alt="Ceasefire" width="5375" height="1790"></a><span id="project-save-state" class="status-label unsaved" role="status">Not saved to a file</span></div>
     <nav aria-label="Main navigation">
-      <button type="button" class="nav-button active" data-view="estimate" aria-current="page">Estimator</button>
+      <button type="button" class="nav-button active" data-view="home" aria-current="page">Home</button>
+      <button type="button" class="nav-button" data-view="estimate">Estimator</button>
       <button type="button" class="nav-button" data-view="calculators">Calculators</button>
       <button type="button" class="nav-button" data-view="pricing">Libraries</button>
       <button type="button" class="nav-button" data-view="quotes">Saved projects</button>
+      <button type="button" class="nav-button" data-view="help">Help</button>
     </nav>
     <span class="local-badge"><span aria-hidden="true"></span>Local workspace</span>
   </header>
@@ -36,6 +38,15 @@
     <section id="project-tools" class="project-tools" aria-label="Project file" hidden>
       <div class="project-identity"><p class="eyebrow">CURRENT PROJECT</p><strong id="project-name">Untitled project</strong><p id="project-file-location" class="helper">Choose a folder with Save As</p><p id="project-last-saved" class="helper" hidden></p><p id="project-pricing-source" class="helper">Pricing: current saved library</p></div>
       <div class="actions"><span class="project-edit-actions"><button id="new-quote" type="button" class="button secondary">New project</button><button id="edit-project-details" type="button" class="button secondary">Edit Project</button></span><button id="load-project" type="button" class="button secondary">Load Project</button><input id="project-import-file" type="file" accept=".json,application/json" hidden><span class="project-save-actions"><button id="save-current-project" type="button" class="button save-button">Save</button><button id="save-project" type="button" class="button save-button">Save As</button></span></div>
+    </section>
+    <section id="view-home" class="view" aria-labelledby="home-heading" hidden>
+      <div class="page-heading"><div><p class="eyebrow">CEASEFIRE ESTIMATOR</p><h1 id="home-heading">What would you like to do?</h1><p class="subtitle">Choose an area to start or continue your work.</p></div></div>
+      <div class="home-grid" aria-label="Application areas">
+        <button type="button" class="home-card" data-home-view="estimate"><span class="home-card-icon" aria-hidden="true">∑</span><strong>Estimator</strong><span>Build project estimates and firestopping schedules.</span></button>
+        <button type="button" class="home-card" data-home-view="pricing"><span class="home-card-icon" aria-hidden="true">▤</span><strong>Libraries</strong><span>Manage pricing, firestopping records and technical references.</span></button>
+        <button type="button" class="home-card" data-home-view="calculators"><span class="home-card-icon" aria-hidden="true">⌗</span><strong>Calculators</strong><span>Use the specialist workbook calculators and export schedules.</span></button>
+        <button type="button" class="home-card" data-home-view="quotes"><span class="home-card-icon" aria-hidden="true">▣</span><strong>Saved Projects</strong><span>Find and reopen project files from your linked folder.</span></button>
+      </div>
     </section>
     <section id="view-estimate" class="view" aria-labelledby="estimator-view-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">ESTIMATOR</p><h1 id="estimator-view-heading">Project estimators</h1><p class="subtitle">Choose the estimate to work on. Both share this project's details and pricing.</p></div></div>
@@ -54,18 +65,18 @@
           <div id="penetration-schedule-workspace" class="penetration-schedule-workspace" hidden>
             <section class="card penetration-schedule" aria-labelledby="penetration-schedule-heading">
               <div class="section-heading"><h2 id="penetration-schedule-heading">Firestopping Schedule</h2><span id="penetration-status" class="status-label" role="status">Ready</span></div>
+              <div class="penetration-row-tools penetration-schedule-recalculate-tools"><button id="penetration-schedule-recalculate" type="button" class="button secondary">Recalculate schedule</button></div>
               <p class="helper">Only items added to this schedule contribute to the firestopping totals below.</p>
               <div id="penetration-schedule-message" class="message" role="status" hidden></div>
               <div class="table-scroll"><table><thead><tr><th scope="col">Item</th><th scope="col">Service Type</th><th scope="col">Penetration Type</th><th scope="col">Substrate Orientation</th><th scope="col">FRL</th><th scope="col">Item QTY</th><th scope="col">Total</th><th scope="col">Diagram</th><th scope="col">Actions</th></tr></thead><tbody id="penetration-schedule-body"></tbody></table></div>
-              <div class="penetration-row-tools"><button id="penetration-add" type="button" class="button primary">New item</button><button id="penetration-undo" type="button" class="button secondary" disabled>Undo remove</button><span id="penetration-row-count" class="helper"></span></div>
-              <div class="penetration-row-tools"><button id="penetration-schedule-recalculate" type="button" class="button secondary">Recalculate schedule</button><button id="penetration-excel" type="button" class="button excel-button">Download schedule XLSX</button><button id="penetration-pdf" type="button" class="button pdf-button">Download schedule PDF</button></div>
+              <div class="penetration-row-tools"><button id="penetration-add" type="button" class="button primary penetration-new-item-action" aria-label="Add new item" title="Add new item"><span aria-hidden="true">+</span><span class="sr-only">Add new item</span></button><button id="penetration-undo" type="button" class="button secondary" disabled>Undo remove</button><span id="penetration-row-count" class="helper"></span></div>
+              <div class="penetration-row-tools"><button id="penetration-excel" type="button" class="button excel-button">Download schedule XLSX</button><button id="penetration-pdf" type="button" class="button pdf-button">Download schedule PDF</button></div>
             </section>
           </div>
           <div id="adjustment-sections"></div>
           <details class="card expandable-breakdown firestopping-breakdown" id="penetration-schedule-breakdown-card" hidden>
             <summary><h2>Firestopping Breakdown</h2></summary>
-            <details class="firestopping-breakdown-part"><summary><h3 id="penetration-schedule-breakdown-heading">Schedule breakdown</h3></summary><div id="penetration-schedule-breakdown" aria-labelledby="penetration-schedule-breakdown-heading"></div></details>
-            <details class="firestopping-breakdown-part"><summary><h3 id="penetration-schedule-summary-heading">Summary</h3></summary><dl id="penetration-schedule-summary" class="cost-list" aria-labelledby="penetration-schedule-summary-heading"></dl><p id="penetration-schedule-summary-notes" class="helper"></p></details>
+            <details class="firestopping-breakdown-part"><summary><h3 id="penetration-schedule-breakdown-heading">Schedule breakdown</h3></summary><div id="penetration-schedule-breakdown" aria-labelledby="penetration-schedule-breakdown-heading"></div><section class="penetration-schedule-summary-section" aria-labelledby="penetration-schedule-summary-heading"><h3 id="penetration-schedule-summary-heading">Summary</h3><dl id="penetration-schedule-summary" class="cost-list" aria-labelledby="penetration-schedule-summary-heading"></dl><p id="penetration-schedule-summary-notes" class="helper"></p></section></details>
           </details>
           <details class="card expandable-breakdown material-breakdown-section" aria-labelledby="breakdown-heading"><summary><h2 id="breakdown-heading">Material Breakdown</h2></summary><div class="table-scroll"><table><thead><tr><th scope="col">Material</th><th scope="col" class="numeric">Quantity</th><th scope="col" class="numeric">Unit sell rate</th><th scope="col" class="numeric">Total</th><th scope="col" class="numeric">Labour days</th></tr></thead><tbody id="material-results"><tr><td colspan="5">Calculating…</td></tr></tbody></table></div></details>
           <details class="card expandable-breakdown labour-breakdown-section" id="labour-breakdown" aria-labelledby="labour-heading" aria-busy="true"><summary><h2 id="labour-heading">Labour Breakdown</h2></summary><div class="table-scroll"><table class="labour-table" aria-describedby="labour-help"><thead><tr><th scope="col">Labour activity</th><th scope="col" class="numeric">Days</th></tr></thead><tbody id="labour-results"><tr><td colspan="2">Calculating…</td></tr></tbody></table></div><p class="helper" id="labour-help">Pinning is included in meshing days. Mobilisation adds half a day per adjusted mobilisation. Days include the entered labour adjustment.</p></details>
@@ -75,15 +86,14 @@
       </div>
       <section id="estimator-penetration" class="estimator-child" aria-labelledby="penetration-heading" hidden>
         <div id="firestopping-project-workspace">
-        <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h2 id="penetration-heading">Firestopping Estimator</h2><p class="subtitle">Calculate the current item, then add it to the Firestopping Schedule in the Estimator.</p></div><div class="actions"><button id="penetration-add-to-library" type="button" class="button secondary">Add to Library</button><button id="penetration-recalculate" type="button" class="button secondary">Recalculate</button><button id="penetration-settings" type="button" class="button secondary penetration-settings-toggle" aria-pressed="false">Settings</button></div></div>
+        <div class="page-heading"><div><p class="eyebrow">ESTIMATE</p><h2 id="penetration-heading">Firestopping Estimator</h2><p class="subtitle">Calculate the current item, then add it to the Firestopping Schedule in the Estimator.</p></div><div class="actions"><button id="penetration-add-to-library" type="button" class="button secondary penetration-header-action">Add to Library</button><button id="penetration-recalculate" type="button" class="button secondary penetration-header-action">Recalculate</button><button id="penetration-settings" type="button" class="button secondary penetration-settings-toggle penetration-header-action" aria-pressed="false">Settings</button></div></div>
         <div id="penetration-message" class="message" role="status" hidden></div>
         <div id="penetration-loading" class="empty-state">Loading penetration fields…</div>
         <div id="penetration-workspace" hidden>
           <div class="penetration-layout">
             <div class="penetration-main">
               <section class="card" aria-labelledby="penetration-row-heading"><div class="section-heading penetration-item-heading"><h3 id="penetration-row-heading">Current item</h3><div class="actions"><button id="penetration-add-to-schedule" type="button" class="button primary penetration-add-action" aria-label="Add to Schedule" title="Add to Schedule"><span aria-hidden="true">+</span><span class="sr-only">Add to Schedule</span></button><button id="penetration-update-schedule" type="button" class="button penetration-update-action" hidden>Update Schedule</button><button id="penetration-cancel-edit" type="button" class="button secondary" hidden>Cancel edit</button></div></div><div id="penetration-input-groups" class="penetration-group-choices" role="tablist" aria-label="Item input sections"></div><div id="penetration-row-fields"></div><section id="penetration-diagram" class="penetration-diagram" aria-labelledby="penetration-diagram-heading"><h4 id="penetration-diagram-heading">Source diagram</h4><figure id="penetration-diagram-preview" hidden><img id="penetration-diagram-image" alt="Current item source diagram preview"><figcaption id="penetration-diagram-caption" class="helper"></figcaption></figure><p id="penetration-diagram-empty" class="helper">No source diagram is attached to this item.</p><label class="field penetration-image-field"><span>Choose source diagram</span><input id="penetration-diagram-file" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"></label><div class="actions"><button id="penetration-diagram-remove" type="button" class="button secondary" hidden>Discard selected image</button></div><p class="helper">PNG, JPEG or WebP, up to 15 MB. Add the item to the Firestopping Library to save the compressed image and schedule thumbnail.</p></section></section>
-              <section class="card" aria-labelledby="penetration-breakdown-heading"><div class="section-heading"><h3 id="penetration-breakdown-heading">Selected item breakdown</h3></div><div id="penetration-breakdown"></div></section>
-              <details class="penetration-source"><summary>Calculation source</summary><p id="penetration-source" class="helper"></p></details>
+              <details class="card expandable-breakdown penetration-item-breakdown" aria-labelledby="penetration-breakdown-heading"><summary><h3 id="penetration-breakdown-heading">Item Breakdown</h3></summary><div id="penetration-breakdown"></div></details>
             </div>
             <aside class="card penetration-summary" aria-labelledby="penetration-summary-heading"><div class="section-heading"><h3 id="penetration-summary-heading">Item Summary</h3></div><dl id="penetration-summary" class="cost-list"></dl><div id="penetration-summary-notes" class="helper"></div></aside>
           </div>
@@ -137,6 +147,17 @@
         <p id="project-list-status" class="helper" role="status"></p><div id="project-list" class="quote-list" aria-busy="false">Reading project files…</div>
         <div class="project-pagination"><button id="project-previous" type="button" class="button secondary" disabled>Previous</button><button id="project-next" type="button" class="button secondary" disabled>Next</button><button id="project-continue" type="button" class="button secondary" hidden>Continue folder scan</button></div>
       </section><pre id="project-file-errors" class="message error" hidden></pre>
+    </section>
+    <section id="view-help" class="view" aria-labelledby="help-heading" hidden>
+      <div class="page-heading"><div><p class="eyebrow">HELP</p><h1 id="help-heading">Using the Ceasefire Estimator</h1><p class="subtitle">A plain-English guide to finding your way around and producing an estimate.</p></div></div>
+      <div class="help-grid">
+        <section class="card help-card"><h2>Start here</h2><ol><li>Open <strong>Estimator</strong> and enter the project details.</li><li>Choose the main Estimator for project quantities, or Firestopping Estimator for penetration items.</li><li>Review the totals and breakdowns before saving or downloading a report.</li><li>Use <strong>Save As</strong> the first time. After that, use <strong>Save</strong> to update the same project file.</li></ol></section>
+        <section class="card help-card"><h2>Estimator</h2><p>The main Estimator calculates material quantities, labour and project costs from the values you enter. Expand a breakdown when you need to check how a total was built.</p><p>The Firestopping Estimator calculates one item at a time. Review its Item Summary, add the item to the schedule, then recalculate the schedule to update project totals.</p></section>
+        <section class="card help-card"><h2>Libraries</h2><p>The Pricing Library holds product, service, yield and rate information used by estimates. Review imported changes before saving them.</p><p>The Firestopping and Technical Libraries hold reusable firestopping records and their supporting technical references. A library record helps you reuse data; it does not confirm that a system is suitable for a project.</p></section>
+        <section class="card help-card"><h2>Calculators</h2><p>Choose a calculator, move between its pages, enter the required values and select <strong>Recalculate</strong>. Red messages need attention before you rely on the result.</p><p>You can export schedules and summaries to PDF or Excel. Imported Excel schedules replace the current calculator draft after you confirm the change.</p></section>
+        <section class="card help-card"><h2>Saved Projects</h2><p>Link a project folder to browse files saved from this application. Opening a project restores its estimates, calculator drafts and saved pricing snapshot.</p><p>If a saved project uses older prices, the application tells you. Choose current pricing only when you want to recalculate with today’s library.</p></section>
+        <section class="card help-card"><h2>Before you finish</h2><ul><li>Check project details, quantities, products, rates and assumptions.</li><li>Resolve visible calculation errors.</li><li>Save the project before closing the application.</li><li>Treat results as an estimating guide and confirm technical suitability with the manufacturer and relevant project authority.</li></ul></section>
+      </div>
     </section>
   </main>
   <footer>CEASEFIRE ESTIMATOR <span>Quote calculations · Editable pricing library · Local project files</span><p class="estimating-notice">This is an estimating product developed by CEASEFIRE PFP. Information and results are a guide only and should not be relied upon without consulting the manufacturer and relevant project authority.</p></footer>

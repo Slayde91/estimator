@@ -81,7 +81,8 @@ section. Legacy row wastage and Register Allowance values are migrated once into
 these project settings and no longer change one row independently. The
 current-item heading uses Type and Service Type, while the longer Items/Services
 description remains in its input. **Item Summary** stays beside the editor while
-scrolling at desktop widths.
+scrolling at desktop widths. **Item Breakdown** is collapsed by default and the
+separate Calculation source field is omitted from the browser.
 Pipe Labour remains calculated and exportable but is not an item-entry control.
 Cabletray width/depth and board/batt width/length are entered as one validated
 `W x D` or `W x L` value while the separate workbook source columns remain intact.
@@ -139,15 +140,15 @@ multiplied by Item QTY; AJ is allocated to Additional Labour costs once per
 line, without multiplication by Item QTY.
 The canonical DK result controls the effective hours gate.
 Blanks, zeros, negatives and calculation errors remain distinct. This is a
-display projection. Summary remains available below the table; removed allowance
-and multiplier values are omitted from the UI and exports. All table cells are
-centred. The schedule has a
+display projection. The redundant per-line Summary, removed allowance and
+multiplier groups are omitted from the UI. All table cells are centred. The schedule has a
 separate aggregate table: costs and task hours sum across schedule lines, with
 canonical schedule subtotals. Matching product unit prices are shown once.
 Material quantities sum only for the same product, source context and unit;
 different rates stay separate in Unit Prices. Non-collar entries without a
 selected product remain per line, and grouped entries retain their contributing row IDs.
-Summary retains each line's effective values.
+The final Materials, Labour, Grand total, Total days and Task Hours summary is a
+static section immediately below that aggregate table.
 
 ### Automatic and manual labour allowances
 
@@ -245,9 +246,10 @@ project pricing or selects Use current pricing. Editing the shared library does
 not change a saved project's original snapshot. Price changes recalculate both
 estimates independently while preserving their entered quantities.
 
-Schedule PDF and XLSX exports calculate only the captured schedule and its pricing once. Both
-include project details, totals, schedule, inputs, calculated detail and any
-errors. The XLSX register contains literal values, not executable formulas or
+Schedule PDF and XLSX exports calculate only the captured schedule and its pricing once. The
+compact PDF includes project details, totals, the schedule and any calculation
+errors; it omits Settings, Line Inputs and Calculated detail. The XLSX register
+retains settings, inputs and calculated detail as literal values, not executable formulas or
 links, and preserves numeric precision. Downloads use the opened/saved project
 folder, or the standard Downloads folder if no project is selected.
 

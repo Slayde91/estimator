@@ -77,6 +77,20 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertIn('0.00 (Manual)', text)
         self.assertEqual(result['draft']['rows'][0]['inputs']['pipe_labour_hours'], 0)
 
+    def test_paired_dimensions_export_once_without_changing_source_values(self):
+        source = draft(AQ=450, AR=100, AW=1000, AX=500)
+        result = calculate(source)
+        records = input_records(build_penetration_register(result, result['definition'], {}))
+        self.assertEqual(records['Cabletray W x D'], ('450.00 x 100.00', None))
+        self.assertEqual(records['Board/Batt W x L'], ('1,000.00 x 500.00', None))
+        self.assertNotIn('Cabletray Depth', records)
+        self.assertNotIn('Board Length', records)
+        text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
+        self.assertIn('Cabletray W x D', text)
+        self.assertIn('450.00 x 100.00', text)
+        self.assertEqual(result['draft']['rows'][0]['inputs']['AQ'], 450)
+        self.assertEqual(result['draft']['rows'][0]['inputs']['AR'], 100)
+
     def test_auto_tracks_diameter_manual_hours_and_source_identity_survive_project_roundtrip(self):
         model = deepcopy(source_model())
         source_hash = sha256((ROOT / 'data/penetration.json.gz').read_bytes()).hexdigest()

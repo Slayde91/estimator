@@ -16,7 +16,8 @@
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => (state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))]).filter(group => {
     const rule = state.definition.group_visibility?.[group];
-    return !rule || (rule.values || []).includes(state.draft?.rows?.[0]?.inputs?.[rule.column]);
+    const inputs = state.draft?.rows?.[0]?.inputs, matches = condition => (condition.values || []).includes(inputs?.[condition.column]);
+    return !rule || (rule.any ? rule.any.some(matches) : matches(rule));
   });
   const fieldInGroup = (field, group) => !field.hidden && (field.display_groups || [field.group]).includes(group);
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
@@ -87,11 +88,49 @@
   }
   function changed() {
     state.version++; state.result = null; renderOutputs(); status(); actions.changed?.();
-    for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) control.refreshAutomatic?.();
+    for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) { control.refreshAutomatic?.(); control.refreshDimension?.(); }
   }
   function displayedInput(field, global) {
     const raw = values(global)[field.column] ?? null;
     return field.automatic_default && (raw === null || raw === "") ? state.result?.rows?.[0]?.input_defaults?.[field.column] ?? null : raw;
+  }
+  function dimensionText(first, second) {
+    const a = values(false)[first], b = values(false)[second];
+    if ([a, b].every(value => value === null || value === undefined || value === "")) return "";
+    return `${a ?? ""} x ${b ?? ""}`;
+  }
+  function parseDimensions(text) {
+    if (!text.trim()) return { values: [null, null] };
+    const match = text.match(/^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*[x×]\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*$/i);
+    if (!match) return { error: "Enter two finite dimensions separated by x, for example 300 x 50." };
+    const parsed = [Number(match[1]), Number(match[2])];
+    if (parsed.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) return { error: "Each dimension must be between -1,000,000,000,000 and 1,000,000,000,000." };
+    return { values: parsed };
+  }
+  function makeDimensionControl(field, paired) {
+    const session = state.session, key = keyFor(false, `${field.column}:${paired.column}`), wrapper = node("label", "field");
+    const label = `${fieldLabel(field)}${field.units ? ` (${field.units})` : ""}`, control = node("input"), problem = node("small", "penetration-field-error");
+    control.type = "text"; control.inputMode = "decimal"; control.autocomplete = "off"; control.maxLength = 100;
+    control.placeholder = field.placeholder || "e.g. 300 x 50";
+    control.dataset.libraryEditorField = field.column; control.dataset.libraryEditorPaired = paired.column;
+    control.dataset.libraryEditorGlobal = "false"; control.setAttribute("aria-label", `Library item: ${label}`);
+    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
+    control.refreshDimension = () => {
+      const pending = state.invalid.get(key); showProblem(pending?.error);
+      if (control !== document.activeElement) control.value = pending ? pending.value : dimensionText(field.column, paired.column);
+    };
+    control.addEventListener("input", () => {
+      if (session !== state.session || !state.open) return;
+      const parsed = parseDimensions(control.value);
+      if (parsed.error) state.invalid.set(key, { value: control.value, error: parsed.error });
+      else {
+        state.invalid.delete(key);
+        const target = values(false); [target[field.column], target[paired.column]] = parsed.values;
+      }
+      showProblem(parsed.error); changed();
+    });
+    control.addEventListener("blur", () => { if (session === state.session) control.refreshDimension(); });
+    wrapper.append(node("span", "", label), control, problem); control.refreshDimension(); return wrapper;
   }
   function makeControl(field, global) {
     const session = state.session, key = keyFor(global, field.column), raw = values(global)[field.column] ?? null;
@@ -163,12 +202,15 @@
   function renderFields() {
     const groups = fieldGroups(); if (!groups.includes(state.group)) state.group = groups[0];
     $("library-editor-groups").replaceChildren(...groups.map(group => {
-      const button = node("button", "penetration-group", group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("aria-pressed", String(group === state.group));
+      const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("aria-pressed", String(group === state.group));
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     }));
     const fields = node("div", "library-editor-fields"), settings = state.group === "SETTINGS";
     const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
-    fields.append(...visible.map(field => makeControl(field, settings))); $("library-editor-fields").replaceChildren(fields);
+    fields.append(...visible.map(field => {
+      const paired = !settings && field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
+      return paired ? makeDimensionControl(field, paired) : makeControl(field, settings);
+    })); $("library-editor-fields").replaceChildren(fields);
   }
   function renderOutputs() {
     const price = state.result ? state.result.rows?.[0]?.outputs?.H : (!hasUnsavedChanges() ? state.record.price?.amount : null);

@@ -76,13 +76,17 @@ class CalculatorTests(unittest.TestCase):
         result = calculate()
         self.assertIsNone(result["inputs"]["B8"])
         self.assertEqual(result["cells"]["F8"], "#DIV/0!")
+        self.assertNotIn("F8", result["errors"])
         self.assertIsNone(result["summary"]["rate"])
 
     def test_zero_area_does_not_hide_other_totals(self):
-        result = calculate({"B8": 0})
-        self.assertEqual(result["cells"]["F8"], "#DIV/0!")
-        self.assertEqual(result["summary"]["total"], 1260)
-        self.assertIsNone(result["summary"]["rate"])
+        for measure in ("", 0):
+            with self.subTest(measure=measure):
+                result = calculate({"B8": measure})
+                self.assertEqual(result["cells"]["F8"], "#DIV/0!")
+                self.assertNotIn("F8", result["errors"])
+                self.assertEqual(result["summary"]["total"], 1260)
+                self.assertIsNone(result["summary"]["rate"])
 
     def test_blank_quantity_and_invalid_selection_are_distinct(self):
         self.assertEqual(calculate({"B15": None})["summary"]["total"], 1260)

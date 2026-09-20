@@ -53,6 +53,9 @@
 #penetration-schedule-summary-notes,#penetration-schedule-message{white-space:pre-line}
 .penetration-item-heading{align-items:flex-start;flex-wrap:wrap}
 .penetration-item-heading h3{flex:1 1 300px}
+.penetration-add-action{width:48px;height:48px;padding:0;border-radius:50%;font-size:28px;line-height:1;display:inline-grid;place-items:center}
+.penetration-update-action{color:#fff;background:#17365d;border:1px solid #17365d;box-shadow:0 3px 8px #17365d2b}
+.penetration-update-action:hover:not(:disabled){background:#102b4b;border-color:#102b4b;box-shadow:0 4px 12px #17365d3b}
 .penetration-schedule-workspace{display:grid;gap:22px;min-width:0}
 .penetration-schedule-workspace[hidden]{display:none}
 .penetration-schedule-workspace .card{min-width:0}

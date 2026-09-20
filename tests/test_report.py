@@ -240,7 +240,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(_number(float("inf")), "Unavailable: non-finite value")
 
     def test_errors_are_explicit_and_valid_totals_remain_visible(self):
-        for inputs in ({"B8": 0}, {"C15": 0}, {"D15": "Unknown product"}):
+        for inputs in ({"C15": 0}, {"D15": "Unknown product"}):
             with self.subTest(inputs=inputs):
                 quote = deepcopy(self.quote)
                 quote["result"] = calculate(inputs)
@@ -251,9 +251,13 @@ class ReportTests(unittest.TestCase):
                     self.assertIn("".join(error["label"].split()), "".join(text.split()))
                     self.assertIn(error["code"], text)
                 self.assertNotIn("Calculator!", text)
-                if inputs == {"B8": 0}:
-                    self.assertIn("$1,260.00", text)
-                    self.assertIn("Unavailable: #DIV/0!", text)
+        quote = deepcopy(self.quote)
+        quote["result"] = calculate({"B8": 0})
+        quote["inputs"] = quote["result"]["inputs"]
+        text = pdf_text(render_quote_pdf(quote))
+        self.assertNotIn("CALCULATION INCOMPLETE", text)
+        self.assertIn("$1,260.00", text)
+        self.assertIn("Unavailable", text)
 
     def test_customer_report_uses_business_labels_without_source_audit_clutter(self):
         self.assertNotRegex(self.text, r"\b[A-F]\d{1,3}\b")

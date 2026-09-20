@@ -198,8 +198,12 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(fields['N']['options'], ['N/A', '-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240'])
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
             'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead', 'SETTINGS'])
+        self.assertEqual(spec['group_labels'], {'Penetration': 'DETAILS', 'Additional Allowances': 'OTHER'})
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
-        self.assertEqual(spec['group_visibility']['Substrate'], {'column': 'L', 'values': ['Oversized']})
+        self.assertEqual(spec['group_visibility']['Substrate']['any'][0], {'column': 'L', 'values': ['Oversized']})
+        self.assertEqual(spec['group_visibility']['Substrate']['any'][1]['column'], 'K')
+        for service in ('Access Panel', 'Blank Seal', 'Fire Dampers', 'Linear Joints', 'Movement Joints'):
+            self.assertIn(service, spec['group_visibility']['Substrate']['any'][1]['values'])
         self.assertEqual(spec['group_visibility']['Cabletrays']['column'], 'K')
         for service in ('D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
                         'Pair Coil Bundle', 'Cable Trays', 'Lagged Pipes'):
@@ -212,6 +216,15 @@ class PenetrationCalculationTests(unittest.TestCase):
                          ['AL', 'AM', 'AN', 'pipe_labour_hours'])
         for field in pipe_fields:
             self.assertEqual(field['display_groups'], ['Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles'])
+        self.assertTrue(fields['pipe_labour_hours']['hidden'])
+        self.assertEqual(fields['AM']['label'], 'Wrap Length required')
+        self.assertEqual(fields['AS']['label'], 'Wrap Length required')
+        self.assertEqual(fields['AQ']['paired_column'], 'AR')
+        self.assertEqual(fields['AR']['paired_into'], 'AQ')
+        self.assertTrue(fields['AR']['hidden'])
+        self.assertEqual(fields['AW']['paired_column'], 'AX')
+        self.assertEqual(fields['AX']['paired_into'], 'AW')
+        self.assertTrue(fields['AX']['hidden'])
         expected_steps = {'O': 1, 'AC': .25,
             'AF': 1, 'AH': .25, 'AI': 1, 'AJ': 1, 'AM': 5,
             'AQ': 5, 'AR': 5, 'AS': 5, 'AT': 1,

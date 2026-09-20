@@ -174,7 +174,6 @@
     const status = $("project-save-state");
     status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
     status.classList.toggle("unsaved", changed || !file);
-    $("project-file-name").textContent = file?.name || "No project file selected";
     $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Imported file · choose a folder with Save As" : "Choose a folder with Save As");
     const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
     $("project-last-saved").textContent = savedAt && !Number.isNaN(savedAt.getTime()) ? `File saved ${savedAt.toLocaleString("en-AU")}` : "File save time unavailable";
@@ -280,10 +279,11 @@
 
   function renderInputs() {
     const before = $("input-sections");
+    const postMaterials = $("post-material-input-sections");
     const after = $("adjustment-sections");
     const materials = $("material-inputs");
     const project = $("project-input-fields");
-    before.replaceChildren(); after.replaceChildren(); materials.replaceChildren(); project.replaceChildren();
+    before.replaceChildren(); postMaterials.replaceChildren(); after.replaceChildren(); materials.replaceChildren(); project.replaceChildren();
     const job = [], labour = [], masking = [], adjustments = [], additions = [], remainder = [];
     for (const field of state.fields) {
       // Keep historical workbook notes in the snapshot without a second editor.
@@ -298,8 +298,9 @@
       else remainder.push(field);
     }
     const maskingActive = String(state.inputs.D7 ?? "").trim().toLowerCase() !== "n/a";
-    for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour),
-      maskingActive ? inputCard("Masking/Cleaning", masking) : null]) if (card) before.append(card);
+    for (const card of [inputCard("Access & Travel", job), inputCard("Teams/Crews", labour)]) if (card) before.append(card);
+    const maskingCard = maskingActive ? inputCard("Masking/Cleaning", masking) : null;
+    if (maskingCard) postMaterials.append(maskingCard);
     for (let row = 15; row <= 23; row++) {
       const tr = node("tr");
       tr.dataset.materialRow = String(row);

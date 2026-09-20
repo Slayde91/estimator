@@ -56,7 +56,7 @@ reactivate those effects. Explicit row materials, manual hours and adjustments
 (AE:AJ), quantity and project Waste settings remain active. The effective labour policy replaces
 the source's combined 0.10-hour setup and 0.15-hour register charge with an
 project-wide Register Allowance, defaulting to 0.25 hours per item. It also replaces
-the source collar labour lookup with editable Pipe Labour multiplied by the
+the source collar labour lookup with a calculated Pipe Labour value multiplied by the
 Pipes Multiplier (AN). Item QTY (O) then applies once to these hours.
 The source image cell S4 already contains a cached
 `#VALUE!`; it is not a financial formula or an editable estimating input.
@@ -67,12 +67,13 @@ A new Firestopping Schedule starts empty. Its columns include Service Type,
 Penetration Type, Substrate Orientation, FRL, editable Item QTY and a compact
 source-diagram thumbnail when the library item has an image. A separate
 current item starts blank. Input groups separate
-Penetration, Products and labour, Additional Allowances, Unlagged Pipes,
+Details, Products and labour, Other, Unlagged Pipes,
 Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
 group matching Service Type is shown, and Bulkhead is shown only when Type is
 Bulkheads. Cabletrays is shown only for cable/bundle services, Cable Trays and
 the source-backed Lagged Pipes entries that use those fields. Substrate appears
-only when Penetration Type is Oversized. SETTINGS contains Register Allowance,
+when Penetration Type is Oversized or Service Type is Access Panel, Blank Seal,
+Fire Dampers, Linear Joints or Movement Joints. SETTINGS contains Register Allowance,
 the six editable Pipe Labour diameter bands and the six project-wide Waste (%)
 values for Additional Allowances, Pipes/Cables, Cabletrays, Substrate, Bulkhead
 board and Bulkhead framing. Hover help names each Waste setting's applicable
@@ -81,6 +82,10 @@ these project settings and no longer change one row independently. The
 current-item heading uses Type and Service Type, while the longer Items/Services
 description remains in its input. **Item Summary** stays beside the editor while
 scrolling at desktop widths.
+Pipe Labour remains calculated and exportable but is not an item-entry control.
+Cabletray width/depth and board/batt width/length are entered as one validated
+`W x D` or `W x L` value while the separate workbook source columns remain intact.
+Wrap inputs use the user-facing label **Wrap Length required (mm)**.
 The current item's calculated detail and
 the complete schedule totals are calculated independently. Numeric fields use
 native number controls, retain their full stored precision and use the following

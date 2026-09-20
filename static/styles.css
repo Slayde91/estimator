@@ -22,6 +22,9 @@ a{color:inherit}
 .app-header{position:sticky;top:0;z-index:20;min-height:96px;background:#fffffff5;backdrop-filter:blur(14px);display:flex;align-items:center;gap:55px;padding:12px max(30px,calc((100vw - 1600px)/2));border-bottom:1px solid #e8dedf;box-shadow:0 3px 16px #301b2206}
 .app-header::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--red),var(--orange) 60%,var(--gold))}
 .brand{text-decoration:none;display:flex;align-items:center;flex-shrink:0}
+.brand-stack{display:flex;flex-direction:column;align-items:flex-start;gap:5px;flex-shrink:0}
+.brand-stack .status-label{margin:0 0 0 20px;background:#e6f4ec;color:#1b653c}
+.brand-stack .status-label.unsaved{background:#fff1bf;color:#775300}
 .brand-logo{display:block;width:200px;max-width:100%;height:auto}
 .app-header nav{display:flex;gap:7px;padding:5px;background:#f7f4f5;border-radius:11px}
 .nav-button{color:#6c6067;background:none;padding:10px 17px;font-size:13px;font-weight:650;border-radius:7px;transition:background .15s,color .15s,box-shadow .15s}
@@ -218,12 +221,9 @@ dialog .actions{justify-content:flex-end}
 #project-folder { overflow-wrap: anywhere; }
 #project-file-errors { white-space: pre-wrap; overflow-wrap: anywhere; }
 .project-identity { min-width: 0; }
-.project-identity .status-label { display: inline-block; margin: .35rem 0 .35rem .75rem; background: #e6f4ec; color: #1b653c; }
-.project-identity .status-label.unsaved { background: #fff1bf; color: #775300; }
 .project-identity .helper { margin: .25rem 0; overflow-wrap: anywhere; }
-.project-file-name { margin: .6rem 0 .25rem; font-size: .9rem; overflow-wrap: anywhere; }
 .project-list-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }
 .project-search-field { flex: 1; min-width: 14rem; }
 .project-relative-path { overflow-wrap: anywhere; }
 .project-pagination { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
-@media (max-width: 570px) { .project-identity .status-label { margin-left: 0; display: table; } .project-list-controls > .field { width: 100%; min-width: 0; } }
+@media (max-width: 570px) { .brand-stack .status-label { margin-left: 0; } .project-list-controls > .field { width: 100%; min-width: 0; } }

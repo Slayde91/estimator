@@ -259,8 +259,8 @@
   }
   const diagramMime = filename => /\.png$/i.test(filename) ? "image/png" : /\.webp$/i.test(filename) ? "image/webp" : "image/jpeg";
   function renderDiagram() {
-    const section = $("penetration-diagram"); if (!section || !state.draft) return;
-    section.hidden = state.group === "SETTINGS";
+    const section = $("penetration-diagram"); if (!section) return;
+    section.hidden = !state.draft || state.group !== "Penetration";
     if (section.hidden) return;
     const preview = $("penetration-diagram-preview"), image = $("penetration-diagram-image"), caption = $("penetration-diagram-caption"), empty = $("penetration-diagram-empty"), remove = $("penetration-diagram-remove");
     const pending = state.diagramChange, libraryId = selected()?.library_item_id;

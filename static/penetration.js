@@ -1,10 +1,12 @@
 (() => {
   "use strict";
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
+  const cloneOptional = value => value === undefined ? undefined : clone(value);
   const state = { definition: null, draft: null, saved: null, selected: null, group: null, result: null,
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
     loading: false, calculating: false, downloading: false, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
+    diagramChange: undefined, diagramRead: 0, diagramVersion: 0,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
   let controlSequence = 0;
@@ -45,20 +47,22 @@
   }
   function message(text = "", error = false, scope = state) { const el = $(scope === state ? "penetration-message" : "penetration-schedule-message"); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
   const persisted = () => ({ draft: state.schedule.draft, composer: state.draft });
-  function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0); }
+  function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0 || state.diagramChange !== undefined); }
   function status(text) {
     $("penetration-status").textContent = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
     const blocked = !state.draft || state.invalid.size > 0, scheduleBlocked = !state.schedule.draft || state.schedule.invalid.size > 0;
     $("penetration-recalculate").disabled = blocked;
     $("penetration-add").disabled = !state.draft;
     $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
-    $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
+    $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
     $("penetration-update-schedule").hidden = !state.edit;
-    $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.updatingSchedule || !validEdit();
+    $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
     for (const id of ["penetration-schedule-recalculate", "penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
     $("penetration-undo").disabled = scheduleBlocked || !state.removed.length;
     for (const button of $("penetration-schedule-body").querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
+    if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
+    if ($("penetration-diagram-remove")) $("penetration-diagram-remove").disabled = state.creatingLibrary;
     window.CeasefireProject?.changed?.();
   }
   async function definitionFor(pricing) {
@@ -100,7 +104,7 @@
     ++state.context; ++state.requestRevision; ++state.composerEpoch; clearTimeout(state.timer); clearTimeout(state.schedule.timer);
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
-      selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null,
+      selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramVersion: 0,
       revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map() });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
     for (const row of state.schedule.draft.rows) state.rowEpochs.set(row.id, ++state.nextEpoch);
@@ -117,8 +121,8 @@
   function quoteSnapshot() { return state.schedule.draft ? { draft: canonicalDraft(state.schedule.draft) } : undefined; }
   function quoteFingerprint() { return stable({ context: state.context, ...quoteSnapshot(), invalid: [...state.schedule.invalid] }); }
   function scheduleProblem() { return state.schedule.invalid.size ? "Correct the firestopping schedule input marked invalid before calculating the quote." : ""; }
-  function inputProblem() { return state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
-  function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch }); }
+  function inputProblem() { return state.diagramChange !== undefined ? "Add the selected source diagram to the Firestopping Library or discard it before saving the project." : state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
+  function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch, pendingDiagram: state.diagramChange === undefined ? null : { filename: state.diagramChange.filename, version: state.diagramVersion } }); }
   async function completeProjectSnapshot() { await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
   function acceptDraft(scope, draft, captured) {
     // An accepted receipt can normalize blanks without changing the edited row.
@@ -253,6 +257,50 @@
     }
     return wrapper;
   }
+  const diagramMime = filename => /\.png$/i.test(filename) ? "image/png" : /\.webp$/i.test(filename) ? "image/webp" : "image/jpeg";
+  function renderDiagram() {
+    const section = $("penetration-diagram"); if (!section || !state.draft) return;
+    section.hidden = state.group === "SETTINGS";
+    if (section.hidden) return;
+    const preview = $("penetration-diagram-preview"), image = $("penetration-diagram-image"), caption = $("penetration-diagram-caption"), empty = $("penetration-diagram-empty"), remove = $("penetration-diagram-remove");
+    const pending = state.diagramChange, libraryId = selected()?.library_item_id;
+    let source = "", text = "";
+    if (pending && typeof pending === "object") {
+      source = `data:${diagramMime(pending.filename)};base64,${pending.content_base64}`;
+      text = `${pending.filename} — ready to compress and save to the Firestopping Library.`;
+    } else if (libraryId) {
+      const version = diagramVersions.get(libraryId) || 0;
+      source = `/api/libraries/penetration/${encodeURIComponent(libraryId)}/image${version ? `?v=${version}` : ""}`;
+      text = "Saved Firestopping Library source diagram.";
+    }
+    preview.hidden = !source; empty.hidden = !!source;
+    image.onerror = null;
+    if (source) {
+      image.src = source; caption.textContent = text;
+      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; empty.hidden = false; empty.textContent = "No source diagram is saved for this library item."; };
+    } else { image.removeAttribute?.("src"); caption.textContent = ""; empty.textContent = "No source diagram is attached to this item."; }
+    remove.hidden = !(pending && typeof pending === "object");
+    $("penetration-diagram-file").disabled = state.creatingLibrary;
+  }
+  function queueDiagram(filename, content) {
+    if (!state.draft || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP source diagram.");
+    if (typeof content !== "string" || !content || content.length > 20 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
+    state.diagramChange = { filename, content_base64: content }; state.diagramVersion++; renderDiagram(); status();
+  }
+  function fileBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onerror = () => reject(new Error("The source diagram could not be read."));
+      reader.onload = () => { const value = String(reader.result || ""), comma = value.indexOf(","); comma < 0 ? reject(new Error("The source diagram could not be read.")) : resolve(value.slice(comma + 1)); };
+      reader.readAsDataURL(file);
+    });
+  }
+  async function chooseDiagram(file) {
+    if (!file) return;
+    if (file.size > 15 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
+    const context = state.context, read = ++state.diagramRead, content = await fileBase64(file);
+    if (!state.draft || context !== state.context || read !== state.diagramRead) return;
+    queueDiagram(file.name, content); message("The source diagram is ready. Add this item to the Firestopping Library to save it.");
+  }
   function fieldsActive() { return !!document.activeElement?.dataset?.penetrationField; }
   function visibleGroups(inputs) {
     return state.definition.groups.filter(group => {
@@ -263,23 +311,50 @@
   function fieldInGroup(field, group) {
     return !field.hidden && (field.display_groups || [field.group]).includes(group);
   }
+  function settingCategory(field) {
+    return field.column === "register_allowance_hours" ? "Labour allowances" : field.column.startsWith("pipe_labour_") ? "Pipe labour" : "Material waste";
+  }
+  function settingContext(field) {
+    if (field.column === "register_allowance_hours") return "Every Firestopping item";
+    const maximum = field.label.match(/up to\s+([\d.]+\s*mm)/i)?.[1];
+    if (maximum) return `Collars for pipes up to ${maximum}`;
+    return String(field.help || "").replace(/^Applies to\s+/i, "").replace(/\.$/, "") || "Firestopping estimate";
+  }
+  function renderSettings(fields) {
+    const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table"), head = node("thead"), header = node("tr");
+    for (const label of ["Setting", "Applies to", "Value"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    head.append(header); table.append(head);
+    for (const category of ["Labour allowances", "Pipe labour", "Material waste"]) {
+      const matching = fields.filter(field => settingCategory(field) === category); if (!matching.length) continue;
+      const body = node("tbody"), groupRow = node("tr", "settings-group-heading"), groupCell = node("th", "", category); groupCell.scope = "rowgroup"; groupCell.colSpan = 3; groupRow.append(groupCell); body.append(groupRow);
+      for (const field of matching) {
+        const row = node("tr"), label = node("th", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "")); label.scope = "row";
+        const context = node("td", "", settingContext(field)), value = node("td", "penetration-settings-control"); value.append(makeControl(field, null, false, state.schedule)); row.append(label, context, value); body.append(row);
+      }
+      table.append(body);
+    }
+    scroll.append(table); return scroll;
+  }
   function renderFields() {
     if (!state.draft) return;
     const row = selected(), groups = visibleGroups(row.inputs);
     if (!groups.includes(state.group)) state.group = groups[0];
-    const buttons = groups.map(group => {
+    const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
       const button = node("button", "penetration-group", group); button.type = "button"; button.dataset.penetrationGroup = group;
-      button.setAttribute("aria-pressed", String(group === state.group));
+      button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     });
     $("penetration-input-groups").replaceChildren(...buttons);
+    $("penetration-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
     const identity = [row.inputs.J, row.inputs.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
     $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${identity || "Item details"}`;
-    const fields = node("div", "penetration-fields");
     const settings = state.group === "SETTINGS";
     const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
-    for (const field of visible) fields.append(makeControl(field, settings ? null : row.id, false, settings ? state.schedule : state));
-    $("penetration-row-fields").replaceChildren(fields);
+    if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
+    else {
+      const fields = node("div", "penetration-fields"); for (const field of visible) fields.append(makeControl(field, row.id)); $("penetration-row-fields").replaceChildren(fields);
+    }
+    renderDiagram();
   }
   function refreshControls() {
     for (const parent of [$("penetration-row-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
@@ -305,10 +380,10 @@
     for (const field of (state.definition.global_fields || []).filter(field => field.group === "SETTINGS")) draft.globals[field.column] = state.schedule.draft?.globals?.[field.column] ?? field.default;
     draft.rows[0].inputs = { ...newRow(state).inputs, ...draft.rows[0].inputs }; return draft;
   }
-  function composerChanged() { return state.invalid.size > 0 || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
-  function replaceComposer(draft, invalid = new Map()) {
+  function composerChanged() { return state.invalid.size > 0 || state.diagramChange !== undefined || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
+  function replaceComposer(draft, invalid = new Map(), diagramChange = undefined) {
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);
-    state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id;
+    state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id; state.diagramChange = cloneOptional(diagramChange); state.diagramRead++; state.diagramVersion++;
     state.revision++; state.result = null; state.calculating = false;
     renderFields(); renderSummary(); renderBreakdown(); renderSchedule(); status();
   }
@@ -318,7 +393,7 @@
     const context = state.context, stamp = composerStamp(), epoch = state.rowEpochs.get(id), target = rowStamp(scheduleRow(id));
     const confirmed = await confirmReplace("Edit schedule item?", "Your current item will be kept so Cancel edit can restore it.", "Edit item", composerChanged());
     if (!confirmed || context !== state.context || stamp !== composerStamp() || epoch !== state.rowEpochs.get(id) || target !== rowStamp(scheduleRow(id))) return;
-    const before = state.edit?.before || { draft: clone(state.draft), invalid: [...state.invalid] };
+    const before = state.edit?.before || { draft: clone(state.draft), invalid: [...state.invalid], diagramChange: cloneOptional(state.diagramChange) };
     const draft = { globals: clone(state.schedule.draft.globals), rows: [clone(scheduleRow(id))] };
     state.edit = { id, epoch, before, baseline: draftStamp(draft), target };
     replaceComposer(draft); window.CeasefirePenetrationNavigation?.show?.(); await calculate();
@@ -340,7 +415,7 @@
     const context = state.context, stamp = composerStamp(), edit = state.edit;
     if (!await confirmReplace("Cancel schedule edit?", "Changes to this copy will be discarded and your previous current item restored.", "Cancel edit", state.invalid.size > 0 || draftStamp(state.draft) !== edit.baseline)) return;
     if (context !== state.context || stamp !== composerStamp() || edit !== state.edit) return;
-    state.edit = null; replaceComposer(edit.before.draft, edit.before.invalid); message(); await calculate();
+    state.edit = null; replaceComposer(edit.before.draft, edit.before.invalid, edit.before.diagramChange); message(); await calculate();
   }
   function renderScheduleGlobals() {
     // Old saved global inputs remain portable; the current policy excludes them.
@@ -359,7 +434,7 @@
     document.activeElement?.blur?.();
     if (!state.draft || state.invalid.size || state.creatingLibrary) return;
     const context = state.context, row = selected();
-    const payload = { draft: libraryDraft(row), configuration: configuration() };
+    const payload = { draft: libraryDraft(row), configuration: configuration(), ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
     const signature = librarySignature(context, payload);
     // Reuse the key after an uncertain response or a second click on this capture.
     if (state.libraryCapture?.signature !== signature) state.libraryCapture = { signature, key: globalThis.crypto.randomUUID() };
@@ -370,11 +445,17 @@
       if (!record.id || !record.library_id || !record.draft || !record.price) throw new Error("The library did not confirm the saved item. Retry to check the same capture.");
       window.CeasefireLibraries?.invalidate?.(); definitions.clear();
       if (context === state.context) {
-        const later = signature !== librarySignature(context, { draft: libraryDraft(rowById(row.id)), configuration: configuration() });
+        const currentPayload = { draft: libraryDraft(rowById(row.id)), configuration: configuration(), ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
+        const later = signature !== librarySignature(context, currentPayload);
+        if (!later && rowById(row.id)) {
+          rowById(row.id).library_item_id = record.id;
+          state.diagramChange = undefined; state.diagramRead++; state.diagramVersion++; diagramVersions.set(record.id, (diagramVersions.get(record.id) || 0) + 1);
+          state.revision++; state.libraryCapture = null; renderDiagram(); status();
+        }
         message(`${record.library_id} ${record.created === false ? "is already in" : "was added to"} the Firestopping Library at ${display(record.price.amount, "currency")}.${later ? " It contains the inputs captured when you clicked Add to Library; later edits are not included." : ""}`);
       }
     } catch (error) { if (context === state.context) message(`Add to Library was not confirmed. ${error.message}`, true); }
-    finally { state.creatingLibrary = false; status(); }
+    finally { state.creatingLibrary = false; renderDiagram(); status(); }
   }
   function appendSchedule(inputs, libraryId) {
     if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
@@ -421,11 +502,11 @@
     message(text, total === null, state.schedule); return { added: true, id: row.id, quantity, total, message: text };
   }
   async function addToSchedule() {
-    document.activeElement?.blur?.(); if (!state.draft || state.invalid.size || state.addingSchedule) return;
+    document.activeElement?.blur?.(); if (!state.draft || state.invalid.size || state.diagramChange !== undefined || state.addingSchedule) return;
     const context = state.context, epoch = state.composerEpoch, revision = state.revision;
     state.addingSchedule = true; status();
     try {
-      const row = appendSchedule(selected().inputs), receipt = await scheduleReceipt(row, "Current item", context);
+      const row = appendSchedule(selected().inputs, selected().library_item_id), receipt = await scheduleReceipt(row, "Current item", context);
       if (context === state.context && epoch === state.composerEpoch) message(receipt.message + (revision !== state.revision ? " Later edits to the current item are not included." : ""), receipt.total === null);
       return receipt;
     }
@@ -435,6 +516,7 @@
   async function updateSchedule() {
     document.activeElement?.blur?.(); if (!validEdit() || state.invalid.size || state.schedule.invalid.size || state.updatingSchedule) return;
     const context = state.context, epoch = state.composerEpoch, edit = state.edit, row = scheduleRow(edit.id); row.inputs = clone(selected().inputs);
+    if (selected().library_item_id) row.library_item_id = selected().library_item_id; else delete row.library_item_id;
     state.updatingSchedule = true;
     state.edit = null;
     try { changed(row.id, state.schedule); renderFields(); await calculate(state.schedule);
@@ -553,7 +635,7 @@
   }
   function render() {
     if (!state.draft) return;
-    $("penetration-loading").hidden = true; $("penetration-workspace").hidden = false; $("penetration-schedule-workspace").hidden = false;
+    $("penetration-loading").hidden = true; $("penetration-workspace").hidden = false; $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false;
     $("penetration-source").textContent = state.definition.source?.filename || "Firestopping Estimator workbook";
     renderSchedule(); renderFields(); renderScheduleGlobals();
     for (const scope of [state, state.schedule]) { renderSummary(scope); renderBreakdown(scope); }
@@ -598,7 +680,7 @@
     try { await initialize(); render(); await calculate(scope); }
     catch (error) {
       $("penetration-loading").textContent = "The firestopping workspace could not be loaded. Reopen it to try again.";
-      if (scope === state.schedule) $("penetration-schedule-workspace").hidden = false;
+      if (scope === state.schedule) { $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false; }
       message(error.message, true, scope);
     }
     finally { state.loading = false; }
@@ -622,6 +704,15 @@
   $("penetration-add").addEventListener("click", addRow); $("penetration-undo").addEventListener("click", undoRemove);
   $("penetration-add-to-library").addEventListener("click", addToLibrary);
   $("penetration-recalculate").addEventListener("click", () => calculate());
+  $("penetration-settings").addEventListener("click", () => { state.group = "SETTINGS"; renderFields(); });
+  $("penetration-diagram-file").addEventListener("change", async event => {
+    const input = event.target, file = input.files?.[0]; input.value = "";
+    try { await chooseDiagram(file); } catch (error) { message(error.message, true); }
+  });
+  $("penetration-diagram-remove").addEventListener("click", () => {
+    if (state.diagramChange === undefined) return;
+    state.diagramChange = undefined; state.diagramRead++; state.diagramVersion++; renderDiagram(); message("The pending source diagram was discarded."); status();
+  });
   $("penetration-schedule-recalculate").addEventListener("click", calculateSchedule);
   $("penetration-add-to-schedule").addEventListener("click", addToSchedule);
   $("penetration-update-schedule").addEventListener("click", updateSchedule);

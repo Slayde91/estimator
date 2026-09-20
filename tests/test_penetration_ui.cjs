@@ -160,12 +160,24 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     ];
     for(const draft of [metadata.defaults,metadata.schedule_defaults])Object.assign(draft.globals,{register_allowance_hours:.25,pipe_labour_50_hours:.25,waste_pipes:0});
     h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);
-    h.audit.state.group='SETTINGS';h.audit.renderFields();
+    h.audit.renderFields();assert.doesNotMatch(text(h.byId('penetration-input-groups')),/SETTINGS/);assert.ok(h.byId('penetration-input-groups').children.every(button=>button.getAttribute('role')==='tab'));
+    await h.byId('penetration-settings').emit('click');assert.equal(h.audit.state.group,'SETTINGS');assert.equal(h.byId('penetration-settings').getAttribute('aria-pressed'),'true');
+    assert.match(text(h.byId('penetration-row-fields')),/Setting.*Applies to.*Value.*Labour allowances.*Every Firestopping item.*Pipe labour.*Collars for pipes up to 50 mm.*Material waste.*Unlagged Pipes, Plastic Pipes and Cables\/Bundles/);
     const waste=h.control('waste_pipes',null),pipe=h.control('pipe_labour_50_hours',null),register=h.control('register_allowance_hours',null);assert.ok(waste&&pipe&&register);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.match(waste.title,/Cables\/Bundles/);assert.equal(register.parentNode.children[0].textContent,'Register Allowance (hrs)');
     waste.value='12.5';await waste.emit('input');assert.equal(h.audit.state.schedule.draft.globals.waste_pipes,.125);assert.equal(h.audit.state.draft.globals.waste_pipes,.125);
     pipe.value='.4';await pipe.emit('input');assert.equal(h.audit.state.schedule.draft.globals.pipe_labour_50_hours,.4);assert.equal(h.audit.state.draft.globals.pipe_labour_50_hours,.4);
     register.value='.15';await register.emit('input');assert.equal(h.audit.state.schedule.draft.globals.register_allowance_hours,.15);assert.equal(h.audit.state.draft.globals.register_allowance_hours,.15);
     assert.equal(waste.dataset.penetrationScope,'schedule');assert.equal(waste.dataset.penetrationRow,'');
+  });
+  await check('Current-item source diagram is saved with its new library record and follows that identity into the schedule',async h=>{
+    h.context.crypto={randomUUID:()=>`source-diagram-${'1'.repeat(24)}`};h.audit.state.draft.rows[0].inputs={T:'Diagram item',O:1};
+    h.audit.queueDiagram('site detail.png','QUFB');assert.match(h.api.inputProblem(),/source diagram/);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);
+    let created;h.audit.setRequest(async(path,payload)=>{
+      if(path==='/api/libraries/penetration'){created=copy(payload);return{id:'fl-user-100001',library_id:'FL-ID-100001',draft:payload.draft,price:{amount:12.34}};}
+      return result(payload.draft);
+    });
+    await h.audit.addToLibrary();assert.deepEqual(created.diagram,{filename:'site detail.png',content_base64:'QUFB'});assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].library_item_id,'fl-user-100001');assert.equal(h.byId('penetration-diagram-image').src,'/api/libraries/penetration/fl-user-100001/image?v=1');
+    await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'fl-user-100001');assert.equal(h.byId('penetration-schedule-body').children[0].children[8].children[0].src,'/api/libraries/penetration/fl-user-100001/thumbnail?v=1');
   });
   await check('Item Summary uses the sticky quote-summary pattern and the requested title',async h=>{
     const html=fs.readFileSync('static/index.html','utf8'),css=fs.readFileSync('static/penetration.css','utf8');

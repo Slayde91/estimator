@@ -92,13 +92,13 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const table=rendered.children[1].children[0],line=table.children[2].children[0];assert.equal(line.children[0].children.length,0);assert.equal(line.children[3].textContent,'$0.00');assert.equal(line.children[4].textContent,'—');
     assert.match(text(h.context.window.CeasefirePenetrationBreakdown.render(definition(),{outputs:{},errors:[]})),/unavailable/);
   });
-  await check('Summary retains item totals while removed allowance outputs and Multipliers stay absent without changing source values',async h=>{
+  await check('The item breakdown omits the redundant Summary and Multipliers groups without changing source values',async h=>{
     const metadata=definition();metadata.output_fields.push({column:'B',label:'Substrate cost',group:'Summary',format:'currency'},{column:'BI',label:'Complexity',group:'Multipliers',format:'percent'},{column:'BJ',label:'Access',group:'Multipliers',format:'percent'});
     const row=result(metadata.defaults).rows[0];Object.assign(row.outputs,{B:37.89123,BI:.123456789,BJ:'#VALUE!'});
     const original=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row),sections=rendered.children.filter(child=>child.tagName==='details');
-    assert.deepEqual(sections.map(section=>section.children[0].textContent),['Summary']);assert.match(text(sections[0]),/Item total.*\$123\.46/);assert.deepEqual(copy(row),original);
-    assert.doesNotMatch(text(rendered),/Substrate cost|37\.89|Multipliers|Complexity|12\.35%|Access|Material quantities|Unit prices|Labour days/);
-    delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable.*Summary.*Item total/);assert.doesNotMatch(text(unavailable),/Substrate cost|Multipliers|Complexity|Access/);
+    assert.deepEqual(sections,[]);assert.deepEqual(copy(row),original);
+    assert.doesNotMatch(text(rendered),/Summary|Item total|Substrate cost|37\.89|Multipliers|Complexity|12\.35%|Access|Material quantities|Unit prices|Labour days/);
+    delete row.breakdown;const unavailable=h.context.window.CeasefirePenetrationBreakdown.render(metadata,row);assert.match(text(unavailable),/unavailable/);assert.doesNotMatch(text(unavailable),/Summary|Item total|Substrate cost|Multipliers|Complexity|Access/);
   });
   await check('An uncertain library save retries the same key and does not claim success',async h=>{
     h.context.crypto={randomUUID:()=> 'stable-capture'};const keys=[];h.audit.state.draft.rows[0].inputs={T:'Pipe',O:1};
@@ -320,9 +320,9 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   await check('Unconfirmed downloads preserve drafts and disclose an actionable error',async h=>{
     const before=h.api.projectSnapshot();h.context.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false})});await h.audit.download('pdf');assert.match(h.byId('penetration-schedule-message').textContent,/did not confirm/);assert.deepEqual(copy(h.api.projectSnapshot()),copy(before));
   });
-  await check('Aggregate renderer retains server totals and line-labelled Summary while hiding allowance outputs and Multipliers without deriving amounts',async h=>{
+  await check('Aggregate renderer retains server totals while omitting redundant Summary, allowance and Multiplier outputs',async h=>{
     const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{column:'B',label:'Substrate cost',value:41.23,format:'currency'},{column:'H',label:'Item total',value:123.456789,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{column:'BJ',label:'Access',value:.125,format:'percent'}]}]}]};
-    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.match(content,/#VALUE!/);assert.match(content,/Summary.*Line 1.*Item total.*123\.46/);assert.doesNotMatch(content,/Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
+    const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.match(content,/#VALUE!/);assert.doesNotMatch(content,/Summary|Item total|123\.46|Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
   });
   await check('Pending composer Add appends once, disables its action, and shows recalculated feedback in the current item view',async h=>{
     const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});

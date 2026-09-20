@@ -1,5 +1,26 @@
 # Project state
 
+## Current: home, help and estimator presentation
+
+The branch `feat/estimator-navigation-help-polish` starts from merge `9ce0d8d`.
+The application opens on a Home page with links to Estimator, Libraries,
+Calculators and Saved Projects, and includes a plain-English Help page. The web
+interface uses locally bundled Montserrat font files. Cards and nested
+firestopping sections use red top accents.
+
+Firestopping presentation is simplified without changing its formulas or saved
+data. Item Breakdown is collapsed by default, Calculation source and redundant
+per-line Summary groups are hidden, and the schedule summary is static below the
+schedule breakdown table. Recalculate schedule appears above the table and the
+New item action is a labelled red plus. The schedule PDF keeps project details,
+totals, schedule rows and errors while omitting Settings, Line Inputs and
+Calculated detail; the XLSX register remains complete.
+
+The vermiculite Quick Calculator and board Start titles are hidden only in the
+browser. Board Summary is displayed as Summary there. Source workbooks, sheet
+names, formulas, output cells and export identities are unchanged. Validation
+and publication results must be taken from current test, CI and Git receipts.
+
 ## Current: Product/Service pricing view and scalar yield
 
 The branch `feat/product-service-pricing` starts from PR #32 merge `0deea0e`.

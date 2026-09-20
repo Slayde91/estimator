@@ -492,7 +492,7 @@ let passed=0;
   assert.equal(notesField.default,'Allowances');
   const currentNotesFields=[...copy(newFields),notesField],sourceNotesFields=JSON.stringify(currentNotesFields);
   setup();audit.setRequest(async path=>{assert.equal(path,'/api/bootstrap');return {configuration:newConfig,fields:currentNotesFields,workflows:['Intumescent spray to ductwork','Fire wrap to ductwork']};});
-  await audit.bootstrap();assert.equal(audit.state.workflow,'Intumescent spray to ductwork');assert.equal(audit.state.defaultWorkflow,'Intumescent spray to ductwork');
+  await audit.bootstrap();assert.equal(audit.state.workflow,'Intumescent spray to ductwork');assert.equal(audit.state.defaultWorkflow,'Intumescent spray to ductwork');assert.equal(audit.state.currentView,'home');
   assert.equal(audit.reportPayload().workflow,'Intumescent spray to ductwork');assert.deepEqual(copy(audit.state.inputs),{D15:'New spray',B12:''});
   assert.equal(audit.makeControl(audit.state.fields.find(field=>field.cell==='B12'),true).value,'');
   assert.equal(JSON.stringify(currentNotesFields),sourceNotesFields);assert.equal(audit.state.currentFields.find(field=>field.cell==='B12').default,'Allowances');
@@ -538,6 +538,10 @@ let passed=0;
   assert.ok(html.indexOf('id="input-sections"')<html.indexOf('id="materials-heading"'));assert.ok(html.indexOf('id="materials-heading"')<html.indexOf('id="post-material-input-sections"'));
   assert.ok(html.indexOf('id="project-save-state"')<html.indexOf('<nav aria-label="Main navigation">'));assert.doesNotMatch(html,/id="project-file-name"/);
   assert.match(html,/id="penetration-add-to-schedule"[^>]*penetration-add-action[^>]*title="Add to Schedule"/);assert.match(html,/id="penetration-update-schedule"[^>]*penetration-update-action/);
+  assert.match(html,/data-view="home"[^>]*aria-current="page"[^>]*>Home</);assert.match(html,/data-view="help"[^>]*>Help</);
+  assert.match(html,/data-home-view="estimate"/);assert.match(html,/data-home-view="pricing"/);assert.match(html,/data-home-view="calculators"/);assert.match(html,/data-home-view="quotes"/);
+  assert.match(html,/id="penetration-add"[^>]*penetration-new-item-action[^>]*title="Add new item"/);
+  assert.ok(html.indexOf('id="penetration-schedule-heading"')<html.indexOf('id="penetration-schedule-recalculate"'));assert.ok(html.indexOf('id="penetration-schedule-recalculate"')<html.indexOf('<div class="table-scroll"><table><thead><tr><th scope="col">Item</th>'));
   assert.match(html,/<th scope="col">Total<\/th><th scope="col">Diagram<\/th><th scope="col">Actions<\/th>/);
   assert.doesNotMatch(html,/<th scope="col">Status<\/th>/);
   assert.match(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
@@ -549,8 +553,16 @@ let passed=0;
   assert.doesNotMatch(html,/<details class="card expandable-breakdown labour-breakdown-section"[^>]*\sopen>/);
   assert.ok(html.indexOf('id="penetration-schedule-breakdown-card"')<html.indexOf('id="breakdown-heading"'));
   assert.match(html,/<summary><h3[^>]*>Schedule breakdown<\/h3><\/summary>/);
-  assert.match(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
+  assert.match(html,/<section class="penetration-schedule-summary-section"[^>]*>\s*<h3[^>]*>Summary<\/h3>/);
+  assert.doesNotMatch(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
+  assert.match(html,/<details class="card expandable-breakdown penetration-item-breakdown"[^>]*>\s*<summary><h3[^>]*>Item Breakdown<\/h3><\/summary>/);
+  assert.doesNotMatch(html,/Selected item breakdown|Calculation source|id="penetration-source"/);
   assert.match(html,/<th scope="col">Item<\/th><th scope="col">Service Type<\/th>/);passed++;
+
+  // Montserrat is bundled locally and all primary section cards use the red accent.
+  const css=fs.readFileSync('static/styles.css','utf8');
+  assert.match(css,/@font-face\{font-family:"Montserrat"/);assert.match(css,/:root\{[^}]*font-family:"Montserrat",Arial,sans-serif/);
+  assert.doesNotMatch(css,/"Segoe UI"/);assert.match(css,/\.card\{[^}]*border-top:3px solid var\(--red\)/);passed++;
 
   // Labour rows display source-projected days, preserve literal labels, and read the authoritative total.
   setup();const labourResult={summary:{days:16.987654321},cells:{},errors:{},materials:[],labour:{

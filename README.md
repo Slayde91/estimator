@@ -18,6 +18,11 @@ python -m estimator
 
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
 
+The application opens on **Home**, with direct cards for Estimator, Libraries,
+Calculators and Saved Projects. **Help** provides a plain-English guide to the
+main workflow and the meaning of each area. The browser interface uses the
+bundled Montserrat font, so it does not depend on an internet font service.
+
 The **Estimator** tab has two tiles. **Estimator** includes the **Firestopping
 Schedule** below Material Requirements & Output, with its own totals and
 PDF/XLSX downloads. **Firestopping Estimator** calculates one current item;
@@ -33,6 +38,11 @@ Firestopping allowances and substrate, access and complexity multipliers no
 longer affect estimates. The supplied workbook
 formulas remain intact as the source reference.
 See the [source and parity contract](docs/PENETRATION_CALCULATOR.md).
+The Firestopping **Item Breakdown** is collapsed until it is needed. The
+Firestopping Breakdown contains one expandable schedule table followed by its
+static summary. Its compact schedule PDF includes project details, totals, the
+schedule and any calculation errors; Settings, Line Inputs and Calculated detail
+appendices remain available in the XLSX register instead of the PDF.
 
 The **Libraries** tab has **Pricing Library**, **Firestopping Library** and
 **Technical Library** tiles. The two reference libraries support search,

@@ -1064,6 +1064,19 @@ let passed = 0;
   const textControl=renderedControls()[0];revisedText.rows.find(row=>row.row===7).cells[2].value='Updated raw note';await audit.calculate();
   assert.equal(renderedControls()[0],textControl);assert.equal(overriddenOutput.textContent,'Display-only note');assert.equal(entry.result.rows.find(row=>row.row===7).cells[2].value,'Updated raw note');passed++;
 
+  // Browser-only heading changes leave the workbook sheet names and raw values untouched.
+  for(const [calculator,sheet,source,shown] of [
+    ['steel_vermiculite','CALCULATOR','QUICK CALCULATOR',null],
+    ['steel_board','START','CEASEFIRE / STRUCTURAL STEEL BOARD ESTIMATOR',null],
+    ['steel_board','BOARD SUMMARY','BOARD SUMMARY','SUMMARY'],
+  ]) {
+    entry=setup();entry.definition.id=calculator;entry.sheet=sheet;entry.definition.sheets=[{name:sheet,header_rows:[],merges:[]}];
+    entry.result=result({}, {sheet,rows:[{row:1,cells:[{column:1,address:'A1',value:source,presentation:{role:'title'}}]}]});
+    const headingSource=JSON.stringify(entry.result);realRender(entry);const labels=descendants(byId('calculator-grid')).map(node=>node.textContent);
+    if(shown===null)assert.ok(!labels.includes(source));else assert.ok(labels.includes(shown));
+    assert.equal(JSON.stringify(entry.result),headingSource);assert.equal(entry.sheet,sheet);
+  }passed++;
+
   // Exact board introductory omissions remove INPUTS/RESULTS wording while keeping the live global warning and all inputs.
   entry=setup();entry.definition.sheets[0]={name:'CALCULATOR',header_rows:[8],omitted_rows:[2,5,7],omitted_ranges:['Y1:AI1','A6:L6'],display_text:{A1:'STRUCTURAL STEEL BOARD SCHEDULE'},merges:[]};
   entry.result=result({}, {max_column:35,board_product_totals:[{product:'COREX',box_reference_area:0,net_board_area:0,whole_sheets:0,incomplete_rows:1,incomplete_extra_rows:0}],rows:[

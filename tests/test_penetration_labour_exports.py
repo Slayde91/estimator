@@ -60,9 +60,9 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertEqual(records['Pipe Labour'], (.25, 'Automatic'))
         self.assertEqual(setting_records(build_penetration_register(result, result['definition'], {}))['Register Allowance'], (.25, 'hrs'))
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
-        self.assertIn('Register Allowance', text)
-        self.assertIn('Pipe Labour', text)
-        self.assertIn('0.25 (Automatic)', text)
+        self.assertIn('Schedule', text)
+        for removed in ('Settings', 'Register Allowance', 'Pipe Labour', 'Inputs', 'Calculated detail'):
+            self.assertNotIn(removed, text)
         self.assertEqual(result, before)
         self.assertNotIn('register_allowance_hours', source['rows'][0]['inputs'])
         self.assertNotIn('pipe_labour_hours', result['draft']['rows'][0]['inputs'])
@@ -74,7 +74,7 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertEqual(records['Pipe Labour'], (0, 'Manual'))
         self.assertEqual(setting_records(build_penetration_register(result, result['definition'], {}))['Register Allowance'], (0, 'hrs'))
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
-        self.assertIn('0.00 (Manual)', text)
+        self.assertNotIn('0.00 (Manual)', text)
         self.assertEqual(result['draft']['rows'][0]['inputs']['pipe_labour_hours'], 0)
 
     def test_paired_dimensions_export_once_without_changing_source_values(self):
@@ -86,8 +86,8 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertNotIn('Cabletray Depth', records)
         self.assertNotIn('Board Length', records)
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
-        self.assertIn('Cabletray W x D', text)
-        self.assertIn('450.00 x 100.00', text)
+        self.assertNotIn('Cabletray W x D', text)
+        self.assertNotIn('450.00 x 100.00', text)
         self.assertEqual(result['draft']['rows'][0]['inputs']['AQ'], 450)
         self.assertEqual(result['draft']['rows'][0]['inputs']['AR'], 100)
 
@@ -123,7 +123,7 @@ class PenetrationLabourExportTests(unittest.TestCase):
         records = input_records(build_penetration_register(result, result['definition'], {}))
         self.assertEqual(records['Pipe Labour'], ('Unavailable', 'Manual value required'))
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
-        self.assertIn('Unavailable (Manual value required)', text)
+        self.assertNotIn('Unavailable (Manual value required)', text)
         self.assertIn('Enter Pipe Labour hours', text)
         result = calculate(draft(Y=None, AL=None))
         records = input_records(build_penetration_register(result, result['definition'], {}))

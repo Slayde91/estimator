@@ -9,7 +9,7 @@
     result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectsRevision: 0, initialized: false, currentView: "estimate", projectsOffset: 0, projectsTimer: null,
+    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null,
     pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -1248,6 +1248,7 @@
       refreshPricingCatalog();
       $("loading-state").hidden = true;
       await newQuote();
+      showView("home");
       state.initialized = true;
       $("project-tools").hidden = false;
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
@@ -1485,6 +1486,7 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
+  for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => showView(button.dataset.homeView));
   for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
   for (const button of document.querySelectorAll("[data-library-kind]")) button.addEventListener("click", () => selectLibrary(button.dataset.libraryKind));
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });

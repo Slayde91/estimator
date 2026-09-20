@@ -138,9 +138,9 @@ class PenetrationIntegrationTests(unittest.TestCase):
                 text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(content)).pages)
                 self.assertIn('TEST-PEN', text)
                 self.assertIn('Firestopping estimate', text)
-                self.assertIn('Literal text', text)
-                self.assertIn('Items/Services', text)
-                self.assertIn('System/Install Details', text)
+                self.assertIn('Schedule', text)
+                for removed in ('Literal text', 'Items/Services', 'System/Install Details', 'Settings', 'Calculated detail'):
+                    self.assertNotIn(removed, text)
             else:
                 workbook = load_workbook(BytesIO(content))
                 totals = {row[0].value: row[1].value for row in workbook['Summary'] if row[0].value is not None}

@@ -691,7 +691,6 @@
   function render() {
     if (!state.draft) return;
     $("penetration-loading").hidden = true; $("penetration-workspace").hidden = false; $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false;
-    $("penetration-source").textContent = state.definition.source?.filename || "Firestopping Estimator workbook";
     renderSchedule(); renderFields(); renderScheduleGlobals();
     for (const scope of [state, state.schedule]) { renderSummary(scope); renderBreakdown(scope); }
     status();

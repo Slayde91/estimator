@@ -26,7 +26,7 @@ class CalculatorTests(unittest.TestCase):
                     self.assertEqual(result["inputs"][f"B{row}"], coverage)
             allowed = calculate({f"B{row}": .123456789012345, team: "1 Team - 1x"})
             self.assertEqual(allowed["inputs"][f"B{row}"], .123456789012345)
-        pins = calculate({"B17": 20, **{team: "N/A" for team in expected.values()}})
+        pins = calculate({"B8": 30, "B17": 20, **{team: "N/A" for team in expected.values()}})
         self.assertEqual(pins["inputs"]["B17"], 20)
         self.assertEqual(pins["errors"], {})
 
@@ -56,7 +56,9 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(metadata["E26"]["option_labels"][standalone["name"]], configuration["rates"][standalone["id"]]["product_service"])
 
     def test_all_saved_excel_formula_caches(self):
-        result = calculate()
+        # The cache fixture is the original workbook snapshot, where B8 was 30.
+        # Keep this parity check separate from the browser's intentionally blank default.
+        result = calculate({"B8": 30})
         self.assertEqual(result["errors"], {})
         self.assertEqual(len(specification()["cached"]), 151)
         self.assertEqual(len(fields()), 64)
@@ -67,6 +69,14 @@ class CalculatorTests(unittest.TestCase):
                     self.assertTrue(math.isclose(actual, expected, rel_tol=1e-12, abs_tol=1e-9), (actual, expected))
                 else:
                     self.assertEqual(actual, expected)
+
+    def test_sqm_items_starts_unfilled(self):
+        field = next(field for field in fields() if field["cell"] == "B8")
+        self.assertIsNone(field["default"])
+        result = calculate()
+        self.assertIsNone(result["inputs"]["B8"])
+        self.assertEqual(result["cells"]["F8"], "#DIV/0!")
+        self.assertIsNone(result["summary"]["rate"])
 
     def test_zero_area_does_not_hide_other_totals(self):
         result = calculate({"B8": 0})
@@ -95,7 +105,7 @@ class CalculatorTests(unittest.TestCase):
 
     def test_notes_that_resemble_excel_errors_are_literal_text(self):
         for notes in ("#N/A", "#VALUE! - awaiting site details", "#DIV/0! is a formula error"):
-            result = calculate({"B12": notes})
+            result = calculate({"B8": 30, "B12": notes})
             self.assertEqual(result["errors"], {})
             self.assertTrue(result["notes"].startswith(notes + "\n\n---Materials---"))
 

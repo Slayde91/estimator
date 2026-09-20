@@ -225,7 +225,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                                    ("steel_board", "BOARD SUMMARY"): "BOARD SUMMARY",
                                    ("steel_board", "EXTRA BOARDS"): "EXTRA BOARDS",
                                    ("ductwork", "CALCULATOR"): "DUCT PROTECTION CALCULATOR",
-                                   ("ductwork", "SUMMARY"): "DUCT PROTECTION SUMMARY"}
+                                   ("ductwork", "SUMMARY"): "PRODUCT SUMMARY"}
                 title = expected_titles.get((identity, sheet["name"]))
                 aliases = {"A1": title} if title else {}
                 if identity == "steel_board" and sheet["name"] == "START":
@@ -235,6 +235,9 @@ class CalculatorCleanupTests(unittest.TestCase):
                     }
                 if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
                     aliases["J94"] = "FYREWRAP APPLICATION TABLE"
+                    aliases["J115"] = "PENETRATION TAKEOFF"
+                if identity == "ductwork" and sheet["name"] == "SUMMARY":
+                    aliases["A38"] = "MAXILITE"
                 actual_aliases = dict(sheet['display_text'])
                 reviewed_notes = {
                     'CALCULATOR': {'A3': 'Internal, External and Both use the exhaust application rules'},
@@ -297,8 +300,10 @@ class CalculatorCleanupTests(unittest.TestCase):
                 **{f"D{row}": {"merge": f"D{row}:G{row}"} for row in (*range(346, 353), *range(358, 369), *range(372, 375))},
                 "A371": {"merge": "A371:G371", "role": "collapsed_spacer"}},
             ("ductwork", "CALCULATOR"): {"A3": {"role": "note"}},
-            ("ductwork", "SUMMARY"): {"A17": {"merge": "A17:L17"}, "A29": {"merge": "A29:L29"}},
+            ("ductwork", "SUMMARY"): {"A1": {"role": "compact_summary_title"},
+                                      "A17": {"merge": "A17:L17"}, "A29": {"merge": "A29:L29"}},
             ("ductwork", "PRODUCT SETTINGS"): {f"J{row}": {"merge": f"J{row}:Q{row}"} for row in (105, 108, 111, 131, 136)},
+            ("steel_board", "START"): {"A1": {"role": "compact_title"}},
         }
         for (identity, name), overrides in expected.items():
             source = next(sheet for sheet in source_model(identity)["sheets"] if sheet["name"] == name)

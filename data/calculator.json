@@ -102,7 +102,7 @@
       "label": "Sqm/Items",
       "section": "Job and access",
       "type": "number",
-      "default": 30,
+      "default": null,
       "format": "General"
     },
     {

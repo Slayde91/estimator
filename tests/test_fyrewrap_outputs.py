@@ -12,6 +12,7 @@ from estimator.calculator_register import build_calculator_register
 from estimator.calculator_report import (build_calculator_report,
     build_calculator_summary_report, project_calculator_report)
 from estimator.schedule_rows import empty_schedule_inputs
+from estimator.workbook_calculators import FYREWRAP_DIRECTION_NOTE
 
 
 def wrap_inputs():
@@ -35,6 +36,7 @@ class FyreWrapOutputTests(unittest.TestCase):
         rows = self.data['rows']
         self.assertEqual([row['row'] for row in rows], [11, 12, 13, 14, 15])
         self.assertEqual(rows[0]['values']['AP'], rows[1]['values']['AP'])
+        self.assertEqual(self.data['application_summary_note'], FYREWRAP_DIRECTION_NOTE)
         self.assertEqual(self.data['application_notes'], [rows[index]['values']['AP'] for index in (0, 2, 3, 4)])
         self.assertIn('internal 120/120/120; external 120/120/-', self.data['application_notes'][0])
         self.assertIn('external 120/120/60; internal not required', self.data['application_notes'][1])
@@ -57,6 +59,7 @@ class FyreWrapOutputTests(unittest.TestCase):
                 reader = PdfReader(BytesIO(payload))
                 text = ' '.join(' '.join(page.extract_text().split()) for page in reader.pages)
                 self.assertIn('FyreWrap application notes', text)
+                self.assertEqual(text.count(' '.join(FYREWRAP_DIRECTION_NOTE.split())), 1)
                 for note in self.data['application_notes']:
                     self.assertEqual(text.count(' '.join(note.split())), 1)
                 self.assertIn('internal 120/120/120; external 120/120/-', text)
@@ -94,10 +97,19 @@ class FyreWrapOutputTests(unittest.TestCase):
 
     def test_spray_only_and_empty_schedules_do_not_gain_wrap_notes(self):
         inputs = empty_schedule_inputs('ductwork')
-        self.assertEqual(project_calculator_report('ductwork', inputs)['application_notes'], [])
+        empty = project_calculator_report('ductwork', inputs)
+        self.assertEqual(empty['application_notes'], [])
+        self.assertEqual(empty['application_summary_note'], '')
         inputs['CALCULATOR'].update({'B11': '250x250', 'C11': 'CAFCO 300', 'D11': 10,
                                     'E11': '120/120/120', 'F11': 0, 'G11': 0, 'H11': 'External', 'I11': 'Horizontal'})
-        self.assertEqual(project_calculator_report('ductwork', inputs)['application_notes'], [])
+        spray = project_calculator_report('ductwork', inputs)
+        self.assertEqual(spray['application_notes'], [])
+        self.assertEqual(spray['application_summary_note'], '')
+        for draft in (empty_schedule_inputs('ductwork'), inputs):
+            for builder in (build_calculator_report, build_calculator_summary_report):
+                text = ' '.join(' '.join(page.extract_text().split())
+                                for page in PdfReader(BytesIO(builder('ductwork', draft))).pages)
+                self.assertNotIn(' '.join(FYREWRAP_DIRECTION_NOTE.split()), text)
 
 
 if __name__ == '__main__':

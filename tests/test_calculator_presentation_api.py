@@ -177,7 +177,11 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             elif identity == 'ductwork':
                 self.assertEqual(page['display_text']['J94'], 'FYREWRAP APPLICATION TABLE')
                 self.assertIn('MANUAL', self.cells(page)['J94']['value'])
-                self.assertTrue(any('directional requirements' in warning and 'external 120/120/60' in warning for warning in page['warnings']))
+                application = next(table for table in page['presentation_tables']
+                                   if table['title_address'] == 'J94')
+                self.assertIn('directional requirements', application['note'])
+                self.assertIn('external 120/120/60', application['note'])
+                self.assertEqual(page['warnings'], [])
         self.assertEqual(self.stored_rows(), before)
 
     def test_display_tabs_keep_the_original_settings_api_and_saved_input_scope(self):
@@ -185,6 +189,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(definition['pages'], ['CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS'])
         self.assertEqual([page['id'] for page in definition['display_pages']],
                          ['START', 'CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS', 'FACTOR CALCS'])
+        self.assertEqual([page['label'] for page in definition['display_pages']],
+                         ['START', 'CALCULATOR', 'SCHEDULE', 'SUMMARY', 'SETTINGS', 'FACTOR CALCS'])
         draft = {'SETTINGS': {'D346': 123.4567890123, 'D358': 219.8765432109}}
         saved = self.json_request('PUT', '/api/calculators/steel_vermiculite/state', {'inputs': draft})
         self.assertEqual(saved['inputs'], draft)
@@ -267,8 +273,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             ("steel_vermiculite", "CALCULATOR", {"A1": "title", "A5": "section", "H5": "section", "B28": "column_header", "K16": "output"}),
             ("steel_vermiculite", "BAGS", {"A17": "section", "A19": "column_header", "D10": "output", "H6": "note", "H10": "body", "H11": "note"}),
             ("ductwork", "CALCULATOR", {"A1": "title", "A3": "note"}),
-            ("ductwork", "SUMMARY", {"A8": "column_header", "A18": "column_header", "A30": "column_header", "A39": "column_header"}),
-            ("steel_board", "START", {"A1": "title", "A8": "section"}),
+            ("ductwork", "SUMMARY", {"A1": "compact_summary_title", "A8": "column_header", "A18": "column_header", "A30": "column_header", "A39": "column_header"}),
+            ("steel_board", "START", {"A1": "compact_title", "A8": "section"}),
             ("steel_board", "EXTRA BOARDS", {"A5": "column_header", "M5": "column_header"}),
         ]
         for identity, sheet, roles in cases:

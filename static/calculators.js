@@ -786,7 +786,6 @@
     for (const [index, definition] of definitions.entries()) {
       const prefix = `calculator-settings-${entry.definition.id}-${page}-${definition.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
       const button = node("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
-      if (entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS" && ["A6", "A48", "A94", "J94", "J115"].includes(definition.id)) button.classList.add("calculator-settings-brand");
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
       button.addEventListener("click", () => {

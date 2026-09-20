@@ -370,10 +370,10 @@
   }
   function composerStamp() { return stable({ draft: canonicalDraft(state.draft), invalid: [...state.invalid], epoch: state.composerEpoch }); }
   function validEdit() { return !!state.edit && !!scheduleRow(state.edit.id) && state.rowEpochs.get(state.edit.id) === state.edit.epoch && rowStamp(scheduleRow(state.edit.id)) === state.edit.target; }
-  async function confirmReplace(title, detail, action, required) {
+  async function confirmReplace(title, detail, action, required, cancel = "Keep editing") {
     if (!required) return true;
     if (!window.CeasefirePenetrationNavigation?.confirm) { message("Finish the current item before replacing it.", true); return false; }
-    return window.CeasefirePenetrationNavigation.confirm(title, detail, action);
+    return window.CeasefirePenetrationNavigation.confirm(title, detail, action, cancel);
   }
   function defaultComposer() {
     const draft = clone(state.definition.defaults);
@@ -503,10 +503,16 @@
   }
   async function addToSchedule() {
     document.activeElement?.blur?.(); if (!state.draft || state.invalid.size || state.diagramChange !== undefined || state.addingSchedule) return;
-    const context = state.context, epoch = state.composerEpoch, revision = state.revision;
+    const context = state.context, epoch = state.composerEpoch, revision = state.revision, edit = state.edit;
+    const independentCopy = !!edit && !!selected().library_item_id;
     state.addingSchedule = true; status();
     try {
-      const row = appendSchedule(selected().inputs, selected().library_item_id), receipt = await scheduleReceipt(row, "Current item", context);
+      if (independentCopy) {
+        const stamp = composerStamp();
+        const confirmed = await confirmReplace("Add a new schedule item?", "A new item will be added to the schedule and the original will also be retained. Do you want to proceed?", "OK", true, "Cancel");
+        if (!confirmed || context !== state.context || epoch !== state.composerEpoch || stamp !== composerStamp() || edit !== state.edit || !validEdit()) return;
+      }
+      const row = appendSchedule(selected().inputs, independentCopy ? null : selected().library_item_id), receipt = await scheduleReceipt(row, "Current item", context);
       if (context === state.context && epoch === state.composerEpoch) message(receipt.message + (revision !== state.revision ? " Later edits to the current item are not included." : ""), receipt.total === null);
       return receipt;
     }
@@ -580,11 +586,11 @@
       tr.className = row.id === state.edit?.id ? "penetration-selected-row" : "";
       const invalid = [...state.schedule.invalid.keys()].some(key => JSON.parse(key)[0] === row.id);
       if (!tr.children.length) {
-        for (let column = 0; column < 9; column++) tr.append(node("td"));
-        tr.children[8].className = "penetration-schedule-diagram";
+        for (let column = 0; column < 8; column++) tr.append(node("td"));
+        tr.children[7].className = "penetration-schedule-diagram";
         if (quantityField) tr.children[5].append(makeControl(quantityField, row.id, true, state.schedule));
       }
-      const diagramCell = tr.children[8], diagramId = row.library_item_id, diagramVersion = diagramId ? diagramVersions.get(diagramId) || 0 : 0;
+      const diagramCell = tr.children[7], diagramId = row.library_item_id, diagramVersion = diagramId ? diagramVersions.get(diagramId) || 0 : 0;
       const diagramStamp = diagramId ? `${diagramId}:${diagramVersion}` : "";
       if (diagramCell.dataset.libraryDiagram !== diagramStamp) {
         diagramCell.dataset.libraryDiagram = diagramStamp;
@@ -594,8 +600,8 @@
           diagramCell.replaceChildren(image);
         } else diagramCell.replaceChildren(node("span", "helper", "—"));
       }
-      const values = [line, row.inputs.K || "—", row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), invalid ? "Check input" : result?.errors?.length ? "Review calculation" : state.schedule.calculating ? "Calculating…" : result ? "Calculated" : "—", null];
-      values.forEach((value, column) => { if (column !== 5 && column !== 8) tr.children[column].textContent = String(value); });
+      const values = [line, row.inputs.K || "—", row.inputs.L || "—", row.inputs.M || "—", row.inputs.N || "—", null, display(result?.outputs.H, "currency"), null];
+      values.forEach((value, column) => { if (column !== 5 && column !== 7) tr.children[column].textContent = String(value); });
       if (!quantityField) tr.children[5].textContent = display(row.inputs.O);
       for (const control of tr.children[5].querySelectorAll("[data-penetration-field]")) control.setAttribute("aria-label", `Item ${line}: ${fieldLabel(quantityField)}`);
       const actions = node("td", "penetration-item-actions"), edit = node("button", "button secondary", "Edit"); edit.type = "button"; edit.setAttribute("aria-label", `Edit firestopping item ${line}`); edit.addEventListener("click", () => selectRow(row.id));
@@ -603,7 +609,7 @@
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
       remove.append(icon); remove.type = "button"; remove.dataset.penetrationRemove = row.id; remove.title = `Remove item ${line}`; remove.setAttribute("aria-label", `Remove firestopping item ${line}`); remove.disabled = state.schedule.invalid.size > 0; remove.addEventListener("click", () => removeRow(row.id));
       actions.append(edit, remove);
-      if (tr.children[9]) tr.children[9].replaceChildren(edit, remove); else tr.append(actions);
+      if (tr.children[8]) tr.children[8].replaceChildren(edit, remove); else tr.append(actions);
       return tr;
     });
     // Keeping unchanged rows attached preserves the active quantity editor and

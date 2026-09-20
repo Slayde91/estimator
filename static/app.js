@@ -448,13 +448,14 @@
 
   let confirmationQueue = Promise.resolve();
 
-  function confirmReplace(title, detail, action) {
+  function confirmReplace(title, detail, action, cancel = "Keep editing") {
     // An import can finish while another confirmation is open. Each operation
     // needs its own answer; one click must never confirm two replacements.
     const answer = confirmationQueue.then(() => new Promise((resolve) => {
       const dialog = $("discard-dialog");
       dialog.querySelector("h2").textContent = title;
       dialog.querySelector("p").textContent = detail;
+      dialog.querySelector('[value="cancel"]').textContent = cancel;
       dialog.querySelector('[value="confirm"]').textContent = action;
       dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
       dialog.returnValue = "cancel";

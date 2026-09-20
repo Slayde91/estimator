@@ -99,6 +99,9 @@ and the effective calculation policy. **Edit** copies a schedule row into the cu
 form; only **Update Schedule** applies those edits. **Cancel edit** restores the
 previous current item. Library additions leave both library navigation and the
 current item intact, with the recalculated price displayed beside the library action.
+When the edited row is linked to a Firestopping Library item, **Add to Schedule**
+asks for OK or Cancel. OK adds the edited inputs as a new independent schedule row
+without a library item ID and retains the original linked row; Cancel changes neither row.
 Each library Add counts one item: its first addition creates a row with Item QTY 1,
 and later clicks increase that row's quantity. The library card shows the current
 schedule quantity, including manual edits, removal and Undo. A stored library item

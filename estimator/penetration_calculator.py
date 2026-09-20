@@ -292,7 +292,7 @@ def definition(configuration=None, service_types=None):
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields,
         'groups': [group for source in GROUP_COLUMNS
                    for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))] + ['SETTINGS'],
-        'group_labels': {'Penetration': 'DETAILS', 'Additional Allowances': 'OTHER'},
+        'group_labels': {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS', 'Additional Allowances': 'OTHER'},
         'group_visibility': {
             group: ({'any': [{'column': condition['column'], 'values': list(condition['values'])}
                               for condition in rule['any']]}

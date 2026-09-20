@@ -1447,9 +1447,9 @@ let passed = 0;
     entry=setup();entry.definition.id='ductwork';entry.sheet=sheet;
     const warningPayload=result({}, {sheet,warnings:[approvedFixingBanner,`${approvedFixingBanner} Updated source.`,{message:'Keep the technical qualification.'}]});
     const calculating=deferred();audit.setRequest(()=>calculating.promise);const runningCalculation=audit.calculate();
-    assert.equal(byId('calculator-calculation-status').hidden,false);assert.equal(byId('calculator-calculation-status').textContent,'Calculating…');
+    assert.equal(byId('calculator-calculation-status').hidden,false);assert.equal(byId('calculator-calculation-status').textContent,'Calculating…');assert.equal(byId('calculator-recalculate').disabled,true);assert.equal(byId('calculator-recalculate').getAttribute('aria-busy'),'true');
     calculating.resolve(warningPayload);await runningCalculation;
-    assert.equal(byId('calculator-calculation-status').hidden,true);assert.equal(byId('calculator-calculation-status').textContent,'');
+    assert.equal(byId('calculator-calculation-status').hidden,true);assert.equal(byId('calculator-calculation-status').textContent,'');assert.equal(byId('calculator-recalculate').disabled,false);assert.equal(byId('calculator-recalculate').getAttribute('aria-busy'),'false');
     assert.deepEqual(byId('calculator-warnings').textContent.split('\n'),[`${approvedFixingBanner} Updated source.`,'Keep the technical qualification.']);
     assert.equal(entry.result.warnings[0],approvedFixingBanner);assert.equal(entry.result.warnings.length,3);
     audit.setRequest(async()=>result({}, {sheet,warnings:[approvedFixingBanner]}));await audit.calculate();assert.equal(byId('calculator-warnings').hidden,true);
@@ -1701,13 +1701,13 @@ let passed = 0;
   assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
   assert.match(registerMarkup,/id="calculator-import"[^>]*>Import XLSX Schedule<\/button>/);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
-  for(const [className,background,color] of [['calculator-export-excel','#217346','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
+  for(const [className,background,color] of [['calculator-export-excel','var(--navy)','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
   }
   const sharedButtonCss=fs.readFileSync('static/styles.css','utf8');
   assert.match(registerMarkup,/id="calculator-import"[^>]*class="button excel-button"/);
   assert.doesNotMatch(registerMarkup,/id="calculator-save"/);
-  assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:#217346;'));
+  assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:var(--navy);'));
   assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(toolbarCss.includes(':hover:not(:disabled)'));assert.ok(toolbarCss.includes(':focus-visible'));assert.ok(toolbarCss.includes(':disabled{opacity:.5;filter:none;cursor:not-allowed}'));
   for(const id of ['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-reset','calculator-recalculate'])assert.equal(byId(id).listeners.click.length,1);passed++;

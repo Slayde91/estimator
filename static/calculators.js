@@ -5,7 +5,7 @@
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
+  const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, calculating: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
   const descriptions = {
     steel_vermiculite: "Steel schedules, coating thicknesses and material quantities",
     ductwork: "Ductwork dimensions, protection systems and quantities",
@@ -363,7 +363,8 @@
     if (!entry || entry !== current()) return;
     $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save or Save As" : "Project calculator inputs · use Save or Save As to save all calculators";
     const hasErrors = entry.invalid.size > 0;
-    $("calculator-recalculate").disabled = hasErrors;
+    $("calculator-recalculate").disabled = state.calculating || hasErrors;
+    $("calculator-recalculate").setAttribute("aria-busy", String(state.calculating));
     $("calculator-pdf").disabled = state.action || hasErrors;
     $("calculator-excel").disabled = state.action || hasErrors;
     $("calculator-summary-pdf").disabled = state.action || hasErrors;
@@ -1210,6 +1211,7 @@
     clearTimeout(state.timer);
     if (!options.navigation) entry.navigationCache = null;
     const revision = entry.revision, sheet = entry.sheet, page = currentPage(entry), serial = ++state.requestRevision;
+    state.calculating = true; updateStatus(entry);
     calculationStatus("Calculating…");
     $("calculator-grid").setAttribute("aria-busy", "true");
     try {
@@ -1236,7 +1238,7 @@
       showCalculationStatus(entry, result);
     } catch (error) {
       if (current() === entry && serial === state.requestRevision && revision === entry.revision && page === currentPage(entry)) { message(`Could not calculate. ${error.message}`, true); calculationStatus("Calculation needs attention"); }
-    } finally { if (serial === state.requestRevision) $("calculator-grid").setAttribute("aria-busy", "false"); }
+    } finally { if (serial === state.requestRevision) { state.calculating = false; $("calculator-grid").setAttribute("aria-busy", "false"); updateStatus(entry); } }
   }
 
   async function selectPage(id) {

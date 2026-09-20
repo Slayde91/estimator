@@ -1281,9 +1281,12 @@
       calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint() });
   }
 
-  function projectBusy(value) {
+  function projectBusy(value, activeId = null) {
     state.projectBusy = value;
-    for (const id of ["save-project", "save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) { $(id).disabled = value; $(id).setAttribute("aria-busy", String(value)); }
+    for (const id of ["save-project", "save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) {
+      $(id).disabled = value;
+      $(id).setAttribute("aria-busy", String(value && id === activeId));
+    }
     updateProjectStatus();
   }
 
@@ -1295,7 +1298,7 @@
       if (!dialog.open) dialog.showModal();
       return;
     }
-    projectBusy(true);
+    projectBusy(true, saveAs ? "save-project" : "save-current-project");
     try {
       document.activeElement?.blur?.();
       if (inputProblem()) throw new Error(inputProblem());
@@ -1338,7 +1341,7 @@
 
   async function openNativeProject() {
     if (state.projectBusy) return;
-    projectBusy(true);
+    projectBusy(true, "load-project");
     try {
       const captured = projectStamp();
       const project = await request("/api/project/open", { method: "POST", body: "{}" });
@@ -1351,7 +1354,7 @@
   async function loadProject() {
     const input = $("project-import-file"), file = input.files?.[0]; input.value = "";
     if (!file || state.projectBusy) return;
-    projectBusy(true);
+    projectBusy(true, "load-project");
     try {
       if (!/\.json$/i.test(file.name) || !file.size || file.size > 16 * 1024 * 1024) throw new Error("Choose a project JSON file up to 16 MB.");
       const captured = projectStamp();
@@ -1437,7 +1440,7 @@
 
   async function linkProjectFolder() {
     if (state.projectBusy) return;
-    projectBusy(true);
+    projectBusy(true, "link-project-folder");
     try {
       const data = await request("/api/projects/link-folder", { method: "POST", body: "{}" });
       if (data.cancelled) { message("Folder selection cancelled."); return; }
@@ -1449,13 +1452,13 @@
 
   async function openProjectFile(file, button) {
     if (state.projectBusy) return;
-    projectBusy(true); button.disabled = true;
+    projectBusy(true); button.disabled = true; button.setAttribute("aria-busy", "true");
     try {
       const captured = projectStamp();
       const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify({ id: file.id }) });
       await reviewAndLoadProject(project, project.file || file, captured);
     } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
-    finally { projectBusy(false); button.disabled = false; }
+    finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
   }
 
   async function downloadQuotePdf() {

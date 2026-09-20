@@ -4,7 +4,7 @@
   const cloneOptional = value => value === undefined ? undefined : clone(value);
   const state = { definition: null, draft: null, saved: null, selected: null, group: null, result: null,
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
-    loading: false, calculating: false, downloading: false, page: 0, pendingFields: false,
+    loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
     diagramChange: undefined, diagramRead: 0, diagramVersion: 0,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
@@ -46,19 +46,28 @@
     const data = await response.json(); if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`); return data;
   }
   function message(text = "", error = false, scope = state) { const el = $(scope === state ? "penetration-message" : "penetration-schedule-message"); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
+  function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
   const persisted = () => ({ draft: state.schedule.draft, composer: state.draft });
   function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0 || state.diagramChange !== undefined); }
   function status(text) {
     $("penetration-status").textContent = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
     const blocked = !state.draft || state.invalid.size > 0, scheduleBlocked = !state.schedule.draft || state.schedule.invalid.size > 0;
-    $("penetration-recalculate").disabled = blocked;
+    $("penetration-recalculate").disabled = blocked || state.calculating;
     $("penetration-add").disabled = !state.draft;
     $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
     $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
     $("penetration-update-schedule").hidden = !state.edit;
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
-    for (const id of ["penetration-schedule-recalculate", "penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    $("penetration-schedule-recalculate").disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
+    for (const id of ["penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    buttonBusy("penetration-recalculate", state.calculating);
+    buttonBusy("penetration-add-to-library", state.creatingLibrary);
+    buttonBusy("penetration-add-to-schedule", state.addingSchedule);
+    buttonBusy("penetration-update-schedule", state.updatingSchedule);
+    buttonBusy("penetration-schedule-recalculate", state.schedule.calculating);
+    buttonBusy("penetration-pdf", state.downloading && state.downloadKind === "pdf");
+    buttonBusy("penetration-excel", state.downloading && state.downloadKind === "xlsx");
     $("penetration-undo").disabled = scheduleBlocked || !state.removed.length;
     for (const button of $("penetration-schedule-body").querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
     if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
@@ -748,12 +757,12 @@
       if (!state.schedule.draft || state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before downloading.");
       const snapshot = projectSnapshot();
       const pricing = configuration(), details = clone(window.CeasefireProject?.details?.() || {}), captured = projectFingerprint(), pricingKey = JSON.stringify(pricing);
-      state.downloading = true; status();
+      state.downloading = true; state.downloadKind = kind; status();
       const saved = await window.CeasefireDownloads.save(`/api/penetration/${kind === "pdf" ? "report.pdf" : "register.xlsx"}`, { draft: snapshot.draft, configuration: pricing, project_details: details });
       const changed = captured !== projectFingerprint() || pricingKey !== configStamp() || JSON.stringify(details) !== JSON.stringify(window.CeasefireProject?.details?.() || {});
       message(`File saved to ${saved.path}.${changed ? " It uses the inputs and prices captured when you clicked Download; later changes are not included." : ""}`, false, state.schedule);
     } catch (error) { message(`The schedule file was not saved. ${error.message}`, true, state.schedule); }
-    finally { state.downloading = false; status(); }
+    finally { state.downloading = false; state.downloadKind = null; status(); }
   }
   $("penetration-add").addEventListener("click", addRow); $("penetration-undo").addEventListener("click", undoRemove);
   $("penetration-add-to-library").addEventListener("click", addToLibrary);

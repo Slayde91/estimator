@@ -7,7 +7,7 @@ let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
   await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
-    const metadata=definition();metadata.groups=['Penetration','Additional Allowances','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_labels={Penetration:'DETAILS','Additional Allowances':'OTHER'};metadata.group_visibility={
+    const metadata=definition();metadata.groups=['Penetration','Additional Allowances','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_labels={Penetration:'DETAILS',Cabletrays:'CABLE TRAYS','Additional Allowances':'OTHER'};metadata.group_visibility={
       'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
       'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Substrate:{any:[{column:'L',values:['Oversized']},{column:'K',values:['Blank Seal','Access Panel','Linear Joints','Movement Joints','Fire Dampers']}]},Bulkhead:{column:'J',values:['Bulkheads']}};
     metadata.row_fields.push({column:'L',label:'Penetration Type',group:'Penetration',type:'select',format:'text',units:'',options:['Core Hole','Oversized'],default:null});
@@ -15,10 +15,10 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
     h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes',T:'Long source description'};h.audit.renderFields();
     assert.equal(h.byId('penetration-row-heading').textContent,'Current item · HVAC · Unlagged Pipes');
-    assert.match(text(h.byId('penetration-input-groups')),/DETAILS.*OTHER.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|Cabletrays|Bulkhead/);
+    assert.match(text(h.byId('penetration-input-groups')),/DETAILS.*OTHER.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|CABLE TRAYS|Bulkhead/);
     h.audit.state.draft.rows[0].inputs.K='Plastic Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
     h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
-    h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Cabletrays/);
+    h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*CABLE TRAYS/);
     assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Substrate/);const penetrationType=h.control('L');penetrationType.value='Oversized';await penetrationType.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
     h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'Blank Seal',L:'Core Hole'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
     h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · Blank Seal');
@@ -314,6 +314,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   for(const kind of ['pdf','xlsx'])await check(`${kind} exports schedule only and captures precision, prices, details and destination before later edits`,async h=>{
     h.control('O').value='123.456789012345';await h.control('O').emit('input');await h.audit.addToSchedule();h.control('O').value='99';await h.control('O').emit('input');const pending=deferred();let sent;h.context.fetch=(path,options)=>{sent={path,body:JSON.parse(options.body)};return pending.promise;};const saving=h.audit.download(kind);
+    assert.equal(h.byId(`penetration-${kind==='pdf'?'pdf':'excel'}`).getAttribute('aria-busy'),'true');assert.equal(h.byId(`penetration-${kind==='pdf'?'excel':'pdf'}`).getAttribute('aria-busy'),'false');
     assert.equal(sent.body.draft.rows[0].inputs.O,123.456789012345);assert.equal(sent.body.composer,undefined);assert.equal(sent.body.download.project_token,'original-token');assert.equal(sent.body.project_details.client,'Original client');h.target.project_token='later';h.details.client='Later';h.pricing.rates.original.price=99;h.api.applyProject(await h.api.prepareDefaults());
     pending.resolve({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:`C:/Original/report.${kind}`,filename:`report.${kind}`,destination:'project'})});await saving;assert.match(h.byId('penetration-schedule-message').textContent,/C:\/Original\/report/);assert.match(h.byId('penetration-schedule-message').textContent,/later changes are not included/);
   });
@@ -326,8 +327,8 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Pending composer Add appends once, disables its action, and shows recalculated feedback in the current item view',async h=>{
     const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});
-    const adding=h.audit.addToSchedule();await flush();assert.equal(h.byId('penetration-add-to-schedule').disabled,true);await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.equal(calls.length,1);
-    h.control('T').value='Later composer edit';await h.control('T').emit('input');pending.resolve(result(calls[0].draft));await adding;assert.equal(h.byId('penetration-add-to-schedule').disabled,false);assert.match(h.byId('penetration-message').textContent,/Recalculated item price: \$123\.46/);assert.match(h.byId('penetration-message').textContent,/Later edits to the current item are not included/);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);
+    const adding=h.audit.addToSchedule();await flush();assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.equal(h.byId('penetration-add-to-schedule').getAttribute('aria-busy'),'true');await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.equal(calls.length,1);
+    h.control('T').value='Later composer edit';await h.control('T').emit('input');pending.resolve(result(calls[0].draft));await adding;assert.equal(h.byId('penetration-add-to-schedule').disabled,false);assert.equal(h.byId('penetration-add-to-schedule').getAttribute('aria-busy'),'false');assert.match(h.byId('penetration-message').textContent,/Recalculated item price: \$123\.46/);assert.match(h.byId('penetration-message').textContent,/Later edits to the current item are not included/);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);
     h.audit.setRequest(async(path,payload)=>result(payload.draft));await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);
   });
   await check('A pending receipt cannot report a replacement row as the original item or overwrite a new composer message',async h=>{

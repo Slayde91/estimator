@@ -198,7 +198,7 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(fields['N']['options'], ['N/A', '-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240'])
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
             'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead', 'SETTINGS'])
-        self.assertEqual(spec['group_labels'], {'Penetration': 'DETAILS', 'Additional Allowances': 'OTHER'})
+        self.assertEqual(spec['group_labels'], {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS', 'Additional Allowances': 'OTHER'})
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
         self.assertEqual(spec['group_visibility']['Substrate']['any'][0], {'column': 'L', 'values': ['Oversized']})
         self.assertEqual(spec['group_visibility']['Substrate']['any'][1]['column'], 'K')

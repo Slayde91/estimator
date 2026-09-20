@@ -696,6 +696,8 @@ let passed=0;
   assert.match(markup,/id="download-quote-pdf"[^>]*class="button pdf-button"/);
   assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));
+  assert.ok(actionCss.includes('.button[aria-busy=true]::after'));
+  assert.match(actionCss,/@media\(max-width:570px\).*\.app-header nav\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   for(const state of [':hover:not(:disabled)',':focus-visible',':disabled'])assert.ok(actionCss.includes(`.button:is(.excel-button,.save-button,.pdf-button)${state}`));
   assert.doesNotMatch(markup,/id="print-quote"/);assert.doesNotMatch(source,/function printQuote|window\.print/);
   assert.doesNotMatch(markup,/Estimating workflow|id="workflow"|Choose a workflow|Dimensions and takeoff notes/);

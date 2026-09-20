@@ -106,6 +106,16 @@ class EstimateCompositionTests(unittest.TestCase):
         self.assertEqual(result['materials'], base['materials'])
         self.assertEqual(result['firestopping']['result']['rows'], [])
 
+    def test_blank_or_zero_sqm_only_leaves_the_combined_rate_unavailable(self):
+        for measure in (None, '', 0):
+            with self.subTest(measure=measure):
+                result = calculate({'B8': measure}, {}, {'draft': schedule()})
+                self.assertIsNotNone(result['summary']['total'])
+                self.assertIsNone(result['summary']['rate'])
+                self.assertEqual(result['cells']['F8'], '#DIV/0!')
+                self.assertNotIn('F8', result['errors'])
+                self.assertNotIn('composed-summary:rate', result['errors'])
+
     def test_saved_quotes_freeze_schedule_pricing_and_omitted_updates_preserve_it(self):
         quote = self.store.save_quote({'title': 'Combined quote', 'inputs': {'B8': 1}, 'penetration': {'draft': schedule()}})
         self.assertIn('Firestopping schedule: 1 line;', quote['work_summary'])

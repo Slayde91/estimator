@@ -220,6 +220,8 @@ class _Report:
         return _number(sum(values), **formatting)
 
     def summary_value(self, key, cell, **formatting):
+        if key == 'rate' and self.inputs.get('B8') in (None, '', 0):
+            return 'Unavailable'
         if 'firestopping' not in self.result:
             return self.value(cell, **formatting)
         value = self.result['summary'].get(key)

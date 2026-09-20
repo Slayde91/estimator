@@ -265,10 +265,19 @@ def calculate(inputs=None, configuration=None):
             value(cell)
         except ExcelError:
             pass
+    # Sqm/Items is an optional denominator used only for the displayed rate.
+    # Preserve every other workbook result while treating a blank or zero
+    # measure as an unavailable rate instead of an incomplete estimate.
+    if inputs.get("B8") in (None, "", 0):
+        errors.pop("F8", None)
     summary_refs = {"labour":"F2","material":"F3","access":"F4","travel":"F5","subtotal":"F6","total":"F7","rate":"F8","days":"F10"}
+    summary = {key: cells[cell] if cell not in errors else None
+               for key, cell in summary_refs.items()}
+    if inputs.get("B8") in (None, "", 0):
+        summary["rate"] = None
     result = {
         "inputs": inputs, "cells": cells, "errors": errors,
-        "summary": {k: cells[c] if c not in errors else None for k,c in summary_refs.items()},
+        "summary": summary,
         "materials": [{"name": inputs[f"D{r}"], "quantity": cells[f"D{q}"], "price": cells[f"A{p}"], "total": cells[f"F{p}"], "days": cells[f"B{q}"], "source": f"Calculator!D{q}/F{p}"} for r,p,q,_,_ in LINES],
         "notes": cells["B30"],
     }

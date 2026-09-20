@@ -52,9 +52,10 @@ manual continuation action. Opening a project always validates its full current
 contents. Symbolic links, junctions and unknown reparse providers are rejected;
 documented OneDrive cloud tags are permitted when readable.
 
-The persistent Current project area shows the selected filename, known location,
-last-saved time and unsaved changes across the estimate, project pricing and
-calculators. Browser file uploads do not reveal an original full path. The Older
+The persistent Current project area shows the known location and last-saved time.
+Save state appears under the main logo and covers the estimate, project pricing
+and calculators; the duplicate filename line is omitted. Browser file uploads do
+not reveal an original full path. The Older
 estimate-only saves section is removed from the UI, while historical SQLite
 records and compatibility APIs are retained. Shared-library pricing remains
 separate from project snapshots; no stored prices or calculations are migrated.
@@ -646,6 +647,13 @@ workbook defaults. Calculations, controls on focus, saved inputs and exports
 retain full precision. Hidden presentation text is not deleted from stored evidence.
 
 ESTIMATOR is a local Python/browser application in C:\ESTIMATOR\app with SQLite storage and permanently imported workbook data. The original Quote estimator contains 64 inputs, 151 formulas, 417 inventory records and 166 choices across 14 rate groups. It retains project/client/site details, automatic quote names and work summaries, pricing import/export, the official logo and complete material/labour PDF reports. Saved quotes freeze their inputs, catalog, prices, yields and results. Pricing replacements remain drafts until Save pricing.
+
+The Quote estimator treats Sqm/Items as an optional rate denominator. A blank or
+zero value leaves the rate unavailable without adding a calculation error or
+hiding any other total. In the form, Material Requirements & Output follows
+Teams/Crews, with Masking/Cleaning after the material table. Project save state
+appears under the header logo; the project path remains visible while the
+duplicate filename line is omitted.
 
 ## Workbook calculators
 

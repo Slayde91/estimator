@@ -158,7 +158,9 @@ def calculate(inputs=None, configuration=None, penetration=None):
     if isinstance(total, str):
         result['errors']['composed-summary:total'] = total
         total = None
-    rate = None if total is None else _computed(lambda: _number(total) / _number(result['inputs']['B8']))
+    measure = result['inputs'].get('B8')
+    rate = None if total is None or measure in (None, '', 0) else _computed(
+        lambda: _number(total) / _number(measure))
     if isinstance(rate, str):
         result['errors']['composed-summary:rate'] = rate
         rate = None
@@ -166,7 +168,12 @@ def calculate(inputs=None, configuration=None, penetration=None):
     result['global_adjustments'] = adjustments
     result['calculation_policy'] = CALCULATION_POLICY_VERSION
     result['cells'].update(F2=result['summary']['labour'], F3=result['summary']['material'],
-                           F6=subtotal, F7=total, F8=rate)
+                           F6=subtotal, F7=total)
+    # Retain the original Excel F8 error for source parity when the optional
+    # denominator is blank or zero. User-facing summaries and errors use the
+    # neutral unavailable rate above.
+    if measure not in (None, '', 0):
+        result['cells']['F8'] = rate
     material_adjustment = adjustments['material']['amount']
     if material_adjustment not in (None, 0):
         result['materials'].append({'source': 'global_adjustment',

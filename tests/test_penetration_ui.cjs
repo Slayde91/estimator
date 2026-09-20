@@ -7,21 +7,38 @@ let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
   await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
-    const metadata=definition();metadata.groups=['Penetration','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_visibility={
+    const metadata=definition();metadata.groups=['Penetration','Additional Allowances','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_labels={Penetration:'DETAILS','Additional Allowances':'OTHER'};metadata.group_visibility={
       'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
-      'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Substrate:{column:'L',values:['Oversized']},Bulkhead:{column:'J',values:['Bulkheads']}};
+      'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Substrate:{any:[{column:'L',values:['Oversized']},{column:'K',values:['Blank Seal','Access Panel','Linear Joints','Movement Joints','Fire Dampers']}]},Bulkhead:{column:'J',values:['Bulkheads']}};
     metadata.row_fields.push({column:'L',label:'Penetration Type',group:'Penetration',type:'select',format:'text',units:'',options:['Core Hole','Oversized'],default:null});
     for(const group of metadata.groups.slice(1))metadata.row_fields.push({column:`field-${group}`,label:group,group,type:'number',format:'number',units:'',options:[],default:null});
     metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
     h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes',T:'Long source description'};h.audit.renderFields();
     assert.equal(h.byId('penetration-row-heading').textContent,'Current item · HVAC · Unlagged Pipes');
-    assert.match(text(h.byId('penetration-input-groups')),/Penetration.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|Cabletrays|Bulkhead/);
+    assert.match(text(h.byId('penetration-input-groups')),/DETAILS.*OTHER.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|Cabletrays|Bulkhead/);
     h.audit.state.draft.rows[0].inputs.K='Plastic Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
     h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
     h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Cabletrays/);
     assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Substrate/);const penetrationType=h.control('L');penetrationType.value='Oversized';await penetrationType.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
-    h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · D1 Power Cables');
-    h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
+    h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'Blank Seal',L:'Core Hole'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
+    h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · Blank Seal');
+    h.audit.state.draft.rows[0].inputs.K='Cable Bundles';h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
+  });
+  await check('Combined dimension controls preserve source cells and hidden pipe labour stays out of the item form',async h=>{
+    const metadata=definition();metadata.groups=['Cabletrays','Substrate','Pipes'];metadata.row_fields=[
+      {column:'AQ',label:'Cabletray W x D',group:'Cabletrays',type:'number',format:'number',units:'mm',paired_column:'AR',placeholder:'e.g. 300 x 50'},
+      {column:'AR',label:'Cabletray Depth',group:'Cabletrays',type:'number',format:'number',units:'mm',hidden:true,paired_into:'AQ'},
+      {column:'AW',label:'Board/Batt W x L',group:'Substrate',type:'number',format:'number',units:'mm',paired_column:'AX'},
+      {column:'AX',label:'Board Length',group:'Substrate',type:'number',format:'number',units:'mm',hidden:true,paired_into:'AW'},
+      {column:'pipe_labour_hours',label:'Pipe Labour',group:'Pipes',type:'number',format:'number',units:'hrs',hidden:true},
+    ];metadata.defaults.rows[0].inputs={AQ:300,AR:50,AW:250,AX:250,pipe_labour_hours:.5};
+    h.audit.state.definition=metadata;h.audit.state.draft=copy(metadata.defaults);h.audit.state.selected='line-1';h.audit.state.group='Cabletrays';h.audit.renderFields();
+    const tray=h.control('AQ');assert.equal(tray.type,'text');assert.equal(tray.value,'300 x 50');assert.equal(h.control('AR'),undefined);
+    tray.value='450x100';await tray.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AQ,450);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AR,100);
+    tray.value='invalid';await tray.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AQ,450);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AR,100);
+    tray.value='';await tray.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AQ,null);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AR,null);
+    h.audit.state.group='Substrate';h.audit.renderFields();const board=h.control('AW');board.value='1000 × 500';await board.emit('input');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AW,1000);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.AX,500);
+    h.audit.state.group='Pipes';h.audit.renderFields();assert.equal(h.control('pipe_labour_hours'),undefined);assert.doesNotMatch(text(h.byId('penetration-row-fields')),/Pipe Labour/);
   });
   await check('Requested estimator numbers use native step controls without changing stored precision',async h=>{
     let quantity=h.control('O');assert.equal(quantity.type,'number');assert.equal(quantity.step,'1');

@@ -162,6 +162,48 @@
     for (const control of $("penetration-row-fields").querySelectorAll("[data-penetration-field]")) control.refreshAutomatic?.();
     scope.timer = setTimeout(() => calculate(scope), 350);
   }
+  function dimensionText(inputs, first, second) {
+    const a = inputs?.[first], b = inputs?.[second];
+    if ([a, b].every(value => value === null || value === undefined || value === "")) return "";
+    return `${a ?? ""} x ${b ?? ""}`;
+  }
+  function parseDimensions(text) {
+    if (!text.trim()) return { values: [null, null] };
+    const match = text.match(/^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*[x×]\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*$/i);
+    if (!match) return { error: "Enter two finite dimensions separated by x, for example 300 x 50." };
+    const values = [Number(match[1]), Number(match[2])];
+    if (values.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) return { error: "Each dimension must be between -1,000,000,000,000 and 1,000,000,000,000." };
+    return { values };
+  }
+  function makeDimensionControl(field, paired, rowId, scope = state) {
+    const context = state.context, epoch = scope === state ? state.composerEpoch : state.rowEpochs.get(rowId);
+    const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : epoch === state.rowEpochs.get(rowId));
+    const key = keyFor(rowId, `${field.column}:${paired.column}`), wrapper = node("label", "field");
+    const label = node("span", "", `${fieldLabel(field)}${field.units ? ` (${field.units})` : ""}`), control = node("input"), problem = node("small", "penetration-field-error");
+    const inputs = () => rowById(rowId, scope)?.inputs || {};
+    control.type = "text"; control.inputMode = "decimal"; control.autocomplete = "off"; control.maxLength = 100;
+    control.placeholder = field.placeholder || "e.g. 300 x 50";
+    control.dataset.penetrationScope = scope === state ? "composer" : "schedule";
+    control.dataset.penetrationField = field.column; control.dataset.penetrationPaired = paired.column; control.dataset.penetrationRow = rowId;
+    control.setAttribute("aria-label", `${scope === state ? "Current item" : "Schedule item"}: ${label.textContent}`);
+    const showProblem = text => { control.setAttribute("aria-invalid", String(!!text)); problem.textContent = text || ""; problem.hidden = !text; };
+    control.refreshDimension = () => {
+      const pending = scope.invalid.get(key); showProblem(pending?.error);
+      if (control !== document.activeElement) control.value = pending ? pending.value : dimensionText(inputs(), field.column, paired.column);
+    };
+    control.addEventListener("input", () => {
+      if (!current() || !rowById(rowId, scope)) return;
+      const parsed = parseDimensions(control.value);
+      if (parsed.error) scope.invalid.set(key, { value: control.value, error: parsed.error });
+      else {
+        scope.invalid.delete(key);
+        [inputs()[field.column], inputs()[paired.column]] = parsed.values;
+      }
+      showProblem(parsed.error); changed(rowId, scope);
+    });
+    control.addEventListener("blur", () => { if (current()) control.refreshDimension(); });
+    wrapper.append(label, control, problem); control.refreshDimension(); return wrapper;
+  }
   function makeControl(field, rowId, compact = false, scope = state) {
     const context = state.context, epoch = scope === state ? state.composerEpoch : state.rowEpochs.get(rowId);
     const current = () => context === state.context && (scope === state ? epoch === state.composerEpoch : rowId === null || epoch === state.rowEpochs.get(rowId));
@@ -305,7 +347,8 @@
   function visibleGroups(inputs) {
     return state.definition.groups.filter(group => {
       const rule = state.definition.group_visibility?.[group];
-      return !rule || (rule.values || []).includes(inputs?.[rule.column]);
+      const matches = condition => (condition.values || []).includes(inputs?.[condition.column]);
+      return !rule || (rule.any ? rule.any.some(matches) : matches(rule));
     });
   }
   function fieldInGroup(field, group) {
@@ -340,7 +383,7 @@
     const row = selected(), groups = visibleGroups(row.inputs);
     if (!groups.includes(state.group)) state.group = groups[0];
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
-      const button = node("button", "penetration-group", group); button.type = "button"; button.dataset.penetrationGroup = group;
+      const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
       button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
       button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
     });
@@ -352,12 +395,18 @@
     const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
-      const fields = node("div", "penetration-fields"); for (const field of visible) fields.append(makeControl(field, row.id)); $("penetration-row-fields").replaceChildren(fields);
+      const fields = node("div", "penetration-fields");
+      for (const field of visible) {
+        const paired = field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
+        fields.append(paired ? makeDimensionControl(field, paired, row.id) : makeControl(field, row.id));
+      }
+      $("penetration-row-fields").replaceChildren(fields);
     }
     renderDiagram();
   }
   function refreshControls() {
     for (const parent of [$("penetration-row-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
+      if (control.dataset.penetrationPaired) { control.refreshDimension?.(); continue; }
       const rowId = control.dataset.penetrationRow || null, key = keyFor(rowId, control.dataset.penetrationField);
       const scope = control.dataset.penetrationScope === "schedule" ? state.schedule : state;
       const pending = scope.invalid.get(key), problem = control.parentNode.children[2];

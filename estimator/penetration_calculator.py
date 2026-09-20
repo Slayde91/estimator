@@ -85,7 +85,13 @@ CABLETRAY_SERVICE_TYPES = (
 GROUP_VISIBILITY = {
     'Bulkhead': {'column': 'J', 'values': ('Bulkheads',)},
     'Cabletrays': {'column': 'K', 'values': CABLETRAY_SERVICE_TYPES},
-    'Substrate': {'column': 'L', 'values': ('Oversized',)},
+    'Substrate': {'any': (
+        {'column': 'L', 'values': ('Oversized',)},
+        {'column': 'K', 'values': (
+            'Access Panel', 'Blank Seal', 'Fire Dampers', 'Linear Joints',
+            'Movement Joints',
+        )},
+    )},
     **{group: {'column': 'K', 'values': services}
        for group, services in PIPE_DISPLAY_GROUPS.items()},
 }
@@ -210,7 +216,10 @@ def definition(configuration=None, service_types=None):
                        _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, []))
             label = {'T': 'Items/Services', 'U': 'System/Install Details',
                      'W': 'Teams/Crews', 'X': 'Board or Batt Type',
-                     'AH': 'Additional Labour'}.get(col, calc[col + '3']['value'])
+                     'AH': 'Additional Labour',
+                     'AM': 'Wrap Length required', 'AS': 'Wrap Length required',
+                     'AQ': 'Cabletray W x D', 'AW': 'Board/Batt W x L',
+                     }.get(col, calc[col + '3']['value'])
             field = {'column': col, 'address': col + '4', 'label': label,
                 'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES or col in descriptions else 'text' if col in TEXT_COLUMNS else 'number',
                 'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
@@ -220,6 +229,18 @@ def definition(configuration=None, service_types=None):
                 field['step'] = FIELD_STEPS[col]
             if display_groups:
                 field['display_groups'] = display_groups
+            if col == 'AQ':
+                field['paired_column'] = 'AR'
+                field['placeholder'] = 'e.g. 300 x 50'
+            elif col == 'AR':
+                field['hidden'] = True
+                field['paired_into'] = 'AQ'
+            elif col == 'AW':
+                field['paired_column'] = 'AX'
+                field['placeholder'] = 'e.g. 250 x 250'
+            elif col == 'AX':
+                field['hidden'] = True
+                field['paired_into'] = 'AW'
             fields.append(field)
             for key, app_field in APP_INPUT_FIELDS.items():
                 if app_field['after'] == col and app_field['group'] == group:
@@ -233,6 +254,7 @@ def definition(configuration=None, service_types=None):
                         field['display_groups'] = display_groups
                     if key == 'pipe_labour_hours':
                         field['enabled_when'] = {'column': 'Y', 'nonblank': True}
+                        field['hidden'] = True
                     fields.append(field)
     output_fields = []
     for address, cell in sorted(calc.items(), key=lambda item: coordinates(item[0])[1]):
@@ -270,8 +292,13 @@ def definition(configuration=None, service_types=None):
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields,
         'groups': [group for source in GROUP_COLUMNS
                    for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))] + ['SETTINGS'],
-        'group_visibility': {group: {'column': rule['column'], 'values': list(rule['values'])}
-                             for group, rule in GROUP_VISIBILITY.items()},
+        'group_labels': {'Penetration': 'DETAILS', 'Additional Allowances': 'OTHER'},
+        'group_visibility': {
+            group: ({'any': [{'column': condition['column'], 'values': list(condition['values'])}
+                              for condition in rule['any']]}
+                    if 'any' in rule else
+                    {'column': rule['column'], 'values': list(rule['values'])})
+            for group, rule in GROUP_VISIBILITY.items()},
         'allowed_input_columns': [*ROW_COLUMNS, *APP_INPUT_FIELDS, *LEGACY_APP_INPUT_FIELDS],
         'calculation_policy': CALCULATION_POLICY_VERSION,
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}

@@ -57,6 +57,26 @@ def _input_basis(row, column):
     return 'Manual' if manual else 'Automatic'
 
 
+def _input_records(row, fields):
+    """Present paired dimensions once while preserving their source columns."""
+    fields_by_column = {field['column']: field for field in fields}
+    for field in fields:
+        if field.get('paired_into'):
+            continue
+        column = field['column']
+        paired_column = field.get('paired_column')
+        if paired_column:
+            paired = fields_by_column.get(paired_column, {})
+            first, second = _input_value(row, column), _input_value(row, paired_column)
+            if first in (None, '') and second in (None, ''):
+                value = None
+            else:
+                value = f'{_display(first, field)} x {_display(second, paired)}'
+            yield field, value, ''
+        else:
+            yield field, _input_value(row, column), _input_basis(row, column)
+
+
 def _display(value, field=None):
     if value is None or value == '':
         return ''
@@ -116,12 +136,11 @@ def render_penetration_pdf(result, definition, project_details):
                 ('Inputs', definition['row_fields'], row['inputs']),
                 ('Calculated detail', _visible_outputs(definition), row['outputs'])):
             records = []
-            for field in fields:
-                column = field['column']
-                value = _input_value(row, column) if heading == 'Inputs' else values.get(column)
+            source = _input_records(row, fields) if heading == 'Inputs' else (
+                (field, values.get(field['column']), '') for field in fields)
+            for field, value, basis in source:
                 if value in (None, ''):
                     continue
-                basis = _input_basis(row, column) if heading == 'Inputs' else ''
                 rendered = _display(value, field) + (' (' + basis + ')' if basis else '')
                 records.append([report.p(field['label'], 'cell'), report.p(rendered, 'cell')])
             if records:
@@ -188,13 +207,18 @@ def build_penetration_register(result, definition, project_details):
                                ('Calculated detail', _visible_outputs(definition), 'outputs')]:
         widths = [9, 42, 85, 20] + ([36] if key == 'inputs' else [])
         sheet = _sheet(workbook, title, title.upper(), widths)
+        records = [
+            (index, field, value, basis)
+            for index, row in enumerate(result['rows'], 1)
+            for field, value, basis in (
+                _input_records(row, fields) if key == 'inputs' else
+                ((item, row[key].get(item['column']), '') for item in fields))
+        ]
         _table(sheet, 4, ['Line', 'Parameter', 'Value', 'Units'] + (['Basis'] if key == 'inputs' else []),
-               [[index, field['label'], _input_value(row, field['column']) if key == 'inputs' else row[key].get(field['column']), field.get('units', '')]
-                + ([_input_basis(row, field['column'])] if key == 'inputs' else [])
-                for index, row in enumerate(result['rows'], 1) for field in fields], widths, filtered=True)
-        for index in range(len(result['rows'])):
-            for offset, field in enumerate(fields):
-                sheet.cell(5 + index * len(fields) + offset, 3).number_format = _excel_format(field)
+               [[index, field['label'], value, field.get('units', '')] + ([basis] if key == 'inputs' else [])
+                for index, field, value, basis in records], widths, filtered=True)
+        for offset, (_, field, _, _) in enumerate(records, 5):
+            sheet.cell(offset, 3).number_format = _excel_format(field)
     if result.get('errors'):
         widths = [24, 22, 85]
         sheet = _sheet(workbook, 'Calculation errors', 'CALCULATION ERRORS', widths)

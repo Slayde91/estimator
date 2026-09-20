@@ -35,6 +35,16 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     h.audit.state.group='Substrate';h.audit.renderFields();const length=h.control('AW');assert.equal(length.type,'number');assert.equal(length.step,'5');
     const metadata=allowanceDefinition();h.api.present(fixture(undefined,{definition:metadata,result:allowanceResult(metadata.defaults,metadata)}));h.audit.state.group='SETTINGS';h.audit.renderFields();const allowance=h.control('register_allowance_hours',true);assert.equal(allowance.type,'number');assert.equal(allowance.step,'0.05');
   });
+  await check('Library item dimension controls write both source columns and omit hidden labour',async h=>{
+    const metadata=definition();metadata.groups=['Cabletrays','Pipes'];metadata.row_fields=[
+      {column:'AQ',label:'Cabletray W x D',group:'Cabletrays',type:'number',format:'number',units:'mm',paired_column:'AR'},
+      {column:'AR',label:'Cabletray Depth',group:'Cabletrays',type:'number',format:'number',units:'mm',hidden:true,paired_into:'AQ'},
+      {column:'pipe_labour_hours',label:'Pipe Labour',group:'Pipes',type:'number',format:'number',units:'hrs',hidden:true},
+    ];const draft=copy(metadata.defaults);draft.rows[0].inputs={AQ:300,AR:50,pipe_labour_hours:.25};h.api.present(fixture(draft,{definition:metadata,result:result(draft,metadata)}));
+    const tray=h.control('AQ');assert.equal(tray.value,'300 x 50');assert.equal(h.control('AR'),undefined);tray.value='900X50';await tray.emit('input');assert.equal(h.audit.state.draft.rows[0].inputs.AQ,900);assert.equal(h.audit.state.draft.rows[0].inputs.AR,50);
+    tray.value='900 only';await tray.emit('input');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.audit.state.draft.rows[0].inputs.AQ,900);assert.equal(h.audit.state.draft.rows[0].inputs.AR,50);
+    h.audit.state.group='Pipes';h.audit.renderFields();assert.equal(h.control('pipe_labour_hours'),undefined);assert.doesNotMatch(text(h.byId('library-editor-fields')),/Pipe Labour/);
+  });
   await check('Source diagram selection stays unsaved until Save and does not enter calculation requests',async h=>{
     await h.api.open('legacy-row-4');assert.equal(h.byId('library-editor-diagram-image').src,'/api/libraries/penetration/legacy-row-4/image');assert.equal(h.api.hasUnsavedChanges(),false);
     h.audit.queueDiagram('inspection screenshot.png','QUFB');assert.equal(h.api.hasUnsavedChanges(),true);assert.match(h.byId('library-editor-diagram-image').src,/^data:image\/png;base64,QUFB$/);assert.match(h.byId('library-editor-diagram-caption').textContent,/ready to compress/);

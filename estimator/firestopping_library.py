@@ -205,7 +205,7 @@ class LibraryEdits:
                            '(SELECT count(*) FROM firestopping_links),'
                            '(SELECT count(*) FROM firestopping_deleted)').fetchone())
 
-    def create(self, request_key, request_hash, minimum, build, snapshot):
+    def create(self, request_key, request_hash, minimum, build, snapshot, diagram=UNCHANGED):
         """Allocate and insert in one write transaction, including retry identity."""
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -226,6 +226,10 @@ class LibraryEdits:
             db.execute('INSERT OR IGNORE INTO firestopping_prices VALUES(?,?)', (token, content))
             db.execute('INSERT INTO firestopping_created VALUES(?,?,?,?,?,?)',
                        (key, number, request_key, request_hash, timestamp(), encoded(data)))
+            if diagram is not UNCHANGED and diagram is not None:
+                db.execute('INSERT INTO firestopping_images VALUES(?,?,?,?,?,?,?,?)',
+                           (key, diagram['sha256'], diagram['mime_type'], diagram['width'], diagram['height'],
+                            diagram['image_data'], diagram['thumbnail_data'], timestamp()))
             return key, True
 
     def link(self, left, right, left_source, right_source):
@@ -641,8 +645,9 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     def create(self, body):
         with self._lock:
-            if not isinstance(body, dict) or set(body) != {'draft', 'configuration', 'idempotency_key'}:
-                raise ValidationError('Include one item draft, its pricing configuration and an idempotency key only.')
+            required = {'draft', 'configuration', 'idempotency_key'}
+            if not isinstance(body, dict) or not required.issubset(body) or set(body) - (required | {'diagram'}):
+                raise ValidationError('Include one item draft, its pricing configuration, an idempotency key and an optional source diagram only.')
             request_key = body['idempotency_key']
             if not isinstance(request_key, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{15,127}', request_key):
                 raise ValidationError('Use a unique idempotency key of 16 to 128 letters, digits, underscores or hyphens.')
@@ -656,10 +661,12 @@ class FirestoppingLibrary(ReferenceLibrary):
                 raise ValidationError('The item quantity must be greater than zero before adding it to the library.')
             configuration = validate_configuration(body['configuration'])
             configuration['catalog'] = configuration_catalog(configuration)
+            diagram = diagram_upload(body['diagram']) if 'diagram' in body else UNCHANGED
             source = source_model()['source']['sha256']
             snapshot = {'basis': 'captured', 'label': 'Captured estimator pricing', 'source_sha256': source, 'configuration': configuration}
             token = hashlib.sha256(encoded(snapshot).encode()).hexdigest()
-            request_hash = hashlib.sha256(encoded({'draft': draft, 'configuration': configuration}).encode()).hexdigest()
+            request_hash = hashlib.sha256(encoded({'draft': draft, 'configuration': configuration,
+                                                   'diagram_sha256': None if diagram is UNCHANGED or diagram is None else diagram['sha256']}).encode()).hexdigest()
             result = calculate(draft, configuration)
             if result['errors']:
                 raise ValidationError('Resolve the calculation errors before adding this item to the library.')
@@ -697,7 +704,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                     raise ValidationError('This item cannot be displayed in the library. Shorten its description or selection text; nothing has been saved.') from exc
                 return key, {'item': item, 'pricing_token': token, 'source_sha256': source, 'calculator_source_sha256': source}
 
-            key, added = self.edits.create(request_key, request_hash, maximum, build, snapshot)
+            key, added = self.edits.create(request_key, request_hash, maximum, build, snapshot, diagram)
             return {**self.edit(key), 'created': added}
 
     def edit(self, key):

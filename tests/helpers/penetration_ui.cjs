@@ -28,7 +28,7 @@ function allowanceResult(draft,metadata=allowanceDefinition(),defaults={register
 }
 function install(context) {
   vm.runInContext(fs.readFileSync('static/penetration-breakdown.js','utf8'),context);
-  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,calculateSchedule,addToLibrary,addToSchedule,updateSchedule,cancelEdit,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,changed,definitionFor,setRequest(fn){request=fn;}};})();`);
+  const source=fs.readFileSync('static/penetration.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.penAudit={state,calculate,calculateSchedule,addToLibrary,addToSchedule,updateSchedule,cancelEdit,addRow,removeRow,undoRemove,selectRow,makeControl,renderFields,renderSchedule,renderBreakdown,render,download,changed,definitionFor,queueDiagram,setRequest(fn){request=fn;}};})();`);
   vm.runInContext(source,context);
   const audit=context.penAudit,calls=[];
   audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return path.endsWith('/definition')?definition():result(payload.draft);});

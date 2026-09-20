@@ -2,12 +2,16 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import base64
 import http.client
+from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
+
+from PIL import Image
 
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
@@ -99,6 +103,30 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         with self.store.connect() as db:
             for table in ('quotes', 'calculator_states', 'app_preferences'):
                 self.assertEqual(db.execute(f'SELECT count(*) FROM {table}').fetchone()[0], 0)
+
+    def test_creation_atomically_compresses_and_persists_optional_source_diagram(self):
+        image = BytesIO()
+        Image.new('RGBA', (3200, 1200), (180, 40, 50, 180)).save(image, format='PNG')
+        request = self.body('diagram-request-0001')
+        request['diagram'] = {'filename': 'site detail.PNG',
+                              'content_base64': base64.b64encode(image.getvalue()).decode('ascii')}
+        created = self.library.create(request)
+        self.assertTrue(created['diagram']['custom'])
+        self.assertEqual(created['diagram']['mime_type'], 'image/jpeg')
+        self.assertLessEqual(created['diagram']['width'], 2000)
+        self.assertTrue(self.library.diagram_asset(created['id'])[0].startswith(b'\xff\xd8\xff'))
+        self.assertTrue(self.library.diagram_asset(created['id'], True)[0].startswith(b'\xff\xd8\xff'))
+        reopened = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.diagram_asset(created['id'])[0], self.library.diagram_asset(created['id'])[0])
+        self.assertFalse(reopened.create(request)['created'])
+        different_image = BytesIO()
+        Image.new('RGB', (600, 400), '#224466').save(different_image, format='PNG')
+        changed = deepcopy(request)
+        changed['diagram']['content_base64'] = base64.b64encode(different_image.getvalue()).decode('ascii')
+        with self.assertRaises(LibraryConflict):
+            reopened.create(changed)
+        with self.store.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM firestopping_images WHERE item_id=?', (created['id'],)).fetchone()[0], 1)
 
     def test_manual_links_are_atomic_reciprocal_and_bound_to_source_versions(self):
         created = self.library.create(self.body())

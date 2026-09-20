@@ -533,6 +533,7 @@ let passed=0;
   assert.equal(byId('material-inputs').children[0].hidden,false);assert.ok(byId('material-inputs').children.slice(1).every(row=>row.hidden));
   const html=fs.readFileSync('static/index.html','utf8');
   assert.match(html,/<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
+  assert.match(html,/<details class="card labour-breakdown-section" id="labour-breakdown"[^>]* open><summary><h2 id="labour-heading">Labour Breakdown<\/h2><\/summary>/);
   assert.match(html,/<summary><h3[^>]*>Schedule breakdown<\/h3><\/summary>/);
   assert.match(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
   assert.match(html,/<th scope="col">Item<\/th><th scope="col">Service Type<\/th>/);passed++;

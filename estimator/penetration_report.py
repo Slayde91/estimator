@@ -21,7 +21,7 @@ SCHEDULE = (
     ('Service', 'K'), ('Quantity', 'O'), ('Substrate', 'P'),
     ('Labour', 'F'), ('Materials', 'G'), ('Item total', 'H'),
 )
-LABOUR_INPUTS = {'register_allowance_hours': 'register_hours', 'pipe_labour_hours': 'pipe_hours'}
+LABOUR_INPUTS = {'pipe_labour_hours': 'pipe_hours'}
 
 
 def _visible_outputs(definition):
@@ -95,6 +95,13 @@ def render_penetration_pdf(result, definition, project_details):
         [report.p(label, 'cell'), report.p(_display(result['summary'].get(key),
             {'format': 'currency' if key != 'total_days' else 'number'}), 'numeric')]
         for label, key in SUMMARY], [content * .65, content * .35]))
+    settings = [[report.p(field['label'], 'cell'),
+                 report.p(_display(result['draft']['globals'].get(field['column']), field), 'cell')]
+                for field in definition.get('global_fields', [])]
+    if settings:
+        report.story.extend([report.p('Settings', 'subheading'),
+                             report.table(['Setting', 'Value'], settings,
+                                          [content * .65, content * .35], compact=True)])
     if result.get('errors'):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
@@ -169,6 +176,14 @@ def build_penetration_register(result, definition, project_details):
            [[index] + [_value(row, column) for _, column in SCHEDULE]
             for index, row in enumerate(result['rows'], 1)], widths,
            formats={index: _excel_format(fields_by_column[column]) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
+    settings_fields = definition.get('global_fields', [])
+    if settings_fields:
+        settings = _sheet(workbook, 'Settings', 'FIRESTOPPING SETTINGS', [48, 22, 16])
+        _table(settings, 4, ['Setting', 'Value', 'Units'],
+               [[field['label'], result['draft']['globals'].get(field['column']), field.get('units', '')]
+                for field in settings_fields], [48, 22, 16])
+        for offset, field in enumerate(settings_fields, 5):
+            settings.cell(offset, 2).number_format = _excel_format(field)
     for title, fields, key in [('Inputs', definition['row_fields'], 'inputs'),
                                ('Calculated detail', _visible_outputs(definition), 'outputs')]:
         widths = [9, 42, 85, 20] + ([36] if key == 'inputs' else [])

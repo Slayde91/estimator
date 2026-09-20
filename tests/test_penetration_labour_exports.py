@@ -21,9 +21,9 @@ from estimator.report import render_quote_pdf
 from estimator.storage import Store
 
 
-def draft(**overrides):
+def draft(globals=None, **overrides):
     choices = {field['column']: field.get('options', []) for field in definition({})['row_fields']}
-    return {'globals': {}, 'rows': [{'id': 'service', 'inputs': {
+    return {'globals': globals or {}, 'rows': [{'id': 'service', 'inputs': {
         'K': 'Synthetic service', 'O': 3, 'Y': choices['Y'][0], 'W': choices['W'][0],
         'AL': 40, 'AN': 2, 'AH': .5, 'AI': 5, 'AJ': 7, **overrides}}]}
 
@@ -32,6 +32,12 @@ def input_records(payload):
     workbook = load_workbook(BytesIO(payload))
     return {row[1].value: (row[2].value, row[4].value)
             for row in workbook['Inputs'].iter_rows(min_row=5)}
+
+
+def setting_records(payload):
+    workbook = load_workbook(BytesIO(payload))
+    return {row[0].value: (row[1].value, row[2].value)
+            for row in workbook['Settings'].iter_rows(min_row=5)}
 
 
 def pdf_text(payload):
@@ -51,24 +57,24 @@ class PenetrationLabourExportTests(unittest.TestCase):
         before = deepcopy(result)
         self.assertEqual(result['rows'][0]['input_defaults'], {'register_allowance_hours': .25, 'pipe_labour_hours': .25})
         records = input_records(build_penetration_register(result, result['definition'], {}))
-        self.assertEqual(records['Register Allowance'], (.25, 'Automatic'))
         self.assertEqual(records['Pipe Labour'], (.25, 'Automatic'))
+        self.assertEqual(setting_records(build_penetration_register(result, result['definition'], {}))['Register Allowance'], (.25, 'hrs'))
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
         self.assertIn('Register Allowance', text)
         self.assertIn('Pipe Labour', text)
-        self.assertEqual(text.count('0.25 (Automatic)'), 2)
+        self.assertIn('0.25 (Automatic)', text)
         self.assertEqual(result, before)
         self.assertNotIn('register_allowance_hours', source['rows'][0]['inputs'])
         self.assertNotIn('pipe_labour_hours', result['draft']['rows'][0]['inputs'])
 
     def test_explicit_manual_zero_exports_as_zero_and_never_becomes_automatic(self):
-        result = calculate(draft(register_allowance_hours=0, pipe_labour_hours=0))
+        result = calculate(draft(globals={'register_allowance_hours': 0}, pipe_labour_hours=0))
         self.assertEqual(result['rows'][0]['outputs']['DK'], 1.5)  # AH .5 × Item QTY3 only.
         records = input_records(build_penetration_register(result, result['definition'], {}))
-        self.assertEqual(records['Register Allowance'], (0, 'Manual'))
         self.assertEqual(records['Pipe Labour'], (0, 'Manual'))
+        self.assertEqual(setting_records(build_penetration_register(result, result['definition'], {}))['Register Allowance'], (0, 'hrs'))
         text = pdf_text(render_penetration_pdf(result, result['definition'], {}))
-        self.assertEqual(text.count('0.00 (Manual)'), 2)
+        self.assertIn('0.00 (Manual)', text)
         self.assertEqual(result['draft']['rows'][0]['inputs']['pipe_labour_hours'], 0)
 
     def test_auto_tracks_diameter_manual_hours_and_source_identity_survive_project_roundtrip(self):
@@ -81,13 +87,14 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertEqual(first['rows'][0]['input_defaults']['pipe_labour_hours'], .25)
         self.assertEqual(second['rows'][0]['input_defaults']['pipe_labour_hours'], .30)
         self.assertEqual(input_records(build_penetration_register(second, second['definition'], {}))['Pipe Labour'], (.30, 'Automatic'))
-        manual = draft(register_allowance_hours=0, pipe_labour_hours=.1234567890123, AL=301)
+        manual = draft(globals={'register_allowance_hours': 0}, pipe_labour_hours=.1234567890123, AL=301)
         payload = export_project(self.store, {'estimate': {'title': 'Manual labour'},
             'penetration': {'draft': auto, 'composer': manual, 'library_tracking_version': 1}})
         loaded = load_project_bytes(self.store, payload)
         stored = json.loads(payload)['penetration']
         self.assertIsNone(stored['draft']['rows'][0]['inputs']['pipe_labour_hours'])
         self.assertEqual(stored['composer']['rows'][0]['inputs']['pipe_labour_hours'], .1234567890123)
+        self.assertEqual(stored['composer']['globals']['register_allowance_hours'], 0)
         self.assertEqual(loaded['penetration'], stored)
         self.assertEqual(stored['source_sha256'], model['source']['sha256'])
         self.assertEqual(source_model(), model)

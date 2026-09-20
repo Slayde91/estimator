@@ -136,7 +136,7 @@ def line_breakdown(row, globals_, miscellaneous_hours, *, effective=True):
 
     if effective:
         from .penetration_labour import resolve_labour
-        register = hours(resolve_labour(inputs)['register_hours'])
+        register = hours(resolve_labour(inputs, globals_)['register_hours'])
         additional = hours(outputs.get('DJ'))
         rows = [
             {'label': 'Additional Labour', 'unit_prices': unit_price('CW'), 'material_quantities': [],

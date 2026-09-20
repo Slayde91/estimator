@@ -173,7 +173,10 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertNotIn('Q', fields)
         self.assertNotIn('R', fields)
         settings = {field['column']: field for field in spec['global_fields']}
-        self.assertEqual(len(settings), 12)
+        self.assertEqual(len(settings), 13)
+        self.assertEqual(settings['register_allowance_hours']['label'], 'Register Allowance')
+        self.assertEqual(settings['register_allowance_hours']['default'], .25)
+        self.assertEqual(settings['register_allowance_hours']['step'], .05)
         self.assertTrue(all(field['group'] == 'SETTINGS' for field in settings.values()))
         self.assertEqual([settings[f'pipe_labour_{maximum}_hours']['default']
                           for maximum in (50, 100, 150, 200, 250, 300)],
@@ -187,12 +190,16 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertIn('Cable Trays', fields['K']['options'])
         self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
         self.assertEqual(fields['U']['label'], 'System/Install Details')
+        self.assertEqual(fields['W']['label'], 'Teams/Crews')
+        self.assertEqual(fields['X']['label'], 'Board or Batt Type')
+        self.assertNotIn('register_allowance_hours', fields)
         for column in ('AG', 'AO', 'AU', 'AZ', 'BF', 'BG'):
             self.assertNotIn(column, fields)
         self.assertEqual(fields['N']['options'], ['N/A', '-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240'])
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
             'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead', 'SETTINGS'])
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
+        self.assertEqual(spec['group_visibility']['Substrate'], {'column': 'L', 'values': ['Oversized']})
         self.assertEqual(spec['group_visibility']['Cabletrays']['column'], 'K')
         for service in ('D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
                         'Pair Coil Bundle', 'Cable Trays', 'Lagged Pipes'):
@@ -205,7 +212,7 @@ class PenetrationCalculationTests(unittest.TestCase):
                          ['AL', 'AM', 'AN', 'pipe_labour_hours'])
         for field in pipe_fields:
             self.assertEqual(field['display_groups'], ['Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles'])
-        expected_steps = {'O': 1, 'AC': .25, 'register_allowance_hours': .05,
+        expected_steps = {'O': 1, 'AC': .25,
             'AF': 1, 'AH': .25, 'AI': 1, 'AJ': 1, 'AM': 5,
             'AQ': 5, 'AR': 5, 'AS': 5, 'AT': 1,
             'AW': 5, 'AX': 5, 'AY': 1, 'BB': 5, 'BC': 5,

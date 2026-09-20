@@ -15,6 +15,7 @@ from PIL import Image
 
 from estimator.catalog import ValidationError, configuration_catalog, validate_configuration
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
+from estimator.reference_library import ReferenceNotFound
 from estimator.penetration_calculator import definition, source_model
 from estimator.server import create_server
 from estimator.storage import Store
@@ -289,6 +290,29 @@ class FirestoppingLibraryTests(unittest.TestCase):
         with self.assertRaises(LibraryConflict):
             self.library.edit('pkb-002')
 
+    def test_confirmed_delete_hides_item_and_removes_mutable_overlays_without_changing_source(self):
+        before = self.source_bytes
+        self.library.action('pkb-001', 'save', self.body(self.library.edit('pkb-001')))
+        receipt = self.library.action('pkb-001', 'delete', {})
+        self.assertEqual(receipt, {'deleted': True, 'id': 'pkb-001'})
+        self.assertEqual(self.library.listing('penetration')['total'], 1)
+        self.assertEqual(self.library.overview()['libraries'][0]['count'], 1)
+        with self.assertRaises(ReferenceNotFound):
+            self.library.detail('penetration', 'pkb-001')
+        with self.assertRaises(ReferenceNotFound):
+            self.library.edit('pkb-001')
+        reopened = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.listing('penetration')['total'], 1)
+        self.assertFalse(any(link['id'] == 'pkb-001'
+                             for link in reopened.detail('technical', 'report-a-v1')['links']))
+        with self.store.connect() as db:
+            self.assertEqual(db.execute('SELECT id FROM firestopping_deleted').fetchall(), [('pkb-001',)])
+            self.assertEqual(db.execute('SELECT count(*) FROM firestopping_items').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT count(*) FROM firestopping_links WHERE penetration_id=?', ('pkb-001',)).fetchone()[0], 0)
+        self.assertEqual((self.root / 'library/library.json').read_bytes(), before)
+        with self.assertRaises(ValidationError):
+            self.library.action('pkb-002', 'delete', {'unexpected': True})
+
 
 class FirestoppingApiTests(unittest.TestCase):
     @classmethod
@@ -350,6 +374,14 @@ class FirestoppingApiTests(unittest.TestCase):
                     self.assertLessEqual(image.height, maximum[1])
         status, _, _ = self.raw_request('unknown')
         self.assertEqual(status, 404)
+
+    def test_z_delete_route_requires_same_origin_and_empty_confirmed_request(self):
+        self.assertEqual(self.request('POST', 'delete', {}, {'Origin': 'https://example.com'})[0], 403)
+        self.assertEqual(self.request('POST', 'delete', {'unexpected': True})[0], 400)
+        status, receipt = self.request('POST', 'delete', {})
+        self.assertEqual((status, receipt), (200, {'deleted': True, 'id': 'pkb-001'}))
+        self.assertEqual(self.request('GET', 'edit')[0], 404)
+        self.assertEqual(self.request('POST', 'delete', {})[0], 404)
 
 
 if __name__ == '__main__':

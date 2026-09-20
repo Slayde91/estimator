@@ -223,7 +223,7 @@
       if (!error && rowId === null && field.group === "SETTINGS" && scope === state.schedule) {
         state.draft.globals[field.column] = value; changed(null, state);
       }
-      if (scope === state && !error && ["J", "K", "Y"].includes(field.column)) renderFields();
+      if (scope === state && !error && ["J", "K", "L", "Y"].includes(field.column)) renderFields();
     };
     control.addEventListener(field.type === "select" ? "change" : "input", apply);
     control.addEventListener("blur", () => {

@@ -55,7 +55,7 @@ legacy inputs or current pricing. Historical inputs remain portable but cannot
 reactivate those effects. Explicit row materials, manual hours and adjustments
 (AE:AJ), quantity and project Waste settings remain active. The effective labour policy replaces
 the source's combined 0.10-hour setup and 0.15-hour register charge with an
-editable Register Allowance, defaulting to 0.25 hours per item. It also replaces
+project-wide Register Allowance, defaulting to 0.25 hours per item. It also replaces
 the source collar labour lookup with editable Pipe Labour multiplied by the
 Pipes Multiplier (AN). Item QTY (O) then applies once to these hours.
 The source image cell S4 already contains a cached
@@ -71,13 +71,16 @@ Penetration, Products and labour, Additional Allowances, Unlagged Pipes,
 Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
 group matching Service Type is shown, and Bulkhead is shown only when Type is
 Bulkheads. Cabletrays is shown only for cable/bundle services, Cable Trays and
-the source-backed Lagged Pipes entries that use those fields. SETTINGS contains
+the source-backed Lagged Pipes entries that use those fields. Substrate appears
+only when Penetration Type is Oversized. SETTINGS contains Register Allowance,
 the six editable Pipe Labour diameter bands and the six project-wide Waste (%)
 values for Additional Allowances, Pipes/Cables, Cabletrays, Substrate, Bulkhead
 board and Bulkhead framing. Hover help names each Waste setting's applicable
-section. Legacy row wastage is migrated once into these project settings and no
-longer changes one row independently. The current-item heading uses Type and
-Service Type, while the longer Items/Services description remains in its input.
+section. Legacy row wastage and Register Allowance values are migrated once into
+these project settings and no longer change one row independently. The
+current-item heading uses Type and Service Type, while the longer Items/Services
+description remains in its input. **Item Summary** stays beside the editor while
+scrolling at desktop widths.
 The current item's calculated detail and
 the complete schedule totals are calculated independently. Numeric fields use
 native number controls, retain their full stored precision and use the following
@@ -108,14 +111,15 @@ Item QTY is editable in the schedule without changing the independent current it
 Invalid or incomplete numeric text remains visible and blocks calculation;
 asynchronous results do not interrupt typing or replace newer inputs. Current-item
 and schedule global allowance controls, Access and Complexity are omitted.
-Substrate remains descriptive. Library edits and existing saved items use the
+Substrate remains descriptive. Products and labour labels the crew selector
+**Teams/Crews** and the board selector **Board or Batt Type**. Library edits and existing saved items use the
 same effective policy; their frozen product and labour prices remain independent.
 
 The selected item and library editor share an eight-row cost table: Additional
 Labour, Register allowance, Board, Collars, Mastic, Framing, Wrap and Other.
 Additional Labour uses the existing manual AH/DJ hours and the AJ monetary
 adjustment; those hours are no longer duplicated under Other. Register allowance
-uses the selected Workers unit price (CW), as does Pipe Labour. Quantity values use the source
+uses the selected Teams/Crews unit price (CW), as does Pipe Labour. Quantity values use the source
 BS/CB/CJ/CQ/CU product quantities, Mastic Qty AC, collar multiplier AN and
 additional material AF with its AG wastage, each multiplied by Item QTY once.
 No rounding up or main-quote global allowance is added inside the independent
@@ -139,13 +143,16 @@ Summary retains each line's effective values.
 
 ### Automatic and manual labour allowances
 
-The application inputs `register_allowance_hours` and `pipe_labour_hours` are
-stored separately from workbook cell inputs. Missing or null values mean
-automatic; an explicit number, including zero, is a manual override. Clearing
-an override or choosing **Use automatic** restores automatic calculation. The
-server returns resolved defaults separately, so merely opening an item does not
-write those values into its saved draft. Both new inputs accept finite,
-nonnegative hours. Additional Labour retains its existing AH input semantics.
+The project setting `register_allowance_hours` and row input
+`pipe_labour_hours` are stored separately from workbook cell inputs. Register
+Allowance is one SETTINGS value for every item. Older per-row Register Allowance
+values are accepted for compatibility, migrated to the shared setting and removed
+from normalized rows. Missing or null Pipe Labour means automatic; an explicit
+number, including zero, is a manual override. Clearing it or choosing **Use
+automatic** restores automatic calculation. The server returns the resolved pipe
+default separately, so merely opening an item does not write that value into its
+saved row. Both values accept finite, nonnegative hours. Additional Labour retains
+its existing AH input semantics.
 
 For Plastic Pipes, a selected collar with positive resolved Pipe Labour makes a
 positive Additional Labour entry a duplicate. Draft normalization clears that
@@ -154,7 +161,8 @@ path. Zero or missing Pipe Labour, zero or negative Additional Labour, rows
 without a collar, and other Service Types retain their entered AH value. The
 installed supplier library remains unchanged.
 
-Register Allowance defaults to 0.25 hours. Pipe Labour is enabled and applied
+Register Allowance defaults to 0.25 hours and is editable in project SETTINGS.
+Pipe Labour is enabled and applied
 only with a selected collar and uses the pipe diameter (AL). Its six banded
 defaults are editable in project SETTINGS:
 

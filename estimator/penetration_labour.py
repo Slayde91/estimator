@@ -10,10 +10,12 @@ from .catalog import ValidationError
 
 
 APP_INPUT_FIELDS = {
-    'register_allowance_hours': {'label': 'Register Allowance',
-                                 'group': 'Products and labour', 'after': 'W'},
     'pipe_labour_hours': {'label': 'Pipe Labour', 'group': 'Pipes', 'after': 'AN'},
 }
+LEGACY_APP_INPUT_FIELDS = {
+    'register_allowance_hours': {'label': 'Register Allowance'},
+}
+HOURS_FIELD_LABELS = {**LEGACY_APP_INPUT_FIELDS, **APP_INPUT_FIELDS}
 PIPE_BANDS = ((50, .25), (100, .30), (150, .35), (200, .40), (250, .45), (300, .50))
 PIPE_BAND_SETTINGS = tuple((maximum, f'pipe_labour_{maximum}_hours', hours)
                            for maximum, hours in PIPE_BANDS)
@@ -27,7 +29,7 @@ def validate_hours(value, key):
         return None
     if (isinstance(value, bool) or not isinstance(value, (int, float))
             or not 0 <= value <= 1e12 or not math.isfinite(value)):
-        raise ValidationError(f"{APP_INPUT_FIELDS[key]['label']} must be a finite number between 0 and 1e12, or blank for automatic hours.")
+        raise ValidationError(f"{HOURS_FIELD_LABELS[key]['label']} must be a finite number between 0 and 1e12, or blank for automatic hours.")
     return value
 
 
@@ -46,11 +48,12 @@ allowance is retained for a future selection.
             and 0 < diameter <= 300 and math.isfinite(diameter)):
         automatic_pipe = next((settings.get(key, hours) for maximum, key, hours in PIPE_BAND_SETTINGS
                                if diameter <= maximum), None)
-    defaults = {'register_allowance_hours': REGISTER_HOURS, 'pipe_labour_hours': automatic_pipe}
-    register = validate_hours(inputs.get('register_allowance_hours'), 'register_allowance_hours')
+    register = validate_hours(settings.get('register_allowance_hours', REGISTER_HOURS),
+                              'register_allowance_hours')
+    register = REGISTER_HOURS if register is None else register
+    defaults = {'register_allowance_hours': register, 'pipe_labour_hours': automatic_pipe}
     pipe = (validate_hours(inputs.get('pipe_labour_hours'), 'pipe_labour_hours')
             if collar_selected else None)
-    register = defaults['register_allowance_hours'] if register is None else register
     pipe = defaults['pipe_labour_hours'] if pipe is None else pipe
     errors = []
     pipe_task = ''

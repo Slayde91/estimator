@@ -204,6 +204,18 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration','penetration-1');assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryLink));assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryAdd));
     await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryLink||node.dataset.libraryAdd).length,0);
   });
+  await check('Every Firestopping item has an accessible trash icon and deletion requires confirmation',async h=>{
+    const answers=[false,true],confirmations=[];h.context.window.CeasefirePenetrationNavigation={confirm:async(...args)=>{confirmations.push(args);return answers.shift();}};
+    let deleted=false;h.setRoute((path,options)=>{
+      if(path==='/api/libraries')return meta();
+      if(path.endsWith('/delete')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{});deleted=true;return{deleted:true,id:'penetration-1'};}
+      return deleted?{...records('penetration'),items:[],total:0}:{...records('penetration'),items:[{...records('penetration').items[0],title:'FL-ID-001 — Synthetic item'}]};
+    });
+    await h.api.open('penetration');const pane=h.pane('penetration'),remove=walk(pane.results).find(node=>node.dataset.libraryDelete==='penetration-1');assert.ok(remove);assert.match(remove.title,/Remove FL-ID-001/);assert.equal(remove.getAttribute('aria-label'),remove.title);assert.equal(walk(remove).find(node=>node.className==='library-trash-icon').textContent,'🗑');
+    await remove.emit('click');assert.equal(deleted,false);assert.equal(confirmations.length,1);assert.deepEqual(confirmations[0],['Remove Firestopping Library item?','FL-ID-001 — Synthetic item will be removed from the Firestopping Library.','Remove item']);
+    await remove.emit('click');await flush();assert.equal(deleted,true);assert.equal(pane.selected,null);assert.equal(pane.results.children[0].className,'empty-state');assert.match(pane.message.textContent,/was removed from the Firestopping Library/);
+    await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryDelete).length,0);
+  });
   await check('A late Add failure cannot replace a newer record or leak its error into that record',async h=>{
     const pending=deferred();h.context.window.CeasefirePenetrations={addLibraryItem:()=>pending.promise};await h.api.open('penetration','first');const pane=h.pane('penetration'),work=walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).emit('click');await flush();await h.api.open('penetration','second');pending.reject(new Error('Stale failure'));await work;
     assert.equal(pane.selected,'second');assert.doesNotMatch(text(pane.detailPanel),/Stale failure/);assert.equal(pane.addPending.size,0);assert.equal(walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).disabled,false);

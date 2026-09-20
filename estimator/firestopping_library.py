@@ -159,6 +159,11 @@ class LibraryEdits:
                     thumbnail_data BLOB NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS firestopping_deleted (
+                    id TEXT PRIMARY KEY,
+                    source_sha256 TEXT NOT NULL,
+                    deleted_at TEXT NOT NULL
+                );
             ''')
 
     def stamp(self):
@@ -178,6 +183,12 @@ class LibraryEdits:
         with self.store.connect() as db:
             return list(db.execute('SELECT penetration_id,technical_id,penetration_source,technical_source FROM firestopping_links ORDER BY rowid'))
 
+    def deleted(self):
+        with self.store.connect() as db:
+            return {key: {'source_sha256': source, 'deleted_at': deleted}
+                    for key, source, deleted in db.execute(
+                        'SELECT id,source_sha256,deleted_at FROM firestopping_deleted')}
+
     def image(self, key):
         with self.store.connect() as db:
             row = db.execute('SELECT sha256,mime_type,width,height,image_data,thumbnail_data,updated_at '
@@ -190,7 +201,9 @@ class LibraryEdits:
     def overlay_stamp(self):
         with self.store.connect() as db:
             return tuple(db.execute('SELECT count(*),COALESCE(sum(revision),0) FROM firestopping_items').fetchone()) + tuple(
-                db.execute('SELECT (SELECT count(*) FROM firestopping_created),(SELECT count(*) FROM firestopping_links)').fetchone())
+                db.execute('SELECT (SELECT count(*) FROM firestopping_created),'
+                           '(SELECT count(*) FROM firestopping_links),'
+                           '(SELECT count(*) FROM firestopping_deleted)').fetchone())
 
     def create(self, request_key, request_hash, minimum, build, snapshot):
         """Allocate and insert in one write transaction, including retry identity."""
@@ -261,8 +274,18 @@ class LibraryEdits:
                 db.execute('INSERT INTO firestopping_images VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET '
                            'sha256=excluded.sha256,mime_type=excluded.mime_type,width=excluded.width,height=excluded.height,'
                            'image_data=excluded.image_data,thumbnail_data=excluded.thumbnail_data,updated_at=excluded.updated_at',
-                           (key, diagram['sha256'], diagram['mime_type'], diagram['width'], diagram['height'],
-                            diagram['image_data'], diagram['thumbnail_data'], timestamp()))
+                            (key, diagram['sha256'], diagram['mime_type'], diagram['width'], diagram['height'],
+                             diagram['image_data'], diagram['thumbnail_data'], timestamp()))
+
+    def delete(self, key, source):
+        """Hide one library item and remove all mutable overlays atomically."""
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('INSERT INTO firestopping_deleted VALUES(?,?,?)',
+                       (key, source, timestamp()))
+            db.execute('DELETE FROM firestopping_items WHERE id=?', (key,))
+            db.execute('DELETE FROM firestopping_images WHERE item_id=?', (key,))
+            db.execute('DELETE FROM firestopping_links WHERE penetration_id=?', (key,))
 
 
 class FirestoppingLibrary(ReferenceLibrary):
@@ -285,10 +308,14 @@ class FirestoppingLibrary(ReferenceLibrary):
         data = deepcopy({key: value for key, value in (base or empty_library()).items() if not key.startswith('_')})
         saved = self.edits.all()
         library = data['libraries']['penetration']
+        deleted = set(self.edits.deleted())
         existing = {item['id'] for item in library['items']}
         if existing.intersection(created):
             raise ValidationError('A supplier item conflicts with a saved user-created library identifier.')
         library['items'].extend(deepcopy(value['item']) for value in created.values())
+        library['items'] = [item for item in library['items'] if item['id'] not in deleted]
+        data['links'] = [link for link in data['links']
+                         if link['penetration_id'] not in deleted]
         filter_keys = {entry['key'] for entry in library.get('filters', [])}
         library.setdefault('filters', []).extend({'key': key, 'label': label} for key, (label, _) in FILTER_COLUMNS.items() if key not in filter_keys)
         aliases = set()
@@ -396,6 +423,8 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     def _context(self, key):
         identifier(key)
+        if key in self.edits.deleted():
+            raise ReferenceNotFound()
         own = self.edits.created().get(key)
         if own:
             if own['calculator_source_sha256'] != source_model()['source']['sha256']:
@@ -694,8 +723,14 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     def action(self, key, action, body):
         with self._lock:
-            if action not in {'calculate', 'refresh-pricing', 'save'}:
+            if action not in {'calculate', 'refresh-pricing', 'save', 'delete'}:
                 raise ReferenceNotFound()
+            if action == 'delete':
+                if not isinstance(body, dict) or body:
+                    raise ValidationError('Delete this Firestopping Library item without additional fields.')
+                _, source, _, _, _ = self._context(key)
+                self.edits.delete(key, source['source_sha256'])
+                return {'deleted': True, 'id': key}
             required = {'draft', 'revision', 'pricing_token'}
             allowed = required | ({'diagram'} if action == 'save' else set())
             if not isinstance(body, dict) or not required.issubset(body) or set(body) - allowed:

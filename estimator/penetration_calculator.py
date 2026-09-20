@@ -16,8 +16,9 @@ import re
 from .catalog import ValidationError, effective_catalog
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
-from .penetration_labour import (APP_INPUT_FIELDS, PIPE_BAND_SETTINGS, resolve_labour,
-                                 validate_hours)
+from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
+                                 PIPE_BAND_SETTINGS, REGISTER_HOURS,
+                                 resolve_labour, validate_hours)
 
 
 CAPACITY = 1000
@@ -31,6 +32,7 @@ WASTE_SETTINGS = {
     'waste_framing': ('BG', 'Bulkhead framing'),
 }
 SETTING_DEFAULTS = {
+    'register_allowance_hours': REGISTER_HOURS,
     **{key: hours for _, key, hours in PIPE_BAND_SETTINGS},
     **{key: 0 for key in WASTE_SETTINGS},
 }
@@ -38,7 +40,7 @@ DRAFT_GLOBAL_DEFAULTS = {**GLOBAL_DEFAULTS, **SETTING_DEFAULTS}
 # Explicit application policy; original workbook formulas and saved inputs remain
 # available for provenance. Removed allowances never affect effective estimates.
 EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
-CALCULATION_POLICY_VERSION = 'firestopping-settings-and-frl-v4'
+CALCULATION_POLICY_VERSION = 'firestopping-settings-and-frl-v5'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
@@ -83,6 +85,7 @@ CABLETRAY_SERVICE_TYPES = (
 GROUP_VISIBILITY = {
     'Bulkhead': {'column': 'J', 'values': ('Bulkheads',)},
     'Cabletrays': {'column': 'K', 'values': CABLETRAY_SERVICE_TYPES},
+    'Substrate': {'column': 'L', 'values': ('Oversized',)},
     **{group: {'column': 'K', 'values': services}
        for group, services in PIPE_DISPLAY_GROUPS.items()},
 }
@@ -111,7 +114,6 @@ FIELD_STEPS = {
     'BE': 1,
     'BF': 1,
     'BG': 1,
-    'register_allowance_hours': .05,
 }
 ROW_COLUMNS = tuple(c for cols in GROUP_COLUMNS.values() for c in cols)
 TEXT_COLUMNS = set('J K L M N P Q R T U V W X Y Z AA AB AE'.split())
@@ -206,7 +208,9 @@ def definition(configuration=None, service_types=None):
             options = (selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else
                        list(FRL_OPTIONS) if col == 'N' else
                        _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, []))
-            label = {'T': 'Items/Services', 'U': 'System/Install Details', 'AH': 'Additional Labour'}.get(col, calc[col + '3']['value'])
+            label = {'T': 'Items/Services', 'U': 'System/Install Details',
+                     'W': 'Teams/Crews', 'X': 'Board or Batt Type',
+                     'AH': 'Additional Labour'}.get(col, calc[col + '3']['value'])
             field = {'column': col, 'address': col + '4', 'label': label,
                 'type': 'select' if col in PRICE_COLUMNS or col in CHOICE_NAMES or col in descriptions else 'text' if col in TEXT_COLUMNS else 'number',
                 'options': options, 'group': group, 'default': ROW_DEFAULTS.get(col),
@@ -241,12 +245,19 @@ def definition(configuration=None, service_types=None):
             'units': '%' if col in OUTPUT_PERCENT_COLUMNS else 'hours' if group == 'Task Hours' else '',
             **({'quantity_context': QUANTITY_OUTPUT_CONTEXTS[col]} if col in QUANTITY_OUTPUT_CONTEXTS else {})})
     global_fields = [{
+        'column': 'register_allowance_hours', 'address': None,
+        'label': 'Register Allowance', 'type': 'number', 'options': [],
+        'group': 'SETTINGS', 'default': REGISTER_HOURS, 'format': 'number',
+        'units': 'hrs', 'min': 0, 'step': .05, 'source': 'application',
+        'help': 'Register Allowance hours applied to every Firestopping item.',
+    }]
+    global_fields.extend({
         'column': key, 'address': None, 'label': f'Pipe Labour up to {maximum} mm',
         'type': 'number', 'options': [], 'group': 'SETTINGS', 'default': hours,
         'format': 'number', 'units': 'hrs', 'min': 0, 'step': .05,
         'source': 'application',
         'help': f'Pipe Labour hours per collar for pipe diameters up to {maximum} mm.',
-    } for maximum, key, hours in PIPE_BAND_SETTINGS]
+    } for maximum, key, hours in PIPE_BAND_SETTINGS)
     global_fields.extend({
         'column': key, 'address': None, 'label': 'Waste', 'type': 'number',
         'options': [], 'group': 'SETTINGS', 'default': 0, 'format': 'percent',
@@ -261,7 +272,8 @@ def definition(configuration=None, service_types=None):
                    for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))] + ['SETTINGS'],
         'group_visibility': {group: {'column': rule['column'], 'values': list(rule['values'])}
                              for group, rule in GROUP_VISIBILITY.items()},
-        'allowed_input_columns': [*ROW_COLUMNS, *APP_INPUT_FIELDS], 'calculation_policy': CALCULATION_POLICY_VERSION,
+        'allowed_input_columns': [*ROW_COLUMNS, *APP_INPUT_FIELDS, *LEGACY_APP_INPUT_FIELDS],
+        'calculation_policy': CALCULATION_POLICY_VERSION,
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
 
 
@@ -308,6 +320,16 @@ def normalize_draft(draft):
             raise ValidationError('Waste (%) must be a finite nonnegative number.')
         if key not in globals_in and checked_legacy:
             globals_out[key] = checked_legacy[0]
+    # Older projects stored Register Allowance on each row. Adopt the first
+    # entered value once, then remove all per-item copies so SETTINGS becomes
+    # the single effective control without rejecting historical project files.
+    legacy_register = [row.get('inputs', {}).get('register_allowance_hours') for row in rows
+                       if isinstance(row, dict) and isinstance(row.get('inputs'), dict)
+                       and row['inputs'].get('register_allowance_hours') not in (None, '')]
+    checked_register = [validate_hours(value, 'register_allowance_hours')
+                        for value in legacy_register]
+    if 'register_allowance_hours' not in globals_in and checked_register:
+        globals_out['register_allowance_hours'] = checked_register[0]
     result, seen, library_ids = [], set(), set()
     for row in rows:
         if not isinstance(row, dict) or set(row) - {'id', 'inputs', 'library_item_id'}:
@@ -315,13 +337,13 @@ def normalize_draft(draft):
         identifier, inputs = row.get('id'), row.get('inputs', {})
         if not isinstance(identifier, str) or not identifier or len(identifier) > 128 or identifier in seen:
             raise ValidationError('Penetration row IDs must be unique nonempty text, at most 128 characters.')
-        if not isinstance(inputs, dict) or set(inputs) - set(ROW_COLUMNS) - set(APP_INPUT_FIELDS):
+        if not isinstance(inputs, dict) or set(inputs) - set(ROW_COLUMNS) - set(APP_INPUT_FIELDS) - set(LEGACY_APP_INPUT_FIELDS):
             raise ValidationError('Unknown penetration row input; calculated cells cannot be edited.')
         seen.add(identifier)
         normalized = {'id': identifier, 'inputs': {
-            col: validate_hours(value, col) if col in APP_INPUT_FIELDS else
+            col: validate_hours(value, col) if col in APP_INPUT_FIELDS or col in LEGACY_APP_INPUT_FIELDS else
                  canonical_frl(value) if col == 'N' else checked(value, col in TEXT_COLUMNS, col)
-            for col, value in inputs.items()}}
+            for col, value in inputs.items() if col not in LEGACY_APP_INPUT_FIELDS}}
         effective_inputs = normalized['inputs']
         if effective_inputs.get('Y') in (None, ''):
             effective_inputs.pop('pipe_labour_hours', None)

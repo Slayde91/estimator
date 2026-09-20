@@ -68,7 +68,8 @@ class PenetrationBreakdownTests(unittest.TestCase):
 
     def test_register_additional_hours_and_fixed_adjustment_are_separate_and_reconcile(self):
         row, globals_ = synthetic_row(quantity=3, labour_allowance=0, material_allowance=0)
-        row['inputs'].update(AH=.6, register_allowance_hours=.4)
+        row['inputs'].update(AH=.6)
+        globals_['register_allowance_hours'] = .4
         row['outputs'].update(DK=7.5, F=311)
         before = deepcopy(row)
         table = line_breakdown(row, globals_, 987654)
@@ -91,7 +92,7 @@ class PenetrationBreakdownTests(unittest.TestCase):
         row, globals_ = synthetic_row(quantity=2, labour_allowance=0, material_allowance=0)
         for value, expected in ((None, .5), (0, 0), (.123456789012345, .24691357802469)):
             with self.subTest(register=value):
-                row['inputs']['register_allowance_hours'] = value
+                globals_['register_allowance_hours'] = .25 if value is None else value
                 table = line_breakdown(row, globals_, 987654)
                 register = next(task for task in table['rows'] if task['label'] == 'Register allowance')
                 self.assertEqual(register['task_hours'], expected)

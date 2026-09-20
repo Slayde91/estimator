@@ -192,7 +192,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.add_link(route.split('/')[-2], body))
-                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save)', route):
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save|delete)', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return

@@ -14,6 +14,7 @@ from tests.test_workbook_parity import read_fixture
 
 SOURCE_PAGES = ['CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS']
 DISPLAY_PAGES = ['START', 'CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS', 'FACTOR CALCS']
+DISPLAY_LABELS = ['START', 'CALCULATOR', 'SCHEDULE', 'SUMMARY', 'SETTINGS', 'FACTOR CALCS']
 ALIASES = {
     'A9': 'GLOBAL SETTINGS', 'A17': 'COMMON CALCULATION RULES', 'A31': 'CAFCO 300',
     'A64': 'MANDOLITE CP2', 'A96': 'FENDOLITE MII', 'A173': 'PERLIFOC HP ECO+',
@@ -35,7 +36,7 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         definition = self.definitions['steel_vermiculite']
         pages = definition['display_pages']
         self.assertEqual([page['id'] for page in pages], DISPLAY_PAGES)
-        self.assertEqual([page['label'] for page in pages], DISPLAY_PAGES)
+        self.assertEqual([page['label'] for page in pages], DISPLAY_LABELS)
         self.assertEqual([page['sheet'] for page in pages],
                          ['SETTINGS', 'CALCULATOR', 'SCHEDULE', 'BAGS', 'SETTINGS', 'SETTINGS'])
         self.assertEqual(definition['pages'], SOURCE_PAGES)
@@ -250,6 +251,29 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertEqual(duct['navigation_mode'], 'hidden')
         self.assertEqual(len(duct['presentation_tables']), 4)
         self.assertEqual(duct['section_cells'], ['A17', 'A29', 'A38'])
+
+    def test_requested_display_labels_and_notes_do_not_change_source_cells(self):
+        board = self.metadata('steel_board', 'SETTINGS')
+        labels = ['GENERAL SETTINGS', 'FIRE PERIODS AND TEMPERATURES', 'DIAGNOSTIC MESSAGES']
+        self.assertEqual([section['label'] for section in board['settings_sections']], labels)
+        self.assertEqual([table['label'] for table in board['presentation_tables']], labels)
+        self.assertEqual(self.metadata('steel_board', 'START')['display_cells']['A1']['role'],
+                         'compact_title')
+
+        duct_summary = self.metadata('ductwork', 'SUMMARY')
+        self.assertEqual(duct_summary['display_text']['A1'], 'PRODUCT SUMMARY')
+        self.assertEqual(duct_summary['display_text']['A38'], 'MAXILITE')
+        self.assertEqual(duct_summary['display_cells']['A1']['role'], 'compact_summary_title')
+
+        product_settings = self.metadata('ductwork', 'PRODUCT SETTINGS')
+        tables = {table['title_address']: table for table in product_settings['presentation_tables']}
+        self.assertEqual(product_settings['display_text']['J115'], 'PENETRATION TAKEOFF')
+        self.assertEqual(tables['J115']['label'], 'PENETRATION TAKEOFF')
+        self.assertIn('FyreWrap application FRLs preserve directional requirements', tables['J94']['note'])
+        self.assertNotIn('note', tables['J115'])
+
+        source = next(sheet for sheet in source_model('ductwork')['sheets'] if sheet['name'] == 'PRODUCT SETTINGS')
+        self.assertEqual(source['cells']['J115']['value'], 'PENETRATION TAKEOFF — STANDARD FOUR-SIDED DETAILS')
 
 
 if __name__ == '__main__':

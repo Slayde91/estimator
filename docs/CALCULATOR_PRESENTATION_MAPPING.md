@@ -253,7 +253,7 @@ validation, save/reset and report scope. All eleven source ranges retain their
 adjacent notes, controls and merges, subject to the declared browser omissions.
 
 `display_pages` contains START, CALCULATOR, SCHEDULE, BAGS, SETTINGS and FACTOR
-CALCS in that order. START/SETTINGS/FACTOR CALCS all resolve to source SETTINGS;
+CALCS in that order, with source BAGS displayed as **SUMMARY**. START/SETTINGS/FACTOR CALCS all resolve to source SETTINGS;
 no new storage keys or workbook pages are introduced. Heading aliases A9, A17,
 A31, A64, A96, A173, A229 and A270 remove source numbering/slash suffixes and
 read GLOBAL SETTINGS, COMMON CALCULATION RULES, CAFCO 300, MANDOLITE CP2,
@@ -368,7 +368,7 @@ Source widths deliberately give J35, H31/Q31, AK39, AL58, AM62 and AP85 units to
 
 ### SUMMARY
 
-The browser displays A1 as **DUCT PROTECTION SUMMARY** while retaining the source
+The browser displays A1 as **PRODUCT SUMMARY** while retaining the source
 title and SUMMARY page name. Four logical section wrappers separate product
 totals, penetration angles, working yields and Maxilite quantities by 24 px.
 Each owns its heading, table and associated notes while keeping its own columns
@@ -380,7 +380,7 @@ to display every source commentary column:
 | Product totals | A8:J8 | A9:J11 | K8:L11 basis/interpretation columns | A4 and A14 |
 | Penetration angles by size/location | A18:F18 | A19:F26 | None; E:F basis/limitations remain | A17 heading |
 | Working yields | A30:C30 | A31:C32 | D30:F32 | A29 heading and A35 scope |
-| Maxilite board and cut strips | A39:G39 | A40:G41 | H39:L41 | A38 heading and A43 explanation |
+| MAXILITE | A39:G39 | A40:G41 | H39:L41 | A38 heading and A43 explanation |
 
 The product totals retain all quantities and withheld counts through J. These
 range-specific omissions must not hide E:F from the separate angle table or
@@ -409,7 +409,11 @@ penetration table on the right. Existing omissions remain in effect.
 | --- | --- | --- | --- |
 | FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | All core settings, roll-area output and product notes |
 | FyreWrap application table | J94:Q113 | J94 displays FYREWRAP APPLICATION TABLE; row 95 header | Application choices and source requirements |
-| Penetration takeoff | J115:Q149 | J115 heading; row 116 header | Standard details, auxiliary tables and live exposure list J137:J149 with K137:Q139 note |
+| Penetration takeoff | J115:Q149 | J115 displays PENETRATION TAKEOFF; row 116 header | Standard details, auxiliary tables and live exposure list J137:J149 with K137:Q139 note |
+
+The directional FyreWrap qualification appears directly below FYREWRAP APPLICATION
+TABLE only. It is omitted from every other browser panel. Both PDF downloads add
+the same qualification only when the current schedule contains a FyreWrap row.
 
 Each selected heading appears once above its own data. Hidden sections retain
 their values, inputs and calculation effects; the complete API page is unchanged.
@@ -568,9 +572,9 @@ the user selects it:
 
 | Table | Visible source range | Behavior |
 | --- | --- | --- |
-| General settings | A5:C34 | Setting, editable value and units; all 28 allowed values B6:B21 and B23:B34 remain. Row 22 is spacing. |
-| Fire periods and temperatures | G5:N10 | Eight source headings from COREX FRL through Other beam temperature, with the original numeric choices. The empty No selection column remains part of the source table. |
-| Diagnostic messages | P5:Q51 | Readonly code/message pairs, with naturally wrapped messages. |
+| GENERAL SETTINGS | A5:C34 | Setting, editable value and units; all 28 allowed values B6:B21 and B23:B34 remain. Row 22 is spacing. |
+| FIRE PERIODS AND TEMPERATURES | G5:N10 | Eight source headings from COREX FRL through Other beam temperature, with the original numeric choices. The empty No selection column remains part of the source table. |
+| DIAGNOSTIC MESSAGES | P5:Q51 | Readonly code/message pairs, with naturally wrapped messages. |
 
 The first-column labels A6:A34 and P6:P51 are bold through bounded browser
 metadata. Adjacent editable values, units and diagnostic messages retain their

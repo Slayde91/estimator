@@ -526,16 +526,17 @@ It removes the requested introductory rows/blocks while retaining the live
 incomplete-order warning and all 200 schedule rows. The separate BOARD SUMMARY
 page keeps its three cards, as clarified by the user.
 
-Ductwork displays DUCT PROTECTION CALCULATOR and DUCT PROTECTION SUMMARY. Its
+Ductwork displays DUCT PROTECTION CALCULATOR and PRODUCT SUMMARY. Its
 schedule omits the requested introductory rows and clearance/fixing/qualification
 columns, and places volume/yield before support instructions. Source page names,
-input keys, formulas, quantity holds, the approved copied-text correction and
-PDFs remain unchanged. Exact aliases, omissions and column order are recorded in
+input keys, formulas, quantity holds and the approved copied-text correction remain
+unchanged. The FyreWrap directional note is confined to its application table and
+appears in PDFs only when a FyreWrap row is included. Exact aliases, omissions and column order are recorded in
 [the presentation mapping](CALCULATOR_PRESENTATION_MAPPING.md). Current checks
 and publication outcomes belong in SESSION_HANDOFF.md and are not claimed here.
 
-The preceding board-only browser cleanup stacks SETTINGS into General settings,
-Fire periods and temperatures, and Diagnostic messages. It hides the primary
+The preceding board-only browser cleanup stacks SETTINGS into GENERAL SETTINGS,
+FIRE PERIODS AND TEMPERATURES, and DIAGNOSTIC MESSAGES. It hides the primary
 Basis column and the dropdown table's final two reference/explanation rows
 using bounded display ranges. All 28 editable settings, exact values,
 dependent dropdown choices and diagnostic lookup records remain intact.

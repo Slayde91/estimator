@@ -699,6 +699,7 @@
     const mapped = new Map(rows.flatMap((row) => row.cells.map((cell) => [cell.address || `${columnName(cell.column)}${row.row}`, cell])));
     const used = new Set(pairs.flat()), cards = node("div", "calculator-summary-cards"), box = node("div", "calculator-overview");
     if (entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR" || entry.definition.id === "steel_board" && ["CALCULATOR", "BOARD SUMMARY", "EXTRA BOARDS"].includes(entry.sheet)) box.classList.add("calculator-overview-full");
+    if (entry.definition.id === "steel_board") box.classList.add("calculator-overview-board");
     const productSummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE";
     const boardSchedule = entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR";
     if (productSummary) { used.add("M4"); used.add("M5"); }
@@ -735,8 +736,9 @@
     return box;
   }
 
-  function renderProductTotals(result, container) {
+  function renderProductTotals(result, container, overview = null) {
     if (!container) return;
+    overview ||= [...(container.children || [])].find((child) => child.classList?.contains("calculator-overview")) || null;
     const board = Array.isArray(result?.board_product_totals);
     const totals = (board ? result.board_product_totals : result?.product_totals) || [];
     container.hidden = !totals.length;
@@ -752,7 +754,7 @@
       for (const value of board ? [total.box_reference_area, total.net_board_area, total.whole_sheets, status] : [total.net_bags, total.whole_bags, status]) { const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value }); row.append(cell); }
       body.append(row);
     }
-    table.append(head, body); scroll.append(table); container.replaceChildren(heading, note, scroll);
+    table.append(head, body); scroll.append(table); container.replaceChildren(heading, ...(overview ? [overview] : []), note, scroll);
   }
 
   function sectionDetails(entry, result, metadata) {
@@ -1044,12 +1046,13 @@
     const settings = settingsDefinitions.length && page.section_mode !== "content" ? settingsPanels(entry, settingsDefinitions) : null;
     if (sectionLinks.length && metadata.navigation_mode === "links") content.push(renderContents(sectionLinks));
     const boardSchedule = Boolean(schedule && entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR");
+    const vermiculiteSchedule = Boolean(schedule && entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE");
     const scheduleOverview = schedule ? renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns) : null;
-    if (scheduleOverview && !boardSchedule) content.push(scheduleOverview);
+    if (scheduleOverview && !boardSchedule && !vermiculiteSchedule) content.push(scheduleOverview);
     if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
     if (schedule && (entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE" || entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR")) {
       const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
-      entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
+      entry.productTotalsElement = totals; renderProductTotals(result, totals, vermiculiteSchedule ? scheduleOverview : null); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
     const logicalSections = new Map();
@@ -1116,6 +1119,7 @@
         applyCellDisplay(heading, metadata.display_cells[definition.title_address]);
         if (titleCell) { heading.dataset.calculatorOutput = definition.title_address; updateOutputCell(heading, titleCell); }
         section.append(heading);
+        if (definition.note) section.append(node("p", "calculator-projected-note calculator-technical-note", definition.note));
         const subtitleCell = sourceCells.get(definition.subtitle_address);
         if (subtitleCell) {
           const subtitle = node("p", "calculator-projected-note");

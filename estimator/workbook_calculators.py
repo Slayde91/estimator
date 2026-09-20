@@ -16,6 +16,13 @@ from .calculator_defaults import default_calculator_inputs, yield_review
 from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
 
 
+FYREWRAP_DIRECTION_NOTE = (
+    'FyreWrap application FRLs preserve directional requirements: External exhaust means external '
+    '120/120/-; Both adds internal 120/120/120. Stair pressurisation means external 120/120/60. '
+    'Unresolved penetration wrap totals are withheld.'
+)
+
+
 # Source table headings outside the main schedules. See the per-page evidence
 # in docs/CALCULATOR_PRESENTATION_MAPPING.md; these affect styling only.
 _PRESENTATION_HEADERS = {
@@ -73,9 +80,11 @@ _DISPLAY_TEXT = {
     'ductwork': {'CALCULATOR': {
                     'A1': 'DUCT PROTECTION CALCULATOR',
                     'A3': 'For FyreWrap, Internal, External and Both use the exhaust application rules. Select pressurisation separately. Application FRLs retain the directional requirements shown above and in the reports. No waste is added.'},
-                 'SUMMARY': {'A1': 'DUCT PROTECTION SUMMARY'},
+                 'SUMMARY': {'A1': 'PRODUCT SUMMARY',
+                             'A38': 'MAXILITE'},
                  'PRODUCT SETTINGS': {
                      'J94': 'FYREWRAP APPLICATION TABLE',
+                     'J115': 'PENETRATION TAKEOFF',
                      'J95': 'Source application',
                      'J109': 'Schedule mapping: kitchen, diesel and other exhaust use Internal. Smoke, combined kitchen/smoke and stair relief use Both. External means exhaust external exposure, requiring 120/120/- in that direction. Pressurisation remains separate.',
                      'J112': 'Internal/External/Both exhaust uses calculate local wrap from Tables 4-5. Pressurisation penetrations require a matching detail; their wrap totals remain withheld. The highest wall-size band also requires review.',
@@ -106,7 +115,8 @@ _DISPLAY_CELLS = {
             'A371': {'merge': 'A371:G371', 'role': 'collapsed_spacer'},
         },
     },
-    'steel_board': {'CALCULATOR': {**{f'{column}{row}': {'control': 'select'}
+    'steel_board': {'START': {'A1': {'role': 'compact_title'}},
+                    'CALCULATOR': {**{f'{column}{row}': {'control': 'select'}
                                     for row in range(9, 1009) for column in 'CDHJ'},
                                   **{f'M{row}': {'bold': False} for row in range(9, 1009)}},
                     'EXTRA BOARDS': {f'{column}{row}': {'control': 'select'}
@@ -122,7 +132,8 @@ _DISPLAY_CELLS = {
                        **{f'{column}{row}': {'control': 'select'}
                           for row in range(11, 1011) for column in 'CEI'},
                        **{f'H{row}': {'control': 'select', 'bold': False} for row in range(11, 1011)}},
-        'SUMMARY': {'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
+        'SUMMARY': {'A1': {'role': 'compact_summary_title'},
+                    'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
                     **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
         'PRODUCT SETTINGS': {
             **{f'J{row}': {'merge': f'J{row}:Q{row}'} for row in (105, 108, 111, 131, 136)},
@@ -151,9 +162,9 @@ _SETTINGS_SECTIONS = {
     ],
     ('steel_board', 'SETTINGS'): [
         {'id': f'table-{index}', 'label': label, 'ranges': [region]}
-        for index, (label, region) in enumerate((('General settings', 'A5:C34'),
-                                               ('Fire periods and temperatures', 'G5:N10'),
-                                               ('Diagnostic messages', 'P5:Q51')))
+        for index, (label, region) in enumerate((('GENERAL SETTINGS', 'A5:C34'),
+                                               ('FIRE PERIODS AND TEMPERATURES', 'G5:N10'),
+                                               ('DIAGNOSTIC MESSAGES', 'P5:Q51')))
     ],
 }
 # Browser tabs can project parts of one source worksheet. Source page names and
@@ -163,7 +174,9 @@ _DISPLAY_PAGES = {
         {'id': 'START', 'label': 'START', 'sheet': 'SETTINGS', 'section_ids': ['A270'],
          'section_mode': 'content', 'include_common': False,
          'intro_address': 'A7', 'intro_after_address': 'A270'},
-        *({'id': name, 'label': name, 'sheet': name} for name in ('CALCULATOR', 'SCHEDULE', 'BAGS')),
+        {'id': 'CALCULATOR', 'label': 'CALCULATOR', 'sheet': 'CALCULATOR'},
+        {'id': 'SCHEDULE', 'label': 'SCHEDULE', 'sheet': 'SCHEDULE'},
+        {'id': 'BAGS', 'label': 'SUMMARY', 'sheet': 'BAGS'},
         {'id': 'SETTINGS', 'label': 'SETTINGS', 'sheet': 'SETTINGS',
          'section_ids': ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229'], 'include_common': True,
          'hidden_common_addresses': ['A7']},
@@ -205,11 +218,11 @@ _PRESENTATION_TABLES = {
          'column_widths': [240, 150, 150, 150, 150, 150], 'label': 'Board purchasing totals'},
     ], 'SETTINGS': [
         {'first_row': 5, 'last_row': 34, 'columns': [1, 2, 3],
-         'column_widths': [460, 180, 140], 'label': 'General settings'},
+         'column_widths': [460, 180, 140], 'label': 'GENERAL SETTINGS'},
         {'first_row': 5, 'last_row': 10, 'columns': list(range(7, 15)),
-         'column_widths': [140] * 8, 'label': 'Fire periods and temperatures'},
+         'column_widths': [140] * 8, 'label': 'FIRE PERIODS AND TEMPERATURES'},
         {'first_row': 5, 'last_row': 51, 'columns': [16, 17],
-         'column_widths': [360, 620], 'label': 'Diagnostic messages'},
+         'column_widths': [360, 620], 'label': 'DIAGNOSTIC MESSAGES'},
     ]},
     'ductwork': {'PRODUCT SETTINGS': [
         {'first_row': 94, 'last_row': 151, 'columns': list(range(1, 9)),
@@ -217,11 +230,12 @@ _PRESENTATION_TABLES = {
          'table_kind': 'form', 'title_address': 'A94', 'label': 'FYREWRAP'},
         {'first_row': 94, 'last_row': 113, 'columns': list(range(10, 18)),
          'column_widths': [196, 280, 133, 112, 161, 161, 84, 273],
-         'table_kind': 'comparison', 'title_address': 'J94', 'header_row': 95, 'label': 'FYREWRAP APPLICATION TABLE'},
+         'table_kind': 'comparison', 'title_address': 'J94', 'header_row': 95,
+         'label': 'FYREWRAP APPLICATION TABLE', 'note': FYREWRAP_DIRECTION_NOTE},
         {'first_row': 115, 'last_row': 149, 'columns': list(range(10, 18)),
          'column_widths': [30, 18, 12, 8, 8, 8, 8, 8], 'width_mode': 'fit',
          'table_kind': 'comparison', 'title_address': 'J115', 'header_row': 116,
-         'label': 'PENETRATION TAKEOFF — STANDARD FOUR-SIDED DETAILS'},
+         'label': 'PENETRATION TAKEOFF'},
     ], 'SUMMARY': [
         {'first_row': 8, 'last_row': 11, 'columns': list(range(1, 11)),
          'column_widths': [200, *([125] * 9)], 'label': 'Product totals'},
@@ -593,8 +607,6 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
     columns = [column for column in range(1, metadata['max_column'] + 1)
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
-    if calculator_id == 'ductwork':
-        warnings.append('FyreWrap application FRLs preserve directional requirements: External exhaust means external 120/120/-; Both adds internal 120/120/120. Stair pressurisation means external 120/120/60. Unresolved penetration wrap totals are withheld.')
     with lock:
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []

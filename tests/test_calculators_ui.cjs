@@ -612,8 +612,8 @@ let passed = 0;
   const memberSection=byId('calculator-grid').children.find(node=>node.className==='calculator-schedule-section');
   assert.ok(memberSection);assert.equal(memberSection.children[0].textContent,'MEMBER SCHEDULE');assert.ok(descendants(memberSection).includes(bagInput));
   assert.ok(byId('calculator-grid').children.indexOf(totalsNode)<byId('calculator-grid').children.indexOf(memberSection));
-  const bagOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
-  assert.ok(!descendants(bagOverview).includes(totalsNode));assert.ok(descendants(bagOverview).some(node=>node.calculatorValueCard));
+  const bagOverview=descendants(totalsNode).find(node=>node.className==='calculator-overview');
+  assert.ok(bagOverview);assert.equal(totalsNode.children[1],bagOverview);assert.ok(descendants(bagOverview).some(node=>node.calculatorValueCard));
   assert.ok(descendants(byId('calculator-grid')).filter(node=>node.className?.includes('calculator-table-scroll')).every(node=>!node.classList.contains('calculator-section-scroll')));
   const totalRow=()=>descendants(totalsNode).find(node=>node.tagName==='tbody').children[0];
   assert.equal(totalRow().children[1].textContent,'2.35');assert.equal(totalRow().children[2].textContent,'');assert.equal(totalRow().children[3].textContent,'REVIEW YIELD');
@@ -936,7 +936,8 @@ let passed = 0;
   realRender(entry);audit.setRender(realRender);
   const summaryCards=descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard);
   assert.equal(summaryCards.length,3);assert.deepEqual(summaryCards.map(node=>node.textContent),['58.48','60.79','27.00']);
-  assert.equal(byId('calculator-grid').children.find(node=>node.className==='calculator-overview').classList.contains('calculator-overview-full'),true);
+  const boardSummaryOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
+  assert.equal(boardSummaryOverview.classList.contains('calculator-overview-full'),true);assert.equal(boardSummaryOverview.classList.contains('calculator-overview-board'),true);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,1);
   const purchasingTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Board purchasing totals');
   assert.equal(purchasingTable.children[0].children.length,6);
@@ -1282,7 +1283,7 @@ let passed = 0;
     ]},
     {id:'ductwork',sheet:'PRODUCT SETTINGS',sections:[{id:'A6',label:'CAFCO',ranges:['A6:H46']},{id:'A48',label:'MONOKOTE',ranges:['A48:H92']},{id:'A94',label:'FYREWRAP',ranges:['A94:H151']},{id:'J94',label:'FYREWRAP APPLICATION TABLE',ranges:['J94:Q113']},{id:'J115',label:'PENETRATION',ranges:['J115:Q149']}],metadata:{table_layout:'projected',header_rows:[95,116],section_cells:['A6','A48','A94','J94','J115'],display_text:{J94:'FYREWRAP APPLICATION TABLE'},merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
       {first_row:94,last_row:151,columns:[1,2,3,4,5,6,7,8],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'form',title_address:'A94',label:'FYREWRAP'},
-      {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application'},
+      {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application',note:'FyreWrap application FRLs preserve directional requirements.'},
       {first_row:115,last_row:149,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'comparison',title_address:'J115',header_row:116,label:'Penetration'},
     ]},rows:[
       {row:1,cells:[{column:1,address:'A1',value:'Duct settings',presentation:{role:'title'}}]},
@@ -1315,6 +1316,9 @@ let passed = 0;
       const panelById=id=>chooserPanels().find(panel=>panel.id.endsWith(`-${id}`));
       for(const address of ['A94','A115','A117'])assert.ok(descendants(panelById('A94')).some(node=>node.dataset?.calculatorOutput===address));
       assert.ok(descendants(panelById('J94')).some(node=>node.dataset?.calculatorOutput==='J94'&&node.textContent==='FYREWRAP APPLICATION TABLE'));
+      assert.equal(descendants(panelById('J94')).filter(node=>node.className?.includes('calculator-technical-note')).length,1);
+      assert.equal(descendants(panelById('J94')).find(node=>node.className?.includes('calculator-technical-note')).textContent,'FyreWrap application FRLs preserve directional requirements.');
+      assert.ok(!descendants(panelById('J115')).some(node=>node.className?.includes('calculator-technical-note')));
       assert.ok(descendants(panelById('J115')).some(node=>node.dataset?.calculatorOutput==='J117'));
     }
     assert.equal(JSON.stringify(entry.result),rawChooser);assert.deepEqual(copy(entry.inputs),{});
@@ -1353,7 +1357,7 @@ let passed = 0;
   const virtualDefinition={...virtualBase,id:'steel_vermiculite',title:'Vermiculite',inputs:copy(virtualInputs),pages:['CALCULATOR','SCHEDULE','BAGS','SETTINGS'],
     schedule:{...virtualBase.schedule,sheet:'SCHEDULE'},display_pages:[
       {id:'START',label:'START',sheet:'SETTINGS',section_ids:['A270'],section_mode:'content',include_common:false,intro_address:'A7',intro_after_address:'A270'},
-      ...['CALCULATOR','SCHEDULE','BAGS'].map(sheet=>({id:sheet,label:sheet,sheet})),
+      ...['CALCULATOR','SCHEDULE','BAGS'].map(sheet=>({id:sheet,label:sheet==='BAGS'?'SUMMARY':sheet,sheet})),
       {id:'SETTINGS',label:'SETTINGS',sheet:'SETTINGS',section_ids:['A9','A17','A31','A64','A96','A173','A229'],include_common:true,hidden_common_addresses:['A7']},
       {id:'FACTOR CALCS',label:'FACTOR CALCS',sheet:'SETTINGS',section_ids:['A341','A356','A370'],include_common:false}],
     sheets:[{name:'SETTINGS',header_rows:[],...copy(chooserCases[0].metadata),navigation_mode:'select',settings_sections:copy(chooserCases[0].sections)},
@@ -1370,7 +1374,7 @@ let passed = 0;
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   assert.equal(entry.page,'START');assert.equal(entry.sheet,'SETTINGS');assert.equal(byId('calculator-sheet-title').textContent,'START');
-  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','LOOKUP','SCHEDULE','BAGS','SETTINGS','FACTOR CALCS']);
+  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','LOOKUP','SCHEDULE','SUMMARY','SETTINGS','FACTOR CALCS']);
   assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);assert.ok(virtualOutputs().includes('A270'));
   assert.equal(virtualOutputs().filter(address=>address==='A7').length,1);
   const startBody=descendants(byId('calculator-grid')).find(node=>node.tagName==='tbody'&&node.children.some(row=>row.dataset.sourceRow==='270'));
@@ -1494,6 +1498,9 @@ let passed = 0;
   assert.match(sectionCss,/\.calculator-grid td\.calculator-role-spacer\s*\{\s*background:\s*#fff0ce!important\s*\}/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-value-empty\s*\{\s*background:\s*#f2f3f5!important\s*\}/);
   assert.match(sectionCss,/\.calculator-overview-full\s*>\s*p\s*\{[^}]*flex:\s*0 0 100%/);
+  assert.match(sectionCss,/\.calculator-overview-board\s+h3\s*\{[^}]*font-size:\s*15px/);
+  assert.match(sectionCss,/\.calculator-role-compact_title\s*\{[^}]*font-size:\s*15px/);
+  assert.match(sectionCss,/\.calculator-role-compact_summary_title\s*\{[^}]*font-size:\s*14px/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-normal\s*\{\s*font-weight:\s*400!important/);passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.

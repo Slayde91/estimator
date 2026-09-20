@@ -16,7 +16,8 @@ from reportlab.platypus import KeepTogether, PageBreak, SimpleDocTemplate, Space
 
 from .excel_engine import WorkbookEngine, column_name
 from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
-from .workbook_calculators import source_model, normalize_calculator_inputs, approved_formula_overrides
+from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, approved_formula_overrides,
+                                   normalize_calculator_inputs, source_model)
 
 
 _WIDTH, _HEIGHT = landscape(A4)
@@ -167,6 +168,7 @@ def project_calculator_report(calculator_id, inputs=None):
             'inputs': normalized, 'sheet': sheet_name, 'rows': rows, 'summaries': [],
             'extra_rows': [], 'incomplete_rows': sum(not row['complete'] for row in rows)}
     if calculator_id == 'ductwork':
+        data['application_summary_note'] = FYREWRAP_DIRECTION_NOTE if any(row['wrap'] for row in rows) else ''
         data['application_notes'] = list(dict.fromkeys(
             row['values']['AP'] for row in rows
             if row['wrap'] and isinstance(row['values']['AP'], str) and row['values']['AP'].strip()))
@@ -260,6 +262,8 @@ class _ScheduleReport(_Report):
             heading = self.p('FyreWrap application notes', 'subheading')
             heading.keepWithNext = True
             self.story.append(heading)
+            if data.get('application_summary_note'):
+                self.story.append(self.p(data['application_summary_note'], 'small'))
             self.story.extend(self.p(note, 'small') for note in data['application_notes'])
         if materials and data['id'] != 'steel_vermiculite':
             self.story.append(self.p('Totals use available source results and can exclude unresolved quantities. Read each item status and the product order summary before ordering.', 'small'))

@@ -96,12 +96,14 @@ let passed=0;
   assert.match(byId('app-message').textContent,/Pricing was saved/); passed++;
 
   // Shared dialog responses are isolated even when asynchronous work finishes.
-  const first=audit.confirmReplace('First action','First detail','First confirm');
+  const first=audit.confirmReplace('First action','First detail','First confirm','Cancel');
   const second=audit.confirmReplace('Second action','Second detail','Second confirm');
   await flush(); const dialog=byId('discard-dialog');
   assert.equal(dialog.querySelector('h2').textContent,'First action');
+  assert.equal(dialog.querySelector('[value="cancel"]').textContent,'Cancel');
   await dialog.close('cancel'); assert.equal(await first,false); await flush();
   assert.equal(dialog.querySelector('h2').textContent,'Second action');
+  assert.equal(dialog.querySelector('[value="cancel"]').textContent,'Keep editing');
   await dialog.close('confirm');assert.equal(await second,true);passed++;
 
   // Reject stale import responses and preserve edits made during the read.
@@ -532,9 +534,16 @@ let passed=0;
   const sprayTeam=inputDescendants(byId('input-sections')).find(node=>node.dataset?.cell==='D2');sprayTeam.value='1 Team - 1x';await sprayTeam.emit('input');
   assert.equal(byId('material-inputs').children[0].hidden,false);assert.ok(byId('material-inputs').children.slice(1).every(row=>row.hidden));
   const html=fs.readFileSync('static/index.html','utf8');
-  assert.match(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]* open>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
-  assert.match(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]* open><summary><h2 id="breakdown-heading">Material Breakdown<\/h2><\/summary>/);
-  assert.match(html,/<details class="card expandable-breakdown labour-breakdown-section" id="labour-breakdown"[^>]* open><summary><h2 id="labour-heading">Labour Breakdown<\/h2><\/summary>/);
+  assert.ok(html.indexOf('id="penetration-add-to-library"')<html.indexOf('id="penetration-recalculate"'));
+  assert.match(html,/<th scope="col">Total<\/th><th scope="col">Diagram<\/th><th scope="col">Actions<\/th>/);
+  assert.doesNotMatch(html,/<th scope="col">Status<\/th>/);
+  assert.match(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
+  assert.doesNotMatch(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*\sopen>/);
+  assert.doesNotMatch(html,/<details class="firestopping-breakdown-part"\s+open>/);
+  assert.match(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]*><summary><h2 id="breakdown-heading">Material Breakdown<\/h2><\/summary>/);
+  assert.doesNotMatch(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]*\sopen>/);
+  assert.match(html,/<details class="card expandable-breakdown labour-breakdown-section" id="labour-breakdown"[^>]*><summary><h2 id="labour-heading">Labour Breakdown<\/h2><\/summary>/);
+  assert.doesNotMatch(html,/<details class="card expandable-breakdown labour-breakdown-section"[^>]*\sopen>/);
   assert.ok(html.indexOf('id="penetration-schedule-breakdown-card"')<html.indexOf('id="breakdown-heading"'));
   assert.match(html,/<summary><h3[^>]*>Schedule breakdown<\/h3><\/summary>/);
   assert.match(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);

@@ -180,7 +180,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
       return result(payload.draft);
     });
     await h.audit.addToLibrary();assert.deepEqual(created.diagram,{filename:'site detail.png',content_base64:'QUFB'});assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].library_item_id,'fl-user-100001');assert.equal(h.byId('penetration-diagram-image').src,'/api/libraries/penetration/fl-user-100001/image?v=1');
-    await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'fl-user-100001');assert.equal(h.byId('penetration-schedule-body').children[0].children[8].children[0].src,'/api/libraries/penetration/fl-user-100001/thumbnail?v=1');
+    await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'fl-user-100001');assert.equal(h.byId('penetration-schedule-body').children[0].children[7].children[0].src,'/api/libraries/penetration/fl-user-100001/thumbnail?v=1');
   });
   await check('Item Summary uses the sticky quote-summary pattern and the requested title',async h=>{
     const html=fs.readFileSync('static/index.html','utf8'),css=fs.readFileSync('static/penetration.css','utf8');
@@ -234,6 +234,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Add another copy while editing does not update the original target',async h=>{
     await h.audit.addToSchedule();await h.audit.selectRow('line-1');h.control('T').value='Copy';await h.control('T').emit('input');await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,undefined);assert.equal(h.api.projectSnapshot().draft.rows[1].inputs.T,'Copy');assert.equal(h.audit.state.edit.id,'line-1');
+  });
+  await check('Adding an edited library row requires OK or Cancel and creates an independent copy while retaining the original',async h=>{
+    const draft={...definition().schedule_defaults,rows:[{id:'line-1',inputs:{T:'Original library item',O:2},library_item_id:'pkb-002'}]};h.api.applyProject(await h.api.prepareProject({draft}));await h.audit.selectRow('line-1');h.control('T').value='Independent edit';await h.control('T').emit('input');
+    const confirmations=[],pending=deferred();h.context.window.CeasefirePenetrationNavigation.confirm=(...args)=>{confirmations.push(args);return pending.promise;};const cancelled=h.audit.addToSchedule();await flush();assert.equal(h.byId('penetration-add-to-schedule').disabled,true);await h.audit.addToSchedule();assert.equal(confirmations.length,1);pending.resolve(false);await cancelled;assert.equal(h.byId('penetration-add-to-schedule').disabled,false);assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Original library item');
+    h.context.window.CeasefirePenetrationNavigation.confirm=async(...args)=>{confirmations.push(args);return true;};await h.audit.addToSchedule();const rows=h.api.projectSnapshot().draft.rows;assert.equal(rows.length,2);assert.equal(rows[0].inputs.T,'Original library item');assert.equal(rows[0].library_item_id,'pkb-002');assert.equal(rows[1].inputs.T,'Independent edit');assert.equal(Object.hasOwn(rows[1],'library_item_id'),false);
+    assert.deepEqual(confirmations,[['Add a new schedule item?','A new item will be added to the schedule and the original will also be retained. Do you want to proceed?','OK','Cancel'],['Add a new schedule item?','A new item will be added to the schedule and the original will also be retained. Do you want to proceed?','OK','Cancel']]);
   });
   await check('Library transfer preserves composer including invalid text and view, uses schedule prices and returns a receipt',async h=>{
     h.control('T').value='Unsaved composer';await h.control('T').emit('input');h.control('O').value='bad';await h.control('O').emit('input');h.audit.state.schedule.draft.globals.L=.17345;let navigation=0;h.context.window.CeasefirePenetrationNavigation.show=()=>navigation++;
@@ -361,8 +367,8 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.setRequest(async(path,payload)=>{if(path.endsWith('/edit')){reads++;return copy(item);}const response=result(payload.draft);response.rows[0].outputs.H=payload.draft.rows[0].inputs.O*10;return response;});
     assert.equal(h.api.libraryQuantity('pkb-002'),undefined);
     for(let qty=1;qty<=4;qty++){const receipt=await h.api.addLibraryItem('pkb-002');assert.equal(receipt.quantity,qty);assert.equal(receipt.total,qty*10);assert.equal(h.api.libraryQuantity('pkb-002'),qty);assert.equal(h.api.projectSnapshot().draft.rows.length,1);}
-    const thumbnail=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.equal(thumbnail.tagName,'img');assert.equal(thumbnail.src,'/api/libraries/penetration/pkb-002/thumbnail');assert.match(thumbnail.alt,/Library pipe source diagram/);
-    h.api.libraryDiagramChanged('pkb-002');const refreshed=h.byId('penetration-schedule-body').children[0].children[8].children[0];assert.notEqual(refreshed,thumbnail);assert.equal(refreshed.src,'/api/libraries/penetration/pkb-002/thumbnail?v=1');
+    const thumbnail=h.byId('penetration-schedule-body').children[0].children[7].children[0];assert.equal(thumbnail.tagName,'img');assert.equal(thumbnail.src,'/api/libraries/penetration/pkb-002/thumbnail');assert.match(thumbnail.alt,/Library pipe source diagram/);
+    h.api.libraryDiagramChanged('pkb-002');const refreshed=h.byId('penetration-schedule-body').children[0].children[7].children[0];assert.notEqual(refreshed,thumbnail);assert.equal(refreshed.src,'/api/libraries/penetration/pkb-002/thumbnail?v=1');
     assert.equal(reads,1);assert.equal(item.draft.rows[0].inputs.O,8);assert.equal(h.api.projectSnapshot().draft.globals.L,.17);assert.equal(h.api.projectSnapshot().draft.rows[0].library_item_id,'pkb-002');
   });
   await check('Library identity survives calculate, Save and Open; Add preserves edited row inputs and the composer',async h=>{

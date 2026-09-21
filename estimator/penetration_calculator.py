@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import re
 
-from .catalog import ValidationError, effective_catalog
+from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
 from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
@@ -148,6 +148,20 @@ def _sheet(name):
     return next(s for s in source_model()['sheets'] if s['name'] == name)
 
 
+def _firestopping_rules():
+    rules = {rule['column']: rule for rule in source_model()['list_filters']}
+    return [{**group, 'keywords': rules[group['list_column']]['keywords']} for group in FIRESTOPPING_GROUPS]
+
+
+def firestopping_group_keys(item):
+    """Return explicit assignments, or source-compatible defaults for old libraries."""
+    if 'firestopping_groups' in item:
+        return tuple(item['firestopping_groups'])
+    source = item['sales_description'].casefold()
+    return tuple(group['key'] for group in _firestopping_rules()
+                 if any(keyword.casefold() in source for keyword in group['keywords']))
+
+
 def inventory_lists(configuration=None):
     """Materialize source FILTER/XLOOKUP semantics, preserving order/first match.
 
@@ -161,8 +175,14 @@ def inventory_lists(configuration=None):
     for item in inventory:
         first.setdefault(item['sales_description'].casefold(), item)
     values, selections = {}, {}
+    editable_groups = {group['list_column']: group['key'] for group in FIRESTOPPING_GROUPS}
     for rule in source_model()['list_filters']:
-        names = [i['sales_description'] for i in inventory if any(k.casefold() in i['sales_description'].casefold() for k in rule['keywords'])]
+        if rule['column'] in editable_groups:
+            key = editable_groups[rule['column']]
+            names = [item['sales_description'] for item in inventory if key in firestopping_group_keys(item)]
+        else:
+            names = [item['sales_description'] for item in inventory
+                     if any(keyword.casefold() in item['sales_description'].casefold() for keyword in rule['keywords'])]
         if len(names) > 1000:
             raise ValidationError('A penetration product list exceeds its 1,000-entry workbook capacity.')
         selections[rule['column']] = names
@@ -179,13 +199,7 @@ def inventory_lists(configuration=None):
 
 
 def pricing_usage_metadata():
-    """Describe how the Firestopping Estimator derives inventory availability.
-
-    The pricing editor uses this read-only metadata to distinguish products that
-    are available to Firestopping from inventory that is unused by either
-    estimator.  Keeping the keywords source-derived prevents the UI from
-    inventing a second, inconsistent definition of Firestopping availability.
-    """
+    """Describe editable Firestopping dropdown groups and legacy defaults."""
     keywords, seen = [], set()
     for rule in source_model()['list_filters']:
         for keyword in rule['keywords']:
@@ -198,6 +212,7 @@ def pricing_usage_metadata():
             'label': 'Firestopping Estimator',
             'source_field': 'sales_description',
             'keywords': keywords,
+            'groups': _firestopping_rules(),
         }
     }
 

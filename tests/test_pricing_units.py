@@ -76,9 +76,9 @@ class PricingUnitTests(unittest.TestCase):
         for row in sheet.iter_rows(min_row=2):
             for cell in row:
                 self.assertEqual(cell.protection.locked, cell.column == headers['Yield unit'], cell.coordinate)
-        self.assertTrue(sheet.column_dimensions['H'].protection.locked)
-        self.assertFalse(sheet.column_dimensions['G'].protection.locked)
-        self.assertFalse(sheet.column_dimensions['R'].protection.locked)
+        self.assertTrue(sheet.column_dimensions['I'].protection.locked)
+        self.assertFalse(sheet.column_dimensions['H'].protection.locked)
+        self.assertFalse(sheet.column_dimensions['S'].protection.locked)
         self.assertTrue(all(cell.protection.locked for cell in sheet[1]))
         book.close()
 

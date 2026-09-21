@@ -9,6 +9,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MAX_INVENTORY_ITEMS = 5000
 MAX_RATE_ITEMS = 10000
+FIRESTOPPING_GROUPS = (
+    {"key": "workers", "label": "Teams/Crews", "list_column": "AK"},
+    {"key": "boards", "label": "Board or Batt Type", "list_column": "M"},
+    {"key": "collars", "label": "Collar Type", "list_column": "B"},
+    {"key": "frames", "label": "Frame Type", "list_column": "AN"},
+    {"key": "wraps", "label": "Wrap Type", "list_column": "E"},
+    {"key": "mastics", "label": "Mastic Type", "list_column": "S"},
+    {"key": "materials", "label": "Materials", "list_column": "AR"},
+)
 
 
 class ValidationError(ValueError):
@@ -133,7 +142,9 @@ def validate_catalog(value):
     data["rate_group_rules"] = deepcopy(reference["rate_group_rules"])
     inventory_ids = set()
     inventory_fields = {"id", "item_code", "name", "sales_description", "product_service", "supplier_price", "supplier_price_raw",
-                        "sales_price", "calculated_sell_price", "pricing_mode", "markup", "status", "inventory_type", "properties", "source"}
+                        "sales_price", "calculated_sell_price", "pricing_mode", "markup", "status", "inventory_type", "properties", "source",
+                        "firestopping_groups"}
+    firestopping_keys = {group["key"] for group in FIRESTOPPING_GROUPS}
     for item in data["inventory"]:
         if not isinstance(item, dict) or set(item) - inventory_fields:
             raise ValidationError("Inventory products contain unsupported fields.")
@@ -145,6 +156,14 @@ def validate_catalog(value):
             _text(item.get(field), f"Inventory {key} {field}", empty=field == "sales_description")
         if "product_service" in item:
             _text(item["product_service"], f"Inventory {key} Product/Service")
+        if "firestopping_groups" in item:
+            assigned = item["firestopping_groups"]
+            if not isinstance(assigned, list) or len(assigned) > len(FIRESTOPPING_GROUPS):
+                raise ValidationError(f"Inventory {key} Firestopping groups must be a list with at most {len(FIRESTOPPING_GROUPS)} entries.")
+            if any(not isinstance(group, str) or group not in firestopping_keys for group in assigned):
+                raise ValidationError(f"Inventory {key} contains an unsupported Firestopping group.")
+            if len(set(assigned)) != len(assigned):
+                raise ValidationError(f"Inventory {key} contains duplicate Firestopping groups.")
         if not isinstance(item.get("pricing_mode"), str) or item["pricing_mode"] not in {"supplier_markup", "manual"}:
             raise ValidationError(f"Inventory {key} has an unsupported pricing mode.")
         _amount(item.get("sales_price"), f"Inventory {key} sales price")

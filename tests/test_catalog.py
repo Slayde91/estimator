@@ -207,6 +207,17 @@ class ReplacementCatalogTests(unittest.TestCase):
                 self.assertEqual(current["price_mode"], "inventory")
         self.assertEqual(validate_catalog(result), result)
 
+    def test_firestopping_group_assignments_are_validated(self):
+        product = self.data["inventory"][0]
+        product["firestopping_groups"] = ["collars", "materials"]
+        self.assertEqual(validate_catalog(self.data)["inventory"][0]["firestopping_groups"], ["collars", "materials"])
+        product["firestopping_groups"] = []
+        self.assertEqual(validate_catalog(self.data)["inventory"][0]["firestopping_groups"], [])
+        for invalid in ("collars", ["unknown"], ["collars", "collars"]):
+            product["firestopping_groups"] = invalid
+            with self.subTest(value=invalid), self.assertRaises(ValidationError):
+                validate_catalog(self.data)
+
     def test_replacement_adds_and_removes_products_and_choices_without_touching_original_defaults(self):
         original = deepcopy(self.data)
         self.data["inventory"] = [r for r in self.data["inventory"] if r["id"] != "200"]

@@ -11,7 +11,7 @@
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null,
     pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
-    pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [] } },
+    pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } },
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -894,10 +894,29 @@
     return candidates.reduce((best, text) => text.trim().length > best.trim().length ? text : best, "");
   }
 
+  function firestoppingGroups(record) {
+    if (record.kind !== "inventory") return [];
+    if (Array.isArray(record.item.firestopping_groups)) return record.item.firestopping_groups;
+    const metadata = state.pricingUsage?.firestopping || {};
+    const source = String(record.item[metadata.source_field || "sales_description"] || "").toLocaleLowerCase();
+    return (metadata.groups || []).filter((group) => (group.keywords || []).some((keyword) => source.includes(String(keyword).toLocaleLowerCase()))).map((group) => group.key);
+  }
+  function firestoppingGroupLabels(record) {
+    const groupsByKey = new Map((state.pricingUsage?.firestopping?.groups || []).map((group) => [group.key, group.label]));
+    return firestoppingGroups(record).map((key) => groupsByKey.get(key) || key);
+  }
   function usedInFirestopping(record) {
-    if (record.kind !== "inventory") return false;
-    const source = String(record.item[state.pricingUsage?.firestopping?.source_field || "sales_description"] || "").toLocaleLowerCase();
-    return (state.pricingUsage?.firestopping?.keywords || []).some((keyword) => source.includes(String(keyword).toLocaleLowerCase()));
+    return firestoppingGroups(record).length > 0;
+  }
+  function setFirestoppingGroups(record, labels) {
+    if (record.kind !== "inventory") throw new Error("Firestopping groups can only be assigned to inventory products.");
+    if (labels.length === 1 && labels[0] === "") labels = [];
+    const available = state.pricingUsage?.firestopping?.groups || [];
+    const selected = labels.map((label) => available.find((group) => group.key.toLocaleLowerCase() === label.toLocaleLowerCase() || group.label.toLocaleLowerCase() === label.toLocaleLowerCase()));
+    if (selected.some((group) => !group)) throw new Error(`Choose existing Firestopping groups: ${available.map((group) => group.label).join("; ")}.`);
+    const keys = selected.map((group) => group.key);
+    if (new Set(keys).size !== keys.length) throw new Error("Enter each Firestopping group once.");
+    editPricingCatalog((catalog) => { catalog.inventory.find((item) => item.id === record.item.id).firestopping_groups = keys; });
   }
   function setProductService(record, text) {
     if (!text.trim() || text.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) throw new Error("Product/Service must contain 1 to 1,000 characters without unsupported control characters.");
@@ -1058,12 +1077,12 @@
     const matches = records.filter((record) => {
       const firestopping = usedInFirestopping(record);
       const groupMatch = !selectedGroup || (selectedGroup === "firestopping" ? firestopping : selectedGroup === "not-used" ? !record.uses.length && !firestopping : record.uses.some((use) => use.group === selectedGroup));
-      const firestoppingText = firestopping ? state.pricingUsage?.firestopping?.label || "Firestopping Estimator" : "";
+      const firestoppingText = firestoppingGroupLabels(record).join(" ");
       const useText = `${record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ")} ${firestoppingText}`.toLocaleLowerCase();
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "Supplier and sell prices in this library are shared by both estimators. Main Estimator uses are editable and separated by semicolons. Firestopping availability is read-only because it follows the Firestopping workbook's product lists. Edit Product/Service without changing existing selections. One yield applies to all uses with the same unit; Mixed preserves differing saved values until you edit it.";
+    $("pricing-help").textContent = "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. One yield applies to all compatible Main Estimator uses; Mixed preserves differing saved values until you edit it.";
     const heading = node("tr");
     for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Sell rate override", ""]) {
       const cell = node("th", "", title);
@@ -1089,7 +1108,7 @@
       const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : "Standalone rate · no inventory link";
       nameCell.append(node("small", "subtext", detail));
       const firestopping = usedInFirestopping(record);
-      if (!uses.length) nameCell.append(node("small", "subtext", firestopping ? "Used in Firestopping Estimator" : "Not used in either estimator"));
+      if (!uses.length && !firestopping) nameCell.append(node("small", "subtext", "Not used in either estimator"));
       row.append(nameCell);
       if (inventoryView) {
         const supplier = node("td");
@@ -1115,9 +1134,13 @@
         const sell = node("td"); sell.append(priceInput(kind, item, "price", { defaultValue: rateSellPrice(item), label: "Sell price", onChange: refreshPrices }));
         row.append(node("td", "", "—"), node("td", "", "—"), sell);
       }
-      const groupCell = node("td");
-      groupCell.append(pricingListInput(record, "Main Estimator uses", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
-      if (firestopping) groupCell.append(node("small", "subtext pricing-firestopping-use", "Firestopping Estimator"));
+      const groupCell = node("td", "pricing-availability");
+      groupCell.append(node("small", "pricing-availability-label", "Main Estimator groups"));
+      groupCell.append(pricingListInput(record, "Main Estimator groups", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
+      groupCell.append(node("small", "pricing-availability-label", "Firestopping Estimator groups"));
+      const firestoppingInput = pricingListInput(record, "Firestopping Estimator groups", firestoppingGroupLabels(record), (values) => setFirestoppingGroups(record, values), inventoryView ? "Not used in Firestopping Estimator" : "Requires an inventory product");
+      firestoppingInput.disabled = !inventoryView;
+      groupCell.append(firestoppingInput);
       row.append(groupCell);
       const shared = sharedPricingYield(record), yieldCell = node("td");
       if (shared.uses.length) {

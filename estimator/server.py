@@ -155,10 +155,12 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     state = store.calculator_state(calculator_id)
                     self.send_payload(200, calculator_definition(calculator_id, state['inputs'], state['schedule_rows']))
                 elif route == "/api/bootstrap":
+                    from .penetration_calculator import pricing_usage_metadata
                     config = store.configuration()
                     catalog = effective_catalog(config)
                     self.send_payload(200, {"fields": fields(catalog), "baseline": baseline(), "configuration": config,
-                                            "catalog": configuration_catalog(config), "workflows": WORKFLOWS})
+                                            "catalog": configuration_catalog(config), "workflows": WORKFLOWS,
+                                            "pricing_usage": pricing_usage_metadata()})
                 elif route == "/api/configuration":
                     self.send_payload(200, store.configuration())
                 elif route == "/api/projects":

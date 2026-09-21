@@ -178,6 +178,30 @@ def inventory_lists(configuration=None):
     return values, selections
 
 
+def pricing_usage_metadata():
+    """Describe how the Firestopping Estimator derives inventory availability.
+
+    The pricing editor uses this read-only metadata to distinguish products that
+    are available to Firestopping from inventory that is unused by either
+    estimator.  Keeping the keywords source-derived prevents the UI from
+    inventing a second, inconsistent definition of Firestopping availability.
+    """
+    keywords, seen = [], set()
+    for rule in source_model()['list_filters']:
+        for keyword in rule['keywords']:
+            folded = keyword.casefold()
+            if folded not in seen:
+                keywords.append(keyword)
+                seen.add(folded)
+    return {
+        'firestopping': {
+            'label': 'Firestopping Estimator',
+            'source_field': 'sales_description',
+            'keywords': keywords,
+        }
+    }
+
+
 def _named_options(name):
     reference = source_model()['defined_names'][name]
     match = re.fullmatch(r'LISTS!\$([A-Z]+)\$(\d+):\$[A-Z]+\$(\d+)', reference)

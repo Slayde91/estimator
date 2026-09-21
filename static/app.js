@@ -11,6 +11,7 @@
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null,
     pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
+    pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [] } },
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -765,7 +766,8 @@
   function refreshPricingCatalog() {
     state.catalog = clone(state.draft.catalog || state.baseline);
     const selection = $("rate-group").value;
-    const options = [["", "All uses"], ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, groups[key] || key]), ["not-used", "Not used"]].map(([key, label]) => {
+    const firestopping = state.pricingUsage?.firestopping?.label || "Firestopping Estimator";
+    const options = [["", "All estimator availability"], ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, groups[key] || key]), ["firestopping", firestopping], ["not-used", "Not used in either estimator"]].map(([key, label]) => {
       const option = node("option", "", label); option.value = key; return option;
     });
     $("rate-group").replaceChildren(...options);
@@ -891,6 +893,12 @@
     const candidates = [...(record.kind === "inventory" ? [product.sales_description, product.name] : []), ...rates.flatMap((rate) => [rate.display_name, rate.name])].filter((text) => typeof text === "string" && text.trim());
     return candidates.reduce((best, text) => text.trim().length > best.trim().length ? text : best, "");
   }
+
+  function usedInFirestopping(record) {
+    if (record.kind !== "inventory") return false;
+    const source = String(record.item[state.pricingUsage?.firestopping?.source_field || "sales_description"] || "").toLocaleLowerCase();
+    return (state.pricingUsage?.firestopping?.keywords || []).some((keyword) => source.includes(String(keyword).toLocaleLowerCase()));
+  }
   function setProductService(record, text) {
     if (!text.trim() || text.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) throw new Error("Product/Service must contain 1 to 1,000 characters without unsupported control characters.");
     setOverride(record.kind, record.item, "product_service", text);
@@ -959,7 +967,7 @@
   function setPricingUseValues(record, values, field) {
     if (field === "Yield unit") throw new Error("Yield units are determined by the calculation and cannot be edited.");
     if (!values.length && record.uses.length === 1) values = [""];
-    if (values.length !== record.uses.length) throw new Error(`Enter ${record.uses.length} semicolon-separated ${field} values, in the same order as Used in Estimator.`);
+    if (values.length !== record.uses.length) throw new Error(`Enter ${record.uses.length} semicolon-separated ${field} values, in the same order as Main Estimator uses.`);
     const updates = record.uses.map(({ group, item }, index) => {
       const value = values[index], usesYield = item.uses_yield ?? !!item.source?.yield;
       if (field === "Selection name") {
@@ -1048,14 +1056,16 @@
     }
     const productText = (record) => `${productServiceName(record)} ${record.item.name} ${record.item.sales_description || ""} ${record.item.item_code || ""}`.toLocaleLowerCase();
     const matches = records.filter((record) => {
-      const groupMatch = !selectedGroup || (selectedGroup === "not-used" ? !record.uses.length : record.uses.some((use) => use.group === selectedGroup));
-      const useText = record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ").toLocaleLowerCase();
+      const firestopping = usedInFirestopping(record);
+      const groupMatch = !selectedGroup || (selectedGroup === "firestopping" ? firestopping : selectedGroup === "not-used" ? !record.uses.length && !firestopping : record.uses.some((use) => use.group === selectedGroup));
+      const firestoppingText = firestopping ? state.pricingUsage?.firestopping?.label || "Firestopping Estimator" : "";
+      const useText = `${record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ")} ${firestoppingText}`.toLocaleLowerCase();
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "Edit Product/Service without changing existing estimate selections. One yield applies to all uses with the same unit; Mixed preserves differing saved values until you edit it. Uses remain separated by semicolons. Saved rate overrides are retained; select Show rate overrides to review or change them.";
+    $("pricing-help").textContent = "Supplier and sell prices in this library are shared by both estimators. Main Estimator uses are editable and separated by semicolons. Firestopping availability is read-only because it follows the Firestopping workbook's product lists. Edit Product/Service without changing existing selections. One yield applies to all uses with the same unit; Mixed preserves differing saved values until you edit it.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Used in Estimator", "Yield", "Yield unit", "Sell rate override", ""]) {
+    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Sell rate override", ""]) {
       const cell = node("th", "", title);
       if (title === "Sell rate override") cell.hidden = !$("show-rate-overrides").checked;
       heading.append(cell);
@@ -1078,7 +1088,8 @@
       nameCell.append(pricingFieldInput(record, "Product/Service", productServiceName(record), (text) => setProductService(record, text), "", true));
       const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : "Standalone rate · no inventory link";
       nameCell.append(node("small", "subtext", detail));
-      if (!uses.length) nameCell.append(node("small", "subtext", "Not used in Estimator"));
+      const firestopping = usedInFirestopping(record);
+      if (!uses.length) nameCell.append(node("small", "subtext", firestopping ? "Used in Firestopping Estimator" : "Not used in either estimator"));
       row.append(nameCell);
       if (inventoryView) {
         const supplier = node("td");
@@ -1105,7 +1116,8 @@
         row.append(node("td", "", "—"), node("td", "", "—"), sell);
       }
       const groupCell = node("td");
-      groupCell.append(pricingListInput(record, "Used in Estimator", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used"));
+      groupCell.append(pricingListInput(record, "Main Estimator uses", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
+      if (firestopping) groupCell.append(node("small", "subtext pricing-firestopping-use", "Firestopping Estimator"));
       row.append(groupCell);
       const shared = sharedPricingYield(record), yieldCell = node("td");
       if (shared.uses.length) {
@@ -1153,6 +1165,7 @@
       // estimates continue using the previously loaded pricing configuration.
       const previousConfiguration = state.configuration;
       state.configuration = clone(metadata.configuration || configuration);
+      state.pricingUsage = clone(metadata.pricing_usage || state.pricingUsage);
       state.currentFields = clone(metadata.fields || state.currentFields);
       const unchanged = JSON.stringify(draftObject) === JSON.stringify(draft) && !pricingHasPendingInput(draftObject);
       if (state.libraryDraft === draftObject && unchanged) state.libraryDraft = clone(state.configuration);
@@ -1240,6 +1253,7 @@
       state.fields = clone(state.currentFields);
       state.baseline = data.baseline || { inventory: [], rate_groups: {} };
       state.configuration = data.configuration || { inventory: {}, rates: {} };
+      state.pricingUsage = clone(data.pricing_usage || state.pricingUsage);
       state.draft = clone(state.configuration);
       state.libraryDraft = state.draft;
       if (Array.isArray(data.workflows) && data.workflows.length) {

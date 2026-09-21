@@ -291,7 +291,7 @@ let passed=0;
   // One editable display label and scalar yield; distinct saved values survive viewing.
   const pricingFixture={inventory:[
     {id:'coat',item_code:'P-1',name:'Coating <literal>',sales_description:'Coating',supplier_price:100.123456,markup:.2,sales_price:120.1481472,pricing_mode:'supplier_markup'},
-    {id:'unused',item_code:'P-2',name:'Unused Primers product',sales_description:'Unused',supplier_price:20,markup:.1,sales_price:22,pricing_mode:'supplier_markup'},
+    {id:'unused',item_code:'P-2',name:'Fire collar product',sales_description:'Fire collar',supplier_price:20,markup:.1,sales_price:22,pricing_mode:'supplier_markup'},
     {id:'manual',item_code:'P-3',name:'Manual inventory',sales_description:'Manual',supplier_price:null,markup:0,sales_price:400,pricing_mode:'manual'}],
     rate_groups:{primers:[{id:'primer',inventory_id:'coat',name:'Primer choice',price:120.1481472,yield:10.123456,uses_yield:true,price_mode:'inventory'}],
       topcoats:[{id:'topcoat',inventory_id:'coat',name:'Topcoat choice',price:180.123456,yield:8,uses_yield:true,price_mode:'override'}],
@@ -303,14 +303,18 @@ let passed=0;
   const productInput=(id,field)=>productRows().find(row=>row.dataset.priceId===id).children.flatMap(cell=>cell.children||[]).find(node=>node.dataset.priceField===field);
   const editList=async(id,field,value)=>{const input=productInput(id,field);input.value=value;await input.emit('input');await input.emit('change');return input;};
   setup();audit.state.baseline=copy(pricingFixture);audit.state.configuration={inventory:{},rates:{}};audit.state.draft={inventory:{},rates:{}};
+  audit.state.pricingUsage={firestopping:{label:'Firestopping Estimator',source_field:'sales_description',keywords:['collar']}};
   byId('pricing-search').value='';byId('rate-group').value='';audit.setRenderPricing(audit.renderPricing);audit.refreshPricingCatalog();audit.renderPricing();
   const originalPricing=JSON.stringify(pricingFixture);
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
   assert.equal(byId('pricing-head').children[0].children.length,10);
-  assert.deepEqual(byId('pricing-head').children[0].children.filter(cell=>!cell.hidden).map(cell=>cell.textContent),['Item code','Product/Service','Supplier price','Markup %','Sell price','Used in Estimator','Yield','Yield unit','']);
+  assert.deepEqual(byId('pricing-head').children[0].children.filter(cell=>!cell.hidden).map(cell=>cell.textContent),['Item code','Product/Service','Supplier price','Markup %','Sell price','Estimator availability','Yield','Yield unit','']);
   assert.equal(productInput('coat','Product/Service').value,'Coating <literal>');assert.equal(productInput('coat','Selection name'),undefined);
-  assert.equal(productInput('coat','Used in Estimator').value,'Primers; Topcoats');
+  assert.equal(productInput('coat','Main Estimator uses').value,'Primers; Topcoats');
+  const firestoppingRow=productRows().find(row=>row.dataset.priceId==='unused');
+  assert.equal(firestoppingRow.children[1].children.at(-1).textContent,'Used in Firestopping Estimator');
+  assert.equal(firestoppingRow.children[5].children.at(-1).textContent,'Firestopping Estimator');
   assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productRows()[0].children[7].textContent,'m² / unit');
   assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');assert.equal(productInput('team','Yield'),undefined);
   assert.equal(productRows()[0].children[8].hidden,true);assert.match(productRows()[0].children[4].children[1].textContent,/Topcoats \$180.12/);
@@ -367,8 +371,9 @@ let passed=0;
 
   // Filters find every use, standalone rate and unused inventory item without changing membership.
   byId('rate-group').value='primers';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
-  assert.equal(productInput('coat','Used in Estimator').value,'Primers; Topcoats');
-  byId('rate-group').value='not-used';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused','manual']);
+  assert.equal(productInput('coat','Main Estimator uses').value,'Primers; Topcoats');
+  byId('rate-group').value='firestopping';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
+  byId('rate-group').value='not-used';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['manual']);
   byId('rate-group').value='';byId('pricing-search').value='Topcoat choice';await byId('pricing-search').emit('input');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
   byId('pricing-search').value='P-2';await byId('pricing-search').emit('input');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
   byId('pricing-search').value='no match';await byId('pricing-search').emit('input');assert.equal(productRows().length,0);
@@ -407,14 +412,14 @@ let passed=0;
   await editList('coat','Yield','142');assert.equal(audit.state.draft.rates.topcoat.yield,142);passed++;
 
   // Group edits retain matched identities and their values, and can add or remove uses on the same row.
-  await editList('coat','Used in Estimator','Topcoats; Primers; Labour');
+  await editList('coat','Main Estimator uses','Topcoats; Primers; Labour');
   const added=audit.state.catalog.rate_groups.labour_rates.find(rate=>rate.inventory_id==='coat');assert.ok(added);
   assert.equal(audit.state.catalog.rate_groups.primers[0].id,'primer');assert.equal(audit.state.catalog.rate_groups.topcoats[0].price,199);
-  await editList('coat','Used in Estimator','Topcoats');assert.equal(audit.state.catalog.rate_groups.primers.length,0);
+  await editList('coat','Main Estimator uses','Topcoats');assert.equal(audit.state.catalog.rate_groups.primers.length,0);
   assert.equal(audit.state.catalog.rate_groups.topcoats[0].id,'topcoat');assert.equal(audit.state.draft.rates.topcoat.yield,142);assert.equal(audit.state.draft.rates.primer,undefined);
   assert.ok(!audit.state.catalog.rate_groups.labour_rates.some(rate=>rate.inventory_id==='coat'));
-  await editList('unused','Used in Estimator','Primers');assert.equal(audit.state.catalog.rate_groups.primers[0].inventory_id,'unused');passed++;
-  await editList('unused','Yield','44');await editList('unused','Used in Estimator','Primers; Topcoats');
+  await editList('unused','Main Estimator uses','Primers');assert.equal(audit.state.catalog.rate_groups.primers[0].inventory_id,'unused');passed++;
+  await editList('unused','Yield','44');await editList('unused','Main Estimator uses','Primers; Topcoats');
   assert.equal(audit.state.catalog.rate_groups.topcoats.find(rate=>rate.inventory_id==='unused').yield,44);assert.equal(productInput('unused','Yield').value,'44');passed++;
 
   // Product/Service accepts literal semicolons and preserves existing lookup keys.
@@ -438,14 +443,14 @@ let passed=0;
   byId('pricing-search').value='';audit.renderPricing();
   const unaffected=JSON.stringify(audit.state.draft.inventory.manual);
   await productRows().find(row=>row.dataset.priceId==='coat').children.at(-1).children[0].emit('click');
-  assert.equal(productInput('coat','Item code').value,'P-1');assert.equal(productInput('coat','Used in Estimator').value,'Primers; Topcoats');
+  assert.equal(productInput('coat','Item code').value,'P-1');assert.equal(productInput('coat','Main Estimator uses').value,'Primers; Topcoats');
   assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');
   assert.equal(productRows()[0].children[7].textContent,'m² / unit');assert.equal(audit.state.draft.rates.topcoat,undefined);
   assert.equal(audit.state.draft.inventory.coat,undefined);assert.equal(JSON.stringify(audit.state.draft.inventory.manual),unaffected);
   assert.equal(audit.state.draft.rates.team.price,1050);passed++;
 
   // A new use without a yield does not receive a yield override.
-  await editList('coat','Used in Estimator','Primers; Topcoats; Labour');
+  await editList('coat','Main Estimator uses','Primers; Topcoats; Labour');
   const noYieldRate=audit.state.catalog.rate_groups.labour_rates.find(rate=>rate.inventory_id==='coat');
   await editList('coat','Yield','10.123456789');
   assert.equal(audit.state.draft.rates.primer.yield,10.123456789);assert.equal(audit.state.draft.rates.topcoat.yield,10.123456789);

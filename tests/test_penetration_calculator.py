@@ -13,7 +13,7 @@ from estimator.catalog import ValidationError, configuration_catalog, effective_
 from estimator.excel_engine import FormulaError, column_number, coordinates
 from estimator.penetration_calculator import (
     FRL_OPTIONS, GLOBAL_DEFAULTS, ROW_COLUMNS, WASTE_SETTINGS, PenetrationEngine, _copy_row_formula,
-    calculate, definition, engine_for_draft, inventory_lists, normalize_draft, source_model,
+    calculate, definition, engine_for_draft, inventory_lists, normalize_draft, pricing_usage_metadata, source_model,
 )
 
 
@@ -127,6 +127,23 @@ class PenetrationSourceTests(unittest.TestCase):
                         self.assertEqual(overlay[address], expected)
                 checked += 1
         self.assertEqual(checked, 19000)
+
+    def test_pricing_usage_metadata_matches_firestopping_inventory_filters(self):
+        metadata = pricing_usage_metadata()['firestopping']
+        self.assertEqual(metadata['label'], 'Firestopping Estimator')
+        self.assertEqual(metadata['source_field'], 'sales_description')
+        expected = []
+        for rule in source_model()['list_filters']:
+            for keyword in rule['keywords']:
+                if keyword.casefold() not in {value.casefold() for value in expected}:
+                    expected.append(keyword)
+        self.assertEqual(metadata['keywords'], expected)
+        catalog = effective_catalog()
+        listed = {name for names in inventory_lists()[1].values() for name in names}
+        classified = {item['sales_description'] for item in catalog['inventory']
+                      if any(keyword.casefold() in item['sales_description'].casefold()
+                             for keyword in metadata['keywords'])}
+        self.assertEqual(classified, listed)
 
     def test_row_formula_expansion_matches_independent_openpyxl(self):
         from openpyxl.formula.translate import Translator

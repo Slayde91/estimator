@@ -47,7 +47,11 @@ class ServerTests(unittest.TestCase):
     def test_bootstrap_calculation_save_and_reopen_round_trip(self):
         status, _, payload = self.request("GET", "/api/bootstrap")
         self.assertEqual(status, 200)
-        self.assertEqual(len(json.loads(payload)["fields"]), 64)
+        bootstrap = json.loads(payload)
+        self.assertEqual(len(bootstrap["fields"]), 64)
+        self.assertEqual(bootstrap["pricing_usage"]["firestopping"]["label"], "Firestopping Estimator")
+        self.assertEqual(bootstrap["pricing_usage"]["firestopping"]["source_field"], "sales_description")
+        self.assertIn("collar", bootstrap["pricing_usage"]["firestopping"]["keywords"])
         status, _, payload = self.request("POST", "/api/calculate", {"inputs": {"B15": 12.25}})
         self.assertEqual(status, 200)
         total = json.loads(payload)["summary"]["total"]

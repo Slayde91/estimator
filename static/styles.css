@@ -158,6 +158,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-table input[type=number]{min-width:95px;max-width:140px;text-align:right}
 .pricing-table .item-name{min-width:240px}
 .pricing-table .subtext{font-size:10px;color:var(--muted);display:block;margin-top:6px}
+.pricing-table .pricing-firestopping-use{display:inline-block;width:max-content;padding:3px 7px;border:1px solid #e2bf5e;border-radius:999px;background:#fff4c8;color:#780710;font-weight:700}
 .pricing-table .edited{background:#fff7e7}
 .pricing-table .reset-button{background:none;color:var(--accent);font-size:10px;white-space:nowrap;padding:7px;text-decoration:underline;text-underline-offset:3px}
 .pricing-table .reset-button:disabled{color:var(--muted);cursor:default;text-decoration:none;opacity:.6}

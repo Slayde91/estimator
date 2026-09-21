@@ -265,8 +265,8 @@
 
   function inputCard(title, fields, helper) {
     if (!fields.length) return null;
-    const section = node("section", "card");
-    const heading = node("div", "section-heading");
+    const section = node("details", "card expandable-breakdown");
+    const heading = node("summary");
     const h2 = node("h2", "", title);
     h2.id = `section-${fields[0].cell}`;
     section.setAttribute("aria-labelledby", h2.id);
@@ -461,6 +461,19 @@
       dialog.querySelector('[value="confirm"]').textContent = action;
       dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
       dialog.returnValue = "cancel";
+      dialog.showModal();
+    }));
+    confirmationQueue = answer.catch(() => {});
+    return answer;
+  }
+
+  function notify(title, detail, action = "OK") {
+    const answer = confirmationQueue.then(() => new Promise((resolve) => {
+      const dialog = $("notice-dialog");
+      $("notice-title").textContent = title;
+      $("notice-detail").textContent = detail;
+      $("notice-button").textContent = action;
+      dialog.addEventListener("close", () => resolve(), { once: true });
       dialog.showModal();
     }));
     confirmationQueue = answer.catch(() => {});
@@ -1581,6 +1594,7 @@
     show() { state.estimatorKind = "penetration"; return showView("estimate"); },
     showSchedule() { state.estimatorKind = "estimate"; return showView("estimate"); },
     confirm: confirmReplace,
+    notify,
   };
   window.CeasefireLibraryEditorNavigation = {
     show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("estimate"); },

@@ -6,23 +6,80 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Legacy workbook labels are presented as Category and Description',async h=>{
+    assert.equal(h.control('J').getAttribute('aria-label'),'Item 1: Category');
+    assert.equal(h.control('T').getAttribute('aria-label'),'Item 1: Description');
+    assert.match(text(h.byId('penetration-row-fields')),/Description/);assert.match(text(h.byId('penetration-row-fields')),/Category/);
+    assert.doesNotMatch(text(h.byId('penetration-row-fields')),/Item\(s\)|Items\/Services/);
+  });
   await check('Conditional Firestopping groups follow Type and Service Type without changing inputs',async h=>{
-    const metadata=definition();metadata.groups=['Penetration','Additional Allowances','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_labels={Penetration:'DETAILS',Cabletrays:'CABLE TRAYS','Additional Allowances':'OTHER'};metadata.group_visibility={
-      'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
+    const metadata=definition();metadata.groups=['Penetration','Additional Allowances','Unlagged Pipes','Lagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays','Substrate','Bulkhead'];metadata.group_labels={Penetration:'DETAILS',Cabletrays:'CABLE TRAYS','Cables/Bundles':'BUNDLES','Additional Allowances':'OTHER'};metadata.group_visibility={
+      'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Lagged Pipes':{column:'K',values:['Lagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},
       'Cables/Bundles':{column:'K',values:['Cable Bundles','D1 Power Cables']},Cabletrays:{column:'K',values:['D1 Power Cables','D2 Comms Cables','Cable Trays']},Substrate:{any:[{column:'L',values:['Oversized']},{column:'K',values:['Blank Seal','Access Panel','Linear Joints','Movement Joints','Fire Dampers']}]},Bulkhead:{column:'J',values:['Bulkheads']}};
     metadata.row_fields.push({column:'L',label:'Penetration Type',group:'Penetration',type:'select',format:'text',units:'',options:['Core Hole','Oversized'],default:null});
     for(const group of metadata.groups.slice(1))metadata.row_fields.push({column:`field-${group}`,label:group,group,type:'number',format:'number',units:'',options:[],default:null});
-    metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
+    metadata.row_fields.push({column:'AL',label:'Diameter',group:'Pipes',display_groups:['Unlagged Pipes','Lagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
+    metadata.row_fields.push({column:'AM',label:'Wrap Length required',group:'Pipes',display_groups:['Unlagged Pipes','Lagged Pipes','Cables/Bundles'],type:'number',format:'number',units:'mm',options:[],default:null});
+    metadata.row_fields.push({column:'AN',label:'Wrap Multiplier',group:'Pipes',display_groups:['Unlagged Pipes','Lagged Pipes','Plastic Pipes','Cables/Bundles'],type:'number',format:'number',units:'',options:[],default:null});
     h.audit.state.definition=metadata;h.audit.state.draft.rows[0].inputs={J:'HVAC',K:'Unlagged Pipes',T:'Long source description'};h.audit.renderFields();
     assert.equal(h.byId('penetration-row-heading').textContent,'Current item · HVAC · Unlagged Pipes');
     assert.match(text(h.byId('penetration-input-groups')),/DETAILS.*OTHER.*Unlagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Plastic Pipes|Cables\/Bundles|CABLE TRAYS|Bulkhead/);
     h.audit.state.draft.rows[0].inputs.K='Plastic Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Plastic Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
-    h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*Bulkhead/);
-    h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Cables\/Bundles.*CABLE TRAYS/);
+    h.audit.state.group='Plastic Pipes';h.audit.renderFields();assert.ok(h.control('AL'));assert.ok(h.control('AN'));assert.equal(h.control('AM'),undefined);
+    h.audit.state.draft.rows[0].inputs.K='Lagged Pipes';h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Lagged Pipes/);assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Unlagged Pipes/);
+    h.audit.state.group='Lagged Pipes';h.audit.renderFields();assert.ok(h.control('AL'));assert.ok(h.control('AM'));assert.ok(h.control('AN'));
+    h.audit.state.draft.rows[0].inputs={J:'Bulkheads',K:'Cable Bundles'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/BUNDLES.*Bulkhead/);
+    h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'D1 Power Cables'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/BUNDLES.*CABLE TRAYS/);
     assert.doesNotMatch(text(h.byId('penetration-input-groups')),/Substrate/);const penetrationType=h.control('L');penetrationType.value='Oversized';await penetrationType.emit('change');assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
     h.audit.state.draft.rows[0].inputs={J:'Electrical',K:'Blank Seal',L:'Core Hole'};h.audit.renderFields();assert.match(text(h.byId('penetration-input-groups')),/Substrate/);
     h.audit.state.edit={rowId:'line-1'};h.audit.renderFields();assert.equal(h.byId('penetration-row-heading').textContent,'Editing schedule item · Electrical · Blank Seal');
     h.audit.state.draft.rows[0].inputs.K='Cable Bundles';h.audit.state.group='Cables/Bundles';h.audit.renderFields();assert.match(text(h.byId('penetration-row-fields')),/Diameter/);
+  });
+  await check('Tab changes give the requested labour advisories and permit the second attempt',async h=>{
+    const metadata=definition();metadata.groups=['Products and labour','Additional Allowances','Unlagged Pipes'];metadata.row_fields=[
+      {column:'W',label:'Teams/Crews',group:'Products and labour',type:'select',format:'text',units:'',options:['Installer'],default:null},
+      {column:'X',label:'Board/Batt Type',group:'Products and labour',type:'select',format:'text',units:'',options:['Board'],default:null},
+      {column:'AH',label:'Additional Labour',group:'Additional Allowances',type:'number',format:'number',units:'hrs',options:[],default:null},
+      {column:'AL',label:'Diameter',group:'Unlagged Pipes',type:'number',format:'number',units:'mm',options:[],default:null},
+    ];h.audit.state.definition=metadata;
+    const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
+    h.audit.state.draft.rows[0].inputs={X:'Board'};h.audit.state.group='Products and labour';h.audit.renderFields();
+    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Products and labour');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews','OK']);
+    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Unlagged Pipes');
+    h.audit.state.draft.rows[0].inputs={AH:1};h.audit.state.group='Additional Allowances';h.audit.renderFields();
+    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Additional Allowances');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews under Products and Labour','OK']);
+    await h.audit.selectGroup('Unlagged Pipes');assert.equal(h.audit.state.group,'Unlagged Pipes');
+  });
+  await check('Entering Additional Labour immediately requests Teams/Crews once',async h=>{
+    const metadata=definition();metadata.groups=['Additional Allowances','Products and labour'];metadata.row_fields=[
+      {column:'AH',label:'Additional Labour',group:'Additional Allowances',type:'number',format:'number',units:'hrs',options:[],default:null},
+      {column:'W',label:'Teams/Crews',group:'Products and labour',type:'select',format:'text',units:'',options:['Installer'],default:null},
+    ];h.audit.state.definition=metadata;h.audit.state.group='Additional Allowances';h.audit.renderFields();
+    const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
+    const additional=h.control('AH');additional.value='1.25';await additional.emit('input');assert.deepEqual(notices,[['Selection required','Please select Teams/Crews under Products and Labour','OK']]);
+    additional.value='2';await additional.emit('input');assert.equal(notices.length,1);
+    await h.audit.selectGroup('Products and labour');assert.equal(h.audit.state.group,'Products and labour');assert.equal(notices.length,1);
+    const team=h.control('W');team.value='Installer';await team.emit('change');team.value='';await team.emit('change');assert.equal(notices.length,2);
+  });
+  await check('Bulkhead and collar requirements block tab changes until every required value is present',async h=>{
+    const metadata=definition();metadata.groups=['Products and labour','Bulkhead','Plastic Pipes','Additional Allowances'];metadata.row_fields=[
+      {column:'W',label:'Teams/Crews',group:'Products and labour',type:'select',format:'text',units:'',options:['Installer'],default:null},
+      {column:'X',label:'Board/Batt Type',group:'Products and labour',type:'select',format:'text',units:'',options:['Board'],default:null},
+      {column:'Y',label:'Collar Type',group:'Products and labour',type:'select',format:'text',units:'',options:['Collar'],default:null},
+      {column:'Z',label:'Framing Type',group:'Products and labour',type:'select',format:'text',units:'',options:['Frame'],default:null},
+      {column:'BB',label:'Bulkhead Width',group:'Bulkhead',type:'number',format:'number',units:'mm',options:[],default:null},
+      {column:'AL',label:'Diameter',group:'Plastic Pipes',type:'number',format:'number',units:'mm',options:[],default:null},
+      {column:'AN',label:'Wrap Multiplier',group:'Plastic Pipes',type:'number',format:'number',units:'',options:[],default:null},
+    ];h.audit.state.definition=metadata;
+    const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
+    h.audit.state.draft.rows[0].inputs={BB:300};h.audit.state.group='Bulkhead';h.audit.renderFields();
+    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Bulkhead');assert.deepEqual(notices.pop(),['Selection required','Please select [Teams/Crews]; [Board/Batt Type]; [Framing Type] under Products and Labour.','OK']);
+    Object.assign(h.audit.state.draft.rows[0].inputs,{W:'Installer',X:'Board'});await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Bulkhead');assert.deepEqual(notices.pop(),['Selection required','Please select [Framing Type] under Products and Labour.','OK']);
+    h.audit.state.draft.rows[0].inputs.Z='Frame';await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');
+    h.audit.state.draft.rows[0].inputs={Y:'Collar'};h.audit.state.group='Plastic Pipes';h.audit.renderFields();
+    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Plastic Pipes');assert.deepEqual(notices.pop(),['Selection required','Please enter collar Diameter and Multiplier','OK']);
+    Object.assign(h.audit.state.draft.rows[0].inputs,{AL:100,AN:1});await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Plastic Pipes');assert.deepEqual(notices.pop(),['Selection required','Please select Teams/Crews','OK']);
+    await h.audit.selectGroup('Additional Allowances');assert.equal(h.audit.state.group,'Additional Allowances');
   });
   await check('Combined dimension controls preserve source cells and hidden pipe labour stays out of the item form',async h=>{
     const metadata=definition();metadata.groups=['Cabletrays','Substrate','Pipes'];metadata.row_fields=[
@@ -278,10 +335,15 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.state.schedule.invalid.set('["line-1","O"]',{value:'bad',error:'bad'});await assert.rejects(h.api.addLibraryItem('one'),/marked invalid/);
   });
   await check('Add to Library captures composer only and preserves later edits while reusing its retry key',async h=>{
-    let sequence=0;h.context.crypto={randomUUID:()=>`capture-${++sequence}`};h.control('T').value='Captured';await h.control('T').emit('input');await h.audit.addToSchedule();const pending=deferred(),calls=[];
+    let sequence=0;const confirmations=[];h.context.window.CeasefirePenetrationNavigation.confirm=async(...args)=>{confirmations.push(args);return true;};h.context.crypto={randomUUID:()=>`capture-${++sequence}`};h.control('T').value='Captured';await h.control('T').emit('input');await h.audit.addToSchedule();const pending=deferred(),calls=[];
     h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});const capture=h.audit.addToLibrary();assert.equal(h.byId('penetration-add-to-library').disabled,true);await h.audit.addToLibrary();assert.equal(calls.length,1);
+    assert.deepEqual(confirmations[0],['Are you sure you want to add this item to the Firestopping Library?','The current item and its captured price will be saved in the Firestopping Library.','Yes','Cancel']);
     h.control('T').value='Later';await h.control('T').emit('input');pending.resolve({id:'new',library_id:'FL-ID-100001',draft:calls[0].draft,price:{amount:1}});await capture;assert.equal(calls[0].draft.rows.length,1);assert.equal(calls[0].draft.rows[0].inputs.T,'Captured');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Captured');assert.equal(h.control('T').value,'Later');assert.match(h.byId('penetration-message').textContent,/later edits/);
     h.control('T').value='Captured';await h.control('T').emit('input');await h.audit.addToLibrary();assert.equal(calls[1].idempotency_key,calls[0].idempotency_key);
+  });
+  await check('Cancelling Add to Library makes no request and restores the action',async h=>{
+    let confirmations=0;h.context.window.CeasefirePenetrationNavigation.confirm=async()=>{confirmations++;return false;};const before=h.calls.length;await h.audit.addToLibrary();
+    assert.equal(confirmations,1);assert.equal(h.calls.length,before);assert.equal(h.byId('penetration-add-to-library').disabled,false);assert.equal(h.audit.state.creatingLibrary,false);
   });
   await check('Remove and Undo allow a truly empty schedule and retain precision without affecting composer',async h=>{
     h.audit.state.draft.rows[0].inputs={T:'Marker',AG:.123456789012345};await h.audit.addToSchedule();const composer=copy(h.api.projectSnapshot().composer),button=h.byId('penetration-schedule-body').querySelectorAll('[data-penetration-remove]')[0];assert.equal(button.title,'Remove item 1');assert.equal(button.getAttribute('aria-label'),'Remove firestopping item 1');

@@ -79,7 +79,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration');assert.doesNotMatch(text(h.pane('penetration').results),/CALC row 53/);
     await h.api.open('penetration','source');const panel=h.pane('penetration').detailPanel,nodes=walk(panel);
     assert.ok(panel.children.findIndex(node=>node.tagName==='dl')<panel.children.findIndex(node=>node.className==='library-detail-section'));
-    assert.deepEqual(nodes.filter(node=>node.tagName==='dt').map(node=>node.textContent),['Items/Services','System/Install Details','Service Size or Diameter']);
+    assert.deepEqual(nodes.filter(node=>node.tagName==='dt').map(node=>node.textContent),['Description','System/Install Details','Service Size or Diameter']);
     assert.match(text(panel),/Two insulated pipes.*Install both face seals.*Not stated/);assert.doesNotMatch(text(panel),/CALC|Item\(s\)/);
     const captions=['Source diagram','Pair coil seal','Alternative view','Rated assembly H2 — 120 minutes'];assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>node.textContent),captions);assert.deepEqual(nodes.filter(node=>node.tagName==='img').map(node=>node.alt),captions);
     assert.ok(nodes.filter(node=>node.tagName==='a'&&node.href.includes('/images/')).every((link,index)=>link.getAttribute('aria-label')===`Open ${captions[index]} at full size (new tab)`));

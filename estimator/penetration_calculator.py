@@ -25,7 +25,7 @@ CAPACITY = 1000
 GLOBAL_DEFAULTS = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
 WASTE_SETTINGS = {
     'waste_additional': ('AG', 'Additional Allowances'),
-    'waste_pipes': ('AO', 'Unlagged Pipes, Plastic Pipes and Cables/Bundles'),
+    'waste_pipes': ('AO', 'Unlagged Pipes, Lagged Pipes, Plastic Pipes and Bundles'),
     'waste_cabletrays': ('AU', 'Cabletrays'),
     'waste_substrate': ('AZ', 'Substrate'),
     'waste_board': ('BF', 'Bulkhead board'),
@@ -65,7 +65,8 @@ GROUP_COLUMNS = {
     'Bulkhead': 'BB BC BD BE BF BG'.split(),
 }
 PIPE_DISPLAY_GROUPS = {
-    'Unlagged Pipes': ('Unlagged Pipes', 'Lagged Pipes'),
+    'Unlagged Pipes': ('Unlagged Pipes',),
+    'Lagged Pipes': ('Lagged Pipes',),
     'Plastic Pipes': ('Plastic Pipes', 'Conduit', 'Conduits'),
     'Cables/Bundles': (
         'Cable Bundles', 'Coaxial Cables', 'D1 Power Cables', 'D2 Comms Cables',
@@ -74,6 +75,37 @@ PIPE_DISPLAY_GROUPS = {
         'Power Cable Bundles', 'Power Cables', 'Single Cables',
         'TPS & Fire Alarm Cable Bundles',
     ),
+}
+SUBSTRATE_OPTIONS = (
+    'Plasterboard wall', 'Concrete/masonry wall', 'Hebel wall',
+    'Speedpanel wall', 'Dincel wall', 'AFS wall', 'CLT wall',
+    'Insulated panel wall', 'Plasterboard ceiling',
+    'Concrete/masonry floor', 'Bondek floor', 'Hebel floor', 'CLT floor',
+)
+SUBSTRATE_ALIASES = {
+    'lightweight wall': 'Plasterboard wall',
+    'concrete wall': 'Concrete/masonry wall',
+    'block wall': 'Concrete/masonry wall',
+    'brick wall': 'Concrete/masonry wall',
+    'aac wall': 'Hebel wall',
+    'concrete soffit/slab': 'Concrete/masonry floor',
+    'bondek slab': 'Bondek floor',
+    'aac slab': 'Hebel floor',
+}
+WORKBOOK_SUBSTRATES = {
+    'Plasterboard wall': 'Plasterboard wall',
+    'Concrete/masonry wall': 'Concrete wall',
+    'Hebel wall': 'Hebel wall',
+    'Speedpanel wall': 'Speedpanel wall',
+    'Dincel wall': 'Concrete wall',
+    'AFS wall': 'Concrete wall',
+    'CLT wall': 'CLT floor',
+    'Insulated panel wall': 'Lightweight wall',
+    'Plasterboard ceiling': 'Plasterboard ceiling',
+    'Concrete/masonry floor': 'Concrete soffit/slab',
+    'Bondek floor': 'Bondek slab',
+    'Hebel floor': 'Hebel floor',
+    'CLT floor': 'CLT floor',
 }
 CABLETRAY_SERVICE_TYPES = (
     *PIPE_DISPLAY_GROUPS['Cables/Bundles'],
@@ -237,6 +269,23 @@ def canonical_frl(value):
     return f'-/{match[1]}/{match[1]}' if match else text
 
 
+def canonical_substrate(value):
+    """Map the previous estimator list onto the reviewed substrate choices."""
+    if value in (None, ''):
+        return None
+    text = str(value).strip()
+    current = {option.casefold(): option for option in SUBSTRATE_OPTIONS}
+    return current.get(text.casefold(), SUBSTRATE_ALIASES.get(text.casefold(), text))
+
+
+def workbook_substrate(value):
+    """Use the reviewed label in the app and its closest existing workbook rate."""
+    if value in (None, ''):
+        return value
+    canonical = canonical_substrate(value)
+    return WORKBOOK_SUBSTRATES.get(canonical, value)
+
+
 def definition(configuration=None, service_types=None):
     _, selections = inventory_lists(configuration)
     calc = _sheet('CALC')['cells']
@@ -252,11 +301,12 @@ def definition(configuration=None, service_types=None):
                 continue
             options = (selections[PRICE_COLUMNS[col]] if col in PRICE_COLUMNS else
                        list(FRL_OPTIONS) if col == 'N' else
+                       list(SUBSTRATE_OPTIONS) if col == 'P' else
                        _named_options(CHOICE_NAMES[col]) if col in CHOICE_NAMES else descriptions.get(col, []))
-            label = {'T': 'Items/Services', 'U': 'System/Install Details',
-                     'W': 'Teams/Crews', 'X': 'Board or Batt Type',
+            label = {'J': 'Category', 'T': 'Description', 'U': 'System/Install Details',
+                     'W': 'Teams/Crews', 'X': 'Board/Batt Type', 'Z': 'Framing Type',
                      'AH': 'Additional Labour',
-                     'AM': 'Wrap Length required', 'AS': 'Wrap Length required',
+                     'AM': 'Wrap Length required', 'AN': 'Wrap Multiplier', 'AS': 'Wrap Length required',
                      'AQ': 'Cabletray W x D', 'AW': 'Board/Batt W x L',
                      }.get(col, calc[col + '3']['value'])
             field = {'column': col, 'address': col + '4', 'label': label,
@@ -267,7 +317,8 @@ def definition(configuration=None, service_types=None):
             if col in FIELD_STEPS:
                 field['step'] = FIELD_STEPS[col]
             if display_groups:
-                field['display_groups'] = display_groups
+                field['display_groups'] = ([group for group in display_groups if group != 'Plastic Pipes']
+                                           if col == 'AM' else display_groups)
             if col == 'AQ':
                 field['paired_column'] = 'AR'
                 field['placeholder'] = 'e.g. 300 x 50'
@@ -331,7 +382,8 @@ def definition(configuration=None, service_types=None):
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields,
         'groups': [group for source in GROUP_COLUMNS
                    for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))] + ['SETTINGS'],
-        'group_labels': {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS', 'Additional Allowances': 'OTHER'},
+        'group_labels': {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
+                         'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'},
         'group_visibility': {
             group: ({'any': [{'column': condition['column'], 'values': list(condition['values'])}
                               for condition in rule['any']]}
@@ -560,7 +612,8 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
         return PenetrationEngine(model, inputs), draft
     for index, row in enumerate(draft['rows'], 4):
         for col in ROW_COLUMNS:
-            inputs['CALC'][col + str(index)] = row['inputs'].get(col)
+            value = row['inputs'].get(col)
+            inputs['CALC'][col + str(index)] = workbook_substrate(value) if effective and col == 'P' else value
         if effective:
             inputs['CALC'].update({column + str(index): draft['globals'][key]
                                    for key, (column, _) in WASTE_SETTINGS.items()})
@@ -607,7 +660,8 @@ def calculate(draft, configuration=None):
         for col in (*PRICE_COLUMNS, *(col for col in CHOICE_NAMES if col not in ('Q', 'R'))):
             value = row['inputs'].get(col)
             options = next(f['options'] for f in spec['row_fields'] if f['column'] == col)
-            if value and value.casefold() not in {v.casefold() for v in options}:
+            compared = canonical_substrate(value) if col == 'P' else value
+            if value and compared.casefold() not in {v.casefold() for v in options}:
                 message = 'Selected product or labour option is absent from this pricing snapshot.' if col in PRICE_COLUMNS else 'Selected option is absent from the workbook choices.'
                 row_errors.append({'cell': col + str(index), 'message': message})
         errors.extend(dict(error, row_id=row['id']) for error in row_errors)

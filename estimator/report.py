@@ -442,10 +442,19 @@ class _Report:
                 self.p(unit_rate, "numeric"),
                 self.p(line_amount, "numeric"),
             ])
+        material_amounts = [item.get('total') for item in self.result.get('materials', [])]
+        material_total = (sum(material_amounts)
+                          if all(_numeric(value) for value in material_amounts)
+                          else None)
+        rows.append([
+            self.detail("Total"),
+            *[self.p("", "numeric") for _ in range(5)],
+            self.p(_number(material_total, money=True, blank="Unavailable"), "numeric"),
+        ])
         widths = [133, 54, 62, 59, 63, 65, _WIDTH - 436]
         self.story.append(self.table(
             ["Material / yield", "Coverage", base_heading, "Wastage % / units", "Priced units", "Unit sell rate", "Line amount"],
-            rows, widths))
+            rows, widths, total_rows=1))
 
     def labour_and_additions(self):
         self.story.extend([PageBreak(), self.p("Labour and masking", "section")])

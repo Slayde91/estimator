@@ -11,7 +11,10 @@
   const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review"]);
   const hiddenTechnicalFields = new Set(["source table notes", "source option alignment"]);
   const visibleField = (kind, field) => { const label = String(field.label || "").trim().toLowerCase(); return !hiddenFields.has(label) && !(kind === "technical" && hiddenTechnicalFields.has(label)); };
-  const fieldLabel = (kind, label) => kind !== "penetration" ? label : label === "Item(s)" ? "Items/Services" : ["System", "System Install", "System/Install"].includes(label) ? "System/Install Details" : label;
+  const fieldLabel = (kind, label) => kind !== "penetration" ? label
+    : label === "Type" ? "Category"
+    : ["Item(s)", "Items/Services"].includes(label) ? "Description"
+    : ["System", "System Install", "System/Install"].includes(label) ? "System/Install Details" : label;
   const diagramCaption = (kind, caption) => (kind === "penetration" ? String(caption || "").replace(/(?:^|\s+|\s*[·|—–-]\s*)(?:'?CALC'?!\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?|CALC\s+row\s+\d+)\s*$/i, "").trim() : caption) || "Source diagram";
   const validId = value => typeof value === "string" && value.length > 0;
   const validAssetId = value => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);

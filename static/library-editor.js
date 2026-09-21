@@ -11,7 +11,12 @@
   const numeric = value => typeof value === "number" && Number.isFinite(value);
   const shiftDecimal = (value, places) => { const [coefficient, exponent = "0"] = String(value).split(/e/i); return Number(`${coefficient}e${Number(exponent) + places}`); };
   const keyFor = (global, column) => `${global ? "global" : "row"}:${column}`;
-  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
+  const fieldLabel = field => field.column === "J" || field.label === "Type" ? "Category"
+    : field.column === "T" || ["Item(s)", "Items/Services"].includes(field.label) ? "Description"
+    : ["System", "System/Install"].includes(field.label) ? "System/Install Details"
+    : field.column === "AN" && field.label === "Multiplier" ? "Wrap Multiplier"
+    : field.column === "X" && field.label === "Board or Batt Type" ? "Board/Batt Type"
+    : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label;
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => (state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))]).filter(group => {

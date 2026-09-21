@@ -166,7 +166,10 @@
     const actions = node("div", "library-item-actions");
     if (item.editable) { const edit = button("Edit Library Item", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = button("Link Library Item", () => openLinkPicker(pane, item, link)); link.dataset.libraryLink = item.id;
-    const add = button("Add to Schedule", () => addToSchedule(pane, item.id), "button primary"); add.dataset.libraryAdd = item.id; add.title = "Uses current schedule prices and allowances.";
+    const add = button("", () => addToSchedule(pane, item.id), "button primary penetration-add-action");
+    const plus = node("span", "", "+"); plus.setAttribute("aria-hidden", "true");
+    add.append(plus, node("span", "sr-only", "Add to Schedule"));
+    add.dataset.libraryAdd = item.id; add.title = "Add to Schedule"; add.setAttribute("aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
     const remove = button("", () => deleteItem(pane, item), "button secondary library-delete");
     const icon = node("span", "library-trash-icon", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon);

@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from estimator.catalog import ValidationError
 from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
@@ -58,6 +59,11 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertEqual(library.listing('technical')['items'], [])
         with self.assertRaises(ReferenceNotFound):
             library.detail('technical', 'missing')
+
+    def test_unreadable_library_index_is_a_bounded_validation_error(self):
+        with patch('estimator.reference_library.Path.stat', side_effect=PermissionError('denied')):
+            with self.assertRaisesRegex(ValidationError, 'could not be read'):
+                self.library.overview()
 
     def test_search_filters_pagination_and_source_preservation(self):
         self.assertEqual(self.library.listing('penetration', search='COPPER sealant')['total'], 1)

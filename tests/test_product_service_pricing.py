@@ -12,7 +12,9 @@ from estimator.catalog import (baseline, effective_catalog, catalog_signature,
                                product_service_name, validate_catalog,
                                validate_configuration, ValidationError)
 from estimator.pricing_workbook import (export_pricing_workbook, import_pricing_workbook,
-    PRODUCT_SERVICE_VISIBLE_HEADERS, PRODUCT_SERVICE_HEADERS, COMBINED_SHEET, _serialize_exact)
+    PRODUCT_SERVICE_VISIBLE_HEADERS, PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS,
+    COMBINED_SHEET, _serialize_exact)
+from estimator.penetration_calculator import inventory_lists
 import test_pricing_workbook as pricing_fixtures
 
 
@@ -50,7 +52,7 @@ class ProductServicePricingTests(unittest.TestCase):
 
     test_simplified_import_matches_216_native_excel_scenarios = pricing_fixtures.LegacyPricingWorkbookTests.test_unchanged_import_preserves_every_calculator_cell_and_reports_no_changes
 
-    def test_export_has_only_eight_visible_columns_and_one_numeric_yield(self):
+    def test_export_has_nine_visible_columns_and_one_numeric_yield(self):
         book = load_workbook(BytesIO(self.exported))
         try:
             sheet = book[COMBINED_SHEET]
@@ -58,14 +60,39 @@ class ProductServicePricingTests(unittest.TestCase):
             visible = [cell.value for cell in sheet[1] if not sheet.column_dimensions[cell.column_letter].hidden]
             self.assertEqual(tuple(visible), PRODUCT_SERVICE_VISIBLE_HEADERS)
             self.assertEqual(tuple(cell.value for cell in sheet[1]), PRODUCT_SERVICE_HEADERS)
-            self.assertEqual(sheet.auto_filter.ref, 'A1:H418')
+            self.assertEqual(sheet.auto_filter.ref, 'A1:I418')
             number = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
             self.assertEqual(sheet.cell(number, headers['Yield']).value, 142)
             self.assertEqual(sheet.cell(number, headers['Use yields']).value, '142;142')
             self.assertEqual(sheet.cell(number, headers['Product/Service']).value,
                 product_service_name(next(item for item in baseline()['inventory'] if item['id'] == '204')))
+            collar = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '207')
+            self.assertIn('collars', sheet.cell(collar, headers['Firestopping groups']).value.split(';'))
         finally:
             book.close()
+
+    def test_firestopping_groups_round_trip_and_control_dropdowns(self):
+        result = self.imported(edit(self.exported, [('207', {'Firestopping groups': 'wraps;materials'})]))
+        catalog = effective_catalog(result['configuration'])
+        product = next(item for item in catalog['inventory'] if item['id'] == '207')
+        self.assertEqual(product['firestopping_groups'], ['wraps', 'materials'])
+        lists = inventory_lists(result['configuration'])[1]
+        self.assertNotIn(product['sales_description'], lists['B'])
+        self.assertIn(product['sales_description'], lists['E'])
+        self.assertIn(product['sales_description'], lists['AR'])
+
+    def test_previous_eight_column_template_remains_supported(self):
+        book = load_workbook(BytesIO(self.exported))
+        try:
+            sheet = book[COMBINED_SHEET]
+            sheet.delete_cols(7)
+            self.assertEqual(tuple(cell.value for cell in sheet[1]), LEGACY_PRODUCT_SERVICE_HEADERS)
+            payload = _serialize_exact(book, escape_text=True)
+        finally:
+            book.close()
+        result = self.imported(payload)
+        self.assertEqual(result['summary']['inventory']['updated'], 0)
+        self.assertEqual(result['summary']['rates']['updated'], 0)
 
     def test_descriptive_choice_is_one_existing_label_and_has_stable_ties(self):
         product = {'name': 'Short', 'sales_description': 'A longer sales description'}

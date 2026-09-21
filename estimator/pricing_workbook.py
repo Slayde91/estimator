@@ -23,7 +23,10 @@ from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_co
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
 
-from .catalog import ValidationError, effective_catalog, validate_catalog, validate_configuration, yield_unit, product_service_name
+from .catalog import (FIRESTOPPING_GROUPS, ValidationError, effective_catalog,
+                      validate_catalog, validate_configuration, yield_unit,
+                      product_service_name)
+from .penetration_calculator import firestopping_group_keys
 
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -59,7 +62,11 @@ LEGACY_COMPACT_HEADERS = (
     "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS,
 )
 COMPACT_HEADERS = (*LEGACY_COMPACT_HEADERS[:11], "Yield unit", *LEGACY_COMPACT_HEADERS[11:])
-PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Supplier price", "Markup", "Sell price", "Group", "Yield", "Yield unit")
+LEGACY_PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Supplier price", "Markup", "Sell price", "Group", "Yield", "Yield unit")
+LEGACY_PRODUCT_SERVICE_HEADERS = (*LEGACY_PRODUCT_SERVICE_VISIBLE_HEADERS,
+    "Product name", "Selection name", "Price source", "Sell rate", "Yield type", "Use yields",
+    "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS, "Saved values")
+PRODUCT_SERVICE_VISIBLE_HEADERS = ("Item code", "Product/Service", "Supplier price", "Markup", "Sell price", "Group", "Firestopping groups", "Yield", "Yield unit")
 PRODUCT_SERVICE_HEADERS = (*PRODUCT_SERVICE_VISIBLE_HEADERS,
     "Product name", "Selection name", "Price source", "Sell rate", "Yield type", "Use yields",
     "Pricing mode", "Sales description", "Inventory ID", "Rate ID", "Use order", *PROPERTY_HEADERS, "Saved values")
@@ -474,14 +481,15 @@ def export_pricing_workbook(configuration):
         if len(saved) > 32767:
             raise ValidationError("A product's saved use data exceeds Excel's cell limit; reduce its number of uses before exporting.")
         values.update({"Product/Service": label, "Use yields": values["Yield"],
+                       "Firestopping groups": _pack_uses(firestopping_group_keys(product)) if product else None,
                        "Yield": scalar_yield, "Sell price": sell_price, "Saved values": saved})
         sheet.append([values.get(header) for header in PRODUCT_SERVICE_HEADERS])
     widths = {get_column_letter(index): width for index, width in enumerate(
-        (16, 64, 18, 16, 18, 29, 18, 18), 1)}
-    widths.update({get_column_letter(index): 24 for index in range(9, len(PRODUCT_SERVICE_HEADERS) + 1)})
-    _format_sheet(sheet, PRODUCT_SERVICE_HEADERS, widths, numeric_columns=(3, 5, 7), percent_columns=(4,), freeze_panes="C2")
-    sheet.auto_filter.ref = f"A1:H{sheet.max_row}"
-    sheet.print_area = f"A1:H{sheet.max_row}"
+        (16, 64, 18, 16, 18, 29, 34, 18, 18), 1)}
+    widths.update({get_column_letter(index): 24 for index in range(10, len(PRODUCT_SERVICE_HEADERS) + 1)})
+    _format_sheet(sheet, PRODUCT_SERVICE_HEADERS, widths, numeric_columns=(3, 5, 8), percent_columns=(4,), freeze_panes="C2")
+    sheet.auto_filter.ref = f"A1:I{sheet.max_row}"
+    sheet.print_area = f"A1:I{sheet.max_row}"
     editable, readonly = Protection(locked=False), Protection(locked=True)
     sheet.protection.sheet = True
     for flag in ("autoFilter", "sort", "insertRows", "deleteRows", "formatRows", "formatColumns", "selectLockedCells", "selectUnlockedCells"):
@@ -497,7 +505,7 @@ def export_pricing_workbook(configuration):
         # Stored snapshots do not affect the visible row height.
         lines = max(sum(max(1, math.ceil(len(line) / max(1, widths[cell.column_letter] - 3)))
                         for line in str(cell.value or "").splitlines() or [""])
-                    for cell in row[:8])
+                    for cell in row[:9])
         sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
     instructions = workbook["Instructions"]
     instructions.delete_rows(1, instructions.max_row)
@@ -508,16 +516,19 @@ def export_pricing_workbook(configuration):
         ["Prices", "Supplier price and Markup recalculate product Sell price. Manual products and standalone services use Sell price directly. Existing per-use overrides are retained in hidden columns."],
         ["Yield", "Enter one nonnegative number for every yield-bearing use of the product. Leave an unchanged blank, Empty text or Mixed value as exported to preserve existing behavior. Mixed indicates differing yields or incompatible units; a shared numeric edit is accepted only when all units match."],
         ["Yield unit", "Read-only calculation unit: m² / unit for area coverage and m / unit for mastic. Groups without a yield remain blank."],
-        ["Group", "Uses are separated by semicolons. Existing uses retain their names, order, prices and yields. New uses inherit Product/Service and product price; the shared yield is copied only when its unit matches. Names must be unique in a group."],
+        ["Group", "Main Estimator group keys are separated by semicolons. Existing uses retain their names, order, prices and yields. New uses inherit Product/Service and product price; the shared yield is copied only when its unit matches. Names must be unique in a group."],
+        ["Firestopping groups", "Firestopping Estimator group keys are separated by semicolons. These assignments control which product dropdowns contain the item. Leave blank to remove the product from all Firestopping dropdowns."],
         ["Add or remove", "Add a new product with Product/Service, Supplier price, Markup, Sell price and Group. Manual products can leave Supplier price blank. To remove an entry, clear all its editable cells, including hidden columns. Keep hidden values on retained rows."],
         ["Compatibility", "The hidden columns retain per-use identities, overrides and exact saved values. Earlier pricing workbook formats remain supported. Use values only: formulas, macros and external links are rejected."],
         ["Group keys", "Use the exact supported group keys below."],
         *[[group, "Yield required" if rule["yield_column"] else "Yield not used"]
           for group, rule in data["rate_group_rules"].items()],
+        ["Firestopping group keys", "Use the exact key in the first column; the second column is its dropdown label."],
+        *[[group["key"], group["label"]] for group in FIRESTOPPING_GROUPS],
     ]:
         instructions.append(row)
     _format_sheet(instructions, (), {"A": 29, "B": 115}, freeze_panes="A2")
-    for row in range(2, 10):
+    for row in range(2, 11):
         instructions.row_dimensions[row].height = 61
     instructions.auto_filter.ref = None
     for page in workbook:
@@ -709,8 +720,8 @@ def _pricing_rows(workbook, text_cells):
     sheet.reset_dimensions()
     sheet_text = text_cells.get(COMBINED_SHEET, {})
     headers = tuple(next(_text_rows(sheet, sheet_text), ()))
-    if headers == PRODUCT_SERVICE_HEADERS:
-        return _product_service_rows(sheet, sheet_text)
+    if headers in (PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS):
+        return _product_service_rows(sheet, sheet_text, headers)
     if headers in (COMPACT_HEADERS, LEGACY_COMPACT_HEADERS):
         return _compact_rows(sheet, sheet_text, headers)
     inventory, uses, orders = [], [], set()
@@ -830,14 +841,14 @@ def _validate_saved_tree(value):
             raise ValidationError("Saved pricing values contain invalid Unicode.")
 
 
-def _product_service_rows(sheet, text_cells):
+def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
     """Expand the simple view using hidden per-use data as its lossless base."""
     prepared, metadata = [], {}
     reference = effective_catalog({})
     rules = reference["rate_group_rules"]
     snapshots = {**reference, "inventory": [], "rate_groups": {group: [] for group in rules}}
     rows = []
-    for number, row in _rows(sheet, PRODUCT_SERVICE_HEADERS, max_rows=2 * MAX_ROWS, text_cells=text_cells):
+    for number, row in _rows(sheet, headers, max_rows=2 * MAX_ROWS, text_cells=text_cells):
         if all(value in (None, "") for header, value in row.items() if header != "Yield unit"):
             continue
         label = f"{COMBINED_SHEET} row {number}"
@@ -898,6 +909,19 @@ def _product_service_rows(sheet, text_cells):
             groups = []
         if any(group not in rules for group in groups):
             raise ValidationError(f"{label}: Unknown Group; use an exact group key from Instructions.")
+        firestopping_groups = None
+        if "Firestopping groups" in row:
+            firestopping_groups = [value.strip() if isinstance(value, str) else value
+                                   for value in _unpack_uses(row["Firestopping groups"], f"{label} Firestopping groups")]
+            if firestopping_groups in ([None], [""]):
+                firestopping_groups = []
+            supported = {group["key"] for group in FIRESTOPPING_GROUPS}
+            if any(group not in supported for group in firestopping_groups):
+                raise ValidationError(f"{label}: Unknown Firestopping group; use an exact key from Instructions.")
+            if len(set(firestopping_groups)) != len(firestopping_groups):
+                raise ValidationError(f"{label}: Firestopping groups must not contain duplicates.")
+            if standalone and firestopping_groups:
+                raise ValidationError(f"{label}: Firestopping groups require an inventory product.")
         prior_groups = [use["group"] for use in existing_uses]
         hidden_uses = any(row[key] not in (None, "") for key in ("Selection name", "Rate ID", "Price source"))
         if existing_uses and groups != prior_groups or not hidden_uses:
@@ -951,7 +975,8 @@ def _product_service_rows(sheet, text_cells):
                 _number(scalar, f"{label} Yield")
         metadata[number] = {"saved": saved, "product_label": product_label,
                             "rename": product_label != saved["label"], "standalone": standalone,
-                            "yield_changed": not unchanged_yield, "yield": scalar, "sell_price": row["Sell price"]}
+                            "yield_changed": not unchanged_yield, "yield": scalar, "sell_price": row["Sell price"],
+                            "firestopping_groups": firestopping_groups}
         prepared.append((number, legacy))
     inventory, rates = _expand_compact_rows(prepared)
     for number, item in inventory:
@@ -960,6 +985,9 @@ def _product_service_rows(sheet, text_cells):
         item["_original"] = source if source and source.get("id") == item["Inventory ID"] else None
         item["_product_service"] = (meta["product_label"] if meta["rename"] else
                                     (source or {}).get("product_service"))
+        entered_groups = meta["firestopping_groups"]
+        if entered_groups is not None and (source is None or list(firestopping_group_keys(source)) != entered_groups):
+            item["_firestopping_groups"] = entered_groups
     for number, rate in rates:
         meta = metadata[number]
         source = next((use for use in meta["saved"]["uses"] if use["rate"].get("id") == rate["Rate ID"]), None)
@@ -979,7 +1007,7 @@ def _product_service_rows(sheet, text_cells):
 def _inventory_comparison(item):
     return {key: item.get(key) for key in (
         "id", "item_code", "name", "sales_description", "pricing_mode", "supplier_price",
-        "markup", "sales_price", "properties", "product_service",
+        "markup", "sales_price", "properties", "product_service", "firestopping_groups",
     )}
 
 
@@ -1051,6 +1079,8 @@ def import_pricing_workbook(payload, filename, current_configuration):
                     item.pop("product_service", None)
                 else:
                     item["product_service"] = row["_product_service"]
+            if "_firestopping_groups" in row:
+                item["firestopping_groups"] = row["_firestopping_groups"]
             entered_sell = _number(row["Sell price"], f"{label} Sell price", optional=mode == "supplier_markup")
             if old:
                 for field in ("supplier_price", "markup"):

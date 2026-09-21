@@ -9,7 +9,7 @@ import re
 import unittest
 from unittest.mock import patch
 
-from estimator.catalog import ValidationError, configuration_catalog, effective_catalog
+from estimator.catalog import FIRESTOPPING_GROUPS, ValidationError, baseline, configuration_catalog, effective_catalog
 from estimator.excel_engine import FormulaError, column_number, coordinates
 from estimator.penetration_calculator import (
     FRL_OPTIONS, GLOBAL_DEFAULTS, ROW_COLUMNS, WASTE_SETTINGS, PenetrationEngine, _copy_row_formula,
@@ -138,12 +138,24 @@ class PenetrationSourceTests(unittest.TestCase):
                 if keyword.casefold() not in {value.casefold() for value in expected}:
                     expected.append(keyword)
         self.assertEqual(metadata['keywords'], expected)
+        self.assertEqual([(group['key'], group['label'], group['list_column']) for group in metadata['groups']],
+                         [(group['key'], group['label'], group['list_column']) for group in FIRESTOPPING_GROUPS])
         catalog = effective_catalog()
         listed = {name for names in inventory_lists()[1].values() for name in names}
         classified = {item['sales_description'] for item in catalog['inventory']
                       if any(keyword.casefold() in item['sales_description'].casefold()
                              for keyword in metadata['keywords'])}
         self.assertEqual(classified, listed)
+
+    def test_explicit_firestopping_groups_move_a_product_between_dropdowns(self):
+        catalog = baseline()
+        product = next(item for item in catalog['inventory'] if item['id'] == '207')
+        name = product['sales_description']
+        self.assertIn(name, inventory_lists({'catalog': catalog})[1]['B'])
+        product['firestopping_groups'] = ['wraps']
+        selections = inventory_lists({'catalog': catalog})[1]
+        self.assertNotIn(name, selections['B'])
+        self.assertIn(name, selections['E'])
 
     def test_row_formula_expansion_matches_independent_openpyxl(self):
         from openpyxl.formula.translate import Translator

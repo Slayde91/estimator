@@ -52,6 +52,9 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(bootstrap["pricing_usage"]["firestopping"]["label"], "Firestopping Estimator")
         self.assertEqual(bootstrap["pricing_usage"]["firestopping"]["source_field"], "sales_description")
         self.assertIn("collar", bootstrap["pricing_usage"]["firestopping"]["keywords"])
+        collar_group = next(group for group in bootstrap["pricing_usage"]["firestopping"]["groups"] if group["key"] == "collars")
+        self.assertEqual((collar_group["label"], collar_group["list_column"]), ("Collar Type", "B"))
+        self.assertIn("collar", collar_group["keywords"])
         status, _, payload = self.request("POST", "/api/calculate", {"inputs": {"B15": 12.25}})
         self.assertEqual(status, 200)
         total = json.loads(payload)["summary"]["total"]

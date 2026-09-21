@@ -15,7 +15,7 @@ but are not displayed in Firestopping Library entries. The library item editor
 continues to distinguish original workbook rates from explicitly refreshed
 Pricing Library rates; changing the displayed price label does not change them.
 
-**Items/Services** and **System/Install Details** use the same labels in the library,
+**Description** and **System/Install Details** use the same labels in the library,
 Firestopping Estimator, and its detailed exports. Workbook row/cell locations
 are not shown on library result cards or diagram captions.
 
@@ -41,7 +41,9 @@ database transaction. Supplier source files remain unchanged.
 
 **Add to Library**, beside the selected estimator item's inputs, captures that
 one row and its current effective pricing, retaining historical global inputs
-only for compatibility. The server
+only for compatibility. Before sending the item, the application asks **Are you
+sure you want to add this item to the Firestopping Library?** with **Yes** and
+**Cancel** actions. The server
 calculates its price and stores the inputs and pricing snapshot separately from
 the supplier bundle. Later project or shared-price changes do not change the
 saved library item. Repeated requests for the same capture return the saved

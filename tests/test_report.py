@@ -86,6 +86,15 @@ class ReportTests(unittest.TestCase):
                       money_text(additions_amount), f"{addition_days:.2f}Days"):
             self.assertIn(token.replace(' ', ''), compact)
 
+    def test_material_breakdown_finishes_with_the_sum_of_all_line_amounts(self):
+        report = _Report(self.quote)
+        report.materials()
+        table = report.story[-1]
+        final = table._cellvalues[-1]
+        expected = sum(item['total'] for item in self.quote['result']['materials'])
+        self.assertEqual(final[0].getPlainText(), 'Total')
+        self.assertEqual(final[-1].getPlainText(), money_text(expected))
+
     def test_official_logo_and_fonts_are_embedded_on_each_page(self):
         self.assertEqual(sha256((ROOT / "static/ceasefire-logo.png").read_bytes()).hexdigest(), "b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7")
         self.assertGreaterEqual(len(self.reader.pages), 4)

@@ -57,7 +57,7 @@ reactivate those effects. Explicit row materials, manual hours and adjustments
 the source's combined 0.10-hour setup and 0.15-hour register charge with an
 project-wide Register Allowance, defaulting to 0.25 hours per item. It also replaces
 the source collar labour lookup with a calculated Pipe Labour value multiplied by the
-Pipes Multiplier (AN). Item QTY (O) then applies once to these hours.
+Wrap Multiplier (AN). Item QTY (O) then applies once to these hours.
 The source image cell S4 already contains a cached
 `#VALUE!`; it is not a financial formula or an editable estimating input.
 
@@ -67,9 +67,9 @@ A new Firestopping Schedule starts empty. Its columns include Service Type,
 Penetration Type, Substrate Orientation, FRL, editable Item QTY and a compact
 source-diagram thumbnail when the library item has an image. A separate
 current item starts blank. Input groups separate
-Details, Products and labour, Other, Unlagged Pipes,
-Plastic Pipes, Cables/Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
-group matching Service Type is shown, and Bulkhead is shown only when Type is
+Details, Products and labour, Other, Unlagged Pipes, Lagged Pipes,
+Plastic Pipes, Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
+group matching Service Type is shown, and Bulkhead is shown only when Category is
 Bulkheads. Cabletrays is shown only for cable/bundle services, Cable Trays and
 the source-backed Lagged Pipes entries that use those fields. Substrate appears
 when Penetration Type is Oversized or Service Type is Access Panel, Blank Seal,
@@ -79,14 +79,16 @@ values for Additional Allowances, Pipes/Cables, Cabletrays, Substrate, Bulkhead
 board and Bulkhead framing. Hover help names each Waste setting's applicable
 section. Legacy row wastage and Register Allowance values are migrated once into
 these project settings and no longer change one row independently. The
-current-item heading uses Type and Service Type, while the longer Items/Services
+current-item heading uses Category and Service Type, while the longer Description
 description remains in its input. **Item Summary** stays beside the editor while
 scrolling at desktop widths. **Item Breakdown** is collapsed by default and the
 separate Calculation source field is omitted from the browser.
 Pipe Labour remains calculated and exportable but is not an item-entry control.
 Cabletray width/depth and board/batt width/length are entered as one validated
 `W x D` or `W x L` value while the separate workbook source columns remain intact.
-Wrap inputs use the user-facing label **Wrap Length required (mm)**.
+Wrap inputs use the user-facing labels **Wrap Length required (mm)** and **Wrap
+Multiplier**. Plastic Pipes omits Wrap Length required because that input does
+not apply to collars.
 The current item's calculated detail and
 the complete schedule totals are calculated independently. Numeric fields use
 native number controls, retain their full stored precision and use the following
@@ -120,8 +122,14 @@ Item QTY is editable in the schedule without changing the independent current it
 Invalid or incomplete numeric text remains visible and blocks calculation;
 asynchronous results do not interrupt typing or replace newer inputs. Current-item
 and schedule global allowance controls, Access and Complexity are omitted.
-Substrate remains descriptive. Products and labour labels the crew selector
-**Teams/Crews** and the board selector **Board or Batt Type**. Library edits and existing saved items use the
+Substrate remains descriptive. Its reviewed list is Plasterboard wall,
+Concrete/masonry wall, Hebel wall, Speedpanel wall, Dincel wall, AFS wall, CLT
+wall, Insulated panel wall, Plasterboard ceiling, Concrete/masonry floor,
+Bondek floor, Hebel floor and CLT floor. Previous library labels are mapped to
+one of these choices for display and editing without rewriting the installed
+supplier package. Products and labour labels the crew selector
+**Teams/Crews**, the board selector **Board/Batt Type**, and the framing selector
+**Framing Type**. Library edits and existing saved items use the
 same effective policy; their frozen product and labour prices remain independent.
 
 The selected item and library editor share an eight-row cost table: Additional
@@ -133,7 +141,7 @@ BS/CB/CJ/CQ/CU product quantities, Mastic Qty AC, collar multiplier AN and
 additional material AF with its AG wastage, each multiplied by Item QTY once.
 No rounding up or main-quote global allowance is added inside the independent
 Firestopping calculation. Collar quantities appear only when
-a collar product is selected; the underlying Pipes Multiplier remains available
+a collar product is selected; the underlying Wrap Multiplier remains available
 to pipe-wrap calculations. Task hours and costs use Item QTY and reconcile to
 the effective G/F/DK outputs. AI is allocated to Other materials and is
 multiplied by Item QTY; AJ is allocated to Additional Labour costs once per
@@ -183,6 +191,28 @@ defaults are editable in project SETTINGS:
 | Over 150, up to 200 mm | 0.40 |
 | Over 200, up to 250 mm | 0.45 |
 | Over 250, up to 300 mm | 0.50 |
+
+The source calculator also uses next-larger inclusive bands for four other task
+hour outputs. Values above the last threshold use the final row:
+
+- **Board Task Hours** uses total Board SQM Required (CH + CO): 0.15→0.50,
+  0.25→0.60, 0.35→0.65, 0.45→0.65, 0.65→0.65, 0.85→0.70, 1→0.70,
+  1.25→0.75, 1.75→0.75, 2.25→0.80, 2.75→0.85, 3.25→0.90,
+  3.6→0.95, 4→1.00, then every 2 m² from 6→1.20 through 50→5.60 hours.
+- **Mastic Task Hours** uses Mastic Qty: 0.5→0.15, 1→0.20, 1.5→0.25,
+  2→0.30, 3→0.35, 4→0.40, 5→0.45 and 6→0.50 hours.
+- **Framing Task Hours** uses Framing required (lm): 2→0.40, 4→0.45,
+  6→0.50, 8→0.55, 10→0.75, 14→1.00, then every 4 lm through
+  50→3.25 hours.
+- **Wrap Task Hours** uses pipe Wrap Length required, falling back to cable-tray
+  Wrap Length required: 100→0.17, 150→0.17, 300→0.20, 350→0.20,
+  400→0.25, 450→0.25, 500→0.25, 600→0.30, 900→0.40,
+  1000→0.45, 1050→0.45, 1100→0.50 and 1200→0.50 hours.
+
+All inventory prices and yields, plus substrate, access and complexity values,
+use exact-name lookups rather than numeric bands. The source workbook's old
+collar table is retained for traceability, but the effective estimator replaces
+it with the six editable Pipe Labour bands above.
 
 A selected collar with a missing/nonpositive diameter or a diameter above
 300 mm requires manual Pipe Labour hours. Its calculation is unavailable until

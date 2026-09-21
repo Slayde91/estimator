@@ -218,16 +218,20 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertIn('Saved custom service', fields['K']['options'])
         self.assertIn('Cable Trays', fields['K']['options'])
         self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
+        self.assertEqual(fields['J']['label'], 'Category')
+        self.assertEqual(fields['T']['label'], 'Description')
         self.assertEqual(fields['U']['label'], 'System/Install Details')
         self.assertEqual(fields['W']['label'], 'Teams/Crews')
-        self.assertEqual(fields['X']['label'], 'Board or Batt Type')
+        self.assertEqual(fields['X']['label'], 'Board/Batt Type')
+        self.assertEqual(fields['Z']['label'], 'Framing Type')
         self.assertNotIn('register_allowance_hours', fields)
         for column in ('AG', 'AO', 'AU', 'AZ', 'BF', 'BG'):
             self.assertNotIn(column, fields)
         self.assertEqual(fields['N']['options'], ['N/A', '-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240'])
         self.assertEqual(spec['groups'], ['Penetration', 'Products and labour', 'Additional Allowances',
-            'Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead', 'SETTINGS'])
-        self.assertEqual(spec['group_labels'], {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS', 'Additional Allowances': 'OTHER'})
+            'Unlagged Pipes', 'Lagged Pipes', 'Plastic Pipes', 'Cables/Bundles', 'Cabletrays', 'Substrate', 'Bulkhead', 'SETTINGS'])
+        self.assertEqual(spec['group_labels'], {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
+            'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'})
         self.assertEqual(spec['group_visibility']['Bulkhead'], {'column': 'J', 'values': ['Bulkheads']})
         self.assertEqual(spec['group_visibility']['Substrate']['any'][0], {'column': 'L', 'values': ['Oversized']})
         self.assertEqual(spec['group_visibility']['Substrate']['any'][1]['column'], 'K')
@@ -239,15 +243,23 @@ class PenetrationCalculationTests(unittest.TestCase):
             self.assertIn(service, spec['group_visibility']['Cabletrays']['values'])
         self.assertNotIn('Plastic Pipes', spec['group_visibility']['Cabletrays']['values'])
         self.assertIn('Plastic Pipes', spec['group_visibility']['Plastic Pipes']['values'])
+        self.assertEqual(spec['group_visibility']['Unlagged Pipes']['values'], ['Unlagged Pipes'])
+        self.assertEqual(spec['group_visibility']['Lagged Pipes']['values'], ['Lagged Pipes'])
         self.assertIn('Cable Bundles', spec['group_visibility']['Cables/Bundles']['values'])
         pipe_fields = [field for field in spec['row_fields'] if field['group'] == 'Pipes']
         self.assertEqual([field['column'] for field in pipe_fields],
                          ['AL', 'AM', 'AN', 'pipe_labour_hours'])
         for field in pipe_fields:
-            self.assertEqual(field['display_groups'], ['Unlagged Pipes', 'Plastic Pipes', 'Cables/Bundles'])
+            expected_groups = ['Unlagged Pipes', 'Lagged Pipes', 'Cables/Bundles'] if field['column'] == 'AM' else [
+                'Unlagged Pipes', 'Lagged Pipes', 'Plastic Pipes', 'Cables/Bundles']
+            self.assertEqual(field['display_groups'], expected_groups)
         self.assertTrue(fields['pipe_labour_hours']['hidden'])
         self.assertEqual(fields['AM']['label'], 'Wrap Length required')
+        self.assertEqual(fields['AN']['label'], 'Wrap Multiplier')
         self.assertEqual(fields['AS']['label'], 'Wrap Length required')
+        self.assertEqual(fields['P']['options'], ['Plasterboard wall', 'Concrete/masonry wall', 'Hebel wall',
+            'Speedpanel wall', 'Dincel wall', 'AFS wall', 'CLT wall', 'Insulated panel wall',
+            'Plasterboard ceiling', 'Concrete/masonry floor', 'Bondek floor', 'Hebel floor', 'CLT floor'])
         self.assertEqual(fields['AQ']['paired_column'], 'AR')
         self.assertEqual(fields['AR']['paired_into'], 'AQ')
         self.assertTrue(fields['AR']['hidden'])
@@ -291,6 +303,14 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(result['summary']['travel_lafha'], '')
         self.assertEqual(result['draft']['globals']['K'], 1.125)
         self.assertEqual(result['rows'][0]['outputs'], result['rows'][1]['outputs'])
+
+    def test_reviewed_substrate_labels_use_the_existing_workbook_multiplier_basis(self):
+        draft = source_example()
+        draft['rows'][0]['inputs']['P'] = 'Dincel wall'
+        engine, normalized = engine_for_draft(draft)
+        self.assertEqual(normalized['rows'][0]['inputs']['P'], 'Dincel wall')
+        self.assertEqual(engine.inputs['CALC']['P4'], 'Concrete wall')
+        self.assertFalse(any(error['cell'] == 'P4' for error in calculate(draft)['errors']))
 
     def test_shared_supplier_markup_updates_price_without_changing_saved_snapshot(self):
         draft = source_example()

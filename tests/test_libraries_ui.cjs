@@ -79,7 +79,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration');assert.doesNotMatch(text(h.pane('penetration').results),/CALC row 53/);
     await h.api.open('penetration','source');const panel=h.pane('penetration').detailPanel,nodes=walk(panel);
     assert.ok(panel.children.findIndex(node=>node.tagName==='dl')<panel.children.findIndex(node=>node.className==='library-detail-section'));
-    assert.deepEqual(nodes.filter(node=>node.tagName==='dt').map(node=>node.textContent),['Items/Services','System/Install Details','Service Size or Diameter']);
+    assert.deepEqual(nodes.filter(node=>node.tagName==='dt').map(node=>node.textContent),['Description','System/Install Details','Service Size or Diameter']);
     assert.match(text(panel),/Two insulated pipes.*Install both face seals.*Not stated/);assert.doesNotMatch(text(panel),/CALC|Item\(s\)/);
     const captions=['Source diagram','Pair coil seal','Alternative view','Rated assembly H2 — 120 minutes'];assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>node.textContent),captions);assert.deepEqual(nodes.filter(node=>node.tagName==='img').map(node=>node.alt),captions);
     assert.ok(nodes.filter(node=>node.tagName==='a'&&node.href.includes('/images/')).every((link,index)=>link.getAttribute('aria-label')===`Open ${captions[index]} at full size (new tab)`));
@@ -199,7 +199,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Every Firestopping card and detail has link and schedule actions; Add guards duplicates and reports errors next to the action',async h=>{
     const pending=deferred(),ids=[];h.context.window.CeasefirePenetrations={addLibraryItem:id=>{ids.push(id);return pending.promise}};
-    await h.api.open('penetration');const pane=h.pane('penetration');const add=walk(pane.results).find(node=>node.dataset.libraryAdd);assert.ok(walk(pane.results).find(node=>node.dataset.libraryLink));const work=add.emit('click');await flush();assert.equal(add.disabled,true);await add.emit('click');assert.deepEqual(ids,['penetration-1']);pending.reject(new Error('Keep the invalid schedule value until corrected.'));await work;
+    await h.api.open('penetration');const pane=h.pane('penetration');const add=walk(pane.results).find(node=>node.dataset.libraryAdd);assert.ok(walk(pane.results).find(node=>node.dataset.libraryLink));assert.match(add.className,/penetration-add-action/);assert.equal(add.getAttribute('aria-label'),'Add to Schedule');assert.equal(add.children[0].textContent,'+');assert.equal(add.children[0].getAttribute('aria-hidden'),'true');assert.match(add.children[1].className,/sr-only/);const work=add.emit('click');await flush();assert.equal(add.disabled,true);await add.emit('click');assert.deepEqual(ids,['penetration-1']);pending.reject(new Error('Keep the invalid schedule value until corrected.'));await work;
     assert.equal(add.disabled,false);assert.match(text(pane.results),/could not be added.*invalid schedule value/);assert.equal(pane.selected,null);assert.equal(pane.list.hidden,false);
     await h.api.open('penetration','penetration-1');assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryLink));assert.ok(walk(pane.detailPanel).find(node=>node.dataset.libraryAdd));
     await h.api.open('technical','technical-1');assert.equal(walk(h.pane('technical').detailPanel).filter(node=>node.dataset.libraryLink||node.dataset.libraryAdd).length,0);

@@ -111,6 +111,32 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(library.listing('penetration', frl='-/90/90')['total'], 1)
         self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['N'], '-/90/90')
 
+    def test_legacy_substrates_resolve_to_the_reviewed_options_without_rewriting_source(self):
+        path = self.root / 'library/library.json'
+        data = json.loads(path.read_text(encoding='utf-8'))
+        item = data['libraries']['penetration']['items'][0]
+        item['estimate']['draft']['rows'][0]['inputs']['P'] = 'Lightweight wall'
+        item['fields'].append({'label': 'Substrate', 'column': 'P', 'value': 'Lightweight wall'})
+        item['subtitle'] = 'Sample manufacturer · Lightweight wall'
+        data['libraries']['penetration']['filters'].append({'key': 'substrate', 'label': 'Substrate'})
+        item.setdefault('filter_values', {})['substrate'] = ['Lightweight wall']
+        path.write_text(json.dumps(data), encoding='utf-8')
+        source = path.read_bytes()
+        library = FirestoppingLibrary(self.root / 'library', self.store)
+        detail = library.detail('penetration', 'pkb-001')
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field.get('column') == 'P'), 'Plasterboard wall')
+        self.assertIn('Plasterboard wall', detail['subtitle'])
+        self.assertEqual(library.listing('penetration', substrate='Plasterboard wall')['total'], 1)
+        opened = library.edit('pkb-001')
+        self.assertEqual(opened['draft']['rows'][0]['inputs']['P'], 'Plasterboard wall')
+        legacy = deepcopy(opened['draft'])
+        legacy['rows'][0]['inputs']['P'] = 'Concrete wall'
+        snapshot = library._context('pkb-001')[3]
+        library.edits.save('pkb-001', 0, data['firestopping']['source_sha256'], {
+            'draft': legacy, 'pricing_token': opened['pricing_token'], 'amount': 150}, snapshot)
+        self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['P'], 'Concrete/masonry wall')
+        self.assertEqual(path.read_bytes(), source)
+
     def test_collar_pipe_labour_removes_only_the_duplicate_effective_additional_hours(self):
         collar = {'globals': {}, 'rows': [{'id': 'collar', 'inputs': {
             'K': 'Plastic Pipes', 'Y': 'Selected collar', 'AL': 50,

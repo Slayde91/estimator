@@ -565,18 +565,29 @@ let passed=0;
   assert.doesNotMatch(html,/<th scope="col">Status<\/th>/);
   assert.match(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>/);
   assert.doesNotMatch(html,/<details class="card expandable-breakdown firestopping-breakdown"[^>]*\sopen>/);
-  assert.doesNotMatch(html,/<details class="firestopping-breakdown-part"\s+open>/);
+  assert.doesNotMatch(html,/firestopping-breakdown-part|Schedule breakdown/);
   assert.match(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]*><summary><h2 id="breakdown-heading">Material Breakdown<\/h2><\/summary>/);
   assert.doesNotMatch(html,/<details class="card expandable-breakdown material-breakdown-section"[^>]*\sopen>/);
   assert.match(html,/<details class="card expandable-breakdown labour-breakdown-section" id="labour-breakdown"[^>]*><summary><h2 id="labour-heading">Labour Breakdown<\/h2><\/summary>/);
   assert.doesNotMatch(html,/<details class="card expandable-breakdown labour-breakdown-section"[^>]*\sopen>/);
   assert.ok(html.indexOf('id="penetration-schedule-breakdown-card"')<html.indexOf('id="breakdown-heading"'));
-  assert.match(html,/<summary><h3[^>]*>Schedule breakdown<\/h3><\/summary>/);
+  assert.match(html,/id="penetration-schedule-breakdown-card"[^>]*>\s*<summary><h2>Firestopping Breakdown<\/h2><\/summary>\s*<div id="penetration-schedule-breakdown"/);
   assert.match(html,/<section class="penetration-schedule-summary-section"[^>]*>\s*<h3[^>]*>Summary<\/h3>/);
   assert.doesNotMatch(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
   assert.match(html,/<details class="card expandable-breakdown penetration-item-breakdown"[^>]*>\s*<summary><h3[^>]*>Item Breakdown<\/h3><\/summary>/);
   assert.doesNotMatch(html,/Selected item breakdown|Calculation source|id="penetration-source"/);
   assert.match(html,/<th scope="col">Item<\/th><th scope="col">Service Type<\/th>/);passed++;
+
+  // Main Estimator sections from Access & Travel onwards are expandable and closed by default.
+  assert.match(html,/<details class="card expandable-breakdown" aria-labelledby="materials-heading">\s*<summary><h2 id="materials-heading">Material Requirements &amp; Output<\/h2><\/summary>/);
+  assert.match(html,/<details class="card expandable-breakdown penetration-schedule" aria-labelledby="penetration-schedule-heading">\s*<summary><h2 id="penetration-schedule-heading">Firestopping Schedule<\/h2>/);
+  assert.doesNotMatch(html,/<details class="card expandable-breakdown(?: penetration-schedule)?"[^>]*\sopen/);
+  assert.match(html,/<dialog id="notice-dialog"[^>]*>[\s\S]*?<button id="notice-button"[^>]*>OK<\/button>[\s\S]*?<\/dialog>/);
+  assert.doesNotMatch(html,/<dialog id="notice-dialog"[^>]*>[\s\S]*?notice-cancel/);
+  for(const section of [...byId('input-sections').children,...byId('post-material-input-sections').children,...byId('adjustment-inputs').children]) {
+    assert.equal(section.tagName,'details');assert.equal(section.open,undefined);
+  }
+  passed++;
 
   // Montserrat is bundled locally and all primary section cards use the red accent.
   const css=fs.readFileSync('static/styles.css','utf8');

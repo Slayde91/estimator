@@ -6,6 +6,7 @@
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
     loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
+    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false,
     diagramChange: undefined, diagramRead: 0, diagramVersion: 0,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
@@ -16,7 +17,12 @@
   const configuration = () => clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
   const configStamp = () => JSON.stringify(configuration());
   const keyFor = (rowId, column) => JSON.stringify([rowId, column]);
-  const fieldLabel = field => field.label === "Item(s)" ? "Items/Services" : ["System", "System/Install"].includes(field.label) ? "System/Install Details" : field.label;
+  const fieldLabel = field => field.column === "J" || field.label === "Type" ? "Category"
+    : field.column === "T" || ["Item(s)", "Items/Services"].includes(field.label) ? "Description"
+    : ["System", "System/Install"].includes(field.label) ? "System/Install Details"
+    : field.column === "AN" && field.label === "Multiplier" ? "Wrap Multiplier"
+    : field.column === "X" && field.label === "Board or Batt Type" ? "Board/Batt Type"
+    : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label;
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
   const rowById = (id, scope = state) => scope.draft?.rows.find(row => row.id === id);
   const scheduleRow = id => rowById(id, state.schedule);
@@ -114,7 +120,7 @@
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
       selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramVersion: 0,
-      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map() });
+      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
     for (const row of state.schedule.draft.rows) state.rowEpochs.set(row.id, ++state.nextEpoch);
     render(); message(); message("", false, state.schedule);
@@ -166,6 +172,7 @@
   function changed(rowId, scope = state) {
     if (scope === state.schedule && rowId) state.removed = state.removed.filter(item => item.row.id !== rowId);
     scope.revision++; scope.result = null;
+    if (scope === state) state.tabAdvisoryAcknowledgement = null;
     if (scope === state.schedule) renderSchedule();
     renderSummary(scope); renderBreakdown(scope); status(); clearTimeout(scope.timer);
     for (const control of $("penetration-row-fields").querySelectorAll("[data-penetration-field]")) control.refreshAutomatic?.();
@@ -275,6 +282,7 @@
       if (error) scope.invalid.set(key, { value: control.value, error });
       else { scope.invalid.delete(key); (rowId === null ? scope.draft.globals : rowById(rowId, scope).inputs)[field.column] = value; }
       showProblem(error); changed(rowId, scope);
+      if (!error && scope === state && ["AH", "W"].includes(field.column)) warnAdditionalLabour(rowId, scope);
       if (!error && rowId === null && field.group === "SETTINGS" && scope === state.schedule) {
         state.draft.globals[field.column] = value; changed(null, state);
       }
@@ -363,6 +371,51 @@
   function fieldInGroup(field, group) {
     return !field.hidden && (field.display_groups || [field.group]).includes(group);
   }
+  const entered = value => value !== null && value !== undefined && value !== "";
+  function warnAdditionalLabour(rowId, scope = state) {
+    if (scope !== state || !rowId) return;
+    const inputs = rowById(rowId, scope)?.inputs || {};
+    if (!entered(inputs.AH) || entered(inputs.W)) { state.additionalLabourAdvisory = false; return; }
+    if (state.additionalLabourAdvisory) return;
+    state.additionalLabourAdvisory = true;
+    if (window.CeasefirePenetrationNavigation?.notify) {
+      void window.CeasefirePenetrationNavigation.notify("Selection required", "Please select Teams/Crews under Products and Labour", "OK");
+    } else message("Please select Teams/Crews under Products and Labour", true);
+  }
+  function tabExitWarning(targetGroup) {
+    if (!state.group || targetGroup === state.group) return null;
+    const inputs = selected()?.inputs || {};
+    if (state.group === "Bulkhead" && ["BB", "BC", "BD", "BE"].some(column => entered(inputs[column]))) {
+      const missing = [["W", "Teams/Crews"], ["X", "Board/Batt Type"], ["Z", "Framing Type"]]
+        .filter(([column]) => !entered(inputs[column])).map(([, label]) => `[${label}]`);
+      if (missing.length) return { message: `Please select ${missing.join("; ")} under Products and Labour.`, blocking: true };
+    }
+    if (state.group === "Plastic Pipes" && entered(inputs.Y) && (!entered(inputs.AL) || !entered(inputs.AN))) {
+      return { message: "Please enter collar Diameter and Multiplier", blocking: true };
+    }
+    if (state.group === "Additional Allowances" && entered(inputs.AH) && !entered(inputs.W) && !state.additionalLabourAdvisory) {
+      return { message: "Please select Teams/Crews under Products and Labour", key: stable(["additional-labour", inputs.AH]) };
+    }
+    const materialSelected = ["X", "Y", "Z", "AA", "AB", "AE"].some(column => entered(inputs[column]));
+    if (targetGroup !== "Products and labour" && materialSelected && !entered(inputs.W)) {
+      return { message: "Please select Teams/Crews", key: stable(["materials", ...["X", "Y", "Z", "AA", "AB", "AE"].map(column => inputs[column] ?? null)]) };
+    }
+    return null;
+  }
+  async function selectGroup(group) {
+    const warning = tabExitWarning(group);
+    if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
+      const context = state.context, stamp = composerStamp(), current = state.group;
+      if (window.CeasefirePenetrationNavigation?.notify) {
+        await window.CeasefirePenetrationNavigation.notify("Selection required", warning.message, "OK");
+      } else message(warning.message, true);
+      if (context === state.context && stamp === composerStamp() && current === state.group && !warning.blocking) {
+        state.tabAdvisoryAcknowledgement = warning.key;
+      }
+      return;
+    }
+    state.tabAdvisoryAcknowledgement = null; state.group = group; renderFields();
+  }
   function settingCategory(field) {
     return field.column === "register_allowance_hours" ? "Labour allowances" : field.column.startsWith("pipe_labour_") ? "Pipe labour" : "Material waste";
   }
@@ -394,7 +447,7 @@
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
       const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
       button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
-      button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
+      button.addEventListener("click", () => selectGroup(group)); return button;
     });
     $("penetration-input-groups").replaceChildren(...buttons);
     $("penetration-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
@@ -442,7 +495,7 @@
   function replaceComposer(draft, invalid = new Map(), diagramChange = undefined) {
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);
     state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id; state.diagramChange = cloneOptional(diagramChange); state.diagramRead++; state.diagramVersion++;
-    state.revision++; state.result = null; state.calculating = false;
+    state.revision++; state.result = null; state.calculating = false; state.additionalLabourAdvisory = false;
     renderFields(); renderSummary(); renderBreakdown(); renderSchedule(); status();
   }
   async function selectRow(id) {
@@ -491,14 +544,17 @@
   async function addToLibrary() {
     document.activeElement?.blur?.();
     if (!state.draft || state.invalid.size || state.creatingLibrary) return;
-    const context = state.context, row = selected();
-    const payload = { draft: libraryDraft(row), configuration: configuration(), ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
-    const signature = librarySignature(context, payload);
-    // Reuse the key after an uncertain response or a second click on this capture.
-    if (state.libraryCapture?.signature !== signature) state.libraryCapture = { signature, key: globalThis.crypto.randomUUID() };
-    payload.idempotency_key = state.libraryCapture.key;
+    const context = state.context, stamp = composerStamp();
     state.creatingLibrary = true; status();
     try {
+      const confirmed = await confirmReplace("Are you sure you want to add this item to the Firestopping Library?", "The current item and its captured price will be saved in the Firestopping Library.", "Yes", true, "Cancel");
+      if (!confirmed || context !== state.context || stamp !== composerStamp()) return;
+      const row = selected();
+      const payload = { draft: libraryDraft(row), configuration: configuration(), ...(state.diagramChange === undefined ? {} : { diagram: clone(state.diagramChange) }) };
+      const signature = librarySignature(context, payload);
+      // Reuse the key after an uncertain response or a second click on this capture.
+      if (state.libraryCapture?.signature !== signature) state.libraryCapture = { signature, key: globalThis.crypto.randomUUID() };
+      payload.idempotency_key = state.libraryCapture.key;
       const record = await request("/api/libraries/penetration", payload);
       if (!record.id || !record.library_id || !record.draft || !record.price) throw new Error("The library did not confirm the saved item. Retry to check the same capture.");
       window.CeasefireLibraries?.invalidate?.(); definitions.clear();
@@ -767,7 +823,7 @@
   $("penetration-add").addEventListener("click", addRow); $("penetration-undo").addEventListener("click", undoRemove);
   $("penetration-add-to-library").addEventListener("click", addToLibrary);
   $("penetration-recalculate").addEventListener("click", () => calculate());
-  $("penetration-settings").addEventListener("click", () => { state.group = "SETTINGS"; renderFields(); });
+  $("penetration-settings").addEventListener("click", () => selectGroup("SETTINGS"));
   $("penetration-diagram-file").addEventListener("change", async event => {
     const input = event.target, file = input.files?.[0]; input.value = "";
     try { await chooseDiagram(file); } catch (error) { message(error.message, true); }

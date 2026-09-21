@@ -11,7 +11,10 @@
   const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review"]);
   const hiddenTechnicalFields = new Set(["source table notes", "source option alignment"]);
   const visibleField = (kind, field) => { const label = String(field.label || "").trim().toLowerCase(); return !hiddenFields.has(label) && !(kind === "technical" && hiddenTechnicalFields.has(label)); };
-  const fieldLabel = (kind, label) => kind !== "penetration" ? label : label === "Item(s)" ? "Items/Services" : ["System", "System Install", "System/Install"].includes(label) ? "System/Install Details" : label;
+  const fieldLabel = (kind, label) => kind !== "penetration" ? label
+    : label === "Type" ? "Category"
+    : ["Item(s)", "Items/Services"].includes(label) ? "Description"
+    : ["System", "System Install", "System/Install"].includes(label) ? "System/Install Details" : label;
   const diagramCaption = (kind, caption) => (kind === "penetration" ? String(caption || "").replace(/(?:^|\s+|\s*[·|—–-]\s*)(?:'?CALC'?!\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?|CALC\s+row\s+\d+)\s*$/i, "").trim() : caption) || "Source diagram";
   const validId = value => typeof value === "string" && value.length > 0;
   const validAssetId = value => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
@@ -163,7 +166,10 @@
     const actions = node("div", "library-item-actions");
     if (item.editable) { const edit = button("Edit Library Item", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = button("Link Library Item", () => openLinkPicker(pane, item, link)); link.dataset.libraryLink = item.id;
-    const add = button("Add to Schedule", () => addToSchedule(pane, item.id), "button primary"); add.dataset.libraryAdd = item.id; add.title = "Uses current schedule prices and allowances.";
+    const add = button("", () => addToSchedule(pane, item.id), "button primary penetration-add-action");
+    const plus = node("span", "", "+"); plus.setAttribute("aria-hidden", "true");
+    add.append(plus, node("span", "sr-only", "Add to Schedule"));
+    add.dataset.libraryAdd = item.id; add.title = "Add to Schedule"; add.setAttribute("aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
     const remove = button("", () => deleteItem(pane, item), "button secondary library-delete");
     const icon = node("span", "library-trash-icon", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon);

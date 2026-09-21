@@ -21,7 +21,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
-                                     definition, engine_for_draft, normalize_draft, source_model)
+                                     canonical_substrate, definition, engine_for_draft,
+                                     normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -352,6 +353,18 @@ class FirestoppingLibrary(ReferenceLibrary):
                     item['subtitle'] = str(item.get('subtitle', '')).replace(str(source_frl), effective_frl)
                 if 'frl' in item.get('filter_values', {}):
                     item['filter_values']['frl'] = [effective_frl]
+            source_substrate = source_inputs.get('P')
+            effective_substrate = canonical_substrate(source_substrate)
+            if effective_substrate:
+                source_inputs['P'] = effective_substrate
+                for field in item['fields']:
+                    if field.get('column') == 'P' or field.get('label') == 'Substrate':
+                        field['value'] = effective_substrate
+                if source_substrate not in (None, ''):
+                    item['subtitle'] = str(item.get('subtitle', '')).replace(
+                        str(source_substrate), effective_substrate)
+                if 'substrate' in item.get('filter_values', {}):
+                    item['filter_values']['substrate'] = [effective_substrate]
             self._service_size(item, source_inputs)
             edit = saved.get(item['id'])
             if edit:
@@ -389,7 +402,12 @@ class FirestoppingLibrary(ReferenceLibrary):
     @staticmethod
     def _library_draft(draft):
         """Normalize a copy without rewriting supplier or saved source bytes."""
-        return normalize_draft(draft)
+        copied = deepcopy(draft)
+        for row in copied.get('rows', []) if isinstance(copied, dict) else []:
+            inputs = row.get('inputs', {}) if isinstance(row, dict) else {}
+            if isinstance(inputs, dict) and inputs.get('P') not in (None, ''):
+                inputs['P'] = canonical_substrate(inputs['P'])
+        return normalize_draft(copied)
 
     @staticmethod
     def _service_size(item, inputs):
@@ -402,6 +420,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         inputs = edit['draft']['rows'][0]['inputs']
         presentation_inputs = dict(inputs)
         presentation_inputs['N'] = canonical_frl(inputs.get('N'))
+        presentation_inputs['P'] = canonical_substrate(inputs.get('P'))
         for field in item['fields']:
             # Source workbook W is its former ID, while the estimator W begins
             # calculation inputs. Only the common description columns map here.
@@ -656,7 +675,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 raise ValidationError('Select exactly one calculation row to add to the library.')
             inputs = draft['rows'][0]['inputs']
             if not any(isinstance(inputs.get(col), str) and inputs[col].strip() for col in ('K', 'T', 'U')):
-                raise ValidationError('Enter a service name, items/services description or installation description before adding this item.')
+                raise ValidationError('Enter a service name, description or installation description before adding this item.')
             if not isinstance(inputs.get('O'), (int, float)) or inputs['O'] <= 0:
                 raise ValidationError('The item quantity must be greater than zero before adding it to the library.')
             configuration = validate_configuration(body['configuration'])
@@ -683,9 +702,9 @@ class FirestoppingLibrary(ReferenceLibrary):
                 alias, key = f'FL-ID-{number:03d}', f'fl-user-{number:03d}'
                 if key in bundle_ids:
                     raise LibraryConflict('The generated identifier conflicts with a supplier item. Nothing has been saved.')
-                labels = {'J': 'Type', 'K': 'Service Type', 'L': 'Penetration Type', 'M': 'Substrate Orientation',
+                labels = {'J': 'Category', 'K': 'Service Type', 'L': 'Penetration Type', 'M': 'Substrate Orientation',
                           'N': 'FRL', 'O': 'Item QTY', 'P': 'Substrate', 'Q': 'Access', 'R': 'Complexity',
-                          'T': 'Items/Services', 'U': 'System/Install Details', 'V': 'Manufacturer'}
+                          'T': 'Description', 'U': 'System/Install Details', 'V': 'Manufacturer'}
                 item = {'id': key, 'library_id': alias, 'title': alias, 'subtitle': '', 'summary': '',
                         'source_label': 'User-created library item', 'sources': [], 'images': [], 'user_created': True,
                         'fields': [{'label': 'Firestopping Library ID', 'value': alias}] + [

@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -78,6 +79,10 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(self.protected(), before)
         self.assertEqual(self.library.edits.stamp(), (0, 0))
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+
+    def test_unreadable_optional_library_does_not_disable_estimator_service_types(self):
+        with patch('estimator.reference_library.Path.stat', side_effect=PermissionError('denied')):
+            self.assertEqual(self.library.service_types(), [])
 
     def test_legacy_frl_is_canonical_in_source_and_saved_library_presentations(self):
         path = self.root / 'library/library.json'

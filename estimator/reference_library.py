@@ -56,6 +56,8 @@ class ReferenceLibrary:
             self._data = None
             self._stamp = None
             return None
+        except OSError as exc:
+            raise ValidationError('The local reference library could not be read. Rebuild it from the source files.') from exc
         stamp = (info.st_mtime_ns, info.st_size, info.st_ctime_ns)
         if self._data is not None and stamp == self._stamp:
             return self._data

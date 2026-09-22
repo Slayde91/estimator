@@ -77,6 +77,22 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertNotIn('0.00 (Manual)', text)
         self.assertEqual(result['draft']['rows'][0]['inputs']['pipe_labour_hours'], 0)
 
+    def test_register_exports_editable_service_routes_and_task_hour_bands(self):
+        result = calculate(draft(globals={
+            'service_routes': {'Lagged Pipes': ['Lagged Pipes', 'Insulated Pipes']},
+            'labour_bands': {
+                'pipe': [{'maximum': 80, 'hours': .65}],
+                'board': [{'maximum': .2, 'hours': .55}],
+            },
+        }))
+        workbook = load_workbook(BytesIO(build_penetration_register(
+            result, result['definition'], {})))
+        rows = [tuple(cell.value for cell in row)
+                for row in workbook['Settings'].iter_rows()]
+        self.assertIn(('Lagged Pipes', 'Lagged Pipes; Insulated Pipes', None, None), rows)
+        self.assertIn(('Pipe Labour', 80, 'mm', .65), rows)
+        self.assertIn(('Board Task Hours', .2, 'm²', .55), rows)
+
     def test_paired_dimensions_export_once_without_changing_source_values(self):
         source = draft(AQ=450, AR=100, AW=1000, AX=500)
         result = calculate(source)

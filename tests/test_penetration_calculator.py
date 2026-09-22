@@ -202,14 +202,20 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertNotIn('Q', fields)
         self.assertNotIn('R', fields)
         settings = {field['column']: field for field in spec['global_fields']}
-        self.assertEqual(len(settings), 13)
+        self.assertEqual(len(settings), 7)
         self.assertEqual(settings['register_allowance_hours']['label'], 'Register Allowance')
         self.assertEqual(settings['register_allowance_hours']['default'], .25)
         self.assertEqual(settings['register_allowance_hours']['step'], .05)
         self.assertTrue(all(field['group'] == 'SETTINGS' for field in settings.values()))
-        self.assertEqual([settings[f'pipe_labour_{maximum}_hours']['default']
-                          for maximum in (50, 100, 150, 200, 250, 300)],
-                         [.25, .30, .35, .40, .45, .50])
+        self.assertEqual(spec['defaults']['globals']['labour_bands']['pipe'], [
+            {'maximum': maximum, 'hours': hours}
+            for maximum, hours in ((50, .25), (100, .30), (150, .35),
+                                   (200, .40), (250, .45), (300, .50))])
+        self.assertEqual([item['key'] for item in spec['settings']['labour_bands']],
+                         ['pipe', 'board', 'mastic', 'framing', 'wrap'])
+        self.assertEqual([item['key'] for item in spec['settings']['service_routes']],
+                         ['Unlagged Pipes', 'Lagged Pipes', 'Plastic Pipes',
+                          'Cables/Bundles', 'Cabletrays', 'Substrate'])
         self.assertTrue(all(settings[key]['label'] == 'Waste'
                             and settings[key]['format'] == 'percent'
                             and settings[key]['help'].startswith('Applies to ')
@@ -238,6 +244,7 @@ class PenetrationCalculationTests(unittest.TestCase):
         for service in ('Access Panel', 'Blank Seal', 'Fire Dampers', 'Linear Joints', 'Movement Joints'):
             self.assertIn(service, spec['group_visibility']['Substrate']['any'][1]['values'])
         self.assertEqual(spec['group_visibility']['Cabletrays']['column'], 'K')
+        self.assertEqual(spec['group_visibility']['Cabletrays']['route_key'], 'Cabletrays')
         for service in ('D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
                         'Pair Coil Bundle', 'Cable Trays', 'Lagged Pipes'):
             self.assertIn(service, spec['group_visibility']['Cabletrays']['values'])
@@ -245,6 +252,8 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertIn('Plastic Pipes', spec['group_visibility']['Plastic Pipes']['values'])
         self.assertEqual(spec['group_visibility']['Unlagged Pipes']['values'], ['Unlagged Pipes'])
         self.assertEqual(spec['group_visibility']['Lagged Pipes']['values'], ['Lagged Pipes'])
+        self.assertEqual(spec['group_visibility']['Unlagged Pipes']['route_key'], 'Unlagged Pipes')
+        self.assertEqual(spec['group_visibility']['Lagged Pipes']['route_key'], 'Lagged Pipes')
         self.assertIn('Cable Bundles', spec['group_visibility']['Cables/Bundles']['values'])
         pipe_fields = [field for field in spec['row_fields'] if field['group'] == 'Pipes']
         self.assertEqual([field['column'] for field in pipe_fields],
@@ -413,6 +422,46 @@ class PenetrationCalculationTests(unittest.TestCase):
         lists = next(s['cells'] for s in source_model()['sheets'] if s['name'] == 'LISTS')
         for output, last in (('DE4', 'BP38'), ('DG4', 'BM9'), ('DH4', 'BX16'), ('DI4', 'BR14')):
             self.assertEqual(engine.value('CALC', output), lists[last]['value'])
+
+    def test_editable_routing_and_band_tables_are_validated_and_change_only_effective_task_hours(self):
+        source_before = deepcopy(source_model())
+        source = source_example()
+        original = calculate(source)
+        normalized = normalize_draft(source)
+        self.assertEqual(normalized['globals']['service_routes']['Lagged Pipes'], ['Lagged Pipes'])
+        self.assertNotIn('Lagged Pipes', normalized['globals']['service_routes']['Unlagged Pipes'])
+        normalized['globals']['service_routes']['Lagged Pipes'] = ['Lagged Pipes', 'Saved custom lagged service']
+        normalized['globals']['labour_bands'].update({
+            key: [{'maximum': 1e12, 'hours': hours}]
+            for key, hours in {'board': 3, 'mastic': 4, 'framing': 5, 'wrap': 6}.items()
+        })
+        normalized['rows'][0]['inputs']['AM'] = 500
+        changed = calculate(normalized)
+        self.assertEqual(changed['draft']['globals']['service_routes']['Lagged Pipes'],
+                         ['Lagged Pipes', 'Saved custom lagged service'])
+        self.assertEqual({key: changed['rows'][0]['outputs'][key]
+                          for key in ('DE', 'DG', 'DH', 'DI')},
+                         {'DE': 3, 'DG': 4, 'DH': 5, 'DI': 6})
+        self.assertEqual(original['source_sha256'], changed['source_sha256'])
+        self.assertEqual(source_model(), source_before)
+        for invalid in (
+                {'board': []},
+                {'board': [{'maximum': .5, 'hours': .2}, {'maximum': .5, 'hours': .3}]},
+                {'board': [{'maximum': 1, 'hours': -1}]},
+                {'unknown': [{'maximum': 1, 'hours': 1}]},
+        ):
+            candidate = source_example()
+            candidate['globals']['labour_bands'] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                normalize_draft(candidate)
+
+    def test_legacy_pipe_hours_migrate_into_editable_bands(self):
+        draft = source_example()
+        draft['globals']['pipe_labour_100_hours'] = .875
+        normalized = normalize_draft(draft)
+        self.assertEqual(normalized['globals']['labour_bands']['pipe'][1],
+                         {'maximum': 100, 'hours': .875})
+        self.assertNotIn('pipe_labour_100_hours', normalized['globals'])
 
 
 if __name__ == '__main__':

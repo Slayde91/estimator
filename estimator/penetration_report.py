@@ -172,14 +172,30 @@ def build_penetration_register(result, definition, project_details):
            [[index] + [_value(row, column) for _, column in SCHEDULE]
             for index, row in enumerate(result['rows'], 1)], widths,
            formats={index: _excel_format(fields_by_column[column]) for index, (_, column) in enumerate(SCHEDULE, 2)}, filtered=True)
-    settings_fields = definition.get('global_fields', [])
-    if settings_fields:
-        settings = _sheet(workbook, 'Settings', 'FIRESTOPPING SETTINGS', [48, 22, 16])
-        _table(settings, 4, ['Setting', 'Value', 'Units'],
-               [[field['label'], result['draft']['globals'].get(field['column']), field.get('units', '')]
-                for field in settings_fields], [48, 22, 16])
+    settings_fields, settings_schema = definition.get('global_fields', []), definition.get('settings', {})
+    if settings_fields or settings_schema:
+        settings = _sheet(workbook, 'Settings', 'FIRESTOPPING SETTINGS', [36, 70, 18, 18])
+        row = _table(settings, 4, ['Setting', 'Value', 'Units'],
+                     [[field['label'], result['draft']['globals'].get(field['column']), field.get('units', '')]
+                      for field in settings_fields], [36, 70, 18])
         for offset, field in enumerate(settings_fields, 5):
             settings.cell(offset, 2).number_format = _excel_format(field)
+        routes = result['draft']['globals'].get('service_routes', {})
+        if settings_schema.get('service_routes'):
+            row = _table(settings, row + 1, ['Service-tab routing', 'Service types separated by semicolons'],
+                         [[route['label'], '; '.join(routes.get(route['key'], []))]
+                          for route in settings_schema['service_routes']], [36, 106])
+        bands = result['draft']['globals'].get('labour_bands', {})
+        band_rows = [[band['label'], item['maximum'], band['units'], item['hours']]
+                     for band in settings_schema.get('labour_bands', [])
+                     for item in bands.get(band['key'], [])]
+        if band_rows:
+            first_band = row + 2
+            _table(settings, row + 1, ['Task-hour band', 'Up to', 'Unit', 'Hours'],
+                   band_rows, [36, 28, 18, 18])
+            for offset in range(first_band, first_band + len(band_rows)):
+                settings.cell(offset, 2).number_format = '#,##0.###############'
+                settings.cell(offset, 4).number_format = '#,##0.###############'
     for title, fields, key in [('Inputs', definition['row_fields'], 'inputs'),
                                ('Calculated detail', _visible_outputs(definition), 'outputs')]:
         widths = [9, 42, 85, 20] + ([36] if key == 'inputs' else [])

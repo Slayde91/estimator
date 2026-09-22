@@ -6,7 +6,7 @@
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
     loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
-    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false,
+    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: "pipe",
     diagramChange: undefined, diagramRead: 0, diagramVersion: 0,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
@@ -110,6 +110,10 @@
         .map(row => row.inputs?.[field.legacy_column]).find(value => value !== null && value !== undefined && value !== "");
       draft.globals[field.column] = draft.globals[field.column] ?? legacy ?? field.default;
       composer.globals[field.column] = draft.globals[field.column];
+    }
+    for (const key of definition.settings?.structured_global_keys || []) {
+      draft.globals[key] = clone(draft.globals[key] ?? definition.schedule_defaults.globals[key]);
+      composer.globals[key] = clone(draft.globals[key]);
     }
     checkDraft(draft, definition); checkDraft(composer, definition, true);
     return { definition, draft, composer, saved: stable(canonicalSnapshot({ draft, composer }, definition)) };
@@ -364,7 +368,10 @@
   function visibleGroups(inputs) {
     return state.definition.groups.filter(group => {
       const rule = state.definition.group_visibility?.[group];
-      const matches = condition => (condition.values || []).includes(inputs?.[condition.column]);
+      const matches = condition => {
+        const configured = condition.route_key && state.schedule.draft?.globals?.service_routes?.[condition.route_key];
+        return (configured || condition.values || []).includes(inputs?.[condition.column]);
+      };
       return !rule || (rule.any ? rule.any.some(matches) : matches(rule));
     });
   }
@@ -425,7 +432,109 @@
     if (maximum) return `Collars for pipes up to ${maximum}`;
     return String(field.help || "").replace(/^Applies to\s+/i, "").replace(/\.$/, "") || "Firestopping estimate";
   }
+  const structuredSettingKey = name => keyFor(null, `settings.${name}`);
+  function clearStructuredProblems(prefix) {
+    for (const scope of [state, state.schedule]) for (const key of [...scope.invalid.keys()]) {
+      const [, name] = JSON.parse(key);
+      if (String(name).startsWith(`settings.${prefix}`)) scope.invalid.delete(key);
+    }
+  }
+  function structuredProblem(name, value, error, control, problem) {
+    const key = structuredSettingKey(name);
+    for (const scope of [state, state.schedule]) {
+      if (error) scope.invalid.set(key, { value, error }); else scope.invalid.delete(key);
+    }
+    control.setAttribute("aria-invalid", String(!!error)); problem.textContent = error || ""; problem.hidden = !error;
+    if (error) { changed(null, state.schedule); changed(null, state); }
+  }
+  function updateStructuredSetting(key, value) {
+    state.schedule.draft.globals[key] = clone(value); state.draft.globals[key] = clone(value);
+    changed(null, state.schedule); changed(null, state);
+  }
+  function renderServiceRoutes() {
+    const section = node("section", "penetration-settings-section"), heading = node("div", "section-heading");
+    heading.append(node("h4", "", "Service-tab routing"), node("p", "helper", "Separate service types with semicolons. Matching is exact, so Lagged Pipes and Unlagged Pipes remain independent."));
+    const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
+    for (const label of ["Tab", "Service types"] ) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    head.append(header); table.append(head); const body = node("tbody"), routes = state.schedule.draft.globals.service_routes || {};
+    for (const route of state.definition.settings?.service_routes || []) {
+      const row = node("tr"), label = node("th", "", route.label); label.scope = "row";
+      const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
+      editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
+      editor.dataset.penetrationServiceRoute = route.key; editor.setAttribute("aria-label", `${route.label} service types`);
+      const name = `service_routes.${route.key}`;
+      editor.addEventListener("input", () => {
+        const services = editor.value.split(";").map(item => item.trim()).filter(Boolean), seen = new Set();
+        const unique = services.filter(item => { const key = item.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; });
+        const error = unique.length > 1000 ? "Enter at most 1,000 service types." : unique.some(item => item.length > 200) ? "Each service type must contain at most 200 characters." : "";
+        structuredProblem(name, editor.value, error, editor, problem);
+        if (!error) { const next = clone(state.schedule.draft.globals.service_routes); next[route.key] = unique; updateStructuredSetting("service_routes", next); }
+      });
+      editor.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) renderFields(); });
+      problem.hidden = true; value.append(editor, problem); row.append(label, value); body.append(row);
+    }
+    table.append(body); scroll.append(table); section.append(heading, scroll); return section;
+  }
+  function bandNumber(text, minimum, label, exclusive = false) {
+    const value = String(text).trim();
+    if (!value || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) || !Number.isFinite(Number(value))) return { error: `Enter a finite ${label}.` };
+    const number = Number(value);
+    if ((exclusive ? number <= minimum : number < minimum) || number > 1e12) {
+      return { error: exclusive ? `Enter a ${label} above ${minimum}.` : `Enter a ${label} between ${minimum} and 1,000,000,000,000.` };
+    }
+    return { value: number };
+  }
+  function renderLabourBands() {
+    const section = node("section", "penetration-settings-section"), heading = node("div", "section-heading");
+    heading.append(node("h4", "", "Precalculated task-hour bands"), node("p", "helper", "Edit both thresholds and hours. Bands use the next larger matching threshold; Board, Mastic, Framing and Wrap use the final row above the last threshold.")); section.append(heading);
+    for (const definition of state.definition.settings?.labour_bands || []) {
+      const rows = state.schedule.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
+      details.open = state.openSettingsBand === definition.key; details.addEventListener("toggle", () => { if (details.open) state.openSettingsBand = definition.key; });
+      const summary = node("summary"); summary.append(node("strong", "", definition.label), node("span", "status-label", `${rows.length} ${rows.length === 1 ? "band" : "bands"}`)); details.append(summary);
+      const context = node("p", "helper", `${definition.basis}. ${definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."}`); details.append(context);
+      const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
+      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+      head.append(header); table.append(head); const body = node("tbody");
+      rows.forEach((band, index) => {
+        const row = node("tr");
+        for (const property of ["maximum", "hours"]) {
+          const cell = node("td"), control = node("input"), problem = node("small", "penetration-field-error"), name = `labour_bands.${definition.key}.${index}.${property}`;
+          control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.penetrationBand = name;
+          control.setAttribute("aria-label", `${definition.label} band ${index + 1} ${property === "maximum" ? `maximum ${definition.units}` : "hours"}`);
+          control.addEventListener("input", () => {
+            const parsed = bandNumber(control.value, 0, property === "maximum" ? "band maximum" : "hours", property === "maximum");
+            let error = parsed.error || "";
+            if (!error && property === "maximum") {
+              const currentRows = state.schedule.draft.globals.labour_bands[definition.key], previous = currentRows[index - 1]?.maximum, next = currentRows[index + 1]?.maximum;
+              if (previous !== undefined && parsed.value <= previous) error = `Enter a maximum above ${previous}.`;
+              else if (next !== undefined && parsed.value >= next) error = `Enter a maximum below ${next}.`;
+            }
+            structuredProblem(name, control.value, error, control, problem);
+            if (!error) { const bands = clone(state.schedule.draft.globals.labour_bands); bands[definition.key][index][property] = parsed.value; updateStructuredSetting("labour_bands", bands); }
+          });
+          control.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) control.value = String(state.schedule.draft.globals.labour_bands[definition.key][index][property]); });
+          problem.hidden = true; cell.append(control, problem); row.append(cell);
+        }
+        const action = node("td"), remove = node("button", "button secondary", "Remove"); remove.type = "button"; remove.disabled = rows.length === 1;
+        remove.setAttribute("aria-label", `Remove ${definition.label} band ${index + 1}`); remove.addEventListener("click", () => {
+          const bands = clone(state.schedule.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
+          bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
+        });
+        action.append(remove); row.append(action); body.append(row);
+      });
+      table.append(body); scroll.append(table); details.append(scroll);
+      const add = node("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
+        const bands = clone(state.schedule.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
+        const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
+        if (!(increment > 0) || last.maximum + increment > 1e12) return;
+        current.push({ maximum: last.maximum + increment, hours: last.hours }); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
+      });
+      details.append(add); section.append(details);
+    }
+    return section;
+  }
   function renderSettings(fields) {
+    const root = node("div", "penetration-settings"), intro = node("p", "message info", "These project settings are shared by the current item and the Firestopping Schedule. Calculations retain the source workbook formulas unless you change a band table.");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table"), head = node("thead"), header = node("tr");
     for (const label of ["Setting", "Applies to", "Value"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head);
@@ -438,7 +547,7 @@
       }
       table.append(body);
     }
-    scroll.append(table); return scroll;
+    scroll.append(table); root.append(intro, scroll, renderServiceRoutes(), renderLabourBands()); return root;
   }
   function renderFields() {
     if (!state.draft) return;
@@ -489,6 +598,7 @@
   function defaultComposer() {
     const draft = clone(state.definition.defaults);
     for (const field of (state.definition.global_fields || []).filter(field => field.group === "SETTINGS")) draft.globals[field.column] = state.schedule.draft?.globals?.[field.column] ?? field.default;
+    for (const key of state.definition.settings?.structured_global_keys || []) draft.globals[key] = clone(state.schedule.draft?.globals?.[key] ?? draft.globals[key]);
     draft.rows[0].inputs = { ...newRow(state).inputs, ...draft.rows[0].inputs }; return draft;
   }
   function composerChanged() { return state.invalid.size > 0 || state.diagramChange !== undefined || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
@@ -770,7 +880,7 @@
     try {
       const data = await request("/api/penetration/calculate", { draft, configuration: pricing });
       if (context !== state.context || revision !== scope.revision || requestRevision !== scope.requestRevision || pricingKey !== configStamp() || scope.invalid.size) return;
-      const fieldsChanged = JSON.stringify([state.definition.row_fields, state.definition.global_fields]) !== JSON.stringify([data.definition?.row_fields || state.definition.row_fields, data.definition?.global_fields || state.definition.global_fields]);
+      const fieldsChanged = JSON.stringify([state.definition.row_fields, state.definition.global_fields, state.definition.settings]) !== JSON.stringify([data.definition?.row_fields || state.definition.row_fields, data.definition?.global_fields || state.definition.global_fields, data.definition?.settings || state.definition.settings]);
       if (data.draft) acceptDraft(scope, data.draft, draft);
       state.definition = data.definition || state.definition; scope.result = data; scope.calculating = false;
       renderSchedule(); renderSummary(scope); renderBreakdown(scope);

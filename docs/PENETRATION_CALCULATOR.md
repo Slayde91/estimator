@@ -68,17 +68,29 @@ Penetration Type, Substrate Orientation, FRL, editable Item QTY and a compact
 source-diagram thumbnail when the library item has an image. A separate
 current item starts blank. Input groups separate
 Details, Products and labour, Other, Unlagged Pipes, Lagged Pipes,
-Plastic Pipes, Bundles, Cabletrays, Substrate and Bulkhead. Only the pipe
-group matching Service Type is shown, and Bulkhead is shown only when Category is
-Bulkheads. Cabletrays is shown only for cable/bundle services, Cable Trays and
-the source-backed Lagged Pipes entries that use those fields. Substrate appears
-when Penetration Type is Oversized or Service Type is Access Panel, Blank Seal,
-Fire Dampers, Linear Joints or Movement Joints. SETTINGS contains Register Allowance,
-the six editable Pipe Labour diameter bands and the six project-wide Waste (%)
-values for Additional Allowances, Pipes/Cables, Cabletrays, Substrate, Bulkhead
-board and Bulkhead framing. Hover help names each Waste setting's applicable
-section. Legacy row wastage and Register Allowance values are migrated once into
-these project settings and no longer change one row independently. The
+Plastic Pipes, Bundles, Cabletrays, Substrate and Bulkhead. Service Type is routed
+by exact match, so `Lagged Pipes` opens the Lagged Pipes tab and never falls through
+to Unlagged Pipes. Bulkhead is shown only when Category is Bulkheads. Substrate can
+also be shown by an Oversized Penetration Type.
+
+SETTINGS owns the project-wide routing lists and task-hour tables. Each service-tab
+routing row accepts semicolon-separated Service Type values; changing a row changes
+which dropdown selections reveal that tab. The editable task-hour tables are Pipe
+Labour (diameter in mm), Board Task Hours (board area in m²), Mastic Task Hours
+(quantity), Framing Task Hours (linear metres) and Wrap Task Hours (length in mm).
+Every row exposes both its **Up to** threshold and **Hours**, and rows can be added
+or removed. Thresholds must be positive and strictly increasing; hours must be
+nonnegative. Pipe values above the final threshold require manual Pipe Labour;
+the four source task tables use their final row above the last threshold, matching
+the original formulas. The original workbook tables remain the defaults and the
+source formulas continue to run while those four tables are unchanged. A project
+override is applied only after its table is edited.
+
+SETTINGS also contains Register Allowance and the six project-wide Waste (%) values
+for Additional Allowances, Pipes/Cables, Cabletrays, Substrate, Bulkhead board and
+Bulkhead framing. Hover help names each Waste setting's applicable section. Legacy
+row wastage, Register Allowance and six fixed Pipe Labour hour settings are migrated
+into the current project settings. The
 current-item heading uses Category and Service Type, while the longer Description
 description remains in its input. **Item Summary** stays beside the editor while
 scrolling at desktop widths. **Item Breakdown** is collapsed by default and the
@@ -261,7 +273,7 @@ Save and Save As capture both estimates and the three existing calculators
 together. Project version 1 gains an optional `penetration` object containing
 only validated inputs and the source SHA-256. Its `draft` is the schedule;
 optional `composer` stores the independent current item's one-row draft and
-allowances. Rows may also carry an optional `library_item_id`, an opaque library
+settings, including routing and task-hour bands. Rows may also carry an optional `library_item_id`, an opaque library
 identity outside workbook inputs. The same ID can occur once per draft; a matching
 composer copy remains independent. Old firestopping projects retain their full schedule and start a
 default current item; projects without firestopping inputs start empty. Older
@@ -279,7 +291,8 @@ estimates independently while preserving their entered quantities.
 Schedule PDF and XLSX exports calculate only the captured schedule and its pricing once. The
 compact PDF includes project details, totals, the schedule and any calculation
 errors; it omits Settings, Line Inputs and Calculated detail. The XLSX register
-retains settings, inputs and calculated detail as literal values, not executable formulas or
+retains scalar settings, semicolon-separated routing lists, every task-hour band,
+inputs and calculated detail as literal values, not executable formulas or
 links, and preserves numeric precision. Downloads use the opened/saved project
 folder, or the standard Downloads folder if no project is selected.
 

@@ -77,8 +77,10 @@ class EffectiveFirestoppingPolicyTests(unittest.TestCase):
         self.assertNotIn('AG', columns)
         self.assertFalse({'Q', 'R'} & columns)
         self.assertTrue({'Q', 'R'} <= set(spec['allowed_input_columns']))
-        self.assertEqual(len(spec['global_fields']), 13)
+        self.assertEqual(len(spec['global_fields']), 7)
         self.assertTrue(all(field['group'] == 'SETTINGS' for field in spec['global_fields']))
+        self.assertEqual(spec['settings']['structured_global_keys'],
+                         ['service_routes', 'labour_bands'])
 
     def test_project_roundtrip_preserves_inactive_values_without_restoring_effects(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -43,10 +43,15 @@ allowance is retained for a future selection.
     settings = settings or {}
     collar_selected = inputs.get('Y') not in (None, '')
     diameter = inputs.get('AL')
+    configured = settings.get('labour_bands', {}).get('pipe')
+    pipe_bands = (tuple((row['maximum'], row['hours']) for row in configured)
+                  if isinstance(configured, list) and configured else
+                  tuple((maximum, settings.get(key, hours))
+                        for maximum, key, hours in PIPE_BAND_SETTINGS))
     automatic_pipe = None
     if (collar_selected and isinstance(diameter, (int, float)) and not isinstance(diameter, bool)
-            and 0 < diameter <= 300 and math.isfinite(diameter)):
-        automatic_pipe = next((settings.get(key, hours) for maximum, key, hours in PIPE_BAND_SETTINGS
+            and diameter > 0 and math.isfinite(diameter)):
+        automatic_pipe = next((hours for maximum, hours in pipe_bands
                                if diameter <= maximum), None)
     register = validate_hours(settings.get('register_allowance_hours', REGISTER_HOURS),
                               'register_allowance_hours')

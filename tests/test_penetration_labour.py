@@ -155,6 +155,22 @@ class LabourPolicyTests(unittest.TestCase):
         self.assertEqual(result['rows'][0]['input_defaults']['pipe_labour_hours'], .75)
         self.assertEqual(result['rows'][0]['outputs']['DF'], 1.5)
 
+    def test_project_pipe_bands_change_both_thresholds_and_hours(self):
+        draft = {'globals': {'labour_bands': {
+            'pipe': [{'maximum': 80, 'hours': .65}, {'maximum': 120, 'hours': .9}]}},
+            'rows': [{'id': 'one', 'inputs': {'W': self.worker, 'O': 1,
+                                              'Y': self.collar, 'AL': 75, 'AN': 2}}]}
+        result = calculate(draft)
+        self.assertEqual(result['rows'][0]['input_defaults']['pipe_labour_hours'], .65)
+        self.assertEqual(result['rows'][0]['outputs']['DF'], 1.3)
+        draft['rows'][0]['inputs']['AL'] = 81
+        self.assertEqual(calculate(draft)['rows'][0]['outputs']['DF'], 1.8)
+        draft['rows'][0]['inputs']['AL'] = 121
+        unavailable = calculate(draft)
+        self.assertEqual(unavailable['rows'][0]['outputs']['DF'], '#VALUE!')
+        self.assertTrue(any(error['cell'] == 'pipe_labour_hours'
+                            for error in unavailable['errors']))
+
     def test_manual_zero_bypasses_missing_diameter_and_null_resets_to_validation(self):
         zero = self.result(Y=self.collar, AN=2, pipe_labour_hours=0)
         self.assertEqual(zero['rows'][0]['outputs']['DF'], 0)

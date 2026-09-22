@@ -17,7 +17,7 @@ from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
 from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
-                                 PIPE_BAND_SETTINGS, REGISTER_HOURS,
+                                 PIPE_BANDS, PIPE_BAND_SETTINGS, REGISTER_HOURS,
                                  resolve_labour, validate_hours)
 
 
@@ -31,16 +31,14 @@ WASTE_SETTINGS = {
     'waste_board': ('BF', 'Bulkhead board'),
     'waste_framing': ('BG', 'Bulkhead framing'),
 }
-SETTING_DEFAULTS = {
+SCALAR_SETTING_DEFAULTS = {
     'register_allowance_hours': REGISTER_HOURS,
-    **{key: hours for _, key, hours in PIPE_BAND_SETTINGS},
     **{key: 0 for key in WASTE_SETTINGS},
 }
-DRAFT_GLOBAL_DEFAULTS = {**GLOBAL_DEFAULTS, **SETTING_DEFAULTS}
 # Explicit application policy; original workbook formulas and saved inputs remain
 # available for provenance. Removed allowances never affect effective estimates.
 EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
-CALCULATION_POLICY_VERSION = 'firestopping-settings-and-frl-v5'
+CALCULATION_POLICY_VERSION = 'editable-firestopping-routing-and-bands-v6'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
@@ -76,6 +74,8 @@ PIPE_DISPLAY_GROUPS = {
         'TPS & Fire Alarm Cable Bundles',
     ),
 }
+GROUP_LABELS = {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
+                'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'}
 SUBSTRATE_OPTIONS = (
     'Plasterboard wall', 'Concrete/masonry wall', 'Hebel wall',
     'Speedpanel wall', 'Dincel wall', 'AFS wall', 'CLT wall',
@@ -126,6 +126,19 @@ GROUP_VISIBILITY = {
     )},
     **{group: {'column': 'K', 'values': services}
        for group, services in PIPE_DISPLAY_GROUPS.items()},
+}
+SERVICE_ROUTE_GROUPS = (*PIPE_DISPLAY_GROUPS, 'Cabletrays', 'Substrate')
+LABOUR_BAND_SPECS = {
+    'pipe': {'label': 'Pipe Labour', 'basis': 'Pipe diameter', 'units': 'mm',
+             'output': 'DF', 'overflow': 'manual'},
+    'board': {'label': 'Board Task Hours', 'basis': 'Board SQM Required', 'units': 'm²',
+              'output': 'DE', 'defined_name': 'board_labour', 'columns': (1, 2)},
+    'mastic': {'label': 'Mastic Task Hours', 'basis': 'Mastic Qty', 'units': 'qty',
+               'output': 'DG', 'defined_name': 'mastic_labour', 'columns': (0, 1)},
+    'framing': {'label': 'Framing Task Hours', 'basis': 'Framing required', 'units': 'lm',
+                'output': 'DH', 'defined_name': 'framing_labour', 'columns': (0, 1)},
+    'wrap': {'label': 'Wrap Task Hours', 'basis': 'Wrap Length required', 'units': 'mm',
+             'output': 'DI', 'defined_name': 'wrap_labour', 'columns': (0, 1)},
 }
 FIELD_STEPS = {
     'O': 1,
@@ -178,6 +191,61 @@ def source_model():
 
 def _sheet(name):
     return next(s for s in source_model()['sheets'] if s['name'] == name)
+
+
+def default_service_routes():
+    """Return the exact-match service lists that reveal conditional input tabs."""
+    routes = {}
+    for group in SERVICE_ROUTE_GROUPS:
+        rule = GROUP_VISIBILITY[group]
+        condition = (next(item for item in rule['any'] if item.get('column') == 'K')
+                     if 'any' in rule else rule)
+        routes[group] = list(condition['values'])
+    return routes
+
+
+def default_labour_bands():
+    """Materialize editable defaults from the preserved source lookup tables."""
+    bands = {'pipe': [{'maximum': maximum, 'hours': hours}
+                      for maximum, hours in PIPE_BANDS]}
+    cells = _sheet('LISTS')['cells']
+    for key, spec in LABOUR_BAND_SPECS.items():
+        if key == 'pipe':
+            continue
+        reference = source_model()['defined_names'][spec['defined_name']]
+        match = re.fullmatch(r'LISTS!\$([A-Z]+)\$(\d+):\$([A-Z]+)\$(\d+)', reference)
+        if not match:
+            raise ValueError(f'Invalid labour band source range: {reference}')
+        start_column, first_row, last_row = column_number(match[1]), int(match[2]), int(match[4])
+        maximum_offset, hours_offset = spec['columns']
+        bands[key] = [
+            {'maximum': cells[column_name(start_column + maximum_offset) + str(row)]['value'],
+             'hours': cells[column_name(start_column + hours_offset) + str(row)]['value']}
+            for row in range(first_row, last_row + 1)
+        ]
+    return bands
+
+
+def draft_global_defaults():
+    return {**GLOBAL_DEFAULTS, **SCALAR_SETTING_DEFAULTS,
+            'service_routes': default_service_routes(),
+            'labour_bands': default_labour_bands()}
+
+
+def settings_schema():
+    """Describe structured settings without changing workbook input identities."""
+    return {
+        'service_routes': [
+            {'key': group, 'label': GROUP_LABELS.get(group, group)}
+            for group in SERVICE_ROUTE_GROUPS
+        ],
+        'labour_bands': [
+            {'key': key, **{name: value for name, value in spec.items()
+                            if name in ('label', 'basis', 'units', 'overflow')}}
+            for key, spec in LABOUR_BAND_SPECS.items()
+        ],
+        'structured_global_keys': ['service_routes', 'labour_bands'],
+    }
 
 
 def _firestopping_rules():
@@ -286,6 +354,15 @@ def workbook_substrate(value):
     return WORKBOOK_SUBSTRATES.get(canonical, value)
 
 
+def visibility_definition(group, rule):
+    def condition(value):
+        result = {'column': value['column'], 'values': list(value['values'])}
+        if value['column'] == 'K' and group in SERVICE_ROUTE_GROUPS:
+            result['route_key'] = group
+        return result
+    return {'any': [condition(value) for value in rule['any']]} if 'any' in rule else condition(rule)
+
+
 def definition(configuration=None, service_types=None):
     _, selections = inventory_lists(configuration)
     calc = _sheet('CALC')['cells']
@@ -364,35 +441,87 @@ def definition(configuration=None, service_types=None):
         'help': 'Register Allowance hours applied to every Firestopping item.',
     }]
     global_fields.extend({
-        'column': key, 'address': None, 'label': f'Pipe Labour up to {maximum} mm',
-        'type': 'number', 'options': [], 'group': 'SETTINGS', 'default': hours,
-        'format': 'number', 'units': 'hrs', 'min': 0, 'step': .05,
-        'source': 'application',
-        'help': f'Pipe Labour hours per collar for pipe diameters up to {maximum} mm.',
-    } for maximum, key, hours in PIPE_BAND_SETTINGS)
-    global_fields.extend({
         'column': key, 'address': None, 'label': 'Waste', 'type': 'number',
         'options': [], 'group': 'SETTINGS', 'default': 0, 'format': 'percent',
         'units': '%', 'min': 0, 'step': 1, 'source': 'application',
         'help': f'Applies to {context}.', 'legacy_column': column,
     } for key, (column, context) in WASTE_SETTINGS.items())
+    defaults = draft_global_defaults()
     return {'id': 'penetration', 'title': 'Firestopping Estimator', 'source_sha256': source_model()['source']['sha256'],
-        'capacity': CAPACITY, 'defaults': {'globals': deepcopy(DRAFT_GLOBAL_DEFAULTS), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
-        'schedule_defaults': {'globals': deepcopy(DRAFT_GLOBAL_DEFAULTS), 'rows': []},
+        'capacity': CAPACITY, 'defaults': {'globals': deepcopy(defaults), 'rows': [{'id': 'line-1', 'inputs': deepcopy(ROW_DEFAULTS)}]},
+        'schedule_defaults': {'globals': deepcopy(defaults), 'rows': []},
         'global_fields': global_fields, 'row_fields': fields, 'output_fields': output_fields,
         'groups': [group for source in GROUP_COLUMNS
                    for group in (PIPE_DISPLAY_GROUPS if source == 'Pipes' else (source,))] + ['SETTINGS'],
-        'group_labels': {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
-                         'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'},
-        'group_visibility': {
-            group: ({'any': [{'column': condition['column'], 'values': list(condition['values'])}
-                              for condition in rule['any']]}
-                    if 'any' in rule else
-                    {'column': rule['column'], 'values': list(rule['values'])})
-            for group, rule in GROUP_VISIBILITY.items()},
+        'group_labels': GROUP_LABELS,
+        'group_visibility': {group: visibility_definition(group, rule)
+                             for group, rule in GROUP_VISIBILITY.items()},
+        'settings': settings_schema(),
         'allowed_input_columns': [*ROW_COLUMNS, *APP_INPUT_FIELDS, *LEGACY_APP_INPUT_FIELDS],
         'calculation_policy': CALCULATION_POLICY_VERSION,
         'quantity_output_columns': list(QUANTITY_OUTPUT_CONTEXTS)}
+
+
+def _normalized_service_routes(value):
+    defaults = default_service_routes()
+    if value in (None, ''):
+        return defaults
+    if not isinstance(value, dict) or set(value) - set(defaults):
+        raise ValidationError('Service-tab routing must contain only supported Firestopping tabs.')
+    result = {}
+    for group, default in defaults.items():
+        services = value.get(group, default)
+        if not isinstance(services, list) or len(services) > 1000:
+            raise ValidationError(f'{group} service routing must be a list of at most 1,000 service types.')
+        normalized, seen = [], set()
+        for service in services:
+            if not isinstance(service, str) or not service.strip() or len(service.strip()) > 200:
+                raise ValidationError(f'{group} service routing entries must contain 1 to 200 characters.')
+            text = service.strip()
+            if text.casefold() not in seen:
+                normalized.append(text)
+                seen.add(text.casefold())
+        result[group] = normalized
+    return result
+
+
+def _normalized_labour_bands(value, legacy=None):
+    defaults = default_labour_bands()
+    if value in (None, ''):
+        result = deepcopy(defaults)
+        for index, (maximum, key, hours) in enumerate(PIPE_BAND_SETTINGS):
+            candidate = (legacy or {}).get(key, hours)
+            if candidate in (None, ''):
+                candidate = hours
+            if (isinstance(candidate, bool) or not isinstance(candidate, (int, float))
+                    or not math.isfinite(candidate) or not 0 <= candidate <= 1e12):
+                raise ValidationError('Legacy Pipe Labour hours must be finite nonnegative numbers.')
+            result['pipe'][index]['hours'] = candidate
+        return result
+    if not isinstance(value, dict) or set(value) - set(defaults):
+        raise ValidationError('Labour bands must contain only Pipe, Board, Mastic, Framing and Wrap tables.')
+    result = {}
+    for key, default in defaults.items():
+        rows = value.get(key, default)
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 100:
+            raise ValidationError(f'{LABOUR_BAND_SPECS[key]["label"]} must contain 1 to 100 bands.')
+        normalized, previous = [], None
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {'maximum', 'hours'}:
+                raise ValidationError(f'{LABOUR_BAND_SPECS[key]["label"]} bands require maximum and hours values.')
+            maximum, hours = row['maximum'], row['hours']
+            if (isinstance(maximum, bool) or not isinstance(maximum, (int, float))
+                    or not math.isfinite(maximum) or not 0 < maximum <= 1e12):
+                raise ValidationError(f'{LABOUR_BAND_SPECS[key]["label"]} maximums must be finite numbers above zero.')
+            if (isinstance(hours, bool) or not isinstance(hours, (int, float))
+                    or not math.isfinite(hours) or not 0 <= hours <= 1e12):
+                raise ValidationError(f'{LABOUR_BAND_SPECS[key]["label"]} hours must be finite nonnegative numbers.')
+            if previous is not None and maximum <= previous:
+                raise ValidationError(f'{LABOUR_BAND_SPECS[key]["label"]} maximums must increase from one band to the next.')
+            normalized.append({'maximum': maximum, 'hours': hours})
+            previous = maximum
+        result[key] = normalized
+    return result
 
 
 def normalize_draft(draft):
@@ -402,7 +531,9 @@ def normalize_draft(draft):
         raise ValidationError('Penetration draft must contain globals and rows only.')
     globals_in = draft.get('globals', {})
     rows = draft.get('rows', [{'id': 'line-1', 'inputs': {}}])
-    if not isinstance(globals_in, dict) or set(globals_in) - set(DRAFT_GLOBAL_DEFAULTS):
+    defaults = draft_global_defaults()
+    legacy_pipe_settings = {key for _, key, _ in PIPE_BAND_SETTINGS}
+    if not isinstance(globals_in, dict) or set(globals_in) - set(defaults) - legacy_pipe_settings:
         raise ValidationError('Unknown penetration global input.')
     if not isinstance(rows, list) or not 0 <= len(rows) <= CAPACITY:
         raise ValidationError(f'Penetration schedule must contain 0 to {CAPACITY} rows.')
@@ -418,13 +549,17 @@ def normalize_draft(draft):
             raise ValidationError(f'{label} must be a finite number between -1e12 and 1e12.')
         return value
 
-    globals_out = dict(DRAFT_GLOBAL_DEFAULTS)
+    globals_out = deepcopy(defaults)
     for col, value in globals_in.items():
+        if col in ('service_routes', 'labour_bands') or col in legacy_pipe_settings:
+            continue
         normalized_value = checked(value, col == 'J', col + '2')
-        globals_out[col] = SETTING_DEFAULTS[col] if col in SETTING_DEFAULTS and normalized_value is None else normalized_value
+        globals_out[col] = SCALAR_SETTING_DEFAULTS[col] if col in SCALAR_SETTING_DEFAULTS and normalized_value is None else normalized_value
+    globals_out['service_routes'] = _normalized_service_routes(globals_in.get('service_routes'))
+    globals_out['labour_bands'] = _normalized_labour_bands(globals_in.get('labour_bands'), globals_in)
     if globals_out['J'] not in ('Yes', 'No', None):
         raise ValidationError('LAFHA must be Yes or No.')
-    for key in SETTING_DEFAULTS:
+    for key in SCALAR_SETTING_DEFAULTS:
         if globals_out[key] is None or globals_out[key] < 0:
             raise ValidationError('Firestopping SETTINGS values must be finite nonnegative numbers.')
     # One-row library drafts and older projects stored waste on each item. Move
@@ -590,6 +725,41 @@ def _copy_row_formula(formula, destination):
         for i, part in enumerate(re.split(r'("(?:[^"]|"")*")', formula)))
 
 
+def _band_hours(value, bands):
+    if value <= 0:
+        return ''
+    return next((row['hours'] for row in bands if value <= row['maximum']),
+                bands[-1]['hours'])
+
+
+def _effective_band_basis(engine, key, row):
+    def n(address):
+        value = engine.cell('CALC', *coordinates(address))
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+    if key == 'board':
+        return n(f'CH{row}') + n(f'CO{row}')
+    if key == 'mastic':
+        return n(f'AC{row}')
+    if key == 'framing':
+        return n(f'CT{row}')
+    pipe = n(f'AM{row}')
+    return pipe if pipe > 0 else n(f'AS{row}')
+
+
+def _apply_custom_task_bands(engine, draft):
+    defaults, configured = default_labour_bands(), draft['globals']['labour_bands']
+    for key in ('board', 'mastic', 'framing', 'wrap'):
+        if configured[key] == defaults[key]:
+            continue
+        for row in range(4, len(draft['rows']) + 4):
+            try:
+                basis = _effective_band_basis(engine, key, row)
+            except FormulaError:
+                # Preserve the source error path when a quantity dependency fails.
+                continue
+            engine.inputs.setdefault('CALC', {})[LABOUR_BAND_SPECS[key]['output'] + str(row)] = _band_hours(basis, configured[key])
+
+
 def engine_for_draft(draft, configuration=None, *, effective=True):
     draft = normalize_draft(draft)
     model = dict(source_model())
@@ -639,7 +809,10 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
     last = len(draft['rows']) + 3
     for address in SUMMARY_COLUMNS:
         calc[address] = dict(calc[address], formula=re.sub(r'(:[A-Z]+)4\b', lambda m: m[1] + str(last), calc[address]['formula']))
-    return PenetrationEngine(model, inputs, overrides), draft
+    engine = PenetrationEngine(model, inputs, overrides)
+    if effective:
+        _apply_custom_task_bands(engine, draft)
+    return engine, draft
 
 
 def calculate(draft, configuration=None):

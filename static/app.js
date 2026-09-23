@@ -1703,7 +1703,6 @@
   $("project-attachment-zone").addEventListener("drop", event => {
     event.preventDefault(); $("project-attachment-zone").classList.remove("is-dragover"); uploadProjectFiles(event.dataTransfer?.files);
   });
-  $("edit-project-details").addEventListener("click", async () => { if (!await confirmLeavePricingLibrary()) return; selectEstimator("estimate"); showView("estimate"); $("project-no").focus(); });
   $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));
   $("project-search").addEventListener("input", () => {
     clearTimeout(state.projectsTimer); ++state.projectsRevision;

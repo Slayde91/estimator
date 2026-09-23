@@ -55,7 +55,7 @@ function harness() {
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   const pen=install(context);
-  const control=(column,row='line-1')=>byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField===column&&el.dataset.penetrationRow===(row||''));
+  const control=(column,row='line-1')=>[byId('penetration-item-quantity'),byId('penetration-row-fields')].flatMap(root=>root.querySelectorAll('[data-penetration-field]')).find(el=>el.dataset.penetrationField===column&&el.dataset.penetrationRow===(row||''));
   return {context,byId,element,control,pricing,details,target,timers,...pen};
 }
 module.exports={copy,definition,result,allowanceDefinition,allowanceResult,install,harness};

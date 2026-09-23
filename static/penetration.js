@@ -20,7 +20,7 @@
   const fieldLabel = field => field.column === "J" || field.label === "Type" ? "Category"
     : field.column === "T" || ["Item(s)", "Items/Services"].includes(field.label) ? "Description"
     : ["System", "System/Install"].includes(field.label) ? "System/Install Details"
-    : field.column === "AN" && field.label === "Multiplier" ? "Wrap Multiplier"
+    : field.column === "AN" && ["Multiplier", "Wrap Multiplier"].includes(field.label) ? state.group === "Plastic Pipes" ? "Collar Multiplier" : "Wrap Multiplier"
     : field.column === "X" && field.label === "Board or Batt Type" ? "Board/Batt Type"
     : field.column === "Z" && field.label === "Frame Type" ? "Framing Type" : field.label;
   const manufacturerLabel = (field, value) => field.column === "V" ? String(value).toLowerCase() === "firefly" ? "Firefly" : String(value).toLowerCase() === "trafalgar" ? "Trafalgar" : undefined : undefined;
@@ -179,7 +179,7 @@
     if (scope === state) state.tabAdvisoryAcknowledgement = null;
     if (scope === state.schedule) renderSchedule();
     renderSummary(scope); renderBreakdown(scope); status(); clearTimeout(scope.timer);
-    for (const control of $("penetration-row-fields").querySelectorAll("[data-penetration-field]")) control.refreshAutomatic?.();
+    for (const parent of [$("penetration-item-quantity"), $("penetration-row-fields")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) control.refreshAutomatic?.();
     scope.timer = setTimeout(() => calculate(scope), 350);
   }
   function dimensionText(inputs, first, second) {
@@ -454,10 +454,10 @@
   function renderServiceRoutes() {
     const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
-    for (const label of ["Tab", "Service types"] ) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    for (const label of ["Service Tab", "Service Types"] ) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head); const body = node("tbody"), routes = state.schedule.draft.globals.service_routes || {};
     for (const route of state.definition.settings?.service_routes || []) {
-      const row = node("tr"), label = node("th", "", route.label); label.scope = "row";
+      const row = node("tr"), label = node("th", "", route.label.toUpperCase()); label.scope = "row";
       const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
       editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
       editor.dataset.penetrationServiceRoute = route.key; editor.setAttribute("aria-label", `${route.label} service types`);
@@ -514,8 +514,8 @@
           control.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) control.value = String(state.schedule.draft.globals.labour_bands[definition.key][index][property]); });
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
-        const action = node("td"), remove = node("button", "button secondary", "Remove"); remove.type = "button"; remove.disabled = rows.length === 1;
-        remove.setAttribute("aria-label", `Remove ${definition.label} band ${index + 1}`); remove.addEventListener("click", () => {
+        const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
+        remove.title = `Remove ${definition.label} band ${index + 1}`; remove.setAttribute("aria-label", remove.title); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
           const bands = clone(state.schedule.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
           bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
         });
@@ -562,7 +562,11 @@
     const identity = [row.inputs.J, row.inputs.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
     $("penetration-row-heading").textContent = `${state.edit ? "Editing schedule item" : "Current item"} · ${identity || "Item details"}`;
     const settings = state.group === "SETTINGS";
-    const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
+    const quantityField = state.definition.row_fields.find(field => field.column === "O"), quantity = $("penetration-item-quantity");
+    quantity.hidden = !quantityField;
+    quantity.replaceChildren(...(quantityField ? [makeControl(quantityField, row.id)] : []));
+    if (quantityField) quantity.children[0].className += " penetration-header-quantity";
+    const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => field.column !== "O" && fieldInGroup(field, state.group));
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
       const fields = node("div", "penetration-fields");
@@ -575,7 +579,7 @@
     renderDiagram();
   }
   function refreshControls() {
-    for (const parent of [$("penetration-row-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
+    for (const parent of [$("penetration-item-quantity"), $("penetration-row-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
       if (control.dataset.penetrationPaired) { control.refreshDimension?.(); continue; }
       const rowId = control.dataset.penetrationRow || null, key = keyFor(rowId, control.dataset.penetrationField);
       const scope = control.dataset.penetrationScope === "schedule" ? state.schedule : state;

@@ -56,6 +56,10 @@
 #penetration-schedule-summary-notes,#penetration-schedule-message{white-space:pre-line}
 .penetration-item-heading{align-items:flex-start;flex-wrap:wrap}
 .penetration-item-heading h3{flex:1 1 300px}
+.penetration-item-heading>.actions{align-items:flex-end;flex-wrap:nowrap}
+.penetration-header-quantity{width:112px;gap:4px;text-align:left}
+.penetration-header-quantity>span{font-size:11px;line-height:1.2}
+.penetration-header-quantity input{min-width:0;height:48px;text-align:right;font-variant-numeric:tabular-nums}
 .penetration-add-action,.penetration-new-item-action{width:48px;height:48px;padding:0;border-radius:50%;font-size:28px;line-height:1;display:inline-grid;place-items:center}
 .penetration-update-action{color:#fff;background:#17365d;border:1px solid #17365d;box-shadow:0 3px 8px #17365d2b}
 .penetration-update-action:hover:not(:disabled){background:#102b4b;border-color:#102b4b;box-shadow:0 4px 12px #17365d3b}
@@ -102,6 +106,8 @@
 .penetration-band-table input{width:100%;min-width:0}
 .penetration-band-table .penetration-field-error{display:block;margin-top:5px}
 .penetration-add-band{margin-top:12px}
+.penetration-band-remove{width:42px;height:42px;padding:9px}
+.penetration-band-remove .button-symbol{font-size:18px;line-height:1}
 .penetration-diagram{margin-top:22px;padding:16px 18px 18px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fffdfd}
 .penetration-diagram h4{margin:0 0 12px}
 .penetration-diagram figure{margin:0 0 14px}

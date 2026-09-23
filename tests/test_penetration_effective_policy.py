@@ -77,7 +77,7 @@ class EffectiveFirestoppingPolicyTests(unittest.TestCase):
         self.assertNotIn('AG', columns)
         self.assertFalse({'Q', 'R'} & columns)
         self.assertTrue({'Q', 'R'} <= set(spec['allowed_input_columns']))
-        self.assertEqual(len(spec['global_fields']), 7)
+        self.assertEqual(len(spec['global_fields']), 10)
         self.assertTrue(all(field['group'] == 'SETTINGS' for field in spec['global_fields']))
         self.assertEqual(spec['settings']['structured_global_keys'],
                          ['service_routes', 'labour_bands'])

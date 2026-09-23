@@ -30,7 +30,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
-  globalThis.audit={state,savePricing,saveQuote,openQuote,newQuote,confirmReplace,importPricing,exportPricing,makeControl,priceInput,
+  globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,
     quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
@@ -105,6 +105,31 @@ let passed=0;
   assert.equal(dialog.querySelector('h2').textContent,'Second action');
   assert.equal(dialog.querySelector('[value="cancel"]').textContent,'Keep editing');
   await dialog.close('confirm');assert.equal(await second,true);passed++;
+
+  // Shared pricing asks before navigation, keeps the draft on Cancel and uses
+  // the exact requested choices before continuing.
+  setup();audit.state.currentView='pricing';audit.state.libraryKind='pricing';
+  let leaving=audit.requestViewNavigation('estimate');await flush();
+  assert.equal(dialog.querySelector('p').textContent,'The Pricing Library has unsaved changes. Are you sure you want to continue?');
+  assert.equal(dialog.querySelector('[value="confirm"]').textContent,'Continue');assert.equal(dialog.querySelector('[value="cancel"]').textContent,'Cancel');
+  await dialog.close('cancel');assert.equal(await leaving,false);assert.equal(audit.state.currentView,'pricing');
+  leaving=audit.requestViewNavigation('estimate');await flush();await dialog.close('confirm');assert.equal(await leaving,true);assert.equal(audit.state.currentView,'estimate');passed++;
+
+  // Switching away from a dirty shared library is guarded and Cancel restores
+  // the shared-library selector.
+  setup();audit.state.currentView='pricing';audit.state.libraryKind='pricing';byId('pricing-scope').value='project';
+  let switching=audit.requestPricingScopeSwitch('project');await flush();assert.equal(byId('pricing-scope').value,'library');
+  await dialog.close('cancel');assert.equal(await switching,false);assert.equal(audit.state.pricingScope,'library');
+  switching=audit.requestPricingScopeSwitch('project');await flush();await dialog.close('confirm');assert.equal(await switching,true);assert.equal(audit.state.pricingScope,'project');passed++;
+
+  // Saving the shared library requires the explicit Save/Cancel confirmation.
+  setup();const savedRequests=[];audit.setRequest(async(path)=>{savedRequests.push(path);return path==='/api/configuration'?copy(newConfig):{configuration:copy(newConfig),fields:copy(newFields)};});
+  let confirmedSave=audit.requestSavePricing();await flush();
+  assert.equal(dialog.querySelector('p').textContent,'The changes in this Pricing Library will be saved for future projects. Are you sure you want to save?');
+  assert.equal(dialog.querySelector('[value="confirm"]').textContent,'Save');assert.equal(dialog.querySelector('[value="cancel"]').textContent,'Cancel');
+  await dialog.close('cancel');await confirmedSave;assert.deepEqual(savedRequests,[]);
+  confirmedSave=audit.requestSavePricing();await flush();await dialog.close('confirm');await confirmedSave;
+  assert.deepEqual(savedRequests,['/api/configuration','/api/bootstrap']);assert.equal(audit.state.fields[0].options[0],'New spray');passed++;
 
   // Reject stale import responses and preserve edits made during the read.
   setup(); const imported=deferred();audit.setRequest(()=>imported.promise);
@@ -327,6 +352,7 @@ let passed=0;
   // Pricing items can be added and removed in the UI without leaving linked estimator rates behind.
   await byId('add-pricing-item').emit('click');const created=audit.state.catalog.inventory.find(item=>item.id==='inv-user-000001');assert.ok(created);assert.equal(created.product_service,'New pricing item');
   await editList(created.id,'Main Estimator groups','Primers');const createdRate=audit.state.catalog.rate_groups.primers.find(rate=>rate.inventory_id===created.id);assert.ok(createdRate);
+  assert.equal(byId('app-message').textContent,"Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups.");
   const removeCreated=pricingNodes().find(node=>node.dataset.pricingRemove===created.id);assert.equal(removeCreated.getAttribute('aria-label'),'Remove New pricing item');
   const removing=removeCreated.emit('click');await flush();assert.equal(byId('discard-dialog').open,true);await byId('discard-dialog').close('confirm');await removing;
   assert.ok(!audit.state.catalog.inventory.some(item=>item.id===created.id));assert.ok(!Object.values(audit.state.catalog.rate_groups).flat().some(rate=>rate.inventory_id===created.id));assert.equal(audit.state.draft.catalog,undefined);passed++;
@@ -341,12 +367,15 @@ let passed=0;
   const libraryVisits=[],pendingPrice=productInput('coat','Product/Service'),pricingRow=productRows()[0];
   context.window.CeasefireLibraries={open:(...args)=>libraryVisits.push(args)};
   pendingPrice.value='Unfinished product description';await pendingPrice.emit('input');const pendingPricing=JSON.stringify(audit.state.draft);
-  context.window.CeasefireLibraryNavigation.open('penetration');context.window.CeasefireLibraryNavigation.open('technical','synthetic-reference');
+  let libraryMove=context.window.CeasefireLibraryNavigation.open('penetration');await flush();
+  assert.equal(byId('discard-dialog').querySelector('[value="confirm"]').textContent,'Continue');
+  await byId('discard-dialog').close('confirm');await libraryMove;
+  await context.window.CeasefireLibraryNavigation.open('technical','synthetic-reference');
   audit.showView('estimate');audit.showView('pricing');
   assert.equal(audit.state.libraryKind,'technical');assert.equal(byId('library-pricing').hidden,true);assert.equal(byId('library-technical').hidden,false);
   assert.ok(productRows()[0]===pricingRow);assert.equal(pendingPrice.value,'Unfinished product description');assert.equal(JSON.stringify(audit.state.draft),pendingPricing);
   assert.deepEqual(libraryVisits.map(args=>args[0]),['penetration','technical','technical']);
-  context.window.CeasefireLibraryNavigation.open('pricing');assert.ok(productRows()[0]===pricingRow);assert.equal(pendingPrice.value,'Unfinished product description');assert.equal(byId('library-pricing').hidden,false);
+  await context.window.CeasefireLibraryNavigation.open('pricing');assert.ok(productRows()[0]===pricingRow);assert.equal(pendingPrice.value,'Unfinished product description');assert.equal(byId('library-pricing').hidden,false);
   pendingPrice.value='Coating <literal>';await pendingPrice.emit('input');await pendingPrice.emit('change');delete context.window.CeasefireLibraries;passed++;
 
   // In-place edits and replacement drafts invalidate navigation reuse.
@@ -739,6 +768,13 @@ let passed=0;
   assert.doesNotMatch(markup,/id="print-quote"/);assert.doesNotMatch(source,/function printQuote|window\.print/);
   assert.match(markup,/id="new-quote"[^>]*>New<\/button>/);assert.match(markup,/id="edit-project-details"[^>]*>Edit<\/button>/);assert.match(markup,/id="load-project"[^>]*>Load<\/button>/);
   assert.match(markup,/id="add-pricing-item"[^>]*>\+ Add item<\/button>/);assert.match(markup,/id="link-project-folder"[^>]*aria-label="Link Project Folder"/);assert.match(markup,/id="refresh-quotes"[^>]*aria-label="Refresh"/);
+  const pricingTable=markup.indexOf('class="pricing-table"');
+  for(const id of ['export-pricing','import-pricing','discard-pricing','reset-pricing','save-pricing'])assert.ok(markup.indexOf(`id="${id}"`)<pricingTable);
+  assert.ok(markup.indexOf('id="add-pricing-item"')>markup.indexOf('id="pricing-body"'));
+  assert.match(markup,/id="penetration-undo"[^>]*class="button secondary icon-only"[^>]*aria-label="Undo remove"[^>]*title="Undo remove"/);
+  assert.match(markup,/id="penetration-excel"[^>]*class="button excel-button icon-only schedule-download-button"[^>]*aria-label="Download schedule XLSX"[^>]*title="Download schedule XLSX"/);
+  assert.match(markup,/id="penetration-pdf"[^>]*class="button pdf-button icon-only schedule-download-button"[^>]*aria-label="Download schedule PDF"[^>]*title="Download schedule PDF"/);
+  assert.ok(actionCss.includes('.pricing-table-actions{'));assert.ok(actionCss.includes('.pricing-add-item-action{'));assert.ok(actionCss.includes('.schedule-download-button{'));
   assert.doesNotMatch(markup,/Estimating workflow|id="workflow"|Choose a workflow|Dimensions and takeoff notes/);
   assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);
   assert.match(markup,/<span>NOTES <span class="optional">Optional<\/span><\/span><textarea id="measurements"/);

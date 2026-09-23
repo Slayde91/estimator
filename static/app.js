@@ -31,6 +31,8 @@
     access_panels: "Access panels", mesh: "Mesh", pins: "Pins / clips", sprays: "Sprays",
     boards: "Boards", mastic: "Mastic", primers: "Primers", topcoats: "Topcoats",
   };
+  const pricingUnsavedPrompt = "The Pricing Library has unsaved changes. Are you sure you want to continue?";
+  const pricingSavePrompt = "The changes in this Pricing Library will be saved for future projects. Are you sure you want to save?";
   const additionLabels = {
     E26: "Extra days · labour team", F26: "Extra labour days",
     E27: "Site mobilisation fee", F27: "Mobilisation count",
@@ -657,14 +659,45 @@
 
   function pricingBaseline() { return state.pricingScope === "project" ? state.quoteConfiguration || state.configuration : state.configuration; }
   function draftChanged(draft, baseline) { return !!draft && (pricingHasPendingInput(draft) || JSON.stringify(draft) !== JSON.stringify(baseline)); }
+  function sharedPricingDraft() { return state.pricingScope === "library" ? state.draft : state.libraryDraft; }
+  function sharedPricingChanged() { return draftChanged(sharedPricingDraft(), state.configuration); }
+  function pricingLibraryPageDirty() {
+    return state.currentView === "pricing" && state.libraryKind === "pricing" && state.pricingScope === "library" && sharedPricingChanged();
+  }
+  async function confirmLeavePricingLibrary() {
+    document.activeElement?.blur?.();
+    if (!pricingLibraryPageDirty()) return true;
+    const draft = state.draft, fingerprint = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
+    if (!await confirmReplace("Unsaved Pricing Library", pricingUnsavedPrompt, "Continue", "Cancel")) return false;
+    if (state.draft !== draft || JSON.stringify(state.draft) !== fingerprint || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
+      message("The Pricing Library changed while the confirmation was open. Review the current changes and try again.", true);
+      return false;
+    }
+    return true;
+  }
+  async function requestViewNavigation(view, librarySelection) {
+    if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
+    showView(view, librarySelection); return true;
+  }
+  async function requestLibraryNavigation(kind, selection) {
+    if (kind !== state.libraryKind && !await confirmLeavePricingLibrary()) return false;
+    selectLibrary(kind, selection); return true;
+  }
+  async function requestPricingScopeSwitch(scope) {
+    const previous = state.pricingScope;
+    if (scope === previous) return true;
+    $("pricing-scope").value = previous;
+    if (!await confirmLeavePricingLibrary()) return false;
+    switchPricingScope(scope); return true;
+  }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
   function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     $("save-pricing").textContent = state.pricingScope === "project" ? "Apply project pricing" : "Save pricing";
     $("pricing-context").textContent = state.pricingScope === "project"
-      ? "These prices belong to the current project. Apply project pricing updates its estimate; Save stores them in the current file, or Save As creates another file. The shared library stays unchanged."
-      : "Save pricing stores the shared library on this computer for future estimates. Discard changes returns to its last save. Existing projects keep their own pricing.";
+      ? "These prices and estimator groups belong to the current project. Apply project pricing updates its estimate and dropdowns; Save stores them in the current file, or Save As creates another file. The shared library stays unchanged."
+      : "Save pricing stores the shared library and estimator groups on this computer for future estimates. Existing projects keep their saved pricing and dropdown groups; use Current project pricing to change the open project.";
   }
   function switchPricingScope(scope) {
     document.activeElement?.blur?.();
@@ -928,10 +961,14 @@
     });
     input.addEventListener("change", () => {
       try {
-        if (input.value !== initial) apply(input.value);
+        const changed = input.value !== initial;
+        if (changed) apply(input.value);
         pricingPendingFields().delete(key);
         input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
         markPricingDirty(); renderPricing();
+        if (changed && field.endsWith("Estimator groups")) message(state.pricingScope === "project"
+          ? "Estimator groups changed in this project draft. Click Apply project pricing to update this project's dropdowns, then Save or Save As to store them."
+          : "Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups.");
       } catch (error) {
         const text = `${record.item.name}: ${error.message}`;
         pricingPendingFields().set(key, { value: input.value, error: text });
@@ -1141,7 +1178,9 @@
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
-    $("pricing-help").textContent = "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. One yield applies to all compatible Main Estimator uses; Mixed preserves differing saved values until you edit it.";
+    $("pricing-help").textContent = state.pricingScope === "project"
+      ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save or Save As then stores them in the project file."
+      : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.";
     const heading = node("tr");
     for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Sell rate override", "Actions"]) {
       const cell = node("th", "", title);
@@ -1270,6 +1309,19 @@
         : state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing library saved. The saved products, choices and rates now apply to new estimates.");
     } catch (error) { message(persisted ? `Pricing was saved, but the updated dropdowns could not be loaded. Reload the app before starting another estimate. ${error.message}` : `Pricing was not saved. ${error.message}`, true); }
     finally { button.disabled = false; $("use-current-pricing").disabled = false; }
+  }
+
+  async function requestSavePricing() {
+    document.activeElement?.blur?.();
+    if (pricingInputProblem()) { message(pricingInputProblem(), true); return; }
+    if (state.pricingScope === "project") return savePricing();
+    const draft = state.draft, fingerprint = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
+    if (!await confirmReplace("Save Pricing Library?", pricingSavePrompt, "Save", "Cancel")) return;
+    if (state.pricingScope !== "library" || state.draft !== draft || JSON.stringify(state.draft) !== fingerprint || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
+      message("The Pricing Library changed while the confirmation was open. Review the current changes and click Save pricing again.", true);
+      return;
+    }
+    return savePricing();
   }
 
   async function exportPricing() {
@@ -1629,17 +1681,18 @@
     }
   }
 
-  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => showView(button.dataset.view));
-  for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => showView(button.dataset.homeView));
+  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.view));
+  for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
-  for (const button of document.querySelectorAll("[data-library-kind]")) button.addEventListener("click", () => selectLibrary(button.dataset.libraryKind));
+  for (const button of document.querySelectorAll("[data-library-kind]")) button.addEventListener("click", () => requestLibraryNavigation(button.dataset.libraryKind));
+  document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
-  $("new-quote").addEventListener("click", newQuote);
+  $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
   $("save-project").addEventListener("click", () => saveProject(true));
   $("save-current-project").addEventListener("click", () => saveProject(false));
-  $("load-project").addEventListener("click", openNativeProject);
+  $("load-project").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) openNativeProject(); });
   $("project-import-file").addEventListener("change", loadProject);
   $("project-attachment-zone").addEventListener("click", chooseProjectFiles);
   $("project-attachment-input").addEventListener("change", event => uploadProjectFiles(event.target.files));
@@ -1650,7 +1703,7 @@
   $("project-attachment-zone").addEventListener("drop", event => {
     event.preventDefault(); $("project-attachment-zone").classList.remove("is-dragover"); uploadProjectFiles(event.dataTransfer?.files);
   });
-  $("edit-project-details").addEventListener("click", () => { selectEstimator("estimate"); showView("estimate"); $("project-no").focus(); });
+  $("edit-project-details").addEventListener("click", async () => { if (!await confirmLeavePricingLibrary()) return; selectEstimator("estimate"); showView("estimate"); $("project-no").focus(); });
   $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));
   $("project-search").addEventListener("input", () => {
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
@@ -1662,12 +1715,12 @@
   $("project-continue").addEventListener("click", () => loadProjects());
   $("link-project-folder").addEventListener("click", linkProjectFolder);
   $("use-current-pricing").addEventListener("click", useCurrentPricing);
-  $("pricing-scope").addEventListener("change", () => switchPricingScope($("pricing-scope").value));
+  $("pricing-scope").addEventListener("change", () => requestPricingScopeSwitch($("pricing-scope").value));
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
   $("show-rate-overrides").addEventListener("change", renderPricing);
   $("add-pricing-item").addEventListener("click", addPricingItem);
-  $("save-pricing").addEventListener("click", savePricing);
+  $("save-pricing").addEventListener("click", requestSavePricing);
   $("reset-pricing").addEventListener("click", resetPricingLibrary);
   $("export-pricing").addEventListener("click", exportPricing);
   $("import-pricing").addEventListener("click", () => $("pricing-import-file").click());
@@ -1679,7 +1732,12 @@
     if (draft !== state.draft || revision !== state.pricingRevision) return;
     state.draft = clone(pricingBaseline()); refreshPricingCatalog(); renderPricing(); message("Unsaved pricing changes discarded.");
   });
-  window.addEventListener("beforeunload", (event) => { if (projectHasChanges() || draftChanged(state.pricingScope === "library" ? state.draft : state.libraryDraft, state.configuration) || window.CeasefireLibraryEditor?.hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ""; } });
+  window.addEventListener("beforeunload", (event) => {
+    const pricingChanged = sharedPricingChanged();
+    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges()) {
+      event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
+    }
+  });
   function scheduleChanged() {
     const stamp = window.CeasefirePenetrations?.quoteFingerprint?.();
     if (stamp === state.firestoppingStamp) return;
@@ -1690,7 +1748,7 @@
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
-  window.CeasefireLibraryNavigation = { open: selectLibrary };
+  window.CeasefireLibraryNavigation = { open: requestLibraryNavigation };
   window.CeasefirePenetrationNavigation = {
     show() { state.estimatorKind = "penetration"; return showView("estimate"); },
     showSchedule() { state.estimatorKind = "estimate"; return showView("estimate"); },

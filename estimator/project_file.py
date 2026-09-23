@@ -25,7 +25,8 @@ PROJECT_VERSION = 1
 PROJECT_FILENAME = "CEASEFIRE-Project.json"
 MAX_PROJECT_FILE = 16 * 1_048_576
 CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
-ESTIMATE_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
+ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
+ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, "work_items"}
 
 
 def project_filename(title):
@@ -259,7 +260,8 @@ def load_project_bytes(store, payload):
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] != PROJECT_VERSION:
         raise ValidationError("This project file format or version is not supported.")
     estimate = snapshot["estimate"]
-    if not isinstance(estimate, dict) or set(estimate) != ESTIMATE_FIELDS:
+    if (not isinstance(estimate, dict) or not ESTIMATE_REQUIRED_FIELDS <= set(estimate)
+            or set(estimate) - ESTIMATE_FIELDS):
         raise ValidationError("The project estimate must contain its complete inputs and pricing snapshot only.")
     if not isinstance(estimate.get("configuration"), dict) or "catalog" not in estimate["configuration"]:
         raise ValidationError("The project must include its own pricing library snapshot.")
@@ -279,7 +281,7 @@ def load_project_bytes(store, payload):
         normalized[calculator_id] = {"inputs": inputs, "source_sha256": source_hash,
                                      "schedule_rows": normalize_schedule_rows(calculator_id, inputs, calculator.get('schedule_rows'))}
     penetration = _portable_penetration(snapshot["penetration"], saved=True) if "penetration" in snapshot else None
-    quote_inputs = dict(estimate)
+    quote_inputs = {**estimate, "work_items": estimate.get("work_items", [])}
     if penetration is not None:
         quote_inputs['penetration'] = {key: penetration[key] for key in ('source_sha256', 'draft')}
     prepared = store.prepare_quote(quote_inputs, read_only=True)

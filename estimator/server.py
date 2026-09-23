@@ -363,14 +363,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     quote["id"] = None
                     self.send_report(quote, "Current estimate", destination)
                 elif route == "/api/calculate" and self.command == "POST":
-                    if set(body) - {"inputs", "configuration", "workflow", "penetration"}:
+                    if set(body) - {"inputs", "configuration", "workflow", "penetration", "work_items"}:
                         raise ValidationError("Unknown calculation request fields.")
                     workflow = body.get("workflow", WORKFLOWS[0])
                     if not isinstance(workflow, str) or len(workflow) > 200:
                         raise ValidationError("Workflow must be text of at most 200 characters.")
                     if 'penetration' in body and body['penetration'] is None:
                         raise ValidationError('Include the Firestopping schedule draft only in the estimate.')
-                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()), body.get('penetration'))
+                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()), body.get('penetration'), body.get('work_items'))
                     self.send_payload(200, {**result, "error_details": calculation_error_details(result),
                                             "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":

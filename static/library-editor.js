@@ -26,7 +26,8 @@
       return (configured || condition.values || []).includes(inputs?.[condition.column]);
     };
     return !rule || (rule.any ? rule.any.some(matches) : matches(rule));
-  });
+  }).sort((left, right) => Number(/^(other|additional allowances)$/i.test(left) || /^other$/i.test(state.definition.group_labels?.[left] || ""))
+    - Number(/^(other|additional allowances)$/i.test(right) || /^other$/i.test(state.definition.group_labels?.[right] || "")));
   const fieldInGroup = (field, group) => !field.hidden && (field.display_groups || [field.group]).includes(group);
   const stamp = (draft = state.draft, token = state.record?.pricing_token) => JSON.stringify({ draft, pricing_token: token });
   const hasUnsavedChanges = () => state.open && !!state.record && (stamp() !== state.baseline || state.invalid.size > 0 || state.diagramChange !== undefined);

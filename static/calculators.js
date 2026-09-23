@@ -813,6 +813,7 @@
     const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry), page = pageDefinition(entry);
     const sectionSpacing = Boolean(result.section_spacing ?? metadata.section_spacing);
     grid.classList.toggle("calculator-grid-expanded", Boolean(metadata.expand_tables));
+    grid.classList.toggle("calculator-steel-lookup", entry.definition.id === "steel_vermiculite" && entry.sheet === "CALCULATOR");
     entry.productTotalsElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
@@ -1294,9 +1295,15 @@
   }
 
   function renderChoices() {
-    $("calculator-list").replaceChildren(...(state.list || []).map((definition) => {
+    const firestopping = node("button", "calculator-choice"); firestopping.type = "button";
+    firestopping.dataset.estimatorKind = "penetration";
+    firestopping.setAttribute("aria-pressed", String(Boolean(window.CeasefireProposalCalculators?.isFirestopping?.())));
+    firestopping.append(node("strong", "", "Firestopping Estimator"), node("span", "", "Calculate items and build the Firestopping Schedule"));
+    firestopping.addEventListener("click", () => window.CeasefireProposalCalculators?.showFirestopping());
+    $("calculator-list").replaceChildren(firestopping, ...(state.list || []).map((definition) => {
       const button = node("button", "calculator-choice"); button.type = "button";
-      button.setAttribute("aria-pressed", String(definition.id === state.current));
+      button.dataset.estimatorKind = "estimate";
+      button.setAttribute("aria-pressed", String(!window.CeasefireProposalCalculators?.isFirestopping?.() && definition.id === state.current));
       button.append(node("strong", "", definition.title), node("span", "", descriptions[definition.id] || "Workbook schedule and settings"));
       button.addEventListener("click", () => selectCalculator(definition.id)); return button;
     }));
@@ -1304,7 +1311,10 @@
 
   async function selectCalculator(id) {
     const serial = ++state.loadRevision;
-    if (id === state.current && state.gridEntry === current() && current()?.result && !current().needsRender) return;
+    window.CeasefireProposalCalculators?.showWorkbook?.();
+    if (id === state.current && state.gridEntry === current() && current()?.result && !current().needsRender) {
+      $("calculator-workspace").hidden = false; renderChoices(); return;
+    }
     try {
       let entry = state.entries.get(id);
       if (!entry) {
@@ -1328,7 +1338,7 @@
   async function open() {
     try {
       if (!state.list) { const data = await request("/api/calculators"); state.list = data.calculators; renderChoices(); }
-      if (!state.current && state.list.length) await selectCalculator(state.list[0].id);
+      if (state.list.length) await selectCalculator(state.current || state.list[0].id);
     } catch (error) { message(`Could not load the calculators. ${error.message}`, true); }
   }
 

@@ -106,6 +106,42 @@ class EstimateCompositionTests(unittest.TestCase):
         self.assertEqual(result['materials'], base['materials'])
         self.assertEqual(result['firestopping']['result']['rows'], [])
 
+    def test_duplicated_work_item_uses_source_formula_and_is_saved_with_the_project(self):
+        defaults = calculate({})['inputs']
+        team = next(rate['name'] for rate in baseline()['rate_groups']['labour_rates'] if rate['name'].casefold() != 'n/a')
+        work_item = {'id': 'primer-copy-1', 'source_row': 20, 'inputs': {
+            'B': 12.5, 'C': defaults['C20'], 'D': defaults['D20'], 'E': defaults['E20']}}
+        base = calculate({'B8': 10, 'B26': 0, 'B27': 0, 'D4': team})
+        unadjusted = calculate({'B8': 10, 'B26': 0, 'B27': 0, 'D4': team}, work_items=[work_item])
+        result = calculate({'B8': 10, 'B26': .1, 'B27': .2, 'D4': team}, work_items=[work_item])
+        material_delta = unadjusted['summary']['material'] - base['summary']['material']
+        labour_delta = unadjusted['summary']['labour'] - base['summary']['labour']
+        self.assertAlmostEqual(result['summary']['material'], (base['summary']['material'] + material_delta) * 1.1)
+        self.assertAlmostEqual(result['summary']['labour'], (base['summary']['labour'] + labour_delta) * 1.2)
+        self.assertEqual(result['work_items'][0]['inputs'], work_item['inputs'])
+        self.assertTrue(any(item.get('source') == 'duplicate_work_item:primer-copy-1' for item in result['materials']))
+        self.assertTrue(any(task.get('work_item_id') == 'primer-copy-1' for task in result['labour']['tasks']))
+        payload = export_project(self.store, {'estimate': {'title': 'Duplicated row', 'inputs': {'D4': team}, 'work_items': [work_item]}})
+        loaded = load_project_bytes(self.store, payload)
+        self.assertEqual(loaded['estimate']['work_items'], [work_item])
+        self.assertEqual(loaded['estimate']['result']['work_items'][0]['id'], work_item['id'])
+
+    def test_duplicated_work_items_reject_unknown_shapes_and_missing_teams(self):
+        defaults = calculate({})['inputs']
+        valid = {'id': 'copy', 'source_row': 20, 'inputs': {
+            'B': 1, 'C': defaults['C20'], 'D': defaults['D20'], 'E': defaults['E20']}}
+        invalid = [
+            [{**valid, 'extra': True}],
+            [{**valid, 'source_row': 24}],
+            [{**valid, 'inputs': {'B': 1}}],
+            [valid, valid],
+        ]
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                calculate(work_items=value)
+        with self.assertRaisesRegex(ValidationError, 'Select Teams'):
+            calculate({'D4': 'N/A'}, work_items=[valid])
+
     def test_blank_or_zero_sqm_only_leaves_the_combined_rate_unavailable(self):
         for measure in (None, '', 0):
             with self.subTest(measure=measure):

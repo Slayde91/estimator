@@ -36,7 +36,7 @@ let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
   globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
      addScheduleRow,removeScheduleRow,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
-     exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,sourceDisplayText,hiddenColumns,
+     exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
   window.CeasefireCalculators = { open };`);
 vm.runInContext(source, context);
@@ -1508,9 +1508,13 @@ let passed = 0;
   assert.equal(ductIntro.textContent,'Enter values in the schedule input fields.');assert.equal(JSON.stringify(entry.result),rawDuctIntro);
   assert.equal(renderedControls().length,1);passed++;
 
-  // Each independent section scrolls with the page; only its horizontal overflow remains, with explicit fills.
+  // Calculator tables leave vertical wheel scrolling to the page until an input
+  // inside that table is selected; horizontal overflow remains available.
   const sectionCss=fs.readFileSync('static/calculators.css','utf8');
+  assert.match(sectionCss,/\.calculator-table-scroll\{[^}]*overflow-x:auto;overflow-y:visible;max-height:none/);
+  assert.match(sectionCss,/\.calculator-table-scroll:focus-within\{[^}]*overflow-y:auto;max-height:78vh/);
   assert.match(sectionCss,/\.calculator-table-scroll\.calculator-section-scroll\s*\{\s*max-height:\s*none\s*\}/);
+  assert.match(sectionCss,/\.calculator-table-scroll\.calculator-section-scroll:focus-within\s*\{\s*max-height:\s*78vh\s*\}/);
   assert.match(sectionCss,/\.calculator-grid td\.calculator-role-spacer\s*\{\s*background:\s*#fff0ce!important\s*\}/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-value-empty\s*\{\s*background:\s*#f2f3f5!important\s*\}/);
   assert.match(sectionCss,/\.calculator-overview-full\s*>\s*p\s*\{[^}]*flex:\s*0 0 100%/);
@@ -1518,8 +1522,17 @@ let passed = 0;
   assert.match(sectionCss,/\.calculator-role-compact_title\s*\{[^}]*font-size:\s*15px/);
   assert.match(sectionCss,/\.calculator-role-compact_summary_title\s*\{[^}]*font-size:\s*14px/);
   assert.match(sectionCss,/\.calculator-grid>\.calculator-table-scroll:first-child,\.calculator-grid>\.calculator-table-scroll:first-child>table\{border-top:0\}/);
+  assert.match(sectionCss,/\.calculator-grid\.calculator-steel-lookup>\.calculator-table-scroll:first-of-type\{border-top:0;border-bottom:0\}/);
   assert.match(sectionCss,/\.calculator-grid>:first-child:is\(\.calculator-stacked-section,\.calculator-projected-section\)\{border-top:0\}/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-normal\s*\{\s*font-weight:\s*400!important/);passed++;
+
+  // The Firestopping choice and every workbook choice expose the same estimator
+  // selection state so only the active calculator remains highlighted.
+  entry=setup();audit.renderChoices();
+  const calculatorChoices=byId('calculator-list').children;
+  assert.equal(calculatorChoices.length,2);
+  assert.equal(calculatorChoices[0].dataset.estimatorKind,'penetration');
+  assert.equal(calculatorChoices[1].dataset.estimatorKind,'estimate');passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.
   for(const [id,sheet,column,firstRow,label] of [

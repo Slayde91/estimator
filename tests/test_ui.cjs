@@ -31,7 +31,7 @@ vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,
+    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -47,7 +47,7 @@ const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New s
 const oldConfig={inventory:{},rates:{},version:'old'};
 const newConfig={inventory:{},rates:{},version:'new'};
 function setup(){
-  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0,projectPricingDraft:null,libraryDraft:null,pricingScope:'library',pricingRevision:0,projectFile:null,projectBusy:false,initialized:false});
+  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},workItems:[],workItemErrors:new Map(),workItemDrafts:new Map(),nextWorkItem:1,dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0,projectPricingDraft:null,libraryDraft:null,pricingScope:'library',pricingRevision:0,projectFile:null,projectBusy:false,initialized:false});
   for(const id of ['project-no','client','site-address','measurements'])byId(id).value='';
 }
 async function openOlder(id, button) {
@@ -623,6 +623,21 @@ let passed=0;
   assert.doesNotMatch(html,/Selected item breakdown|Calculation source|id="penetration-source"/);
   assert.match(html,/<th scope="col">Item<\/th><th scope="col">Service Type<\/th>/);passed++;
 
+  // Every material row can be duplicated with the same editable inputs and its
+  // extra row is included in calculation/report payloads until removed.
+  setup();audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.inputs=Object.fromEntries(audit.state.fields.map(field=>[field.cell,field.default??'']));audit.state.inputs.D4='1 Team - 1x';audit.setRenderInputs(audit.renderInputs);audit.renderInputs();
+  audit.addWorkItem(20);const duplicate=audit.state.workItems[0];
+  assert.equal(duplicate.source_row,20);assert.deepEqual(copy(duplicate.inputs),Object.fromEntries(['B','C','D','E'].map(column=>[column,audit.state.inputs[`${column}20`]])));
+  assert.equal(byId('material-inputs').children.length,10);assert.equal(audit.reportPayload().work_items[0].id,duplicate.id);
+  const duplicateCoverage=inputDescendants(byId('material-inputs')).find(node=>node.id===`work-item-${duplicate.id}-B`);
+  duplicateCoverage.value='12';await duplicateCoverage.emit('input');assert.equal(duplicate.inputs.B,12);assert.equal(audit.state.dirty,true);
+  const duplicateRow=byId('material-inputs').children.find(row=>row.dataset.workItem===duplicate.id);
+  const duplicateAction=inputDescendants(duplicateRow).find(node=>node.title==='Duplicate Primer work item');
+  await duplicateAction.emit('click');assert.equal(audit.state.workItems.length,2);
+  const removeAction=inputDescendants(duplicateRow).find(node=>node.title==='Remove Primer duplicated work item');
+  await removeAction.emit('click');assert.equal(audit.state.workItems.length,1);passed++;
+
   // Main Estimator sections from Access & Travel onwards are expandable and closed by default.
   assert.match(html,/<details class="card expandable-breakdown" aria-labelledby="materials-heading">\s*<summary><h2 id="materials-heading">Material Requirements &amp; Output<\/h2><\/summary>/);
   assert.match(html,/<details class="card expandable-breakdown penetration-schedule" aria-labelledby="penetration-schedule-heading">\s*<summary><h2 id="penetration-schedule-heading">Firestopping Schedule<\/h2>/);
@@ -750,10 +765,10 @@ let passed=0;
   context.window.CeasefireLibraries={open(kind,id){libraryReturns.push({kind,id});}};
   context.window.CeasefireLibraryEditor={isOpen:()=>librarySession};
   audit.state.inputs.D15='Unchanged project input';audit.state.draft.rates.unsaved={price:77.123456789};const protectedState=copy({inputs:audit.state.inputs,draft:audit.state.draft});
-  context.window.CeasefireLibraryEditorNavigation.show();assert.equal(audit.state.currentView,'estimate');assert.equal(audit.state.estimatorKind,'penetration');assert.equal(projectOpens,0);
+  context.window.CeasefireLibraryEditorNavigation.show();assert.equal(audit.state.currentView,'calculators');assert.equal(audit.state.estimatorKind,'penetration');assert.equal(projectOpens,0);
   assert.equal(byId('firestopping-project-workspace').hidden,true);assert.equal(byId('firestopping-library-editor').hidden,false);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'library-editor-heading');
   context.window.CeasefireLibraryEditorNavigation.returnToLibrary('legacy-row-4');assert.deepEqual(libraryReturns,[{kind:'penetration',id:'legacy-row-4'}]);assert.equal(audit.state.currentView,'pricing');
-  librarySession=false;audit.showView('estimate');assert.equal(projectOpens,1);assert.equal(byId('firestopping-project-workspace').hidden,false);assert.equal(byId('firestopping-library-editor').hidden,true);
+  librarySession=false;audit.showView('estimate');assert.equal(projectOpens,0);assert.equal(byId('firestopping-project-workspace').hidden,false);assert.equal(byId('firestopping-library-editor').hidden,true);
   assert.deepEqual(copy({inputs:audit.state.inputs,draft:audit.state.draft}),protectedState);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'penetration-heading');
   context.window.CeasefirePenetrations=priorPenetrations;context.window.CeasefireLibraries=priorLibraries;delete context.window.CeasefireLibraryEditor;passed++;
 

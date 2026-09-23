@@ -110,7 +110,7 @@ class Store:
 
     def prepare_quote(self, data, quote_id=None, *, read_only=False):
         """Validate and calculate a pricing snapshot without writing a quote."""
-        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements", "penetration", *QUOTE_DETAIL_LIMITS}:
+        if not isinstance(data, dict) or set(data) - {"title", "inputs", "configuration", "workflow", "measurements", "penetration", "work_items", *QUOTE_DETAIL_LIMITS}:
             raise ValidationError("Quote contains unknown fields.")
         previous = self.quote(quote_id) if quote_id else None
         details = validate_quote_details(data, previous)
@@ -149,11 +149,13 @@ class Store:
         # requires an explicit empty draft, so an older client cannot drop it.
         penetration = normalize_penetration(data.get('penetration', prior.get('penetration'))) if 'penetration' in data or 'penetration' in prior else None
         calculate_result = calculate_for_load if read_only else calculate
-        result = calculate_result(data.get("inputs", prior.get("inputs", {})), configuration, penetration)
+        work_items = data.get("work_items", prior.get("work_items", []))
+        result = calculate_result(data.get("inputs", prior.get("inputs", {})), configuration, penetration, work_items)
         quote = {"id": quote_id or str(uuid.uuid4()), "title": title.strip(),
                  **details, "work_summary": compile_work_summary(workflow, result),
                  "updated_at": datetime.now(timezone.utc).isoformat(), "workflow": workflow,
                  "measurements": measurements, "inputs": result["inputs"],
+                 "work_items": [{key: item[key] for key in ('id', 'source_row', 'inputs')} for item in result.get('work_items', [])],
                  "configuration": configuration, "result": result,
                  "source_hashes": catalog["sources"] if pricing_changed else previous["source_hashes"], "schema_version": 1}
         if penetration is not None:

@@ -137,9 +137,15 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .materials-table th:nth-child(2),.materials-table th:nth-child(3){width:110px}
 .materials-table th:nth-child(5){width:100px}
 .materials-table th:nth-child(6){width:95px}
+.materials-table th:nth-child(7){width:105px}
 .materials-table td{padding:11px 7px}
 .materials-table input{padding:9px 8px;width:90px;text-align:right;font-size:12px}
 .materials-table select{min-width:220px;font-size:12px;padding-left:8px}
+.materials-table .work-item-actions{display:flex;gap:6px;align-items:center;justify-content:center}
+.materials-table .work-item-action{width:38px;height:38px;min-width:38px;padding:0;border-radius:8px}
+.materials-table .work-item-action .button-symbol{font-size:17px}
+.materials-table .duplicated-work-item{background:#fffaf2}
+.materials-table .duplicated-work-item .material-label{border-left:3px solid var(--red)}
 .material-label{font-weight:650;font-size:12px}
 .material-label small{display:block;color:var(--muted);font-weight:400;line-height:1.6}
 .calculated-yield{font-variant-numeric:tabular-nums;color:#78646d;text-align:right;padding-right:14px!important}

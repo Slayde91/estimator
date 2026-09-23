@@ -11,6 +11,7 @@
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null,
     pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
+    workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
     pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } },
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -107,6 +108,15 @@
       if (error) control?.setAttribute("aria-invalid", "true"); else control?.removeAttribute("aria-invalid");
       control?.setCustomValidity?.(error || "");
     }
+    for (const item of state.workItems) {
+      const key = `${item.id}:B`, value = item.inputs.B;
+      const blocked = isNumber(value) && value !== 0 && coverageNeedsTeam(`B${item.source_row}`);
+      if (blocked && !state.workItemDrafts.has(key)) state.workItemErrors.set(key, "Select Teams");
+      else if (!blocked && state.workItemErrors.get(key) === "Select Teams") state.workItemErrors.delete(key);
+      const control = $(`work-item-${item.id}-B`), error = state.workItemErrors.get(key);
+      if (error) control?.setAttribute("aria-invalid", "true"); else control?.removeAttribute("aria-invalid");
+      control?.setCustomValidity?.(error || "");
+    }
   }
 
   function updateMaterialRowVisibility() {
@@ -117,11 +127,11 @@
     }
   }
 
-  function inputProblem() { validateCoverageTeams(); return [...state.inputErrors.values()][0] || window.CeasefirePenetrations?.scheduleProblem?.() || ""; }
+  function inputProblem() { validateCoverageTeams(); return [...state.inputErrors.values(), ...state.workItemErrors.values()][0] || window.CeasefirePenetrations?.scheduleProblem?.() || ""; }
 
   function showInputProblems() {
     clearResults("Check inputs");
-    const box = $("calculation-errors"); box.textContent = [...state.inputErrors.values(), window.CeasefirePenetrations?.scheduleProblem?.()].filter(Boolean).join("\n"); box.hidden = false;
+    const box = $("calculation-errors"); box.textContent = [...state.inputErrors.values(), ...state.workItemErrors.values(), window.CeasefirePenetrations?.scheduleProblem?.()].filter(Boolean).join("\n"); box.hidden = false;
     for (const cell of state.inputErrors.keys()) $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
   }
 
@@ -265,6 +275,97 @@
     return label;
   }
 
+  function workItemKey(item, column) { return `${item.id}:${column}`; }
+
+  function makeWorkItemControl(item, column) {
+    const field = fieldByCell(`${column}${item.source_row}`), key = workItemKey(item, column);
+    let control;
+    if (field.type === "select" || Array.isArray(field.options)) {
+      control = node("select");
+      const options = ["", ...(field.options || []).map(String).filter(option => option !== "")];
+      const current = String(item.inputs[column] ?? "");
+      if (!options.includes(current)) options.unshift(current);
+      for (const value of options) {
+        const option = node("option", "", value ? (field.option_labels?.[value] ?? value) : "(blank)");
+        option.value = value; control.append(option);
+      }
+      control.value = current;
+    } else {
+      control = node("input"); control.type = "number";
+      control.step = wholeCells.has(field.cell) ? "1" : "0.01";
+      control.inputMode = wholeCells.has(field.cell) ? "numeric" : "decimal";
+      control.value = state.workItemDrafts.has(key) ? state.workItemDrafts.get(key) : estimateControlValue(field, item.inputs[column]);
+    }
+    control.id = `work-item-${item.id}-${column}`;
+    control.dataset.workItem = item.id; control.dataset.sourceRow = String(item.source_row); control.dataset.column = column;
+    control.setAttribute("aria-label", `${materialNames[item.source_row - 15][0]} duplicate — ${field.label || "input"}`);
+    if (state.workItemErrors.has(key)) { control.setAttribute("aria-invalid", "true"); control.setCustomValidity?.(state.workItemErrors.get(key)); }
+    control.addEventListener("input", () => {
+      state.inputRevision++;
+      let value = control.value;
+      if (column === "B" && coverageNeedsTeam(`B${item.source_row}`) && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0) {
+        control.value = state.workItemDrafts.has(key) ? state.workItemDrafts.get(key) : estimateControlValue(field, item.inputs[column]);
+        validateCoverageTeams(); message("Select Teams", true); showInputProblems(); return;
+      }
+      if (field.type === "number") value = editedEstimateNumber(control, field);
+      if (field.type === "number" && typeof value === "string" && value !== "") {
+        state.workItemErrors.set(key, `${field.label}: ${value}.`); state.workItemDrafts.set(key, control.value);
+        control.setAttribute("aria-invalid", "true"); control.setCustomValidity?.(value); updateDirty(); scheduleCalculation(); return;
+      }
+      state.workItemErrors.delete(key); state.workItemDrafts.delete(key);
+      control.removeAttribute("aria-invalid"); control.setCustomValidity?.(""); item.inputs[column] = value;
+      validateCoverageTeams(); updateDirty(); scheduleCalculation();
+    });
+    if (field.type === "number") control.addEventListener("blur", () => {
+      if (!state.workItemErrors.has(key) && (isNumber(item.inputs[column]) || item.inputs[column] === "")) control.value = estimateControlValue(field, item.inputs[column]);
+    });
+    return control;
+  }
+
+  function addWorkItem(sourceRow, values) {
+    let id;
+    do { id = `work-${Date.now().toString(36)}-${state.nextWorkItem++}`; } while (state.workItems.some(item => item.id === id));
+    state.workItems.push({ id, source_row: sourceRow, inputs: Object.fromEntries(["B", "C", "D", "E"].map(column => [column, clone(values?.[column] ?? state.inputs[`${column}${sourceRow}`] ?? "")])) });
+    state.inputRevision++; renderInputs(); updateDirty(); scheduleCalculation();
+  }
+
+  function removeWorkItem(item) {
+    state.workItems = state.workItems.filter(candidate => candidate.id !== item.id);
+    for (const column of ["B", "C", "D", "E"]) { state.workItemErrors.delete(workItemKey(item, column)); state.workItemDrafts.delete(workItemKey(item, column)); }
+    state.inputRevision++; renderInputs(); updateDirty(); scheduleCalculation();
+  }
+
+  function workItemAction(label, symbol, action, className = "") {
+    const button = node("button", `button secondary icon-only work-item-action ${className}`.trim());
+    button.type = "button"; button.title = label; button.setAttribute("aria-label", label);
+    button.append(node("span", "button-symbol", symbol), node("span", "sr-only", label));
+    button.addEventListener("click", action); return button;
+  }
+
+  function renderMaterialRow(sourceRow, item = null) {
+    const tr = node("tr", item ? "duplicated-work-item" : "");
+    tr.dataset.materialRow = String(sourceRow); if (item) tr.dataset.workItem = item.id;
+    const name = materialNames[sourceRow - 15][0];
+    const title = node("td", "material-label", name);
+    title.append(node("small", "", item ? "Duplicated work item" : materialNames[sourceRow - 15][1])); tr.append(title);
+    for (const column of ["B", "C", "D", "E"]) {
+      const td = node("td"), field = fieldByCell(`${column}${sourceRow}`);
+      const control = field ? (item ? makeWorkItemControl(item, column) : makeControl(field, true)) : node("span", "", "—");
+      if (field && (column === "B" || column === "C")) {
+        const unit = column === "B" ? materialNames[sourceRow - 15][1] : sourceRow === 17 ? "m²" : "Quantity";
+        control.title = unit; control.setAttribute("aria-label", `${name}${item ? " duplicate" : ""} — ${column === "B" ? "Coverage required" : "Daily output"} (${unit})`);
+        if (column === "C") control.setAttribute("aria-description", sourceRow === 17 ? "Square metres per day. This field does not change pinning labour, which follows meshing days." : "Quantity of selected product units completed per day.");
+      }
+      td.append(control); tr.append(td);
+    }
+    const yieldCell = node("td", "calculated-yield"), value = node("span", "", "—");
+    value.id = item ? `yield-work-item-${item.id}` : `yield-${sourceRow}`; yieldCell.append(value); tr.append(yieldCell);
+    const actions = node("td", "work-item-actions");
+    actions.append(workItemAction(`Duplicate ${name} work item`, "⧉", () => addWorkItem(sourceRow, item?.inputs)));
+    if (item) actions.append(workItemAction(`Remove ${name} duplicated work item`, "🗑", () => removeWorkItem(item), "remove-work-item"));
+    tr.append(actions); return tr;
+  }
+
   function inputCard(title, fields, helper) {
     if (!fields.length) return null;
     const section = node("details", "card expandable-breakdown");
@@ -305,32 +406,8 @@
     const maskingCard = maskingActive ? inputCard("Masking/Cleaning", masking) : null;
     if (maskingCard) postMaterials.append(maskingCard);
     for (let row = 15; row <= 23; row++) {
-      const tr = node("tr");
-      tr.dataset.materialRow = String(row);
-      const title = node("td", "material-label", materialNames[row - 15][0]);
-      title.append(node("small", "", materialNames[row - 15][1]));
-      tr.append(title);
-      for (const col of ["B", "C", "D", "E"]) {
-        const td = node("td");
-        const field = fieldByCell(`${col}${row}`);
-        const control = field ? makeControl(field, true) : node("span", "", "—");
-        if (field && (col === "B" || col === "C")) {
-          const unit = col === "B" ? materialNames[row - 15][1] : row === 17 ? "m²" : "Quantity";
-          control.title = unit;
-          control.setAttribute("aria-label", `${materialNames[row - 15][0]} — ${col === "B" ? "Coverage required" : "Daily output"} (${unit})`);
-          if (col === "C") control.setAttribute("aria-description", row === 17
-            ? "Square metres per day. This field does not change pinning labour, which follows meshing days."
-            : "Quantity of selected product units completed per day.");
-        }
-        td.append(control);
-        tr.append(td);
-      }
-      const yieldCell = node("td", "calculated-yield");
-      const value = node("span", "", "—");
-      value.id = `yield-${row}`;
-      yieldCell.append(value);
-      tr.append(yieldCell);
-      materials.append(tr);
+      materials.append(renderMaterialRow(row));
+      for (const item of state.workItems.filter(item => item.source_row === row)) materials.append(renderMaterialRow(row, item));
     }
     updateMaterialRowVisibility();
     const additionCard = inputCard("Additions", additions);
@@ -349,6 +426,7 @@
     document.querySelector(".summary-card").setAttribute("aria-busy", "true");
     for (const key of ["labour", "material", "access", "travel", "material-adjustment", "labour-adjustment", "subtotal", "adjustment", "total", "rate", "days"]) $( `sum-${key}`).textContent = "—";
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = "—";
+    for (const item of state.workItems) { const output = $(`yield-work-item-${item.id}`); if (output) output.textContent = "—"; }
     const row = node("tr"); const cell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
     cell.colSpan = 5; row.append(cell); $("material-results").replaceChildren(row);
     const labourRow = node("tr"), labourCell = node("td", "", status === "Calculating…" ? "Calculating…" : "No current calculation is available.");
@@ -378,7 +456,7 @@
     try {
       const result = await request("/api/calculate", {
         method: "POST", signal: state.controller.signal,
-        body: JSON.stringify({ inputs: state.inputs, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow, ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}) }),
+        body: JSON.stringify({ inputs: state.inputs, work_items: state.workItems, configuration: state.quoteConfiguration || state.configuration, workflow: state.workflow, ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}) }),
       });
       if (revision !== state.revision) return null;
       state.result = result;
@@ -406,6 +484,7 @@
     $("sum-labour-adjustment").textContent = formatMoney(result.global_adjustments?.labour?.amount);
     $("sum-adjustment").textContent = formatMoney(cells.D27 ?? state.inputs.B28 ?? 0);
     for (let row = 15; row <= 23; row++) $(`yield-${row}`).textContent = formatNumber(cells[`F${row}`]);
+    for (const item of result.work_items || []) { const output = $(`yield-work-item-${item.id}`); if (output) output.textContent = formatNumber(item.yield); }
     const materialRows = [];
     for (const material of result.materials || []) {
       const row = node("tr");
@@ -484,7 +563,7 @@
 
   async function newQuote() {
     if (state.projectBusy) return;
-    if (projectHasChanges() && !await confirmReplace("Start a new project?", "Both estimates, project pricing and all three calculator drafts will be replaced with defaults using your saved pricing library.", "New project")) return;
+    if (projectHasChanges() && !await confirmReplace("Start a new project?", "The Quote, Firestopping items, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library.", "New project")) return;
     if (state.initialized) {
       try {
         const captured = projectStamp();
@@ -496,12 +575,13 @@
     }
     state.quoteContext++;
     state.quoteLoadRevision++;
-    state.inputErrors.clear(); state.inputDrafts.clear();
+    state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
     state.quote = null; state.quoteConfiguration = null; state.projectFile = null;
     resetProjectPricing();
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
     state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.cell === "B12" ? "" : field.default ?? ""]));
+    state.workItems = []; state.nextWorkItem = 1;
     state.legacyTitle = "";
     for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
     updateQuoteTitle();
@@ -525,9 +605,10 @@
       const quoteContext = state.quoteContext;
       const inputRevision = state.inputRevision;
       const details = quoteDetails();
+      const workItems = clone(state.workItems);
       const penetration = window.CeasefirePenetrations?.quoteSnapshot?.();
       const penetrationStamp = window.CeasefirePenetrations?.quoteFingerprint?.();
-      const payload = { title, inputs, workflow, measurements, configuration, ...details, ...(penetration ? { penetration } : {}) };
+      const payload = { title, inputs, work_items: workItems, workflow, measurements, configuration, ...details, ...(penetration ? { penetration } : {}) };
       const saved = await request(state.quote ? `/api/quotes/${encodeURIComponent(state.quote.id)}` : "/api/quotes", { method: state.quote ? "PUT" : "POST", body: JSON.stringify(payload) });
       if (quoteContext !== state.quoteContext) { message(`Saved “${title}”. Your currently open estimate has been kept.`); return; }
       const pricingChangedDuringSave = JSON.stringify(state.quoteConfiguration || state.configuration) !== JSON.stringify(configuration);
@@ -538,7 +619,7 @@
       if (!pricingChangedDuringSave && saved.fields) { state.fields = clone(saved.fields); renderInputs(); }
       $("snapshot-message").hidden = false;
       if (!pricingChangedDuringSave) $("snapshot-message").querySelector("span").textContent = "This quote uses its saved pricing snapshot.";
-      const changedDuringSave = pricingChangedDuringSave || state.inputRevision !== inputRevision || state.inputErrors.size > 0 || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp || JSON.stringify(window.CeasefirePenetrations?.quoteSnapshot?.()) !== JSON.stringify(penetration) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
+      const changedDuringSave = pricingChangedDuringSave || state.inputRevision !== inputRevision || state.inputErrors.size > 0 || state.workItemErrors.size > 0 || JSON.stringify(state.inputs) !== JSON.stringify(inputs) || JSON.stringify(state.workItems) !== JSON.stringify(workItems) || window.CeasefirePenetrations?.quoteFingerprint?.() !== penetrationStamp || JSON.stringify(window.CeasefirePenetrations?.quoteSnapshot?.()) !== JSON.stringify(penetration) || JSON.stringify(quoteDetails()) !== JSON.stringify(details) || $("quote-title").value.trim() !== title || state.workflow !== workflow || $("measurements").value !== measurements;
       updateDirty(changedDuringSave);
       message(changedDuringSave ? `Saved “${title}”. Changes made while saving still need to be saved.` : `Saved “${title}” with its inputs and pricing snapshot.`);
     } catch (error) { message(`Quote was not saved. ${error.message}`, true); }
@@ -580,7 +661,7 @@
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
-      state.inputErrors.clear(); state.inputDrafts.clear();
+      state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = quote;
       state.projectFile = null;
       window.CeasefireCalculators.applyProject(prepared);
@@ -589,6 +670,7 @@
       resetProjectPricing("project");
       state.fields = clone(quote.fields || state.currentFields);
       state.inputs = { ...Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""])), ...quote.inputs };
+      state.workItems = clone(quote.work_items || []); state.nextWorkItem = state.workItems.length + 1;
       state.legacyTitle = [quote.project_no, quote.client, quote.site_address].some((value) => typeof value === "string" && value.trim()) ? "" : quote.title || "";
       $("client").value = quote.client || "";
       $("site-address").value = quote.site_address || "";
@@ -607,9 +689,10 @@
   function selectEstimator(kind) {
     if (!["estimate", "penetration"].includes(kind)) return;
     state.estimatorKind = kind;
-    $("estimator-main").hidden = kind !== "estimate";
+    $("estimator-main").hidden = false;
     $("estimator-penetration").hidden = kind !== "penetration";
     for (const button of document.querySelectorAll("[data-estimator-kind]")) button.setAttribute("aria-pressed", String(button.dataset.estimatorKind === kind));
+    if (kind === "penetration") $("calculator-workspace").hidden = true;
     const libraryEditor = !!window.CeasefireLibraryEditor?.isOpen();
     $("firestopping-project-workspace").hidden = libraryEditor;
     $("firestopping-library-editor").hidden = !libraryEditor;
@@ -639,8 +722,9 @@
     }
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
-    if (view === "calculators") window.CeasefireCalculators?.open();
-    const estimatorReady = view === "estimate" ? selectEstimator(state.estimatorKind) : undefined;
+    let estimatorReady;
+    if (view === "calculators") estimatorReady = state.estimatorKind === "penetration" ? selectEstimator("penetration") : window.CeasefireCalculators?.open();
+    if (view === "estimate") estimatorReady = selectEstimator("estimate");
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -1422,6 +1506,7 @@
       title: $("quote-title").value.trim(),
       ...quoteDetails(),
       inputs: clone(state.inputs),
+      work_items: clone(state.workItems),
       configuration: clone(state.quoteConfiguration || state.configuration),
       workflow: state.workflow,
       measurements: $("measurements").value,
@@ -1499,7 +1584,7 @@
           $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
         } else updateDirty();
       }
-      message(`Project saved to ${saved.file.path}. It includes both estimates, the pricing library and all three calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
+      message(`Project saved to ${saved.file.path}. It includes the Quote, Firestopping items, pricing library and all three specialist calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
     } catch (error) { message(`Project was not saved. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
@@ -1573,7 +1658,7 @@
       const [prepared, penetration] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration)]);
       if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces both estimates, their pricing and all three calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
+      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the Quote, Firestopping items, their pricing and all three specialist calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
       if (!accepted) { message("Project load cancelled. Your current drafts were kept."); return; }
       if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
@@ -1583,8 +1668,9 @@
       window.CeasefireCalculators.markProjectSaved(project.calculators);
       if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       ++state.quoteContext; ++state.quoteLoadRevision;
-      state.inputErrors.clear(); state.inputDrafts.clear();
+      state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
+      state.workItems = clone(estimate.work_items || []); state.nextWorkItem = state.workItems.length + 1;
       state.projectFile = file; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
@@ -1594,8 +1680,8 @@
       selectEstimator("estimate"); showView("estimate"); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
       message(file.save_token
-        ? "Project loaded with both estimates, its original pricing and all three calculators. Save updates this file; Save As stores the complete project in another file."
-        : "Project imported with both estimates, its original pricing and all three calculators. Use Save As to choose its project file.");
+        ? "Project loaded with the Quote, Firestopping items, original pricing and all three specialist calculators. Save updates this file; Save As stores the complete project in another file."
+        : "Project imported with the Quote, Firestopping items, original pricing and all three specialist calculators. Use Save As to choose its project file.");
   }
 
   async function loadProjects({ refresh = false, offset = state.projectsOffset } = {}) {
@@ -1760,14 +1846,19 @@
     downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
   window.CeasefireLibraryNavigation = { open: requestLibraryNavigation };
   window.CeasefirePenetrationNavigation = {
-    show() { state.estimatorKind = "penetration"; return showView("estimate"); },
+    show() { state.estimatorKind = "penetration"; return showView("calculators"); },
     showSchedule() { state.estimatorKind = "estimate"; return showView("estimate"); },
     confirm: confirmReplace,
     notify,
   };
   window.CeasefireLibraryEditorNavigation = {
-    show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("estimate"); },
+    show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("calculators"); },
     returnToLibrary(id) { state.libraryKind = "penetration"; showView("pricing", id); },
+  };
+  window.CeasefireProposalCalculators = {
+    showFirestopping() { state.estimatorKind = "penetration"; return showView("calculators"); },
+    showWorkbook() { state.estimatorKind = "estimate"; $("estimator-penetration").hidden = true; },
+    isFirestopping() { return state.estimatorKind === "penetration"; },
   };
   bootstrap();
 })();

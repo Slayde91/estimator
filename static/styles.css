@@ -150,6 +150,8 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .calculation-errors{padding:13px;border-radius:8px;font-size:11px;margin-top:19px;overflow-wrap:anywhere}
 .calculation-errors ul{padding-left:17px;margin:7px 0 0}
 .calculation-errors li{margin-top:5px}
+.pricing-table-actions{align-items:center;justify-content:flex-end;margin:0 0 22px;padding:0 0 18px;border-bottom:1px solid var(--line)}
+.pricing-add-item-action{justify-content:flex-start;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
 .pricing-controls{display:flex;align-items:flex-end;gap:15px;margin-bottom:20px}
 .tabs{display:flex;padding:4px;background:#f6f1f3;border-radius:8px;flex-shrink:0}
 .tab{padding:9px 16px;border-radius:5px;background:none;font-size:12px;color:#806a75}
@@ -172,6 +174,10 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-table .pricing-availability input:focus{border-color:var(--red);box-shadow:0 0 0 3px #c8102e17}
 .pricing-table .pricing-availability input:disabled{background:#f3eff0;color:#84767b}
 .pricing-table .edited{background:#fff7e7}
+.schedule-download-button{width:58px;min-width:58px;height:48px;padding:5px}
+.download-format-icon{display:grid;grid-template-columns:18px auto;align-items:center;gap:2px;line-height:1}
+.download-arrow{font:800 21px/1 "Segoe UI Symbol",sans-serif;transform:translateY(-1px)}
+.download-format{font-size:8px;font-weight:900;letter-spacing:.02em}
 .pricing-table .reset-button{background:none;color:var(--accent);font-size:10px;white-space:nowrap;padding:7px;text-decoration:underline;text-underline-offset:3px}
 .pricing-table .reset-button:disabled{color:var(--muted);cursor:default;text-decoration:none;opacity:.6}
 .pricing-use-row>td{padding:0 14px 13px;border-top:0}

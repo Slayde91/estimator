@@ -55,7 +55,8 @@
 @media(max-width:760px){.calculator-document-cards{grid-template-columns:1fr}}
 /* Continuous worksheets: branded sections, readable inputs and one complete table. */
 .calculator-grid{--calculator-section-bg:linear-gradient(100deg,#8b101e,#b31624);--calculator-section-ink:#fff;max-height:none;overflow:visible;min-height:160px;border:0;background:#fff}
-.calculator-table-scroll{overflow:auto;max-height:78vh;border-block:1px solid #000;scrollbar-width:thin;scrollbar-color:#bc9ca8 #faf5f6;overscroll-behavior:contain}
+.calculator-table-scroll{overflow:auto;max-height:78vh;border-bottom:1px solid #000;scrollbar-width:thin;scrollbar-color:#bc9ca8 #faf5f6;overscroll-behavior:contain}
+.calculator-grid>.calculator-table-scroll:first-child,.calculator-grid>.calculator-table-scroll:first-child>table{border-top:0}
 .calculator-grid table{font-size:12px}
 .calculator-grid td,.calculator-grid th{padding:12px 14px;line-height:1.6}
 .calculator-grid thead th{background:#7f1320;color:#fff;border-color:#000;font-size:11px;font-weight:750;letter-spacing:.1px;padding:14px;line-height:1.5}
@@ -163,6 +164,7 @@
 .calculator-grid .calculator-projection-table th{background:#7f1320;color:#fff;font-size:11px;font-weight:750;border-color:#000}
 .calculator-grid td.calculator-row-status{font-weight:400!important}
 .calculator-stacked-section,.calculator-projected-section{min-width:0;margin-top:20px;border-top:1px solid #000}
+.calculator-grid>:first-child:is(.calculator-stacked-section,.calculator-projected-section){border-top:0}
 .calculator-stacked-section>h4,.calculator-projected-section>h4{margin:0;padding:16px 22px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);border-bottom:4px solid var(--red);font-size:15px;font-weight:750;scroll-margin-block-start:175px}
 .calculator-stacked-section .calculator-table-scroll,.calculator-projected-section .calculator-table-scroll{max-height:none}
 .calculator-projected-note{margin:0;padding:14px 22px;background:#fff0ce;color:var(--muted);white-space:pre-wrap}

@@ -13,6 +13,7 @@
 .library-editor-image-field{max-width:520px}
 .library-editor-diagram .actions{margin-top:10px}
 .library-editor-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
+.library-editor-fields:has(>.penetration-settings){display:block;min-width:0;max-width:100%}
 .library-editor-fields .field>span{overflow-wrap:anywhere}
 .library-editor-fields .field.library-editor-long-text{grid-column:1/-1}
 .library-editor-summary{position:sticky;top:116px}

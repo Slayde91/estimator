@@ -239,6 +239,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, projects.save_as(body))
                 elif route == '/api/project/save' and self.command == 'POST':
                     self.send_payload(200, projects.save(body))
+                elif route == '/api/project/attachment' and self.command == 'POST':
+                    self.send_payload(200, projects.save_attachment(body))
                 elif route == '/api/project/open' and self.command == 'POST':
                     if body:
                         raise ValidationError('Load Project does not accept a file path or other fields.')

@@ -1386,6 +1386,9 @@
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
+    $("project-attachment-zone").disabled = value;
+    $("project-attachment-zone").setAttribute("aria-busy", String(value && activeId === "project-attachment-zone"));
+    $("project-attachment-input").disabled = value;
     updateProjectStatus();
   }
 
@@ -1462,6 +1465,45 @@
       await reviewAndLoadProject(project, { name: file.name, ...(file.lastModified ? { modified_at: new Date(file.lastModified).toISOString() } : {}) }, captured);
     } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
     finally { projectBusy(false); }
+  }
+
+  function projectAttachmentNotice(text = "Files save beside the current project.") {
+    $("project-attachment-status").textContent = text;
+  }
+
+  function requireSavedProjectForFiles() {
+    if (state.projectFile?.save_token) return true;
+    const text = 'There is no saved project. Please click "Save As" and select a project folder.';
+    projectAttachmentNotice(text); message(text, true); return false;
+  }
+
+  async function uploadProjectFiles(selectedFiles) {
+    const files = Array.from(selectedFiles || []);
+    if (!files.length || state.projectBusy || !requireSavedProjectForFiles()) return;
+    if (files.length > 50) { message("Choose no more than 50 project files at once.", true); return; }
+    const target = state.projectFile, saved = [];
+    projectBusy(true, "project-attachment-zone");
+    try {
+      for (const [index, file] of files.entries()) {
+        if (!file?.name || file.size > 16 * 1024 * 1024) throw new Error("Each project file must have a filename and be 16 MB or smaller.");
+        projectAttachmentNotice(`Saving ${index + 1} of ${files.length}: ${file.name}`);
+        const content_base64 = await fileBase64(file);
+        if (state.projectFile !== target) throw new Error("The saved project changed while the files were being read. Choose them again.");
+        const result = await request("/api/project/attachment", { method: "POST", body: JSON.stringify({ project_token: target.save_token, filename: file.name, content_base64 }) });
+        saved.push(result.filename);
+      }
+      const detail = `${saved.length} ${saved.length === 1 ? "file" : "files"} saved to the project folder: ${saved.join(", ")}`;
+      projectAttachmentNotice(detail); message(detail);
+    } catch (error) {
+      const prefix = saved.length ? `${saved.length} ${saved.length === 1 ? "file was" : "files were"} saved before the upload stopped. ` : "Project files were not saved. ";
+      projectAttachmentNotice(`${prefix}${error.message}`); message(`${prefix}${error.message}`, true);
+    } finally {
+      $("project-attachment-input").value = ""; projectBusy(false);
+    }
+  }
+
+  function chooseProjectFiles() {
+    if (!state.projectBusy && requireSavedProjectForFiles()) $("project-attachment-input").click();
   }
 
   async function reviewAndLoadProject(project, file, captured) {
@@ -1599,6 +1641,15 @@
   $("save-current-project").addEventListener("click", () => saveProject(false));
   $("load-project").addEventListener("click", openNativeProject);
   $("project-import-file").addEventListener("change", loadProject);
+  $("project-attachment-zone").addEventListener("click", chooseProjectFiles);
+  $("project-attachment-input").addEventListener("change", event => uploadProjectFiles(event.target.files));
+  for (const eventName of ["dragenter", "dragover"]) $("project-attachment-zone").addEventListener(eventName, event => {
+    event.preventDefault(); if (!state.projectBusy) $("project-attachment-zone").classList.add("is-dragover");
+  });
+  for (const eventName of ["dragleave", "dragend"]) $("project-attachment-zone").addEventListener(eventName, () => $("project-attachment-zone").classList.remove("is-dragover"));
+  $("project-attachment-zone").addEventListener("drop", event => {
+    event.preventDefault(); $("project-attachment-zone").classList.remove("is-dragover"); uploadProjectFiles(event.dataTransfer?.files);
+  });
   $("edit-project-details").addEventListener("click", () => { selectEstimator("estimate"); showView("estimate"); $("project-no").focus(); });
   $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));
   $("project-search").addEventListener("input", () => {

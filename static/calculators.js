@@ -1023,7 +1023,7 @@
           const label = cell.label || labels[column] || preceding || "Calculator input";
           td.append(makeControl(cell, row.row, entry, `${label}${item ? `, item ${item}` : ""}`));
         } else {
-          const structural = matrixHeading || sourceHeading || ["title", "section", "column_header"].includes(role);
+          const structural = matrixHeading || sourceHeading || ["title", "compact_title", "compact_summary_title", "section", "column_header"].includes(role);
           const tableValue = Boolean(schedule) || group === "matrix" || Boolean(renderedGroup.definition) || referenceTableValue(entry, row.row, column);
           if (!structural && (tableValue || cell.output || cell.calculated || role === "output" || role !== "label" && cell.value !== null && cell.value !== undefined && cell.value !== "")) td.dataset.calculatorValue = "true";
           td.dataset.calculatorOutput = cell.address || `${columnName(column)}${row.row}`;

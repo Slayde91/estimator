@@ -178,6 +178,36 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertEqual(database_rows(self.store), before)
         self.assertNotIn("save_token", self.library.listing()["files"][0])
 
+    def test_project_attachments_require_saved_capability_and_never_overwrite(self):
+        with self.assertRaisesRegex(ValidationError, 'There is no saved project'):
+            self.library.save_attachment({"project_token": None, "filename": "scope.pdf", "content_base64": "QQ=="})
+        target = self.folder / "Existing.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        saved = self.library.save_as(self.request)
+        token = saved["file"]["save_token"]
+        first = self.library.save_attachment({"project_token": token, "filename": "scope notes.txt",
+                                              "content_base64": base64.b64encode(b"first").decode("ascii")})
+        second = self.library.save_attachment({"project_token": token, "filename": "scope notes.txt",
+                                               "content_base64": base64.b64encode(b"second").decode("ascii")})
+        self.assertEqual((first["filename"], second["filename"]), ("scope notes.txt", "scope notes (1).txt"))
+        self.assertEqual((self.folder / first["filename"]).read_bytes(), b"first")
+        self.assertEqual((self.folder / second["filename"]).read_bytes(), b"second")
+        self.assertEqual(target.read_bytes(), self.payload)
+
+    def test_project_attachments_reject_paths_invalid_content_and_stale_projects(self):
+        target = self.folder / "Existing.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        token = self.library.save_as(self.request)["file"]["save_token"]
+        for filename in ("../outside.txt", "folder/file.txt", "CON.txt", "trailing. ", "bad?.txt"):
+            with self.subTest(filename=filename), self.assertRaisesRegex(ValidationError, "valid filename"):
+                self.library.save_attachment({"project_token": token, "filename": filename, "content_base64": "QQ=="})
+        with self.assertRaisesRegex(ValidationError, "content is invalid"):
+            self.library.save_attachment({"project_token": token, "filename": "safe.txt", "content_base64": "%%%"})
+        target.write_text("changed outside the application", encoding="utf-8")
+        with self.assertRaisesRegex(ValidationError, "changed or was removed"):
+            self.library.save_attachment({"project_token": token, "filename": "safe.txt", "content_base64": "QQ=="})
+        self.assertFalse((self.folder / "safe.txt").exists())
+
     def test_older_browser_cannot_remove_saved_current_item_on_save_or_save_as(self):
         from estimator.penetration_calculator import definition
         current = copy.deepcopy(definition({})['defaults'])
@@ -732,6 +762,22 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(loaded["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
         for table in ("settings", "quotes", "calculator_states"):
             self.assertEqual(database_rows(self.store)[table], before[table])
+
+    def test_project_attachment_route_uses_saved_project_capability(self):
+        target = self.root / "Saved.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Attachment target"}})
+        self.assertEqual(status, 200, saved)
+        status, attachment = self.request("POST", "/api/project/attachment", {
+            "project_token": saved["file"]["save_token"], "filename": "inspection photo.jpg",
+            "content_base64": base64.b64encode(b"image bytes").decode("ascii"),
+        })
+        self.assertEqual(status, 200, attachment)
+        self.assertEqual(attachment["filename"], "inspection photo.jpg")
+        self.assertEqual((self.root / "inspection photo.jpg").read_bytes(), b"image bytes")
+        self.assertEqual(self.request("POST", "/api/project/attachment", {
+            "project_token": None, "filename": "no-project.txt", "content_base64": "QQ==",
+        })[0], 400)
 
     def test_project_pricing_preview_is_read_only_and_validates_configuration(self):
         before = database_rows(self.store)

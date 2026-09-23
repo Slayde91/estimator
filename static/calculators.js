@@ -103,7 +103,7 @@
       BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
-        A7: [["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
+        A7: [["CALCULATOR = one member", "LOOKUP = one member"], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
         G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
         G185: factorLookupDirections, G241: factorLookupDirections,
         G38: estimatingDensityDirections, G71: estimatingDensityDirections, G103: estimatingDensityDirections,
@@ -208,8 +208,11 @@
   }
 
   function renderScheduleTools(entry) {
-    const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "button primary", "Add row"), undo = node("button", "button secondary", "Undo remove");
+    const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "button primary icon-only"), undo = node("button", "button secondary icon-only");
     add.type = undo.type = "button"; add.dataset.scheduleAdd = "true"; undo.dataset.scheduleUndo = "true";
+    const addIcon = node("span", "button-symbol", "+"), undoIcon = node("span", "button-symbol", "↶"); addIcon.setAttribute("aria-hidden", "true"); undoIcon.setAttribute("aria-hidden", "true");
+    add.title = "Add row"; add.setAttribute("aria-label", "Add row"); add.append(addIcon);
+    undo.title = "Undo remove"; undo.setAttribute("aria-label", "Undo remove"); undo.append(undoIcon);
     const capacity = entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;
     add.disabled = state.action || entry.invalid.size > 0 || entry.scheduleRows.length >= capacity;
     undo.disabled = state.action || entry.invalid.size > 0 || !entry.removedRows?.length;
@@ -334,7 +337,8 @@
   function displayPages(definition) {
     const pages = definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
     return pages.map((page) => page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
-      { ...page, label: definition.id === "steel_vermiculite" ? "LOOKUP" : ["steel_board", "ductwork"].includes(definition.id) ? "SCHEDULE" : page.label } : page);
+      { ...page, label: definition.id === "steel_vermiculite" ? "LOOKUP" : ["steel_board", "ductwork"].includes(definition.id) ? "SCHEDULE" : page.label }
+      : definition.id === "steel_vermiculite" && page.id === "BAGS" ? { ...page, label: "SUMMARY" } : page);
   }
   function currentPage(entry) { return entry.page || entry.sheet; }
   function pageDefinition(entry) { return displayPages(entry.definition).find((page) => page.id === currentPage(entry)) || { id: currentPage(entry), label: currentPage(entry), sheet: entry.sheet }; }
@@ -353,6 +357,7 @@
     if (typeof value !== "string") return value;
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
+    if (id === "steel_vermiculite") replacements = [...replacements, ["CALCULATOR", "LOOKUP"], ["BAGS", "SUMMARY"]];
     const position = parseAddress(address);
     const schedule = entry.definition.schedule;
     if (id === "steel_board" && position && ((entry.sheet === schedule?.sheet && position.column === 35 && position.row >= schedule.first_row && position.row <= schedule.last_row) || (entry.sheet === "SETTINGS" && position.column === 17 && position.row >= 6 && position.row <= 51))) replacements = boardStatusDirections;
@@ -1405,15 +1410,15 @@
     if (current() !== entry || entry.invalid.size) return;
     const id = entry.definition.id, snapshot = clone(entry.inputs), revision = entry.revision;
     const projectDetails = includeProjectDetails ? clone(window.CeasefireProject?.details() || {}) : null;
-    const button = $(buttonId), previousLabel = button.textContent;
+    const button = $(buttonId), previousLabel = button.getAttribute("aria-label") || label;
     state.action = true; updateStatus();
-    button.textContent = `Preparing ${label}…`; button.setAttribute("aria-busy", "true");
+    button.setAttribute("aria-label", `Preparing ${label}…`); button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(endpoint(id, action), { inputs: snapshot, ...(projectDetails ? { project_details: projectDetails } : {}) });
       const changed = current() !== entry || entry.revision !== revision || projectDetails && JSON.stringify(projectDetails) !== JSON.stringify(window.CeasefireProject?.details() || {});
       message(`${label} saved to ${saved.path} using the ${entry.definition.title} draft captured when you clicked Download.${changed ? " Your current draft was kept; later edits are not included." : ""}`);
     } catch (error) { message(`Could not download the ${label}. ${error.message}`, true); }
-    finally { button.textContent = previousLabel; button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
+    finally { button.setAttribute("aria-label", previousLabel); button.removeAttribute("aria-busy"); state.action = false; updateStatus(); }
   }
 
   function downloadSchedulePdf() {

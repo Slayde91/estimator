@@ -694,7 +694,10 @@
   function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
-    $("save-pricing").textContent = state.pricingScope === "project" ? "Apply project pricing" : "Save pricing";
+    const save = $("save-pricing"), project = state.pricingScope === "project";
+    save.textContent = project ? "Apply" : "Save pricing";
+    save.title = project ? "Apply project pricing" : "Save pricing";
+    save.setAttribute("aria-label", save.title);
     $("pricing-context").textContent = state.pricingScope === "project"
       ? "These prices and estimator groups belong to the current project. Apply project pricing updates its estimate and dropdowns; Save stores them in the current file, or Save As creates another file. The shared library stays unchanged."
       : "Save pricing stores the shared library and estimator groups on this computer for future estimates. Existing projects keep their saved pricing and dropdown groups; use Current project pricing to change the open project.";
@@ -812,8 +815,12 @@
   function refreshPricingCatalog() {
     state.catalog = clone(state.draft.catalog || state.baseline);
     const selection = $("rate-group").value;
-    const firestopping = state.pricingUsage?.firestopping?.label || "Firestopping Estimator";
-    const options = [["", "All estimator availability"], ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, groups[key] || key]), ["firestopping", firestopping], ["not-used", "Not used in either estimator"]].map(([key, label]) => {
+    const firestopping = state.pricingUsage?.firestopping || {};
+    const options = [["", "All estimator availability"], ["main-estimator", "Main Estimator"],
+      ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, `Main Estimator — ${groups[key] || key}`]),
+      ["firestopping", firestopping.label || "Firestopping Estimator"],
+      ...(firestopping.groups || []).map((group) => [`firestopping:${group.key}`, `Firestopping Estimator — ${group.label}`]),
+      ["not-used", "Not used in either estimator"]].map(([key, label]) => {
       const option = node("option", "", label); option.value = key; return option;
     });
     $("rate-group").replaceChildren(...options);
@@ -1172,7 +1179,11 @@
     const productText = (record) => `${productServiceName(record)} ${record.item.name} ${record.item.sales_description || ""} ${record.item.item_code || ""}`.toLocaleLowerCase();
     const matches = records.filter((record) => {
       const firestopping = usedInFirestopping(record);
-      const groupMatch = !selectedGroup || (selectedGroup === "firestopping" ? firestopping : selectedGroup === "not-used" ? !record.uses.length && !firestopping : record.uses.some((use) => use.group === selectedGroup));
+      const groupMatch = !selectedGroup || (selectedGroup === "main-estimator" ? record.uses.length > 0
+        : selectedGroup === "firestopping" ? firestopping
+        : selectedGroup.startsWith("firestopping:") ? firestoppingGroups(record).includes(selectedGroup.slice("firestopping:".length))
+        : selectedGroup === "not-used" ? !record.uses.length && !firestopping
+        : record.uses.some((use) => use.group === selectedGroup));
       const firestoppingText = firestoppingGroupLabels(record).join(" ");
       const useText = `${record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ")} ${firestoppingText}`.toLocaleLowerCase();
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
@@ -1330,14 +1341,14 @@
     const button = $("export-pricing");
     if (button.disabled) return;
     const draft = JSON.stringify(state.draft);
-    button.disabled = true; button.textContent = "Exporting…";
+    button.disabled = true; button.setAttribute("aria-busy", "true"); button.setAttribute("aria-label", "Exporting Excel…");
     try {
       const saved = await window.CeasefireDownloads.save("/api/pricing/export", { configuration: JSON.parse(draft) });
       message(draft === JSON.stringify(state.draft)
         ? `Excel saved to ${saved.path}. It includes all inventory and rate groups, including your unsaved pricing edits.`
         : `Excel saved to ${saved.path} using the pricing captured when you clicked Export Excel. Later edits are not included.`);
     } catch (error) { message(`Pricing was not exported. ${error.message}`, true); }
-    finally { button.disabled = false; button.textContent = "Export Excel"; }
+    finally { button.disabled = false; button.removeAttribute("aria-busy"); button.setAttribute("aria-label", "Export Excel"); }
   }
 
   function fileBase64(file) {
@@ -1358,7 +1369,7 @@
     if (!file) return;
     const button = $("import-pricing");
     const sourceDraft = state.draft, draft = JSON.stringify(sourceDraft);
-    button.disabled = true; button.textContent = "Reading Excel…";
+    button.disabled = true; button.setAttribute("aria-busy", "true"); button.setAttribute("aria-label", "Reading Excel…");
     try {
       if (!/\.xlsx$/i.test(file.name)) throw new Error("Choose an .xlsx workbook exported from this pricing library.");
       if (file.size > 5 * 1024 * 1024) throw new Error("The workbook must be 5 MB or smaller.");
@@ -1380,7 +1391,7 @@
       refreshPricingCatalog(); renderPricing();
       message(`Imported pricing is ready to review. Click ${saveAction} to apply the new products, dropdown choices and rates.`);
     } catch (error) { message(`Pricing was not imported. ${error.message}`, true); }
-    finally { button.disabled = false; button.textContent = "Import Excel"; }
+    finally { button.disabled = false; button.removeAttribute("aria-busy"); button.setAttribute("aria-label", "Import Excel"); }
   }
 
   async function bootstrap() {
@@ -1665,7 +1676,7 @@
     const savedReportId = state.quote && !state.dirty ? state.quote.id : null;
     const reportPath = savedReportId ? `/api/quotes/${encodeURIComponent(savedReportId)}/report.pdf` : "/api/quote-report";
     button.disabled = true;
-    button.textContent = "Preparing PDF…";
+    button.setAttribute("aria-label", "Preparing PDF Estimate…");
     button.setAttribute("aria-busy", "true");
     try {
       const saved = await window.CeasefireDownloads.save(reportPath, savedReportId ? {} : payload);
@@ -1676,7 +1687,7 @@
     } catch (error) { message(`PDF for “${payload.title}” was not downloaded. ${error.message}`, true); }
     finally {
       button.disabled = false;
-      button.textContent = "Download PDF";
+      button.setAttribute("aria-label", "Download PDF Estimate");
       button.removeAttribute("aria-busy");
     }
   }

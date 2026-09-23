@@ -189,6 +189,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.create(body))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/links/remove', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.remove_link(route.split('/')[-3], body))
                 elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/links', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

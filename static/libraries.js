@@ -54,7 +54,7 @@
     if (state.panes.has(kind)) return state.panes.get(kind);
     const pane = { kind, search: "", filters: {}, offset: 0, limit: 50, data: null, dataQuery: null, detail: null, selected: null,
       listRevision: 0, detailRevision: 0, openRevision: 0, listAbort: null, detailAbort: null, timer: null, filterStamp: null, busy: false,
-      linkSession: null, addPending: new Map(), addErrors: new Map(), deletePending: new Set(), deleteButtons: new Map(),
+      linkSession: null, addPending: new Map(), addErrors: new Map(), deletePending: new Set(), deleteButtons: new Map(), unlinkPending: new Set(), unlinkButtons: new Map(),
       scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map() };
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
@@ -248,9 +248,14 @@
   function linkMessage(session, text = "", error = false) {
     session.message.textContent = text; session.message.hidden = !text; session.message.className = `message${error ? " error" : " info"}`;
   }
+  function updateLinkSave(session) {
+    const count = session.selected.size;
+    session.save.textContent = count ? `Save links (${count})` : "Save links";
+    session.save.disabled = !count || session.busy || session.saving;
+  }
   function openLinkPicker(pane, item, opener) {
     closeLinkPicker(pane); invalidateList(pane); message(pane);
-    const session = { id: item.id, search: "", offset: 0, limit: 20, total: 0, selected: null, revision: 0, abort: null, timer: null, busy: false, saving: false, choices: [] };
+    const session = { id: item.id, search: "", offset: 0, limit: 20, total: 0, selected: new Set(), revision: 0, abort: null, timer: null, busy: false, saving: false, choices: [] };
     pane.linkSession = session; pane.list.hidden = pane.detailPanel.hidden = true; pane.linkPanel.hidden = false;
     const heading = node("h3", "", "Link Library Item"); heading.id = "library-link-heading"; heading.tabIndex = -1; pane.linkPanel.setAttribute("aria-labelledby", heading.id);
     const cancel = button("Cancel", async () => {
@@ -265,13 +270,13 @@
     session.count = node("p", "helper"); session.count.setAttribute("role", "status"); session.results = node("div", "library-link-results");
     session.previous = button("Previous", () => { session.offset = Math.max(0, session.offset - session.limit); loadLinkResults(pane, session); });
     session.next = button("Next", () => { session.offset += session.limit; loadLinkResults(pane, session); });
-    session.save = button("Save link", () => saveLink(pane, session), "button primary"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
+    session.save = button("Save links", () => saveLink(pane, session), "button primary"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
     const pages = node("nav", "library-pagination"); pages.setAttribute("aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
     const actions = node("div", "library-item-actions"); actions.append(session.save, cancel);
-    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), node("p", "helper", "Choose a Technical Library item to link."), controls, session.message, session.count, session.results, pages, actions);
+    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), node("p", "helper", "Choose one or more Technical Library items to link."), controls, session.message, session.count, session.results, pages, actions);
     session.searchInput.addEventListener("input", () => {
       if (session.saving || pane.linkSession !== session) return;
-      session.search = session.searchInput.value.trim(); session.offset = 0; session.selected = null; session.busy = true; ++session.revision; session.abort?.abort(); clearTimeout(session.timer); session.save.disabled = session.previous.disabled = session.next.disabled = true; session.count.textContent = "Searching…";
+      session.search = session.searchInput.value.trim(); session.offset = 0; session.busy = true; ++session.revision; session.abort?.abort(); clearTimeout(session.timer); session.save.disabled = session.previous.disabled = session.next.disabled = true; session.count.textContent = "Searching…";
       session.timer = setTimeout(() => loadLinkResults(pane, session), 250);
     });
     heading.focus({ preventScroll: true }); pane.linkPanel.scrollIntoView?.({ block: "start" }); loadLinkResults(pane, session);
@@ -279,7 +284,7 @@
   async function loadLinkResults(pane, session) {
     if (pane.linkSession !== session || session.saving) return;
     clearTimeout(session.timer); session.abort?.abort(); session.abort = new AbortController(); const revision = ++session.revision;
-    session.busy = true; session.selected = null; session.save.disabled = session.previous.disabled = session.next.disabled = true;
+    session.busy = true; session.save.disabled = session.previous.disabled = session.next.disabled = true;
     session.choices = []; session.results.replaceChildren(); session.results.setAttribute("aria-busy", "true"); session.count.textContent = "Searching…"; linkMessage(session);
     const query = new URLSearchParams({ search: session.search, offset: String(session.offset), limit: String(session.limit) });
     try {
@@ -289,29 +294,55 @@
       const items = Array.isArray(data.items) ? data.items : [];
       session.count.textContent = session.total ? `Showing ${session.offset + 1}–${session.offset + items.length} of ${session.total} technical records` : "No matching technical records.";
       session.results.replaceChildren(...items.map(item => {
-        const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "radio"; input.name = "library-technical-choice"; input.value = item.id; input.dataset.libraryLinkChoice = item.id;
+        const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "checkbox"; input.value = item.id; input.checked = session.selected.has(item.id); input.dataset.libraryLinkChoice = item.id;
         description.append(node("strong", "", item.title || item.id)); if (item.subtitle) description.append(node("span", "helper", item.subtitle)); if (item.source_label) description.append(node("span", "helper", item.source_label));
-        input.addEventListener("change", () => { if (pane.linkSession !== session || session.busy || session.saving) return; session.selected = item.id; session.save.disabled = false; }); session.choices.push(input); choice.append(input, description); return choice;
+        input.addEventListener("change", () => { if (pane.linkSession !== session || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
       }));
     } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; session.count.textContent = "Technical records unavailable."; linkMessage(session, `${error.message} Use Search to retry.`, true); } }
     finally {
-      if (pane.linkSession === session && revision === session.revision) { session.busy = false; session.results.setAttribute("aria-busy", "false"); session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
+      if (pane.linkSession === session && revision === session.revision) { session.busy = false; session.results.setAttribute("aria-busy", "false"); updateLinkSave(session); session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
     }
   }
   async function saveLink(pane, session) {
-    if (pane.linkSession !== session || session.saving || session.busy || !session.selected) return;
-    const technicalId = session.selected; session.saving = true; session.save.disabled = session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = session.previous.disabled = session.next.disabled = true; linkMessage(session, "Saving link…");
+    if (pane.linkSession !== session || session.saving || session.busy || !session.selected.size) return;
+    const technicalIds = [...session.selected]; session.saving = true; session.save.disabled = session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = session.previous.disabled = session.next.disabled = true; linkMessage(session, "Saving links…");
     for (const choice of session.choices) choice.disabled = true;
     try {
-      const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(session.id)}/links`, null, { technical_id: technicalId });
-      if (receipt.linked !== true || receipt.penetration_id !== session.id || receipt.technical_id !== technicalId) throw new Error("The server did not confirm the saved reference link.");
+      const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(session.id)}/links`, null, { technical_ids: technicalIds });
+      if (receipt.linked !== true || receipt.penetration_id !== session.id || !Array.isArray(receipt.technical_ids) || receipt.technical_ids.length !== technicalIds.length || technicalIds.some(id => !receipt.technical_ids.includes(id))) throw new Error("The server did not confirm the saved reference links.");
       invalidate();
       if (pane.linkSession !== session || state.current !== pane.kind) return;
       closeLinkPicker(pane); const revision = pane.openRevision + 1; await open(pane.kind, pane.selected || { list: true });
-      if (state.current === pane.kind && pane.openRevision === revision) message(pane, receipt.created === false ? "This technical reference is already linked." : "Technical reference linked.");
-    } catch (error) { if (pane.linkSession === session) linkMessage(session, `Saving the reference link was not confirmed. ${error.message} Retry to check the same link.`, true); }
+      if (state.current === pane.kind && pane.openRevision === revision) {
+        const created = Array.isArray(receipt.created_ids) ? receipt.created_ids.length : 0;
+        message(pane, created ? `${created} technical ${created === 1 ? "reference" : "references"} linked.` : "The selected technical references are already linked.");
+      }
+    } catch (error) { if (pane.linkSession === session) linkMessage(session, `Saving the reference links was not confirmed. ${error.message} Retry to check the same links.`, true); }
     finally {
-      if (pane.linkSession === session) { session.saving = false; session.save.disabled = !session.selected; session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = false; for (const choice of session.choices) choice.disabled = false; session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
+      if (pane.linkSession === session) { session.saving = false; session.cancel.disabled = session.searchInput.disabled = session.refresh.disabled = false; for (const choice of session.choices) choice.disabled = false; updateLinkSave(session); session.previous.disabled = session.offset === 0; session.next.disabled = session.offset + session.limit >= session.total; }
+    }
+  }
+  async function unlinkReference(pane, item, link) {
+    const penetrationId = pane.kind === "penetration" ? item.id : link.id;
+    const technicalId = pane.kind === "technical" ? item.id : link.id;
+    const key = `${penetrationId}:${technicalId}`;
+    if (pane.unlinkPending.has(key)) return;
+    const confirm = window.CeasefirePenetrationNavigation?.confirm;
+    if (!confirm) { message(pane, "The unlink confirmation is unavailable. Reload the application and try again.", true); return; }
+    const label = pane.kind === "penetration" ? "technical reference" : "firestopping record";
+    if (!await confirm(`Unlink ${label}?`, `${link.title || link.id} will be unlinked from this library record.`, "Unlink")) return;
+    pane.unlinkPending.add(key);
+    for (const control of pane.unlinkButtons.values()) if (control.dataset.libraryUnlink === key) control.disabled = true;
+    try {
+      const receipt = await request(`/api/libraries/penetration/${encodeURIComponent(penetrationId)}/links/remove`, null, { technical_id: technicalId });
+      if (receipt.unlinked !== true || receipt.penetration_id !== penetrationId || receipt.technical_id !== technicalId) throw new Error("The server did not confirm the removed reference link.");
+      const sameRecord = state.current === pane.kind && pane.selected === item.id;
+      invalidate();
+      if (sameRecord) { await open(pane.kind, item.id); if (state.current === pane.kind && pane.selected === item.id) message(pane, `${label[0].toUpperCase()}${label.slice(1)} unlinked.`); }
+    } catch (error) { message(pane, `The ${label} was not unlinked. ${error.message}`, true); }
+    finally {
+      pane.unlinkPending.delete(key);
+      for (const control of pane.unlinkButtons.values()) if (control.dataset.libraryUnlink === key) control.disabled = false;
     }
   }
   async function editItem(pane, id) {
@@ -395,7 +426,7 @@
   }
   function detailNavigation(pane) {
     const nav = node("nav", "library-detail-navigation"); nav.setAttribute("aria-label", "Library record navigation");
-    const results = button("Back to results", () => { state.history = []; showList(pane); pane.searchInput.focus(); }); results.dataset.libraryBackToResults = pane.kind; nav.append(results);
+    const results = symbolButton("←", "Back to results", () => { state.history = []; showList(pane); pane.searchInput.focus(); }); results.dataset.libraryBackToResults = pane.kind; nav.append(results);
     if (state.history.length) { const previous = button("Back to previous item", back); previous.dataset.libraryBack = pane.kind; nav.append(previous); }
     return nav;
   }
@@ -409,6 +440,7 @@
     if (data.subtitle) content.push(node("p", "library-subtitle", data.subtitle));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("detail:")) pane.deleteButtons.delete(key);
+    pane.unlinkButtons.clear();
     if (data.price || pane.kind === "penetration") {
       const commercial = node("div", "library-record-commercial");
       if (data.price) commercial.append(node("p", "library-record-price", `${priceLabel(data.price)}: ${priceText(data.price)}`));
@@ -436,11 +468,15 @@
     related.append(node("h4", "", pane.kind === "penetration" ? "Related technical references" : "Related firestopping records"));
     if (!links.length) related.append(node("p", "helper", "No related records are recorded."));
     for (const link of links) {
-      const box = node("div", "library-related-record");
-      if (kinds.includes(link.kind) && validId(link.id)) { const action = button(link.title || link.id, () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; box.append(action); }
-      else box.append(node("p", "", link.title || "Reference unavailable"));
-      if (link.relationship) box.append(node("p", "helper", link.relationship));
-      if (link.notice) box.append(node("p", "library-related-notice", link.notice));
+      const box = node("div", "library-related-record"), details = node("div", "library-related-content");
+      if (kinds.includes(link.kind) && validId(link.id)) { const action = button(link.title || link.id, () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; details.append(action); }
+      else details.append(node("p", "", link.title || "Reference unavailable"));
+      if (link.relationship) details.append(node("p", "helper", link.relationship));
+      if (link.notice) details.append(node("p", "library-related-notice", link.notice));
+      const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
+      const label = pane.kind === "penetration" ? `Unlink technical reference ${link.title || link.id}` : `Unlink firestopping record ${link.title || link.id}`;
+      const remove = symbolButton("🗑", label, () => unlinkReference(pane, data, link)); remove.className += " library-unlink"; remove.dataset.libraryUnlink = key; remove.disabled = pane.unlinkPending.has(key); pane.unlinkButtons.set(`${data.id}:${key}`, remove);
+      box.append(details, remove);
       related.append(box);
     }
     content.push(related);

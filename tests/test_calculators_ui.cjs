@@ -62,8 +62,8 @@ function setup(inputs = {}) {
   audit.state.entries.set('steel_board', entry);
   context.document.activeElement = null;
   byId('calculator-confirm-dialog').open = false;
-  byId('calculator-pdf').textContent='Download PDF Schedule';byId('calculator-excel').textContent='Download XLSX Schedule';
-  byId('calculator-summary-pdf').textContent='Download PDF Summary';
+  byId('calculator-pdf').setAttribute('aria-label','Download PDF Schedule');byId('calculator-excel').setAttribute('aria-label','Download XLSX Schedule');
+  byId('calculator-summary-pdf').setAttribute('aria-label','Download PDF Summary');
   audit.setRender(() => {});
   return entry;
 }
@@ -1397,6 +1397,8 @@ let passed = 0;
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;
   const virtualNavigationStartRequests=virtualRequests.length;
   assert.equal(audit.sourceDisplayText('Factor helper starts at row 341.',entry,'A7'),'Open FACTOR CALCS for the Section Factor Helper.');
+  assert.equal(audit.sourceDisplayText('CALCULATOR = one member | BAGS = ordering | Factor helper starts at row 341.',entry,'A7'),'LOOKUP = one member | SUMMARY = ordering | Open FACTOR CALCS for the Section Factor Helper.');
+  assert.equal(audit.sourceDisplayText('Use CALCULATOR for one member and BAGS for ordering.',entry,'A9'),'Use LOOKUP for one member and SUMMARY for ordering.');
   const bagsDirectionsEntry={...entry,sheet:'BAGS',result:null};
   assert.equal(audit.sourceDisplayText('Change product yields and waste in SETTINGS. The factor helper is also there.',bagsDirectionsEntry,'A27'),'Change product yields and waste in SETTINGS. Open FACTOR CALCS for factor helpers.');
 
@@ -1573,7 +1575,7 @@ let passed = 0;
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-summary-pdf').disabled,true);
     assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-excel').disabled,true);
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),'true');
-    assert.equal(byId('calculator-summary-pdf').textContent,'Preparing PDF Summary…');
+    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Preparing PDF Summary…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pending.resolve(fileSaved(`ceasefire-${id}-materials-summary.pdf`));await run;
     assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/json');
@@ -1581,7 +1583,7 @@ let passed = 0;
     assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/ceasefire-${id}-materials-summary.pdf`));
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-summary-pdf').disabled,false);
-    assert.equal(byId('calculator-summary-pdf').textContent,'Download PDF Summary');
+    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Download PDF Summary');
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),undefined);
     assert.match(byId('calculator-message').textContent,/later edits are not included/);
   }passed++;
@@ -1594,7 +1596,7 @@ let passed = 0;
     audit.setFetch((path,options)=>{registerPath=path;registerBody=JSON.parse(options.body);registerHeaders=options.headers;return pendingRegister.promise;});
     const registerRun=audit.downloadExcelRegister();
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-template').disabled,true);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').textContent,'Preparing XLSX Schedule…');
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').getAttribute('aria-label'),'Preparing XLSX Schedule…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pendingRegister.resolve(fileSaved('APPENDIX A.xlsx'));await registerRun;
     assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,'application/json');
@@ -1602,7 +1604,7 @@ let passed = 0;
     assert.match(byId('calculator-message').textContent,/saved to C:\/Downloads\/APPENDIX A.xlsx/);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').textContent,'Download XLSX Schedule');
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').getAttribute('aria-label'),'Download XLSX Schedule');
   }passed++;
 
   // Focused numeric edits are validated before either export and retain exact draft precision.
@@ -1684,7 +1686,7 @@ let passed = 0;
       entry=setup({CALCULATOR:{B9:0.123456789}});const bodyCount=context.document.body.children.length,inputsBefore=JSON.stringify(entry.inputs),savedBefore=entry.saved;
       audit.setFetch(async()=>{if(failure.error)throw failure.error;return failure.response;});await download();
       assert.match(byId('calculator-message').textContent,failure.message);assert.equal(context.document.body.children.length,bodyCount);
-      assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);assert.equal(byId('calculator-summary-pdf').disabled,false);assert.equal(byId(buttonId).textContent,label);assert.equal(byId(buttonId).getAttribute('aria-busy'),undefined);
+      assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);assert.equal(byId('calculator-summary-pdf').disabled,false);assert.equal(byId(buttonId).getAttribute('aria-label'),label);assert.equal(byId(buttonId).getAttribute('aria-busy'),undefined);
       assert.equal(JSON.stringify(entry.inputs),inputsBefore);assert.equal(entry.saved,savedBefore);
     }
   }passed++;
@@ -1698,17 +1700,18 @@ let passed = 0;
 
   // Import and the four distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
-  assert.match(registerMarkup,/id="calculator-template"[^>]*>Export XLSX Template<\/button><button id="calculator-excel"[^>]*>Download XLSX Schedule<\/button><button id="calculator-pdf"[^>]*>Download PDF Schedule<\/button><button id="calculator-summary-pdf"[^>]*>Download PDF Summary<\/button>/);
-  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"[^>]*>Export XLSX Template<\/button>/);
+  for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export XLSX Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
+    assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
+  }
+  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"/);
   assert.match(registerMarkup,/class="calculator-workspace-heading".*id="calculator-reset"[^>]*>Reset Calc<\/button><button id="calculator-recalculate"[^>]*>Recalculate<\/button><\/div>/);
   assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
-  assert.match(registerMarkup,/id="calculator-import"[^>]*>Import XLSX Schedule<\/button>/);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
   for(const [className,background,color] of [['calculator-export-excel','var(--navy)','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
   }
   const sharedButtonCss=fs.readFileSync('static/styles.css','utf8');
-  assert.match(registerMarkup,/id="calculator-import"[^>]*class="button excel-button"/);
+  assert.match(registerMarkup,/id="calculator-import"[^>]*class="[^"]*excel-button[^"]*icon-only[^"]*"/);
   assert.doesNotMatch(registerMarkup,/id="calculator-save"/);
   assert.ok(sharedButtonCss.includes('.button.excel-button{color:#fff;background:var(--navy);'));
   assert.ok(sharedButtonCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
@@ -1772,6 +1775,9 @@ let passed = 0;
   assert.equal(renderedControls().length,2);assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-remove]').length,1);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-schedule-add]').length,1);assert.equal(audit.dirty(entry),false);
   assert.equal(byId('calculator-grid').children.at(-1).className,'calculator-schedule-tools');
+  const scheduleAdd=byId('calculator-grid').querySelectorAll('[data-schedule-add]')[0],scheduleUndo=byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0];
+  assert.equal(scheduleAdd.textContent,'');assert.equal(scheduleAdd.title,'Add row');assert.equal(scheduleAdd.getAttribute('aria-label'),'Add row');assert.match(scheduleAdd.children[0].textContent,/\+/);
+  assert.equal(scheduleUndo.textContent,'');assert.equal(scheduleUndo.title,'Undo remove');assert.equal(scheduleUndo.getAttribute('aria-label'),'Undo remove');assert.match(scheduleUndo.children[0].textContent,/↶/);
   assert.match(byId('calculator-page-status').textContent,/1 schedule row · All rows included in calculations/);passed++;
 
   // Adding creates explicitly blank editable cells, including advanced inputs,

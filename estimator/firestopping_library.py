@@ -150,6 +150,12 @@ class LibraryEdits:
                     created_at TEXT NOT NULL,
                     PRIMARY KEY(penetration_id, technical_id)
                 );
+                CREATE TABLE IF NOT EXISTS firestopping_unlinks (
+                    penetration_id TEXT NOT NULL, technical_id TEXT NOT NULL,
+                    penetration_source TEXT NOT NULL, technical_source TEXT NOT NULL,
+                    unlinked_at TEXT NOT NULL,
+                    PRIMARY KEY(penetration_id, technical_id)
+                );
                 CREATE TABLE IF NOT EXISTS firestopping_images (
                     item_id TEXT PRIMARY KEY,
                     sha256 TEXT NOT NULL,
@@ -184,6 +190,10 @@ class LibraryEdits:
         with self.store.connect() as db:
             return list(db.execute('SELECT penetration_id,technical_id,penetration_source,technical_source FROM firestopping_links ORDER BY rowid'))
 
+    def unlinks(self):
+        with self.store.connect() as db:
+            return list(db.execute('SELECT penetration_id,technical_id,penetration_source,technical_source FROM firestopping_unlinks ORDER BY rowid'))
+
     def deleted(self):
         with self.store.connect() as db:
             return {key: {'source_sha256': source, 'deleted_at': deleted}
@@ -204,6 +214,7 @@ class LibraryEdits:
             return tuple(db.execute('SELECT count(*),COALESCE(sum(revision),0) FROM firestopping_items').fetchone()) + tuple(
                 db.execute('SELECT (SELECT count(*) FROM firestopping_created),'
                            '(SELECT count(*) FROM firestopping_links),'
+                           '(SELECT count(*) FROM firestopping_unlinks),'
                            '(SELECT count(*) FROM firestopping_deleted)').fetchone())
 
     def create(self, request_key, request_hash, minimum, build, snapshot, diagram=UNCHANGED):
@@ -234,17 +245,41 @@ class LibraryEdits:
             return key, True
 
     def link(self, left, right, left_source, right_source):
+        return self.link_many(left, [(right, left_source, right_source)])[0]
+
+    def link_many(self, left, relationships):
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            previous = {right: (penetration_source, technical_source) for right, penetration_source, technical_source in db.execute(
+                'SELECT technical_id,penetration_source,technical_source FROM firestopping_links WHERE penetration_id=?', (left,))}
+            for right, left_source, right_source in relationships:
+                if right in previous and previous[right] != (left_source, right_source):
+                    raise LibraryConflict('This manual reference belongs to another source version. Its original provenance has been retained for review.')
+            additions = sum(right not in previous for right, _, _ in relationships)
+            if db.execute('SELECT count(*) FROM firestopping_links').fetchone()[0] + additions > 500000:
+                raise ValidationError('The library has reached its reference capacity.')
+            results = []
+            for right, left_source, right_source in relationships:
+                db.execute('DELETE FROM firestopping_unlinks WHERE penetration_id=? AND technical_id=?', (left, right))
+                if right in previous:
+                    results.append(False)
+                    continue
+                db.execute('INSERT INTO firestopping_links VALUES(?,?,?,?,?)', (left, right, left_source, right_source, timestamp()))
+                previous[right] = (left_source, right_source)
+                results.append(True)
+            return results
+
+    def unlink(self, left, right, left_source, right_source):
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             previous = db.execute('SELECT penetration_source,technical_source FROM firestopping_links WHERE penetration_id=? AND technical_id=?', (left, right)).fetchone()
-            if previous:
-                if previous != (left_source, right_source):
-                    raise LibraryConflict('This manual reference belongs to another source version. Its original provenance has been retained for review.')
-                return False
-            if db.execute('SELECT count(*) FROM firestopping_links').fetchone()[0] >= 500000:
-                raise ValidationError('The library has reached its reference capacity.')
-            db.execute('INSERT INTO firestopping_links VALUES(?,?,?,?,?)', (left, right, left_source, right_source, timestamp()))
-            return True
+            if previous and previous != (left_source, right_source):
+                raise LibraryConflict('This manual reference belongs to another source version. Its original provenance has been retained for review.')
+            db.execute('DELETE FROM firestopping_links WHERE penetration_id=? AND technical_id=?', (left, right))
+            db.execute('INSERT INTO firestopping_unlinks VALUES(?,?,?,?,?) ON CONFLICT(penetration_id,technical_id) DO UPDATE SET '
+                       'penetration_source=excluded.penetration_source,technical_source=excluded.technical_source,unlinked_at=excluded.unlinked_at',
+                       (left, right, left_source, right_source, timestamp()))
+            return previous is not None
 
     def snapshot(self, token):
         with self.store.connect() as db:
@@ -291,6 +326,7 @@ class LibraryEdits:
             db.execute('DELETE FROM firestopping_items WHERE id=?', (key,))
             db.execute('DELETE FROM firestopping_images WHERE item_id=?', (key,))
             db.execute('DELETE FROM firestopping_links WHERE penetration_id=?', (key,))
+            db.execute('DELETE FROM firestopping_unlinks WHERE penetration_id=?', (key,))
 
 
 class FirestoppingLibrary(ReferenceLibrary):
@@ -403,6 +439,15 @@ class FirestoppingLibrary(ReferenceLibrary):
                 data['links'].append({'penetration_id': left, 'technical_id': right,
                                       'relationship': MANUAL_RELATIONSHIP, 'origin': 'user'})
                 pairs.add((left, right))
+        for left, right, left_source, right_source in self.edits.unlinks():
+            if left not in items or right not in technical:
+                continue
+            current_left = created[left]['source_sha256'] if left in created else self._source_hash(base or {})
+            if left_source != current_left or right_source != self._technical_source(technical[right], data):
+                items[left]['notice'] = 'A saved removed reference uses another source version and was not applied. Review the current references before removing it again.'
+                continue
+            data['links'] = [link for link in data['links'] if (link['penetration_id'], link['technical_id']) != (left, right)]
+            pairs.discard((left, right))
         self._validate(data)
         for related in data['_links']['technical'].values():
             for link in related:
@@ -674,21 +719,48 @@ class FirestoppingLibrary(ReferenceLibrary):
     def add_link(self, key, body):
         with self._lock:
             identifier(key)
+            legacy = isinstance(body, dict) and set(body) == {'technical_id'}
+            multiple = isinstance(body, dict) and set(body) == {'technical_ids'}
+            if not legacy and not multiple:
+                raise ValidationError('Choose one or more Technical Library items to link.')
+            values = [body['technical_id']] if legacy else body['technical_ids']
+            if not isinstance(values, list) or not values or len(values) > 100:
+                raise ValidationError('Choose between 1 and 100 Technical Library items to link.')
+            rights = [identifier(value) for value in values]
+            if len(set(rights)) != len(rights):
+                raise ValidationError('Choose each Technical Library item only once.')
+            data = self._load()
+            if not data or key not in data['_records']['penetration'] or any(right not in data['_records']['technical'] for right in rights):
+                raise ReferenceNotFound()
+            existing = {link['id'] for link in data['_links']['penetration'][key]}
+            own = self.edits.created().get(key)
+            left_source = own['source_sha256'] if own else self._source_hash(data)
+            if not left_source:
+                raise ValidationError('This item has no source identity for a durable manual reference.')
+            missing = [right for right in rights if right not in existing]
+            created = self.edits.link_many(key, [(right, left_source, self._technical_source(data['_records']['technical'][right], data)) for right in missing]) if missing else []
+            created_ids = [right for right, added in zip(missing, created) if added]
+            receipt = {'linked': True, 'penetration_id': key, 'technical_ids': rights,
+                       'created_ids': created_ids, 'existing_ids': [right for right in rights if right not in created_ids]}
+            if legacy:
+                receipt.update({'technical_id': rights[0], 'created': rights[0] in created_ids})
+            return receipt
+
+    def remove_link(self, key, body):
+        with self._lock:
+            identifier(key)
             if not isinstance(body, dict) or set(body) != {'technical_id'}:
-                raise ValidationError('Choose one Technical Library item to link.')
+                raise ValidationError('Choose one Technical Library item to unlink.')
             right = identifier(body['technical_id'])
             data = self._load()
             if not data or key not in data['_records']['penetration'] or right not in data['_records']['technical']:
                 raise ReferenceNotFound()
-            if any(link['id'] == right for link in data['_links']['penetration'][key]):
-                added = False
-            else:
-                own = self.edits.created().get(key)
-                left_source = own['source_sha256'] if own else self._source_hash(data)
-                if not left_source:
-                    raise ValidationError('This item has no source identity for a durable manual reference.')
-                added = self.edits.link(key, right, left_source, self._technical_source(data['_records']['technical'][right], data))
-            return {'linked': True, 'created': added, 'penetration_id': key, 'technical_id': right}
+            own = self.edits.created().get(key)
+            left_source = own['source_sha256'] if own else self._source_hash(data)
+            if not left_source:
+                raise ValidationError('This item has no source identity for a durable removed reference.')
+            self.edits.unlink(key, right, left_source, self._technical_source(data['_records']['technical'][right], data))
+            return {'unlinked': True, 'penetration_id': key, 'technical_id': right}
 
     def create(self, body):
         with self._lock:

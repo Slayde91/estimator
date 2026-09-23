@@ -195,6 +195,17 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual(result['summary']['labour_hours'], 0)
         self.assertEqual(result['draft'], normalize_draft(None))
 
+    def test_legacy_conduit_values_resolve_to_one_conduits_choice_and_route(self):
+        spec = definition(service_types=['Conduit', 'Conduits'])
+        service = next(field for field in spec['row_fields'] if field['column'] == 'K')
+        self.assertNotIn('Conduit', service['options'])
+        self.assertEqual(service['options'].count('Conduits'), 1)
+        draft = {'globals': {'service_routes': {'Plastic Pipes': ['Plastic Pipes', 'Conduit', 'Conduits']}},
+                 'rows': [{'id': 'legacy-conduit', 'inputs': {'K': 'Conduit'}}]}
+        normalized = normalize_draft(draft)
+        self.assertEqual(normalized['rows'][0]['inputs']['K'], 'Conduits')
+        self.assertEqual(normalized['globals']['service_routes']['Plastic Pipes'], ['Plastic Pipes', 'Conduits'])
+
     def test_new_row_defaults_and_descriptive_choices_preserve_existing_inputs(self):
         spec = definition(service_types=['Saved custom service'])
         fields = {field['column']: field for field in spec['row_fields']}

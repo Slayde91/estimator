@@ -22,6 +22,11 @@
   const integer = (value, fallback = 0) => Number.isSafeInteger(value) && value >= 0 ? value : fallback;
   const valueText = value => value === null || value === undefined || value === "" ? "Not recorded" : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
   const button = (text, action, className = "button secondary") => { const el = node("button", className, text); el.type = "button"; el.addEventListener("click", action); return el; };
+  const symbolButton = (symbol, label, action) => {
+    const el = button("", action, "button secondary icon-only");
+    const icon = node("span", "button-symbol", symbol); icon.setAttribute("aria-hidden", "true");
+    el.append(icon); el.title = label; el.setAttribute("aria-label", label); return el;
+  };
   async function request(path, signal, payload) {
     const response = await fetch(path, { headers: { Accept: "application/json", ...(payload ? { "Content-Type": "application/json" } : {}) }, ...(signal ? { signal } : {}), ...(payload ? { method: "POST", body: JSON.stringify(payload) } : {}) });
     const data = await response.json();
@@ -139,12 +144,18 @@
   }
   function renderSummary(pane) {
     if (pane.kind !== "penetration") return;
-    const info = libraryInfo(pane), counts = pane.data?.counts, values = [counts?.total ?? info?.count, counts?.unlinked ?? info?.unlinked_count];
-    const table = node("table", "library-summary-table"), head = node("thead"), row = node("tr"), body = node("tbody"), totals = node("tr");
+    const info = libraryInfo(pane), counts = pane.data?.counts;
+    const table = node("table", "library-summary-table"), head = node("thead"), row = node("tr"), body = node("tbody");
     table.append(node("caption", "", "Firestopping Library summary"));
-    for (const label of ["Total records", "No related technical references"]) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); row.append(cell); }
-    for (const value of values) totals.append(node("td", "", Number.isSafeInteger(value) && value >= 0 ? value : "—"));
-    head.append(row); body.append(totals); table.append(head, body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
+    for (const label of ["Breakdown", "Records"]) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); row.append(cell); }
+    const addRow = (label, value, className = "") => {
+      const line = node("tr", className), heading = node("th", "", label); heading.setAttribute("scope", "row");
+      line.append(heading, node("td", "", Number.isSafeInteger(value) && value >= 0 ? value : "—")); body.append(line);
+    };
+    addRow("Total records", counts?.total ?? info?.count, "library-summary-total");
+    for (const entry of Array.isArray(counts?.manufacturers) ? counts.manufacturers : []) addRow(entry.name, entry.count, "library-summary-manufacturer");
+    addRow("No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related");
+    head.append(row); table.append(head, body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
   }
   function actionContext(pane) { return JSON.stringify([state.current, pane.openRevision, pane.selected, pane.search, pane.filters, pane.offset]); }
   function updateQuantity(badge, id) {
@@ -164,8 +175,8 @@
   }
   function itemActions(pane, item, place) {
     const actions = node("div", "library-item-actions");
-    if (item.editable) { const edit = button("Edit Library Item", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; actions.append(edit); }
-    const link = button("Link Library Item", () => openLinkPicker(pane, item, link)); link.dataset.libraryLink = item.id;
+    if (item.editable) { const edit = button("Edit", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; actions.append(edit); }
+    const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.dataset.libraryLink = item.id;
     const add = button("", () => addToSchedule(pane, item.id), "button primary penetration-add-action");
     const plus = node("span", "", "+"); plus.setAttribute("aria-hidden", "true");
     add.append(plus, node("span", "sr-only", "Add to Schedule"));

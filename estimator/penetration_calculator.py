@@ -38,12 +38,12 @@ SCALAR_SETTING_DEFAULTS = {
 # Explicit application policy; original workbook formulas and saved inputs remain
 # available for provenance. Removed allowances never affect effective estimates.
 EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
-CALCULATION_POLICY_VERSION = 'editable-firestopping-routing-and-bands-v6'
+CALCULATION_POLICY_VERSION = 'editable-firestopping-routing-and-bands-v7'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
-    'Access Panel', 'Blank Seal', 'Cable Bundles', 'Coaxial Cables', 'Conduit',
-    'Conduits', 'D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
+    'Access Panel', 'Blank Seal', 'Cable Bundles', 'Coaxial Cables', 'Conduits',
+    'D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
     'Downlight Box', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables',
     'Junction Box', 'Lagged Pipes', 'Mixed Service Bundle', 'Mixed Services',
     'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils', 'Plastic Pipes',
@@ -65,7 +65,7 @@ GROUP_COLUMNS = {
 PIPE_DISPLAY_GROUPS = {
     'Unlagged Pipes': ('Unlagged Pipes',),
     'Lagged Pipes': ('Lagged Pipes',),
-    'Plastic Pipes': ('Plastic Pipes', 'Conduit', 'Conduits'),
+    'Plastic Pipes': ('Plastic Pipes', 'Conduits'),
     'Cables/Bundles': (
         'Cable Bundles', 'Coaxial Cables', 'D1 Power Cables', 'D2 Comms Cables',
         'Data Cable Bundles', 'Fire Resistant Cables', 'Mixed Service Bundle',
@@ -74,6 +74,7 @@ PIPE_DISPLAY_GROUPS = {
         'TPS & Fire Alarm Cable Bundles',
     ),
 }
+SERVICE_TYPE_ALIASES = {'conduit': 'Conduits', 'conduits': 'Conduits'}
 GROUP_LABELS = {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
                 'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'}
 SUBSTRATE_OPTIONS = (
@@ -368,7 +369,7 @@ def definition(configuration=None, service_types=None):
     calc = _sheet('CALC')['cells']
     fields = []
     descriptions = {
-        'K': sorted(set(SERVICE_TYPES) | set(service_types or ()), key=str.casefold),
+        'K': sorted({canonical_service_type(value) for value in (*SERVICE_TYPES, *(service_types or ()))}, key=str.casefold),
         'V': list(MANUFACTURERS),
     }
     for group, columns in GROUP_COLUMNS.items():
@@ -477,12 +478,20 @@ def _normalized_service_routes(value):
         for service in services:
             if not isinstance(service, str) or not service.strip() or len(service.strip()) > 200:
                 raise ValidationError(f'{group} service routing entries must contain 1 to 200 characters.')
-            text = service.strip()
+            text = canonical_service_type(service)
             if text.casefold() not in seen:
                 normalized.append(text)
                 seen.add(text.casefold())
         result[group] = normalized
     return result
+
+
+def canonical_service_type(value):
+    """Present historical singular Conduit values as the one supported choice."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    return SERVICE_TYPE_ALIASES.get(text.casefold(), text)
 
 
 def _normalized_labour_bands(value, legacy=None):
@@ -595,7 +604,9 @@ def normalize_draft(draft):
         seen.add(identifier)
         normalized = {'id': identifier, 'inputs': {
             col: validate_hours(value, col) if col in APP_INPUT_FIELDS or col in LEGACY_APP_INPUT_FIELDS else
-                 canonical_frl(value) if col == 'N' else checked(value, col in TEXT_COLUMNS, col)
+                 canonical_frl(value) if col == 'N' else
+                 canonical_service_type(checked(value, True, col)) if col == 'K' else
+                 checked(value, col in TEXT_COLUMNS, col)
             for col, value in inputs.items() if col not in LEGACY_APP_INPUT_FIELDS}}
         effective_inputs = normalized['inputs']
         if effective_inputs.get('Y') in (None, ''):

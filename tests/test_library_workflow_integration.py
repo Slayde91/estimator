@@ -178,7 +178,9 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         endpoint = '/api/libraries/penetration/' + created['id']
         unlinked = self.get('/api/libraries/penetration?technical_reference=unlinked')
         self.assertIn(created['id'], {item['id'] for item in unlinked['items']})
-        self.assertEqual(unlinked['counts'], {'total': 3, 'linked': 1, 'unlinked': 2})
+        self.assertEqual({key: unlinked['counts'][key] for key in ('total', 'linked', 'unlinked')},
+                         {'total': 3, 'linked': 1, 'unlinked': 2})
+        self.assertEqual(sum(entry['count'] for entry in unlinked['counts']['manufacturers']), 3)
         link_body = {'technical_id': 'report-a-v1'}
         status, linked = self.request('POST', endpoint + '/links', link_body)
         self.assertEqual(status, 200, linked)
@@ -195,7 +197,9 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         self.assertEqual(forward[0]['relationship'], next(item['relationship'] for item in reverse
                                                        if item['id'] == created['id']))
         listed = self.get('/api/libraries/penetration?technical_reference=linked')
-        self.assertEqual(listed['counts'], {'total': 3, 'linked': 2, 'unlinked': 1})
+        self.assertEqual({key: listed['counts'][key] for key in ('total', 'linked', 'unlinked')},
+                         {'total': 3, 'linked': 2, 'unlinked': 1})
+        self.assertEqual(sum(entry['count'] for entry in listed['counts']['manufacturers']), 3)
         self.assertEqual({item['id'] for item in listed['items']}, {'pkb-001', created['id']})
         summary = next(item for item in self.get('/api/libraries')['libraries'] if item['id'] == 'penetration')
         self.assertEqual((summary['linked_count'], summary['unlinked_count']), (2, 1))
@@ -288,7 +292,9 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         endpoint = '/api/libraries/penetration/' + created['id']
         self.assertEqual(self.get(endpoint + '/edit')['draft'], created['draft'])
         listing = self.get('/api/libraries/penetration?technical_reference=unlinked')
-        self.assertEqual(listing['counts'], {'total': 1, 'linked': 0, 'unlinked': 1})
+        self.assertEqual({key: listing['counts'][key] for key in ('total', 'linked', 'unlinked')},
+                         {'total': 1, 'linked': 0, 'unlinked': 1})
+        self.assertEqual(listing['counts']['manufacturers'], [{'name': 'FIREFLY', 'count': 1}])
         self.assertEqual(listing['items'][0]['id'], created['id'])
         self.assertEqual(self.get('/api/libraries/technical')['total'], 0)
         self.assertEqual(self.request('POST', endpoint + '/links', {'technical_id': 'report-a-v1'})[0], 404)

@@ -21,8 +21,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
 from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
-                                     canonical_substrate, definition, engine_for_draft,
-                                     normalize_draft, source_model)
+                                     canonical_service_type, canonical_substrate, definition,
+                                     engine_for_draft, normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
 from .service_dimensions import FIELD_LABEL, service_size_field
 
@@ -343,6 +343,21 @@ class FirestoppingLibrary(ReferenceLibrary):
                 item['notice'] = 'This saved item uses another calculator source version. Its original inputs and price are retained.'
             draft_rows = item.get('estimate', {}).get('draft', {}).get('rows', [])
             source_inputs = draft_rows[0].get('inputs', {}) if draft_rows else {}
+            source_service = source_inputs.get('K')
+            effective_service = canonical_service_type(source_service)
+            if effective_service:
+                source_inputs['K'] = effective_service
+                for field in item['fields']:
+                    if field.get('column') == 'K' or field.get('label') == 'Service Type':
+                        field['value'] = effective_service
+                if source_service not in (None, ''):
+                    item['title'] = str(item.get('title', '')).replace(str(source_service), effective_service)
+                    item['subtitle'] = str(item.get('subtitle', '')).replace(str(source_service), effective_service)
+                if 'service_type' in item.get('filter_values', {}):
+                    item['filter_values']['service_type'] = [
+                        canonical_service_type(value)
+                        for value in item['filter_values']['service_type']
+                    ]
             source_frl = source_inputs.get('N')
             effective_frl = canonical_frl(source_frl)
             if effective_frl:
@@ -419,6 +434,7 @@ class FirestoppingLibrary(ReferenceLibrary):
     def _apply_edit(item, edit):
         inputs = edit['draft']['rows'][0]['inputs']
         presentation_inputs = dict(inputs)
+        presentation_inputs['K'] = canonical_service_type(inputs.get('K'))
         presentation_inputs['N'] = canonical_frl(inputs.get('N'))
         presentation_inputs['P'] = canonical_substrate(inputs.get('P'))
         for field in item['fields']:
@@ -553,6 +569,18 @@ class FirestoppingLibrary(ReferenceLibrary):
         with self._lock:
             result = super().listing(kind, **query)
             if kind == 'penetration':
+                data = self._load()
+                manufacturers = {}
+                for item in data['_records']['penetration'].values() if data else ():
+                    values = item.get('filter_values', {}).get('manufacturer', [])
+                    name = str(values[0]).strip() if values else ''
+                    label = name or 'Not recorded'
+                    manufacturers[label] = manufacturers.get(label, 0) + 1
+                result['counts']['manufacturers'] = [
+                    {'name': name, 'count': count}
+                    for name, count in sorted(manufacturers.items(), key=lambda entry: (
+                        entry[0] == 'Not recorded', entry[0].casefold()))
+                ]
                 self._effective_prices(result['items'])
             return result
 
@@ -634,7 +662,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 selected = [field['value'] for field in item.get('fields', []) if field.get('column') == 'K']
                 if not selected:
                     selected = item.get('filter_values', {}).get('service_type', [])
-                values.update(value for value in selected if value.strip())
+                values.update(canonical_service_type(value) for value in selected if value.strip())
             return sorted(values, key=str.casefold)
 
     @staticmethod

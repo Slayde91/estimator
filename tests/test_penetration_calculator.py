@@ -175,17 +175,43 @@ class PenetrationSourceTests(unittest.TestCase):
 class PenetrationCalculationTests(unittest.TestCase):
     def test_frl_and_shared_settings_are_canonical_and_drive_every_row(self):
         draft = source_example()
-        draft['rows'][0]['inputs']['N'] = '120 min'
-        draft['rows'].append({'id': 'second', 'inputs': deepcopy(draft['rows'][0]['inputs'])})
+        template = deepcopy(draft['rows'][0]['inputs'])
+        draft['rows'] = []
+        pipe_settings = [
+            ('Unlagged Pipes', 'waste_unlagged_pipes'),
+            ('Lagged Pipes', 'waste_lagged_pipes'),
+            ('Plastic Pipes', 'waste_plastic_pipes'),
+            ('Cable Bundles', 'waste_bundles'),
+        ]
+        for index, (service, _) in enumerate(pipe_settings, 1):
+            inputs = deepcopy(template)
+            inputs.update(K=service, N='120 min')
+            draft['rows'].append({'id': f'row-{index}', 'inputs': inputs})
         for index, key in enumerate(WASTE_SETTINGS, 1):
             draft['globals'][key] = index / 100
         normalized = normalize_draft(draft)
-        self.assertEqual([row['inputs']['N'] for row in normalized['rows']], ['-/120/120', '-/120/120'])
+        self.assertEqual([row['inputs']['N'] for row in normalized['rows']], ['-/120/120'] * 4)
         self.assertEqual(definition()['row_fields'][4]['options'], list(FRL_OPTIONS))
         engine, _ = engine_for_draft(draft)
-        for index in (4, 5):
+        for row, (_, key) in enumerate(pipe_settings, 4):
+            self.assertEqual(engine.value('CALC', f'AO{row}'), draft['globals'][key])
+        pipe_keys = {key for _, key in pipe_settings}
+        for row in range(4, 8):
             for key, (column, _) in WASTE_SETTINGS.items():
-                self.assertEqual(engine.value('CALC', f'{column}{index}'), draft['globals'][key])
+                if key not in pipe_keys:
+                    self.assertEqual(engine.value('CALC', f'{column}{row}'), draft['globals'][key])
+
+    def test_legacy_shared_pipe_waste_migrates_to_every_service_tab(self):
+        normalized = normalize_draft({'globals': {'waste_pipes': .175},
+                                      'rows': [{'id': 'legacy', 'inputs': {'K': 'Lagged Pipes'}}]})
+        self.assertNotIn('waste_pipes', normalized['globals'])
+        keys = (
+            'waste_unlagged_pipes', 'waste_lagged_pipes',
+            'waste_plastic_pipes', 'waste_bundles')
+        self.assertEqual([normalized['globals'][key] for key in keys], [.175] * 4)
+        row_legacy = normalize_draft({'globals': {},
+                                      'rows': [{'id': 'legacy', 'inputs': {'AO': .225}}]})
+        self.assertEqual([row_legacy['globals'][key] for key in keys], [.225] * 4)
 
     def test_blank_draft_and_globals_do_not_resurrect_example(self):
         result = calculate(None)
@@ -213,7 +239,7 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertNotIn('Q', fields)
         self.assertNotIn('R', fields)
         settings = {field['column']: field for field in spec['global_fields']}
-        self.assertEqual(len(settings), 7)
+        self.assertEqual(len(settings), 10)
         self.assertEqual(settings['register_allowance_hours']['label'], 'Register Allowance')
         self.assertEqual(settings['register_allowance_hours']['default'], .25)
         self.assertEqual(settings['register_allowance_hours']['step'], .05)

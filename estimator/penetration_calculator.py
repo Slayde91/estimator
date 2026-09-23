@@ -25,12 +25,22 @@ CAPACITY = 1000
 GLOBAL_DEFAULTS = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
 WASTE_SETTINGS = {
     'waste_additional': ('AG', 'Additional Allowances'),
-    'waste_pipes': ('AO', 'Unlagged Pipes, Lagged Pipes, Plastic Pipes and Bundles'),
+    'waste_unlagged_pipes': ('AO', 'Unlagged Pipes'),
+    'waste_lagged_pipes': ('AO', 'Lagged Pipes'),
+    'waste_plastic_pipes': ('AO', 'Plastic Pipes'),
+    'waste_bundles': ('AO', 'Bundles'),
     'waste_cabletrays': ('AU', 'Cabletrays'),
     'waste_substrate': ('AZ', 'Substrate'),
     'waste_board': ('BF', 'Bulkhead board'),
     'waste_framing': ('BG', 'Bulkhead framing'),
 }
+PIPE_WASTE_SETTINGS = {
+    'Unlagged Pipes': 'waste_unlagged_pipes',
+    'Lagged Pipes': 'waste_lagged_pipes',
+    'Plastic Pipes': 'waste_plastic_pipes',
+    'Cables/Bundles': 'waste_bundles',
+}
+LEGACY_PIPE_WASTE_SETTING = 'waste_pipes'
 SCALAR_SETTING_DEFAULTS = {
     'register_allowance_hours': REGISTER_HOURS,
     **{key: 0 for key in WASTE_SETTINGS},
@@ -38,7 +48,7 @@ SCALAR_SETTING_DEFAULTS = {
 # Explicit application policy; original workbook formulas and saved inputs remain
 # available for provenance. Removed allowances never affect effective estimates.
 EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
-CALCULATION_POLICY_VERSION = 'editable-firestopping-routing-and-bands-v7'
+CALCULATION_POLICY_VERSION = 'service-tab-waste-settings-v8'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
 SERVICE_TYPES = (
@@ -542,7 +552,8 @@ def normalize_draft(draft):
     rows = draft.get('rows', [{'id': 'line-1', 'inputs': {}}])
     defaults = draft_global_defaults()
     legacy_pipe_settings = {key for _, key, _ in PIPE_BAND_SETTINGS}
-    if not isinstance(globals_in, dict) or set(globals_in) - set(defaults) - legacy_pipe_settings:
+    if (not isinstance(globals_in, dict)
+            or set(globals_in) - set(defaults) - legacy_pipe_settings - {LEGACY_PIPE_WASTE_SETTING}):
         raise ValidationError('Unknown penetration global input.')
     if not isinstance(rows, list) or not 0 <= len(rows) <= CAPACITY:
         raise ValidationError(f'Penetration schedule must contain 0 to {CAPACITY} rows.')
@@ -560,7 +571,8 @@ def normalize_draft(draft):
 
     globals_out = deepcopy(defaults)
     for col, value in globals_in.items():
-        if col in ('service_routes', 'labour_bands') or col in legacy_pipe_settings:
+        if (col in ('service_routes', 'labour_bands', LEGACY_PIPE_WASTE_SETTING)
+                or col in legacy_pipe_settings):
             continue
         normalized_value = checked(value, col == 'J', col + '2')
         globals_out[col] = SCALAR_SETTING_DEFAULTS[col] if col in SCALAR_SETTING_DEFAULTS and normalized_value is None else normalized_value
@@ -582,6 +594,19 @@ def normalize_draft(draft):
             raise ValidationError('Waste (%) must be a finite nonnegative number.')
         if key not in globals_in and checked_legacy:
             globals_out[key] = checked_legacy[0]
+    # Projects saved before per-Service-Tab waste settings had one shared pipe
+    # value. Copy it into each new setting so reopening a project cannot change
+    # any row's calculation until the user deliberately edits a field.
+    if LEGACY_PIPE_WASTE_SETTING in globals_in:
+        legacy_pipe_waste = checked(globals_in[LEGACY_PIPE_WASTE_SETTING], False,
+                                    LEGACY_PIPE_WASTE_SETTING)
+        if legacy_pipe_waste is None:
+            legacy_pipe_waste = 0
+        if legacy_pipe_waste < 0:
+            raise ValidationError('Waste (%) must be a finite nonnegative number.')
+        for key in PIPE_WASTE_SETTINGS.values():
+            if key not in globals_in:
+                globals_out[key] = legacy_pipe_waste
     # Older projects stored Register Allowance on each row. Adopt the first
     # entered value once, then remove all per-item copies so SETTINGS becomes
     # the single effective control without rejecting historical project files.
@@ -796,8 +821,17 @@ def engine_for_draft(draft, configuration=None, *, effective=True):
             value = row['inputs'].get(col)
             inputs['CALC'][col + str(index)] = workbook_substrate(value) if effective and col == 'P' else value
         if effective:
+            # The immutable workbook has one pipe-waste input (AO). Keep that
+            # input and its formulas unchanged, selecting its value from the
+            # row's configured Service Tab. Other waste inputs remain shared.
             inputs['CALC'].update({column + str(index): draft['globals'][key]
-                                   for key, (column, _) in WASTE_SETTINGS.items()})
+                                   for key, (column, _) in WASTE_SETTINGS.items()
+                                   if key not in PIPE_WASTE_SETTINGS.values()})
+            service = row['inputs'].get('K')
+            pipe_waste_key = next((key for group, key in PIPE_WASTE_SETTINGS.items()
+                                   if service in draft['globals']['service_routes'][group]), None)
+            inputs['CALC']['AO' + str(index)] = (
+                draft['globals'][pipe_waste_key] if pipe_waste_key else 0)
             # These are additive source surcharges, so zero removes the effect
             # regardless of historical P/Q/R values or changed lookup prices.
             inputs['CALC'].update({col + str(index): 0 for col in ('BI', 'BJ', 'BK')})

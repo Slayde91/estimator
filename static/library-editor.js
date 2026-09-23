@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const state = { record: null, draft: null, definition: null, result: null, group: null, baseline: null,
     invalid: new Map(), session: 0, version: 0, busy: false, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null,
-    diagramChange: undefined, diagramRead: 0 };
+    diagramChange: undefined, diagramRead: 0, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false };
   let actions = {};
   let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -21,7 +21,10 @@
   const values = global => global ? state.draft.globals : state.draft.rows[0].inputs;
   const fieldGroups = () => (state.definition.groups || [...new Set(state.definition.row_fields.map(field => field.group))]).filter(group => {
     const rule = state.definition.group_visibility?.[group];
-    const inputs = state.draft?.rows?.[0]?.inputs, matches = condition => (condition.values || []).includes(inputs?.[condition.column]);
+    const inputs = state.draft?.rows?.[0]?.inputs, matches = condition => {
+      const configured = condition.route_key && state.draft?.globals?.service_routes?.[condition.route_key];
+      return (configured || condition.values || []).includes(inputs?.[condition.column]);
+    };
     return !rule || (rule.any ? rule.any.some(matches) : matches(rule));
   });
   const fieldInGroup = (field, group) => !field.hidden && (field.display_groups || [field.group]).includes(group);
@@ -90,6 +93,7 @@
     $("library-editor-cancel").disabled = state.busy;
     $("library-editor-diagram-file").disabled = state.busy;
     $("library-editor-diagram-remove").disabled = state.busy;
+    $("library-editor-settings").disabled = !state.record || state.busy;
   }
   function changed() {
     state.version++; state.result = null; renderOutputs(); status(); actions.changed?.();
@@ -177,6 +181,7 @@
       }
       if (error) state.invalid.set(key, { value: control.value, error }); else { state.invalid.delete(key); values(global)[field.column] = value; }
       showProblem(error); changed();
+      if (!error && !global && ["AH", "W"].includes(field.column)) warnAdditionalLabour();
       if (!error && ["J", "K", "Y"].includes(field.column)) renderFields();
     });
     control.addEventListener("blur", () => {
@@ -204,18 +209,179 @@
     }
     return wrapper;
   }
+  const entered = value => value !== null && value !== undefined && value !== "";
+  function warnAdditionalLabour() {
+    const inputs = state.draft?.rows?.[0]?.inputs || {};
+    if (!entered(inputs.AH) || entered(inputs.W)) { state.additionalLabourAdvisory = false; return; }
+    if (state.additionalLabourAdvisory) return;
+    state.additionalLabourAdvisory = true;
+    if (window.CeasefirePenetrationNavigation?.notify) void window.CeasefirePenetrationNavigation.notify("Selection required", "Please select Teams/Crews under Products and Labour", "OK");
+    else message("Please select Teams/Crews under Products and Labour", true);
+  }
+  function tabExitWarning(targetGroup) {
+    if (!state.group || targetGroup === state.group) return null;
+    const inputs = state.draft?.rows?.[0]?.inputs || {};
+    if (state.group === "Bulkhead" && ["BB", "BC", "BD", "BE"].some(column => entered(inputs[column]))) {
+      const missing = [["W", "Teams/Crews"], ["X", "Board/Batt Type"], ["Z", "Framing Type"]]
+        .filter(([column]) => !entered(inputs[column])).map(([, label]) => `[${label}]`);
+      if (missing.length) return { message: `Please select ${missing.join("; ")} under Products and Labour.`, blocking: true };
+    }
+    if (state.group === "Plastic Pipes" && entered(inputs.Y) && (!entered(inputs.AL) || !entered(inputs.AN))) {
+      return { message: "Please enter collar Diameter and Multiplier", blocking: true };
+    }
+    if (state.group === "Additional Allowances" && entered(inputs.AH) && !entered(inputs.W) && !state.additionalLabourAdvisory) {
+      return { message: "Please select Teams/Crews under Products and Labour", key: JSON.stringify(["additional-labour", inputs.AH]) };
+    }
+    const materialSelected = ["X", "Y", "Z", "AA", "AB", "AE"].some(column => entered(inputs[column]));
+    if (targetGroup !== "Products and labour" && materialSelected && !entered(inputs.W)) {
+      return { message: "Please select Teams/Crews", key: JSON.stringify(["materials", ...["X", "Y", "Z", "AA", "AB", "AE"].map(column => inputs[column] ?? null)]) };
+    }
+    return null;
+  }
+  async function selectGroup(group) {
+    const warning = tabExitWarning(group);
+    if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
+      const session = state.session, version = state.version, current = state.group;
+      if (window.CeasefirePenetrationNavigation?.notify) await window.CeasefirePenetrationNavigation.notify("Selection required", warning.message, "OK");
+      else message(warning.message, true);
+      if (state.open && session === state.session && version === state.version && current === state.group && !warning.blocking) state.tabAdvisoryAcknowledgement = warning.key;
+      return;
+    }
+    state.tabAdvisoryAcknowledgement = null; state.group = group; renderFields();
+  }
+  function settingCategory(field) {
+    return field.column === "register_allowance_hours" ? "Labour allowances" : field.column.startsWith("pipe_labour_") ? "Pipe labour" : "Material waste";
+  }
+  function settingContext(field) {
+    if (field.column === "register_allowance_hours") return "Every Firestopping item";
+    const maximum = field.label.match(/up to\s+([\d.]+\s*mm)/i)?.[1];
+    if (maximum) return `Collars for pipes up to ${maximum}`;
+    return String(field.help || "").replace(/^Applies to\s+/i, "").replace(/\.$/, "") || "Firestopping library item";
+  }
+  const structuredSettingKey = name => `structured:${name}`;
+  function clearStructuredProblems(prefix) {
+    for (const key of [...state.invalid.keys()]) if (key.startsWith(`structured:${prefix}`)) state.invalid.delete(key);
+  }
+  function structuredProblem(name, value, error, control, problem) {
+    const key = structuredSettingKey(name);
+    if (error) state.invalid.set(key, { value, error }); else state.invalid.delete(key);
+    control.setAttribute("aria-invalid", String(!!error)); problem.textContent = error || ""; problem.hidden = !error;
+    if (error) changed();
+  }
+  function updateStructuredSetting(key, value) {
+    state.draft.globals[key] = clone(value); changed();
+  }
+  function renderServiceRoutes() {
+    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
+    const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
+    for (const label of ["Tab", "Service types"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    head.append(header); table.append(head); const body = node("tbody"), routes = state.draft.globals.service_routes || {};
+    for (const route of state.definition.settings?.service_routes || []) {
+      const row = node("tr"), label = node("th", "", route.label); label.scope = "row";
+      const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
+      editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
+      editor.dataset.libraryEditorServiceRoute = route.key; editor.setAttribute("aria-label", `${route.label} service types`);
+      const name = `service_routes.${route.key}`;
+      editor.addEventListener("input", () => {
+        const services = editor.value.split(";").map(item => item.trim()).filter(Boolean), seen = new Set();
+        const unique = services.filter(item => { const key = item.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; });
+        const error = unique.length > 1000 ? "Enter at most 1,000 service types." : unique.some(item => item.length > 200) ? "Each service type must contain at most 200 characters." : "";
+        structuredProblem(name, editor.value, error, editor, problem);
+        if (!error) { const next = clone(state.draft.globals.service_routes); next[route.key] = unique; updateStructuredSetting("service_routes", next); }
+      });
+      editor.addEventListener("blur", () => { if (!state.invalid.has(structuredSettingKey(name))) renderFields(); });
+      problem.hidden = true; value.append(editor, problem); row.append(label, value); body.append(row);
+    }
+    table.append(body); scroll.append(table); section.append(heading, scroll); return section;
+  }
+  function bandNumber(text, minimum, label, exclusive = false) {
+    const value = String(text).trim();
+    if (!value || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) || !Number.isFinite(Number(value))) return { error: `Enter a finite ${label}.` };
+    const parsed = Number(value);
+    if ((exclusive ? parsed <= minimum : parsed < minimum) || parsed > 1e12) return { error: exclusive ? `Enter a ${label} above ${minimum}.` : `Enter a ${label} between ${minimum} and 1,000,000,000,000.` };
+    return { value: parsed };
+  }
+  function renderLabourBands() {
+    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
+    section.append(heading);
+    for (const definition of state.definition.settings?.labour_bands || []) {
+      const rows = state.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
+      details.open = state.openSettingsBand === definition.key; details.addEventListener("toggle", () => { if (details.open) state.openSettingsBand = definition.key; });
+      const summary = node("summary"); summary.append(node("strong", "", definition.label), node("span", "status-label", `${rows.length} ${rows.length === 1 ? "band" : "bands"}`)); details.append(summary);
+      details.append(node("p", "helper", `${definition.basis}. ${definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours."}`));
+      const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
+      for (const label of [`Up to (${definition.units})`, "Hours", "Action"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+      head.append(header); table.append(head); const body = node("tbody");
+      rows.forEach((band, index) => {
+        const row = node("tr");
+        for (const property of ["maximum", "hours"]) {
+          const cell = node("td"), control = node("input"), problem = node("small", "penetration-field-error"), name = `labour_bands.${definition.key}.${index}.${property}`;
+          control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.libraryEditorBand = name;
+          control.setAttribute("aria-label", `${definition.label} band ${index + 1} ${property === "maximum" ? `maximum ${definition.units}` : "hours"}`);
+          control.addEventListener("input", () => {
+            const parsed = bandNumber(control.value, 0, property === "maximum" ? "band maximum" : "hours", property === "maximum");
+            let error = parsed.error || "";
+            if (!error && property === "maximum") {
+              const currentRows = state.draft.globals.labour_bands[definition.key], previous = currentRows[index - 1]?.maximum, next = currentRows[index + 1]?.maximum;
+              if (previous !== undefined && parsed.value <= previous) error = `Enter a maximum above ${previous}.`;
+              else if (next !== undefined && parsed.value >= next) error = `Enter a maximum below ${next}.`;
+            }
+            structuredProblem(name, control.value, error, control, problem);
+            if (!error) { const bands = clone(state.draft.globals.labour_bands); bands[definition.key][index][property] = parsed.value; updateStructuredSetting("labour_bands", bands); }
+          });
+          control.addEventListener("blur", () => { if (!state.invalid.has(structuredSettingKey(name))) control.value = String(state.draft.globals.labour_bands[definition.key][index][property]); });
+          problem.hidden = true; cell.append(control, problem); row.append(cell);
+        }
+        const action = node("td"), remove = node("button", "button secondary", "Remove"); remove.type = "button"; remove.disabled = rows.length === 1;
+        remove.setAttribute("aria-label", `Remove ${definition.label} band ${index + 1}`); remove.addEventListener("click", () => {
+          const bands = clone(state.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
+          bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
+        });
+        action.append(remove); row.append(action); body.append(row);
+      });
+      table.append(body); scroll.append(table); details.append(scroll);
+      const add = node("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
+        const bands = clone(state.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
+        const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
+        if (!(increment > 0) || last.maximum + increment > 1e12) return;
+        current.push({ maximum: last.maximum + increment, hours: last.hours }); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
+      });
+      details.append(add); section.append(details);
+    }
+    return section;
+  }
+  function renderSettings(fields) {
+    const root = node("div", "penetration-settings"), intro = node("p", "message info", "These settings are saved with this Firestopping Library item. Calculations retain the source workbook formulas unless you change a band table.");
+    const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table"), head = node("thead"), header = node("tr");
+    for (const label of ["Setting", "Applies to", "Value"]) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
+    head.append(header); table.append(head);
+    for (const category of ["Labour allowances", "Pipe labour", "Material waste"]) {
+      const matching = fields.filter(field => settingCategory(field) === category); if (!matching.length) continue;
+      const body = node("tbody"), groupRow = node("tr", "settings-group-heading"), groupCell = node("th", "", category); groupCell.scope = "rowgroup"; groupCell.colSpan = 3; groupRow.append(groupCell); body.append(groupRow);
+      for (const field of matching) {
+        const row = node("tr"), label = node("th", "", fieldLabel(field) + (field.units ? ` (${field.units})` : field.format === "percent" ? " (%)" : "")); label.scope = "row";
+        const context = node("td", "", settingContext(field)), value = node("td", "penetration-settings-control"); value.append(makeControl(field, true)); row.append(label, context, value); body.append(row);
+      }
+      table.append(body);
+    }
+    scroll.append(table); root.append(intro, scroll, renderServiceRoutes(), renderLabourBands()); return root;
+  }
   function renderFields() {
     const groups = fieldGroups(); if (!groups.includes(state.group)) state.group = groups[0];
-    $("library-editor-groups").replaceChildren(...groups.map(group => {
-      const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("aria-pressed", String(group === state.group));
-      button.addEventListener("click", () => { state.group = group; renderFields(); }); return button;
+    $("library-editor-groups").replaceChildren(...groups.filter(group => group !== "SETTINGS").map(group => {
+      const button = node("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.libraryEditorGroup = group; button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
+      button.addEventListener("click", () => selectGroup(group)); return button;
     }));
+    $("library-editor-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
     const fields = node("div", "library-editor-fields"), settings = state.group === "SETTINGS";
     const visible = settings ? state.definition.global_fields || [] : state.definition.row_fields.filter(field => fieldInGroup(field, state.group));
-    fields.append(...visible.map(field => {
-      const paired = !settings && field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
-      return paired ? makeDimensionControl(field, paired) : makeControl(field, settings);
-    })); $("library-editor-fields").replaceChildren(fields);
+    if (settings) $("library-editor-fields").replaceChildren(renderSettings(visible));
+    else {
+      fields.append(...visible.map(field => {
+        const paired = field.paired_column && state.definition.row_fields.find(candidate => candidate.column === field.paired_column);
+        return paired ? makeDimensionControl(field, paired) : makeControl(field, false);
+      })); $("library-editor-fields").replaceChildren(fields);
+    }
   }
   function renderOutputs() {
     const price = state.result ? state.result.rows?.[0]?.outputs?.H : (!hasUnsavedChanges() ? state.record.price?.amount : null);
@@ -231,7 +397,7 @@
   function present(record, handlers = {}) {
     if (!record?.draft || !record.definition || record.draft.rows?.length !== 1) throw new Error("The library item does not contain one editable source row.");
     state.session++; Object.assign(state, { record: clone(record), draft: clone(record.draft), definition: clone(record.definition), result: clone(record.result || null),
-      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true, diagramChange: undefined });
+      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true, diagramChange: undefined, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     clearTimeout(state.timer); state.requestRevision++;
     actions = { changed: scheduleCalculation, calculate, refreshPricing, save, cancel, ...handlers };
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
@@ -240,7 +406,7 @@
   }
   function close() {
     state.session++; state.requestRevision++; state.opening++; clearTimeout(state.timer);
-    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map(), diagramChange: undefined });
+    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map(), diagramChange: undefined, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     $("firestopping-library-editor").hidden = true; $("firestopping-project-workspace").hidden = false;
   }
   function inputProblem() { return state.invalid.size ? "Correct the library item input marked invalid before continuing." : ""; }
@@ -330,6 +496,7 @@
   }
   $("library-editor-recalculate").addEventListener("click", () => actions.calculate?.());
   $("library-editor-refresh-pricing").addEventListener("click", () => actions.refreshPricing?.());
+  $("library-editor-settings").addEventListener("click", () => selectGroup("SETTINGS"));
   $("library-editor-save").addEventListener("click", () => actions.save?.());
   $("library-editor-cancel").addEventListener("click", () => actions.cancel?.());
   $("library-editor-diagram-file").addEventListener("change", async event => {

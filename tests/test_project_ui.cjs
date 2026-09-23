@@ -65,7 +65,7 @@ function harness({ penetration = false } = {}) {
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,uploadProjectFiles,
       setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -353,6 +353,25 @@ async function penetrationCheck(name, fn) {
     await h.loadAccepted();assert.equal(h.app.state.projectFile.save_token,undefined);let requested=false;
     h.app.setRequest(async()=>{requested=true;});await h.app.saveProject(false);
     assert.equal(requested,false);assert.equal(h.byId('save-required-dialog').open,true);
+  });
+  await check('Project file uploads require Save As and use only the current project capability', async h => {
+    await h.app.uploadProjectFiles([{name:'scope.pdf',size:4}]);
+    assert.match(h.byId('app-message').textContent,/There is no saved project.*Save As.*project folder/);
+    h.app.state.projectFile={name:'saved.json',path:'C:/estimates/saved.json',save_token:'opaque-project'};
+    const calls=[];h.app.setRequest(async(path,options)=>{calls.push({path,body:JSON.parse(options.body)});return {saved:true,filename:calls.length===1?'scope.pdf':'scope (1).pdf',path:'C:/estimates/scope.pdf'};});
+    await h.app.uploadProjectFiles([{name:'scope.pdf',size:4},{name:'scope.pdf',size:4}]);
+    assert.deepEqual(calls.map(call=>call.path),['/api/project/attachment','/api/project/attachment']);
+    assert.ok(calls.every(call=>call.body.project_token==='opaque-project'&&call.body.content_base64==='QUFBQQ=='));
+    assert.match(h.byId('project-attachment-status').textContent,/2 files saved.*scope\.pdf.*scope \(1\)\.pdf/);
+    assert.match(h.byId('app-message').textContent,/2 files saved to the project folder/);
+    assert.equal(h.app.state.projectFile.save_token,'opaque-project');
+  });
+  await check('Project file upload validates size before any write and reports partial batches', async h => {
+    h.app.state.projectFile={name:'saved.json',save_token:'opaque-project'};let calls=0;
+    h.app.setRequest(async()=>{calls++;if(calls===2)throw new Error('Folder is read only');return {saved:true,filename:'first.txt'};});
+    await h.app.uploadProjectFiles([{name:'first.txt',size:1},{name:'second.txt',size:1}]);
+    assert.equal(calls,2);assert.match(h.byId('app-message').textContent,/1 file was saved before the upload stopped.*Folder is read only/);
+    calls=0;await h.app.uploadProjectFiles([{name:'large.bin',size:16*1024*1024+1}]);assert.equal(calls,0);assert.match(h.byId('app-message').textContent,/16 MB or smaller/);
   });
   await check('Starting a new project clears the previous Save target', async h => {
     h.app.state.projectFile={name:'old.json',save_token:'old'};h.app.state.initialized=true;

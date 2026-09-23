@@ -104,6 +104,26 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     waste.value='8.5';await waste.emit('input');pipe.value='.6';await pipe.emit('input');register.value='.1';await register.emit('input');assert.equal(h.audit.state.draft.globals.waste_cabletrays,.085);assert.equal(h.audit.state.draft.globals.pipe_labour_50_hours,.6);assert.equal(h.audit.state.draft.globals.register_allowance_hours,.1);
     let capture;h.audit.setRequest(async(id,action,payload)=>{capture=copy(payload);return fixture(payload.draft,{definition:metadata,result:result(payload.draft,metadata)});});await h.audit.calculate();assert.equal(capture.draft.globals.waste_cabletrays,.085);
   });
+  await check('Library editor separates Settings and edits the same routing and task-hour bands as the main estimator',async h=>{
+    const metadata=definition();metadata.groups=['Penetration','Lagged Pipes','Unlagged Pipes','SETTINGS'];metadata.group_visibility={
+      'Lagged Pipes':{column:'K',route_key:'lagged_pipes'},'Unlagged Pipes':{column:'K',route_key:'unlagged_pipes'}};
+    metadata.row_fields.push({column:'lagged-field',label:'Lagged detail',group:'Lagged Pipes',type:'number',format:'number',units:'mm',options:[],default:null});
+    metadata.global_fields=[{column:'register_allowance_hours',label:'Register Allowance',group:'SETTINGS',type:'number',format:'number',units:'hrs',options:[],default:.25,min:0,step:.05,help:'Register Allowance hours applied to every Firestopping item.'}];
+    metadata.settings={service_routes:[{key:'lagged_pipes',label:'Lagged Pipes'},{key:'unlagged_pipes',label:'Unlagged Pipes'}],labour_bands:[{key:'board',label:'Board Task Hours',units:'m²',basis:'Board area',overflow:'final'}]};
+    const draft=copy(metadata.defaults);draft.rows[0].inputs.K='Lagged Pipes';Object.assign(draft.globals,{register_allowance_hours:.25,service_routes:{lagged_pipes:['Lagged Pipes'],unlagged_pipes:['Unlagged Pipes']},labour_bands:{board:[{maximum:.15,hours:.5},{maximum:50,hours:5.6}]}});
+    h.api.present(fixture(draft,{definition:metadata,result:result(draft,metadata)}));
+    assert.doesNotMatch(text(h.byId('library-editor-groups')),/SETTINGS/);assert.ok(walk(h.byId('library-editor-groups')).filter(node=>node.dataset.libraryEditorGroup).every(button=>button.getAttribute('role')==='tab'));
+    assert.match(text(h.byId('library-editor-groups')),/Lagged Pipes/);assert.doesNotMatch(text(h.byId('library-editor-groups')),/Unlagged Pipes/);
+    await h.byId('library-editor-settings').emit('click');assert.equal(h.byId('library-editor-settings').getAttribute('aria-pressed'),'true');
+    const settingsText=text(h.byId('library-editor-fields'));assert.match(settingsText,/SERVICE-TAB ROUTING.*PRECALCULATED TASK-HOUR BANDS.*Board Task Hours/);assert.doesNotMatch(settingsText,/Separate service types with semicolons|Edit both thresholds and hours/);
+    const settingsHeadings=walk(h.byId('library-editor-fields')).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.textContent),['SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
+    const route=walk(h.byId('library-editor-fields')).find(node=>node.dataset.libraryEditorServiceRoute==='lagged_pipes');route.value='Lagged Pipes; Insulated Pipes';await route.emit('input');assert.deepEqual(copy(h.audit.state.draft.globals.service_routes.lagged_pipes),['Lagged Pipes','Insulated Pipes']);
+    let maximum=walk(h.byId('library-editor-fields')).find(node=>node.dataset.libraryEditorBand==='labour_bands.board.0.maximum');maximum.value='.2';await maximum.emit('input');
+    let hours=walk(h.byId('library-editor-fields')).find(node=>node.dataset.libraryEditorBand==='labour_bands.board.0.hours');hours.value='.75';await hours.emit('input');assert.deepEqual(copy(h.audit.state.draft.globals.labour_bands.board[0]),{maximum:.2,hours:.75});
+    const add=walk(h.byId('library-editor-fields')).find(node=>node.textContent==='+ Add band');await add.emit('click');assert.equal(h.audit.state.draft.globals.labour_bands.board.length,3);
+    const remove=walk(h.byId('library-editor-fields')).find(node=>node.textContent==='Remove');await remove.emit('click');assert.equal(h.audit.state.draft.globals.labour_bands.board.length,2);
+    let capture;h.audit.setRequest(async(id,action,payload)=>{capture=copy(payload);return fixture(payload.draft,{definition:metadata,result:result(payload.draft,metadata)});});await h.audit.save();assert.deepEqual(capture.draft.globals.service_routes.lagged_pipes,['Lagged Pipes','Insulated Pipes']);assert.equal(capture.draft.globals.labour_bands.board[0].maximum,50);
+  });
   await check('Opening the library item leaves the full project state and raw invalid inputs intact',async h=>{
     const project=h.context.penAudit;project.state.draft.rows[0].inputs.T='Unsaved project';project.makeControl(definition().row_fields.find(f=>f.column==='O'),'line-1');
     const projectQuantity=h.byId('penetration-row-fields').querySelectorAll('[data-penetration-field]').find(el=>el.dataset.penetrationField==='O');projectQuantity.value='1e-';await projectQuantity.emit('input');

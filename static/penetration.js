@@ -452,8 +452,7 @@
     changed(null, state.schedule); changed(null, state);
   }
   function renderServiceRoutes() {
-    const section = node("section", "penetration-settings-section"), heading = node("div", "section-heading");
-    heading.append(node("h4", "", "Service-tab routing"), node("p", "helper", "Separate service types with semicolons. Matching is exact, so Lagged Pipes and Unlagged Pipes remain independent."));
+    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
     for (const label of ["Tab", "Service types"] ) { const cell = node("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head); const body = node("tbody"), routes = state.schedule.draft.globals.service_routes || {};
@@ -485,8 +484,8 @@
     return { value: number };
   }
   function renderLabourBands() {
-    const section = node("section", "penetration-settings-section"), heading = node("div", "section-heading");
-    heading.append(node("h4", "", "Precalculated task-hour bands"), node("p", "helper", "Edit both thresholds and hours. Bands use the next larger matching threshold; Board, Mastic, Framing and Wrap use the final row above the last threshold.")); section.append(heading);
+    const section = node("section", "penetration-settings-section"), heading = node("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
+    section.append(heading);
     for (const definition of state.definition.settings?.labour_bands || []) {
       const rows = state.schedule.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
       details.open = state.openSettingsBand === definition.key; details.addEventListener("toggle", () => { if (details.open) state.openSettingsBand = definition.key; });

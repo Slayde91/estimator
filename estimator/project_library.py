@@ -3,6 +3,8 @@
 from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -22,6 +24,7 @@ from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, MAX_PROJECT_FILE, exp
 MAX_PROJECT_FILES = 200
 MAX_SCAN_ENTRIES = 2000
 MAX_LIST_BYTES = 64 * 1_048_576
+MAX_PROJECT_ATTACHMENT = 16 * 1_048_576
 SCAN_CACHE_SECONDS = 5
 _DIALOG_LOCK = threading.Lock()
 
@@ -93,6 +96,35 @@ def file_fingerprint(path):
         return None
     payload, info = _read_file(path)
     return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": hashlib.sha256(payload).hexdigest()}
+
+
+def _attachment_filename(value):
+    """Accept one portable leaf filename without rewriting user intent."""
+    if not isinstance(value, str) or not value:
+        raise ValidationError("Choose a file with a valid filename.")
+    try:
+        length = len(value.encode("utf-16-le")) // 2
+    except UnicodeEncodeError as error:
+        raise ValidationError("Choose a file with a valid filename.") from error
+    if (length > 255 or value != value.rstrip(" .") or value in {".", ".."}
+            or Path(value).name != value or re.search(r'[<>:"/\\|?*\x00-\x1f]', value)):
+        raise ValidationError("Choose a file with a valid filename.")
+    stem = value.split(".", 1)[0]
+    if re.fullmatch(r"(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", stem):
+        raise ValidationError("Choose a file with a valid filename.")
+    return value
+
+
+def _decode_attachment(value):
+    if not isinstance(value, str):
+        raise ValidationError("The uploaded file content is invalid.")
+    try:
+        payload = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValidationError("The uploaded file content is invalid.") from error
+    if len(payload) > MAX_PROJECT_ATTACHMENT:
+        raise ValidationError("Each project file must be 16 MB or smaller.")
+    return payload
 
 
 def _preserve_penetration_inputs(path, request):
@@ -404,6 +436,57 @@ class ProjectLibrary:
             if file_fingerprint(selection.path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed. Reload it or use Save As before downloading.')
             return DownloadDestination(_directory(Path(selection.path).parent), 'project')
+
+    def save_attachment(self, request):
+        """Save an uploaded file beside the project selected by an opaque capability."""
+        if not isinstance(request, dict) or set(request) != {"project_token", "filename", "content_base64"}:
+            raise ValidationError("Include the current saved project and one file to upload.")
+        token = request["project_token"]
+        if not isinstance(token, str):
+            raise ValidationError('There is no saved project. Please click "Save As" and select a project folder.')
+        filename = _attachment_filename(request["filename"])
+        payload = _decode_attachment(request["content_base64"])
+        with self._lock:
+            selection = self._save_targets.get(token)
+            if selection is None:
+                raise ValidationError('The saved project is no longer available. Please click "Save As" again.')
+            if file_fingerprint(selection.path) != selection.fingerprint:
+                raise ValidationError('The project file changed or was removed. Reload it or use Save As before uploading files.')
+            folder = _directory(Path(selection.path).parent)
+            stem, suffix = Path(filename).stem, Path(filename).suffix
+            path, identity = None, None
+            try:
+                for number in range(10000):
+                    candidate = folder / (filename if number == 0 else f"{stem} ({number}){suffix}")
+                    try:
+                        descriptor = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                                             | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                    except FileExistsError:
+                        continue
+                    path = candidate
+                    with os.fdopen(descriptor, "wb") as stream:
+                        info = os.fstat(stream.fileno())
+                        if _linked(info) or not stat.S_ISREG(info.st_mode):
+                            raise OSError("The created destination is not a regular file.")
+                        identity = info.st_dev, info.st_ino
+                        stream.write(payload)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    _directory(folder)
+                    return {"saved": True, "path": str(path), "filename": path.name,
+                            "original_filename": filename, "size": len(payload)}
+                raise ValidationError("Too many files share this name. Rename the file and try again.")
+            except (OSError, ValidationError) as error:
+                if path is not None and identity is not None:
+                    try:
+                        info = path.lstat()
+                        if (info.st_dev, info.st_ino) == identity:
+                            path.unlink()
+                    except OSError:
+                        pass
+                if isinstance(error, ValidationError):
+                    raise
+                raise ValidationError("The file could not be saved to the project folder. Check its permissions and available disk space, then try again.") from error
 
     def write_download(self, destination, filename, payload):
         from .download_files import write_download_file

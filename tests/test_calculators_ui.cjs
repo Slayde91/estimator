@@ -803,11 +803,11 @@ let passed = 0;
     {first_row:39,last_row:41,columns:[1,2,3,4,5,6,7],column_widths:[200,125,125,125,125,125,125],label:'Board totals'},
   ];
   const boldDuctSummaryRows=[9,10,11,19,20,21,22,23,24,25,26,31,32];
-  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],section_cells:['A17','A29','A38'],navigation_mode:'hidden',section_spacing:true,presentation_tables:summaryTables,display_cells:{A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},merges:['A1:L1','A14:L14','A15:L15','A17:F17','A29:F29','A35:L35','A36:L36','A37:L37','A38:L38','I40:L40','A43:L43']}];
+  entry.definition.sheets=[{name:'SUMMARY',header_rows:[8,18,30,39],section_cells:['A17','A29','A38'],navigation_mode:'hidden',section_spacing:true,presentation_tables:summaryTables,display_cells:{A1:{role:'compact_summary_title'},A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},merges:['A1:L1','A14:L14','A15:L15','A17:F17','A29:F29','A35:L35','A36:L36','A37:L37','A38:L38','I40:L40','A43:L43']}];
   const summaryRows=[1,14,15,17,29,35,36,37,38,43].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`Source note ${row}`,presentation:{role:'note'}}]}));
   for(const table of summaryTables) for(let row=table.first_row;row<=table.last_row;row++) summaryRows.push({row,cells:Array.from({length:12},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===26?null:row===table.first_row?`Header ${i+1}`:row*100+i,calculated:row!==table.first_row}))});
   summaryRows.sort((a,b)=>a.row-b.row);
-  entry.result=result({}, {sheet:'SUMMARY',max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),rows:summaryRows});
+  entry.result=result({}, {sheet:'SUMMARY',max_column:12,visible_columns:Array.from({length:12},(_,i)=>i+1),display_cells:{A1:{role:'compact_summary_title'},A17:{merge:'A17:L17'},A29:{merge:'A29:L29'},...Object.fromEntries(boldDuctSummaryRows.map(row=>[`A${row}`,{bold:true}]))},rows:summaryRows});
   const originalSummary=JSON.stringify(entry.result);realRender(entry);audit.setRender(realRender);
   const summaryRendered=descendants(byId('calculator-grid')).filter(node=>node.tagName==='table');
   assert.equal(summaryRendered.length,11);
@@ -821,6 +821,7 @@ let passed = 0;
     assert.ok(table.children.at(-1).children[0].children.every(cell=>cell.tagName==='th'));
   }
   const summaryOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]');
+  const productSummaryHeading=summaryOutputs().find(cell=>cell.dataset.calculatorOutput==='A1');assert.match(productSummaryHeading.className,/calculator-role-compact_summary_title/);assert.equal(productSummaryHeading.dataset.calculatorValue,undefined);assert.equal(productSummaryHeading.classList.contains('calculator-value-present'),false);
   for(const address of ['K9','L9','D31','E31','F31','H40','I40','J40','K40','L40']) assert.ok(!summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
   for(const address of ['D9','E9','F9','G9','D19','E19','F19','E40','F40','G40']) assert.ok(summaryOutputs().some(cell=>cell.dataset.calculatorOutput===address),address);
   for(const row of boldDuctSummaryRows)assert.equal(summaryOutputs().find(cell=>cell.dataset.calculatorOutput===`A${row}`).classList.contains('calculator-bold'),true);
@@ -1514,6 +1515,8 @@ let passed = 0;
   assert.match(sectionCss,/\.calculator-overview-board\s+h3\s*\{[^}]*font-size:\s*15px/);
   assert.match(sectionCss,/\.calculator-role-compact_title\s*\{[^}]*font-size:\s*15px/);
   assert.match(sectionCss,/\.calculator-role-compact_summary_title\s*\{[^}]*font-size:\s*14px/);
+  assert.match(sectionCss,/\.calculator-grid>\.calculator-table-scroll:first-child,\.calculator-grid>\.calculator-table-scroll:first-child>table\{border-top:0\}/);
+  assert.match(sectionCss,/\.calculator-grid>:first-child:is\(\.calculator-stacked-section,\.calculator-projected-section\)\{border-top:0\}/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-normal\s*\{\s*font-weight:\s*400!important/);passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.

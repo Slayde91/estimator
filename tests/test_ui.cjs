@@ -312,7 +312,7 @@ let passed=0;
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
   assert.equal(byId('pricing-head').children[0].children.length,10);
-  assert.deepEqual(byId('pricing-head').children[0].children.filter(cell=>!cell.hidden).map(cell=>cell.textContent),['Item code','Product/Service','Supplier price','Markup %','Sell price','Estimator availability','Yield','Yield unit','']);
+  assert.deepEqual(byId('pricing-head').children[0].children.filter(cell=>!cell.hidden).map(cell=>cell.textContent),['Item code','Product/Service','Supplier price','Markup %','Sell price','Estimator availability','Yield','Yield unit','Actions']);
   assert.equal(productInput('coat','Product/Service').value,'Coating <literal>');assert.equal(productInput('coat','Selection name'),undefined);
   assert.equal(productInput('coat','Main Estimator groups').value,'Primers; Topcoats');
   const firestoppingRow=productRows().find(row=>row.dataset.priceId==='unused');
@@ -323,6 +323,13 @@ let passed=0;
   assert.equal(productInput('coat','Sell rate override').value,'; 180.123456');assert.equal(productInput('team','Yield'),undefined);
   assert.equal(productRows()[0].children[8].hidden,true);assert.match(productRows()[0].children[4].children[1].textContent,/Topcoats \$180.12/);
   assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
+
+  // Pricing items can be added and removed in the UI without leaving linked estimator rates behind.
+  await byId('add-pricing-item').emit('click');const created=audit.state.catalog.inventory.find(item=>item.id==='inv-user-000001');assert.ok(created);assert.equal(created.product_service,'New pricing item');
+  await editList(created.id,'Main Estimator groups','Primers');const createdRate=audit.state.catalog.rate_groups.primers.find(rate=>rate.inventory_id===created.id);assert.ok(createdRate);
+  const removeCreated=pricingNodes().find(node=>node.dataset.pricingRemove===created.id);assert.equal(removeCreated.getAttribute('aria-label'),'Remove New pricing item');
+  const removing=removeCreated.emit('click');await flush();assert.equal(byId('discard-dialog').open,true);await byId('discard-dialog').close('confirm');await removing;
+  assert.ok(!audit.state.catalog.inventory.some(item=>item.id===created.id));assert.ok(!Object.values(audit.state.catalog.rate_groups).flat().some(rate=>rate.inventory_id===created.id));assert.equal(audit.state.draft.catalog,undefined);passed++;
 
   // Returning to unchanged pricing retains its controls and exact stored values.
   const unchangedRow=productRows()[0],unchangedHeading=byId('pricing-head').children[0],untouchedDraft=JSON.stringify(audit.state.draft);
@@ -730,6 +737,8 @@ let passed=0;
   assert.match(actionCss,/@media\(max-width:570px\).*\.app-header nav\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   for(const state of [':hover:not(:disabled)',':focus-visible',':disabled'])assert.ok(actionCss.includes(`.button:is(.excel-button,.save-button,.pdf-button)${state}`));
   assert.doesNotMatch(markup,/id="print-quote"/);assert.doesNotMatch(source,/function printQuote|window\.print/);
+  assert.match(markup,/id="new-quote"[^>]*>New<\/button>/);assert.match(markup,/id="edit-project-details"[^>]*>Edit<\/button>/);assert.match(markup,/id="load-project"[^>]*>Load<\/button>/);
+  assert.match(markup,/id="add-pricing-item"[^>]*>\+ Add item<\/button>/);assert.match(markup,/id="link-project-folder"[^>]*aria-label="Link Project Folder"/);assert.match(markup,/id="refresh-quotes"[^>]*aria-label="Refresh"/);
   assert.doesNotMatch(markup,/Estimating workflow|id="workflow"|Choose a workflow|Dimensions and takeoff notes/);
   assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);
   assert.match(markup,/<span>NOTES <span class="optional">Optional<\/span><\/span><textarea id="measurements"/);

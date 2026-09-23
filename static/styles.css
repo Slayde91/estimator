@@ -241,6 +241,8 @@ dialog .actions{justify-content:flex-end}
 .pricing-advanced-toggle input { width: auto; }
 .pricing-table .pricing-rate-notice { max-width: 15rem; }
 .pricing-table td { vertical-align: middle; }
+.pricing-row-actions{white-space:nowrap}
+.pricing-row-actions .button{margin:3px}
 .pricing-table input[data-price-field="yield"] { min-width: 11rem; }
 .pricing-yield-unit { min-width: 8rem; color: var(--muted); white-space: pre-wrap; }
 #project-folder { overflow-wrap: anywhere; }

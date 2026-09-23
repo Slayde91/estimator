@@ -866,6 +866,52 @@
     refreshPricingCatalog();
     markPricingDirty();
   }
+  function addPricingItem() {
+    document.activeElement?.blur?.();
+    const ids = new Set((state.catalog.inventory || []).map((item) => item.id));
+    let number = 1, id;
+    do { id = `inv-user-${String(number++).padStart(6, "0")}`; } while (ids.has(id));
+    editPricingCatalog((catalog) => {
+      catalog.inventory.push({
+        id, item_code: "", name: "New pricing item", sales_description: "",
+        product_service: "New pricing item", supplier_price: 0, supplier_price_raw: "",
+        sales_price: 0, calculated_sell_price: 0, pricing_mode: "supplier_markup",
+        markup: isNumber(catalog.markup) ? catalog.markup : 0, status: "Active",
+        inventory_type: "", properties: {}, source: { origin: "user" },
+        firestopping_groups: [],
+      });
+    });
+    $("pricing-search").value = ""; $("rate-group").value = ""; renderPricing();
+    message("New pricing item added to the draft. Complete its details and estimator groups, then save pricing.");
+  }
+  async function removePricingItem(record) {
+    document.activeElement?.blur?.();
+    const itemName = productServiceName(record) || record.item.name || record.item.id;
+    const linkedRates = record.kind === "inventory" ? record.uses.map(({ item }) => item.id) : [record.item.id];
+    const detail = record.kind === "inventory" && linkedRates.length
+      ? `${itemName} and its ${linkedRates.length} linked estimator ${linkedRates.length === 1 ? "use" : "uses"} will be removed from this pricing draft.`
+      : `${itemName} will be removed from this pricing draft.`;
+    const draft = state.draft, fingerprint = JSON.stringify(draft);
+    if (!await confirmReplace("Remove pricing item?", detail, "Remove item")) return;
+    if (state.draft !== draft || JSON.stringify(state.draft) !== fingerprint) {
+      message("Pricing changed during removal confirmation. Review the current draft and try again.", true); return;
+    }
+    editPricingCatalog((catalog) => {
+      if (record.kind === "inventory") catalog.inventory = catalog.inventory.filter((item) => item.id !== record.item.id);
+      for (const group of Object.keys(catalog.rate_groups)) catalog.rate_groups[group] = catalog.rate_groups[group].filter((rate) => !linkedRates.includes(rate.id));
+    });
+    if (record.kind === "inventory") delete state.draft.inventory[record.item.id];
+    for (const id of linkedRates) delete state.draft.rates[id];
+    const saved = pricingBaseline(), savedCatalog = saved.catalog || state.baseline;
+    if (JSON.stringify(state.draft.catalog) === JSON.stringify(savedCatalog)) {
+      if (!saved.catalog) delete state.draft.catalog;
+      if (saved.catalog_signature) state.draft.catalog_signature = saved.catalog_signature;
+    }
+    for (const key of [...pricingPendingFields().keys()]) {
+      if (key.startsWith(`${record.kind}:${record.item.id}:`) || linkedRates.some((id) => key.startsWith(`rates:${id}:`))) pricingPendingFields().delete(key);
+    }
+    renderPricing(); message(`${itemName} removed from the pricing draft. Save pricing to keep this change.`);
+  }
   function pricingFieldInput(record, field, initial, apply, placeholder = "", multiline = false) {
     const input = node(multiline ? "textarea" : "input", "pricing-use-list");
     if (multiline) input.rows = 2; else input.type = "text";
@@ -1097,7 +1143,7 @@
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
     $("pricing-help").textContent = "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. One yield applies to all compatible Main Estimator uses; Mixed preserves differing saved values until you edit it.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Sell rate override", ""]) {
+    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Sell rate override", "Actions"]) {
       const cell = node("th", "", title);
       if (title === "Sell rate override") cell.hidden = !$("show-rate-overrides").checked;
       heading.append(cell);
@@ -1170,7 +1216,10 @@
         refreshers.push(() => { status.textContent = pricingUseList(uses.map(({ item: rate }) => formatMoney(rateSellPrice(rate)))); });
         overrides.append(status);
       } else overrides.textContent = inventoryView ? "—" : "Uses Sell price";
-      const reset = node("td"); reset.append(resetButton(kind, item)); row.append(overrides, reset);
+      const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only");
+      remove.type = "button"; remove.dataset.pricingRemove = item.id; remove.title = `Remove ${productServiceName(record) || item.name}`; remove.setAttribute("aria-label", remove.title);
+      const removeIcon = node("span", "button-symbol", "🗑︎"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
+      remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(overrides, reset);
       rows.push(row);
     }
     if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = $("show-rate-overrides").checked ? 10 : 9; row.append(cell); rows.push(row); }
@@ -1566,6 +1615,7 @@
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
   $("show-rate-overrides").addEventListener("change", renderPricing);
+  $("add-pricing-item").addEventListener("click", addPricingItem);
   $("save-pricing").addEventListener("click", savePricing);
   $("reset-pricing").addEventListener("click", resetPricingLibrary);
   $("export-pricing").addEventListener("click", exportPricing);

@@ -137,6 +137,29 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['P'], 'Concrete/masonry wall')
         self.assertEqual(path.read_bytes(), source)
 
+    def test_legacy_conduit_records_and_manufacturer_totals_are_canonical_without_rewriting_source(self):
+        path = self.root / 'library/library.json'
+        data = json.loads(path.read_text(encoding='utf-8'))
+        item = data['libraries']['penetration']['items'][0]
+        item['estimate']['draft']['rows'][0]['inputs']['K'] = 'Conduit'
+        item['fields'].append({'label': 'Service Type', 'column': 'K', 'value': 'Conduit'})
+        data['libraries']['penetration']['filters'].append({'key': 'service_type', 'label': 'Service type'})
+        item.setdefault('filter_values', {})['service_type'] = ['Conduit']
+        path.write_text(json.dumps(data), encoding='utf-8')
+        source = path.read_bytes()
+        library = FirestoppingLibrary(self.root / 'library', self.store)
+        detail = library.detail('penetration', 'pkb-001')
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field.get('label') == 'Service Type'), 'Conduits')
+        self.assertEqual(library.edit('pkb-001')['draft']['rows'][0]['inputs']['K'], 'Conduits')
+        self.assertEqual(library.service_types().count('Conduits'), 1)
+        self.assertNotIn('Conduit', library.service_types())
+        listing = library.listing('penetration', service_type='Conduits')
+        self.assertEqual(listing['total'], 1)
+        self.assertEqual(listing['counts']['manufacturers'], [
+            {'name': 'Other manufacturer', 'count': 1},
+            {'name': 'Sample manufacturer', 'count': 1}])
+        self.assertEqual(path.read_bytes(), source)
+
     def test_collar_pipe_labour_removes_only_the_duplicate_effective_additional_hours(self):
         collar = {'globals': {}, 'rows': [{'id': 'collar', 'inputs': {
             'K': 'Plastic Pipes', 'Y': 'Selected collar', 'AL': 50,

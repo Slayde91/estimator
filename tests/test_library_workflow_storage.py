@@ -91,7 +91,10 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         reopened = FirestoppingLibrary(self.root / 'library', self.store)
         self.assertEqual(reopened.edit(created['id'])['draft'], saved['draft'])
         self.assertEqual(reopened.edit(created['id'])['source_price'], created['source_price'])
-        self.assertEqual(reopened.listing('penetration')['counts'], {'total': 1, 'linked': 0, 'unlinked': 1})
+        counts = reopened.listing('penetration')['counts']
+        self.assertEqual({key: counts[key] for key in ('total', 'linked', 'unlinked')},
+                         {'total': 1, 'linked': 0, 'unlinked': 1})
+        self.assertEqual(counts['manufacturers'], [{'name': 'Not recorded', 'count': 1}])
         self.assertFalse(reopened.create(request)['created'])
         different = deepcopy(request)
         different['draft']['rows'][0]['inputs']['AI'] = 999
@@ -156,7 +159,10 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         self.assertEqual(reverse['origin'], 'user')
         self.assertIn('Review its current inputs', reverse['notice'])
         self.assertNotIn('original workbook', reverse['notice'])
-        self.assertEqual(self.library.listing('penetration', search='not found', technical_reference='unlinked')['counts'], {'total': 3, 'linked': 2, 'unlinked': 1})
+        counts = self.library.listing('penetration', search='not found', technical_reference='unlinked')['counts']
+        self.assertEqual({key: counts[key] for key in ('total', 'linked', 'unlinked')},
+                         {'total': 3, 'linked': 2, 'unlinked': 1})
+        self.assertEqual(sum(entry['count'] for entry in counts['manufacturers']), 3)
         self.data['documents'][0]['sha256'] = 'b' * 64
         self.index.write_text(json.dumps(self.data), encoding='utf-8')
         self.assertEqual(self.library.detail('penetration', key)['links'], [])

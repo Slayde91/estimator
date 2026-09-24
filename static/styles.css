@@ -209,7 +209,6 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-table .pricing-uses-table th:first-child{width:130px;min-width:130px}
 .pricing-table .pricing-uses-table th:nth-child(2){min-width:230px}
 .pricing-uses-table td{vertical-align:top}
-.pricing-rate-source{min-width:155px;font-size:11px;color:var(--muted)}
 .pricing-rate-actions{min-width:95px}
 .pricing-rate-actions .reset-button{display:block}
 .price-value{font-variant-numeric:tabular-nums;font-weight:650;white-space:nowrap}
@@ -270,10 +269,8 @@ dialog .actions{justify-content:flex-end}
 .pricing-table textarea[data-price-field="Product/Service"] { min-width: 20rem; font-size: 12px; padding: 9px; resize: vertical; }
 .pricing-table input[data-price-field="Yield"] { min-width: 8rem; width: 8rem; }
 .pricing-table input[data-price-field="Item code"] { min-width: 6rem; width: 8rem; }
-.pricing-advanced-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
-.pricing-advanced-toggle input { width: auto; }
 .pricing-table .pricing-rate-notice { max-width: 15rem; }
-.pricing-table td { vertical-align: middle; }
+.pricing-table td { vertical-align: top; }
 .pricing-row-actions{white-space:nowrap}
 .pricing-row-actions .button{margin:3px}
 .pricing-table input[data-price-field="yield"] { min-width: 11rem; }

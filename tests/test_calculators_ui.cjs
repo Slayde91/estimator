@@ -547,7 +547,6 @@ let passed = 0;
   assert.equal(renderedControls().length,12000);
   assert.equal(byId('calculator-option-lists').children.length,1);
   assert.equal(byId('calculator-option-lists').children[0].children.length,553);
-  assert.equal(byId('calculator-page-status').textContent,'1,000 schedule rows · Scroll to any item');
   const html=fs.readFileSync('static/index.html','utf8');
   assert.doesNotMatch(html,/calculator-(?:previous|next|row-page)/);
   assert.doesNotMatch(html,/Show advanced columns|calculator-advanced/);
@@ -1518,13 +1517,13 @@ let passed = 0;
   assert.equal(ductIntro.textContent,'Enter values in the schedule input fields.');assert.equal(JSON.stringify(entry.result),rawDuctIntro);
   assert.equal(renderedControls().length,1);passed++;
 
-  // Calculator tables leave vertical wheel scrolling to the page until an input
-  // inside that table is selected; horizontal overflow remains available.
+  // Calculator tables always leave vertical wheel scrolling to the page;
+  // selecting an input must not collapse a table into an inner viewport.
   const sectionCss=fs.readFileSync('static/calculators.css','utf8');
   assert.match(sectionCss,/\.calculator-table-scroll\{[^}]*overflow-x:auto;overflow-y:visible;max-height:none/);
-  assert.match(sectionCss,/\.calculator-table-scroll:focus-within\{[^}]*overflow-y:auto;max-height:78vh/);
+  assert.doesNotMatch(sectionCss,/\.calculator-table-scroll:focus-within\{[^}]*overflow-y:auto|\.calculator-table-scroll:focus-within[^}]*max-height/);
   assert.match(sectionCss,/\.calculator-table-scroll\.calculator-section-scroll\s*\{\s*max-height:\s*none\s*\}/);
-  assert.match(sectionCss,/\.calculator-table-scroll\.calculator-section-scroll:focus-within\s*\{\s*max-height:\s*78vh\s*\}/);
+  assert.doesNotMatch(sectionCss,/calculator-section-scroll:focus-within/);
   assert.match(sectionCss,/\.calculator-grid td\.calculator-role-spacer\s*\{\s*background:\s*#fff0ce!important\s*\}/);
   assert.match(sectionCss,/\.calculator-grid \.calculator-value-empty\s*\{\s*background:\s*#f2f3f5!important\s*\}/);
   assert.match(sectionCss,/\.calculator-overview-full\s*>\s*p\s*\{[^}]*flex:\s*0 0 100%/);
@@ -1807,7 +1806,8 @@ let passed = 0;
   const scheduleAdd=byId('calculator-grid').querySelectorAll('[data-schedule-add]')[0],scheduleUndo=byId('calculator-grid').querySelectorAll('[data-schedule-undo]')[0];
   assert.equal(scheduleAdd.textContent,'');assert.equal(scheduleAdd.title,'Add row');assert.equal(scheduleAdd.getAttribute('aria-label'),'Add row');assert.match(scheduleAdd.children[0].textContent,/\+/);
   assert.equal(scheduleUndo.textContent,'');assert.equal(scheduleUndo.title,'Undo remove');assert.equal(scheduleUndo.getAttribute('aria-label'),'Undo remove');assert.match(scheduleUndo.children[0].textContent,/↶/);
-  assert.match(byId('calculator-page-status').textContent,/1 schedule row · All rows included in calculations/);passed++;
+  assert.doesNotMatch(fs.readFileSync('static/index.html','utf8'),/id="calculator-page-status"/);
+  assert.doesNotMatch(fs.readFileSync('static/calculators.js','utf8'),/calculator-page-status/);passed++;
 
   // Adding creates explicitly blank editable cells, including advanced inputs,
   // and changing only the displayed row list still marks the project unsaved.

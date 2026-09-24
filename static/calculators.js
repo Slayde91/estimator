@@ -1150,7 +1150,6 @@
     if (dynamicSchedule) for (const scroll of grid.querySelectorAll("[data-schedule-viewport]")) { scroll.scrollTop = entry.scheduleViewport?.top || 0; scroll.scrollLeft = entry.scheduleViewport?.left || 0; }
     entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     state.gridEntry = entry;
-    $("calculator-page-status").textContent = schedule ? dynamicSchedule ? `${entry.scheduleRows.length.toLocaleString("en-AU")} schedule ${entry.scheduleRows.length === 1 ? "row" : "rows"}${virtualSchedule ? ` · Viewing ${scheduleView.offset + 1}–${Math.min(entry.scheduleRows.length, scheduleView.offset + rows.length)}` : ""} · All rows included in calculations` : `${rows.length.toLocaleString("en-AU")} schedule rows · Scroll to any item` : `${rows.length.toLocaleString("en-AU")} content rows · Complete worksheet`;
   }
 
   function navigationCache(entry, create = false) {
@@ -1172,7 +1171,7 @@
     retainRecent(cache.pages, currentPage(entry), { nodes: [...grid.children], result: entry.result, signature: entry.choiceSignature,
       totals: entry.productTotalsElement, scrollLeft: grid.scrollLeft, scrollTop: grid.scrollTop,
       optionNodes: [...$("calculator-option-lists").children], optionLists: new Map(state.optionLists), optionKeys: state.optionKeys,
-      expanded: grid.classList.contains("calculator-grid-expanded"), status: $("calculator-page-status").textContent }, 3);
+      expanded: grid.classList.contains("calculator-grid-expanded") }, 3);
   }
 
   function showCalculationStatus(entry, result) {
@@ -1205,7 +1204,7 @@
         grid.scrollLeft = view.scrollLeft; grid.scrollTop = view.scrollTop;
         entry.productTotalsElement = view.totals; entry.choiceSignature = view.signature;
         entry.renderedSheet = entry.sheet; entry.renderedPage = page; entry.needsRender = false; state.gridEntry = entry;
-        $("calculator-page-status").textContent = view.status; retainRecent(cache.pages, page, view, 3);
+        retainRecent(cache.pages, page, view, 3);
       } else renderGrid(entry);
       $("calculator-grid").setAttribute("aria-busy", "false"); showCalculationStatus(entry, result); return;
     }

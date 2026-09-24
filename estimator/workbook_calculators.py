@@ -50,7 +50,7 @@ _OMITTED_ROWS = {
         'CALCULATOR': [3, *range(33, 42)],
     },
     'steel_board': {'START': [3, 5, 6, *range(34, 40)], 'CALCULATOR': [2, 5, 7]},
-    'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4, *range(153, 160)]},
+    'ductwork': {'CALCULATOR': [5, 6, 7, 9], 'PRODUCT SETTINGS': [3, 4, 71, 72, *range(153, 160)]},
 }
 _OMITTED_COLUMNS = {'steel_vermiculite': {'SCHEDULE': [22, 23, 24]},
                     'steel_board': {'EXTRA BOARDS': [14]},
@@ -136,6 +136,9 @@ _DISPLAY_CELLS = {
                     'A17': {'merge': 'A17:L17'}, 'A29': {'merge': 'A29:L29'},
                     **{f'A{row}': {'bold': True} for row in (*range(9, 12), *range(19, 27), 31, 32)}},
         'PRODUCT SETTINGS': {
+            'B35': {'control': 'select'},
+            'B65': {'control': 'select'},
+            'B73': {'control': 'select'},
             **{f'J{row}': {'merge': f'J{row}:Q{row}'} for row in (105, 108, 111, 131, 136)},
             # First-column reference labels, excluding section headings, prose
             # and separator rows. These ranges follow the source tables.
@@ -467,8 +470,9 @@ def _sheet_metadata(model, sheet):
 
 
 def calculator_definition(calculator_id, inputs=None, schedule_rows=None):
-    from .schedule_rows import empty_schedule_inputs, normalize_schedule_rows
+    from .schedule_rows import blank_schedule_defaults, empty_schedule_inputs, normalize_schedule_rows
     model = source_model(calculator_id)
+    inputs = blank_schedule_defaults(calculator_id, inputs)
     documents_path = ROOT / 'data' / 'calculator_documents.json'
     documents = json.loads(documents_path.read_text(encoding='utf-8'))['sections'].get(calculator_id, []) if documents_path.exists() else []
     return {'id': calculator_id, 'title': model['title'], 'pages': model['pages'],

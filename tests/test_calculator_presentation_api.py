@@ -14,6 +14,7 @@ from pypdf import PdfReader
 from openpyxl import load_workbook
 
 from estimator.catalog import ROOT
+from estimator.schedule_rows import blank_schedule_defaults
 from estimator.server import create_server
 from estimator.storage import Store
 from estimator.workbook_calculators import source_model
@@ -126,9 +127,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         for identity, inputs in cases.items():
             with self.subTest(calculator=identity):
                 sheet = next(iter(inputs))
-                # The source example's legacy Mixed orientation is reconciled
-                # in the returned draft even when another row alone is edited.
-                expected = {sheet: {**inputs[sheet], **({'I13': 'Both'} if identity == 'ductwork' else {})}}
+                expected = blank_schedule_defaults(identity, inputs)
                 before = self.stored_rows()
                 self.assertEqual(self.worksheet(identity, sheet, inputs=inputs)['inputs'], expected)
                 self.assertEqual(self.stored_rows(), before)
@@ -177,6 +176,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             elif identity == 'ductwork':
                 self.assertEqual(page['display_text']['J94'], 'FYREWRAP APPLICATION TABLE')
                 self.assertIn('MANUAL', self.cells(page)['J94']['value'])
+                for address in ('B35', 'B65', 'B73'):
+                    self.assertEqual(page['display_cells'][address]['control'], 'select')
                 application = next(table for table in page['presentation_tables']
                                    if table['title_address'] == 'J94')
                 self.assertIn('directional requirements', application['note'])
@@ -193,7 +194,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                          ['START', 'CALCULATOR', 'SCHEDULE', 'SUMMARY', 'SETTINGS', 'FACTOR CALCS'])
         draft = {'SETTINGS': {'D346': 123.4567890123, 'D358': 219.8765432109}}
         saved = self.json_request('PUT', '/api/calculators/steel_vermiculite/state', {'inputs': draft})
-        self.assertEqual(saved['inputs'], draft)
+        expected = blank_schedule_defaults('steel_vermiculite', draft)
+        self.assertEqual(saved['inputs'], expected)
         before = self.stored_rows()
         page = self.worksheet('steel_vermiculite', 'SETTINGS')
         for address, value in draft['SETTINGS'].items():
@@ -203,7 +205,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                               {'sheet': browser_page}, expected=400)
             self.json_request('PUT', '/api/calculators/steel_vermiculite/state',
                               {'inputs': {browser_page: {'D346': 999}}}, expected=400)
-        self.assertEqual(self.json_request('GET', '/api/calculators/steel_vermiculite')['inputs'], draft)
+        self.assertEqual(self.json_request('GET', '/api/calculators/steel_vermiculite')['inputs'], expected)
         self.assertEqual(self.stored_rows(), before)
 
     def test_dropdowns_share_full_lists_and_keep_dependent_numeric_choices(self):
@@ -224,7 +226,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(cells["H9"]["error_style"], "warning")
         self.assertFalse(cells["C9"]["allow_other"])
         self.assertEqual(cells["C9"]["error_style"], "stop")
-        self.assertEqual(result["inputs"], inputs)
+        self.assertEqual(result["inputs"], blank_schedule_defaults("steel_board", inputs))
 
     def test_advanced_columns_preserve_hidden_inputs_and_readonly_helpers(self):
         normal = self.worksheet("steel_board", "CALCULATOR")
@@ -244,11 +246,13 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         before = self.stored_rows()
         draft = {"CALCULATOR": {"D11": 12.345678901234567}, "PRODUCT SETTINGS": {"B46": 20}}
         changed = self.worksheet("ductwork", "CALCULATOR", inputs=draft)
-        self.assertEqual(changed["inputs"], {**draft, 'CALCULATOR': {**draft['CALCULATOR'], 'I13': 'Both'}})
-        self.assertEqual(self.cells(changed)["K11"]["value"], 12.345678901234567)
+        self.assertEqual(changed["inputs"], blank_schedule_defaults("ductwork", draft))
+        self.assertEqual(self.cells(changed)["D11"]["value"], 12.345678901234567)
+        self.assertEqual(self.cells(changed)["K11"]["value"], "")
         current = self.worksheet("ductwork", "CALCULATOR")
         self.assertEqual(current["inputs"], saved["inputs"])
-        self.assertEqual(self.cells(current)["K11"]["value"], 3)
+        self.assertEqual(self.cells(current)["D11"]["value"], 3)
+        self.assertEqual(self.cells(current)["K11"]["value"], "")
         self.assertEqual(self.stored_rows(), before)
 
     def test_formula_backed_settings_remain_formulas_until_explicitly_overridden(self):
@@ -262,7 +266,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             self.assertTrue(cells[address]["editable"])
             self.assertTrue(cells[address]["calculated"])
             self.assertIsInstance(cells[address]["value"], (int, float))
-        self.assertEqual(page["inputs"], {})
+        self.assertEqual(page["inputs"], blank_schedule_defaults("steel_vermiculite", {}))
         changed = self.worksheet("steel_vermiculite", "SETTINGS", inputs={"SETTINGS": {"D70": 0.012345678901234567}})
         self.assertEqual(self.cells(changed)["D70"]["value"], 0.012345678901234567)
         self.assertEqual(self.store.calculator_state("steel_vermiculite"), initial_state)

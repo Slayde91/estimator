@@ -539,7 +539,7 @@
         "verified_date": "2026-09-13",
         "availability": "Public PDF",
         "reference_coverage": "Trafalgar Australian ductwork guide 220426: application, supports, components, fixing details and specifications.",
-        "notes": "The published 23.8kg packaging statement differs from the 21.8kg GCP product sheet; workbook calibrated yield is retained without a bag-mass conversion.",
+        "notes": "The current GCP Australia product data sheet confirms the 21.8 kg bag used by the Estimator.",
         "link_verification": {
           "status": 200,
           "content_type": "application/pdf",

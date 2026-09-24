@@ -9,11 +9,11 @@ import threading
 import unittest
 
 from estimator.calculator_defaults import default_calculator_inputs, yield_review
-from estimator.schedule_rows import empty_schedule_inputs
+from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.catalog import ValidationError
 from estimator.server import create_server
 from estimator.storage import Store
-from estimator.workbook_calculators import calculator_session, calculate_page, normalize_calculator_inputs
+from estimator.workbook_calculators import calculator_session, calculate_page, normalize_calculator_inputs, source_model
 
 
 IDENTITY = 'steel_vermiculite'
@@ -80,7 +80,7 @@ class CalculatorDefaultsTests(unittest.TestCase):
             self.assertEqual(default_calculator_inputs(identity), {})
             self.assertIsNone(yield_review(identity))
 
-    def test_new_state_prefills_without_writing_and_existing_saves_remain_exact(self):
+    def test_new_state_prefills_without_writing_and_saved_settings_remain_exact(self):
         with tempfile.TemporaryDirectory() as temporary:
             store = Store(Path(temporary) / 'defaults.sqlite3')
             self.assertEqual(store.calculator_state(IDENTITY)['inputs'], empty_schedule_inputs(IDENTITY))
@@ -89,7 +89,7 @@ class CalculatorDefaultsTests(unittest.TestCase):
             for inputs in ({}, {'SETTINGS': {'D36': 24, 'D37': .05123456789}}, default_calculator_inputs(IDENTITY)):
                 saved = store.save_calculator_state(IDENTITY, inputs)
                 self.assertEqual(store.calculator_state(IDENTITY), saved)
-                self.assertEqual(saved['inputs'], inputs)
+                self.assertEqual(saved['inputs'], blank_schedule_defaults(IDENTITY, inputs))
 
     def test_historical_material_references_render_readonly_and_retain_valid_multiline_text(self):
         for address in ('D42', 'D75', 'D107', 'D184', 'D240'):
@@ -145,6 +145,16 @@ class CalculatorDefaultsHttpTests(unittest.TestCase):
             # Exercise pooled source-example quantities explicitly. New drafts
             # now have one blank row and therefore no material quantities.
             inputs = default_calculator_inputs(IDENTITY)
+            model = source_model(IDENTITY)
+            schedule = model['schedule']
+            sheet = next(item for item in model['sheets'] if item['name'] == schedule['sheet'])
+            editable = {field['column'] for field in schedule['columns'] if field.get('editable')}
+            inputs[schedule['sheet']] = {
+                address: cell['value'] for address, cell in sheet['cells'].items()
+                if ''.join(filter(str.isalpha, address)) in editable
+                and schedule['first_row'] <= int(''.join(filter(str.isdigit, address))) <= schedule['last_row']
+                and cell.get('value') not in (None, '')
+            }
             inputs['SETTINGS']['D37'] = direct
             worksheet = self.request('POST', '/worksheet', {'sheet': 'SCHEDULE', 'inputs': inputs})
             totals = worksheet['product_totals']

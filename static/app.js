@@ -780,7 +780,7 @@
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
-    save.textContent = project ? "Apply" : "Save pricing";
+    $("save-pricing-label").textContent = project ? "Apply" : "Save pricing";
     save.title = project ? "Apply project pricing" : "Save pricing";
     save.setAttribute("aria-label", save.title);
     $("pricing-context").textContent = state.pricingScope === "project"
@@ -1467,7 +1467,7 @@
         const count = preview.summary?.[kind] || {};
         return `${label}: ${count.added || 0} added, ${count.removed || 0} removed, ${count.updated || 0} updated.`;
       };
-      const saveAction = $("save-pricing").textContent || "Save pricing";
+      const saveAction = $("save-pricing").getAttribute("aria-label") || "Save pricing";
       const detail = `${file.name}\n${counts("inventory", "Inventory")}\n${counts("rates", "Rates and choices")}\nThis replaces the entire draft library. Deleted workbook rows will be removed. The changes take effect only after you click ${saveAction}.`;
       const accepted = await confirmReplace("Review imported pricing", detail, "Apply to draft");
       if (!accepted) { message("Import cancelled. Your pricing draft was kept."); return; }

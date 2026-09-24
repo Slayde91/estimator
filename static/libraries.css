@@ -22,9 +22,10 @@
 .library-record-commercial{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin:16px 0}
 .library-record-commercial .library-record-price{margin:0}
 .library-item-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
+.library-item-actions .button{height:48px;min-height:48px}
 .library-item-actions .penetration-add-action{flex:0 0 48px}
 .library-action-message{flex-basis:100%;margin:0}
-.library-delete{width:44px;height:44px;padding:10px}
+.library-delete{width:48px;height:48px;padding:10px}
 .library-trash-icon{display:block;width:20px;height:20px;font-size:18px;line-height:20px;text-align:center}
 .library-record-commercial .library-item-actions{margin:0}
 .library-summary{margin-bottom:20px;padding:18px 22px}

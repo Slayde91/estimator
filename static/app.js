@@ -1171,57 +1171,6 @@
     });
     for (const id of removed) if (!Object.values(state.catalog.rate_groups).some((rates) => rates.some((rate) => rate.id === id))) delete state.draft.rates[id];
   }
-  function setPricingUseValues(record, values, field) {
-    if (field === "Yield unit") throw new Error("Yield units are determined by the calculation and cannot be edited.");
-    if (!values.length && record.uses.length === 1) values = [""];
-    if (values.length !== record.uses.length) throw new Error(`Enter ${record.uses.length} semicolon-separated ${field} values, in the same order as Main Estimator uses.`);
-    const updates = record.uses.map(({ group, item }, index) => {
-      const value = values[index], usesYield = item.uses_yield ?? !!item.source?.yield;
-      if (field === "Selection name") {
-        if (!value || value.length > 1000) throw new Error("Selection names must contain 1 to 1,000 characters.");
-        if (state.catalog.rate_groups[group].some((rate) => rate.id !== item.id && rate.name.toLowerCase() === value.toLowerCase())) throw new Error(`Selection name already exists in ${groups[group] || group}.`);
-        return { group, item, value };
-      }
-      if (field === "Yield") {
-        if (!usesYield) {
-          if (value && value !== "—") throw new Error(`${groups[group] || group} does not use a yield.`);
-          return { group, item, value: undefined };
-        }
-        if (!value || value.toLowerCase() === "blank") return { group, item, value: null };
-        if (value.toLowerCase() === "empty text") return { group, item, value: "" };
-      } else if (!value) {
-        if (!item.inventory_id) throw new Error("Standalone rates need a sell rate.");
-        return { group, item, value: null };
-      }
-      const number = Number(value);
-      if (!value || !Number.isFinite(number) || number < 0 || number > 1e12) throw new Error(`${field} values must be nonnegative numbers no greater than one trillion.`);
-      return { group, item, value: number };
-    });
-    if (field === "Selection name") {
-      for (const group of new Set(updates.map((entry) => entry.group))) {
-        const names = updates.filter((entry) => entry.group === group).map((entry) => entry.value.toLowerCase());
-        if (new Set(names).size !== names.length) throw new Error(`Selection names must be unique within ${groups[group] || group}.`);
-      }
-    }
-    if (field === "Yield") for (const { item, value } of updates) {
-      if (value !== undefined) setOverride("rates", item, "yield", value);
-    }
-    else editPricingCatalog((catalog) => {
-      for (const { group, item, value } of updates) {
-        const rate = catalog.rate_groups[group].find((entry) => entry.id === item.id);
-        if (field === "Selection name") { rate.name = value; delete rate.display_name; }
-        else {
-          rate.price_mode = value === null ? "inventory" : "override";
-          rate.price = value === null ? inventorySellPrice(state.catalog.inventory.find((entry) => entry.id === item.inventory_id)) : value;
-        }
-      }
-    });
-    if (field === "Sell rate override") for (const { item } of updates) {
-      const patch = state.draft.rates[item.id];
-      if (patch) { delete patch.price; if (!Object.keys(patch).length) delete state.draft.rates[item.id]; }
-    }
-  }
-
   async function resetPricingLibrary() {
     document.activeElement?.blur?.();
     const scope = state.pricingScope, draft = state.draft, snapshot = JSON.stringify(draft), pending = JSON.stringify([...pricingPendingFields(draft)]);
@@ -1242,7 +1191,7 @@
     // and pending field drafts belong to one specific pricing draft object.
     const references = [state.draft, state.catalog, pricingBaseline(), state.baseline];
     return { references, key: JSON.stringify([references, state.pricingScope,
-      $("pricing-search").value, $("rate-group").value, !!$("show-rate-overrides").checked]) };
+      $("pricing-search").value, $("rate-group").value]) };
   }
 
   function pricingViewCurrent() {
@@ -1278,11 +1227,8 @@
       ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save or Save As then stores them in the project file."
       : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Sell rate override", "Actions"]) {
-      const cell = node("th", "", title);
-      if (title === "Sell rate override") cell.hidden = !$("show-rate-overrides").checked;
-      heading.append(cell);
-    }
+    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Actions"])
+      heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
     const rows = [];
@@ -1321,7 +1267,7 @@
         refreshers.push(() => {
           const separate = uses.filter(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || rateSellPrice(rate) !== inventorySellPrice(item));
           rateNotice.hidden = !separate.length;
-          rateNotice.textContent = separate.length ? `Saved estimator rates: ${separate.map(({ group, item: rate }) => `${groups[group] || group} ${formatMoney(rateSellPrice(rate))}`).join("; ")}. Show rate overrides to review.` : "";
+          rateNotice.textContent = separate.length ? `Legacy estimator rates retained for compatibility: ${separate.map(({ group, item: rate }) => `${groups[group] || group} ${formatMoney(rateSellPrice(rate))}`).join("; ")}.` : "";
         });
         sell.append(rateNotice); row.append(supplier, markup, sell);
       } else {
@@ -1344,20 +1290,13 @@
         if (shared.mixed || shared.units.length > 1) yieldCell.append(node("small", "subtext", shared.units.length > 1 ? "Different units: individual yields retained." : "Different saved yields: enter one value to apply it to all uses."));
       } else yieldCell.textContent = "—";
       row.append(yieldCell, node("td", "pricing-yield-unit", shared.units.join("; ")));
-      const overrides = node("td"); overrides.hidden = !$("show-rate-overrides").checked;
-      if (uses.length && inventoryView) {
-        overrides.append(pricingListInput(record, "Sell rate override", uses.map(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || !rate.inventory_id ? rateSellPrice(rate) : ""), (entries) => setPricingUseValues(record, entries, "Sell rate override"), "Uses item sell price"));
-        const status = node("small", "subtext pricing-rate-source");
-        refreshers.push(() => { status.textContent = pricingUseList(uses.map(({ item: rate }) => formatMoney(rateSellPrice(rate)))); });
-        overrides.append(status);
-      } else overrides.textContent = inventoryView ? "—" : "Uses Sell price";
       const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only");
       remove.type = "button"; remove.dataset.pricingRemove = item.id; remove.title = `Remove ${productServiceName(record) || item.name}`; remove.setAttribute("aria-label", remove.title);
       const removeIcon = node("span", "button-symbol", "🗑︎"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
-      remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(overrides, reset);
+      remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(reset);
       rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = $("show-rate-overrides").checked ? 10 : 9; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 9; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
@@ -1902,7 +1841,6 @@
   $("pricing-scope").addEventListener("change", () => requestPricingScopeSwitch($("pricing-scope").value));
   $("pricing-search").addEventListener("input", renderPricing);
   $("rate-group").addEventListener("change", renderPricing);
-  $("show-rate-overrides").addEventListener("change", renderPricing);
   $("add-pricing-item").addEventListener("click", addPricingItem);
   $("save-pricing").addEventListener("click", requestSavePricing);
   $("reset-pricing").addEventListener("click", resetPricingLibrary);

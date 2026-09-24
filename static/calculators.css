@@ -196,7 +196,6 @@
 .calculator-settings-panel .calculator-stacked-section,.calculator-settings-panel .calculator-projected-section{margin-top:0}
 .calculator-schedule-section>h4{margin:0;padding:16px 22px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);border-bottom:4px solid var(--red);font-size:15px;font-weight:750}
 .calculator-tools .calculator-export-excel{background:var(--navy);color:#fff;border-color:#171217}
-.calculator-workspace-heading #calculator-template{background:var(--navy);color:#fff;border-color:#171217}
 .calculator-tools .calculator-export-pdf{background:#c5221f;color:#fff;border-color:#a11b18}
 .calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):hover:not(:disabled){filter:brightness(.92)}
 .calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):focus-visible{outline:3px solid #222;outline-offset:3px}

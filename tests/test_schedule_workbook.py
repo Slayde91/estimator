@@ -54,13 +54,15 @@ class ScheduleWorkbookTests(unittest.TestCase):
             with self.subTest(identity=identity):
                 catalog = self.catalogs[identity]
                 schedule = catalog["schedule"]
-                columns = [field for field in schedule["columns"] if field["editable"]]
+                columns = [field for field in schedule["columns"]
+                           if field["editable"] and not field.get("advanced")]
                 if identity == "steel_vermiculite":
                     columns.sort(key=lambda field: field["column"] != "AA")
                 workbook = load_workbook(BytesIO(self.templates[identity]))
                 self.assertEqual(workbook.sheetnames, [schedule["sheet"], "Instructions"])
                 sheet = workbook[schedule["sheet"]]
                 self.assertEqual([cell.value for cell in sheet[1]], [field["label"] for field in columns])
+                self.assertFalse(any(field.get("advanced") for field in columns))
                 self.assertEqual(sheet.max_row, 1001)
                 self.assertTrue(all(cell.value is None for row in sheet.iter_rows(min_row=2) for cell in row))
                 self.assertTrue(all(cell.alignment.horizontal == "center" and cell.alignment.vertical == "center"
@@ -193,17 +195,39 @@ class ScheduleWorkbookTests(unittest.TestCase):
         self.assertTrue(all(value is None for value in result["inputs"]["CALCULATOR"].values()))
 
     def test_board_advanced_columns_and_warning_values_are_preserved(self):
-        def fill(workbook):
-            sheet = workbook["CALCULATOR"]
-            for address, value in {"A2": "M-001", "H2": 95, "J2": 537.5, "L2": 0,
-                                   "M2": "Custom girth", "V2": 1.125, "W2": 0, "X2": "DESIGN-01.2345"}.items():
-                sheet[address] = value
-        result = self.imported("steel_board", edit(self.templates["steel_board"], fill))
+        # Older exports included all optional M:X fields. They remain accepted
+        # even though new templates contain only the normal A:L schedule input.
+        fields = [field for field in self.catalogs["steel_board"]["schedule"]["columns"] if field["editable"]]
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "CALCULATOR"
+        sheet.append([field["label"] for field in fields])
+        values = {"A": "M-001", "H": 95, "J": 537.5, "L": 0,
+                  "M": "Custom girth", "V": 1.125, "W": 0, "X": "DESIGN-01.2345"}
+        for index, field in enumerate(fields, 1):
+            if field["column"] in values:
+                sheet.cell(2, index, values[field["column"]])
+        payload = _serialize_exact(workbook)
+        workbook.close()
+        result = self.imported("steel_board", payload)
         cells = result["inputs"]["CALCULATOR"]
         self.assertEqual(cells["H9"], 95)
         self.assertEqual(cells["J9"], 537.5)
         self.assertEqual(cells["X9"], "DESIGN-01.2345")
         self.assertEqual(cells["L9"], 0)
+
+    def test_board_template_contains_only_normal_schedule_inputs(self):
+        workbook = load_workbook(BytesIO(self.templates["steel_board"]))
+        sheet = workbook["CALCULATOR"]
+        self.assertEqual([cell.value for cell in sheet[1]], [
+            "Member mark", "Location", "Product", "Steel ID", "ESA/M input (m2/t)",
+            "Lineal metres", "Sides", "FRL required (min)", "Beam or Column",
+            "Critical temp (C)", "Family (ESA input)", "Waste (%)",
+        ])
+        self.assertEqual(sheet.max_column, 12)
+        self.assertNotIn("Exposure layout", [cell.value for cell in sheet[1]])
+        self.assertNotIn("Design reference", [cell.value for cell in sheet[1]])
+        workbook.close()
 
     def test_dropdowns_reference_local_lists_and_preserve_dependent_choices(self):
         board = load_workbook(BytesIO(self.templates["steel_board"]))

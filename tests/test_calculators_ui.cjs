@@ -314,6 +314,12 @@ let passed = 0;
   earlier.resolve({ ...definition, inputs: { CALCULATOR: { B9: 2 } } }); await firstOpen;
   assert.equal(audit.current(), retained); assert.equal(audit.current().inputs.CALCULATOR.B9, 33); passed++;
 
+  // A slow first workbook load cannot reopen its workspace after Firestopping is selected.
+  audit.state.entries.clear();Object.assign(audit.state,{current:null,loadRevision:0,list:[{id:'steel_board',title:'Structural Steel Board'}]});byId('calculator-workspace').hidden=true;
+  let firestoppingSelected=false;context.window.CeasefireProposalCalculators={showWorkbook(){firestoppingSelected=false;},isFirestopping(){return firestoppingSelected;}};
+  const delayedDefinition=deferred();audit.setRequest(path=>path.endsWith('/steel_board')?delayedDefinition.promise:Promise.resolve(result()));const delayedOpen=audit.selectCalculator('steel_board');await flush();firestoppingSelected=true;delayedDefinition.resolve({...definition,inputs:{}});await delayedOpen;
+  assert.equal(byId('calculator-workspace').hidden,true);assert.equal(audit.state.current,null);delete context.window.CeasefireProposalCalculators;passed++;
+
   // Returning to unchanged pages reuses exact results and existing controls, including scroll position.
   entry=setup({CALCULATOR:{B9:1.23456789123},SETTINGS:{B9:.123456789}});audit.setRender(realRender);
   entry.definition.pages.push('SUMMARY');entry.definition.sheets.push({name:'SUMMARY',header_rows:[],hidden_columns:[],merges:[]});
@@ -334,6 +340,10 @@ let passed = 0;
   assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');assert.equal(navigationRequests[0].sheet,'CALCULATOR');
   const unchangedGrid=byId('calculator-grid').children;await audit.selectPage('CALCULATOR');await audit.selectCalculator('steel_board');
   assert.equal(byId('calculator-grid').children,unchangedGrid);assert.equal(navigationRequests.length,2);passed++;
+
+  // Cached Steel Spray LOOKUP navigation restores its border-removal class every time.
+  entry.definition.id='steel_vermiculite';await audit.selectPage('SETTINGS');assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),false);
+  await audit.selectPage('CALCULATOR');assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),true);entry.definition.id='steel_board';passed++;
 
   // Explicit recalculate always requests; any sheet's precise edit invalidates dependent pages.
   await audit.calculate();assert.equal(navigationRequests.length,3);
@@ -1524,7 +1534,10 @@ let passed = 0;
   assert.match(sectionCss,/\.calculator-grid>\.calculator-table-scroll:first-child,\.calculator-grid>\.calculator-table-scroll:first-child>table\{border-top:0\}/);
   assert.match(sectionCss,/\.calculator-grid\.calculator-steel-lookup>\.calculator-table-scroll:first-of-type\{border-top:0;border-bottom:0\}/);
   assert.match(sectionCss,/\.calculator-grid>:first-child:is\(\.calculator-stacked-section,\.calculator-projected-section\)\{border-top:0\}/);
-  assert.match(sectionCss,/\.calculator-grid \.calculator-normal\s*\{\s*font-weight:\s*400!important/);passed++;
+  assert.match(sectionCss,/\.calculator-grid \.calculator-normal\s*\{\s*font-weight:\s*400!important/);
+  assert.match(sectionCss,/One black, red and white palette is shared by every workbook calculator tab/);
+  assert.match(sectionCss,/\.calculator-grid td\.calculator-role-label,[^}]*background:#fff!important;color:#171217/);
+  assert.match(sectionCss,/\.calculator-page\[aria-pressed=true\][^}]*border-bottom-color:var\(--red\)/);passed++;
 
   // The Firestopping choice and every workbook choice expose the same estimator
   // selection state so only the active calculator remains highlighted.

@@ -120,11 +120,32 @@ class EstimateCompositionTests(unittest.TestCase):
         self.assertAlmostEqual(result['summary']['labour'], (base['summary']['labour'] + labour_delta) * 1.2)
         self.assertEqual(result['work_items'][0]['inputs'], work_item['inputs'])
         self.assertTrue(any(item.get('source') == 'duplicate_work_item:primer-copy-1' for item in result['materials']))
-        self.assertTrue(any(task.get('work_item_id') == 'primer-copy-1' for task in result['labour']['tasks']))
+        primer = next(task for task in result['labour']['tasks'] if task['name'] == 'Primer')
+        base_primer = next(task for task in base['labour']['tasks'] if task['name'] == 'Primer')
+        self.assertGreater(primer['days'], base_primer['days'])
+        self.assertEqual(primer['work_item_ids'], ['primer-copy-1'])
+        self.assertFalse(any(task['name'].endswith(' (duplicate)') for task in result['labour']['tasks']))
         payload = export_project(self.store, {'estimate': {'title': 'Duplicated row', 'inputs': {'D4': team}, 'work_items': [work_item]}})
         loaded = load_project_bytes(self.store, payload)
         self.assertEqual(loaded['estimate']['work_items'], [work_item])
         self.assertEqual(loaded['estimate']['result']['work_items'][0]['id'], work_item['id'])
+
+    def test_duplicate_labour_activities_are_one_row_with_summed_days(self):
+        defaults = calculate({})['inputs']
+        team = next(rate['name'] for rate in baseline()['rate_groups']['labour_rates'] if rate['name'].casefold() != 'n/a')
+        first = {'id': 'primer-copy-1', 'source_row': 20, 'inputs': {
+            'B': 12.5, 'C': defaults['C20'], 'D': defaults['D20'], 'E': defaults['E20']}}
+        second = {**first, 'id': 'primer-copy-2'}
+        inputs = {'B8': 10, 'B26': 0, 'B27': 0, 'D4': team}
+        base = calculate(inputs)
+        one = calculate(inputs, work_items=[first])
+        two = calculate(inputs, work_items=[first, second])
+        primer_tasks = [task for task in two['labour']['tasks'] if task['name'] == 'Primer']
+        self.assertEqual(len(primer_tasks), 1)
+        base_days = next(task['days'] for task in base['labour']['tasks'] if task['name'] == 'Primer')
+        one_days = next(task['days'] for task in one['labour']['tasks'] if task['name'] == 'Primer')
+        self.assertAlmostEqual(primer_tasks[0]['days'], base_days + 2 * (one_days - base_days))
+        self.assertEqual(primer_tasks[0]['work_item_ids'], ['primer-copy-1', 'primer-copy-2'])
 
     def test_duplicated_work_items_reject_unknown_shapes_and_missing_teams(self):
         defaults = calculate({})['inputs']

@@ -37,6 +37,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Opening is lazy and a revisited list retains its controls, query and fetched data',async h=>{
     assert.equal(h.calls.length,0);await h.api.open('penetration');const pane=h.pane('penetration'),search=pane.searchInput;
     assert.deepEqual(h.calls.map(call=>call.path),['/api/libraries','/api/libraries/penetration?offset=0&limit=50']);assert.equal(pane.results.children.length,1);assert.equal(search.maxLength,400);
+    assert.equal(pane.refresh.children[0].textContent,'↻');assert.equal(pane.refresh.getAttribute('aria-label'),'Refresh');assert.equal(pane.refresh.title,'Refresh');
     await h.api.open('technical');await h.api.open('penetration');assert.equal(pane.searchInput,search);assert.equal(h.calls.length,3);assert.equal(pane.results.getAttribute('aria-busy'),'false');
   });
   await check('Search and filters use encoded server queries; page controls retain all active filters',async h=>{

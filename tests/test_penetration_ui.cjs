@@ -316,6 +316,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     quantity.value='3.14159265358979';await quantity.emit('input');h.control('O').value='bad';await h.control('O').emit('input');assert.equal(h.byId('penetration-pdf').disabled,false);assert.equal(quantity.value,'3.14');
     h.audit.state.group='Products and labour';h.audit.renderFields();h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.control('O').value,'bad');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,3.14159265358979);
   });
+  await check('Add to Schedule requires quantity and meaningful item input before adding a row',async h=>{
+    const notices=[];h.context.window.CeasefirePenetrationNavigation.notify=async(...args)=>notices.push(args);
+    await h.byId('penetration-add-to-schedule').emit('click');assert.deepEqual(notices,[['Selection required','Please select a quantity.','OK']]);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+    h.audit.state.draft.rows[0].inputs.O=2;h.audit.renderFields();await h.byId('penetration-add-to-schedule').emit('click');assert.deepEqual(notices.at(-1),['Selection required','Please enter details, products, and/or labour.','OK']);assert.equal(h.api.projectSnapshot().draft.rows.length,0);
+    h.audit.state.draft.rows[0].inputs.T='Test item';h.audit.renderFields();await h.byId('penetration-add-to-schedule').emit('click');assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,2);
+  });
   await check('Edit creates a copy; Update is explicit and Cancel restores the previous composer including raw invalid input',async h=>{
     h.audit.state.draft.rows[0].inputs={T:'Scheduled',O:2};await h.audit.addToSchedule();h.control('T').value='Prior current item';await h.control('T').emit('input');h.control('O').value='1e-';await h.control('O').emit('input');
     await h.audit.selectRow('line-1');assert.equal(h.control('T').value,'Scheduled');h.control('T').value='Edited copy';await h.control('T').emit('input');assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.T,'Scheduled');

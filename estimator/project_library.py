@@ -12,6 +12,8 @@ from pathlib import Path
 import re
 import secrets
 import stat
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -155,6 +157,16 @@ def _preserve_penetration_inputs(path, request):
 
 def _file_id(folder, name):
     return hashlib.sha256((str(folder) + "\0" + name).encode("utf-8")).hexdigest()
+
+
+def _open_default_file(path):
+    """Ask the desktop to open one already validated regular file."""
+    if hasattr(os, "startfile"):
+        os.startfile(path)  # type: ignore[attr-defined]
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)], close_fds=True)
+    else:
+        subprocess.Popen(["xdg-open", str(path)], close_fds=True)
 
 
 def _metadata(path, info, project, folder):
@@ -410,6 +422,104 @@ class ProjectLibrary:
         payload, info = _read_file(path)
         project = load_project_bytes(self.store, payload)
         return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder))}
+
+    def _project_path(self, identifier):
+        if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{64}", identifier):
+            raise ValidationError("Choose a project from the linked estimates folder.")
+        selected = self.store.project_folder()
+        if selected is None:
+            raise ValidationError("Link an estimates folder first.")
+        folder = _directory(selected)
+        with self._lock:
+            value = self._scan["files"].get(identifier) if self._scan is not None and self._scan["folder"] == folder else None
+        if value is None:
+            raise ValidationError("The project is no longer in the linked folder. Refresh the list.")
+        path = Path(value["path"])
+        if not path.is_relative_to(folder) or _file_id(folder, path.relative_to(folder).as_posix()) != identifier:
+            raise ValidationError("Choose a project from the linked estimates folder.")
+        try:
+            info = path.lstat()
+        except OSError as error:
+            raise ValidationError("The project is no longer available. Refresh the list.") from error
+        if _linked(info) or not stat.S_ISREG(info.st_mode):
+            raise ValidationError("The project is no longer a regular file. Refresh the list.")
+        return value, path
+
+    @staticmethod
+    def _relative_parts(value, *, allow_empty):
+        if not isinstance(value, str) or len(value) > 2000 or "\\" in value:
+            raise ValidationError("Choose a file or folder shown on the project files page.")
+        if value == "" and allow_empty:
+            return ()
+        parts = value.split("/")
+        if not parts or any(not part or part in {".", ".."} for part in parts):
+            raise ValidationError("Choose a file or folder shown on the project files page.")
+        try:
+            return tuple(_attachment_filename(part) for part in parts)
+        except ValidationError as error:
+            raise ValidationError("Choose a file or folder shown on the project files page.") from error
+
+    def _project_entry(self, identifier, relative_path, *, directory):
+        project, project_path = self._project_path(identifier)
+        root = _directory(project_path.parent)
+        parts = self._relative_parts(relative_path, allow_empty=directory)
+        candidate = root.joinpath(*parts)
+        if directory:
+            candidate = _directory(candidate)
+            if not candidate.is_relative_to(root):
+                raise ValidationError("Choose a folder within this project folder.")
+            return project, project_path, root, candidate
+        parent = _directory(candidate.parent)
+        candidate = parent / candidate.name
+        if not candidate.is_relative_to(root):
+            raise ValidationError("Choose a file within this project folder.")
+        try:
+            info = candidate.lstat()
+        except OSError as error:
+            raise ValidationError("That project file is no longer available. Refresh the folder.") from error
+        if _linked(info) or not stat.S_ISREG(info.st_mode):
+            raise ValidationError("Choose a regular file shown on the project files page.")
+        return project, project_path, root, candidate
+
+    def browse_files(self, request):
+        if not isinstance(request, dict) or set(request) != {"id", "relative_path"}:
+            raise ValidationError("Choose a project and folder from the project files page.")
+        project, project_path, root, directory = self._project_entry(
+            request["id"], request["relative_path"], directory=True)
+        entries, errors = [], []
+        try:
+            with os.scandir(directory) as stream:
+                for entry in stream:
+                    path = Path(entry.path)
+                    relative = path.relative_to(root).as_posix()
+                    try:
+                        info = path.lstat()
+                        if _linked(info):
+                            raise ValidationError("Linked files and folders are not opened.")
+                        if stat.S_ISDIR(info.st_mode):
+                            entries.append({"type": "folder", "name": path.name, "relative_path": relative})
+                        elif stat.S_ISREG(info.st_mode):
+                            entries.append({"type": "file", "name": path.name, "relative_path": relative,
+                                            "size": info.st_size,
+                                            "modified_at": datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat()})
+                    except (OSError, ValidationError) as error:
+                        errors.append({"name": path.name, "error": str(error)})
+        except OSError as error:
+            raise ValidationError("This project folder cannot be read. Check its permissions and try again.") from error
+        entries.sort(key=lambda item: (item["type"] != "folder", item["name"].casefold()))
+        return {"project": {"id": request["id"], "title": project["title"], "name": project_path.name},
+                "relative_path": directory.relative_to(root).as_posix() if directory != root else "",
+                "entries": entries, "errors": errors}
+
+    def open_project_file(self, request):
+        if not isinstance(request, dict) or set(request) != {"id", "relative_path"}:
+            raise ValidationError("Choose a project file from the project files page.")
+        _, _, root, path = self._project_entry(request["id"], request["relative_path"], directory=False)
+        try:
+            _open_default_file(path)
+        except OSError as error:
+            raise ValidationError("The file could not be opened in its default application.") from error
+        return {"opened": True, "name": path.name, "relative_path": path.relative_to(root).as_posix()}
 
     def _authorize_save(self, path, info, payload, metadata):
         token = secrets.token_urlsafe(32)

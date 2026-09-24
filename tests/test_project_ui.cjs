@@ -65,7 +65,7 @@ function harness({ penetration = false } = {}) {
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,uploadProjectFiles,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,uploadProjectFiles,
       setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -477,6 +477,26 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('project-list').children[0].children[0].children[2].textContent,'Client/north/Quote.json');
     assert.match(h.byId('project-list-status').textContent,/101–101 of 120/);assert.equal(h.byId('project-continue').hidden,false);
     assert.equal(h.byId('project-previous').disabled,false);assert.equal(h.byId('project-next').disabled,false);
+  });
+  await check('Clicking a project name browses folders and opens files through opaque project requests', async h => {
+    const calls=[];
+    h.app.setRequest(async(path,options)=>{
+      const body=options?.body?JSON.parse(options.body):null;calls.push({path,body});
+      if(path==='/api/projects')return {folder:'C:/Estimates',files:[{id:'opaque-project',name:'Quote.json',title:'Quote files',modified_at:'2026-09-17T00:00:00Z'}],total:1,matched:1,errors:[]};
+      if(path==='/api/projects/files'&&body.relative_path==='')return {project:{id:'opaque-project',name:'Quote.json',title:'Quote files'},relative_path:'',entries:[{type:'folder',name:'Photos',relative_path:'Photos'},{type:'file',name:'Quote.json',relative_path:'Quote.json',size:2048,modified_at:'2026-09-17T00:00:00Z'}],errors:[]};
+      if(path==='/api/projects/files')return {project:{id:'opaque-project',name:'Quote.json',title:'Quote files'},relative_path:'Photos',entries:[{type:'file',name:'site.jpg',relative_path:'Photos/site.jpg',size:512,modified_at:'2026-09-18T00:00:00Z'}],errors:[]};
+      if(path==='/api/projects/open-file')return {opened:true,name:'site.jpg',relative_path:'Photos/site.jpg'};
+      throw new Error(`Unexpected ${path}`);
+    });
+    await h.app.loadProjects();const title=h.byId('project-list').children[0].children[0].children[0].children[0];
+    assert.equal(title.textContent,'Quote files');assert.match(title.getAttribute('aria-label'),/Browse files/);await title.emit('click');
+    assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
+    await h.byId('project-browser-list').children[0].emit('click');assert.equal(h.app.state.projectBrowserPath,'Photos');
+    const file=h.byId('project-browser-list').children[0];assert.equal(file.children[1].textContent,'site.jpg');await file.emit('click');
+    assert.deepEqual(calls.map(call=>call.path),['/api/projects','/api/projects/files','/api/projects/files','/api/projects/open-file']);
+    assert.deepEqual(calls.at(-1).body,{id:'opaque-project',relative_path:'Photos/site.jpg'});assert.match(h.byId('project-browser-message').textContent,/default application/);
+    await h.byId('refresh-quotes').emit('click');assert.equal(calls.at(-1).path,'/api/projects/files');assert.equal(calls.at(-1).body.relative_path,'Photos');
+    await h.byId('project-browser-close').emit('click');assert.equal(h.byId('project-browser').hidden,true);assert.equal(h.byId('project-list-card').hidden,false);
   });
   await check('Late folder search cannot replace a newer search result', async h => {
     const pending=deferred();let count=0;h.app.setRequest(()=>++count===1?pending.promise:Promise.resolve({files:[],folder:'New folder',total:0,matched:0,errors:[]}));

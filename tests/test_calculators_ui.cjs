@@ -1726,13 +1726,16 @@ let passed = 0;
 
   // Import and the four distinct exports retain their actions and requested order/colors.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
-  for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export XLSX Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
+  for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"/);
-  assert.match(registerMarkup,/class="calculator-workspace-heading".*id="calculator-reset"[^>]*>Reset Calc<\/button><button id="calculator-recalculate"[^>]*>Recalculate<\/button><\/div>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow">⇩<\/span>/);
+  assert.match(registerMarkup,/id="calculator-reset"[^>]*pricing-reset-button[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
+  assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);
   assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
+  assert.match(toolbarCss,/\.calculator-product-totals h4\{[^}]*margin:0 0 7px/);
   for(const [className,background,color] of [['calculator-export-excel','var(--navy)','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));
   }

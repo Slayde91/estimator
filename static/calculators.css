@@ -107,8 +107,8 @@
 .calculator-grid textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px #b90a1514}
 .calculator-summary-three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .calculator-product-totals{width:100%;min-width:0;margin:0 0 12px}
-.calculator-product-totals h4{font-size:15px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);padding:16px 22px;border-bottom:4px solid var(--red);margin:4px 0 7px}
-.calculator-product-totals>.calculator-overview{margin:0;padding:18px 22px;background:#fff;border-radius:0}
+.calculator-product-totals h4{font-size:15px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);padding:16px 22px;border-bottom:4px solid var(--red);margin:0 0 7px}
+.calculator-product-totals>.calculator-overview{margin:0;padding:18px 22px;background:#fff;border-top:0;border-radius:0}
 .calculator-product-totals>.calculator-overview .calculator-summary-cards{width:100%;margin:0}
 .calculator-product-totals>p{font-size:11px;margin:0;padding:12px 15px;color:#6a555f;line-height:1.8;background:#fff0ce}
 .calculator-product-totals-scroll{overflow-x:auto;border:1px solid #000;border-radius:8px}
@@ -214,6 +214,7 @@
 .calculator-grid .calculator-schedule-table td.calculator-line-number{background:#fff!important}
 .calculator-schedule-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 20px;background:#fffaf2;border-block:1px solid #d8c9bc}
 .calculator-schedule-tools button{white-space:nowrap}
+.calculator-schedule-tools :is([data-schedule-add],[data-schedule-undo]){width:48px;min-width:48px;height:48px;padding:0}
 .calculator-schedule-help{flex-basis:100%;font-size:11px}
 .calculator-grid .calculator-row-action{width:100px;padding:7px!important}
 .calculator-grid td.calculator-row-action{background:#fff!important}
@@ -253,6 +254,7 @@
 .calculator-contents{background:#fff;border-color:#171217}
 .calculator-contents-title{color:#171217}
 .calculator-grid [class*="calculator-section-theme-"]{--section-ink:#171217;--section-bg:#fff;--section-edge:var(--red)}
+.calculator-grid>:first-child{margin-top:0}
 .calculator-contents a{background:#fff;color:#171217;border-color:var(--red)}
 .calculator-warnings{background:#fff;border-color:var(--red);color:#171217}
 .calculator-document-card,.calculator-document-card.calculator-document-request{background:#fff;border-color:#171217}

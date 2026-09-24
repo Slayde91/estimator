@@ -64,6 +64,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .project-attachment-title{display:block;margin-bottom:3px;font-weight:700}
 .project-attachment-link{color:var(--red);font-weight:700;text-decoration:underline}
 .project-attachment-zone .helper{display:block;margin-top:5px}
+.project-tools .actions .button{height:48px;min-height:48px}
 @media(max-width:1180px){.project-tools{grid-template-columns:minmax(220px,1fr) minmax(250px,1fr)}.project-tools .actions{grid-column:1/-1;width:100%}}
 @media(max-width:760px){.project-tools{grid-template-columns:1fr;align-items:flex-start}.project-tools .actions{grid-column:auto}}
 .button{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:650;white-space:nowrap;line-height:1.5;transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
@@ -78,14 +79,12 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .button:is(.excel-button,.save-button,.pdf-button):hover:not(:disabled){filter:brightness(.92)}
 .button:is(.excel-button,.save-button,.pdf-button):focus-visible{outline:3px solid #222;outline-offset:3px}
 .button:is(.excel-button,.save-button,.pdf-button):disabled{opacity:.5;filter:none;cursor:not-allowed}
-.button.recalculate-button{color:#fff;background:#257a45;border:1px solid #1d6338;box-shadow:0 3px 8px #1d633829}
-.button.recalculate-button:hover:not(:disabled){color:#fff;background:#1d6338;border-color:#174f2d;box-shadow:0 4px 12px #1d63383b}
+.button.recalculate-button{color:#51414a;background:#fff;border:1px solid #dcd3d7;box-shadow:none}
+.button.recalculate-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad;box-shadow:none}
 .button.link-action-button{color:#fff;background:#d97706;border:1px solid #b85f00;box-shadow:0 3px 8px #b85f0029}
 .button.link-action-button:hover:not(:disabled){color:#fff;background:#b85f00;border-color:#934c00;box-shadow:0 4px 12px #b85f003b}
-.button.library-edit-button{color:#fff;background:#255f8f;border:1px solid #1c4d76}
-.button.library-edit-button:hover:not(:disabled){color:#fff;background:#1c4d76;border-color:#173f61}
-.button.library-delete-button{color:#fff;background:#c5221f;border:1px solid #a11b18}
-.button.library-delete-button:hover:not(:disabled){color:#fff;background:#a11b18;border-color:#821613}
+.button.library-edit-button,.button.library-delete-button{color:#51414a;background:#fff;border:1px solid #dcd3d7;box-shadow:none}
+.button.library-edit-button:hover:not(:disabled),.button.library-delete-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad;box-shadow:none}
 .button:is(.recalculate-button,.link-action-button,.library-edit-button,.library-delete-button):focus-visible{outline:3px solid #222;outline-offset:3px}
 .button[aria-busy=true]::after{content:"";display:inline-block;width:.85em;height:.85em;margin-left:8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-.1em;animation:button-spin .7s linear infinite}
 .button[aria-busy=true]:disabled{cursor:progress}

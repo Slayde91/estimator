@@ -1723,17 +1723,20 @@ let passed = 0;
   await audit.exportTemplate();assert.match(byId('calculator-message').textContent,/did not confirm/);assert.equal(audit.state.action,false);
   assert.equal(byId('calculator-template').disabled,false);assert.equal(JSON.stringify(entry.inputs),templateBefore);passed++;
 
-  // Import and the four distinct exports retain their actions and requested order/colors.
+  // Import and the four distinct exports retain their actions and requested order.
   const registerMarkup=fs.readFileSync('static/index.html','utf8');
   for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
-  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*calculator-export-excel[^"]*"/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*secondary[^"]*icon-only[^"]*"/);
   assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow">⇩<\/span>/);
-  assert.match(registerMarkup,/id="calculator-reset"[^>]*pricing-reset-button[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
+  assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);
+  for(const id of ['calculator-template','calculator-reset','calculator-recalculate'])assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*secondary[^"]*"`));
+  assert.doesNotMatch(registerMarkup,/id="calculator-template"[^>]*(?:excel-button|calculator-export-excel)/);assert.doesNotMatch(registerMarkup,/id="calculator-reset"[^>]*pricing-reset-button/);
   assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
+  assert.doesNotMatch(toolbarCss,/\.calculator-workspace-heading #calculator-template\{[^}]*background/);
   assert.match(toolbarCss,/\.calculator-product-totals h4\{[^}]*margin:0 0 7px/);
   for(const [className,background,color] of [['calculator-export-excel','var(--navy)','#fff'],['calculator-export-pdf','#c5221f','#fff']]){
     assert.ok(registerMarkup.includes(className));assert.ok(toolbarCss.includes(`.calculator-tools .${className}{background:${background};color:${color};`));

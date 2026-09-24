@@ -29,11 +29,20 @@ from .workbook_runtime import application_editable_cells, load_application_catal
 def _schedule(calculator_id):
     catalog = load_application_catalog(calculator_id)
     schedule = catalog["schedule"]
-    columns = [column for column in schedule["columns"] if column.get("editable")]
+    columns = [column for column in schedule["columns"]
+               if column.get("editable") and not column.get("advanced")]
     location = "AA" if calculator_id == "steel_vermiculite" else None
     if location:
         columns.sort(key=lambda field: field["column"] != location)
     return catalog, schedule, columns
+
+
+def _all_input_columns(calculator_id, schedule):
+    """Return every accepted schedule input, including legacy advanced fields."""
+    columns = [column for column in schedule["columns"] if column.get("editable")]
+    if calculator_id == "steel_vermiculite":
+        columns.sort(key=lambda field: field["column"] != "AA")
+    return columns
 
 
 def _template_formula(formula, schedule, columns):
@@ -71,7 +80,7 @@ def _list_values(catalog, reference):
 
 
 def export_schedule_template(calculator_id):
-    """Create a blank template containing the exact editable input headings."""
+    """Create a blank template containing the normal schedule input headings."""
     catalog, schedule, columns = _schedule(calculator_id)
     capacity = schedule["last_row"] - schedule["first_row"] + 1
     workbook = Workbook()
@@ -149,7 +158,7 @@ def export_schedule_template(calculator_id):
             data_validation.error = validation.get("error", "Use the source workbook input choices.")
             sheet.add_data_validation(data_validation)
             data_validation.add(f"{column}2:{column}{capacity + 1}")
-        note = f"{field['label']}. " + ("Optional advanced input. " if field.get("advanced") else "")
+        note = f"{field['label']}. "
         note += ("Generated reference number; import follows row position." if field.get("generated") else
                  "Enter a number or leave blank." if field["type"] == "number" else "Enter a value or leave blank.")
         sheet.cell(1, index).comment = Comment(note, "Ceasefire")
@@ -228,6 +237,7 @@ def _check_order(payload):
 def import_schedule_workbook(calculator_id, payload, filename, current_inputs=None):
     """Parse a bounded untrusted upload into a complete schedule input overlay."""
     catalog, schedule, columns = _schedule(calculator_id)
+    all_columns = _all_input_columns(calculator_id, schedule)
     try:
         _preflight(payload, filename)
     except ValidationError as error:
@@ -243,7 +253,7 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
     target = proposed.setdefault(schedule["sheet"], {})
     capacity = schedule["last_row"] - schedule["first_row"] + 1
     for row in range(schedule["first_row"], schedule["last_row"] + 1):
-        for field in columns:
+        for field in all_columns:
             if not field.get("generated"):
                 target[f"{field['column']}{row}"] = None
     workbook = None
@@ -254,18 +264,20 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         sheet = workbook[schedule["sheet"]]
         sheet.reset_dimensions()
         sheet.calculate_dimension(force=True)
-        if sheet.max_row > capacity + 1 or sheet.max_column > len(columns) + 1:
-            raise ValidationError(f"The schedule must contain at most {capacity} rows and only the exported input columns.")
         legacy_columns = [field for field in load_workbook_catalog(calculator_id)["schedule"]["columns"] if field.get("editable")]
+        accepted_columns = [columns, all_columns, legacy_columns]
+        max_columns = max(len(fields) for fields in accepted_columns) + 1
+        if sheet.max_row > capacity + 1 or sheet.max_column > max_columns:
+            raise ValidationError(f"The schedule must contain at most {capacity} rows and only the exported input columns.")
         rows = sheet.iter_rows(max_col=sheet.max_column)
         actual = tuple(cell.value for cell in next(rows, ()))
-        numbered_columns = [{"label": "Line", "type": "number", "generated": True}] + columns
-        if actual == tuple(field["label"] for field in numbered_columns):
-            columns = numbered_columns
-        elif actual == tuple(field["label"] for field in legacy_columns):
-            columns = legacy_columns
-        elif actual != tuple(field["label"] for field in columns):
+        choices = []
+        for fields in accepted_columns:
+            choices.extend((fields, [{"label": "Line", "type": "number", "generated": True}] + fields))
+        selected = next((fields for fields in choices if actual == tuple(field["label"] for field in fields)), None)
+        if selected is None:
             raise ValidationError("Schedule headers must match the selected calculator's exported template exactly.")
+        columns = selected
         imported_rows = 0
         last_populated_row = schedule['first_row']
         for row_index, row in enumerate(rows, 2):

@@ -78,6 +78,25 @@ class CatalogDifferenceTests(unittest.TestCase):
                 self.assertTrue(result["extracted_content_matches"])
                 self.assertFalse(result["source_provenance_matches"])
 
+    def test_impact_summary_separates_formula_encoding_from_logic_and_editable_defaults(self):
+        expected = {"id": "ductwork", "sheets": [{"name": "CALCULATOR", "cells": {
+            "B11": {"value": "old"}, "J11": {"value": "fixed"},
+            "K11": {"formula": "SUM('SUMMARY'!A1)"},
+            "L11": {"formula": "1+1"},
+        }}]}
+        actual = deepcopy(expected)
+        actual["sheets"][0]["cells"]["B11"]["value"] = "new"
+        actual["sheets"][0]["cells"]["J11"]["value"] = "changed"
+        actual["sheets"][0]["cells"]["K11"]["formula"] = "SUM(SUMMARY!A1)"
+        actual["sheets"][0]["cells"]["L11"]["formula"] = "2+2"
+        result = compare_catalogs(expected, actual)
+        self.assertEqual(result["impact_counts"], {
+            "editable_default_value_differences": 1,
+            "fixed_literal_differences": 1,
+            "formula_logic_differences": 1,
+            "formula_optional_sheet_quote_differences": 1,
+        })
+
     def test_added_removed_cells_null_empty_and_order_are_not_suppressed(self):
         expected = {"sheets": [{"name": "S", "cells": {"A1": {"value": None}, "B1": {"value": ""}}}],
                     "pages": ["A", "B"], "empty": {}}

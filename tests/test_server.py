@@ -71,6 +71,11 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(self.request("POST", "/api/configuration", {}, headers)[0], 403)
         self.assertEqual(self.request("PUT", "/api/configuration", "inventory=x", {"Content-Type": "text/plain"})[0], 400)
 
+    def test_a_second_estimator_cannot_share_the_live_port(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(OSError):
+                create_server(self.server.server_port, Path(directory) / "second.sqlite3")
+
     def test_legacy_labour_response_projects_saved_cells_without_rewriting_quote(self):
         store = Store(Path(self.temp.name) / "test.sqlite3")
         original = store.save_quote({"title": "Legacy labour days", "inputs": {"B15": 27.125, "B27": .15, "F26": 1.5, "F27": 2}})

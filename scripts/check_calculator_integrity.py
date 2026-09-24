@@ -15,13 +15,14 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from estimator.workbook_catalog import CATALOG_SPECS, DATA_DIRECTORY
+from estimator.workbook_catalog import CATALOG_SPECS, DATA_DIRECTORY, editable_cells
 from scripts.import_calculators import DEFAULT_SOURCE_DIRECTORY, extract_calculator
 
 
@@ -96,7 +97,13 @@ def _differences(expected, actual, parts=()):
         yield parts, expected, actual
 
 
-def compare_catalogs(expected, actual, *, sample_limit=30, value_limit=160):
+def _formula_without_optional_simple_sheet_quotes(value):
+    if not isinstance(value, str):
+        return value
+    return re.sub(r"'([A-Za-z_][A-Za-z0-9_.]*)'!", r"\1!", value)
+
+
+def compare_catalogs(expected, actual, *, identifier=None, sample_limit=30, value_limit=160):
     """Compare every field; cap diagnostics, never the comparison itself.
 
     ``matches`` is the strict verdict suitable for a regression assertion.
@@ -110,6 +117,7 @@ def compare_catalogs(expected, actual, *, sample_limit=30, value_limit=160):
     if not isinstance(value_limit, int) or not 1 <= value_limit <= 2000:
         raise ValueError("value_limit must be between 1 and 2000")
     counts = Counter()
+    impact = Counter()
     samples = []
     category_samples = {}
     total = 0
@@ -117,6 +125,21 @@ def compare_catalogs(expected, actual, *, sample_limit=30, value_limit=160):
         total += 1
         category = _category(parts)
         counts[category] += 1
+        if category == 'formula_text':
+            equivalent = _formula_without_optional_simple_sheet_quotes(before) == _formula_without_optional_simple_sheet_quotes(after)
+            impact['formula_optional_sheet_quote_differences' if equivalent else 'formula_logic_differences'] += 1
+        elif category == 'literal_values':
+            editable = False
+            workbook_id = identifier or (expected.get('id') if isinstance(expected, dict) else None)
+            if workbook_id in CATALOG_SPECS and len(parts) >= 4 and parts[:1] == ('sheets',) and isinstance(parts[1], int):
+                sheets = expected.get('sheets', [])
+                if parts[1] < len(sheets) and isinstance(sheets[parts[1]], dict):
+                    editable = parts[3] in editable_cells(workbook_id, sheets[parts[1]].get('name'))
+            impact['editable_default_value_differences' if editable else 'fixed_literal_differences'] += 1
+        elif category == 'source_literal_values':
+            impact['raw_source_storage_differences'] += 1
+        else:
+            impact['representation_or_provenance_differences'] += 1
         retain = len(samples) < sample_limit
         retain_category = len(category_samples.get(category, [])) < min(3, sample_limit)
         if retain or retain_category:
@@ -136,6 +159,7 @@ def compare_catalogs(expected, actual, *, sample_limit=30, value_limit=160):
             "source_provenance_matches": counts["source_identity"] == 0,
             "extracted_content_matches": total == counts["source_identity"],
             "category_counts": dict(sorted(counts.items())), "samples": samples,
+            "impact_counts": dict(sorted(impact.items())),
             "category_samples": dict(sorted(category_samples.items())),
             "omitted_samples": total - len(samples), "sample_limit": sample_limit,
             "count_basis": "differing leaf fields; changed container types count once"}
@@ -145,6 +169,8 @@ def format_catalog_difference(result):
     """Small assertion message; deliberately does not stringify either book."""
     summary = f"{result['difference_count']} catalog field differences: " + ", ".join(
         f"{category}={count}" for category, count in result["category_counts"].items())
+    impact = "Impact: " + ", ".join(
+        f"{category}={count}" for category, count in result.get("impact_counts", {}).items())
     samples = {item["path"]: item for item in result["samples"]}
     for category in result["category_samples"].values():
         for item in category:
@@ -153,7 +179,7 @@ def format_catalog_difference(result):
     omitted = result["difference_count"] - len(samples)
     if omitted:
         details.append(f"{omitted} further differences counted; diagnostics capped.")
-    return "\n".join([summary, *details])
+    return "\n".join([summary, impact, *details])
 
 
 def _sha256(path):
@@ -176,7 +202,7 @@ def audit_calculator(identifier, source_path, catalog_path, *, sample_limit=30):
         with gzip.open(catalog_path, "rt", encoding="utf-8") as package:
             expected = json.load(package)
         actual = extract_calculator(source_path, identifier)
-        result.update(compare_catalogs(expected, actual, sample_limit=sample_limit))
+        result.update(compare_catalogs(expected, actual, identifier=identifier, sample_limit=sample_limit))
         expected_hash = expected["source"]["sha256"]
         result["byte_identity"] = {
             "matches": before["source"] == actual["source"]["sha256"] == expected_hash,
@@ -223,11 +249,12 @@ def main(argv=None):
                                   args.catalog_directory / f"{identifier}.json.gz", sample_limit=args.sample_limit)
         results.append(result)
         counts = ", ".join(f"{key}={value}" for key, value in result.get("category_counts", {}).items())
+        impact = ", ".join(f"{key}={value}" for key, value in result.get("impact_counts", {}).items())
         print(f"{identifier}: {'MATCH' if result['matches'] else 'FAIL'}; "
               f"{result.get('difference_count', 'unknown')} field differences ({counts}); "
-              f"{len(result['errors'])} errors", file=sys.stderr, flush=True)
+              f"impact ({impact}); {len(result['errors'])} errors", file=sys.stderr, flush=True)
     report = {"schema_version": 1, "matches": all(item["matches"] for item in results),
-              "scope": "Every extracted field and source SHA-256; no exclusions or migrations",
+              "scope": "Every extracted field and source SHA-256; no exclusions or migrations. Impact counts explain differences but do not weaken the strict verdict.",
               "calculators": results}
     print(json.dumps(report, ensure_ascii=True, allow_nan=False, indent=2))
     return 0 if report["matches"] else 1

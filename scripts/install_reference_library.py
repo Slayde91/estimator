@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 import shutil
 import sys
-import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,7 +29,12 @@ def install(source, destination, replace=False):
     if data is None:
         raise ValueError('The bundle does not contain library.json.')
     destination.parent.mkdir(parents=True, exist_ok=True)
-    stage = Path(tempfile.mkdtemp(prefix='.reference-library-', dir=destination.parent))
+    # tempfile.mkdtemp creates an owner-only directory on Windows. Renaming
+    # that directory into place can leave the desktop server account unable to
+    # read the installed library. A normal mkdir inherits the destination
+    # parent's access rules; the random name still isolates this operation.
+    stage = destination.parent / f'.reference-library-{uuid.uuid4().hex}'
+    stage.mkdir()
     backup = None
     try:
         (stage / 'documents').mkdir()

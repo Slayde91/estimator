@@ -10,6 +10,7 @@
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null,
+    projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
     pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } },
@@ -1704,7 +1705,9 @@
       state.projectsOffset = data.offset ?? offset;
       const items = (data.files || []).map(file => {
         const item = node("article", "quote-item"), description = node("div");
-        description.append(node("h3", "", file.title || file.name), node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), node("p", "helper", `Saved ${new Date(file.modified_at).toLocaleString("en-AU")}`));
+        const heading = node("h3"), title = node("button", "project-title-button", file.title || file.name); title.type = "button";
+        title.setAttribute("aria-label", `Browse files for ${file.title || file.name}`); title.addEventListener("click", () => openProjectBrowser(file)); heading.append(title);
+        description.append(heading, node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), node("p", "helper", `Saved ${new Date(file.modified_at).toLocaleString("en-AU")}`));
         const button = node("button", "button secondary", "Open project"); button.type = "button";
         button.addEventListener("click", () => openProjectFile(file, button)); item.append(description, button); return item;
       });
@@ -1734,7 +1737,7 @@
     try {
       const data = await request("/api/projects/link-folder", { method: "POST", body: "{}" });
       if (data.cancelled) { message("Folder selection cancelled."); return; }
-      state.projectsOffset = 0;
+      closeProjectBrowser(); state.projectsOffset = 0;
       await loadProjects(); message(`Estimates folder linked: ${data.folder}`);
     } catch (error) { message(`Folder was not linked. ${error.message}`, true); }
     finally { projectBusy(false); }
@@ -1749,6 +1752,88 @@
       await reviewAndLoadProject(project, project.file || file, captured);
     } catch (error) { message(`Project was not loaded. ${error.message}`, true); }
     finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
+  }
+
+  const projectFileSize = value => {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) return "";
+    if (bytes < 1024) return `${bytes.toLocaleString("en-AU")} B`;
+    if (bytes < 1_048_576) return `${(bytes / 1024).toLocaleString("en-AU", { maximumFractionDigits: 1 })} KB`;
+    return `${(bytes / 1_048_576).toLocaleString("en-AU", { maximumFractionDigits: 1 })} MB`;
+  };
+
+  function closeProjectBrowser() {
+    ++state.projectBrowserRevision;
+    state.projectBrowserProject = null; state.projectBrowserPath = "";
+    $("project-browser").hidden = true; $("project-list-card").hidden = false; $("project-file-errors").hidden = !$("project-file-errors").textContent;
+  }
+
+  function renderProjectBreadcrumbs(project, relativePath) {
+    const breadcrumbs = $("project-browser-breadcrumbs"), parts = relativePath ? relativePath.split("/") : [];
+    const values = [{ label: project.title || project.name, path: "" }, ...parts.map((part, index) => ({ label: part, path: parts.slice(0, index + 1).join("/") }))];
+    const nodes = [];
+    for (const [index, value] of values.entries()) {
+      if (index) nodes.push(node("span", "", "/"));
+      const button = node("button", "", value.label); button.type = "button";
+      if (value.path === relativePath) button.setAttribute("aria-current", "page");
+      else button.addEventListener("click", () => loadProjectFiles(project, value.path));
+      nodes.push(button);
+    }
+    breadcrumbs.replaceChildren(...nodes);
+  }
+
+  async function openProjectFolderFile(project, entry, button) {
+    if (button.getAttribute("aria-busy") === "true") return;
+    const revision = state.projectBrowserRevision;
+    button.disabled = true; button.setAttribute("aria-busy", "true");
+    try {
+      await request("/api/projects/open-file", { method: "POST", body: JSON.stringify({ id: project.id, relative_path: entry.relative_path }) });
+      if (revision === state.projectBrowserRevision && state.projectBrowserProject?.id === project.id) {
+        $("project-browser-message").textContent = `Opened ${entry.name} in its default application.`;
+        $("project-browser-message").className = "message info"; $("project-browser-message").hidden = false;
+      }
+    } catch (error) {
+      if (revision === state.projectBrowserRevision && state.projectBrowserProject?.id === project.id) {
+        $("project-browser-message").textContent = `The file was not opened. ${error.message}`;
+        $("project-browser-message").className = "message error"; $("project-browser-message").hidden = false;
+      }
+    } finally { button.disabled = false; button.setAttribute("aria-busy", "false"); }
+  }
+
+  async function loadProjectFiles(project, relativePath = "") {
+    const revision = ++state.projectBrowserRevision, list = $("project-browser-list");
+    state.projectBrowserProject = project; state.projectBrowserPath = relativePath;
+    $("project-list-card").hidden = true; $("project-file-errors").hidden = true; $("project-browser").hidden = false;
+    $("project-browser-title").textContent = project.title || project.name;
+    $("project-browser-status").textContent = "Reading project folder…"; $("project-browser-message").hidden = true;
+    list.setAttribute("aria-busy", "true"); list.replaceChildren(node("p", "empty-state", "Reading files and folders…"));
+    try {
+      const data = await request("/api/projects/files", { method: "POST", body: JSON.stringify({ id: project.id, relative_path: relativePath }) });
+      if (revision !== state.projectBrowserRevision || state.projectBrowserProject?.id !== project.id) return;
+      state.projectBrowserPath = data.relative_path || ""; renderProjectBreadcrumbs(data.project, state.projectBrowserPath);
+      const entries = (data.entries || []).map(entry => {
+        const button = node("button", "project-browser-entry"); button.type = "button";
+        const symbol = node("span", "project-browser-entry-symbol", entry.type === "folder" ? "📁" : "📄"); symbol.setAttribute("aria-hidden", "true");
+        const name = node("span", "project-browser-entry-name", entry.name);
+        const meta = node("span", "project-browser-entry-meta", entry.type === "folder" ? "Folder" : [projectFileSize(entry.size), entry.modified_at ? new Date(entry.modified_at).toLocaleString("en-AU") : ""].filter(Boolean).join(" · "));
+        button.append(symbol, name, meta);
+        button.setAttribute("aria-label", entry.type === "folder" ? `Open folder ${entry.name}` : `Open ${entry.name} in its default application`);
+        button.addEventListener("click", () => entry.type === "folder" ? loadProjectFiles(data.project, entry.relative_path) : openProjectFolderFile(data.project, entry, button));
+        return button;
+      });
+      list.replaceChildren(...(entries.length ? entries : [node("p", "empty-state", "This folder is empty.")]));
+      $("project-browser-status").textContent = `${entries.length.toLocaleString("en-AU")} ${entries.length === 1 ? "entry" : "entries"}`;
+      const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
+      $("project-browser-message").textContent = problems.join("\n"); $("project-browser-message").className = "message error"; $("project-browser-message").hidden = !problems.length;
+    } catch (error) {
+      if (revision === state.projectBrowserRevision) {
+        list.replaceChildren(node("p", "message error", error.message)); $("project-browser-status").textContent = "Project folder unavailable";
+      }
+    } finally { if (revision === state.projectBrowserRevision) list.setAttribute("aria-busy", "false"); }
+  }
+
+  function openProjectBrowser(file) {
+    return loadProjectFiles({ id: file.id, title: file.title || file.name, name: file.name }, "");
   }
 
   async function downloadQuotePdf() {
@@ -1800,7 +1885,9 @@
   $("project-attachment-zone").addEventListener("drop", event => {
     event.preventDefault(); $("project-attachment-zone").classList.remove("is-dragover"); uploadProjectFiles(event.dataTransfer?.files);
   });
-  $("refresh-quotes").addEventListener("click", () => loadProjects({ refresh: true, offset: 0 }));
+  $("refresh-quotes").addEventListener("click", () => state.projectBrowserProject
+    ? loadProjectFiles(state.projectBrowserProject, state.projectBrowserPath)
+    : loadProjects({ refresh: true, offset: 0 }));
   $("project-search").addEventListener("input", () => {
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
@@ -1810,6 +1897,7 @@
   $("project-next").addEventListener("click", () => loadProjects({ offset: state.projectsOffset + 100 }));
   $("project-continue").addEventListener("click", () => loadProjects());
   $("link-project-folder").addEventListener("click", linkProjectFolder);
+  $("project-browser-close").addEventListener("click", closeProjectBrowser);
   $("use-current-pricing").addEventListener("click", useCurrentPricing);
   $("pricing-scope").addEventListener("change", () => requestPricingScopeSwitch($("pricing-scope").value));
   $("pricing-search").addEventListener("input", renderPricing);

@@ -70,14 +70,14 @@
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
-    for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-excel", "penetration-item-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
     buttonBusy("penetration-recalculate", state.calculating);
     buttonBusy("penetration-add-to-library", state.creatingLibrary);
     buttonBusy("penetration-add-to-schedule", state.addingSchedule);
     buttonBusy("penetration-update-schedule", state.updatingSchedule);
     for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) buttonBusy(id, state.schedule.calculating);
     for (const id of ["penetration-pdf", "penetration-item-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
-    buttonBusy("penetration-excel", state.downloading && state.downloadKind === "xlsx");
+    for (const id of ["penetration-excel", "penetration-item-excel"]) buttonBusy(id, state.downloading && state.downloadKind === "xlsx");
     for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).disabled = scheduleBlocked || !state.removed.length;
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
     if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
@@ -751,6 +751,23 @@
     catch (error) { message(error.message, true); }
     finally { state.addingSchedule = false; status(); }
   }
+  async function requestAddToSchedule() {
+    document.activeElement?.blur?.();
+    if (!state.draft || state.invalid.size || state.diagramChange !== undefined || state.addingSchedule) return;
+    const inputs = selected()?.inputs || {};
+    const notice = window.CeasefirePenetrationNavigation?.notify;
+    if (!entered(inputs.O)) {
+      if (notice) await notice("Selection required", "Please select a quantity.", "OK");
+      else message("Please select a quantity.", true);
+      return;
+    }
+    if (!Object.entries(inputs).some(([column, value]) => column !== "O" && entered(value))) {
+      if (notice) await notice("Selection required", "Please enter details, products, and/or labour.", "OK");
+      else message("Please enter details, products, and/or labour.", true);
+      return;
+    }
+    return addToSchedule();
+  }
   async function updateSchedule() {
     document.activeElement?.blur?.(); if (!validEdit() || state.invalid.size || state.schedule.invalid.size || state.updatingSchedule) return;
     const context = state.context, epoch = state.composerEpoch, edit = state.edit, row = scheduleRow(edit.id); row.inputs = clone(selected().inputs);
@@ -958,10 +975,10 @@
     state.diagramChange = undefined; state.diagramRead++; state.diagramVersion++; renderDiagram(); message("The pending source diagram was discarded."); status();
   });
   for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).addEventListener("click", calculateSchedule);
-  $("penetration-add-to-schedule").addEventListener("click", addToSchedule);
+  $("penetration-add-to-schedule").addEventListener("click", requestAddToSchedule);
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
   for (const id of ["penetration-pdf", "penetration-item-pdf"]) $(id).addEventListener("click", () => download("pdf"));
-  $("penetration-excel").addEventListener("click", () => download("xlsx"));
+  for (const id of ["penetration-excel", "penetration-item-excel"]) $(id).addEventListener("click", () => download("xlsx"));
   window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged };
 })();

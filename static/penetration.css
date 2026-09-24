@@ -39,6 +39,7 @@
 .penetration-remove span,.penetration-remove svg{display:block;width:20px;height:20px}
 .penetration-row-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-top:18px}
 .penetration-schedule-recalculate-tools{padding:0 0 16px}
+.penetration-schedule-recalculate-tools .schedule-download-button{flex:0 0 auto}
 #penetration-row-count{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .penetration-summary{position:sticky;top:116px;align-self:start}
 .penetration-summary .cost-list dd{overflow-wrap:anywhere}
@@ -66,9 +67,9 @@
 .penetration-schedule-workspace{display:grid;gap:22px;min-width:0}
 .penetration-schedule-workspace[hidden]{display:none}
 .penetration-schedule-workspace .card{min-width:0}
-.penetration-schedule-downloads{justify-content:center;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
 .penetration-estimator-schedule{margin-top:22px}
 .penetration-item-heading .schedule-download-button{flex:0 0 auto}
+.penetration-row-tools :is(#penetration-undo,#penetration-estimator-undo){width:48px;min-width:48px;height:48px;padding:0}
 .firestopping-breakdown-part>summary{cursor:pointer;list-style-position:outside}
 .firestopping-breakdown-part>summary h3{display:inline}
 .firestopping-breakdown-part{margin-top:18px;padding:14px 18px 16px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fff}

@@ -128,6 +128,35 @@ class ProjectLibraryTests(unittest.TestCase):
         for table in ("settings", "quotes", "calculator_states"):
             self.assertEqual(after[table], before[table])
 
+    def test_project_folder_browser_lists_nested_files_and_opens_only_valid_relative_files(self):
+        client = self.folder / "Client"
+        documents = client / "Documents"
+        documents.mkdir(parents=True)
+        project_path = client / "Quote.json"
+        project_path.write_bytes(self.payload)
+        (client / "manual note.txt").write_text("note", encoding="utf-8")
+        (documents / "inspection.pdf").write_bytes(b"pdf")
+        self.store.set_project_folder(self.folder)
+        listing = self.library.listing(refresh=True)
+        while listing["scan_pending"]:
+            listing = self.library.listing()
+        project_id = listing["files"][0]["id"]
+
+        root = self.library.browse_files({"id": project_id, "relative_path": ""})
+        self.assertEqual(root["project"]["name"], "Quote.json")
+        self.assertEqual([(entry["type"], entry["name"]) for entry in root["entries"]],
+                         [("folder", "Documents"), ("file", "manual note.txt"), ("file", "Quote.json")])
+        nested = self.library.browse_files({"id": project_id, "relative_path": "Documents"})
+        self.assertEqual(nested["entries"][0]["relative_path"], "Documents/inspection.pdf")
+        with patch("estimator.project_library._open_default_file") as opened:
+            result = self.library.open_project_file({"id": project_id, "relative_path": "Documents/inspection.pdf"})
+        opened.assert_called_once_with(documents / "inspection.pdf")
+        self.assertEqual(result["relative_path"], "Documents/inspection.pdf")
+        for relative in ("../Outside.txt", "Documents/../Quote.json", "/absolute.txt", "Documents\\inspection.pdf",
+                         "Documents/bad:name.pdf", "Documents/bad\x00name.pdf"):
+            with self.assertRaises(ValidationError, msg=relative):
+                self.library.open_project_file({"id": project_id, "relative_path": relative})
+
     def test_link_persists_but_later_save_elsewhere_does_not_relink(self):
         self.dialogs.folder = str(self.folder)
         self.assertEqual(self.library.link_folder()["folder"], str(self.folder))
@@ -778,6 +807,28 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/project/attachment", {
             "project_token": None, "filename": "no-project.txt", "content_base64": "QQ==",
         })[0], 400)
+
+    def test_project_file_browser_routes_list_and_open_files_without_accepting_absolute_paths(self):
+        target = self.root / "Saved.json"
+        self.dialogs.selection = SaveSelection(str(target), None)
+        status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Folder browser"}})
+        self.assertEqual(status, 200, saved)
+        project_id = saved["file"]["id"]
+        documents = self.root / "Documents"
+        documents.mkdir()
+        report = documents / "report.pdf"
+        report.write_bytes(b"report")
+        status, root = self.request("POST", "/api/projects/files", {"id": project_id, "relative_path": ""})
+        self.assertEqual(status, 200, root)
+        self.assertIn(("folder", "Documents"), [(entry["type"], entry["name"]) for entry in root["entries"]])
+        with patch("estimator.project_library._open_default_file") as opened:
+            status, response = self.request("POST", "/api/projects/open-file", {"id": project_id, "relative_path": "Documents/report.pdf"})
+        self.assertEqual(status, 200, response)
+        opened.assert_called_once_with(report)
+        for route, body in (("/api/projects/files", {"id": project_id, "relative_path": "../"}),
+                            ("/api/projects/open-file", {"id": project_id, "relative_path": str(report)}),
+                            ("/api/projects/open-file", {"id": project_id, "relative_path": "report.pdf", "path": str(report)})):
+            self.assertEqual(self.request("POST", route, body)[0], 400)
 
     def test_project_pricing_preview_is_read_only_and_validates_configuration(self):
         before = database_rows(self.store)

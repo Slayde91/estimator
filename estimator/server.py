@@ -258,6 +258,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) != {'id'}:
                         raise ValidationError('Choose a project file from the linked folder.')
                     self.send_payload(200, projects.load(body['id']))
+                elif route == '/api/projects/files' and self.command == 'POST':
+                    self.send_payload(200, projects.browse_files(body))
+                elif route == '/api/projects/open-file' and self.command == 'POST':
+                    self.send_payload(200, projects.open_project_file(body))
                 elif route == '/api/configuration/preview' and self.command == 'POST':
                     if set(body) != {'configuration'}:
                         raise ValidationError('Include the draft pricing configuration only.')

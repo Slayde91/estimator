@@ -11,7 +11,7 @@ from openpyxl import Workbook
 
 from estimator.catalog import ValidationError
 from estimator.project_file import export_project, load_project_bytes
-from estimator.schedule_rows import empty_schedule_inputs, normalize_schedule_rows, populated_schedule_rows, schedule_window
+from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs, normalize_schedule_rows, populated_schedule_rows, schedule_window
 from estimator.schedule_workbook import import_schedule_workbook
 from estimator.storage import Store
 from estimator.workbook_calculators import calculate_worksheet, calculator_session, source_model
@@ -21,7 +21,7 @@ IDS = ('steel_vermiculite', 'steel_board', 'ductwork')
 
 
 class ScheduleRowsTests(unittest.TestCase):
-    def test_new_schedules_are_blank_but_legacy_inputs_keep_examples_and_saved_state(self):
+    def test_new_and_legacy_schedules_are_blank_without_rewriting_saved_state(self):
         with tempfile.TemporaryDirectory() as directory:
             store = Store(Path(directory) / 'state.sqlite3')
             for identity in IDS:
@@ -29,13 +29,13 @@ class ScheduleRowsTests(unittest.TestCase):
                 state = store.calculator_state(identity)
                 self.assertEqual(state['schedule_rows'], [schedule['first_row']])
                 self.assertEqual(populated_schedule_rows(identity, state['inputs']), set())
-                self.assertTrue(populated_schedule_rows(identity, {}), identity)
+                self.assertEqual(populated_schedule_rows(identity, {}), set())
                 legacy = {'inputs': {}, 'source_sha256': source_model(identity)['source']['sha256']}
                 with store.connect() as db:
                     db.execute('INSERT INTO calculator_states VALUES(?,?,?)', (identity, json.dumps(legacy), 'earlier'))
                 reopened = store.calculator_state(identity)
-                self.assertEqual(reopened['inputs'], {})
-                self.assertEqual(reopened['schedule_rows'], normalize_schedule_rows(identity, {}))
+                self.assertEqual(reopened['inputs'], blank_schedule_defaults(identity, {}))
+                self.assertEqual(reopened['schedule_rows'], [schedule['first_row']])
                 with store.connect() as db:
                     self.assertEqual(json.loads(db.execute('SELECT data FROM calculator_states WHERE id=?', (identity,)).fetchone()[0]), legacy)
 
@@ -86,13 +86,10 @@ class ScheduleRowsTests(unittest.TestCase):
                 entry['inputs'] = {}
             reopened = load_project_bytes(store, json.dumps(legacy).encode())
             for identity in IDS:
-                # A legacy empty overlay retains source examples. The ductwork
-                # example's Mixed orientation is now the canonical Both alias;
-                # it is the only required overlay and no source row moves.
-                expected_inputs = {'CALCULATOR': {'I13': 'Both'}} if identity == 'ductwork' else {}
-                self.assertEqual(reopened['calculators'][identity]['inputs'], expected_inputs)
+                self.assertEqual(reopened['calculators'][identity]['inputs'], blank_schedule_defaults(identity, {}))
                 self.assertEqual(legacy['calculators'][identity]['inputs'], {})
-                self.assertEqual(reopened['calculators'][identity]['schedule_rows'], normalize_schedule_rows(identity, {}))
+                self.assertEqual(reopened['calculators'][identity]['schedule_rows'],
+                                 [source_model(identity)['schedule']['first_row']])
 
     def test_import_extent_ignores_generated_lines_and_preserves_gaps_partial_data(self):
         for identity in IDS:

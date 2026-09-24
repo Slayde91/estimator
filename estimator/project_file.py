@@ -17,7 +17,7 @@ from .calculator import fields
 from .catalog import ValidationError, effective_catalog
 from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
 from .workbook_calculators import source_model, validate_calculator_edits
-from .schedule_rows import normalize_schedule_rows
+from .schedule_rows import blank_schedule_defaults, normalize_schedule_rows
 
 
 PROJECT_FORMAT = "ceasefire-project"
@@ -163,7 +163,7 @@ def _portable_inputs(calculator_id, value):
     # Source and reviewed baseline references remain usable on any computer.
     if not isinstance(value, dict):
         raise ValidationError("Each project calculator must contain a worksheet input object.")
-    return validate_calculator_edits(calculator_id, value, {})
+    return validate_calculator_edits(calculator_id, blank_schedule_defaults(calculator_id, value), {})
 
 
 def _portable_penetration(value, *, saved=False):

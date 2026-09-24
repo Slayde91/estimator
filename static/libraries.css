@@ -28,7 +28,7 @@
 .library-trash-icon{display:block;width:20px;height:20px;font-size:18px;line-height:20px;text-align:center}
 .library-record-commercial .library-item-actions{margin:0}
 .library-summary{margin-bottom:20px;padding:18px 22px}
-.library-summary-table{width:100%;min-width:0;border:2px solid #171217;border-collapse:collapse;background:#fff;color:#171217}
+.library-summary-table{width:100%;min-width:0;border:0;border-collapse:collapse;background:#fff;color:#171217}
 .library-summary-table caption{text-align:left;font-size:15px;font-weight:700;margin-bottom:12px}
 .library-summary-table th,.library-summary-table td{text-align:left;padding:10px 12px;border:1px solid #171217;white-space:normal;overflow-wrap:anywhere}
 .library-summary-table th{font-weight:600;background:#fff}
@@ -38,6 +38,10 @@
 .library-summary-table .library-summary-total>*{border-top:2px solid #f10d1b;background:#f10d1b;color:#fff}
 .library-summary-table .library-summary-manufacturer th{padding-left:28px;font-weight:500;background:#fff}
 .library-summary-table .library-summary-related>*{background:#171217;color:#fff}
+.library-summary-table tr>*:first-child{border-left:0}
+.library-summary-table tr>*:last-child{border-right:0}
+.library-summary-table thead tr:first-child>*{border-top:0}
+.library-summary-table tbody tr:last-child>*{border-bottom:0}
 .icon-only{display:inline-grid;place-items:center;min-width:44px;padding-inline:12px}
 .button-symbol{font-family:"Segoe UI Symbol","Arial Unicode MS",sans-serif;font-size:18px;line-height:1}
 .library-link-picker{scroll-margin-top:120px}

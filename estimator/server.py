@@ -278,6 +278,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     destination = projects.capture_download(body['download']) if 'download' in body else None
                     self.send_report(store.quote(route[len('/api/quotes/'):-len('/report.pdf')]), 'Saved quote', destination)
                 elif calculator_route:
+                    from .schedule_rows import blank_schedule_defaults
                     from .workbook_calculators import calculate_page, calculate_worksheet, normalize_calculator_inputs, validate_calculator_edits
                     calculator_id, action = calculator_route.groups()
                     expected_method = 'PUT' if action == 'state' else 'POST'
@@ -292,7 +293,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     destination = projects.capture_download(body['download']) if 'download' in body else None
                     if action in {'calculate', 'worksheet', 'report.pdf', 'summary.pdf', 'register.xlsx', 'import'}:
                         saved_inputs = store.calculator_state(calculator_id)['inputs']
-                        inputs = validate_calculator_edits(calculator_id, body.get('inputs', saved_inputs), saved_inputs)
+                        inputs = validate_calculator_edits(calculator_id, blank_schedule_defaults(
+                            calculator_id, body.get('inputs', saved_inputs)), saved_inputs)
                     if action == 'calculate':
                         self.send_payload(200, calculate_page(calculator_id, inputs, body.get('sheet'), body.get('start_row', 1), body.get('row_count', 25)))
                     elif action == 'worksheet':

@@ -175,14 +175,14 @@
   }
   function itemActions(pane, item, place) {
     const actions = node("div", "library-item-actions");
-    if (item.editable) { const edit = button("Edit", () => editItem(pane, item.id)); edit.dataset.libraryEdit = item.id; actions.append(edit); }
-    const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.dataset.libraryLink = item.id;
+    if (item.editable) { const edit = button("Edit", () => editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
+    const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.className += " link-action-button"; link.dataset.libraryLink = item.id;
     const add = button("", () => addToSchedule(pane, item.id), "button primary penetration-add-action");
     const plus = node("span", "", "+"); plus.setAttribute("aria-hidden", "true");
     add.append(plus, node("span", "sr-only", "Add to Schedule"));
     add.dataset.libraryAdd = item.id; add.title = "Add to Schedule"; add.setAttribute("aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
-    const remove = button("", () => deleteItem(pane, item), "button secondary library-delete");
+    const remove = button("", () => deleteItem(pane, item), "button library-delete library-delete-button");
     const icon = node("span", "library-trash-icon", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon);
     remove.title = `Remove ${item.title || item.id} from the Firestopping Library`;
     remove.setAttribute("aria-label", remove.title); remove.dataset.libraryDelete = item.id;
@@ -270,7 +270,7 @@
     session.count = node("p", "helper"); session.count.setAttribute("role", "status"); session.results = node("div", "library-link-results");
     session.previous = button("Previous", () => { session.offset = Math.max(0, session.offset - session.limit); loadLinkResults(pane, session); });
     session.next = button("Next", () => { session.offset += session.limit; loadLinkResults(pane, session); });
-    session.save = button("Save links", () => saveLink(pane, session), "button primary"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
+    session.save = button("Save links", () => saveLink(pane, session), "button link-action-button"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
     const pages = node("nav", "library-pagination"); pages.setAttribute("aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
     const actions = node("div", "library-item-actions"); actions.append(session.save, cancel);
     pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), node("p", "helper", "Choose one or more Technical Library items to link."), controls, session.message, session.count, session.results, pages, actions);

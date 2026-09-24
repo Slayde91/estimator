@@ -13,6 +13,7 @@ import unittest
 from estimator.calculator_defaults import default_calculator_inputs
 from estimator.catalog import ROOT, ValidationError
 from estimator.excel_engine import coordinates
+from estimator.schedule_rows import blank_schedule_defaults
 from estimator.schedule_workbook import export_schedule_template
 from estimator.server import create_server
 from estimator.storage import Store
@@ -140,7 +141,7 @@ class CalculatorCleanupTests(unittest.TestCase):
         legacy["SETTINGS"].update({address: f"Historical {address}\nSecond line\r\nThird line" for address in REFERENCES})
         self.seed_legacy(legacy)
         before = self.rows()
-        self.assertEqual(self.request("GET")["inputs"], legacy)
+        self.assertEqual(self.request("GET")["inputs"], blank_schedule_defaults(IDENTITY, legacy))
         page = self.request("POST", "/worksheet", {"sheet": "SETTINGS"})
         cells = self.cells(page)
         for address in REFERENCES:
@@ -161,12 +162,14 @@ class CalculatorCleanupTests(unittest.TestCase):
     def test_historical_blank_and_original_or_reviewed_reset_stay_supported(self):
         legacy = {"SETTINGS": {address: None for address in REFERENCES}}
         self.seed_legacy(legacy)
-        self.assertEqual(self.request("PUT", "/state", {"inputs": legacy})["inputs"], legacy)
+        self.assertEqual(self.request("PUT", "/state", {"inputs": legacy})["inputs"],
+                         blank_schedule_defaults(IDENTITY, legacy))
         original = {"SETTINGS": {address: self.source_settings[address]["value"] for address in REFERENCES}}
         for reset in (original, default_calculator_inputs(IDENTITY), {}):
             with self.subTest(reset_kind="source" if reset is original else "reviewed" if reset else "empty"):
-                self.assertEqual(self.request("PUT", "/state", {"inputs": reset})["inputs"], reset)
-                self.assertEqual(self.request("GET")["inputs"], reset)
+                expected = blank_schedule_defaults(IDENTITY, reset)
+                self.assertEqual(self.request("PUT", "/state", {"inputs": reset})["inputs"], expected)
+                self.assertEqual(self.request("GET")["inputs"], expected)
 
     def test_numeric_settings_stay_editable_and_keep_exact_user_precision(self):
         draft = default_calculator_inputs(IDENTITY)
@@ -181,8 +184,9 @@ class CalculatorCleanupTests(unittest.TestCase):
                 self.assertEqual(cells[address]["value"], draft["SETTINGS"][address])
             self.assertEqual(cells[used]["value"], draft["SETTINGS"][direct])
         self.assertEqual(self.rows(), before)
-        self.assertEqual(self.request("PUT", "/state", {"inputs": draft})["inputs"], draft)
-        self.assertEqual(self.request("GET")["inputs"], draft)
+        expected = blank_schedule_defaults(IDENTITY, draft)
+        self.assertEqual(self.request("PUT", "/state", {"inputs": draft})["inputs"], expected)
+        self.assertEqual(self.request("GET")["inputs"], expected)
 
     def test_presentation_metadata_omits_only_requested_cells_and_preserves_source_packages(self):
         expected_rows = {"SETTINGS": [3, 4, 32, 33, 34, 65, 66, 67, 97, 98, 99, 174, 175, 176, 230, 231, 232,
@@ -212,7 +216,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                 expected_other_rows = {("steel_board", "START"): [3, 5, 6, *range(34, 40)],
                                        ("steel_board", "CALCULATOR"): [2, 5, 7],
                                        ("ductwork", "CALCULATOR"): [5, 6, 7, 9],
-                                       ("ductwork", "PRODUCT SETTINGS"): [3, 4, *range(153, 160)]}
+                                       ("ductwork", "PRODUCT SETTINGS"): [3, 4, 71, 72, *range(153, 160)]}
                 self.assertEqual(sheet["omitted_rows"], expected_other_rows.get((identity, sheet["name"]), []))
                 expected_columns = {("ductwork", "CALCULATOR"): [37, 38, 42, 43, 44],
                                     ("steel_board", "EXTRA BOARDS"): [14]}
@@ -342,7 +346,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                  "CALCULATOR": {"X9": "Retained design reference"}}
         self.request("PUT", "/state", {"inputs": draft}, identity=identity)
         loaded = self.request("GET", identity=identity)["inputs"]
-        self.assertEqual(loaded, draft)
+        self.assertEqual(loaded, blank_schedule_defaults(identity, draft))
         before = self.cells(self.request("POST", "/worksheet", {"sheet": "BOARD SUMMARY", "inputs": loaded}, identity=identity))
         loaded["CALCULATOR"]["A9"] = "Renamed visible item"
         extras = self.request("POST", "/worksheet", {"sheet": "EXTRA BOARDS", "inputs": loaded}, identity=identity)
@@ -419,7 +423,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             self.assertTrue(cells[address]["allow_other"])
             self.assertEqual(cells[address]["value"], value)
         saved = self.request("PUT", "/state", {"inputs": draft}, identity=identity)
-        expected = {**draft, 'CALCULATOR': {'I13': 'Both'}}
+        expected = blank_schedule_defaults(identity, draft)
         self.assertEqual(saved["inputs"], expected)
         self.assertEqual(self.request("GET", identity=identity)["inputs"], expected)
         self.assertFalse(cells["B96"]["editable"])
@@ -427,6 +431,15 @@ class CalculatorCleanupTests(unittest.TestCase):
 
     def test_hidden_quantity_status_and_visible_review_note_still_block_incomplete_orders(self):
         draft = default_calculator_inputs(IDENTITY)
+        schedule = self.model['schedule']
+        source_schedule = next(sheet for sheet in self.model['sheets'] if sheet['name'] == schedule['sheet'])
+        editable = {field['column'] for field in schedule['columns'] if field.get('editable')}
+        draft[schedule['sheet']] = {
+            address: cell['value'] for address, cell in source_schedule['cells'].items()
+            if coordinates(address)[1] in {coordinates(f'{column}1')[1] for column in editable}
+            and schedule['first_row'] <= coordinates(address)[0] <= schedule['last_row']
+            and cell.get('value') not in (None, '')
+        }
         before = self.rows()
         valid = self.cells(self.request("POST", "/calculate", {"sheet": "SCHEDULE", "start_row": 10, "row_count": 1, "inputs": draft}))
         self.assertEqual(valid["W10"]["value"], "QUANTIFIED - ESTIMATE")

@@ -15,6 +15,7 @@ from unittest.mock import patch
 from estimator.catalog import ValidationError, baseline
 from estimator.native_dialogs import NativeDialogs, SaveSelection
 from estimator.project_file import export_project, project_filename, project_download_header
+from estimator.schedule_rows import blank_schedule_defaults
 from estimator.project_library import ProjectLibrary, file_fingerprint, _DIALOG_LOCK, _linked
 from estimator.server import create_server
 from estimator.storage import Store
@@ -194,11 +195,7 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertEqual(snapshot["estimate"]["measurements"], request["estimate"]["measurements"])
         self.assertEqual(snapshot["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
         for name, calculator in request["calculators"].items():
-            expected_inputs = calculator["inputs"]
-            if name == "ductwork":
-                # Canonicalize only the source example's Mixed orientation;
-                # retain the precise late-row input and settings as supplied.
-                expected_inputs = {**expected_inputs, "CALCULATOR": {**expected_inputs["CALCULATOR"], "I13": "Both"}}
+            expected_inputs = blank_schedule_defaults(name, calculator["inputs"])
             self.assertEqual(snapshot["calculators"][name]["inputs"], expected_inputs)
         self.assertEqual(request, original_request)
         self.assertNotEqual(result["file"]["save_token"], overwrite["save_token"])

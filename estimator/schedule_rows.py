@@ -4,6 +4,7 @@ Rows keep their workbook addresses. Visibility can never hide entered values;
 removal clears input overrides rather than moving formulas or reference cells.
 """
 
+from copy import deepcopy
 from functools import lru_cache
 import re
 
@@ -30,16 +31,34 @@ def _shape(calculator_id):
 
 def empty_schedule_inputs(calculator_id):
     """New/reset inputs explicitly blank every source example, preserving settings."""
+    return blank_schedule_defaults(calculator_id, default_calculator_inputs(calculator_id))
+
+
+def blank_schedule_defaults(calculator_id, inputs=None):
+    """Treat omitted source example cells as blank without changing saved inputs.
+
+    Older calculator states and project files can omit schedule cells because the
+    immutable workbook supplied demonstration rows.  The application no longer
+    presents those demonstrations as user input.  Explicit saved values, including
+    zero and explicit blanks, always win; settings and non-schedule sheets are left
+    untouched.
+    """
     schedule, _, literals = _shape(calculator_id)
-    inputs = default_calculator_inputs(calculator_id)
-    inputs[schedule['sheet']] = {address: None for address in literals}
-    return inputs
+    result = deepcopy(inputs if inputs is not None else {})
+    if not isinstance(result, dict):
+        return result
+    schedule_inputs = result.setdefault(schedule['sheet'], {})
+    if not isinstance(schedule_inputs, dict):
+        return result
+    for address in literals:
+        schedule_inputs.setdefault(address, None)
+    return result
 
 
 def populated_schedule_rows(calculator_id, inputs=None):
     """Include partial rows, zero values and advanced input; ignore line labels."""
-    schedule, columns, literals = _shape(calculator_id)
-    values = dict(literals)
+    schedule, columns, _ = _shape(calculator_id)
+    values = {}
     for address, value in (inputs or {}).get(schedule['sheet'], {}).items():
         match = re.fullmatch(r'([A-Z]+)([1-9]\d*)', address)
         if match and match[1] in columns and schedule['first_row'] <= int(match[2]) <= schedule['last_row']:

@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from estimator.calculator import fields
 from estimator.calculator_defaults import default_calculator_inputs
-from estimator.schedule_rows import empty_schedule_inputs
+from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.project_file import (
     CALCULATOR_IDS, ESTIMATE_FIELDS, PROJECT_FILENAME, export_project, import_project,
@@ -87,11 +87,7 @@ class ProjectFileTests(unittest.TestCase):
         self.assertEqual(loaded["estimate"]["result"], self.sender.prepare_quote(estimate)["result"])
         self.assertEqual(loaded["fields"], fields(effective_catalog(loaded["estimate"]["configuration"])))
         for identity, draft in drafts.items():
-            expected_inputs = draft["inputs"]
-            if identity == "ductwork":
-                # The untouched source example keeps its row and becomes the
-                # approved Both orientation; all supplied values stay exact.
-                expected_inputs = {**expected_inputs, "CALCULATOR": {**expected_inputs["CALCULATOR"], "I13": "Both"}}
+            expected_inputs = blank_schedule_defaults(identity, draft["inputs"])
             self.assertEqual(loaded["calculators"][identity]["inputs"], expected_inputs)
             self.assertEqual(loaded["calculators"][identity]["source_sha256"], source_model(identity)["source"]["sha256"])
         self.assertEqual(drafts, original_drafts)
@@ -106,7 +102,7 @@ class ProjectFileTests(unittest.TestCase):
         snapshot = json.loads(export_project(self.sender, {"estimate": {}}))
         self.assertEqual(set(snapshot["calculators"]), set(CALCULATOR_IDS))
         self.assertEqual(snapshot["calculators"]["ductwork"]["inputs"],
-                         {"CALCULATOR": {"B1010": "saved last row", "I13": "Both"}})
+                         blank_schedule_defaults("ductwork", saved))
         self.assertEqual(saved, {"CALCULATOR": {"B1010": "saved last row"}})
         self.assertEqual(snapshot["calculators"]["steel_vermiculite"]["inputs"], empty_schedule_inputs("steel_vermiculite"))
         self.assertEqual(stored_rows(self.sender), before)
@@ -218,7 +214,8 @@ class ProjectFileTests(unittest.TestCase):
         for value in (settings["D42"]["value"], default_calculator_inputs("steel_vermiculite")["SETTINGS"]["D42"]):
             inputs = {"SETTINGS": {"D42": value}}
             payload = export_project(self.sender, {"estimate": {}, "calculators": {"steel_vermiculite": {"inputs": inputs}}})
-            self.assertEqual(self.load(payload)["calculators"]["steel_vermiculite"]["inputs"], inputs)
+            self.assertEqual(self.load(payload)["calculators"]["steel_vermiculite"]["inputs"],
+                             blank_schedule_defaults("steel_vermiculite", inputs))
         # A locally retained historical reference must not become an authority
         # exception merely because an external file repeats its text.
         malicious = {"inputs": {"SETTINGS": {"D42": "Historical custom reference"}},

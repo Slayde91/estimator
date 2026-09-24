@@ -17,10 +17,11 @@ import unittest
 from openpyxl import load_workbook
 
 from estimator.catalog import ROOT
-from estimator.schedule_rows import empty_schedule_inputs
+from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.pricing_workbook import _serialize_exact
 from estimator.server import create_server, MAX_BODY
 from estimator.storage import Store
+from estimator.workbook_calculators import source_model
 
 
 PAGES = {
@@ -98,6 +99,19 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
     def cell(page, address):
         return next(cell for row in page["rows"] for cell in row["cells"] if cell["address"] == address)
 
+    @staticmethod
+    def source_examples(identity="ductwork"):
+        model = source_model(identity)
+        schedule = model["schedule"]
+        sheet = next(item for item in model["sheets"] if item["name"] == schedule["sheet"])
+        editable = {field["column"] for field in schedule["columns"] if field.get("editable")}
+        return {schedule["sheet"]: {
+            address: cell["value"] for address, cell in sheet["cells"].items()
+            if "".join(filter(str.isalpha, address)) in editable
+            and schedule["first_row"] <= int("".join(filter(str.isdigit, address))) <= schedule["last_row"]
+            and cell.get("value") not in (None, "")
+        }}
+
     def stored_rows(self):
         with self.store.connect() as db:
             return db.execute("SELECT id,data,updated_at FROM calculator_states ORDER BY id").fetchall()
@@ -141,9 +155,11 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), [])
 
     def test_draft_calculation_changes_expected_outputs_without_saving(self):
-        initial = self.calculate({})
+        examples = self.source_examples()
+        initial = self.calculate(examples)
         self.assertAlmostEqual(self.cell(initial, "K11")["value"], 10)
-        changed = self.calculate({"CALCULATOR": {"D11": 12.345678901234567}})
+        changed_inputs = {**examples, "CALCULATOR": {**examples["CALCULATOR"], "D11": 12.345678901234567}}
+        changed = self.calculate(changed_inputs)
         self.assertEqual(self.cell(changed, "D11")["value"], 12.345678901234567)
         self.assertAlmostEqual(self.cell(changed, "K11")["value"], 12.345678901234567)
         self.assertFalse(self.cell(changed, "K11")["editable"])
@@ -152,13 +168,13 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
         self.assertEqual(self.definition()["inputs"], empty_schedule_inputs('ductwork'))
         self.assertEqual(self.stored_rows(), [])
         self.assertIsNone(self.cell(self.calculate(), "B11")["value"])
-        self.assertEqual(self.cell(self.calculate({}), "K11")["value"], self.cell(initial, "K11")["value"])
+        self.assertEqual(self.cell(self.calculate(examples), "K11")["value"], self.cell(initial, "K11")["value"])
 
     def test_settings_affect_yield_and_calculations_are_session_isolated(self):
-        inputs = {"PRODUCT SETTINGS": {"B44": 10, "B45": 60, "B46": 20}}
+        inputs = {**self.source_examples(), "PRODUCT SETTINGS": {"B44": 10, "B45": 60, "B46": 20}}
         changed = self.calculate(inputs)
         self.assertAlmostEqual(self.cell(changed, "M11")["value"], 20)
-        original = self.calculate({})
+        original = self.calculate(self.source_examples())
         self.assertAlmostEqual(self.cell(original, "M11")["value"], 11.7)
         self.assertEqual(self.definition()["inputs"], empty_schedule_inputs('ductwork'))
         self.assertEqual(inputs["PRODUCT SETTINGS"]["B46"], 20)
@@ -166,9 +182,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
     def test_save_reopen_and_fresh_store_preserve_precision_and_source_hash(self):
         inputs = {"CALCULATOR": {"D11": 2.1234567890123457, "F11": 0, "G11": None},
                   "PRODUCT SETTINGS": {"B97": 1.22}}
-        # Sparse drafts inherit the source example's Mixed orientation; saving
-        # records its canonical Both value without rounding any supplied input.
-        expected = {**inputs, "CALCULATOR": {**inputs["CALCULATOR"], "I13": "Both"}}
+        expected = blank_schedule_defaults("ductwork", inputs)
         saved = self.save(inputs)
         self.assertEqual(saved["inputs"], expected)
         self.assertEqual(saved["source_sha256"], self.definition()["source"]["sha256"])
@@ -190,12 +204,11 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
             self.save(inputs, identity)
         self.assertEqual(len(self.stored_rows()), 3)
         for identity, inputs in supplied.items():
-            expected = ({**inputs, "CALCULATOR": {**inputs["CALCULATOR"], "I13": "Both"}}
-                        if identity == "ductwork" else inputs)
+            expected = blank_schedule_defaults(identity, inputs)
             self.assertEqual(self.definition(identity)["inputs"], expected)
         self.save({"CALCULATOR": {"D11": 7}})
         for identity in ("steel_vermiculite", "steel_board"):
-            self.assertEqual(self.definition(identity)["inputs"], supplied[identity])
+            self.assertEqual(self.definition(identity)["inputs"], blank_schedule_defaults(identity, supplied[identity]))
 
     def test_dynamic_schedule_windows_and_blank_rows_round_trip_without_hidden_data(self):
         definition = self.definition()
@@ -240,7 +253,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
 
     def test_import_is_a_draft_then_save_replaces_schedule_and_keeps_settings(self):
         old = {"CALCULATOR": {"B11": "400x200", "D11": 4}, "PRODUCT SETTINGS": {"B97": 1.22}}
-        expected_old = {**old, "CALCULATOR": {**old["CALCULATOR"], "I13": "Both"}}
+        expected_old = blank_schedule_defaults("ductwork", old)
         self.save(old)
         before = self.stored_rows()
         workbook = load_workbook(BytesIO(self.exported()))

@@ -155,6 +155,23 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await walk(other.detailPanel).find(node=>node.dataset.libraryBack).emit('click');await flush();assert.equal(h.context.audit.state.current,'penetration');assert.equal(pane.selected,'penetration-1');
     await walk(pane.detailPanel).find(node=>node.dataset.libraryBackToResults).emit('click');await flush();assert.equal(pane.list.hidden,false);assert.equal(pane.detailPanel.hidden,true);assert.equal(pane.searchInput.value,'original filter');assert.equal(pane.searchInput.focused,true);
   });
+  await check('Both detail directions use accessible back and unlink symbols, and unlink reloads the same record',async h=>{
+    let unlinked=false;const confirmations=[];h.context.window.CeasefirePenetrationNavigation={confirm:async(...args)=>{confirmations.push(args);return true;}};
+    h.setRoute((path,options)=>{
+      if(path==='/api/libraries')return meta();
+      if(path.endsWith('/links/remove')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{technical_id:'technical-1'});unlinked=true;return{unlinked:true,penetration_id:'penetration-1',technical_id:'technical-1'};}
+      if(path.includes('?'))return records(path.includes('/technical')?'technical':'penetration');
+      const kind=path.includes('/technical/')?'technical':'penetration',id=decodeURIComponent(path.split('/').at(-1));return{...detail(kind,id),links:unlinked?[]:detail(kind,id).links};
+    });
+    for(const kind of ['penetration','technical']){
+      await h.api.open(kind,kind+'-1');const pane=h.pane(kind),back=walk(pane.detailPanel).find(node=>node.dataset.libraryBackToResults),remove=walk(pane.detailPanel).find(node=>node.dataset.libraryUnlink);
+      assert.equal(back.textContent,'');assert.equal(back.getAttribute('aria-label'),'Back to results');assert.equal(back.title,'Back to results');assert.match(text(back),/←/);
+      assert.ok(remove);assert.match(remove.getAttribute('aria-label'),kind==='penetration'?/Unlink technical reference/:/Unlink firestopping record/);
+      if(kind==='penetration'){await remove.emit('click');await flush();assert.equal(pane.selected,'penetration-1');assert.equal(walk(pane.detailPanel).filter(node=>node.dataset.libraryUnlink).length,0);assert.match(pane.message.textContent,/Technical reference unlinked/);}
+      unlinked=false;
+    }
+    assert.deepEqual(confirmations[0],['Unlink technical reference?','Related synthetic record will be unlinked from this library record.','Unlink']);
+  });
   await check('A pending record cannot reopen itself after Back to results',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration'),pending=deferred();h.setRoute(()=>pending.promise);
     const opening=h.api.open('penetration','slow');await flush();await walk(pane.detailPanel).find(node=>node.dataset.libraryBackToResults).emit('click');pending.resolve(detail('penetration','slow'));await opening;
@@ -230,16 +247,16 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const pending=deferred();h.context.window.CeasefirePenetrations={addLibraryItem:()=>pending.promise};await h.api.open('penetration','first');const pane=h.pane('penetration'),work=walk(pane.detailPanel).find(node=>node.dataset.libraryAdd).emit('click');await flush();await h.api.open('penetration','second');pending.resolve({added:true,message:'Old item added at $1.23'});await work;
     assert.equal(pane.selected,'second');assert.doesNotMatch(text(pane.detailPanel),/Old item added/);
   });
-  await check('Manual link selection saves only IDs, refreshes reciprocal caches and full totals, and preserves list controls',async h=>{
+  await check('Manual multi-link selection saves only IDs, refreshes reciprocal caches and full totals, and preserves list controls',async h=>{
     let saved=false;h.setRoute((path,options)=>{
       if(path==='/api/libraries')return{libraries:[{id:'penetration',available:true,count:2,unlinked_count:saved?0:1},{id:'technical',available:true,count:2}]};
-      if(path.endsWith('/links')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{technical_id:'technical-1'});saved=true;return{linked:true,created:true,penetration_id:'penetration-1',technical_id:'technical-1'}};
-      if(path.includes('/technical?'))return records('technical');if(path.includes('?'))return{...records('penetration'),counts:{total:2,linked:saved?2:1,unlinked:saved?0:1}};
+      if(path.endsWith('/links')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{technical_ids:['technical-1','technical-2']});saved=true;return{linked:true,penetration_id:'penetration-1',technical_ids:['technical-1','technical-2'],created_ids:['technical-1','technical-2'],existing_ids:[]}};
+      if(path.includes('/technical?'))return{...records('technical'),items:[{id:'technical-1',title:'First choice'},{id:'technical-2',title:'Second choice'}],total:2};if(path.includes('?'))return{...records('penetration'),counts:{total:2,linked:saved?2:1,unlinked:saved?0:1}};
       return{...detail('technical','technical-1'),links:saved?[{kind:'penetration',id:'penetration-1',title:'New reciprocal link'}]:[]};
     });
     await h.api.open('technical','technical-1');await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='keep';await pane.searchInput.emit('input');await h.runTimers();const ref=walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='technical_reference');ref.value='any';await ref.emit('change');await flush();
-    await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession;assert.equal(pane.list.hidden,true);assert.equal(session.save.disabled,true);await walk(session.results).find(node=>node.dataset.libraryLinkChoice==='technical-1').emit('change');assert.equal(session.save.disabled,false);await session.save.emit('click');await flush();
-    assert.equal(pane.linkSession,null);assert.equal(pane.list.hidden,false);assert.equal(pane.searchInput.value,'keep');assert.equal(pane.filters.technical_reference,'any');assert.match(pane.message.textContent,/Technical reference linked/);assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['2','0']);
+    await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession,choices=walk(session.results).filter(node=>node.dataset.libraryLinkChoice);assert.equal(pane.list.hidden,true);assert.equal(session.save.disabled,true);for(const choice of choices){choice.checked=true;await choice.emit('change');}assert.equal(session.save.disabled,false);assert.equal(session.save.textContent,'Save links (2)');await session.save.emit('click');await flush();
+    assert.equal(pane.linkSession,null);assert.equal(pane.list.hidden,false);assert.equal(pane.searchInput.value,'keep');assert.equal(pane.filters.technical_reference,'any');assert.match(pane.message.textContent,/2 technical references linked/);assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['2','0']);
     await h.api.open('technical','technical-1');assert.match(text(h.pane('technical').detailPanel),/New reciprocal link/);
   });
   await check('Link search is encoded and paginated; stale results cannot replace a later query or cancelled picker',async h=>{
@@ -249,13 +266,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const late=deferred();h.setRoute(()=>late.promise);session.searchInput.value='late';await session.searchInput.emit('input');const loading=h.runTimers();await flush();const cancel=session.cancel.emit('click');await flush();late.resolve(records('technical'));await loading;await cancel;assert.equal(pane.linkSession,null);assert.equal(pane.linkPanel.hidden,true);assert.equal(pane.list.hidden,false);
   });
   await check('Link failures retain selection for retry, reject unconfirmed receipts, and duplicate receipts are successful',async h=>{
-    let outcome='error';h.setRoute((path,options)=>{if(path==='/api/libraries')return meta();if(path.endsWith('/links'))return outcome==='error'?{error:'Target is unavailable'}:outcome==='unconfirmed'?{}:{linked:true,created:false,penetration_id:'penetration-1',technical_id:'technical-1'};return records(path.includes('/technical')?'technical':'penetration')});
-    await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession;await walk(session.results).find(node=>node.dataset.libraryLinkChoice).emit('change');await session.save.emit('click');assert.equal(pane.linkSession,session);assert.equal(session.selected,'technical-1');assert.equal(session.save.disabled,false);assert.match(session.message.textContent,/not confirmed.*Target is unavailable.*Retry to check the same link/);
+    let outcome='error';h.setRoute((path,options)=>{if(path==='/api/libraries')return meta();if(path.endsWith('/links'))return outcome==='error'?{error:'Target is unavailable'}:outcome==='unconfirmed'?{}:{linked:true,penetration_id:'penetration-1',technical_ids:['technical-1'],created_ids:[],existing_ids:['technical-1']};return records(path.includes('/technical')?'technical':'penetration')});
+    await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession,choice=walk(session.results).find(node=>node.dataset.libraryLinkChoice);choice.checked=true;await choice.emit('change');await session.save.emit('click');assert.equal(pane.linkSession,session);assert.deepEqual([...session.selected],['technical-1']);assert.equal(session.save.disabled,false);assert.match(session.message.textContent,/not confirmed.*Target is unavailable.*Retry to check the same links/);
     outcome='unconfirmed';await session.save.emit('click');assert.match(session.message.textContent,/did not confirm/);assert.equal(pane.linkSession,session);outcome='duplicate';await session.save.emit('click');assert.equal(pane.linkSession,null);assert.match(pane.message.textContent,/already linked/);
   });
   await check('A link save completing after navigation updates caches without reopening its abandoned picker',async h=>{
     const pending=deferred();h.setRoute(path=>path==='/api/libraries'?meta():path.endsWith('/links')?pending.promise:path.includes('?')?records(path.includes('/technical')?'technical':'penetration'):detail('technical','other'));
-    await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession;await walk(session.results).find(node=>node.dataset.libraryLinkChoice).emit('change');const saving=session.save.emit('click');await flush();assert.equal(session.cancel.disabled,true);assert(session.choices.every(choice=>choice.disabled));await h.api.open('technical','other');pending.resolve({linked:true,created:true,penetration_id:'penetration-1',technical_id:'technical-1'});await saving;
+    await h.api.open('penetration');const pane=h.pane('penetration');await walk(pane.results).find(node=>node.dataset.libraryLink).emit('click');await flush();const session=pane.linkSession,choice=walk(session.results).find(node=>node.dataset.libraryLinkChoice);choice.checked=true;await choice.emit('change');const saving=session.save.emit('click');await flush();assert.equal(session.cancel.disabled,true);assert(session.choices.every(choice=>choice.disabled));await h.api.open('technical','other');pending.resolve({linked:true,penetration_id:'penetration-1',technical_ids:['technical-1'],created_ids:['technical-1'],existing_ids:[]});await saving;
     assert.equal(pane.linkSession,null);assert.equal(pane.linkPanel.hidden,true);assert.equal(h.context.audit.state.current,'technical');assert.equal(h.pane('technical').selected,'other');assert.match(text(h.pane('technical').detailPanel),/Synthetic other/);assert.equal(h.pane('technical').data,null);
   });
   await check('Schedule quantities update card and detail badges without replacing results, controls, pagination or scroll',async h=>{

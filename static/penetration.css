@@ -66,6 +66,7 @@
 .penetration-schedule-workspace{display:grid;gap:22px;min-width:0}
 .penetration-schedule-workspace[hidden]{display:none}
 .penetration-schedule-workspace .card{min-width:0}
+.penetration-schedule-downloads{margin-top:0}
 .firestopping-breakdown-part>summary{cursor:pointer;list-style-position:outside}
 .firestopping-breakdown-part>summary h3{display:inline}
 .firestopping-breakdown-part{margin-top:18px;padding:14px 18px 16px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fff}

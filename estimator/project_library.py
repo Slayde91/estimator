@@ -18,7 +18,7 @@ import time
 
 from .catalog import ValidationError
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, MAX_PROJECT_FILE, export_project, has_project_identity, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, export_project, has_project_identity, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
@@ -519,7 +519,8 @@ class ProjectLibrary:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if not isinstance(request["calculators"], dict) or set(request["calculators"]) != set(CALCULATOR_IDS):
             raise ValidationError("Save must include all three calculator drafts.")
-        if not isinstance(request["estimate"], dict) or set(request["estimate"]) != ESTIMATE_FIELDS:
+        if (not isinstance(request["estimate"], dict) or not ESTIMATE_REQUIRED_FIELDS <= set(request["estimate"])
+                or set(request["estimate"]) - ESTIMATE_FIELDS):
             raise ValidationError("Save must include the complete estimate inputs and pricing snapshot.")
         token = request["save_token"]
         if not isinstance(token, str):

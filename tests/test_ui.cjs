@@ -31,7 +31,7 @@ vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,
-    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,
+    quoteDetails,updateQuoteTitle,reportPayload,downloadQuotePdf,controlValue,formatNumber,formatMoney,calculate,renderInputs,renderResults,showView,bootstrap,renderPricing,refreshPricingCatalog,projectStamp,addWorkItem,removeWorkItem,
     setRequest(fn){request=fn;}, setFetch(fn){globalThis.fetch=fn;},setRenderPricing(fn){renderPricing=fn;},setRenderInputs(fn){renderInputs=fn;}};
   renderInputs=()=>{}; renderPricing=()=>{state.pricingDirty=JSON.stringify(state.draft)!==JSON.stringify(state.configuration);};
   globalThis.scheduled=0; scheduleCalculation=()=>{globalThis.scheduled++;};
@@ -47,7 +47,7 @@ const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New s
 const oldConfig={inventory:{},rates:{},version:'old'};
 const newConfig={inventory:{},rates:{},version:'new'};
 function setup(){
-  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0,projectPricingDraft:null,libraryDraft:null,pricingScope:'library',pricingRevision:0,projectFile:null,projectBusy:false,initialized:false});
+  Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},workItems:[],workItemErrors:new Map(),workItemDrafts:new Map(),nextWorkItem:1,dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0,projectPricingDraft:null,libraryDraft:null,pricingScope:'library',pricingRevision:0,projectFile:null,projectBusy:false,initialized:false});
   for(const id of ['project-no','client','site-address','measurements'])byId(id).value='';
 }
 async function openOlder(id, button) {
@@ -185,6 +185,7 @@ let passed=0;
     audit.setFetch((path,options)=>{reportPath=path;reportOptions=options;return pending.promise;});
     const download=audit.downloadQuotePdf();
     assert.equal(byId('download-quote-pdf').disabled,true);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),'true');
+    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Preparing PDF Estimate…');
     audit.state.inputs.B12='Later workbook note';byId('measurements').value='Later general note';audit.state.dirty=true;
     audit.state.projectFile={save_token:'new-target'};
     pending.resolve(savedResponse());
@@ -203,6 +204,7 @@ let passed=0;
     assert.deepEqual(copy(audit.state.quoteConfiguration||audit.state.configuration),beforeConfig);assert.equal(audit.state.dirty,true);
     assert.match(byId('app-message').textContent,/Later edits are not included/);
     assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);
+    assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Download PDF Estimate');
   }passed++;
 
   // Failed writes never claim success or mutate the current draft, and release
@@ -333,6 +335,9 @@ let passed=0;
     {key:'wraps',label:'Wrap Type',list_column:'E',keywords:['wrap']},
     {key:'materials',label:'Materials',list_column:'AR',keywords:['material']}]}};
   byId('pricing-search').value='';byId('rate-group').value='';audit.setRenderPricing(audit.renderPricing);audit.refreshPricingCatalog();audit.renderPricing();
+  assert.deepEqual(byId('rate-group').children.map(option=>[option.value,option.textContent]),[
+    ['','All estimator availability'],['main-estimator','Main Estimator'],['primers','Main Estimator — Primers'],['topcoats','Main Estimator — Topcoats'],['labour_rates','Main Estimator — Labour'],['sprays','Main Estimator — Sprays'],
+    ['firestopping','Firestopping Estimator'],['firestopping:collars','Firestopping Estimator — Collar Type'],['firestopping:wraps','Firestopping Estimator — Wrap Type'],['firestopping:materials','Firestopping Estimator — Materials'],['not-used','Not used in either estimator']]);
   const originalPricing=JSON.stringify(pricingFixture);
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
@@ -390,6 +395,7 @@ let passed=0;
   const sharedRow=productRows()[0];audit.state.quoteConfiguration={inventory:{coat:{supplier_price:333.123456}},rates:{}};
   byId('pricing-scope').value='project';await byId('pricing-scope').emit('change');
   assert.notEqual(productRows()[0],sharedRow);assert.equal(productInput('coat','supplier_price').value,'333.12');
+  assert.equal(byId('save-pricing').textContent,'Apply');assert.equal(byId('save-pricing').title,'Apply project pricing');assert.equal(byId('save-pricing').getAttribute('aria-label'),'Apply project pricing');
   const projectRow=productRows()[0];audit.showView('estimate');audit.showView('pricing');assert.equal(productRows()[0],projectRow);
   byId('pricing-scope').value='library';await byId('pricing-scope').emit('change');
   assert.equal(productInput('coat','supplier_price').value,'100.12');assert.equal(audit.state.projectPricingDraft.inventory.coat.supplier_price,333.123456);
@@ -412,12 +418,14 @@ let passed=0;
   // Filters find every use, standalone rate and unused inventory item without changing membership.
   byId('rate-group').value='primers';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
   assert.equal(productInput('coat','Main Estimator groups').value,'Primers; Topcoats');
+  byId('rate-group').value='main-estimator';await byId('rate-group').emit('change');assert.ok(productRows().some(row=>row.dataset.priceId==='coat'));assert.ok(!productRows().some(row=>row.dataset.priceId==='unused'));
   byId('rate-group').value='firestopping';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
+  byId('rate-group').value='firestopping:collars';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
   byId('rate-group').value='not-used';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['manual']);
   byId('rate-group').value='';await byId('rate-group').emit('change');
   await editList('unused','Firestopping Estimator groups','Wrap Type; Materials');
   assert.deepEqual(audit.state.catalog.inventory.find(item=>item.id==='unused').firestopping_groups,['wraps','materials']);
-  byId('rate-group').value='firestopping';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
+  byId('rate-group').value='firestopping:wraps';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
   await editList('unused','Firestopping Estimator groups','');
   assert.deepEqual(audit.state.catalog.inventory.find(item=>item.id==='unused').firestopping_groups,[]);
   byId('rate-group').value='not-used';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused','manual']);
@@ -615,6 +623,21 @@ let passed=0;
   assert.doesNotMatch(html,/Selected item breakdown|Calculation source|id="penetration-source"/);
   assert.match(html,/<th scope="col">Item<\/th><th scope="col">Service Type<\/th>/);passed++;
 
+  // Every material row can be duplicated with the same editable inputs and its
+  // extra row is included in calculation/report payloads until removed.
+  setup();audit.state.fields=JSON.parse(fs.readFileSync('data/calculator.json','utf8')).fields;
+  audit.state.inputs=Object.fromEntries(audit.state.fields.map(field=>[field.cell,field.default??'']));audit.state.inputs.D4='1 Team - 1x';audit.setRenderInputs(audit.renderInputs);audit.renderInputs();
+  audit.addWorkItem(20);const duplicate=audit.state.workItems[0];
+  assert.equal(duplicate.source_row,20);assert.deepEqual(copy(duplicate.inputs),Object.fromEntries(['B','C','D','E'].map(column=>[column,audit.state.inputs[`${column}20`]])));
+  assert.equal(byId('material-inputs').children.length,10);assert.equal(audit.reportPayload().work_items[0].id,duplicate.id);
+  const duplicateCoverage=inputDescendants(byId('material-inputs')).find(node=>node.id===`work-item-${duplicate.id}-B`);
+  duplicateCoverage.value='12';await duplicateCoverage.emit('input');assert.equal(duplicate.inputs.B,12);assert.equal(audit.state.dirty,true);
+  const duplicateRow=byId('material-inputs').children.find(row=>row.dataset.workItem===duplicate.id);
+  const duplicateAction=inputDescendants(duplicateRow).find(node=>node.title==='Duplicate Primer work item');
+  await duplicateAction.emit('click');assert.equal(audit.state.workItems.length,2);
+  const removeAction=inputDescendants(duplicateRow).find(node=>node.title==='Remove Primer duplicated work item');
+  await removeAction.emit('click');assert.equal(audit.state.workItems.length,1);passed++;
+
   // Main Estimator sections from Access & Travel onwards are expandable and closed by default.
   assert.match(html,/<details class="card expandable-breakdown" aria-labelledby="materials-heading">\s*<summary><h2 id="materials-heading">Material Requirements &amp; Output<\/h2><\/summary>/);
   assert.match(html,/<details class="card expandable-breakdown penetration-schedule" aria-labelledby="penetration-schedule-heading">\s*<summary><h2 id="penetration-schedule-heading">Firestopping Schedule<\/h2>/);
@@ -742,10 +765,10 @@ let passed=0;
   context.window.CeasefireLibraries={open(kind,id){libraryReturns.push({kind,id});}};
   context.window.CeasefireLibraryEditor={isOpen:()=>librarySession};
   audit.state.inputs.D15='Unchanged project input';audit.state.draft.rates.unsaved={price:77.123456789};const protectedState=copy({inputs:audit.state.inputs,draft:audit.state.draft});
-  context.window.CeasefireLibraryEditorNavigation.show();assert.equal(audit.state.currentView,'estimate');assert.equal(audit.state.estimatorKind,'penetration');assert.equal(projectOpens,0);
+  context.window.CeasefireLibraryEditorNavigation.show();assert.equal(audit.state.currentView,'calculators');assert.equal(audit.state.estimatorKind,'penetration');assert.equal(projectOpens,0);
   assert.equal(byId('firestopping-project-workspace').hidden,true);assert.equal(byId('firestopping-library-editor').hidden,false);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'library-editor-heading');
   context.window.CeasefireLibraryEditorNavigation.returnToLibrary('legacy-row-4');assert.deepEqual(libraryReturns,[{kind:'penetration',id:'legacy-row-4'}]);assert.equal(audit.state.currentView,'pricing');
-  librarySession=false;audit.showView('estimate');assert.equal(projectOpens,1);assert.equal(byId('firestopping-project-workspace').hidden,false);assert.equal(byId('firestopping-library-editor').hidden,true);
+  librarySession=false;audit.showView('estimate');assert.equal(projectOpens,0);assert.equal(byId('firestopping-project-workspace').hidden,false);assert.equal(byId('firestopping-library-editor').hidden,true);
   assert.deepEqual(copy({inputs:audit.state.inputs,draft:audit.state.draft}),protectedState);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'penetration-heading');
   context.window.CeasefirePenetrations=priorPenetrations;context.window.CeasefireLibraries=priorLibraries;delete context.window.CeasefireLibraryEditor;passed++;
 
@@ -760,7 +783,7 @@ let passed=0;
   const markup=fs.readFileSync('static/index.html','utf8');
   const actionCss=fs.readFileSync('static/styles.css','utf8');
   assert.doesNotMatch(markup,/id="save-quote"/);assert.match(markup,/id="save-project"[^>]*class="button save-button"/);
-  assert.match(markup,/id="download-quote-pdf"[^>]*class="button pdf-button"/);
+  assert.match(markup,/id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*icon-only[^"]*"[^>]*aria-label="Download PDF Estimate"[^>]*title="Download PDF Estimate"/);
   assert.ok(actionCss.includes('.button.save-button{color:#332600;background:#ffdb66;'));
   assert.ok(actionCss.includes('.button.pdf-button{color:#fff;background:#c5221f;'));
   assert.ok(actionCss.includes('.button[aria-busy=true]::after'));
@@ -772,10 +795,13 @@ let passed=0;
   assert.match(markup,/id="add-pricing-item"[^>]*>\+ Add item<\/button>/);assert.match(markup,/id="link-project-folder"[^>]*aria-label="Link Project Folder"/);assert.match(markup,/id="refresh-quotes"[^>]*aria-label="Refresh"/);
   const pricingTable=markup.indexOf('class="pricing-table"');
   for(const id of ['export-pricing','import-pricing','discard-pricing','reset-pricing','save-pricing'])assert.ok(markup.indexOf(`id="${id}"`)<pricingTable);
+  assert.match(markup,/id="pricing-scope"><option value="library">Main Library<\/option><option value="project">Current Project<\/option>/);
+  for(const [id,label] of [['export-pricing','Export Excel'],['import-pricing','Import Excel'],['discard-pricing','Discard Changes'],['reset-pricing','Reset Library']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   assert.ok(markup.indexOf('id="add-pricing-item"')>markup.indexOf('id="pricing-body"'));
   assert.match(markup,/id="penetration-undo"[^>]*class="button secondary icon-only"[^>]*aria-label="Undo remove"[^>]*title="Undo remove"/);
   assert.match(markup,/id="penetration-excel"[^>]*class="button excel-button icon-only schedule-download-button"[^>]*aria-label="Download schedule XLSX"[^>]*title="Download schedule XLSX"/);
   assert.match(markup,/id="penetration-pdf"[^>]*class="button pdf-button icon-only schedule-download-button"[^>]*aria-label="Download schedule PDF"[^>]*title="Download schedule PDF"/);
+  assert.match(markup,/<details class="card expandable-breakdown penetration-schedule"[\s\S]*?<\/details>\s*<div class="penetration-row-tools penetration-schedule-downloads"><button id="penetration-excel"/);
   assert.ok(actionCss.includes('.pricing-table-actions{'));assert.ok(actionCss.includes('.pricing-add-item-action{'));assert.ok(actionCss.includes('.schedule-download-button{'));
   assert.doesNotMatch(markup,/Estimating workflow|id="workflow"|Choose a workflow|Dimensions and takeoff notes/);
   assert.doesNotMatch(source,/\$\("workflow"\)|Choose a workflow/);

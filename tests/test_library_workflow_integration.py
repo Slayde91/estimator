@@ -206,6 +206,28 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         self.assertEqual(self.protected(), before)
         self.assert_source_unchanged()
 
+    def test_reference_unlink_is_reciprocal_persistent_and_can_be_relinked_in_one_batch(self):
+        before = self.protected()
+        endpoint = '/api/libraries/penetration/pkb-001'
+        self.assertEqual([item['id'] for item in self.get(endpoint)['links']], ['report-a-v1'])
+        status, removed = self.request('POST', endpoint + '/links/remove', {'technical_id': 'report-a-v1'})
+        self.assertEqual(status, 200, removed)
+        self.assertEqual(removed, {'unlinked': True, 'penetration_id': 'pkb-001', 'technical_id': 'report-a-v1'})
+        self.assertEqual(self.get(endpoint)['links'], [])
+        self.assertNotIn('pkb-001', {item['id'] for item in self.get('/api/libraries/technical/report-a-v1')['links']})
+        self.restart_server()
+        self.assertEqual(self.get(endpoint)['links'], [])
+        status, linked = self.request('POST', endpoint + '/links', {'technical_ids': ['report-a-v1']})
+        self.assertEqual(status, 200, linked)
+        self.assertEqual(linked['technical_ids'], ['report-a-v1'])
+        self.assertEqual(linked['created_ids'], ['report-a-v1'])
+        self.assertEqual(linked['existing_ids'], [])
+        self.restart_server()
+        self.assertEqual([item['id'] for item in self.get(endpoint)['links']], ['report-a-v1'])
+        self.assertEqual(sum(item['id'] == 'pkb-001' for item in self.get('/api/libraries/technical/report-a-v1')['links']), 1)
+        self.assertEqual(self.protected(), before)
+        self.assert_source_unchanged()
+
     def test_invalid_creation_and_reference_requests_leave_no_partial_writes(self):
         before = self.protected()
         invalid = []
@@ -234,6 +256,8 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         endpoint = '/api/libraries/penetration/' + created['id'] + '/links'
         for body, expected in (({'technical_id': '../outside'}, 400),
                                ({'technical_id': 'report-a-v1', 'relationship': 'Approved'}, 400),
+                               ({'technical_ids': []}, 400),
+                               ({'technical_ids': ['report-a-v1', 'report-a-v1']}, 400),
                                ({'technical_id': 'missing-reference'}, 404)):
             status, response = self.request('POST', endpoint, body)
             self.assertEqual(status, expected, response)
@@ -247,7 +271,8 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         before = self.protected()
         body = self.creation()
         routes = [('/api/libraries/penetration', body),
-                  ('/api/libraries/penetration/pkb-002/links', {'technical_id': 'report-a-v1'})]
+                  ('/api/libraries/penetration/pkb-002/links', {'technical_id': 'report-a-v1'}),
+                  ('/api/libraries/penetration/pkb-001/links/remove', {'technical_id': 'report-a-v1'})]
         for path, payload in routes:
             with self.subTest(path=path):
                 self.assertEqual(self.request('PUT', path, payload)[0], 405)

@@ -189,6 +189,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.create(body))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/links/remove', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.remove_link(route.split('/')[-3], body))
                 elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/links', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -358,14 +363,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     quote["id"] = None
                     self.send_report(quote, "Current estimate", destination)
                 elif route == "/api/calculate" and self.command == "POST":
-                    if set(body) - {"inputs", "configuration", "workflow", "penetration"}:
+                    if set(body) - {"inputs", "configuration", "workflow", "penetration", "work_items"}:
                         raise ValidationError("Unknown calculation request fields.")
                     workflow = body.get("workflow", WORKFLOWS[0])
                     if not isinstance(workflow, str) or len(workflow) > 200:
                         raise ValidationError("Workflow must be text of at most 200 characters.")
                     if 'penetration' in body and body['penetration'] is None:
                         raise ValidationError('Include the Firestopping schedule draft only in the estimate.')
-                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()), body.get('penetration'))
+                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()), body.get('penetration'), body.get('work_items'))
                     self.send_payload(200, {**result, "error_details": calculation_error_details(result),
                                             "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":

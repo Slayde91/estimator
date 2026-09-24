@@ -415,6 +415,12 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             LOGGER.info("%s", format_string % args)
 
     class Server(ThreadingHTTPServer):
+        # ThreadingHTTPServer enables SO_REUSEADDR by default. On Windows that
+        # permits two Estimator processes to bind the same port, after which
+        # requests can be split between different code and in-memory state.
+        # A local desktop application must have one authoritative process.
+        allow_reuse_address = False
+
         def server_close(self):
             try:
                 super().server_close()

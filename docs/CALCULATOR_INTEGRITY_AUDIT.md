@@ -1,4 +1,42 @@
-# Calculator integrity audit — 17 September 2026
+# Calculator integrity audit
+
+## Current local-source review — 24 September 2026
+
+The strict audit still correctly reports `ductwork` and `steel_board` as
+different files from the frozen packages. The current local `steel_vermiculite`
+workbook remains an exact match. The strict verdict includes byte identity,
+Excel storage and presentation metadata, so a failed verdict does not by itself
+mean that an estimating formula changed.
+
+| Workbook | Strict result | Differences that can affect the runtime model | Other differences |
+| --- | --- | --- | --- |
+| Ductwork | 77,158 changed fields; current SHA-256 `7ad569ad83d66298d7fba3c291a836b6e75cbfbc687c02fc53df837e2e45299b`, frozen SHA-256 `9b2e5388a0118c4b3f66ea57f582d487d156585b45d9f34ebc8178f270ff7462` | No formula-logic differences and no fixed-literal differences. Twenty editable schedule defaults differ. | All 38 formula strings differ only by optional quotes around the simple `CALCULATOR` sheet name. The other 77,100 fields are source identity, styles, caches, shared-formula attributes, data types or workbook metadata. |
+| Steel board | 188,521 changed fields; current SHA-256 `d74b970b701233a76162228b5edb81873f87920ca75bd696539a0ffe4f942b8e`, frozen SHA-256 `934e951e4255976a7d3fea64f77b0b0a7f1852174fecb126e76a640f0a38546d` | No formula-logic, fixed-literal or editable-default differences. | All 307 formula strings differ only by optional quotes around simple sheet names. The remaining changes are raw XML whitespace, source identity, styles, caches, shared-formula attributes, data types or workbook metadata. |
+
+The 20 ductwork defaults are confined to editable cells `B13:I15`. Row 13
+changes the example size from `250x250` to `500x500`, changes the G flag from
+`1` to `0`, and changes Application/Orientation from `Internal`/`Mixed` to
+`Both`/`Horizontal`. Rows 14 and 15 are newly populated `500x500` FyreWrap
+examples with length 10 and FRL `120/120/120`. Their F/G flags are `1/0` and
+`0/0`; their Application/Orientation choices are `Stair pressurisation`/
+`Horizontal` and `Internal`/`Mixed`. These are sample starting inputs, not
+calculation formulas.
+
+The running Estimator loads the frozen `data/calculators/*.json.gz` models and
+then applies the separately approved runtime policies. It does not read these
+three local XLSX files during normal use. The current local differences therefore
+do not stop projects, libraries, calculations, reports or saves from working.
+They matter only if a current local workbook is proposed as a new authoritative
+source package: the changed sample defaults would then need an explicit product
+decision, a controlled reimport and renewed native Excel parity evidence.
+
+The audit now reports an `impact_counts` section. It separates changed formula
+logic, fixed literals and editable defaults from optional sheet-name quoting,
+raw source-string storage and representation/provenance differences. This makes
+the concern visible without weakening the exact source-identity failure or
+silently accepting a changed workbook.
+
+## 17 September 2026 review
 
 The calculation-integrity investigation found no changed calculation logic in
 the current source workbooks. The app's frozen source packages and runtime

@@ -48,7 +48,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .estimator-child[hidden]{display:none!important}
 .estimator-child>.page-heading h2{font-size:28px}
 @media(max-width:650px){.estimator-choices{grid-template-columns:1fr;gap:10px}.estimator-choice{min-height:0;padding:15px 18px}}
-@media print{.estimator-choices,#estimator-view-heading{display:none!important}}
+@media print{.estimator-choices,#estimate-heading{display:none!important}}
 .actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .project-save-actions,.project-edit-actions{display:inline-flex;gap:9px;align-items:center}
 .project-tools{display:grid;grid-template-columns:minmax(220px,1fr) minmax(250px,1fr) auto;align-items:center;gap:18px;padding:16px 22px 18px;margin-bottom:28px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:12px;background:#fff}
@@ -144,6 +144,8 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .materials-table .work-item-actions{display:flex;gap:6px;align-items:center;justify-content:center}
 .materials-table .work-item-action{width:38px;height:38px;min-width:38px;padding:0;border-radius:8px}
 .materials-table .work-item-action .button-symbol{font-size:17px}
+.pricing-action-symbol,.pricing-action-symbol svg{display:block;width:24px;height:24px}
+.pricing-reset-symbol{color:var(--red)}
 .materials-table .duplicated-work-item{background:#fffaf2}
 .materials-table .duplicated-work-item .material-label{border-left:3px solid var(--red)}
 .material-label{font-weight:650;font-size:12px}

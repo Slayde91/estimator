@@ -51,31 +51,35 @@
     const response = await fetch(path, payload === undefined ? { headers: { Accept: "application/json" } } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`); return data;
   }
-  function message(text = "", error = false, scope = state) { const el = $(scope === state ? "penetration-message" : "penetration-schedule-message"); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
+  function message(text = "", error = false, scope = state) {
+    const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
+    for (const id of ids) { const el = $(id); el.textContent = text; el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
+  }
   function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
   const persisted = () => ({ draft: state.schedule.draft, composer: state.draft });
   function hasUnsavedChanges() { return !!state.draft && (stable(canonicalSnapshot(persisted())) !== state.saved || state.invalid.size > 0 || state.schedule.invalid.size > 0 || state.diagramChange !== undefined); }
   function status(text) {
-    $("penetration-status").textContent = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
+    const statusText = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
+    for (const id of ["penetration-status", "penetration-estimator-status"]) $(id).textContent = statusText;
     const blocked = !state.draft || state.invalid.size > 0, scheduleBlocked = !state.schedule.draft || state.schedule.invalid.size > 0;
     $("penetration-recalculate").disabled = blocked || state.calculating;
-    $("penetration-add").disabled = !state.draft;
+    for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).disabled = !state.draft;
     $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
     $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
     $("penetration-update-schedule").hidden = !state.edit;
     $("penetration-update-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.updatingSchedule || !validEdit();
     $("penetration-cancel-edit").hidden = !state.edit;
-    $("penetration-schedule-recalculate").disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
-    for (const id of ["penetration-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
+    for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).disabled = scheduleBlocked || state.schedule.calculating || state.downloading;
+    for (const id of ["penetration-pdf", "penetration-item-pdf", "penetration-excel"]) $(id).disabled = scheduleBlocked || state.downloading;
     buttonBusy("penetration-recalculate", state.calculating);
     buttonBusy("penetration-add-to-library", state.creatingLibrary);
     buttonBusy("penetration-add-to-schedule", state.addingSchedule);
     buttonBusy("penetration-update-schedule", state.updatingSchedule);
-    buttonBusy("penetration-schedule-recalculate", state.schedule.calculating);
-    buttonBusy("penetration-pdf", state.downloading && state.downloadKind === "pdf");
+    for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) buttonBusy(id, state.schedule.calculating);
+    for (const id of ["penetration-pdf", "penetration-item-pdf"]) buttonBusy(id, state.downloading && state.downloadKind === "pdf");
     buttonBusy("penetration-excel", state.downloading && state.downloadKind === "xlsx");
-    $("penetration-undo").disabled = scheduleBlocked || !state.removed.length;
-    for (const button of $("penetration-schedule-body").querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
+    for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).disabled = scheduleBlocked || !state.removed.length;
+    for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
     if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
     if ($("penetration-diagram-remove")) $("penetration-diagram-remove").disabled = state.creatingLibrary;
     window.CeasefireProject?.changed?.();
@@ -580,7 +584,7 @@
     renderDiagram();
   }
   function refreshControls() {
-    for (const parent of [$("penetration-item-quantity"), $("penetration-row-fields"), $("penetration-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
+    for (const parent of [$("penetration-item-quantity"), $("penetration-row-fields"), $("penetration-schedule-body"), $("penetration-estimator-schedule-body")]) for (const control of parent.querySelectorAll("[data-penetration-field]")) {
       if (control.dataset.penetrationPaired) { control.refreshDimension?.(); continue; }
       const rowId = control.dataset.penetrationRow || null, key = keyFor(rowId, control.dataset.penetrationField);
       const scope = control.dataset.penetrationScope === "schedule" ? state.schedule : state;
@@ -801,11 +805,8 @@
     state.rowEpochs.set(removed.row.id, ++state.nextEpoch); state.page = Math.floor(removed.index / pageSize);
     changed(null, scope); calculate(scope);
   }
-  function renderSchedule() {
-    if (!state.schedule.draft) return;
-    window.CeasefireLibraries?.scheduleChanged?.();
-    window.CeasefireProject?.scheduleChanged?.();
-    const body = $("penetration-schedule-body"), previous = [...body.children];
+  function renderScheduleBody(bodyId) {
+    const body = $(bodyId), previous = [...body.children];
     const existing = new Map(previous.filter(row => row.dataset.penetrationContext === String(state.context)).map(row => [row.dataset.penetrationId, row]));
     const quantityField = state.definition.row_fields.find(field => field.column === "O");
     const results = new Map((state.schedule.result?.rows || []).map(row => [row.id, row]));
@@ -843,14 +844,23 @@
     // Keeping unchanged rows attached preserves the active quantity editor and
     // its selection while inputs and server results update around it.
     if (rows.length !== previous.length || rows.some((row, index) => row !== previous[index])) body.replaceChildren(...rows);
-    refreshControls();
-    const count = $("penetration-row-count"); count.replaceChildren(node("span", "", `${state.schedule.draft.rows.length} ${state.schedule.draft.rows.length === 1 ? "item" : "items"} · Capacity ${state.definition.capacity}`));
+  }
+  function renderScheduleCount(countId) {
+    const count = $(countId); count.replaceChildren(node("span", "", `${state.schedule.draft.rows.length} ${state.schedule.draft.rows.length === 1 ? "item" : "items"} · Capacity ${state.definition.capacity}`));
     if (state.schedule.draft.rows.length > pageSize) {
       const previous = node("button", "button secondary", "Previous rows"), next = node("button", "button secondary", "Next rows"); previous.type = next.type = "button";
       previous.disabled = state.page === 0; next.disabled = (state.page + 1) * pageSize >= state.schedule.draft.rows.length;
       previous.addEventListener("click", () => { state.page--; renderSchedule(); }); next.addEventListener("click", () => { state.page++; renderSchedule(); });
       count.append(previous, node("span", "", `Showing ${state.page * pageSize + 1}–${Math.min((state.page + 1) * pageSize, state.schedule.draft.rows.length)} · All rows calculated`), next);
     }
+  }
+  function renderSchedule() {
+    if (!state.schedule.draft) return;
+    window.CeasefireLibraries?.scheduleChanged?.();
+    window.CeasefireProject?.scheduleChanged?.();
+    for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) renderScheduleBody(id);
+    refreshControls();
+    for (const id of ["penetration-row-count", "penetration-estimator-row-count"]) renderScheduleCount(id);
   }
   function renderSummary(scope = state) {
     const prefix = scope === state ? "penetration" : "penetration-schedule";
@@ -934,7 +944,8 @@
     } catch (error) { message(`The schedule file was not saved. ${error.message}`, true, state.schedule); }
     finally { state.downloading = false; state.downloadKind = null; status(); }
   }
-  $("penetration-add").addEventListener("click", addRow); $("penetration-undo").addEventListener("click", undoRemove);
+  for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).addEventListener("click", addRow);
+  for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).addEventListener("click", undoRemove);
   $("penetration-add-to-library").addEventListener("click", addToLibrary);
   $("penetration-recalculate").addEventListener("click", () => calculate());
   $("penetration-settings").addEventListener("click", () => selectGroup("SETTINGS"));
@@ -946,10 +957,11 @@
     if (state.diagramChange === undefined) return;
     state.diagramChange = undefined; state.diagramRead++; state.diagramVersion++; renderDiagram(); message("The pending source diagram was discarded."); status();
   });
-  $("penetration-schedule-recalculate").addEventListener("click", calculateSchedule);
+  for (const id of ["penetration-schedule-recalculate", "penetration-estimator-schedule-recalculate"]) $(id).addEventListener("click", calculateSchedule);
   $("penetration-add-to-schedule").addEventListener("click", addToSchedule);
   $("penetration-update-schedule").addEventListener("click", updateSchedule);
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
-  $("penetration-pdf").addEventListener("click", () => download("pdf")); $("penetration-excel").addEventListener("click", () => download("xlsx"));
+  for (const id of ["penetration-pdf", "penetration-item-pdf"]) $(id).addEventListener("click", () => download("pdf"));
+  $("penetration-excel").addEventListener("click", () => download("xlsx"));
   window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged };
 })();

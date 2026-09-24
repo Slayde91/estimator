@@ -293,6 +293,16 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.deepEqual(copy(h.api.projectSnapshot().composer),composer);assert.deepEqual(copy(h.api.projectSnapshot().draft.rows[0].inputs),composer.rows[0].inputs);assert.equal(h.calls.at(-1).payload.draft.globals.L,.17);
     await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,2);assert.match(receipt.message,/current schedule prices/);assert.doesNotMatch(receipt.message,/allowances/);
   });
+  await check('The Firestopping Estimator and Quote render one shared schedule with synchronized controls',async h=>{
+    h.audit.state.draft.rows[0].inputs={K:'Pair coil',L:'Core hole',M:'Wall',N:'120/120/120',O:1};await h.audit.addToSchedule();
+    const quoteBody=h.byId('penetration-schedule-body'),estimatorBody=h.byId('penetration-estimator-schedule-body');
+    assert.equal(quoteBody.children.length,1);assert.equal(estimatorBody.children.length,1);assert.notEqual(quoteBody.children[0],estimatorBody.children[0]);
+    assert.deepEqual(quoteBody.children[0].children.slice(1,7).map(cell=>cell.textContent),estimatorBody.children[0].children.slice(1,7).map(cell=>cell.textContent));
+    const estimatorQuantity=estimatorBody.children[0].children[5].querySelectorAll('[data-penetration-field]')[0];estimatorQuantity.value='2.75';await estimatorQuantity.emit('input');
+    assert.equal(h.api.projectSnapshot().draft.rows[0].inputs.O,2.75);assert.equal(quoteBody.children[0].children[5].querySelectorAll('[data-penetration-field]')[0].value,'2.75');
+    await estimatorBody.querySelectorAll('[data-penetration-remove]')[0].emit('click');await flush();assert.equal(quoteBody.children.length,0);assert.equal(estimatorBody.children.length,0);
+    await h.byId('penetration-estimator-undo').emit('click');await flush();assert.equal(quoteBody.children.length,1);assert.equal(estimatorBody.children.length,1);
+  });
   await check('Inline schedule quantity retains focus, exact precision and stable DOM without touching the composer',async h=>{
     await h.audit.addToSchedule();const body=h.byId('penetration-schedule-body'),row=body.children[0],quantity=row.children[5].querySelectorAll('[data-penetration-field]')[0];
     await quantity.focus();quantity.value='2.345678901234';quantity.selectionStart=quantity.selectionEnd=14;await quantity.emit('input');assert.equal(body.children[0],row);assert.equal(h.context.document.activeElement,quantity);assert.equal(quantity.selectionEnd,14);

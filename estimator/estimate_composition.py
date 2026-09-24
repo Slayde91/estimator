@@ -71,7 +71,7 @@ def _duplicate_result(item, normalized_inputs, configuration):
                     work_item_label=f'{MATERIAL_NAMES[line_index]} (duplicate)')
     labour = None if labour_row is None else {
         'source': 'duplicate_work_item', 'work_item_id': item['id'],
-        'name': f'{MATERIAL_NAMES[line_index]} (duplicate)',
+        'name': MATERIAL_NAMES[line_index],
         'days': calculated['cells'].get(f'B{requirement_row}'),
         'total': calculated['cells'].get(f'F{labour_row}'),
     }
@@ -87,7 +87,15 @@ def _add_duplicate_work_items(result, work_items, normalized_inputs, configurati
         calculated_items.append({**duplicate['item'], 'yield': duplicate['yield']})
         result['materials'].append(duplicate['material'])
         if duplicate['labour'] is not None:
-            result['labour']['tasks'].append(duplicate['labour'])
+            labour = duplicate['labour']
+            task = next((candidate for candidate in result['labour']['tasks']
+                         if candidate.get('name') == labour['name']), None)
+            if task is None:
+                task = {'name': labour['name'], 'days': 0}
+                result['labour']['tasks'].append(task)
+            task['days'] = _computed(
+                lambda task=task, labour=labour: _number(task.get('days')) + _number(labour.get('days')))
+            task.setdefault('work_item_ids', []).append(item['id'])
         for cell, error in duplicate['errors'].items():
             result['errors'][f'duplicate:{item["id"]}:{cell}'] = error
         for key in ('material', 'labour', 'days'):

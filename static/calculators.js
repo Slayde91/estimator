@@ -1200,7 +1200,9 @@
       if (view && view.result === result) {
         const grid = $("calculator-grid"); grid.replaceChildren(...view.nodes);
         $("calculator-option-lists").replaceChildren(...view.optionNodes); state.optionLists = new Map(view.optionLists); state.optionKeys = view.optionKeys;
-        grid.classList.toggle("calculator-grid-expanded", view.expanded); grid.scrollLeft = view.scrollLeft; grid.scrollTop = view.scrollTop;
+        grid.classList.toggle("calculator-grid-expanded", view.expanded);
+        grid.classList.toggle("calculator-steel-lookup", entry.definition.id === "steel_vermiculite" && entry.sheet === "CALCULATOR");
+        grid.scrollLeft = view.scrollLeft; grid.scrollTop = view.scrollTop;
         entry.productTotalsElement = view.totals; entry.choiceSignature = view.signature;
         entry.renderedSheet = entry.sheet; entry.renderedPage = page; entry.needsRender = false; state.gridEntry = entry;
         $("calculator-page-status").textContent = view.status; retainRecent(cache.pages, page, view, 3);
@@ -1319,20 +1321,20 @@
       let entry = state.entries.get(id);
       if (!entry) {
         const definition = await request(endpoint(id));
-        if (serial !== state.loadRevision) return;
+        if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
         const inputs = clone(definition.inputs || {});
         const page = displayPages(definition)[0];
         entry = state.entries.get(id) || { definition, inputs, saved: JSON.stringify(inputs), scheduleRows: definition.schedule_rows && [...definition.schedule_rows], savedRows: JSON.stringify(definition.schedule_rows), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() };
         state.entries.set(id, entry);
       }
-      if (serial !== state.loadRevision) return;
+      if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
       retainPage(current());
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-title").textContent = entry.definition.title;
       $("calculator-sheet-title").textContent = pageDefinition(entry).label;
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
       await navigateWorksheet(entry);
-    } catch (error) { if (serial === state.loadRevision) message(`Could not open the calculator. ${error.message}`, true); }
+    } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(`Could not open the calculator. ${error.message}`, true); }
   }
 
   async function open() {

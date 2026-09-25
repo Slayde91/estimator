@@ -472,7 +472,7 @@ let passed = 0;
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
   const originalBasis='Verify pack size, method and site yield for each product. CAFCO uses an inherited assumption; Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected. Add waste separately. Sources: P330:V333.';
   const shownBasis=audit.sourceDisplayText(originalBasis,entry,'A301');
-  assert.match(shownBasis,/The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings;/);
+  assert.match(shownBasis,/The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings\./);
   assert.match(shownBasis,/The startup densities are estimating assumptions; verify product-specific site yield\. Add waste separately\./);
   assert.equal(audit.sourceDisplayText(originalBasis,entry,'D42'),originalBasis);
   const densityNote="Used only when direct yield is blank. Use this product's estimating density, not another product's value.";

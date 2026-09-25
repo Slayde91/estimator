@@ -177,6 +177,7 @@ def _add_monokote_z106(model):
     # A compact sixth settings section extends the application-only worksheet.
     rows = {559: 229, 560: 233, 561: 234, 562: 235, 563: 236,
             564: 237, 565: 238, 566: 239, 567: 240, 568: 243}
+    source_merges = list(settings['merges'])
     for target, source in rows.items():
         settings['rows'][str(target)] = {**settings['rows'][str(source)], 'r': str(target)}
         for column in ('A', 'D', 'G'):
@@ -184,6 +185,12 @@ def _add_monokote_z106(model):
             if old:
                 settings['cells'][f'{column}{target}'] = deepcopy(old)
                 settings['cells'][f'{column}{target}'].pop('cached_value', None)
+        # Row cells alone leave twelve narrow browser columns. Preserve the
+        # source section's title, header and three-column value layout too.
+        for merged in source_merges:
+            match = re.fullmatch(r'([A-Z]+)([1-9]\d*):([A-Z]+)([1-9]\d*)', merged)
+            if match and int(match[2]) == source and int(match[4]) == source:
+                settings['merges'].append(f'{match[1]}{target}:{match[3]}{target}')
     cells = settings['cells']
     cells['A559']['value'] = product
     for address in ('D561', 'D562', 'D563'):

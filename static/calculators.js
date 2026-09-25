@@ -114,7 +114,7 @@
         D111: [["Source links: T331 and V331.", "See the Fendolite yield-source links on SETTINGS."]],
         D188: [["Source links: T332 and V332.", "See the Perlifoc yield-source links on SETTINGS."]],
         D244: [["Source links: T333 and V333.", "See the Monokote yield-source links on SETTINGS."]],
-        A301: [["CAFCO uses an inherited assumption;", "The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings;"], ["Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected.", "The startup densities are estimating assumptions; verify product-specific site yield."], ["Sources: P330:V333.", "See the historical product yield-source records on SETTINGS."]],
+        A301: [["CAFCO uses an inherited assumption;", "The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings."], ["Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected.", "The startup densities are estimating assumptions; verify product-specific site yield."], ["Sources: P330:V333.", "See the historical product yield-source records on SETTINGS."]],
         A293: [["Sort or filter the entire SCHEDULE table, never one column alone.", "The complete SCHEDULE table stays together on one page."]],
       },
     },

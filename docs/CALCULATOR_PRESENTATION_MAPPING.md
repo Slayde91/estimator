@@ -398,7 +398,7 @@ units and prose retain their existing formatting and values.
 
 ### PRODUCT SETTINGS
 
-Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup content. The browser omits introductory rows 3–4, the explanatory Both/Mixed block J6:Q21 and the complete USE NOTES section in rows 153–159, including its contents link. These are targeted presentation omissions, not removal of the Both/Mixed technical rule, a change to product choices, or permission to hide other J:Q reference blocks. Their source cells, API values and existing report projection remain intact.
+Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup content. The browser omits introductory rows 3–4, the explanatory Both/Mixed block J6:Q21, the informational J132:Q149 location/example block and the complete USE NOTES section in rows 153–159, including its contents link. The A:H technical table beside J132:Q149 remains visible. These are targeted presentation omissions; their source cells, API values and existing report projection remain intact. Editable CAFCO and MK-6 estimating bag mass and density appear in rows 161–164; only Uncalibrated working yields use their ratios, while Calibrated and the injection multiplier retain their existing rules.
 
 The picker independently exposes CAFCO A6:H46, MONOKOTE A48:H92 and the three
 FyreWrap rectangles below. All five start hidden. Bounds include columns as well

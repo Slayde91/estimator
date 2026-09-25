@@ -81,8 +81,8 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .button:is(.excel-button,.save-button,.pdf-button):disabled{opacity:.5;filter:none;cursor:not-allowed}
 .button.recalculate-button{color:#51414a;background:#fff;border:1px solid #dcd3d7;box-shadow:none}
 .button.recalculate-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad;box-shadow:none}
-.button.link-action-button{color:#fff;background:#d97706;border:1px solid #b85f00;box-shadow:0 3px 8px #b85f0029}
-.button.link-action-button:hover:not(:disabled){color:#fff;background:#b85f00;border-color:#934c00;box-shadow:0 4px 12px #b85f003b}
+.button.link-action-button{color:#51414a;background:#fff;border:1px solid #dcd3d7;box-shadow:none}
+.button.link-action-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad;box-shadow:none}
 .button.library-edit-button,.button.library-delete-button{color:#51414a;background:#fff;border:1px solid #dcd3d7;box-shadow:none}
 .button.library-edit-button:hover:not(:disabled),.button.library-delete-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad;box-shadow:none}
 .button:is(.recalculate-button,.link-action-button,.library-edit-button,.library-delete-button):focus-visible{outline:3px solid #222;outline-offset:3px}
@@ -157,8 +157,8 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-discard-button:hover:not(:disabled),.pricing-reset-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .pricing-discard-button:focus-visible,.pricing-reset-button:focus-visible{outline:3px solid #222;outline-offset:3px}
 .pricing-discard-button:disabled,.pricing-reset-button:disabled{opacity:.5;filter:none;cursor:not-allowed}
-.button.refresh-button{color:#5a4a3d;background:#f4eadc;border:1px solid #d7c2a7;box-shadow:none}
-.button.refresh-button:hover:not(:disabled){color:#49392d;background:#ead9c3;border-color:#c7ad89}
+.button.refresh-button{color:#51414a;background:#fff;border:1px solid #dcd3d7;box-shadow:none}
+.button.refresh-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .materials-table .duplicated-work-item{background:#fffaf2}
 .materials-table .duplicated-work-item .material-label{border-left:3px solid var(--red)}
 .material-label{font-weight:650;font-size:12px}
@@ -198,6 +198,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .schedule-download-button{width:58px;min-width:58px;height:48px;padding:5px}
 .download-format-icon{display:grid;grid-template-columns:18px auto;align-items:center;gap:2px;line-height:1}
 .download-arrow{font:800 21px/1 "Segoe UI Symbol",sans-serif;transform:translateY(-1px)}
+.download-arrow svg{display:block;width:20px;height:24px}
 .download-format{font-size:8px;font-weight:900;letter-spacing:.02em}
 .pricing-table .reset-button{background:none;color:var(--accent);font-size:10px;white-space:nowrap;padding:7px;text-decoration:underline;text-underline-offset:3px}
 .pricing-table .reset-button:disabled{color:var(--muted);cursor:default;text-decoration:none;opacity:.6}

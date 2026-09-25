@@ -4,7 +4,7 @@
 
 The branch `feat/estimator-navigation-help-polish` starts from merge `9ce0d8d`.
 The application opens on a Home page with links to Estimator, Libraries,
-Calculators and Saved Projects, and includes a plain-English Help page. The web
+Calculators and Projects, and includes a plain-English Help page. The web
 interface uses locally bundled Montserrat font files. Cards and nested
 firestopping sections use red top accents.
 
@@ -32,7 +32,7 @@ their identities. No stored pricing data or project file is migrated on startup.
 
 Sell rate overrides remain supported internally for legacy saved uses; the later
 pricing UI removed the Show rate overrides editor.
-Saved projects intentionally freeze those rates. The simplified row identifies
+Projects intentionally freeze those rates. The simplified row identifies
 retained estimator rates, while standalone services have an editable Sell price.
 One scalar yield updates only the item's yield-bearing uses with matching units.
 Conflicting existing values remain Mixed until edited; mixed dimensions cannot
@@ -63,7 +63,7 @@ prompts, replacing the invisible helper form. C# compilation and real regular
 file/directory reparse checks passed. The desktop automation runtime could not
 initialize, so visible foreground behavior is not claimed as visually verified.
 
-Saved projects includes descendants of the linked estimates folder. Opaque IDs
+Projects includes descendants of the linked estimates folder. Opaque IDs
 incorporate relative paths; duplicate basenames remain independent. The API
 supports search, sorting and pagination, returning full paths and relative
 folders for display. Metadata reads are cached by file identity without running
@@ -119,7 +119,7 @@ edits are applied before capture. Unopened calculators are materialized so the
 captured state is complete. The separate Save quote and Save calculator UI
 actions are removed. Downloads, navigation and recalculation do not save.
 
-**Saved projects** reads project files from an explicitly linked estimates
+**Projects** reads project files from an explicitly linked estimates
 folder, which is also the default Save As location. The first successful save
 links its folder when none was previously linked. Save As permits another
 folder without changing an existing link. Load Project can also open a received

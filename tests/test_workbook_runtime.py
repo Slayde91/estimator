@@ -47,6 +47,39 @@ class WorkbookRuntimeTests(unittest.TestCase):
         self.assertEqual(extend_schedule_references('SUM($AD$9:$AD$208)', 'OTHER', 'CALCULATOR', 9, 208, 1008), 'SUM($AD$9:$AD$208)')
         self.assertEqual(extend_schedule_references("'CALCULATOR'!$A$8:$CI$208", None, 'CALCULATOR', 9, 208, 1008), "'CALCULATOR'!$A$8:$CI$1008")
 
+    def test_ductwork_uncalibrated_yields_use_editable_mass_and_density(self):
+        model = source_model('ductwork')
+        original = load_workbook_catalog('ductwork')
+        settings = sheet(model, 'PRODUCT SETTINGS')['cells']
+        self.assertTrue({f'E{row}:H{row}' for row in range(161, 165)}.issubset(
+            set(sheet(model, 'PRODUCT SETTINGS')['merges'])))
+        self.assertEqual(sheet(original, 'PRODUCT SETTINGS')['cells']['B25']['formula'],
+                         'IFERROR(IF(B35="Calibrated",B44*(B45/1000)/B46,IF(B35="Uncalibrated",B23*(B24/1000)*(B22/1000)*(B21/B20),0)),0)')
+        for address in ('B161', 'B162', 'B163', 'B164'):
+            self.assertIn(address, application_editable_cells('ductwork', 'PRODUCT SETTINGS'))
+            self.assertNotIn(address, editable_cells('ductwork', 'PRODUCT SETTINGS'))
+        self.assertEqual([settings[address]['value'] for address in ('B161', 'B162', 'B163', 'B164')],
+                         [20, 308, 21.8, 344])
+        calibrated = WorkbookEngine(model, {}, approved_formula_overrides('ductwork'))
+        self.assertTrue(excel_equal(calibrated.value('PRODUCT SETTINGS', 'B25'), 10 * .060 / 11.7))
+        self.assertTrue(excel_equal(calibrated.value('PRODUCT SETTINGS', 'B69'), 10 * .061 / 11.7))
+        inputs = {'PRODUCT SETTINGS': {'B35': 'Uncalibrated', 'B73': 'Uncalibrated'}}
+        baseline = WorkbookEngine(model, normalize_calculator_inputs('ductwork', inputs), approved_formula_overrides('ductwork'))
+        self.assertTrue(excel_equal(baseline.value('PRODUCT SETTINGS', 'B25'), 20 / 308))
+        self.assertTrue(excel_equal(baseline.value('PRODUCT SETTINGS', 'B69'), 21.8 / 344))
+        edited = {'PRODUCT SETTINGS': {**inputs['PRODUCT SETTINGS'], 'B161': 25, 'B162': 500,
+                                       'B163': 20, 'B164': 400}}
+        adjusted = WorkbookEngine(model, normalize_calculator_inputs('ductwork', edited), approved_formula_overrides('ductwork'))
+        self.assertTrue(excel_equal(adjusted.value('PRODUCT SETTINGS', 'B25'), .05))
+        self.assertTrue(excel_equal(adjusted.value('PRODUCT SETTINGS', 'B69'), .05))
+        for row in (11, 12):
+            self.assertEqual(baseline.value('CALCULATOR', f'L{row}'), adjusted.value('CALCULATOR', f'L{row}'))
+            self.assertNotEqual(baseline.value('CALCULATOR', f'M{row}'), adjusted.value('CALCULATOR', f'M{row}'))
+        injected = WorkbookEngine(model, normalize_calculator_inputs('ductwork',
+                                  {'PRODUCT SETTINGS': {**edited['PRODUCT SETTINGS'], 'B65': 'Injected'}}),
+                                  approved_formula_overrides('ductwork'))
+        self.assertTrue(excel_equal(injected.value('PRODUCT SETTINGS', 'B69'), .05 * 40 / 27))
+
     def test_derived_models_are_caller_owned_and_new_rows_keep_validations_and_line_identity(self):
         for identity, end, table_name in (('steel_board', 1008, 'tSchedule'), ('ductwork', 1010, 'DuctSchedule')):
             model = load_application_catalog(identity)

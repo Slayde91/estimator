@@ -228,6 +228,26 @@ class ProjectFileTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             export_project(self.receiver, {"estimate": {}})
 
+    def test_previous_reviewed_reference_notes_remain_portable_and_read_only(self):
+        historical = json.loads((Path(__file__).parent / 'fixtures' / 'legacy_material_references.json').read_text(encoding='utf-8'))
+        payload = self.altered(lambda data: data['calculators']['steel_vermiculite']['inputs']
+                               .setdefault('SETTINGS', {}).update(historical))
+        before = stored_rows(self.receiver)
+        loaded = self.load(payload)
+        self.assertEqual({address: loaded['calculators']['steel_vermiculite']['inputs']['SETTINGS'][address]
+                          for address in historical}, historical)
+        self.assertEqual(stored_rows(self.receiver), before)
+        exported = export_project(self.receiver, {'estimate': {key: loaded['estimate'][key] for key in ESTIMATE_FIELDS},
+                                                  'calculators': {key: {'inputs': value['inputs']}
+                                                                  for key, value in loaded['calculators'].items()}})
+        self.assertEqual(json.loads(exported)['calculators']['steel_vermiculite']['inputs']['SETTINGS'],
+                         loaded['calculators']['steel_vermiculite']['inputs']['SETTINGS'])
+        for address, value in historical.items():
+            altered = self.altered(lambda data: data['calculators']['steel_vermiculite']['inputs']
+                                   .setdefault('SETTINGS', {}).update({address: value + ' edited'}))
+            with self.subTest(address=address), self.assertRaises(ValidationError):
+                self.load(altered)
+
 
 class ProjectFileApiTests(unittest.TestCase):
     @classmethod

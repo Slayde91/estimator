@@ -428,13 +428,16 @@
     const listedDuctChoice = cell.type === "select" && entry.definition.id === "ductwork" && entry.sheet === "CALCULATOR"
       && schedule && coordinates && coordinates.row >= schedule.first_row && coordinates.row <= schedule.last_row
       && [3, 5, 8, 9].includes(coordinates.column);
-    const allowOther = !listedDuctChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
+    const closedDuctSetting = cell.type === "select" && entry.definition.id === "ductwork" && entry.sheet === "PRODUCT SETTINGS"
+      && ["B35", "B65", "B73"].includes(address);
+    const listedChoice = listedDuctChoice || closedDuctSetting;
+    const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
     const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
-    const select = cell.type === "select" && (listedDuctChoice || display?.control === "select" || !allowOther && options.length <= 40);
+    const select = cell.type === "select" && (listedChoice || display?.control === "select" || !allowOther && options.length <= 40);
     const customAllowed = select && allowOther;
     const multiline = Boolean(cell.multiline);
     const control = node(select ? "select" : multiline ? "textarea" : "input", numeric ? "calculator-number" : "");
@@ -455,7 +458,7 @@
     if (select) {
       const appendOption = (item) => {
         // Historical inputs stay visible and exact, without becoming new choices.
-        const unavailable = listedDuctChoice && item !== "" && !options.some((choice) => String(choice) === String(item));
+        const unavailable = listedChoice && item !== "" && !options.some((choice) => String(choice) === String(item));
         const option = node("option", "", unavailable ? `Saved value: ${item} (choose a listed value)` : item === "" ? "(blank)" : displayValue(item, cell));
         if (unavailable) option.disabled = true;
         option.value = String(item); control.append(option); selectOptions.push({ option, value: item, unavailable });
@@ -481,7 +484,7 @@
         if (custom) control.append(customOption);
         control.value = customMode ? customToken : String(selected ?? ""); optionsLoaded = true;
       };
-      appendOption("");
+      if (!closedDuctSetting || value == null || value === "") appendOption("");
       for (const item of deferredOptions ? [] : options) if (String(item) !== "") appendOption(item);
       control.calculatorEnsureOption(value);
       if (custom) control.append(customOption);
@@ -518,7 +521,7 @@
         let next = editor.value;
         const optionText = (option) => String(!isChoice && isNumber(option) && percent(cell) ? decimalShift(option, 2) : option);
         const optionIndex = options.findIndex((option) => optionText(option) === next);
-        if (listedDuctChoice && next !== "" && optionIndex < 0) {
+        if (listedChoice && next !== "" && optionIndex < 0) {
           editor.value = String(rawValue() ?? "");
           calculationStatus("Choose a value from the available list."); return;
         }

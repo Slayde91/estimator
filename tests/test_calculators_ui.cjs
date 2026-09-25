@@ -468,12 +468,12 @@ let passed = 0;
   assert.equal(audit.sourceDisplayText('B35 selects the yield.',entry,'E25'),'Yield basis selects the yield.');
   assert.equal(audit.sourceDisplayText('B35 selects the yield.',entry,'A25'),'B35 selects the yield.');passed++;
 
-  // Reviewed yield display notes distinguish original assumptions without changing source text or user references.
+  // Current startup assumptions are distinguished from historical source notes.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SETTINGS';
   const originalBasis='Verify pack size, method and site yield for each product. CAFCO uses an inherited assumption; Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected. Add waste separately. Sources: P330:V333.';
   const shownBasis=audit.sourceDisplayText(originalBasis,entry,'A301');
-  assert.match(shownBasis,/The original CAFCO workbook used an inherited assumption; reviewed defaults use Australian published coverage;/);
-  assert.match(shownBasis,/Mandolite is provisional; Fendolite\/Perlifoc are theoretical; Monokote is uninjected\. Add waste separately\./);
+  assert.match(shownBasis,/The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings;/);
+  assert.match(shownBasis,/The startup densities are estimating assumptions; verify product-specific site yield\. Add waste separately\./);
   assert.equal(audit.sourceDisplayText(originalBasis,entry,'D42'),originalBasis);
   const densityNote="Used only when direct yield is blank. Use this product's estimating density, not another product's value.";
   for(const address of ['G38','G71','G103','G180','G236'])assert.equal(audit.sourceDisplayText(densityNote,entry,address),"Used only when direct yield is blank. Estimating density means dry-material consumption per applied volume, not installed coating density. Use this product's estimating density, not another product's value.");
@@ -1728,12 +1728,12 @@ let passed = 0;
   for(const [id,label] of [['calculator-import','Import XLSX Schedule'],['calculator-template','Export Template'],['calculator-excel','Download XLSX Schedule'],['calculator-pdf','Download PDF Schedule'],['calculator-summary-pdf','Download PDF Summary']]){
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
-  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*secondary[^"]*icon-only[^"]*"/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*icon-only[^"]*"/);
   assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow">⇩<\/span>/);
   assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);
-  for(const id of ['calculator-template','calculator-reset','calculator-recalculate'])assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*secondary[^"]*"`));
-  assert.doesNotMatch(registerMarkup,/id="calculator-template"[^>]*(?:excel-button|calculator-export-excel)/);assert.doesNotMatch(registerMarkup,/id="calculator-reset"[^>]*pricing-reset-button/);
+  for(const id of ['calculator-reset','calculator-recalculate'])assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*secondary[^"]*"`));
+  assert.doesNotMatch(registerMarkup,/id="calculator-reset"[^>]*pricing-reset-button/);
   assert.equal((registerMarkup.match(/id="calculator-recalculate"/g)||[]).length,1);
   const toolbarCss=fs.readFileSync('static/calculators.css','utf8');
   assert.doesNotMatch(toolbarCss,/\.calculator-workspace-heading #calculator-template\{[^}]*background/);

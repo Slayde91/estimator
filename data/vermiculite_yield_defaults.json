@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "reviewed_at": "2026-09-14",
-  "note": "Direct yield takes priority. Estimating density below is equivalent dry-material consumption inferred from bag mass and yield, not installed coating density. These estimating bases do not include site loss or replace the project's approved fire-protection specification.",
+  "note": "New unsaved estimates use the user-selected bag masses and estimating consumption densities below. Direct yield starts blank, so yield is bag mass divided by estimating density. Estimating density is not installed coating density. Historical reviewed yield evidence is retained for reference, but it is not the current startup profile. Saved project inputs remain unchanged.",
   "products": [
     {
       "product": "CAFCO 300",
       "bag_mass_kg": 20,
-      "direct_yield_m3": 0.0651,
-      "estimating_density_kg_m3": 307.2196620583717,
-      "basis": "Reviewed 14 Sep 2026: Promat Australia CAFCO 300 TDS, Feb 2025, p4: 20 kg bags and nominal coverage 217 m²/tonne at 15 mm. Direct yield = 20/1000 × 217 × 0.015 = 65.10 L/bag. Estimating density is inferred dry-material consumption (mass/yield), not the published installed dry density of 310 kg/m³ ±15%. Actual site losses are additional; adjust yield or wastage to project evidence.",
-      "confidence": "Published nominal coverage; allow for site loss.",
+      "direct_yield_m3": null,
+      "estimating_density_kg_m3": 308,
+      "basis": "User-selected startup estimating profile, 25 Sep 2026: 20 kg/bag and 308 kg/m³ estimating consumption density; direct yield blank. Yield defaults to bag mass/density. Verify actual product and site yield before use. Historical evidence sources remain linked for comparison, not as proof of this exact startup density.",
+      "confidence": "User-selected estimating default; site yield must be verified.",
       "cells": {
         "bag_mass_kg": "D36",
         "direct_yield_m3": "D37",
@@ -27,10 +27,10 @@
     {
       "product": "MANDOLITE CP2",
       "bag_mass_kg": 20,
-      "direct_yield_m3": 0.0516,
-      "estimating_density_kg_m3": 387.5968992248062,
-      "basis": "Reviewed 14 Sep 2026: Promat AU-hosted MANDOLITE CP2 PDS (Nov 2009), p2 coverage 172 m²/tonne at 15 mm; p4 Australian bag mass 20 kg. Direct yield = 51.60 L/bag. Estimating density is inferred dry-material consumption, not installed coating density. The Apr 2010 application guide gives conflicting higher coverage; retain this lower PDS basis provisionally and verify project/site yield. Wastage remains separate.",
-      "confidence": "Provisional: published PDS and application-guide coverage conflict.",
+      "direct_yield_m3": null,
+      "estimating_density_kg_m3": 388,
+      "basis": "User-selected startup estimating profile, 25 Sep 2026: 20 kg/bag and 388 kg/m³ estimating consumption density; direct yield blank. Yield defaults to bag mass/density. Verify actual product and site yield before use. Historical evidence sources remain linked for comparison, not as proof of this exact startup density.",
+      "confidence": "User-selected estimating default; site yield must be verified.",
       "cells": {
         "bag_mass_kg": "D69",
         "direct_yield_m3": "D70",
@@ -53,10 +53,10 @@
     {
       "product": "FENDOLITE MII",
       "bag_mass_kg": 20,
-      "direct_yield_m3": 0.031,
-      "estimating_density_kg_m3": 645.1612903225806,
-      "basis": "Reviewed 14 Sep 2026: Promat FENDOLITE MII application guide (Sep 2008), PDF p15/printed p13, hosted by Ceasefire Australia: theoretical coverage 1.24 m² per 20 kg bag at 25 mm. Direct yield = 31.00 L/bag. Estimating density is inferred dry-material consumption, not installed coating density. This theoretical yield excludes wastage; retain project-specific loss allowances.",
-      "confidence": "Published theoretical coverage; excludes wastage.",
+      "direct_yield_m3": null,
+      "estimating_density_kg_m3": 645,
+      "basis": "User-selected startup estimating profile, 25 Sep 2026: 20 kg/bag and 645 kg/m³ estimating consumption density; direct yield blank. Yield defaults to bag mass/density. Verify actual product and site yield before use. Historical evidence sources remain linked for comparison, not as proof of this exact startup density.",
+      "confidence": "User-selected estimating default; site yield must be verified.",
       "cells": {
         "bag_mass_kg": "D101",
         "direct_yield_m3": "D102",
@@ -74,10 +74,10 @@
     {
       "product": "PERLIFOC HP ECO+",
       "bag_mass_kg": 17,
-      "direct_yield_m3": 0.04857142857142857,
-      "estimating_density_kg_m3": 350,
-      "basis": "Reviewed 14 Sep 2026: Tremco Australia PERLIFOC HP ECO+ brochure (170821), p3: 17 kg bags; minimum consumption 3.5 kg/m²/cm. Direct yield = 17/350 = 48.57 L/bag, a theoretical/batch basis. Estimating density is dry-material consumption, not hardened coating density. Altex NZ Aug 2022 PDS distinguishes batch 3.5 ±15% from continuous mixing 4.1 ±15% kg/m²/cm; continuous nominal yield would be 41.46 L/bag. Confirm mixing method and site yield before use.",
-      "confidence": "Qualified theoretical/batch basis; continuous mixing consumes more material.",
+      "direct_yield_m3": null,
+      "estimating_density_kg_m3": 410,
+      "basis": "User-selected startup estimating profile, 25 Sep 2026: 17 kg/bag and 410 kg/m³ estimating consumption density; direct yield blank. Yield defaults to bag mass/density. Verify actual product and site yield before use. Historical evidence sources remain linked for comparison, not as proof of this exact startup density.",
+      "confidence": "User-selected estimating default; site yield must be verified.",
       "cells": {
         "bag_mass_kg": "D178",
         "direct_yield_m3": "D179",
@@ -100,10 +100,10 @@
     {
       "product": "MONOKOTE MK-6 HY",
       "bag_mass_kg": 21.8,
-      "direct_yield_m3": 0.063712904832,
-      "estimating_density_kg_m3": 342.159882012645,
-      "basis": "Reviewed 14 Sep 2026: current GCP Australia MK-6/HY PDS (29 Apr 2026), p5 gives 21.8 kg bags. GCP yield chart hosted by Trafalgar Australia (2016), p1 gives 27–28 board feet/bag uninjected; retain the lower 27 board feet = 63.71 L/bag. Estimating density is inferred dry-material consumption, not minimum installed density. Injection has a different yield. Older documents use 21.9 kg; the published per-bag yield has not been rescaled. Confirm delivered pack and application method; allow for site loss.",
-      "confidence": "Conservative published uninjected estimate; verify current bag and site method.",
+      "direct_yield_m3": null,
+      "estimating_density_kg_m3": 344,
+      "basis": "User-selected startup estimating profile, 25 Sep 2026: 21.8 kg/bag and 344 kg/m³ estimating consumption density; direct yield blank. Yield defaults to bag mass/density. Verify actual product and site yield before use. Historical evidence sources remain linked for comparison, not as proof of this exact startup density.",
+      "confidence": "User-selected estimating default; site yield must be verified.",
       "cells": {
         "bag_mass_kg": "D234",
         "direct_yield_m3": "D235",
@@ -122,6 +122,37 @@
           "page": 1
         }
       ]
+    },
+    {
+      "product": "MONOKOTE Z106",
+      "bag_mass_kg": 22.2,
+      "direct_yield_m3": null,
+      "estimating_density_kg_m3": 325,
+      "basis": "User-selected Z106 startup estimating profile, 25 Sep 2026: 22.2 kg/bag and 325 kg/m³ estimating consumption density, yielding 22.2/325 m³/bag before waste. Direct yield starts blank. This consumption density is not the manufacturer minimum installed density. MK-6 HY fire-resistance and thickness tables are shared in the application, but bag quantities use this separate profile. Verify actual product and site yield.",
+      "confidence": "User-selected estimating consumption assumption; confirm site yield.",
+      "cells": {
+        "bag_mass_kg": "D561",
+        "direct_yield_m3": "D562",
+        "estimating_density_kg_m3": "D563"
+      },
+      "sources": [
+        {
+          "title": "BRANZ FAR4853 Issue 3, open structural sections (22 Jan 2021)",
+          "url": "https://docadmin.tfire.com.au/exfiles/FAR4853%20ISSUE%203%20MONOKOTE%20MK6%20Z106%20REPORT%20FINAL%20-%20Jan%202021.pdf",
+          "page": "2, 5-8; Tables 1-6"
+        },
+        {
+          "title": "BRANZ FAR4856 Issue 2, hollow sections (9 Nov 2020)",
+          "url": "https://tfire.com.au/documents/Internal-Fire-Hollow-Steel-Sections-FAR4856",
+          "page": "2, 5-8; Tables 1-6"
+        },
+        {
+          "title": "GCP Australia MONOKOTE Z-106/HY product data",
+          "url": "https://gcpat.com.au/en-gb/solutions/products/monokote-fireproofing/monokote-z-106hy",
+          "page": "Product data: 22.2 kg bag; manufacturer installed-density specification is distinct from the user-selected estimating consumption density."
+        }
+      ]
     }
-  ]
+  ],
+  "default_selected_at": "2026-09-25"
 }

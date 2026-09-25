@@ -15,7 +15,7 @@ SECTIONS = {
         ('A9', 'A9:N16'), ('A17', 'A17:N30'), ('A31', 'A31:N63'), ('A64', 'A64:N95'),
         ('A96', 'A96:N172'), ('A173', 'A173:N228'), ('A229', 'A229:N269'),
         ('A270', 'A270:N340'), ('A341', 'A341:N355'), ('A356', 'A356:N369'),
-        ('A370', 'A370:N374'),
+        ('A370', 'A370:N374'), ('A559', 'A559:N568'),
     ],
     ('ductwork', 'PRODUCT SETTINGS'): [
         ('A6', 'A6:H46'), ('A48', 'A48:H92'), ('A94', 'A94:H151'),
@@ -161,7 +161,7 @@ class CalculatorSectionNavigationTests(unittest.TestCase):
         bags = self.metadata('steel_vermiculite', 'BAGS')
         self.assertEqual(bags['display_table_order'], [1, 0])
         self.assertEqual([(table['first_row'], table['last_row']) for table in bags['presentation_tables']],
-                         [(1, 15), (17, 24)])
+                         [(1, 15), (17, 25)])
         self.assertEqual(bags['presentation_tables'][0]['title_address'], 'A1')
         self.assertEqual(bags['presentation_tables'][0]['subtitle_address'], 'A3')
         self.assertEqual(self.metadata('steel_vermiculite', 'SCHEDULE')['schedule_heading'], 'MEMBER SCHEDULE')

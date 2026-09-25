@@ -153,11 +153,12 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .materials-table .work-item-action{width:38px;height:38px;min-width:38px;padding:0;border-radius:8px}
 .materials-table .work-item-action .button-symbol{font-size:17px}
 .pricing-action-symbol,.pricing-action-symbol svg,.calculator-symbol-button .button-symbol,.calculator-symbol-button svg,.book-symbol,.book-symbol svg,.gear-symbol,.gear-symbol svg,.save-symbol,.save-symbol svg{display:block;width:24px;height:24px}
-.pricing-discard-button{color:#fff;background:var(--navy);border:1px solid #171217}
-.pricing-reset-button{color:#fff;background:var(--red);border:1px solid var(--accent-dark)}
-.pricing-discard-button:hover:not(:disabled),.pricing-reset-button:hover:not(:disabled){color:#fff;filter:brightness(.92)}
+.pricing-discard-button,.pricing-reset-button{color:#51414a;background:#fff;border:1px solid #dcd3d7}
+.pricing-discard-button:hover:not(:disabled),.pricing-reset-button:hover:not(:disabled){color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .pricing-discard-button:focus-visible,.pricing-reset-button:focus-visible{outline:3px solid #222;outline-offset:3px}
 .pricing-discard-button:disabled,.pricing-reset-button:disabled{opacity:.5;filter:none;cursor:not-allowed}
+.button.refresh-button{color:#5a4a3d;background:#f4eadc;border:1px solid #d7c2a7;box-shadow:none}
+.button.refresh-button:hover:not(:disabled){color:#49392d;background:#ead9c3;border-color:#c7ad89}
 .materials-table .duplicated-work-item{background:#fffaf2}
 .materials-table .duplicated-work-item .material-label{border-left:3px solid var(--red)}
 .material-label{font-weight:650;font-size:12px}

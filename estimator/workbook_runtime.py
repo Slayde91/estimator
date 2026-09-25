@@ -150,6 +150,108 @@ def _add_spray_location(model):
                                      'text': None, 'children': []})
 
 
+def _add_monokote_z106(model):
+    """Add a product-specific bag profile while reusing MK-6 technical rules.
+
+    This changes only the application model. The packaged workbook and its
+    source evidence remain byte-for-byte unchanged. ENGINE A is a technical
+    lookup key; the visible CALCULATOR/SCHEDULE product inputs stay Z106.
+    """
+    product = 'MONOKOTE Z106'
+    mk6 = 'MONOKOTE MK-6 HY'
+    sheets = {sheet['name']: sheet for sheet in model['sheets']}
+    settings, engine, bags = (sheets[name] for name in ('SETTINGS', 'ENGINE', 'BAGS'))
+
+    # Product and quantity settings occupy the first free helper-table row.
+    for column, formula in {
+        'Q': 'IF(ISNUMBER(D561),D561,"")',
+        'R': 'IF(ISNUMBER(D562),D562,"")',
+        'S': 'IF(ISNUMBER(D563),D563,"")',
+        'T': 'IF(ISNUMBER(D565),D565,"")',
+        'U': 'IF(ISNUMBER(D564),D564,"")',
+    }.items():
+        settings['cells'][f'{column}11'] = {**deepcopy(settings['cells'][f'{column}10']), 'formula': formula}
+        settings['cells'][f'{column}11'].pop('cached_value', None)
+    settings['cells']['P11'] = {**deepcopy(settings['cells']['P10']), 'value': product}
+
+    # A compact sixth settings section extends the application-only worksheet.
+    rows = {559: 229, 560: 233, 561: 234, 562: 235, 563: 236,
+            564: 237, 565: 238, 566: 239, 567: 240, 568: 243}
+    for target, source in rows.items():
+        settings['rows'][str(target)] = {**settings['rows'][str(source)], 'r': str(target)}
+        for column in ('A', 'D', 'G'):
+            old = settings['cells'].get(f'{column}{source}')
+            if old:
+                settings['cells'][f'{column}{target}'] = deepcopy(old)
+                settings['cells'][f'{column}{target}'].pop('cached_value', None)
+    cells = settings['cells']
+    cells['A559']['value'] = product
+    for address in ('D561', 'D562', 'D563'):
+        cells[address].pop('formula', None)
+        cells[address].pop('value', None)
+    # Older saved projects have no Z106 addresses. Runtime fallback supplies
+    # the new product's defaults without modifying their saved input records.
+    cells['D561']['value'] = 22.2
+    cells['D563']['value'] = 325
+    cells['D564']['value'] = 0
+    cells['D565']['formula'] = ('IF(ISNUMBER(D562),IF(D562>0,D562,""),'
+                                'IF(LEN(D562)>0,"",IF(AND(ISNUMBER(D561),D561>0,'
+                                'ISNUMBER(D563),D563>0),D561/D563,"")))')
+    cells['D566']['formula'] = 'IF(ISNUMBER(D565),"ESTIMATING YIELD SET","ENTER VERIFIED YIELD")'
+    cells['D567']['value'] = ('Z106 uses the MK-6 HY technical tables. Bag mass and estimating '
+                             'density are Z106-specific estimating inputs; verify site yield. '
+                             'Estimating density is not installed dry density.')
+    cells['D568']['value'] = ('MK-6 HY thickness and fire-resistance lookups are shared; '
+                             'Z106 bag quantities use its own settings.')
+    settings['dimension'] = 'A1:BM568'
+    settings['page_range'] = settings['dimension']
+    model['setting_ranges']['SETTINGS'].append('D561:D564')
+    for source, target in ((234, 561), (235, 562), (236, 563), (237, 564)):
+        field = next(field for field in model['fields']['SETTINGS'] if field['cell'] == f'D{source}')
+        model['fields']['SETTINGS'].append({**deepcopy(field), 'cell': f'D{target}', 'validation': None})
+
+    # Extend only the five-product bag lookups. All thickness tables continue
+    # to see MK-6 through the technical key in ENGINE A.
+    model['defined_names']['ProductList'] = 'SETTINGS!$P$6:$P$11'
+    for record in model.get('defined_name_records', []):
+        if record.get('attributes', {}).get('name') == 'ProductList':
+            record['formula'] = model['defined_names']['ProductList']
+    for sheet in model['sheets']:
+        for cell in sheet['cells'].values():
+            if 'formula' in cell:
+                for column in 'PRSTU':
+                    cell['formula'] = cell['formula'].replace(f'${column}$6:${column}$10',
+                                                              f'${column}$6:${column}$11')
+    for row in range(2, model['schedule']['last_row'] - model['schedule']['first_row'] + 4):
+        address = f'A{row}'
+        cell = engine['cells'].get(address)
+        if cell and 'formula' in cell:
+            original = cell['formula']
+            cell['formula'] = f'IF({original}="{product}","{mk6}",{original})'
+            cell.pop('cached_value', None)
+        # Technical A is intentionally aliased, but bag product lookup must
+        # read the actual user choice from the quick form or schedule row.
+        actual_product = ('CALCULATOR!D6' if row == 2 else
+                          f'INDEX(SCHEDULE!$B$10:$B$1009,MATCH({row - 2},SCHEDULE!$Z$10:$Z$1009,0))')
+        engine['cells'][f'AG{row}']['formula'] = (
+            f'IF(A{row}="","",IFERROR(IFERROR(MATCH({actual_product},'
+            'SETTINGS!$P$6:$P$11,0),0),""))')
+        engine['cells'][f'AG{row}'].pop('cached_value', None)
+
+    # The pooled product order summary gets a separate Z106 line.
+    for column in 'ABCDEFGHI':
+        original = bags['cells'][f'{column}24']
+        cell = deepcopy(original)
+        if 'formula' in cell:
+            cell['formula'] = Translator('=' + cell['formula'], origin=f'{column}24').translate_formula(
+                f'{column}25').lstrip('=')
+            cell.pop('cached_value', None)
+        elif column == 'A':
+            cell['value'] = product
+        bags['cells'][f'{column}25'] = cell
+    bags['rows']['25'] = {**bags['rows']['24'], 'r': '25'}
+
+
 @lru_cache(maxsize=3)
 def _application_catalog(calculator_id):
     """Private, shared model; consumers must treat it as immutable."""
@@ -165,6 +267,7 @@ def _application_catalog(calculator_id):
                             'source_schedule_capacity': original_last - schedule['first_row'] + 1}
     if calculator_id == 'steel_vermiculite':
         _add_spray_location(model)
+        _add_monokote_z106(model)
     elif calculator_id == 'steel_board':
         schedule['line_numbers'] = True
         schedule['location_column'] = 'B'

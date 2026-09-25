@@ -109,7 +109,7 @@ class TrafalgarImportTests(unittest.TestCase):
         self.assertEqual(receipt['counts']['records_with_missing_documents'], 1)
         self.assertEqual(receipt['counts']['records_with_images'], 1)
         self.assertEqual(receipt['missing_documents'], 1)
-        self.assertEqual(self.item(12)['images'], [])
+        self.assertFalse(any(field.get('images') for field in self.item(12)['fields']))
         self.assertEqual(self.item(13)['selector_provenance']['unavailable_source_urls'], [self.missing_url])
         fields = {field['label']: field['value'] for field in self.item()['fields']}
         self.assertEqual(fields['Service'], 'Copper pipe')
@@ -119,6 +119,11 @@ class TrafalgarImportTests(unittest.TestCase):
         self.assertEqual(fields['Source Diagram Details'], 'Full diagram notes remain available.')
         self.assertEqual(self.item()['selector_provenance']['record'], self.capture['sections'][0]['records'][0])
         self.assertEqual(self.item()['filter_values']['document'], ['Report A (Table 12)'])
+        self.assertNotIn('images', self.item())
+        labels = [field['label'] for field in self.item()['fields']]
+        self.assertLess(labels.index('Refer Figure'), labels.index('Source Diagram Details'))
+        self.assertLess(labels.index('Service'), labels.index('Refer Figure'))
+        self.assertEqual(labels[-1], 'Selector Search Context')
 
     def test_query_combinations_are_paired_and_never_overwrite_record_frl(self):
         self.build()
@@ -187,7 +192,7 @@ class TrafalgarImportTests(unittest.TestCase):
             {'label': 'Variant table', 'value': 'Use the matching source option.', 'scope': 'reference'}])
         self.build()
         item = self.item()
-        self.assertEqual(len(item['images']), 2)
+        self.assertEqual(len(next(field['images'] for field in item['fields'] if field['label'] == 'Refer Figure')), 2)
         self.assertEqual([source['page'] for source in item['sources']], [1, 2])
         labels = [field['label'] for field in item['fields']]
         self.assertIn('Scoped protection', labels)

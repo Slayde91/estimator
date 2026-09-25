@@ -272,7 +272,9 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                 values.setdefault(normalized, []).append(value)
                 if normalized != 'technical diagram':
                     fields.append({'label': FIELD_LABELS.get(normalized, name), 'value': value})
-            fields.extend(query_context(section, matched_queries))
+            context_fields = query_context(section, matched_queries)
+            fields.extend(field for field in context_fields if 'table' not in field)
+            figure_position = len(fields)
             sources, images, missing, linked = [], [], [], []
             urls = record.get('technical_diagram_urls', [])
             if len(urls) != len(set(urls)):
@@ -333,6 +335,11 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
             if any(len(document_details[url]['pages']) > 1 for url in urls if url in document_details):
                 status += ' Multi-page references may contain several variants; all pages are retained without assigning other variants to this record.'
             fields.append({'label': 'Source Document Coverage', 'value': status})
+            if images:
+                fields.insert(figure_position, {'label': 'Refer Figure',
+                                               'value': 'Full linked source pages; open an image to inspect it at full size.',
+                                               'images': images})
+            fields.extend(field for field in context_fields if 'table' in field)
             recommendation = record.get('recommendation', '')
             service = '; '.join(values.get('services', []))
             frl = '; '.join(values.get('frl', []))
@@ -340,7 +347,7 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                 'id': key, 'title': f'Trafalgar {product_id} — {recommendation}',
                 'subtitle': ' · '.join(filter(None, [section['label'], service, frl])),
                 'summary': recommendation, 'source_label': f'Trafalgar selector · {section["label"]}',
-                'fields': fields, 'sources': sources, 'images': images,
+                'fields': fields, 'sources': sources,
                 'filter_values': {'trafalgar_category': [section['label']], 'manufacturer': ['Trafalgar']},
                 'selector_provenance': {'category': category, 'record': deepcopy(record),
                                         'capture_sha256': capture_hash, 'document_ids': linked,

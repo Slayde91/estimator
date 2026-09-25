@@ -50,10 +50,58 @@ Repeat the same inclusion and rotation options when resuming. Completed image
 records and review metadata are retained; the saved output records the requested
 supplemental hashes and recalculates coverage counts.
 
-OCR is a searchable transcription aid. Verify dimensions, FRLs and instructions
+OCR is an audit transcription aid. Verify dimensions, FRLs and instructions
 against the images. It must not silently supply a missing rating or override the
 selector's source wording. Preserve observed contradictions and illegible or
 clipped source information as review notes.
+
+## Prepare installation details
+
+Each Trafalgar entry displays a single **Report Number** field. Equivalent
+spacing/case variants are deduplicated; distinct report identifiers and integral
+revision suffixes remain separate in that field. Table/page/clause references
+remain in source evidence. An unfamiliar report format stops the import for
+review instead of silently dropping it.
+
+The single **Installation Details** field uses the linked diagram's explicit
+installation instructions whenever available. In that case application text and
+other diagram callouts are not appended. Repeated instructions are shown once;
+different passages retain their source page locators. For a diagram without an
+instruction section, prepare a coherent summary of installation-relevant
+callouts, retaining dimensions, conditions and variant pairing. Exclude contact
+details, dates, title-block metadata and repeated text.
+
+Put reviewed summaries or newly extracted instructions in the prepared folder's
+`installation-details.json`, using this shape (supplier values stay local):
+
+```json
+{
+  "source_capture_sha256": "<capture SHA-256>",
+  "documents": [{
+    "document_id": "<source document ID>",
+    "source_sha256": "<original file SHA-256>",
+    "pages": [{
+      "page": 1,
+      "image_sha256": "<prepared page image SHA-256>",
+      "kind": "summary",
+      "text": "<reviewed installation details>"
+    }]
+  }]
+}
+```
+
+`kind` may be `instructions`, `summary`, or `not_provided`. The last requires
+empty `text` and a nonempty `reason` explaining why the source contains no
+installation information. Existing reviewed `Installation instructions` fields
+in `document-enrichment.json` are also used. If any instructions are present in
+a linked document, only those passages are displayed. Otherwise every page must
+have a reviewed summary or explicit no-information decision; missing reviews
+stop the import. Source, page and image fingerprints must match.
+
+T-card numbers, Selector Search Context, raw PDF/OCR transcripts and application
+extracts are omitted from entry fields. Exact selector records, paired search
+options, source transcripts, original enrichment and summary reviews remain in
+the private import audit. All source images and PDFs remain available.
 
 ## Build and verify a candidate
 
@@ -62,8 +110,8 @@ python scripts/import_trafalgar_library.py --capture selector-capture.json --man
 ```
 
 The builder verifies every registered asset, source identities, query links and
-page sequence. It preserves the exact selector field values and query context
-tuples. Conditional service/wrap/FRL combinations must not become independent
+page sequence. It preserves exact selector values and query context tuples in
+the audit. Conditional service/wrap/FRL combinations must not become independent
 lists or a product-wide maximum rating. All linked source pages remain available
 as reference images and original PDF links.
 

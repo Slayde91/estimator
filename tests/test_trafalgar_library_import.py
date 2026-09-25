@@ -47,7 +47,7 @@ class TrafalgarImportTests(unittest.TestCase):
         self.url = 'https://supplier.example/source'
         self.missing_url = 'https://supplier.example/missing'
         fields = [{'name': 'Services', 'value': 'Copper pipe', 'links': []},
-                  {'name': 'Report Number', 'value': 'Report A (Table 12)', 'links': []},
+                  {'name': 'Report Number', 'value': 'FC 12345 (Table 12)', 'links': []},
                   {'name': 'TWrap Length', 'value': '300 mm', 'links': []},
                   {'name': 'FRL', 'value': '-/60/60', 'links': []},
                   {'name': 'Fill Depth / Fillet Size', 'value': '20 mm / No fillet', 'links': []}]
@@ -77,6 +77,9 @@ class TrafalgarImportTests(unittest.TestCase):
                          'image_filename': f'images/{image_name}.png', 'image_sha256': digest(self.image),
                          'width': 100, 'height': 200}], 'fields': [{'label': 'Protection', 'value': 'Source-only condition'}]}
         self.document_index = {'documents': [self.document, {'document_id': 'D-MISSING', 'status': 'missing'}]}
+        self.installation_review = {'documents': [{'document_id': 'D-ONE', 'source_sha256': digest(self.pdf),
+            'pages': [{'page': 1, 'image_sha256': digest(self.image), 'kind': 'summary',
+                       'text': 'Fit the synthetic seal around the service.'}]}]}
 
     def tearDown(self):
         self.temp.cleanup()
@@ -89,6 +92,7 @@ class TrafalgarImportTests(unittest.TestCase):
         self.manifest_path = self.root / 'manifest.json'
         self.manifest_path.write_bytes(json_bytes(self.manifest))
         (self.prepared / 'documents-index.json').write_bytes(json_bytes(self.document_index))
+        (self.prepared / 'installation-details.json').write_bytes(json_bytes(self.installation_review))
 
     def build(self, base=None, output=None):
         self.write_sources()
@@ -116,23 +120,24 @@ class TrafalgarImportTests(unittest.TestCase):
         self.assertEqual(fields['Service Wrap'], '300 mm')
         self.assertEqual(fields['FRL'], '-/60/60')
         self.assertEqual(fields['Fill Depth / Fillet Size'], '20 mm / No fillet')
-        self.assertEqual(fields['Source Diagram Details'], 'Full diagram notes remain available.')
+        self.assertEqual(fields['Installation Details'], 'Fit the synthetic seal around the service.')
+        self.assertNotIn('Source Diagram Details', fields)
         self.assertEqual(self.item()['selector_provenance']['record'], self.capture['sections'][0]['records'][0])
-        self.assertEqual(self.item()['filter_values']['document'], ['Report A (Table 12)'])
+        self.assertEqual(self.item()['filter_values']['document'], ['FC 12345'])
         self.assertNotIn('images', self.item())
         labels = [field['label'] for field in self.item()['fields']]
-        self.assertLess(labels.index('Refer Figure'), labels.index('Source Diagram Details'))
+        self.assertLess(labels.index('Refer Figure'), labels.index('Installation Details'))
         self.assertLess(labels.index('Service'), labels.index('Refer Figure'))
-        self.assertEqual(labels[-1], 'Selector Search Context')
+        self.assertNotIn('Selector Search Context', labels)
 
     def test_query_combinations_are_paired_and_never_overwrite_record_frl(self):
         self.build()
-        field = next(field for field in self.item()['fields'] if field['label'] == 'Selector Search Context')
-        self.assertEqual(field['table']['columns'], ['Search ID', 'Barrier', 'Frl'])
-        self.assertEqual(field['table']['rows'], [['Q-1', 'Wall', 'All'], ['Q-2', 'Floor', '120']])
+        self.assertNotIn('Selector Search Context', [field['label'] for field in self.item()['fields']])
         self.assertEqual([field['value'] for field in self.item()['fields'] if field['label'] == 'FRL'], ['-/60/60'])
         queries = self.data()[IMPORT_KEY]['queries']['fire-protection']
         self.assertEqual(queries['Q-1']['parameters'], {'barrier': '1'})
+        self.assertEqual(queries['Q-1']['selected_options']['barrier']['label'], 'Wall')
+        self.assertEqual(queries['Q-2']['selected_options']['barrier']['label'], 'Floor')
         self.assertNotIn('response_html', queries['Q-1'])
         self.assertEqual(queries['Q-1']['response_html_sha256'], digest(b'<p>Synthetic response one</p>'))
 
@@ -145,8 +150,8 @@ class TrafalgarImportTests(unittest.TestCase):
         fields = self.item()['fields']
         self.assertEqual([field['value'] for field in fields if field['label'] == 'Substrate (Selector Search)'],
                          ['100 mm concrete'])
-        table = next(field['table'] for field in fields if field['label'] == 'Selector Search Context')
-        self.assertIn('Fire Barrier', table['columns'])
+        queries = self.data()[IMPORT_KEY]['queries']['fire-protection']
+        self.assertEqual(queries['Q-1']['selected_options']['pa_fire-barrier']['label'], '100 mm concrete')
         section['queries'][1]['selected_options']['pa_fire-barrier']['label'] = '200 mm concrete'
         different = self.root / 'different'
         self.build(output=different)
@@ -186,6 +191,9 @@ class TrafalgarImportTests(unittest.TestCase):
                       text='A different service variant and FRL.')
         (self.prepared / second['image_filename']).write_bytes(self.image)
         self.document['pages'].append(second)
+        self.installation_review['documents'][0]['pages'].append({
+            'page': 2, 'image_sha256': digest(self.image), 'kind': 'summary',
+            'text': 'For the second service variant, fit the alternate seal.'})
         self.document['fields'].extend([
             {'label': 'Scoped protection', 'value': 'Exact record condition', 'source_product_ids': [11]},
             {'label': 'Other variant', 'value': 'Must not propagate', 'source_product_ids': [999]},
@@ -201,8 +209,9 @@ class TrafalgarImportTests(unittest.TestCase):
             self.assertNotIn(omitted, labels)
         source = self.data()[IMPORT_KEY]['source_documents']['d-one']
         self.assertEqual(source['pages'][1]['text'], 'A different service variant and FRL.')
-        self.assertTrue(any('Page 2 (contains source alternatives' in field['label']
-                            and field['value'] == 'A different service variant and FRL.' for field in item['fields']))
+        text = next(field['value'] for field in item['fields'] if field['label'] == 'Installation Details')
+        self.assertIn('Source page 2\nFor the second service variant', text)
+        self.assertNotIn('A different service variant and FRL.', text)
 
     def test_ocr_text_and_reviewed_enrichment_retain_source_scope(self):
         ocr = {'images': [{'image_sha256': digest(self.image), 'status': 'ocr_complete',
@@ -214,12 +223,41 @@ class TrafalgarImportTests(unittest.TestCase):
         (self.prepared / 'document-enrichment.json').write_bytes(json_bytes(enrichment))
         self.build()
         fields = self.item()['fields']
-        transcript = next(field for field in fields if '(OCR; check diagram)' in field['label'])
-        self.assertIn('Unverified OCR suggests -/999/999.', transcript['value'])
-        self.assertIn('confidence: 72', transcript['value'])
+        self.assertFalse(any('OCR; check diagram' in field['label'] for field in fields))
         self.assertEqual([field['value'] for field in fields if field['label'] == 'FRL'], ['-/60/60'])
         self.assertIn('Drawing callout (Source Reference)', [field['label'] for field in fields])
         self.assertEqual(self.data()[IMPORT_KEY]['ocr_evidence'], ocr)
+
+    def test_consolidation_keeps_single_fields_and_complete_private_evidence(self):
+        self.document['fields'].extend([
+            {'label': 'Report reference (diagram page 1)', 'value': 'FC12345; FAS 567890 (Table 3)',
+             'scope': 'reference'},
+            {'label': 'T-card number (diagram page 1)', 'value': 'T00999', 'scope': 'reference'},
+            {'label': 'Application text extract (diagram page 1)', 'value': 'A different application paragraph.',
+             'scope': 'reference'},
+            {'label': 'Installation instructions (diagram page 1)', 'value': '1. Fit the seal.\n2. Fix securely.',
+             'scope': 'reference', 'source_page': 1}])
+        self.build()
+        fields = self.item()['fields']
+        labels = [field['label'] for field in fields]
+        self.assertEqual(labels.count('Report Number'), 1)
+        self.assertEqual(labels.count('Installation Details'), 1)
+        self.assertEqual(next(field['value'] for field in fields if field['label'] == 'Report Number'),
+                         'FC 12345; FAS 567890')
+        self.assertEqual(self.item()['filter_values']['document'], ['FC 12345', 'FAS 567890'])
+        self.assertEqual(next(field['value'] for field in fields if field['label'] == 'Installation Details'),
+                         '1. Fit the seal.\n2. Fix securely.')
+        self.assertFalse(any(label.startswith(('T-card', 'Application text', 'Report reference')) for label in labels))
+        source = self.data()[IMPORT_KEY]['source_documents']['d-one']
+        self.assertEqual(source['fields'], self.document['fields'])
+        self.assertEqual(source['pages'][0]['text'], 'Full diagram notes remain available.')
+        self.assertEqual(source['installation_review']['1']['text'], 'Fit the synthetic seal around the service.')
+
+    def test_incomplete_review_cannot_publish_or_overwrite_candidate(self):
+        self.installation_review['documents'][0]['pages'] = []
+        with self.assertRaisesRegex(ValueError, 'Missing reviewed installation summary'):
+            self.build()
+        self.assertFalse(self.output.exists())
 
     def test_duplicate_product_ids_fail_without_output(self):
         record = deepcopy(self.capture['sections'][0]['records'][0])

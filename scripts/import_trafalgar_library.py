@@ -18,6 +18,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from estimator.reference_library import MAX_INDEX, ReferenceLibrary, identifier
+from scripts.trafalgar_details import (installation_field, is_hidden_field,
+                                      validate_installation_reviews)
+from scripts.trafalgar_reports import is_report_field, report_number_values
 
 IMPORT_KEY = 'trafalgar_selector_import'
 SCHEMA_VERSION = 1
@@ -91,14 +94,9 @@ def capture_queries(section):
 
 
 def query_context(section, matched_queries):
-    """Display source search tuples without converting them into technical rules."""
-    definitions = {field['field_name']: field['label']
-                   for field in section.get('field_definitions', [])}
+    """Display common substrate facts; complete search tuples stay in the audit."""
     names = list(dict.fromkeys(name for query in matched_queries
                               for name in query.get('selected_options', {})))
-    labels = [definitions.get(name, name.replace('_', ' ').replace('-', ' ').title()) for name in names]
-    rows = [[query['query_id']] + [query.get('selected_options', {}).get(name, {}).get('label', '')
-                                  for name in names] for query in matched_queries]
     fields = []
     for name in names:
         if name.endswith(('fire-barrier', 'fire-barrier-spec')) or name == 'pa_fire-barrier':
@@ -113,11 +111,6 @@ def query_context(section, matched_queries):
                            and choice['label'].casefold() != 'all' for choice in choices):
             if len({choice['label'] for choice in choices}) == 1:
                 fields.append({'label': label, 'value': choices[0]['label']})
-    if rows:
-        fields.append({'label': 'Selector Search Context',
-                       'value': 'These are the exact searches that returned this record. '
-                                'Search options, including All, are not additional system requirements.',
-                       'table': {'columns': ['Search ID'] + labels, 'rows': rows}})
     return fields
 
 
@@ -157,6 +150,10 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
     by_document_id = unique([dict(value, document_id=value['document_id'].casefold())
                              for value in prepared_documents.values()], 'document_id',
                             'case-insensitive prepared document ID')
+    installation_path = prepared / 'installation-details.json'
+    installation_review, installation_hash = (read_json(installation_path)
+        if installation_path.exists() else ({'documents': []}, None))
+    installation_reviews = validate_installation_reviews(installation_review, by_document_id, capture_hash)
     for key, review in reviewed_documents.items():
         source = by_document_id.get(key)
         if (source is None or not review.get('source_sha256')
@@ -212,6 +209,7 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
         if prepared_doc.get('source_url', source_url) != source_url:
             raise ValueError(f'Prepared document URL mismatch: {entry["document_id"]}')
         document = deepcopy(prepared_doc)
+        document['installation_review'] = deepcopy(installation_reviews.get(entry['document_id'].casefold(), {}))
         if entry.get('file_sha256') and entry['file_sha256'] != document.get('sha256'):
             raise ValueError(f'Prepared source hash disagrees with the manifest: {entry["document_id"]}')
         reviewed = reviewed_documents.get(entry['document_id'].casefold(), {})
@@ -287,6 +285,7 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                 matched_queries.append(query)
             fields = [{'label': 'ID', 'value': str(product_id)},
                       {'label': 'Manufacturer', 'value': 'Trafalgar'}]
+            reports = []
             raw_fields = record.get('result_fields', [])
             values = {}
             for field in raw_fields:
@@ -295,12 +294,14 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                     raise ValueError('Selector field labels and values must be source strings.')
                 normalized = name.casefold()
                 values.setdefault(normalized, []).append(value)
-                if normalized != 'technical diagram':
+                if is_report_field(name):
+                    reports.append(value)
+                elif normalized != 'technical diagram' and not is_hidden_field(name):
                     fields.append({'label': FIELD_LABELS.get(normalized, name), 'value': value})
             context_fields = query_context(section, matched_queries)
             fields.extend(field for field in context_fields if 'table' not in field)
             figure_position = len(fields)
-            sources, images, missing, linked = [], [], [], []
+            sources, images, missing, linked, linked_documents = [], [], [], [], []
             urls = record.get('technical_diagram_urls', [])
             if len(urls) != len(set(urls)):
                 raise ValueError(f'Duplicate source URL for source product {product_id}')
@@ -312,6 +313,7 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                                     'source_url': source_url})
                     continue
                 linked.append(document['document_id'])
+                linked_documents.append(document)
                 for field in document.get('fields', []):
                     allowed = field.get('source_product_ids')
                     if allowed is not None and product_id not in allowed:
@@ -320,7 +322,10 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                     if allowed is None and len(document['pages']) != 1 and not reference:
                         continue
                     label = field['label'] + (' (Source Reference)' if reference else '')
-                    fields.append({'label': label, 'value': field['value']})
+                    if is_report_field(label):
+                        reports.append(field['value'])
+                    elif not is_hidden_field(label):
+                        fields.append({'label': label, 'value': field['value']})
                 if document.get('review_notes'):
                     fields.append({'label': 'Source Reference Review', 'value': document['review_notes']})
                 for page in document['pages']:
@@ -331,21 +336,13 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                     if document['registered_pdf_id']:
                         source.update(document_id=document['registered_pdf_id'], page=page['page'])
                     sources.append(source)
-                    if page.get('text', '').strip():
-                        text = page['text']
-                        label = ('Source Diagram Details' if len(document['pages']) == 1 else
-                                 f'Source Document Details — Page {page["page"]} '
-                                 '(contains source alternatives; use matching selector context)')
-                        for start in range(0, len(text), 90000):
-                            fields.append({'label': label, 'value': text[start:start + 90000]})
-                    ocr = ocr_images.get(page['image_sha256'])
-                    if ocr and ocr.get('status') == 'ocr_complete' and ocr.get('text', '').strip():
-                        confidence = ocr.get('confidence', 'not recorded')
-                        text = (f'{caption}\nUnverified OCR transcript; check the diagram. '
-                                f'OCR engine confidence: {confidence}.\n\n{ocr["text"]}')
-                        for start in range(0, len(text), 90000):
-                            fields.append({'label': f'Source Image Text — Page {page["page"]} (OCR; check diagram)',
-                                           'value': text[start:start + 90000]})
+            report_numbers = report_number_values(reports)
+            if report_numbers:
+                fields.insert(figure_position, {'label': 'Report Number', 'value': '; '.join(report_numbers)})
+                figure_position += 1
+            details = installation_field(linked_documents, product_id)
+            if details:
+                fields.insert(figure_position, details)
             if not urls:
                 status = 'No diagram link was present in the supplied selector record.'
                 section_count['records_without_diagram_link'] += 1
@@ -364,7 +361,6 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                 fields.insert(figure_position, {'label': 'Refer Figure',
                                                'value': 'Full linked source pages; open an image to inspect it at full size.',
                                                'images': images})
-            fields.extend(field for field in context_fields if 'table' in field)
             recommendation = record.get('recommendation', '')
             service = '; '.join(values.get('services', []))
             frl = '; '.join(values.get('frl', []))
@@ -378,8 +374,8 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
                                         'capture_sha256': capture_hash, 'document_ids': linked,
                                         'unavailable_source_urls': missing},
             }
-            if values.get('report number'):
-                record_data['filter_values']['document'] = list(dict.fromkeys(values['report number']))
+            if report_numbers:
+                record_data['filter_values']['document'] = report_numbers
             new_records.append(record_data)
             section_count['records'] += 1
         counts.update(section_count)
@@ -400,6 +396,7 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
     audit = {'schema_version': SCHEMA_VERSION, 'capture_sha256': capture_hash,
              'manifest_sha256': manifest_hash, 'prepared_index_sha256': index_hash,
              'ocr_index_sha256': ocr_hash, 'document_enrichment_sha256': enrichment_hash,
+             'installation_details_sha256': installation_hash,
              'owned_technical_ids': [item['id'] for item in new_records],
              'owned_document_ids': sorted(new_documents), 'owned_image_ids': sorted(new_images),
              'counts': dict(counts), 'sections': sections_audit, 'queries': query_evidence,

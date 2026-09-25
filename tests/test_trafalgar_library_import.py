@@ -208,7 +208,7 @@ class TrafalgarImportTests(unittest.TestCase):
         ocr = {'images': [{'image_sha256': digest(self.image), 'status': 'ocr_complete',
                           'text': 'Unverified OCR suggests -/999/999.', 'confidence': 72}]}
         (self.prepared / 'ocr-index.json').write_bytes(json_bytes(ocr))
-        enrichment = {'documents': [{'document_id': 'D-ONE', 'fields': [
+        enrichment = {'documents': [{'document_id': 'D-ONE', 'source_sha256': digest(self.pdf), 'fields': [
             {'label': 'Drawing callout', 'value': 'Check the drawing callout.', 'scope': 'reference'}],
             'review_notes': ['Review remains incomplete.']}]}
         (self.prepared / 'document-enrichment.json').write_bytes(json_bytes(enrichment))
@@ -222,7 +222,9 @@ class TrafalgarImportTests(unittest.TestCase):
         self.assertEqual(self.data()[IMPORT_KEY]['ocr_evidence'], ocr)
 
     def test_duplicate_product_ids_fail_without_output(self):
-        self.capture['sections'][0]['records'].append(deepcopy(self.capture['sections'][0]['records'][0]))
+        record = deepcopy(self.capture['sections'][0]['records'][0])
+        record['record_id'] = 'R-duplicate-product'
+        self.capture['sections'][0]['records'].append(record)
         with self.assertRaisesRegex(ValueError, 'duplicate source product ID'):
             self.build()
         self.assertFalse(self.output.exists())
@@ -275,6 +277,47 @@ class TrafalgarImportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unsupported selector category'):
             self.build()
         self.assertFalse(self.output.exists())
+
+    def test_omitted_record_query_context_and_unknown_query_records_are_rejected(self):
+        section = self.capture['sections'][0]
+        section['records'][0]['query_ids'].remove('Q-1')
+        with self.assertRaisesRegex(ValueError, 'Query context is missing'):
+            self.build()
+        section['records'][0]['query_ids'].insert(0, 'Q-1')
+        section['queries'][0]['record_ids'].append('R-not-captured')
+        with self.assertRaisesRegex(ValueError, 'Query context is missing'):
+            self.build()
+        self.assertFalse(self.output.exists())
+
+    def test_enrichment_requires_exact_source_bytes_and_optional_page_image_binding(self):
+        review = {'document_id': 'D-ONE', 'fields': [{'label': 'Reference', 'value': 'Reviewed text'}]}
+        enrichment = {'documents': [review]}
+        path = self.prepared / 'document-enrichment.json'
+        for source_hash in (None, '0' * 64):
+            if source_hash is not None:
+                review['source_sha256'] = source_hash
+            path.write_bytes(json_bytes(enrichment))
+            with self.assertRaisesRegex(ValueError, 'enrichment source fingerprint mismatch'):
+                self.build()
+        review['source_sha256'] = digest(self.pdf)
+        review['fields'][0]['source_page'] = 2
+        path.write_bytes(json_bytes(enrichment))
+        with self.assertRaisesRegex(ValueError, 'unavailable source page'):
+            self.build()
+        review['fields'][0].update(source_page=1, image_sha256='0' * 64)
+        path.write_bytes(json_bytes(enrichment))
+        with self.assertRaisesRegex(ValueError, 'enrichment image fingerprint mismatch'):
+            self.build()
+        review['fields'][0]['image_sha256'] = digest(self.image)
+        path.write_bytes(json_bytes(enrichment))
+        self.build()
+        self.assertIn('Reference', [field['label'] for field in self.item()['fields']])
+
+    def test_enrichment_capture_mismatch_is_rejected(self):
+        enrichment = {'source_capture_sha256': '0' * 64, 'documents': []}
+        (self.prepared / 'document-enrichment.json').write_bytes(json_bytes(enrichment))
+        with self.assertRaisesRegex(ValueError, 'enrichment belongs to a different selector capture'):
+            self.build()
 
     def test_output_is_not_replaced_when_content_has_changed(self):
         self.build()

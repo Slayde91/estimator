@@ -142,6 +142,8 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
     ocr_images = unique(ocr_index.get('images', []), 'image_sha256', 'OCR image fingerprint')
     enrichment_path = prepared / 'document-enrichment.json'
     enrichment, enrichment_hash = read_json(enrichment_path) if enrichment_path.exists() else ({'documents': []}, None)
+    if isinstance(enrichment, dict) and enrichment.get('source_capture_sha256', capture_hash) != capture_hash:
+        raise ValueError('The document enrichment belongs to a different selector capture.')
     enrichment_rows = enrichment.get('documents', enrichment.get('rows', [])) if isinstance(enrichment, dict) else enrichment
     reviewed_documents = unique([dict(value, document_id=value['document_id'].casefold())
                                  for value in enrichment_rows], 'document_id', 'document enrichment')
@@ -155,6 +157,20 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
     by_document_id = unique([dict(value, document_id=value['document_id'].casefold())
                              for value in prepared_documents.values()], 'document_id',
                             'case-insensitive prepared document ID')
+    for key, review in reviewed_documents.items():
+        source = by_document_id.get(key)
+        if (source is None or not review.get('source_sha256')
+                or review['source_sha256'] != source.get('sha256')):
+            raise ValueError(f'Document enrichment source fingerprint mismatch: {key}')
+        pages = {page['page']: page for page in source.get('pages', [])}
+        for field in review.get('fields', []):
+            page_number = field.get('source_page')
+            image_hash = field.get('image_sha256')
+            if page_number is not None and (type(page_number) is not int or page_number not in pages):
+                raise ValueError(f'Document enrichment references an unavailable source page: {key}')
+            if image_hash is not None and (page_number not in pages
+                                          or image_hash != pages[page_number]['image_sha256']):
+                raise ValueError(f'Document enrichment image fingerprint mismatch: {key}')
     base_library = ReferenceLibrary(base)
     data = public_data(base_library)
     previous = data.get(IMPORT_KEY, {})
@@ -235,6 +251,15 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
         raise ValueError('The capture contains an unsupported selector category.')
     for category, section in sorted(sections.items()):
         queries, evidence = capture_queries(section)
+        section_records = unique(section['records'], 'record_id', 'source record ID')
+        for query_id, query in queries.items():
+            record_ids = query.get('record_ids', [])
+            if len(record_ids) != len(set(record_ids)):
+                raise ValueError(f'Duplicate record association in query: {query_id}')
+            for record_id in record_ids:
+                record = section_records.get(record_id)
+                if record is None or query_id not in record.get('query_ids', []):
+                    raise ValueError(f'Query context is missing from its source record: {query_id}, {record_id}')
         query_evidence[category] = evidence
         section_count = Counter()
         for record in section['records']:

@@ -27,14 +27,14 @@ FYREWRAP_DIRECTION_NOTE = (
 # in docs/CALCULATOR_PRESENTATION_MAPPING.md; these affect styling only.
 _PRESENTATION_HEADERS = {
     'steel_vermiculite': {'CALCULATOR': [28], 'BAGS': [19],
-                         'SETTINGS': [35, 54, 68, 86, 100, 123, 177, 196, 233, 259]},
+                         'SETTINGS': [35, 54, 68, 86, 100, 123, 177, 196, 233, 259, 560]},
     'steel_board': {'EXTRA BOARDS': [5], 'BOARD SUMMARY': [11], 'SETTINGS': [5]},
     'ductwork': {'SUMMARY': [8, 18, 30, 39],
                  'PRODUCT SETTINGS': [7, 36, 49, 74, 95, 116, 117, 123, 129, 136]},
 }
 _PRESENTATION_SECTIONS = {
     'steel_vermiculite': {'CALCULATOR': ['A5', 'H5', 'A26'], 'BAGS': ['A17'],
-                         'SETTINGS': [f'A{row}' for row in (9, 17, 31, 64, 96, 173, 229, 270, 341, 356, 370)]},
+                         'SETTINGS': [f'A{row}' for row in (9, 17, 31, 64, 96, 173, 229, 270, 341, 356, 370, 559)]},
     'steel_board': {'START': [f'A{row}' for row in (8, 15, 21, 25, 30, 34)]},
     'ductwork': {'SUMMARY': ['A17', 'A29', 'A38'],
                  'PRODUCT SETTINGS': ['A6', 'A48', 'A94', 'J94', 'J115', 'A153']},
@@ -67,6 +67,7 @@ _DISPLAY_TEXT = {
                              ('GLOBAL SETTINGS', 'COMMON CALCULATION RULES', 'CAFCO 300',
                               'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+',
                               'MONOKOTE MK-6 HY', 'COMPLETE WORKBOOK OPERATING RULES'))),
+                                      'A559': 'MONOKOTE Z106',
                                       'A356': 'IDEALISED HOLLOW GEOMETRY',
                                       'A370': 'FENDOLITE CASTELLATED SECTION'},
                          'SCHEDULE': {'Z9': 'Line', 'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
@@ -97,7 +98,7 @@ _DISPLAY_TEXT = {
 _DISPLAY_CELLS = {
     'steel_vermiculite': {
         'BAGS': {'H6': {'merge': 'H6:N10'},
-                 **{f'A{row}': {'bold': True} for row in range(20, 25)}},
+                 **{f'A{row}': {'bold': True} for row in range(20, 26)}},
         'CALCULATOR': {'D10': {'control': 'select'},
                        'H6': {'align': 'left', 'suffix': ' mm', 'highlight': 'published-thickness'},
                        **{f'{column}{row}': {'align': 'center'} for row in range(28, 31) for column in 'ABCDEFGHI'}},
@@ -105,7 +106,7 @@ _DISPLAY_CELLS = {
                      **{f'Y{row}': {'bold': False} for row in range(10, 1010)},
                      **{f'F{row}': {'control': 'select'} for row in range(10, 1010)}},
         'SETTINGS': {
-            **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246)},
+            **{f'A{row}': {'role': 'column_header'} for row in (48, 81, 113, 190, 246, 560)},
             **{f'D{row}': {'bold': False} for row in (42, 75, 107, 184, 240)},
             **{f'A{row}': {'bold': True} for row in (
                 52, *range(55, 59), *range(87, 91), *range(117, 122), *range(124, 168),
@@ -156,7 +157,8 @@ _SETTINGS_SECTIONS = {
     ('steel_vermiculite', 'SETTINGS'): [
         {'id': f'A{first}', 'title_address': f'A{first}', 'ranges': [f'A{first}:N{last}']}
         for first, last in ((9, 16), (17, 30), (31, 63), (64, 95), (96, 172),
-                            (173, 228), (229, 269), (270, 340), (341, 355), (356, 369), (370, 374))
+                            (173, 228), (229, 269), (270, 340), (341, 355), (356, 369),
+                            (370, 374), (559, 568))
     ],
     ('ductwork', 'PRODUCT SETTINGS'): [
         {'id': address, 'title_address': address, 'ranges': [region]}
@@ -181,7 +183,7 @@ _DISPLAY_PAGES = {
         {'id': 'SCHEDULE', 'label': 'SCHEDULE', 'sheet': 'SCHEDULE'},
         {'id': 'BAGS', 'label': 'SUMMARY', 'sheet': 'BAGS'},
         {'id': 'SETTINGS', 'label': 'SETTINGS', 'sheet': 'SETTINGS',
-         'section_ids': ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229'], 'include_common': True,
+         'section_ids': ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229', 'A559'], 'include_common': True,
          'hidden_common_addresses': ['A7']},
         {'id': 'FACTOR CALCS', 'label': 'FACTOR CALCS', 'sheet': 'SETTINGS',
          'section_ids': ['A341', 'A356', 'A370'], 'include_common': False},
@@ -209,7 +211,7 @@ _PRESENTATION_TABLES = {
              'column_widths': [1] * 13,
              'width_mode': 'fit', 'table_kind': 'form', 'label': 'Manual material quantity',
              'title_address': 'A1', 'subtitle_address': 'A3'},
-            {'first_row': 17, 'last_row': 24, 'columns': list(range(1, 10)),
+            {'first_row': 17, 'last_row': 25, 'columns': list(range(1, 10)),
              'column_widths': [19, 7, 9, 10, 8, 7, 11, 9, 20], 'width_mode': 'fit',
              'table_kind': 'order', 'title_address': 'A17', 'header_row': 19, 'label': 'PRODUCT ORDER SUMMARY'},
         ],
@@ -661,7 +663,7 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
              'net_bags': engine.value('BAGS', f'E{row}'),
              'whole_bags': engine.value('BAGS', f'G{row}'),
              'status': engine.value('BAGS', f'I{row}')}
-            for row in range(20, 25)
+            for row in range(20, 26)
         ] if shared_options and calculator_id == 'steel_vermiculite' and sheet == 'SCHEDULE' else None
         board_product_totals = _board_product_totals(engine) if shared_options and calculator_id == 'steel_board' and sheet == 'CALCULATOR' else None
     return {**metadata, 'sheet': sheet, 'start_row': start_row, 'end_row': end_row,

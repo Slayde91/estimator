@@ -11,35 +11,34 @@ import unittest
 from estimator.calculator_defaults import default_calculator_inputs, yield_review
 from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.catalog import ValidationError
+from estimator.calculator_report import project_calculator_report
 from estimator.server import create_server
 from estimator.storage import Store
 from estimator.workbook_calculators import calculator_session, calculate_page, normalize_calculator_inputs, source_model
 
 
 IDENTITY = 'steel_vermiculite'
-# Independent conversions from the cited coverage, consumption and yield chart.
-BASES = [('D36', 'D37', 'D38', 'D40', 20, 217 * .015 * .020),
-         ('D69', 'D70', 'D71', 'D73', 20, 172 * .015 * .020),
-         ('D101', 'D102', 'D103', 'D105', 20, 1.24 * .025),
-         ('D178', 'D179', 'D180', 'D182', 17, 17 / (3.5 / .01)),
-         ('D234', 'D235', 'D236', 'D238', 21.8, 27 * (.3048 ** 2) * .0254)]
+# User-selected startup assumptions; yields are calculated by the workbook.
+BASES = [('D36', 'D37', 'D38', 'D40', 20, 308),
+         ('D69', 'D70', 'D71', 'D73', 20, 388),
+         ('D101', 'D102', 'D103', 'D105', 20, 645),
+         ('D178', 'D179', 'D180', 'D182', 17, 410),
+         ('D234', 'D235', 'D236', 'D238', 21.8, 344),
+         ('D561', 'D562', 'D563', 'D565', 22.2, 325)]
 
 
 class CalculatorDefaultsTests(unittest.TestCase):
-    def test_published_basis_conversions_and_equivalent_consumption_density(self):
+    def test_user_selected_blank_direct_yields_and_density_fallback(self):
         inputs = default_calculator_inputs(IDENTITY)
-        self.assertEqual(len(inputs['SETTINGS']), 20)
+        self.assertEqual(len(inputs['SETTINGS']), 23)
         _, engine, lock = calculator_session(IDENTITY, inputs)
         with lock:
-            for mass_cell, direct_cell, density_cell, used_cell, mass, expected in BASES:
+            for mass_cell, direct_cell, density_cell, used_cell, mass, density in BASES:
                 with self.subTest(yield_cell=used_cell):
                     self.assertEqual(engine.value('SETTINGS', mass_cell), mass)
-                    self.assertAlmostEqual(engine.value('SETTINGS', direct_cell), expected, places=14)
-                    self.assertAlmostEqual(engine.value('SETTINGS', used_cell), expected, places=14)
-                    self.assertAlmostEqual(engine.value('SETTINGS', density_cell), mass / expected, places=10)
-        # Installed coating densities must never substitute for consumption.
-        self.assertNotEqual(inputs['SETTINGS']['D38'], 310)
-        self.assertNotEqual(inputs['SETTINGS']['D236'], 240)
+                    self.assertIn(engine.value('SETTINGS', direct_cell), (None, ''))
+                    self.assertAlmostEqual(engine.value('SETTINGS', used_cell), mass / density, places=14)
+                    self.assertEqual(engine.value('SETTINGS', density_cell), density)
 
     def test_original_source_calculations_are_still_available_with_explicit_empty_inputs(self):
         _, engine, lock = calculator_session(IDENTITY, {})
@@ -51,12 +50,12 @@ class CalculatorDefaultsTests(unittest.TestCase):
 
     def test_direct_yield_priority_and_density_fallback_keep_workbook_rules(self):
         inputs = default_calculator_inputs(IDENTITY)
-        for mass, direct, density, used, _, expected in BASES:
+        for mass, direct, density, used, mass_value, density_value in BASES:
             fallback = deepcopy(inputs)
             fallback['SETTINGS'][direct] = None
             _, engine, lock = calculator_session(IDENTITY, fallback)
             with lock:
-                self.assertAlmostEqual(engine.value('SETTINGS', used), expected, places=14)
+                self.assertAlmostEqual(engine.value('SETTINGS', used), mass_value / density_value, places=14)
             override = deepcopy(inputs)
             override['SETTINGS'].update({direct: .123456789, density: 900, mass: 10})
             _, engine, lock = calculator_session(IDENTITY, override)
@@ -67,12 +66,71 @@ class CalculatorDefaultsTests(unittest.TestCase):
             with lock:
                 self.assertEqual(engine.value('SETTINGS', used), '', 'Explicit zero is not a blank fallback')
 
+    def test_z106_reuses_mk6_technical_results_but_has_own_bags(self):
+        base = default_calculator_inputs(IDENTITY)
+        member = {'A10': 'Test member', 'C10': 'Re-entrant - 3 sides', 'D10': 620,
+                  'E10': 'Section', 'F10': '410UB54', 'H10': 120, 'I10': 165, 'J10': 2}
+        results = {}
+        for product in ('MONOKOTE MK-6 HY', 'MONOKOTE Z106'):
+            inputs = deepcopy(base)
+            inputs['SCHEDULE'] = {**member, 'B10': product}
+            inputs['CALCULATOR'] = {'D6': product}
+            _, engine, lock = calculator_session(IDENTITY, inputs)
+            with lock:
+                results[product] = {
+                    'technical': tuple(engine.value('ENGINE', f'{column}3')
+                                       for column in ('L', 'AD', 'AE', 'AF')),
+                    'quick': tuple(engine.value('ENGINE', f'{column}2')
+                                   for column in ('L', 'AD', 'AE', 'AF')),
+                    'quick_yield': engine.value('ENGINE', 'AH2'),
+                    'volume': engine.value('SCHEDULE', 'S10'),
+                    'yield': engine.value('ENGINE', 'AH3'),
+                    'bags': engine.value('SCHEDULE', 'T10'),
+                    'status': engine.value('SCHEDULE', 'W10'),
+                    'order': engine.value('BAGS', 'G25'),
+                }
+        mk6, z106 = (results[product] for product in ('MONOKOTE MK-6 HY', 'MONOKOTE Z106'))
+        self.assertEqual(z106['technical'], mk6['technical'])
+        self.assertEqual(z106['quick'], mk6['quick'])
+        self.assertEqual(z106['quick_yield'], 22.2 / 325)
+        self.assertNotEqual(z106['quick_yield'], mk6['quick_yield'])
+        self.assertEqual(z106['volume'], mk6['volume'])
+        self.assertEqual(z106['yield'], 22.2 / 325)
+        self.assertAlmostEqual(z106['bags'], z106['volume'] / z106['yield'])
+        self.assertNotEqual(z106['bags'], mk6['bags'])
+        self.assertEqual(z106['status'], 'QUANTIFIED - ESTIMATE')
+        self.assertEqual(z106['order'], 183)
+
+        # A saved project can change only Z106 consumption, leaving MK-6 alone.
+        changed = deepcopy(base)
+        changed['SETTINGS']['D563'] = 400
+        changed['SCHEDULE'] = {**member, 'B10': 'MONOKOTE Z106'}
+        _, engine, lock = calculator_session(IDENTITY, changed)
+        with lock:
+            self.assertAlmostEqual(engine.value('SCHEDULE', 'T10'), z106['volume'] / (22.2 / 400))
+            self.assertEqual(engine.value('SETTINGS', 'D238'), 21.8 / 344)
+        _, older_engine, lock = calculator_session(IDENTITY, {'SETTINGS': {'D236': 500}})
+        with lock:
+            self.assertEqual(older_engine.value('SETTINGS', 'D563'), 325)
+            self.assertEqual(older_engine.value('SETTINGS', 'D565'), 22.2 / 325)
+            self.assertEqual(older_engine.value('SETTINGS', 'D236'), 500)
+        report = project_calculator_report(IDENTITY, {**base, 'SCHEDULE': {**member, 'B10': 'MONOKOTE Z106'}})
+        self.assertEqual(report['summaries'][0]['rows'][-1]['values']['A'], 'MONOKOTE Z106')
+        self.assertEqual(report['summaries'][0]['rows'][-1]['values']['G'], 183)
+        last_row = {address.replace('10', '1009'): value for address, value in member.items()}
+        last_row['B1009'] = 'MONOKOTE Z106'
+        _, engine, lock = calculator_session(IDENTITY, {**base, 'SCHEDULE': last_row})
+        with lock:
+            self.assertEqual(engine.value('ENGINE', 'AG1002'), 6)
+            self.assertEqual(engine.value('SCHEDULE', 'S1009'), z106['volume'])
+            self.assertEqual(engine.value('SCHEDULE', 'T1009'), z106['bags'])
+
     def test_defaults_and_evidence_are_caller_owned(self):
         defaults = default_calculator_inputs(IDENTITY)
         defaults['SETTINGS']['D36'] = 999
         self.assertEqual(default_calculator_inputs(IDENTITY)['SETTINGS']['D36'], 20)
         review = yield_review(IDENTITY)
-        self.assertEqual(len(review['products']), 5)
+        self.assertEqual(len(review['products']), 6)
         self.assertTrue(all(p['sources'] and p['basis'] and p['confidence'] for p in review['products']))
         review['products'][0]['sources'].clear()
         self.assertTrue(yield_review(IDENTITY)['products'][0]['sources'])
@@ -158,7 +216,7 @@ class CalculatorDefaultsHttpTests(unittest.TestCase):
             inputs['SETTINGS']['D37'] = direct
             worksheet = self.request('POST', '/worksheet', {'sheet': 'SCHEDULE', 'inputs': inputs})
             totals = worksheet['product_totals']
-            self.assertEqual(len(totals), 5)
+            self.assertEqual(len(totals), 6)
             _, engine, lock = calculator_session(IDENTITY, inputs)
             with lock:
                 for row, product in enumerate(totals, 20):

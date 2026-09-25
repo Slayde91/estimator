@@ -201,7 +201,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                        "CALCULATOR": {"A1": "QUICK CALCULATOR", "L6": "PUBLISHED VALUE"},
                        "SETTINGS": {"A9": "GLOBAL SETTINGS", "A17": "COMMON CALCULATION RULES",
                                     "A31": "CAFCO 300", "A64": "MANDOLITE CP2", "A96": "FENDOLITE MII",
-                                    "A173": "PERLIFOC HP ECO+", "A229": "MONOKOTE MK-6 HY",
+                                    "A173": "PERLIFOC HP ECO+", "A229": "MONOKOTE MK-6 HY", "A559": "MONOKOTE Z106",
                                     "A270": "COMPLETE WORKBOOK OPERATING RULES",
                                     "A356": "IDEALISED HOLLOW GEOMETRY", "A370": "FENDOLITE CASTELLATED SECTION"},
                        "SCHEDULE": {"Z9": "Line", "A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
@@ -300,7 +300,7 @@ class CalculatorCleanupTests(unittest.TestCase):
         expected = {
             (IDENTITY, "BAGS"): {"H6": {"merge": "H6:N10"}},
             (IDENTITY, "SETTINGS"): {
-                **{f"A{row}": {"role": "column_header"} for row in (48, 81, 113, 190, 246)},
+                **{f"A{row}": {"role": "column_header"} for row in (48, 81, 113, 190, 246, 560)},
                 **{f"D{row}": {"merge": f"D{row}:G{row}"} for row in (*range(346, 353), *range(358, 369), *range(372, 375))},
                 "A371": {"merge": "A371:G371", "role": "collapsed_spacer"}},
             ("ductwork", "CALCULATOR"): {"A3": {"role": "note"}},
@@ -371,7 +371,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             (IDENTITY, "CALCULATOR"): [(5, 24, list(range(1, 7)), "A5"),
                                       (5, 24, list(range(8, 15)), "H5"),
                                       (26, 30, [1, 3, 5, 6, 7, 8, 9], "A26")],
-            (IDENTITY, "BAGS"): [(1, 15, [*range(1, 7), *range(8, 15)], "A1"), (17, 24, list(range(1, 10)), "A17")],
+            (IDENTITY, "BAGS"): [(1, 15, [*range(1, 7), *range(8, 15)], "A1"), (17, 25, list(range(1, 10)), "A17")],
             ("ductwork", "PRODUCT SETTINGS"): [(94, 151, list(range(1, 9)), "A94"),
                                                (94, 113, list(range(10, 18)), "J94"),
                                                (115, 149, list(range(10, 18)), "J115")],

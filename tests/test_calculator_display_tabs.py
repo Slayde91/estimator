@@ -8,6 +8,7 @@ from estimator.workbook_calculators import (
     calculate_page, calculator_definition, input_field, normalize_calculator_inputs, source_model,
 )
 from estimator.workbook_catalog import editable_cells
+from estimator.workbook_runtime import application_editable_cells
 from tests.test_calculator_section_navigation import contains, digest
 from tests.test_workbook_parity import read_fixture
 
@@ -45,7 +46,7 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertEqual(pages[0]['section_ids'], ['A270'])
         self.assertEqual(pages[0]['section_mode'], 'content')
         self.assertFalse(pages[0]['include_common'])
-        self.assertEqual(pages[4]['section_ids'], ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229'])
+        self.assertEqual(pages[4]['section_ids'], ['A9', 'A17', 'A31', 'A64', 'A96', 'A173', 'A229', 'A559'])
         self.assertTrue(pages[4]['include_common'])
         self.assertEqual(pages[5]['section_ids'], ['A341', 'A356', 'A370'])
         self.assertFalse(pages[5]['include_common'])
@@ -60,7 +61,7 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         pages = [page for page in self.definitions['steel_vermiculite']['display_pages']
                  if page['sheet'] == 'SETTINGS']
         assigned = [section for page in pages for section in page['section_ids']]
-        self.assertEqual(len(assigned), 11)
+        self.assertEqual(len(assigned), 12)
         self.assertEqual(set(assigned), set(sections))
         self.assertEqual(len(set(assigned)), len(assigned))
         source = next(sheet for sheet in source_model('steel_vermiculite')['sheets'] if sheet['name'] == 'SETTINGS')
@@ -78,6 +79,8 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
                 counts[owners[0]] += 1
         self.assertEqual(counts, {'START': 0, 'SETTINGS': 25, 'FACTOR CALCS': 9})
         self.assertEqual(set(readonly), REFERENCES)
+        self.assertTrue({'D561', 'D562', 'D563', 'D564'}.issubset(
+            application_editable_cells('steel_vermiculite', 'SETTINGS')))
         for virtual in ('START', 'FACTOR CALCS'):
             with self.assertRaises(ValidationError):
                 normalize_calculator_inputs('steel_vermiculite', {virtual: {'D346': 2}})
@@ -115,6 +118,8 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
                                ('A370', 'FENDOLITE CASTELLATED SECTION')):
             self.assertEqual(metadata['display_text'][address], title)
             self.assertTrue(source['cells'][address]['value'].startswith(title + '  |  '))
+        self.assertEqual(metadata['display_text']['A559'], 'MONOKOTE Z106')
+        self.assertEqual(source['cells']['A559']['value'], 'MONOKOTE Z106')
 
     def test_section_id_native_dropdown_keeps_every_source_choice_and_strict_rule(self):
         metadata = self.metadata('steel_vermiculite', 'SCHEDULE')
@@ -241,7 +246,7 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertEqual(metadata['display_table_order'], [1, 0])
         self.assertEqual((form['first_row'], form['last_row']), (1, 15))
         self.assertEqual((form['title_address'], form['subtitle_address']), ('A1', 'A3'))
-        self.assertEqual((order['first_row'], order['last_row'], order['title_address']), (17, 24, 'A17'))
+        self.assertEqual((order['first_row'], order['last_row'], order['title_address']), (17, 25, 'A17'))
         source = next(sheet for sheet in source_model('steel_vermiculite')['sheets'] if sheet['name'] == 'BAGS')
         self.assertIn('CEASEFIRE', source['cells']['A1']['value'])
         self.assertTrue(source['cells']['A3']['value'])

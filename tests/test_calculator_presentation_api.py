@@ -21,7 +21,7 @@ from estimator.workbook_calculators import source_model
 
 
 EXTENTS = {
-    "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (558, 65)},
+    "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (568, 65)},
     "ductwork": {"CALCULATOR": (1010, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (160, 17)},
     "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 35), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
 }
@@ -159,10 +159,10 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         bags = self.worksheet('steel_vermiculite', 'BAGS')
         self.assertEqual(bags['display_table_order'], [1, 0])
         self.assertEqual(bags['navigation_mode'], 'hidden')
-        for row in range(20, 25):
+        for row in range(20, 26):
             self.assertTrue(bags['display_cells'][f'A{row}']['bold'])
         for identity, sheet, count, field in (
-                ('steel_vermiculite', 'SETTINGS', 11, 'D42'),
+                ('steel_vermiculite', 'SETTINGS', 12, 'D42'),
                 ('ductwork', 'PRODUCT SETTINGS', 5, 'B96'),
                 ('steel_board', 'SETTINGS', 3, 'B34')):
             page = self.worksheet(identity, sheet)

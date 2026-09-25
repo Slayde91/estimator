@@ -67,7 +67,7 @@
     pane.searchInput.placeholder = kind === "penetration" ? "Search firestopping records…" : "Search systems and technical references…";
     pane.searchInput.dataset.librarySearch = kind;
     label.append(node("span", "", `Search ${titles[kind]}`), pane.searchInput);
-    pane.refresh = symbolButton("↻", "Refresh", () => refresh(pane)); pane.refresh.dataset.libraryRefresh = kind;
+    pane.refresh = symbolButton("↻", "Refresh", () => refresh(pane)); pane.refresh.className += " refresh-button"; pane.refresh.dataset.libraryRefresh = kind;
     controls.append(label, pane.refresh); pane.filterControls = node("div", "library-filters");
     pane.count = node("p", "helper library-count"); pane.count.setAttribute("role", "status"); pane.count.dataset.libraryCount = kind;
     pane.results = node("div", "library-results"); pane.results.dataset.libraryResults = kind;

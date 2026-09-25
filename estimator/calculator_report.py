@@ -186,7 +186,7 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Available Maxilite net area at 60 mm (m²)', _sum_values(r['values']['P'] for r in rows) if any(r['wrap'] for r in rows) else 'N/A')]
         data['basis'] = 'Duct surface is the measured duct area. Wrap material includes the calculated layers and overlaps. Spray bags cover the duct body only. Bags do not apply to FyreWrap or Maxilite.'
     elif calculator_id == 'steel_vermiculite':
-        data['summaries'] = [table('Product order totals', 'BAGS', 19, 20, 24, 'ABCDEFGHI',
+        data['summaries'] = [table('Product order totals', 'BAGS', 19, 20, 25, 'ABCDEFGHI',
             note='Whole bags per product are pooled from net bags, then the product waste allowance and rounding are applied once. They are not the sum of the schedule line bag counts.')]
         data['totals'] = [('Available spray surface (m²)', engine.value('SCHEDULE', 'A5')),
                           ('Quantified coating volume (m³)', engine.value('SCHEDULE', 'G5')),

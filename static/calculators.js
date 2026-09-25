@@ -114,7 +114,7 @@
         D111: [["Source links: T331 and V331.", "See the Fendolite yield-source links on SETTINGS."]],
         D188: [["Source links: T332 and V332.", "See the Perlifoc yield-source links on SETTINGS."]],
         D244: [["Source links: T333 and V333.", "See the Monokote yield-source links on SETTINGS."]],
-        A301: [["CAFCO uses an inherited assumption;", "The original CAFCO workbook used an inherited assumption; reviewed defaults use Australian published coverage;"], ["Sources: P330:V333.", "See the product yield-source records on SETTINGS."]],
+        A301: [["CAFCO uses an inherited assumption;", "The original CAFCO workbook used an inherited assumption; new estimates use user-selected consumption settings;"], ["Mandolite is provisional; Fendolite/Perlifoc are theoretical; Monokote is uninjected.", "The startup densities are estimating assumptions; verify product-specific site yield."], ["Sources: P330:V333.", "See the historical product yield-source records on SETTINGS."]],
         A293: [["Sort or filter the entire SCHEDULE table, never one column alone.", "The complete SCHEDULE table stays together on one page."]],
       },
     },
@@ -1367,7 +1367,7 @@
     const entry = current(); if (!entry || state.action) return;
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
-      const defaultsDetail = entry.definition.defaults?.SETTINGS ? "reviewed product yields and one blank schedule row" : "supplied workbook settings and one blank schedule row";
+      const defaultsDetail = entry.definition.defaults?.SETTINGS ? "user-selected material settings and one blank schedule row" : "supplied workbook settings and one blank schedule row";
       if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save or Save As to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;

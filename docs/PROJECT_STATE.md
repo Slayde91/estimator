@@ -21,7 +21,7 @@ browser. Board Summary is displayed as Summary there. Source workbooks, sheet
 names, formulas, output cells and export identities are unchanged. Validation
 and publication results must be taken from current test, CI and Git receipts.
 
-## Current: Product/Service pricing view and scalar yield
+## Historical: Product/Service pricing view and scalar yield
 
 The branch `feat/product-service-pricing` starts from PR #32 merge `0deea0e`.
 The pricing table reconciles its visible name, selection-name and description
@@ -30,7 +30,8 @@ the original rate names as stable Calculator lookup keys; dropdown label maps
 use the edited display text while selected values and catalog signatures retain
 their identities. No stored pricing data or project file is migrated on startup.
 
-Sell rate overrides remain supported internally and behind Show rate overrides.
+Sell rate overrides remain supported internally for legacy saved uses; the later
+pricing UI removed the Show rate overrides editor.
 Saved projects intentionally freeze those rates. The simplified row identifies
 retained estimator rates, while standalone services have an editable Sell price.
 One scalar yield updates only the item's yield-bearing uses with matching units.

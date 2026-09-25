@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 import unittest
 
-from estimator.calculator_defaults import default_calculator_inputs
 from estimator.excel_engine import WorkbookEngine
 from estimator.workbook_calculators import source_model
 from tests.test_workbook_parity import excel_equal, scenario_inputs
@@ -85,34 +84,6 @@ class ReviewedYieldFixtureTests(unittest.TestCase):
 
 
 class ReviewedYieldNativeParityTests(unittest.TestCase):
-    def test_installed_default_profile_matches_independent_native_outputs(self):
-        scenario = next(entry for entry in read_capture()["scenarios"]
-                        if entry["id"] == "reviewed_direct_all_products")
-        inputs = scenario_inputs(scenario)
-        # Use the actual installed profile, not its independently authored
-        # fixture SETTINGS. The fixture supplies only the representative rows.
-        inputs.pop("SETTINGS", None)
-        for sheet, cells in default_calculator_inputs("steel_vermiculite").items():
-            inputs.setdefault(sheet, {}).update(cells)
-        engine = WorkbookEngine(source_model("steel_vermiculite"), inputs)
-        mismatches = []
-        compared = 0
-        for sheet, cells in scenario["expected"].items():
-            for address, expected in cells.items():
-                numeric = type(expected) in (int, float)
-                quantity_status = ((sheet == "SCHEDULE" and address.startswith("W"))
-                                   or (sheet == "BAGS" and address in {f"I{row}" for row in range(20, 25)}))
-                if not (numeric or quantity_status):
-                    # Reviewed basis text is deliberately different from the
-                    # original workbook's old material commentary.
-                    continue
-                actual = engine.value(sheet, address)
-                compared += 1
-                if not excel_equal(actual, expected):
-                    mismatches.append((sheet, address, expected, actual))
-        self.assertGreater(compared, 100)
-        self.assertFalse(mismatches, f"{len(mismatches)} installed-profile discrepancies: {mismatches[:20]!r}")
-
     def test_all_reviewed_yield_scenarios_match_native_excel(self):
         model = source_model("steel_vermiculite")
         for scenario in read_capture()["scenarios"]:

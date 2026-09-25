@@ -68,8 +68,11 @@ class CalculatorSectionNavigationTests(unittest.TestCase):
                 metadata = self.metadata(identity, name)
                 self.assertEqual(metadata['navigation_mode'], 'select')
                 sections = metadata['settings_sections']
-                self.assertEqual([(section['id'], section['ranges']) for section in sections],
-                                 [(section_id, [reference]) for section_id, reference in expected])
+                expected_ranges = [(section_id, [reference]) for section_id, reference in expected]
+                if identity == 'ductwork':
+                    expected_ranges[0][1].append('A161:H162')
+                    expected_ranges[1][1].append('A163:H164')
+                self.assertEqual([(section['id'], section['ranges']) for section in sections], expected_ranges)
                 self.assertEqual(len({section['id'] for section in sections}), len(expected))
                 source = next(sheet for sheet in source_model(identity)['sheets'] if sheet['name'] == name)
                 for section in sections:

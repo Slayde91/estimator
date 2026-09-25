@@ -22,7 +22,7 @@ from estimator.workbook_calculators import source_model
 
 EXTENTS = {
     "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (568, 65)},
-    "ductwork": {"CALCULATOR": (1010, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (160, 17)},
+    "ductwork": {"CALCULATOR": (1010, 90), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (164, 17)},
     "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 35), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
 }
 

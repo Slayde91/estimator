@@ -221,7 +221,7 @@ class CalculatorCleanupTests(unittest.TestCase):
                 expected_columns = {("ductwork", "CALCULATOR"): [37, 38, 42, 43, 44],
                                     ("steel_board", "EXTRA BOARDS"): [14]}
                 self.assertEqual(sheet["omitted_columns"], expected_columns.get((identity, sheet["name"]), []))
-                expected_ranges = {("ductwork", "PRODUCT SETTINGS"): ["J6:Q21"],
+                expected_ranges = {("ductwork", "PRODUCT SETTINGS"): ["J6:Q21", "J132:Q149"],
                                    ("steel_board", "SETTINGS"): ["D5:D34", "G12:N13"],
                                    ("steel_board", "CALCULATOR"): ["Y1:AI1", "A6:L6"]}
                 self.assertEqual(sheet["omitted_ranges"], expected_ranges.get((identity, sheet["name"]), []))
@@ -238,6 +238,9 @@ class CalculatorCleanupTests(unittest.TestCase):
                         "A28": "Schedules support up to 1,000 rows. Every entered row is included in the calculations and purchasing totals, including rows outside the current view.",
                     }
                 if identity == "ductwork" and sheet["name"] == "PRODUCT SETTINGS":
+                    aliases['A22'] = 'Published CAFCO bag mass'
+                    aliases['A23'] = 'Historical theoretical coverage'
+                    aliases['A70'] = 'Published MK-6 HY bag mass'
                     aliases["J94"] = "FYREWRAP APPLICATION TABLE"
                     aliases["J115"] = "PENETRATION TAKEOFF"
                 if identity == "ductwork" and sheet["name"] == "SUMMARY":
@@ -246,6 +249,17 @@ class CalculatorCleanupTests(unittest.TestCase):
                 reviewed_notes = {
                     'CALCULATOR': {'A3': 'Internal, External and Both use the exhaust application rules'},
                     'PRODUCT SETTINGS': {
+                        'E20': 'separate bag-count assumption',
+                        'E21': 'no longer sets the uncalibrated yield',
+                        'E23': 'no longer sets the uncalibrated yield',
+                        'E25': 'bag mass divided by estimating density',
+                        'E35': 'installed density do not change',
+                        'E66': 'injection multiplier',
+                        'E69': 'injection still applies',
+                        'E70': 'estimating mass below',
+                        'E72': 'calibrated bag count is unchanged',
+                        'B43': 'editable bag mass and estimating density',
+                        'B89': 'editable bag mass and estimating density',
                         'J95': 'Source application', 'J109': 'External means exhaust external exposure, requiring 120/120/- in that direction',
                         'J112': 'Pressurisation penetrations require a matching detail',
                         'K137': 'actual directional requirements',

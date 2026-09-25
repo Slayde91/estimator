@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from functools import lru_cache
+from hashlib import sha256
 import json
 import math
 import re
@@ -84,6 +85,20 @@ _DISPLAY_TEXT = {
                  'SUMMARY': {'A1': 'PRODUCT SUMMARY',
                              'A38': 'MAXILITE'},
                  'PRODUCT SETTINGS': {
+                     'A22': 'Published CAFCO bag mass',
+                     'A23': 'Historical theoretical coverage',
+                     'A70': 'Published MK-6 HY bag mass',
+                     'E20': 'RIR3.2, pp.16 and 18. Report installed density; the editable estimating density below is a separate bag-count assumption.',
+                     'E21': 'Promat 2025 data sheet, p.4. Retained as a source reference; it no longer sets the uncalibrated yield.',
+                     'E23': 'Promat data sheet, p.4, at 15 mm. Historical coverage reference; it no longer sets the uncalibrated yield.',
+                     'E25': 'Calibrated uses the reference target. Uncalibrated uses editable CAFCO bag mass divided by estimating density.',
+                     'E35': 'Choose the yield for all CAFCO rows. Report thickness and installed density do not change.',
+                     'E66': 'Chart reference for the injection multiplier. Uncalibrated base yield uses editable bag mass and estimating density.',
+                     'E69': 'Calibrated uses the reference target. Uncalibrated uses editable MK-6 bag mass divided by estimating density; injection still applies its selected multiplier.',
+                     'E70': 'GCP data-sheet pack reference retained. Editable estimating mass below controls the Uncalibrated base yield.',
+                     'E72': 'Published bag masses differ. Confirm the delivered bag and adjust estimating mass below; the calibrated bag count is unchanged.',
+                     'B43': 'Calibrated uses the reference target. Uncalibrated uses editable bag mass and estimating density; both apply to CAFCO rows.',
+                     'B89': 'Choose the base yield and injection separately. Calibrated keeps the reference target; uncalibrated uses editable bag mass and estimating density.',
                      'J94': 'FYREWRAP APPLICATION TABLE',
                      'J115': 'PENETRATION TAKEOFF',
                      'J95': 'Source application',
@@ -161,9 +176,11 @@ _SETTINGS_SECTIONS = {
                             (370, 374), (559, 568))
     ],
     ('ductwork', 'PRODUCT SETTINGS'): [
-        {'id': address, 'title_address': address, 'ranges': [region]}
-        for address, region in (('A6', 'A6:H46'), ('A48', 'A48:H92'), ('A94', 'A94:H151'),
-                                ('J94', 'J94:Q113'), ('J115', 'J115:Q149'))
+        {'id': address, 'title_address': address, 'ranges': ranges}
+        for address, ranges in (('A6', ['A6:H46', 'A161:H162']),
+                                ('A48', ['A48:H92', 'A163:H164']),
+                                ('A94', ['A94:H151']), ('J94', ['J94:Q113']),
+                                ('J115', ['J115:Q149']))
     ],
     ('steel_board', 'SETTINGS'): [
         {'id': f'table-{index}', 'label': label, 'ranges': [region]}
@@ -253,10 +270,20 @@ _PRESENTATION_TABLES = {
     ]},
 }
 _OMITTED_RANGES = {'steel_vermiculite': {'CALCULATOR': ['J28:N30', 'B28:B30', 'D28:D30', 'H23:N24']},
-                   'ductwork': {'PRODUCT SETTINGS': ['J6:Q21']},
+                   'ductwork': {'PRODUCT SETTINGS': ['J6:Q21', 'J132:Q149']},
                    'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13'],
                                    'CALCULATOR': ['Y1:AI1', 'A6:L6']}}
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
+# Exact reviewed reference notes shipped before the 25 Sep 2026 startup-profile
+# change (main b1bf9f1). Portable projects may retain them, but cannot use an
+# arbitrary file-supplied note as its own allowlist.
+_PREVIOUS_REVIEWED_REFERENCES = {
+    'D42': '7cf1212b05b4a8e3dbc506b30e1b70c9e34fdf0566b53c7a5026879cda1cf1f3',
+    'D75': 'c34f3a886eac776faf159b65a08e44b01d718f9a79c71a98c0275fce3e53a28c',
+    'D107': '88e7dc5689246be90743e439ce085b920dc174ef90868b77d64be33fe0992835',
+    'D184': '8cf610508f7bb0ba7fa205dd50f773410a79ed12a4f4fec9026ce3cbc16fb276',
+    'D240': 'ad0f6efdd12eec484a81b6381f986a885597a178d380b80a5139fbb00b4e00ec',
+}
 
 
 @lru_cache(maxsize=3)
@@ -384,7 +411,9 @@ def validate_calculator_edits(calculator_id, inputs, saved_inputs):
     for address in _READ_ONLY_REFERENCES & normalized.get('SETTINGS', {}).keys():
         original = source.get(address, {}).get('value')
         allowed = (original, defaults[address], saved.get(address, original))
-        if normalized['SETTINGS'][address] not in allowed:
+        value = normalized['SETTINGS'][address]
+        reviewed = isinstance(value, str) and sha256(value.encode('utf-8')).hexdigest() == _PREVIOUS_REVIEWED_REFERENCES[address]
+        if value not in allowed and not reviewed:
             raise ValidationError('Material basis/reference is read-only. Retain the saved reference or reset to the product defaults.')
     return normalized
 

@@ -286,9 +286,12 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         self.assertEqual(tables['J115']['label'], 'PENETRATION TAKEOFF')
         self.assertIn('FyreWrap application FRLs preserve directional requirements', tables['J94']['note'])
         self.assertNotIn('note', tables['J115'])
+        self.assertIn('J132:Q149', product_settings['omitted_ranges'])
 
         source = next(sheet for sheet in source_model('ductwork')['sheets'] if sheet['name'] == 'PRODUCT SETTINGS')
         self.assertEqual(source['cells']['J115']['value'], 'PENETRATION TAKEOFF — STANDARD FOUR-SIDED DETAILS')
+        self.assertIn('already counted once', source['cells']['J132']['value'])
+        self.assertEqual(source['cells']['J137']['value'], 'Internal')
 
 
 if __name__ == '__main__':

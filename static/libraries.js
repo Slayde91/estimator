@@ -183,7 +183,9 @@
     add.dataset.libraryAdd = item.id; add.title = "Add to Schedule"; add.setAttribute("aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
     const remove = button("", () => deleteItem(pane, item), "button library-delete library-delete-button");
-    const icon = node("span", "library-trash-icon", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon);
+    const icon = node("span", "library-trash-icon");
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"></path></svg>';
+    icon.setAttribute("aria-hidden", "true"); remove.append(icon);
     remove.title = `Remove ${item.title || item.id} from the Firestopping Library`;
     remove.setAttribute("aria-label", remove.title); remove.dataset.libraryDelete = item.id;
     remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);

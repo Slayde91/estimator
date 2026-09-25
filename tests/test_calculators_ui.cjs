@@ -137,6 +137,16 @@ let passed = 0;
     }
   }passed++;
 
+  // Ductwork product settings show only the approved yield and application choices.
+  entry=ductSetup({ 'PRODUCT SETTINGS': { B35:'Calibrated', B65:'Un-injected', B73:'Calibrated' } });
+  entry.sheet='PRODUCT SETTINGS';entry.definition.sheets=[{name:'PRODUCT SETTINGS',display_cells:{B35:{control:'select'},B65:{control:'select'},B73:{control:'select'}}}];
+  for(const [address,options] of Object.entries({B35:['Calibrated','Uncalibrated'],B65:['Un-injected','Injected'],B73:['Calibrated','Uncalibrated']})){
+    const setting=audit.makeControl({address,type:'select',value:entry.inputs['PRODUCT SETTINGS'][address],options,allow_other:true,error_style:'warning'},Number(address.slice(1)),entry,address);
+    assert.equal(setting.tagName,'select');assert.deepEqual(setting.children.map(option=>option.value),options);
+    setting.value=options[1];await setting.emit('change');assert.equal(entry.inputs['PRODUCT SETTINGS'][address],options[1]);
+    setting.value='Invented value';await setting.emit('change');assert.equal(setting.value,options[1]);
+  }passed++;
+
   // Historical values remain visible and exact through viewing and snapshots; only an explicit choice replaces them.
   const legacyDuct={CALCULATOR:{C11:'Earlier custom product',E11:120,H11:'Mixed',I11:'Mixed',D11:1.23456789012345}};
   entry=ductSetup(legacyDuct);const legacyControls={};
@@ -1729,7 +1739,7 @@ let passed = 0;
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*icon-only[^"]*"/);
-  assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow">⇩<\/span>/);
+  assert.match(registerMarkup,/id="calculator-template"[^>]*title="Export Template"[\s\S]*?<span class="download-arrow"[^>]*><svg[^>]*>[\s\S]*?<\/svg><\/span>/);
   assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);
   for(const id of ['calculator-reset','calculator-recalculate'])assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*secondary[^"]*"`));

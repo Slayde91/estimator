@@ -84,7 +84,7 @@ validation lists, styles, comments, row/column visibility and relationships.
 | Input | Workbook dependency | Implementation | Expected output evidence |
 | --- | --- | --- | --- |
 | Duct CALCULATOR B11:I310: size, product, length, FRL, wall/floor penetrations, exposure, orientation | PRODUCT SETTINGS, CALCULATOR J:CL, SUMMARY | Original formula graph in `ductwork.json.gz`; bounded `WorkbookEngine` | Duct native defaults and variations, including all product/FRL/exposure/orientation choices |
-| Duct PRODUCT SETTINGS: 11 editable setting anchors | Application/yield selection, calibration, roll width and board gap | Exact setting overlays; unchanged remaining source constants | Every editable anchor varied in native scenarios |
+| Duct PRODUCT SETTINGS: 11 source setting anchors plus four application estimating inputs | Application/yield selection, calibration, roll width, board gap, and editable CAFCO/MK-6 bag mass and density | Source graph retained; application overlay changes only the Uncalibrated yield branches | Native scenarios cover the source anchors; focused tests cover the four new inputs and dependent bag counts |
 | Board CALCULATOR A9:X208: section, member, stock, dimensions, quantity, waste and advanced geometry | STEEL LIBRARY, BOARD SYSTEMS, PRODUCTS, DETAILS & LIMITS, LOOKUP CACHE, SETTINGS; table `tSchedule` | Original formula graph in `steel_board.json.gz`, including structured references | All 1,342 steel IDs, all 18 stock records, advanced and boundary cases |
 | Board EXTRA BOARDS A6:I45 and N6:N45; SETTINGS B6:B21/B23:B34 | Additional cuts/whole sheets and BOARD SUMMARY | Same engine, separate input and settings allowlists | Native default formulas and varied board scenarios |
 | Vermiculite CALCULATOR D6:D12/D14:D17; SCHEDULE A10:L1009 | SECTIONS, THICKNESS DATA, ENGINE, SETTINGS, AUDIT | Original formula graph in `steel_vermiculite.json.gz` | All 553 active sections; 84 series, factor/period/ESA/web routes and boundaries |
@@ -132,7 +132,7 @@ and raises the actual dialog and overwrite prompts; native helper compilation
 was checked, but visual foreground verification remains a manual check after a
 desktop automation initialization failure.
 
-Saved projects lists complete files in the linked estimates folder and its
+Projects lists complete files in the linked estimates folder and its
 subfolders, with relative paths, search, sort and pagination. Large scans continue
 in bounded batches with cached metadata and visible progress; full project
 validation still occurs when opening a file. Load Project can also open a

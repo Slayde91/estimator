@@ -12,6 +12,7 @@ import re
 from openpyxl.formula.translate import Translator
 
 from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, range_addresses
+from .calculator_defaults import default_calculator_inputs
 from .ductwork_policy import apply_ductwork_choices
 
 
@@ -150,6 +151,56 @@ def _add_spray_location(model):
                                      'text': None, 'children': []})
 
 
+def _add_ductwork_estimating_yields(model):
+    """Keep report constants while adding editable bag-quantity assumptions.
+
+    Calibrated yields and the injection multiplier retain their source formulas.
+    Only the two uncalibrated yield branches use bag mass / estimating density.
+    """
+    sheet = next(item for item in model['sheets'] if item['name'] == 'PRODUCT SETTINGS')
+    cells = sheet['cells']
+    spray = default_calculator_inputs('steel_vermiculite')['SETTINGS']
+    values = (
+        (161, 'CAFCO estimating bag mass', spray['D36'], 'kg/bag',
+         'Adjust to the delivered CAFCO bag; this does not change the report density.'),
+        (162, 'CAFCO estimating density', spray['D38'], 'kg/m³',
+         'Dry-material consumption assumption for uncalibrated bag quantities, not installed density.'),
+        (163, 'MONOKOTE estimating bag mass', spray['D234'], 'kg/bag',
+         'Adjust to the delivered MK-6 bag; published pack references remain above.'),
+        (164, 'MONOKOTE estimating density', spray['D236'], 'kg/m³',
+         'Dry-material consumption assumption for uncalibrated bag quantities, not installed density.'),
+    )
+    for row, label, value, unit, note in values:
+        sheet['rows'][str(row)] = {**sheet['rows']['22'], 'r': str(row)}
+        sheet['merges'].append(f'E{row}:H{row}')
+        for column, source in (('A', 'A22'), ('B', 'B44'), ('C', 'C22'), ('D', 'D22'), ('E', 'E22')):
+            cells[f'{column}{row}'] = deepcopy(cells[source])
+            cells[f'{column}{row}'].pop('cached_value', None)
+        for column, text in (('A', label), ('B', value), ('C', unit), ('D', 'Editable estimate'), ('E', note)):
+            cells[f'{column}{row}']['value'] = text
+        address = f'B{row}'
+        field = next(item for item in model['fields']['PRODUCT SETTINGS'] if item['cell'] == 'B44')
+        model['fields']['PRODUCT SETTINGS'].append({**deepcopy(field), 'cell': address, 'label': label,
+                                                     'units': unit, 'notes': note,
+                                                     'validation': {'type': 'decimal', 'operator': 'greaterThan',
+                                                                    'sqref': address, 'formula1': '0'}})
+    sheet['dimension'] = 'A1:Q164'
+    sheet['page_range'] = sheet['dimension']
+    model['setting_ranges']['PRODUCT SETTINGS'].append('B161:B164')
+    replacements = {
+        'B25': ('B23*(B24/1000)*(B22/1000)*(B21/B20)',
+                'IF(AND(ISNUMBER(B161),B161>0,ISNUMBER(B162),B162>0),B161/B162,0)'),
+        'B69': ('B66*B68',
+                'IF(AND(ISNUMBER(B163),B163>0,ISNUMBER(B164),B164>0),B163/B164,0)'),
+    }
+    for address, (original, replacement) in replacements.items():
+        formula = cells[address]['formula']
+        if formula.count(original) != 1:
+            raise ValueError(f'Unexpected ductwork yield formula at {address}.')
+        cells[address]['formula'] = formula.replace(original, replacement)
+        cells[address].pop('cached_value', None)
+
+
 def _add_monokote_z106(model):
     """Add a product-specific bag profile while reusing MK-6 technical rules.
 
@@ -280,6 +331,7 @@ def _application_catalog(calculator_id):
         schedule['location_column'] = 'B'
     elif calculator_id == 'ductwork':
         apply_ductwork_choices(model)
+        _add_ductwork_estimating_yields(model)
     return model
 
 

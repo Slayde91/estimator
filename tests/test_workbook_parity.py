@@ -16,7 +16,7 @@ import unittest
 
 from estimator.excel_engine import WorkbookEngine
 from estimator.workbook_calculators import approved_formula_overrides, source_model
-from estimator.workbook_catalog import column_name, column_number
+from estimator.workbook_catalog import column_name, column_number, load_workbook_catalog
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "calculators"
@@ -115,7 +115,9 @@ class NativeFixtureIntegrityTests(unittest.TestCase):
 
 class NativeExcelParityTests(unittest.TestCase):
     def compare_capture(self, identifier, kind):
-        model = source_model(identifier)
+        # The ductwork application now has an explicit estimating-yield overlay.
+        # Native captures remain an oracle for the packaged workbook itself.
+        model = load_workbook_catalog(identifier) if identifier == 'ductwork' else source_model(identifier)
         fixture = read_fixture(identifier, kind)
         self.assertEqual(fixture["source_sha256"], model["source"]["sha256"])
         for scenario in fixture["scenarios"]:

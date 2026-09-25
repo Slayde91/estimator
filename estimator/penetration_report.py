@@ -5,11 +5,12 @@ from io import BytesIO
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Spacer
+from reportlab.platypus import Image, SimpleDocTemplate, Spacer
 
 from .calculator_register import _sheet, _table
 from .pricing_workbook import _serialize_exact
 from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
+from .reference_library import ReferenceNotFound
 
 
 SUMMARY = (
@@ -91,7 +92,7 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details):
+def render_penetration_pdf(result, definition, project_details, *, library=None):
     """Show project details, totals and the compact calculated schedule."""
     _register_fonts()
     report = _Report({})
@@ -119,10 +120,29 @@ def render_penetration_pdf(result, definition, project_details):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
     fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
-    widths = [content * part for part in (.045, .245, .09, .2, .14, .14, .14)]
-    report.story.append(report.table(['Line'] + [label for label, _ in SCHEDULE], [
-        [report.p(str(index), 'cell')] + [report.p(_display(_value(row, col), fields_by_column[col]), 'cell') for _, col in SCHEDULE]
-        for index, row in enumerate(result['rows'], 1)], widths, compact=True))
+    source_rows = {row['id']: row for row in result.get('draft', {}).get('rows', [])}
+    widths = [content * part for part in (.045, .10, .19, .09, .16, .14, .14, .135)]
+    schedule_rows = []
+    for index, row in enumerate(result['rows'], 1):
+        thumbnail = report.p('', 'cell')
+        library_id = source_rows.get(row['id'], {}).get('library_item_id')
+        if library is not None and library_id:
+            try:
+                payload, _, _ = library.diagram_asset(library_id, True)
+                image_width, image_height = ImageReader(BytesIO(payload)).getSize()
+                if image_width <= 0 or image_height <= 0:
+                    raise ValueError('Source image has no visible area.')
+                scale = min(64 / image_width, 44 / image_height)
+                thumbnail = Image(BytesIO(payload), width=image_width * scale,
+                                  height=image_height * scale)
+            except (ReferenceNotFound, OSError, ValueError):
+                # A removed or unreadable optional diagram must not prevent
+                # the calculated schedule from being downloaded.
+                pass
+        schedule_rows.append([report.p(str(index), 'cell'), thumbnail] +
+            [report.p(_display(_value(row, col), fields_by_column[col]), 'cell') for _, col in SCHEDULE])
+    report.story.append(report.table(['Line', 'Source image'] + [label for label, _ in SCHEDULE],
+                                     schedule_rows, widths, compact=True))
     for index, row in enumerate(result['rows'], 1):
         for error in row.get('errors', []):
             report.story.append(report.p(f"Line {index} · {error['cell']}: {error['message']}", 'alert'))

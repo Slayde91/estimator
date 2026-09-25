@@ -65,10 +65,15 @@ def _duplicate_result(item, normalized_inputs, configuration):
     calculated = calculate_base(duplicate_inputs, configuration)
     line_index = source_row - 15
     line = LINES[line_index]
-    requirement_row, labour_row = line[2], line[3]
+    price_row, requirement_row, labour_row = line[1], line[2], line[3]
     material = deepcopy(calculated['materials'][line_index])
     material.update(source=f'duplicate_work_item:{item["id"]}', work_item_id=item['id'],
-                    work_item_label=f'{MATERIAL_NAMES[line_index]} (duplicate)')
+                    work_item_label=f'{MATERIAL_NAMES[line_index]} (duplicate)',
+                    coverage=item['inputs']['B'],
+                    base_units=calculated['cells'].get(f'B{price_row}'),
+                    wastage_percent=item['inputs']['E'],
+                    wastage_units=calculated['cells'].get(f'C{price_row}'),
+                    yield_value=calculated['cells'].get(f'F{source_row}'))
     labour = None if labour_row is None else {
         'source': 'duplicate_work_item', 'work_item_id': item['id'],
         'name': MATERIAL_NAMES[line_index],

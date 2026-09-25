@@ -178,6 +178,14 @@ class PenetrationLabourExportTests(unittest.TestCase):
         for label in ('Additional Labour', 'Register allowance', f"${result['summary']['total']:,.2f}"):
             self.assertIn(label, text)
 
+        labour_section = text.split('Firestopping Labour', 1)[1].split('Masking / cleaning', 1)[0]
+        self.assertNotIn('Firestopping · ', labour_section)
+        self.assertNotIn('Framing', labour_section)
+        self.assertNotIn('Other', labour_section)
+        self.assertIn('Additional Labour', labour_section)
+        self.assertIn('Register allowance', labour_section)
+        self.assertIn('Zero-amount tasks are omitted', labour_section)
+
         # The hourly price already contains the selected worker count. Doubling
         # the crew changes cost, never register/pipe task hours or labour days.
         teams = next(field['options'] for field in definition({})['row_fields'] if field['column'] == 'W')

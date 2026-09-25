@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from openpyxl import load_workbook
+from PIL import Image as PILImage
 from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
@@ -19,6 +20,7 @@ from estimator.penetration_calculator import (
     normalize_composer, normalize_draft, source_model,
 )
 from estimator.penetration_report import build_penetration_register, render_penetration_pdf
+from estimator.reference_library import ReferenceNotFound
 from estimator.project_file import export_project, load_project_bytes
 from estimator.storage import Store
 
@@ -82,6 +84,35 @@ class PenetrationScheduleTests(unittest.TestCase):
         self.assertIn('Schedule', text)
         self.assertNotIn('Line 1', text)
         self.assertNotIn('Pair Coil Bundle', text)
+
+    def test_pdf_schedule_embeds_linked_source_thumbnail_and_tolerates_missing_images(self):
+        result = calculate(self.mixed_schedule())
+        result['draft']['rows'][0]['library_item_id'] = 'linked-source'
+        source = BytesIO()
+        PILImage.new('RGB', (320, 180), '#c62828').save(source, format='PNG')
+
+        class Library:
+            calls = []
+
+            def diagram_asset(self, key, thumbnail):
+                self.calls.append((key, thumbnail))
+                return source.getvalue(), 'image/png', 'source.png'
+
+        library = Library()
+        before = deepcopy(result)
+        pdf = PdfReader(BytesIO(render_penetration_pdf(result, result['definition'], {}, library=library)))
+        self.assertEqual(library.calls, [('linked-source', True)])
+        self.assertIn('Source image', '\n'.join(page.extract_text() for page in pdf.pages))
+        images = [asset.get_object() for page in pdf.pages
+                  for asset in page['/Resources']['/XObject'].values()]
+        self.assertTrue(any(image.get('/Subtype') == '/Image' and image.get('/Width') == 320
+                            and image.get('/Height') == 180 for image in images))
+        self.assertEqual(result, before)
+
+        library.diagram_asset = lambda key, thumbnail: (_ for _ in ()).throw(ReferenceNotFound())
+        missing = render_penetration_pdf(result, result['definition'], {}, library=library)
+        self.assertIn('Source image', '\n'.join(page.extract_text()
+            for page in PdfReader(BytesIO(missing)).pages))
 
     def test_composer_and_schedule_defaults_are_independent(self):
         spec = definition({})

@@ -315,7 +315,8 @@ class EstimateCompositionTests(unittest.TestCase):
                       *fire_materials, f"${quote['result']['summary']['total']:,.2f}"):
             self.assertIn(''.join(token.split()), compact)
         self.assertNotIn('Firestopping schedule materials', text)
-        positions = [compact.index(''.join(item['name'].split())) for item in quote['result']['materials']]
+        positions = [compact.index(''.join(item['name'].split())) for item in quote['result']['materials']
+                     if item.get('total') != 0]
         self.assertEqual(positions, sorted(positions))
         self.assertEqual(quote, before)
         report = _Report(quote)
@@ -369,6 +370,8 @@ class EstimateCompositionRouteTests(unittest.TestCase):
             self.assertIn('Material breakdown', text)
             self.assertNotIn('Firestopping schedule materials', text)
             for item in result['materials']:
+                if item.get('total') == 0:
+                    continue
                 self.assertIn(''.join(str(item['name']).split()), compact)
         for value in (None, {'draft': {'rows': []}, 'composer': {}}):
             self.assertEqual(self.request('POST', '/api/calculate', {'penetration': value})[0], 400)

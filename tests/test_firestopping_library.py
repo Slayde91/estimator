@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
+from pypdf import PdfReader
 
 from estimator.catalog import ValidationError, configuration_catalog, validate_configuration
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
@@ -428,6 +429,26 @@ class FirestoppingApiTests(unittest.TestCase):
                     self.assertLessEqual(image.height, maximum[1])
         status, _, _ = self.raw_request('unknown')
         self.assertEqual(status, 404)
+
+    def test_firestopping_pdf_download_embeds_linked_library_thumbnail(self):
+        edit = self.request('GET', 'edit')[1]
+        draft = deepcopy(edit['draft'])
+        draft['rows'][0]['library_item_id'] = 'pkb-001'
+        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        try:
+            connection.request('POST', '/api/penetration/report.pdf',
+                body=json.dumps({'draft': draft}), headers={'Content-Type': 'application/json'})
+            response = connection.getresponse()
+            payload = response.read()
+            self.assertEqual(response.status, 200, payload[:300])
+        finally:
+            connection.close()
+        reader = PdfReader(BytesIO(payload))
+        images = [image.get_object() for page in reader.pages
+                  for image in page['/Resources']['/XObject'].values()]
+        self.assertTrue(any(image.get('/Subtype') == '/Image' and image.get('/Width') <= 240
+                            and image.get('/Height') <= 160 and image.get('/Width') > 0
+                            for image in images))
 
     def test_z_delete_route_requires_same_origin_and_empty_confirmed_request(self):
         self.assertEqual(self.request('POST', 'delete', {}, {'Origin': 'https://example.com'})[0], 403)

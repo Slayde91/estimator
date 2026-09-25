@@ -12,7 +12,7 @@ import re
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import KeepTogether, PageBreak, SimpleDocTemplate, Spacer, TableStyle
+from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle
 
 from .excel_engine import WorkbookEngine, column_name
 from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
@@ -387,10 +387,7 @@ class _ScheduleReport(_Report):
                 for product, basis, interpretation in summary.get('qualifications', []):
                     self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))
             self.story.append(Spacer(1, 9))
-        self.story.append(KeepTogether([self.p('Overall schedule totals', 'subheading'),
-            self.table(['Schedule measure', 'Total'], [[self.p(label, 'cell'), self.numeric(value)] for label, value in data['totals']],
-                       [_CONTENT * .68, _CONTENT * .32])]))
-        self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
+        self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
 def build_calculator_report(calculator_id, inputs=None, *, project_details=None):
     """Return the full schedule only; reading a draft never saves it."""

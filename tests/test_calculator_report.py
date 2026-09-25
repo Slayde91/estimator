@@ -193,9 +193,9 @@ class CalculatorReportTests(unittest.TestCase):
                 text, summary = reports
                 self.assertIn('Full schedule', text)
                 self.assertNotIn('Full schedule', summary)
-                for heading in ('Material quantities and summary', 'Overall schedule totals'):
-                    self.assertNotIn(heading, text)
-                    self.assertIn(heading, summary)
+                self.assertNotIn('Material quantities and summary', text)
+                self.assertIn('Material quantities and summary', summary)
+                self.assertNotIn('Overall schedule totals', summary)
                 self.assertNotIn('Final product and material summary', text)
                 if identity == 'steel_vermiculite':
                     self.assertNotIn('Final product and material summary', summary)
@@ -223,12 +223,11 @@ class CalculatorReportTests(unittest.TestCase):
                     for removed in ('Totals use available source results', 'Display rounding is limited',
                                     'Whole bags per product are pooled from net bags'):
                         self.assertNotIn(removed, summary)
-                    for retained in ('CAFCO 300', 'Order status', 'Overall schedule totals'):
+                    for retained in ('CAFCO 300', 'Order status'):
                         self.assertIn(retained, summary)
                     for unused in ('MONOKOTE MK-6 HY', 'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+'):
                         self.assertNotIn(unused, summary)
                 else:
-                    self.assertIn('74.40', summary)
                     self.assertIn('30.00', text)
                     self.assertIn('Total thickness mm', ' '.join(text.split()))
                     self.assertIn('EXTRA BOARDS', summary)
@@ -260,8 +259,8 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertIn('Board stock totals by product and thickness', normalized)
                 else:
                     self.assertNotIn('Board stock totals by product and thickness', normalized)
-                for heading in ('Overall schedule totals', 'Pooled whole sheets', 'incomplete or unavailable primary quantities'):
-                    self.assertIn(heading, normalized)
+                self.assertIn('incomplete or unavailable primary quantities', normalized)
+                self.assertNotIn('Overall schedule totals', normalized)
                 for item in data['extra_rows']:
                     self.assertIn(f"Extra-board item {item['line']}", text)
                 self.assertEqual(data, before)
@@ -280,7 +279,7 @@ class CalculatorReportTests(unittest.TestCase):
             with patch('estimator.calculator_report.project_calculator_report', return_value=data):
                 text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(
                     build_calculator_summary_report(identity))).pages)
-            self.assertIn('Overall schedule totals', text)
+            self.assertNotIn('Overall schedule totals', text)
             self.assertEqual(data, before)
 
     def test_schedule_header_stays_with_body_when_a_long_cell_spans_pages(self):
@@ -433,7 +432,7 @@ class CalculatorReportTests(unittest.TestCase):
             self.assertIn('No schedule inputs are entered.', text)
             summary = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report(identity, cleared_inputs(identity)))).pages)
             self.assertIn('0 used schedule items. 0 item(s)', ' '.join(summary.split()))
-            self.assertIn('Overall schedule totals', summary)
+            self.assertNotIn('Overall schedule totals', summary)
             self.assertNotIn('Full schedule', summary)
 
     def test_removed_details_do_not_remove_incomplete_last_items_from_pdf(self):

@@ -389,7 +389,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                                 self.assertNotIn("Product order totals", text)
                             else:
                                 self.assertIn("Final product and material summary", text)
-                            self.assertIn("Overall schedule totals", text)
+                            self.assertNotIn("Overall schedule totals", text)
                             if identity == "steel_board":
                                 self.assertIn("".join(extra_marker.split()), compact_text)
                                 self.assertIn("Extra-board item 40", text)

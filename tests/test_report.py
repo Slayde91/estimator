@@ -95,6 +95,55 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(final[0].getPlainText(), 'Total')
         self.assertEqual(final[-1].getPlainText(), money_text(expected))
 
+    def test_duplicate_material_rows_show_snapshot_quantities_for_new_and_saved_quotes(self):
+        defaults = self.quote['inputs']
+        work_item = {'id': 'spray-copy', 'source_row': 15, 'inputs': {
+            'B': 230, 'C': defaults['C15'], 'D': defaults['D15'], 'E': .2}}
+        with tempfile.TemporaryDirectory() as folder:
+            quote = Store(Path(folder) / 'duplicates.sqlite3').prepare_quote({
+                'inputs': self.scenario['inputs'], 'work_items': [work_item]})
+        duplicate = next(item for item in quote['result']['materials']
+                         if item.get('source') == 'duplicate_work_item:spray-copy')
+        self.assertEqual(duplicate['coverage'], 230)
+        self.assertEqual(duplicate['base_units'], 230)
+        self.assertAlmostEqual(duplicate['wastage_units'], 46)
+        self.assertAlmostEqual(duplicate['quantity'], 276)
+        for historical in (False, True):
+            with self.subTest(historical=historical):
+                snapshot = deepcopy(quote)
+                if historical:
+                    old = next(item for item in snapshot['result']['materials']
+                               if item.get('source') == 'duplicate_work_item:spray-copy')
+                    for key in ('coverage', 'base_units', 'wastage_percent', 'wastage_units', 'yield_value'):
+                        old.pop(key)
+                before = deepcopy(snapshot)
+                report = _Report(snapshot)
+                report.materials()
+                cells = report.story[-1]._cellvalues
+                row = cells[1 + snapshot['result']['materials'].index(next(item for item in snapshot['result']['materials']
+                    if item.get('source') == 'duplicate_work_item:spray-copy'))]
+                for column, expected in ((1, '230.00'), (2, '230.00'), (3, '20.00%'), (4, '276.00')):
+                    self.assertIn(expected, row[column].getPlainText())
+                self.assertEqual(snapshot, before)
+
+    def test_zero_amount_detail_lines_are_omitted_without_changing_the_snapshot(self):
+        quote = deepcopy(self.quote)
+        quote['result']['materials'].append({'source': 'test', 'name': 'Zero amount sample',
+                                             'quantity': 0, 'price': 0, 'total': 0})
+        quote['result']['cells']['D112'] = 0
+        quote['result']['cells']['F65'] = 0
+        quote['result']['masking']['labour_total'] = 0
+        before = deepcopy(quote)
+        text = pdf_text(render_quote_pdf(quote))
+        self.assertNotIn('Zero amount sample', text)
+        labour = text.split('Ductwork, Steel, and Board Labour', 1)[1].split('Masking / cleaning', 1)[0]
+        self.assertNotIn('Spray / wrap', labour)
+        masking = text.split('Masking / cleaning', 1)[1].split('Additions and project costs', 1)[0]
+        self.assertNotIn('Masking/Cleaning labour', masking)
+        additions = text.split('Additions and project costs', 1)[1].split('Quote notes', 1)[0]
+        self.assertNotIn('Mobilisation', additions)
+        self.assertEqual(quote, before)
+
     def test_official_logo_and_fonts_are_embedded_on_each_page(self):
         self.assertEqual(sha256((ROOT / "static/ceasefire-logo.png").read_bytes()).hexdigest(), "b390a843144556546558d166207f476d7e2197070ec35a1a23064fbbb7da9ac7")
         self.assertGreaterEqual(len(self.reader.pages), 4)

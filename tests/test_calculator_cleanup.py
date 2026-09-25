@@ -432,21 +432,23 @@ class CalculatorCleanupTests(unittest.TestCase):
             else:
                 self.assertTrue({(row, 10) for row in range(137, 150)} <= covered, "Retain the H-selection lookup tail")
 
-    def test_roll_width_and_small_joint_gap_recalculate_and_save_exact_values(self):
+    def test_fyrewrap_settings_recalculate_and_save_exact_values(self):
         identity, sheet = "ductwork", "PRODUCT SETTINGS"
-        draft = {sheet: {"B97": 1.22, "B100": 0.007}}
+        draft = {sheet: {"B96": 0.04, "B97": 1.22, "B98": 8,
+                         "B99": 0.09, "B100": 0.007, "B111": 0.1}}
         page = self.request("POST", "/worksheet", {"sheet": sheet, "inputs": draft}, identity=identity)
         cells = self.cells(page)
         for address, value in draft[sheet].items():
             self.assertTrue(cells[address]["editable"])
-            self.assertTrue(cells[address]["allow_other"])
             self.assertEqual(cells[address]["value"], value)
         saved = self.request("PUT", "/state", {"inputs": draft}, identity=identity)
         expected = blank_schedule_defaults(identity, draft)
         self.assertEqual(saved["inputs"], expected)
         self.assertEqual(self.request("GET", identity=identity)["inputs"], expected)
-        self.assertFalse(cells["B96"]["editable"])
-        self.request("PUT", "/state", {"inputs": {sheet: {"B96": .05}}}, identity=identity, expected=400)
+        for address, value in (("B96", 0), ("B98", -1), ("B99", 1.22), ("B111", -0.1)):
+            with self.subTest(address=address):
+                self.request("PUT", "/state", {"inputs": {sheet: {**draft[sheet], address: value}}},
+                             identity=identity, expected=400)
 
     def test_hidden_quantity_status_and_visible_review_note_still_block_incomplete_orders(self):
         draft = default_calculator_inputs(IDENTITY)

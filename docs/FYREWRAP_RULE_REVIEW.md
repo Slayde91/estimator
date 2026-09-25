@@ -121,6 +121,10 @@ observing that the arithmetic avoids duplicate layer numbers.
 
 Use a 10m run, full four-sided rectangular wrap, 38mm blanket thickness,
 0.61m roll width, 7.62m roll length and 0.10m overlaps. Added waste is zero.
+For a selected nonzero waste fraction, multiply the calculated wrap area once
+by `1 + B111`; roll equivalents divide that result by the selected actual roll
+area `B97 * B98`. This does not add waste to board or steel quantities. Changed
+blanket thickness or required overlap needs a matching technical detail.
 The requested internal/exhaust rating is 120/120/120. Wall local zones occur
 on both wall faces; floor local zones occur above the slab only. The combined
 wall/floor example assumes separate zones that fit within the entered run;

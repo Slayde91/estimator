@@ -19,6 +19,29 @@ def schedule_input(rows):
 
 
 class FyreWrapApplicationRulesTests(unittest.TestCase):
+    def test_editable_wrap_assumptions_and_waste_change_area_and_rolls_once(self):
+        base = schedule_input({11: {}, 1010: {}})
+        _, original, _ = calculator_session('ductwork', base)
+        original_area = original.value('CALCULATOR', 'N11')
+        original_rolls = original.value('CALCULATOR', 'O11')
+        settings = {'B96': 0.04, 'B98': 8, 'B99': 0.09, 'B111': 0.1}
+        changed = {**base, 'PRODUCT SETTINGS': settings}
+        _, engine, _ = calculator_session('ductwork', changed)
+        self.assertAlmostEqual(engine.value('PRODUCT SETTINGS', 'B112'), 0.61 * 8)
+        self.assertNotAlmostEqual(engine.value('CALCULATOR', 'V11'), original.value('CALCULATOR', 'V11'))
+        self.assertAlmostEqual(engine.value('CALCULATOR', 'N11'),
+                               sum(engine.value('CALCULATOR', f'{column}11') or 0 for column in 'VWX') * 1.1)
+        self.assertAlmostEqual(engine.value('CALCULATOR', 'O11'),
+                               engine.value('CALCULATOR', 'N11') / (0.61 * 8))
+        self.assertIn('added waste applied', engine.value('CALCULATOR', 'AP11'))
+        self.assertAlmostEqual(engine.value('CALCULATOR', 'N1010'), engine.value('CALCULATOR', 'N11'))
+        self.assertGreater(engine.value('CALCULATOR', 'N11'), original_area)
+        self.assertNotEqual(engine.value('CALCULATOR', 'O11'), original_rolls)
+        waste_only = {**base, 'PRODUCT SETTINGS': {'B111': 0.1}}
+        _, waste_engine, _ = calculator_session('ductwork', waste_only)
+        self.assertAlmostEqual(waste_engine.value('CALCULATOR', 'N11'), original_area * 1.1)
+        self.assertAlmostEqual(waste_engine.value('CALCULATOR', 'O11'), original_rolls * 1.1)
+
     def test_hand_takeoffs_for_exhaust_wall_and_floor_layers(self):
         # 610 mm rolls, 100 mm laps, 38 mm layer thickness. For a 10 m run,
         # 20 bands require 11.9 m of material length. The first small-duct

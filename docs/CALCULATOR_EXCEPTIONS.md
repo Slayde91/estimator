@@ -31,7 +31,14 @@ continues to identify the original workbook, not equivalence to its old rules.
   layers two and three belong only to the named pressurisation applications.
 - Internal/External/Both exhaust uses one continuous layer plus eligible local layers.
   Stair/Other pressurisation retains two/three continuous layers. The existing
-  area, overlap, local-length cap, board and angle arithmetic is unchanged.
+  layer and local-length arithmetic remains. Product Settings now exposes
+  blanket thickness B96, roll length B98, required overlap B99 and added waste
+  fraction B111 as editable estimates. The quantity guard accepts positive
+  thickness/length, nonnegative waste and overlap shorter than both roll
+  dimensions. Waste multiplies total wrap area once, so rolls follow from that
+  area divided by B97×B98; zero reproduces the source workbook. Board and angle
+  arithmetic is unchanged. A modified blanket or overlap is flagged in the
+  estimate note for matching-detail review.
 - The current manual and assessment do not establish one universal multilayer
   pressurisation penetration rule. Those complete wrap totals remain withheld.
   The one-layer External exhaust application uses the p8 local-layer footnote,

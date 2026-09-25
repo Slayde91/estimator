@@ -25,6 +25,28 @@ def application_formula_overrides(model):
         # and the current FCO3226 detailed table, or the external-layer footnote.
         'BM': 'AND(' + original('BM11') + ',OR(BD11<>3,F11=0,BI11<>5))',
     }
+    wrap_area = original('N11')
+    if wrap_area.count('SUM(V11:X11)') != 1:
+        raise ValueError('Unexpected FyreWrap wrap-area formula.')
+    # B111 is a fraction, and zero reproduces the assessed source quantity.
+    # Apply it once to total wrap area; O (rolls) already divides N by B112.
+    masters['N'] = wrap_area.replace(
+        'SUM(V11:X11)', "SUM(V11:X11)*(1+N('PRODUCT SETTINGS'!$B$111))")
+    assumptions_valid = original('BV11')
+    updated_checks = (
+        ("'PRODUCT SETTINGS'!$B$96=0.038",
+         "AND(ISNUMBER('PRODUCT SETTINGS'!$B$96),'PRODUCT SETTINGS'!$B$96>0)"),
+        ("'PRODUCT SETTINGS'!$B$99=0.1",
+         "AND(ISNUMBER('PRODUCT SETTINGS'!$B$99),'PRODUCT SETTINGS'!$B$99>=0,"
+         "'PRODUCT SETTINGS'!$B$99<MIN('PRODUCT SETTINGS'!$B$97,'PRODUCT SETTINGS'!$B$98))"),
+        ("'PRODUCT SETTINGS'!$B$111=0",
+         "AND(ISNUMBER('PRODUCT SETTINGS'!$B$111),'PRODUCT SETTINGS'!$B$111>=0)"),
+    )
+    for before, after in updated_checks:
+        if assumptions_valid.count(before) != 1:
+            raise ValueError('Unexpected FyreWrap assumptions guard.')
+        assumptions_valid = assumptions_valid.replace(before, after)
+    masters['BV'] = assumptions_valid
     wrap_note = (
         '"Estimate only. "&IF(NOT(BL11),"FyreWrap quantity is not established for these inputs. ",'
         '"Application FRL: "&AW11&". "&'
@@ -39,7 +61,10 @@ def application_formula_overrides(model):
         'IF(SUM(F11:G11)=0,"No penetration wrap included. ",'
         '"Local wall wrap is on both faces; local floor wrap is above the slab only. "))&'
         'IF(NOT(BO11),"Local wrap lengths capped to run; check locations and overlapping zones. ","")&'
-        '"Required overlaps included; no waste added."'
+        'IF(OR(\'PRODUCT SETTINGS\'!$B$96<>0.038,\'PRODUCT SETTINGS\'!$B$99<>0.1),'
+        '"Changed blanket or overlap assumptions require a matching detail. ","")&'
+        '"Required overlaps included; "&IF(N(\'PRODUCT SETTINGS\'!$B$111)>0,'
+        '"added waste applied to wrap area and rolls.","no waste added.")'
     )
     masters['AP'] = 'IF(AND(AS11,BD11=3),' + wrap_note + ',' + original('AP11') + ')'
     masters['J'] = ('IF(AND(AS11,BD11=3,BL11,BV11,F11>0,BI11=5),'

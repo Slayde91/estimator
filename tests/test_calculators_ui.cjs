@@ -1314,21 +1314,27 @@ let passed = 0;
       {row:5,cells:[{column:1,address:'A5',value:'Setting'},{column:7,address:'G5',value:'Fire period'},{column:16,address:'P5',value:'Diagnostic code'},{column:17,address:'Q5',value:'Message'}]},
       {row:6,cells:[{column:1,address:'A6',value:'Allowance'},{column:2,address:'B6',value:0.1,editable:true,type:'number'},{column:7,address:'G6',value:90},{column:16,address:'P6',value:'REVIEW'},{column:17,address:'Q6',value:'Source diagnostic message'}]},
     ]},
-    {id:'ductwork',sheet:'PRODUCT SETTINGS',sections:[{id:'A6',label:'CAFCO',note:'Check the assessed construction.',display_columns:[1,2,3,4],ranges:['A6:H46']},{id:'A48',label:'MONOKOTE',ranges:['A48:H92']},{id:'A94',label:'FYREWRAP',ranges:['A94:H151']},{id:'J94',label:'FYREWRAP APPLICATION TABLE',display_columns:[10,13,14,15],ranges:['J94:Q113']},{id:'J115',label:'PENETRATION',ranges:['J115:Q149']}],metadata:{table_layout:'projected',header_rows:[95,116],section_cells:['A6','A48','A94','J94','J115'],display_text:{J94:'FYREWRAP APPLICATION TABLE'},technical_basis:{label:'TECHNICAL BASIS',visible:false,sections:[{section_id:'A6',ranges:['A21:H24']}]},merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
+    {id:'ductwork',sheet:'PRODUCT SETTINGS',sections:[{id:'A6',label:'CAFCO',note:'Check the assessed construction.',display_columns:[1,2,3,4],header_row:7,promote_rows:[35,44,45,46,161,162,25],ranges:['A6:H46','A161:H162']},{id:'A48',label:'MONOKOTE',header_row:49,promote_rows:[65,73,90,91,92,163,164,68,69],ranges:['A48:H92','A163:H164']},{id:'A94',label:'FYREWRAP',move_after:[{row:100,rows:[111,112]}],ranges:['A94:H151']},{id:'J94',label:'FYREWRAP APPLICATION TABLE',display_columns:[10,13,14,15],ranges:['J94:Q113']},{id:'J115',label:'PENETRATION',ranges:['J115:Q149']}],metadata:{table_layout:'projected',header_rows:[7,49,95,116],section_cells:['A6','A48','A94','J94','J115'],display_text:{J94:'FYREWRAP APPLICATION TABLE'},technical_basis:{label:'TECHNICAL BASIS',visible:false,sections:[{section_id:'A6',ranges:['A21:H24']}]},merges:['A94:H94','J94:Q94','J115:Q115'],presentation_tables:[
       {first_row:94,last_row:151,columns:[1,2,3,4,5,6,7,8],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'form',title_address:'A94',label:'FYREWRAP'},
       {first_row:94,last_row:113,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(100),table_kind:'comparison',title_address:'J94',header_row:95,label:'Application',note:'FyreWrap application FRLs preserve directional requirements.'},
       {first_row:115,last_row:149,columns:[10,11,12,13,14,15,16,17],column_widths:Array(8).fill(1),width_mode:'fit',table_kind:'comparison',title_address:'J115',header_row:116,label:'Penetration'},
     ]},rows:[
       {row:1,cells:[{column:1,address:'A1',value:'Duct settings',presentation:{role:'title'}}]},
-      {row:6,cells:[{column:1,address:'A6',value:'CAFCO',presentation:{role:'section'}}]},{row:8,cells:[{column:2,address:'B8',value:25,editable:true,type:'number'},{column:5,address:'E8',value:'Historical source detail'}]},
-      {row:48,cells:[{column:1,address:'A48',value:'MONOKOTE',presentation:{role:'section'}}]},{row:65,cells:[{column:2,address:'B65',value:1,editable:true,type:'number'}]},
+      {row:6,cells:[{column:1,address:'A6',value:'CAFCO',presentation:{role:'section'}}]},{row:7,cells:[{column:1,address:'A7',value:'Parameter'},{column:2,address:'B7',value:'Value'}]},{row:8,cells:[{column:2,address:'B8',value:25,editable:true,type:'number'},{column:5,address:'E8',value:'Historical source detail'}]},
+      ...[25,35,44,45,46,161,162].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`CAFCO ${row}`},{column:2,address:`B${row}`,value:row,editable:true,type:'number'}]})),
+      {row:48,cells:[{column:1,address:'A48',value:'MONOKOTE',presentation:{role:'section'}}]},{row:49,cells:[{column:1,address:'A49',value:'Parameter'},{column:2,address:'B49',value:'Value'}]},
+      ...[50,65,68,69,73,90,91,92,163,164].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`MONOKOTE ${row}`},{column:2,address:`B${row}`,value:row,editable:true,type:'number'}]})),
       {row:94,cells:[{column:1,address:'A94',value:'FYREWRAP',presentation:{role:'section'}},{column:10,address:'J94',value:'Original application title',presentation:{role:'section'}}]},
       {row:95,cells:[{column:10,address:'J95',value:'Application header'}]},
-      {row:100,cells:[{column:2,address:'B100',value:0.005,editable:true,type:'number'},{column:10,address:'J100',value:'Application source record'},{column:11,address:'K100',value:'Documentary wording'}]},
+      ...[96,97,98,99].map(row=>({row,cells:[{column:1,address:`A${row}`,value:`FyreWrap ${row}`},{column:2,address:`B${row}`,value:row===96?0.038:row/100,editable:true,type:'number',control_exact:row===96}]})),
+      {row:100,cells:[{column:2,address:'B100',value:0.005,editable:true,type:'number',control_exact:true},{column:10,address:'J100',value:'Application source record'},{column:11,address:'K100',value:'Documentary wording'}]},
+      {row:101,cells:[{column:1,address:'A101',value:'Following rule'},{column:2,address:'B101',value:60}]},
+      {row:111,cells:[{column:1,address:'A111',value:'Added waste / error allowance'},{column:2,address:'B111',value:0,editable:true,type:'number'}]},
+      {row:112,cells:[{column:1,address:'A112',value:'Selected actual roll area'},{column:2,address:'B112',value:4.6482,calculated:true}]},
       {row:115,cells:[{column:1,address:'A115',value:'FyreWrap settings note'},{column:10,address:'J115',value:'PENETRATION',presentation:{role:'section'}}]},
       {row:116,cells:[{column:10,address:'J116',value:'Penetration header'}]},
       {row:117,cells:[{column:1,address:'A117',value:'Another FyreWrap setting'},{column:10,address:'J117',value:'Penetration source record'}]},
-    ]},
+    ].sort((left,right)=>left.row-right.row)},
   ];
   for(const scenario of chooserCases) {
     entry=setup();audit.state.entries.delete('steel_board');audit.state.entries.set(scenario.id,entry);audit.state.current=scenario.id;
@@ -1347,6 +1353,13 @@ let passed = 0;
     for(const control of renderedControls())assert.equal(chooserPanels().filter(panel=>descendants(panel).includes(control)).length,1);
     if(scenario.id==='ductwork') {
       const panelById=id=>chooserPanels().find(panel=>panel.id.endsWith(`-${id}`));
+      const panelRows=id=>descendants(panelById(id)).filter(node=>node.tagName==='tr'&&node.dataset?.sourceRow).map(node=>Number(node.dataset.sourceRow));
+      assert.deepEqual(panelRows('A6').slice(0,9),[6,7,35,44,45,46,161,162,25]);
+      assert.deepEqual(panelRows('A48').slice(0,11),[48,49,65,73,90,91,92,163,164,68,69]);
+      const fyrewrapRows=panelRows('A94'),joint=fyrewrapRows.indexOf(100);
+      assert.deepEqual(fyrewrapRows.slice(joint,joint+4),[100,111,112,101]);
+      assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B96').value,'0.038');
+      assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B100').value,'0.005');
       assert.ok(descendants(panelById('A6')).some(node=>node.className?.includes('calculator-settings-note')&&node.textContent==='Check the assessed construction.'));
       assert.ok(!chooserButtons().some(button=>button.textContent==='TECHNICAL BASIS'));
       assert.ok(!descendants(panelById('A6')).some(node=>node.textContent==='Historical source detail'));

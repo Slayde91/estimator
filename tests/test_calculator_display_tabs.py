@@ -89,6 +89,16 @@ class CalculatorDisplayTabsTests(unittest.TestCase):
         inputs = {'SETTINGS': {'D346': 1.2345678901234567, 'D358': 'RHS', 'D372': 24.56789}}
         self.assertEqual(normalize_calculator_inputs('steel_vermiculite', inputs), inputs)
 
+    def test_z106_settings_keep_the_same_three_column_panel_layout(self):
+        merges = set(self.metadata('steel_vermiculite', 'SETTINGS')['merges'])
+        self.assertIn('A559:L559', merges)
+        for row in range(560, 567):
+            with self.subTest(row=row):
+                self.assertTrue({f'A{row}:C{row}', f'D{row}:F{row}',
+                                 f'G{row}:L{row}'}.issubset(merges))
+        self.assertTrue({'A567:C567', 'D567:L567',
+                         'A568:C568', 'D568:L568'}.issubset(merges))
+
     def test_display_page_metadata_is_detached_and_source_identity_is_unchanged(self):
         for identity in self.definitions:
             with self.subTest(identity=identity):

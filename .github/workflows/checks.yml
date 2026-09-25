@@ -23,6 +23,7 @@ jobs:
       - run: node --check static/libraries.js
       - run: node --check static/library-editor.js
       - run: node --check scripts/ocr_trafalgar_documents.cjs
+      - run: node --test tests/test_trafalgar_ocr.cjs
       - run: node tests/test_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs

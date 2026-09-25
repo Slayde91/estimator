@@ -37,6 +37,19 @@ the engine may download its public English language model on first use:
 node scripts/ocr_trafalgar_documents.cjs C:\private-import\prepared C:\private-import\prepared\ocr-index.json
 ```
 
+Pages with some embedded text are excluded automatically. If visual review finds
+that a page still needs OCR, explicitly include its `image_sha256` from the
+prepared index; repeat the option for additional images:
+
+```powershell
+node scripts/ocr_trafalgar_documents.cjs C:\private-import\prepared C:\private-import\prepared\ocr-index.json --include-image IMAGE_SHA256
+```
+
+Each supplied hash must identify an available prepared page whose bytes match.
+Repeat the same inclusion and rotation options when resuming. Completed image
+records and review metadata are retained; the saved output records the requested
+supplemental hashes and recalculates coverage counts.
+
 OCR is a searchable transcription aid. Verify dimensions, FRLs and instructions
 against the images. It must not silently supply a missing rating or override the
 selector's source wording. Preserve observed contradictions and illegible or

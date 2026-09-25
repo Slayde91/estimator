@@ -800,6 +800,7 @@
       const button = node("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
+      if (definition.note) panel.append(node("p", "calculator-technical-note calculator-settings-note", definition.note));
       button.addEventListener("click", () => {
         if (current() !== entry || currentPage(entry) !== page) return;
         entry.settingsSelection[page] = entry.settingsSelection[page] === definition.id ? null : definition.id;
@@ -836,6 +837,7 @@
     const projectedTables = metadata.table_layout === "projected" && presentationTables.length > 0;
     const sourceSettings = metadata.navigation_mode === "select" ? metadata.settings_sections.map((section) => ({ ...section, bounds: section.ranges.map((range) => { const [start, end] = range.split(":").map(parseAddress); return { start, end: end || start }; }) })) : [];
     const settingsDefinitions = sourceSettings.filter((section) => !Array.isArray(page.section_ids) || page.section_ids.includes(section.id));
+    const settingsColumns = new Map(settingsDefinitions.map((section) => [section.id, new Set((section.display_columns || []).map(columnNumber))]));
     // Excluded sections still own their cells: they must never leak into a
     // virtual page's common introduction merely because its chooser omits them.
     const sectionOwner = (row, column) => sourceSettings.find((section) => section.bounds.some(({ start, end }) => row >= start.row && row <= end.row && column >= start.column && column <= end.column))?.id || null;
@@ -932,7 +934,8 @@
     if (sourceSettings.length) {
       const originalGroups = [...sections]; sections.clear();
       for (const owner of [...(page.include_common === false ? [] : [null]), ...settingsDefinitions.map((section) => section.id)]) for (const [key, original] of originalGroups) {
-        const visibleCell = (row, column) => original.visibleCell(row, column) && sectionOwner(row, column) === owner;
+        const visibleCell = (row, column) => original.visibleCell(row, column) && sectionOwner(row, column) === owner
+          && (!owner || !settingsColumns.get(owner)?.size || settingsColumns.get(owner).has(column));
         const sourceRows = original.sourceRows.map((row) => ({ ...row, cells: row.cells.filter((cell) => original.columns.includes(cell.column) && visibleCell(row.row, cell.column) && !(owner === null && page.hidden_common_addresses?.includes(cell.address || `${columnName(cell.column)}${row.row}`))) }))
           .filter((row) => row.cells.some((cell) => cell.editable || cell.calculated || cell.value !== null && cell.value !== undefined && cell.value !== "") || owner && original.definition && original.columns.some((column) => visibleCell(row.row, column)));
         if (!sourceRows.length) continue;

@@ -22,6 +22,10 @@ FYREWRAP_DIRECTION_NOTE = (
     '120/120/-; Both adds internal 120/120/120. Stair pressurisation means external 120/120/60. '
     'Unresolved penetration wrap totals are withheld.'
 )
+FYREWRAP_SETTINGS_NOTE = (
+    FYREWRAP_DIRECTION_NOTE + ' Exhaust local wrap follows the printed Tables 4–5; '
+    'pressurisation penetrations need a matching detail, and the highest wall-size band needs review.'
+)
 
 
 # Source table headings outside the main schedules. See the per-page evidence
@@ -166,6 +170,19 @@ _DISPLAY_CELLS = {
         },
     },
 }
+# Short operating qualifications remain visible when the detailed source notes
+# are moved out of the browser's settings panels.
+_DUCT_SETTINGS_NOTES = {
+    'A6': 'Use the assessed construction and fire direction. Duct steel, supports, barrier rating and fixings must match the report; estimating density changes bags, not the assessed installed density.',
+    'A48': 'Check the assessed duct size, steel, supports, wall and floor details. Injection changes the selected yield; confirm the delivered bag mass for an uncalibrated estimate.',
+    'A94': 'Use matching barrier, gap and fixing details. The listed wrap lengths apply to the printed width and height bands; unresolved pressurisation and largest wall details require review.',
+    'J115': 'Counts cover standard four-sided details: wall board and angles on both faces; floor board and angles on both faces, with extra wrap above the floor only.',
+}
+_DUCT_SETTINGS_COLUMNS = {
+    'A6': [1, 2, 3, 4], 'A48': [1, 2, 3, 4],
+    'J94': [10, 13, 14, 15], 'J115': [10, 11, 12],
+}
+
 # Sections are browser panels, not alternate calculation/input scopes. Their
 # rectangles follow the original merged cells, including side-by-side tables.
 _SETTINGS_SECTIONS = {
@@ -176,7 +193,9 @@ _SETTINGS_SECTIONS = {
                             (370, 374), (559, 568))
     ],
     ('ductwork', 'PRODUCT SETTINGS'): [
-        {'id': address, 'title_address': address, 'ranges': ranges}
+        {'id': address, 'title_address': address, 'ranges': ranges,
+         'note': _DUCT_SETTINGS_NOTES.get(address, ''),
+         'display_columns': _DUCT_SETTINGS_COLUMNS.get(address, [])}
         for address, ranges in (('A6', ['A6:H46', 'A161:H162']),
                                 ('A48', ['A48:H92', 'A163:H164']),
                                 ('A94', ['A94:H151']), ('J94', ['J94:Q113']),
@@ -253,7 +272,7 @@ _PRESENTATION_TABLES = {
         {'first_row': 94, 'last_row': 113, 'columns': list(range(10, 18)),
          'column_widths': [196, 280, 133, 112, 161, 161, 84, 273],
          'table_kind': 'comparison', 'title_address': 'J94', 'header_row': 95,
-         'label': 'FYREWRAP APPLICATION TABLE', 'note': FYREWRAP_DIRECTION_NOTE},
+         'label': 'FYREWRAP APPLICATION TABLE', 'note': FYREWRAP_SETTINGS_NOTE},
         {'first_row': 115, 'last_row': 149, 'columns': list(range(10, 18)),
          'column_widths': [30, 18, 12, 8, 8, 8, 8, 8], 'width_mode': 'fit',
          'table_kind': 'comparison', 'title_address': 'J115', 'header_row': 116,
@@ -269,8 +288,20 @@ _PRESENTATION_TABLES = {
          'column_widths': [200, *([125] * 6)], 'label': 'Maxilite cutting totals'},
     ]},
 }
+# Technical Basis is retained in source cells and worksheet responses, but is
+# deliberately absent from the browser's panels and section chooser. These
+# spans contain source interpretation, historical references and duplicate
+# explanatory material; no editable or formula-fed values belong here.
+_DUCT_TECHNICAL_BASIS = [
+    {'section_id': 'A6', 'ranges': ['E7:H46', 'E161:H162', 'A21:H24', 'A33:H34', 'A36:H43']},
+    {'section_id': 'A48', 'ranges': ['E49:H92', 'E163:H164', 'A70:H72', 'A83:H89']},
+    {'section_id': 'A94', 'ranges': ['A123:H127', 'A142:H144', 'A146:H149']},
+    {'section_id': 'J94', 'ranges': ['K95:L104', 'P95:Q104', 'J106:Q113']},
+    {'section_id': 'J115', 'ranges': ['M116:Q125', 'J126:Q130', 'J132:Q149']},
+]
 _OMITTED_RANGES = {'steel_vermiculite': {'CALCULATOR': ['J28:N30', 'B28:B30', 'D28:D30', 'H23:N24']},
-                   'ductwork': {'PRODUCT SETTINGS': ['J6:Q21', 'J132:Q149']},
+                   'ductwork': {'PRODUCT SETTINGS': ['J6:Q21', *(region for area in _DUCT_TECHNICAL_BASIS
+                                                                   for region in area['ranges'])]},
                    'steel_board': {'SETTINGS': ['D5:D34', 'G12:N13'],
                                    'CALCULATOR': ['Y1:AI1', 'A6:L6']}}
 _READ_ONLY_REFERENCES = frozenset({'D42', 'D75', 'D107', 'D184', 'D240'})
@@ -477,6 +508,9 @@ def _sheet_metadata(model, sheet):
                 ('steel_vermiculite', 'CALCULATOR'), ('steel_vermiculite', 'BAGS'),
                 ('steel_board', 'START'), ('ductwork', 'SUMMARY')} else 'links',
             'settings_sections': settings_sections,
+            'technical_basis': ({'label': 'TECHNICAL BASIS', 'visible': False,
+                                 'sections': deepcopy(_DUCT_TECHNICAL_BASIS)}
+                                if page == ('ductwork', 'PRODUCT SETTINGS') else None),
             'display_table_order': [1, 0] if page == ('steel_vermiculite', 'BAGS') else [],
             'schedule_heading': 'MEMBER SCHEDULE' if page == ('steel_vermiculite', 'SCHEDULE') else '',
             'expand_tables': page == ('steel_board', 'START'),

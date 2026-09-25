@@ -398,7 +398,7 @@ units and prose retain their existing formatting and values.
 
 ### PRODUCT SETTINGS
 
-Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup content. The browser omits introductory rows 3–4, the explanatory Both/Mixed block J6:Q21, the informational J132:Q149 location/example block and the complete USE NOTES section in rows 153–159, including its contents link. The A:H technical table beside J132:Q149 remains visible. These are targeted presentation omissions; their source cells, API values and existing report projection remain intact. Editable CAFCO and MK-6 estimating bag mass and density appear in rows 161–164; only Uncalibrated working yields use their ratios, while Calibrated and the injection multiplier retain their existing rules.
+The five browser panels are CAFCO, MONOKOTE, FyreWrap, FyreWrap application and Penetration takeoff. Each has a short visible operating qualification. The `technical_basis` metadata groups historical yield references, duplicate prose, audit notes and non-calculating detail by panel; `visible: false` means it is not offered in the chooser or rendered. CAFCO and MONOKOTE source-interpretation columns are hidden; FyreWrap retains the operating interpretation beside its live wrap settings and lookups. The browser omission ranges are derived from the hidden grouping. Source worksheet cells, API values, formulas, editable inputs, saved-project data and report calculations remain intact. Formula-fed lookup tables, calculated yields, editable CAFCO and MK-6 estimating bag mass and density in rows 161–164, and FyreWrap application and takeoff values stay visible.
 
 The picker independently exposes CAFCO A6:H46, MONOKOTE A48:H92 and the three
 FyreWrap rectangles below. All five start hidden. Bounds include columns as well
@@ -407,37 +407,36 @@ penetration table on the right. Existing omissions remain in effect.
 
 | Section | Source range | Heading / header | Retained content |
 | --- | --- | --- | --- |
-| FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | All core settings, roll-area output and product notes |
-| FyreWrap application table | J94:Q113 | J94 displays FYREWRAP APPLICATION TABLE; row 95 header | Application choices and source requirements |
-| Penetration takeoff | J115:Q149 | J115 displays PENETRATION TAKEOFF; row 116 header | Standard details, auxiliary tables and live exposure list J137:J149 with K137:Q139 note |
+| FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | Core settings, roll-area output, live wrap lookups and qualification notes |
+| FyreWrap application table | J94:Q113 | J94 displays FYREWRAP APPLICATION TABLE; row 95 header | Named application, layer count, directional FRLs and qualification notes |
+| Penetration takeoff | J115:Q149 | J115 displays PENETRATION TAKEOFF; row 116 header | Standard board and angle counts, units and qualification note |
 
 The directional FyreWrap qualification appears directly below FYREWRAP APPLICATION
 TABLE only. It is omitted from every other browser panel. Both PDF downloads add
 the same qualification only when the current schedule contains a FyreWrap row.
 
-Each selected heading appears once above its own data. Hidden sections retain
-their values, inputs and calculation effects; the complete API page is unchanged.
-Browser-only merges join each blank gray row J105:Q105, J108:Q108, J111:Q111,
-J131:Q131 and J136:Q136. These rows retain their outside table borders without
-internal vertical rules; the adjacent text, parameters and live lookup records
-stay intact. This changes layout only; all eleven editable controls and
-dependencies remain.
+Each selected heading appears once above its own data. Hidden Technical Basis
+cells retain their values and calculation effects in the complete API page.
+The formerly visible gray J105/J108/J111 and J131/J136 separator rows are
+now hidden with their documentary blocks; their source merges remain intact.
+All eleven workbook editable controls, four runtime estimating controls and
+calculation dependencies remain.
 
-The following source-table label anchors are explicitly bold in the browser:
+The source workbook still marks the following first-column anchors bold, although
+the Technical Basis filter hides some of these rows from the browser:
 
 - A8:A35, A37:A39, A50:A73 and A75:A79 for CAFCO/MONOKOTE reference labels.
 - A96:A115, A118:A121, A124:A127, A130:A134 and A137:A150 for FyreWrap and Maxilite reference labels.
 - J96:J104, J117:J130 and J137:J149 for the application/penetration tables and live lookup list.
 
-The A142:A150 extension makes the Maxilite first-column labels bold while the
-adjacent explanatory column retains its existing presentation. Blank separators
-and existing source section-heading styles remain separate. The whole PRODUCT SETTINGS
-page uses its content height, including unprojected tables, with no nested
-vertical cap. No input, lookup choice or technical rule changes with label weight.
+The A142:A150 source labels and explanations remain in the worksheet, but the
+historical/audit rows are now hidden from the browser. Critical application and
+layer-selection qualification rows 145 and 150 stay visible. No input, lookup
+choice or technical rule changes with the presentation filter.
 
-Place the eleven editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The rest is readonly source calibration/scope/reference data.
+Place the eleven workbook editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Keep the four runtime estimating controls B161:B164 visible as well. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The hidden Technical Basis is a presentation category, not an editable or separately persisted calculator page.
 
-Source A:H parameter layout gives A43/B27 and H42 width units; J:Q contains separate notes with K40/Q39. On narrow screens use label/value/unit/basis cards and discrete reference tables; do not force all seventeen columns into the same grid.
+CAFCO and MONOKOTE browser panels show the parameter, value, unit and basis columns. The FyreWrap application panel shows the named use, continuous layers and directional FRLs; penetration takeoff shows the count and unit. The underlying A:H and J:Q source coordinates remain unchanged.
 
 ## Structural Steel (board)
 
@@ -654,7 +653,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - The schedule PDF retains every populated main-schedule item and its status; the materials & summary PDF retains applicable extras, product/ancillary tables and closing totals. The four removed appendix/helper sections stay absent from both. The complete shared projection and Excel register retain all quantities, invalid/withheld states and source ordering rules; manual BAGS results are never added to schedule totals.
 - Schedule product totals match BAGS net/pooled whole quantities, contents links target their declared source sections, and all eight fire-period columns remain aligned. Read-only basis values preserve existing saved text; arbitrary new changes are rejected at HTTP/storage-save boundaries while source/default reset values remain valid.
 - Populated and blank outputs use their two prescribed highlight states consistently; zero and error text are populated. Hiding SCHEDULE V/W/X does not bypass W-dependent withheld orders or change PDF statuses. Settings source metadata and CALCULATOR third-section notes remain in source data despite their browser omission.
-- Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits the explicitly listed introductory rows, Both/Mixed block J6:Q21 and USE NOTES rows 153–159, including that section's contents link. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
+- Duct SUMMARY keeps four independent tables with the visible ranges above; hiding commentary in one table does not remove angle-table E:F or alter totals. PRODUCT SETTINGS omits introductory rows, Both/Mixed block J6:Q21, USE NOTES rows 153–159 and the hidden Technical Basis ranges specified above. Board START omits its requested rows and Sources contents link, while board CALCULATOR retains every AI status in normal weight beneath a bold heading. These changes leave source formulas, input keys and PDFs unchanged.
 - All picker pages initially hide their sections, expose exactly one selected panel and retain that client selection across recalculation and page switching. Vermiculite has seven Settings and three Factor choices; START directly shows operating rules. Together they cover the same eleven source rectangles, including adjacent/helper notes. Duct and board retain five/three choices. Board SETTINGS keeps all 28 editable values, dependent dropdowns and diagnostic lookups; hidden sections remain in the complete draft, validation, save, reset and both report scopes.
 - BOARD SUMMARY cards use their source totals without duplicated card rows. CALCULATOR product totals retain the box-reference area label, valid extras, original stock rounding and incomplete counts; incomplete/unknown-product rows must not silently become complete orders.
 - BOARD SUMMARY shows only A:D and I:J within rows 11–29, retaining all eighteen stock rows, three source-total cards, the live qualification and notes A31/A35. EXTRA BOARDS hides N while retaining all forty rows and editable A:I. Saving an unrelated visible edit preserves existing N6:N45 evidence and advanced input values. Complete API results, pooled quantities and PDF contents remain unchanged.
@@ -662,7 +661,7 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 - Phone and desktop checks cover actual inputs, outputs and long qualification text, not only the page header. Source formula parity remains a separate regression gate.
 - Horizontal scrolling moves the first column with the remaining schedule columns while vertical column headings can stay visible. Data-table gridlines are solid black; main source, overview, total and projected-section headings share the red/white banner. Populated/blank data fills remain separate from heading styling and do not change calculation semantics.
 - Projected Inputs, Thickness and quantities, period comparison, product ordering and FyreWrap sections keep their own source headings with their data. Each original editable field occurs once; residual notes and unprojected source content remain available except for explicit omissions. BAGS displays MATERIAL QUANTITIES while retaining its original worksheet identity.
-- Independent presentation tables and every SETTINGS/PRODUCT SETTINGS table use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five listed blank PRODUCT SETTINGS J:Q rows render as gray spans with only outside borders; BAGS H10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
+- Independent presentation tables and every SETTINGS/PRODUCT SETTINGS table use their full content height; long schedules retain their existing vertical scrollers. Duct CALCULATOR A3 renders as a full-row gold note. SUMMARY A17/A29 span A:L. The five PRODUCT SETTINGS gray J:Q separator rows are hidden with the Technical Basis; BAGS H10:N10 is a gold span while its label and working yield remain visible. Source merges, values, formulas and report projections remain unchanged.
 - Vermiculite SCHEDULE uses the explicit m²/m³ summary labels and full-width PRODUCT SUMMARY; the board CALCULATED SUMMARY uses the same independent placement. BAGS omits G only in manual-form rows 6–15, preserving G19:G24 and all pooled order values. The confirmed A28:I30 period table is centered. Duct reference labels are bold only at the declared anchors, leaving adjacent explanatory prose unchanged.
 - Factor-helper D:G spans remove only blank dividers; collapsing A371:G371 retains H371:N374 notes and every helper input/result. The Published thickness row renders L6 before left-aligned H6 with source identities and original row spans intact. Pink technical-rule headings, normal reference/support prose and bold reference exposure/product labels apply only to the listed anchors. Editable schedule Exposure cells use normal weight within vermiculite C10:C1009, board M9:M208 and duct H11:H310; headers remain unchanged. Board overview title/notes fill their rows while all three summary cards remain; BOARD SUMMARY and EXTRA BOARDS are browser title aliases only.
 - Vermiculite CALCULATOR/BAGS, board START and duct SUMMARY omit contents links; board START uses page scrolling. BAGS orders its product table before the MATERIAL QUANTITIES heading, subtitle and manual form without duplicate IDs or inputs and uses bold A20:A24 names. MEMBER SCHEDULE, PUBLISHED VALUE, numeric-only H6 mm/highlight, normal schedule Y notes and the shorter J94 title are display changes. Generic success subtitles and only the exact duct copied-fixing notice are hidden; errors, other warnings, source/API text, PDF and Excel-register values remain intact.

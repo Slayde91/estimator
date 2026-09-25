@@ -22,6 +22,7 @@ jobs:
       - run: node --check static/penetration-breakdown.js
       - run: node --check static/libraries.js
       - run: node --check static/library-editor.js
+      - run: node --check scripts/ocr_trafalgar_documents.cjs
       - run: node tests/test_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs

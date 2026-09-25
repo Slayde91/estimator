@@ -398,7 +398,7 @@ units and prose retain their existing formatting and values.
 
 ### PRODUCT SETTINGS
 
-Four source groups are explicit: CAFCO rows 6–46, MONOKOTE 48–92, FyreWrap 94–150, use notes 153–159. Keep source table headings 7/49/95 and auxiliary lookup content. The browser omits introductory rows 3–4, the explanatory Both/Mixed block J6:Q21, the informational J132:Q149 location/example block and the complete USE NOTES section in rows 153–159, including its contents link. The A:H technical table beside J132:Q149 remains visible. These are targeted presentation omissions; their source cells, API values and existing report projection remain intact. Editable CAFCO and MK-6 estimating bag mass and density appear in rows 161–164; only Uncalibrated working yields use their ratios, while Calibrated and the injection multiplier retain their existing rules.
+The five browser panels are CAFCO, MONOKOTE, FyreWrap, FyreWrap application and Penetration takeoff. Each has a short visible operating qualification. The `technical_basis` metadata groups historical yield references, duplicate prose, audit notes and non-calculating detail by panel; `visible: false` means it is not offered in the chooser or rendered. CAFCO and MONOKOTE source-interpretation columns are hidden; FyreWrap retains the operating interpretation beside its live wrap settings and lookups. The browser omission ranges are derived from the hidden grouping. Source worksheet cells, API values, formulas, editable inputs, saved-project data and report calculations remain intact. Formula-fed lookup tables, calculated yields, editable CAFCO and MK-6 estimating bag mass and density in rows 161–164, and FyreWrap application and takeoff values stay visible.
 
 The picker independently exposes CAFCO A6:H46, MONOKOTE A48:H92 and the three
 FyreWrap rectangles below. All five start hidden. Bounds include columns as well
@@ -407,9 +407,9 @@ penetration table on the right. Existing omissions remain in effect.
 
 | Section | Source range | Heading / header | Retained content |
 | --- | --- | --- | --- |
-| FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | All core settings, roll-area output and product notes |
-| FyreWrap application table | J94:Q113 | J94 displays FYREWRAP APPLICATION TABLE; row 95 header | Application choices and source requirements |
-| Penetration takeoff | J115:Q149 | J115 displays PENETRATION TAKEOFF; row 116 header | Standard details, auxiliary tables and live exposure list J137:J149 with K137:Q139 note |
+| FyreWrap | A94:H151 | A94 heading; source parameter headers within the form | Core settings, roll-area output, live wrap lookups and qualification notes |
+| FyreWrap application table | J94:Q113 | J94 displays FYREWRAP APPLICATION TABLE; row 95 header | Named application, layer count, directional FRLs and qualification notes |
+| Penetration takeoff | J115:Q149 | J115 displays PENETRATION TAKEOFF; row 116 header | Standard board and angle counts, units and qualification note |
 
 The directional FyreWrap qualification appears directly below FYREWRAP APPLICATION
 TABLE only. It is omitted from every other browser panel. Both PDF downloads add
@@ -423,21 +423,21 @@ internal vertical rules; the adjacent text, parameters and live lookup records
 stay intact. This changes layout only; all eleven editable controls and
 dependencies remain.
 
-The following source-table label anchors are explicitly bold in the browser:
+The source workbook still marks the following first-column anchors bold, although
+the Technical Basis filter hides some of these rows from the browser:
 
 - A8:A35, A37:A39, A50:A73 and A75:A79 for CAFCO/MONOKOTE reference labels.
 - A96:A115, A118:A121, A124:A127, A130:A134 and A137:A150 for FyreWrap and Maxilite reference labels.
 - J96:J104, J117:J130 and J137:J149 for the application/penetration tables and live lookup list.
 
-The A142:A150 extension makes the Maxilite first-column labels bold while the
-adjacent explanatory column retains its existing presentation. Blank separators
-and existing source section-heading styles remain separate. The whole PRODUCT SETTINGS
-page uses its content height, including unprojected tables, with no nested
-vertical cap. No input, lookup choice or technical rule changes with label weight.
+The A142:A150 source labels and explanations remain in the worksheet, but the
+historical/audit rows are now hidden from the browser. Critical application and
+layer-selection qualification rows 145 and 150 stay visible. No input, lookup
+choice or technical rule changes with the presentation filter.
 
-Place the eleven editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The rest is readonly source calibration/scope/reference data.
+Place the eleven workbook editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Keep the four runtime estimating controls B161:B164 visible as well. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The hidden Technical Basis is a presentation category, not an editable or separately persisted calculator page.
 
-Source A:H parameter layout gives A43/B27 and H42 width units; J:Q contains separate notes with K40/Q39. On narrow screens use label/value/unit/basis cards and discrete reference tables; do not force all seventeen columns into the same grid.
+CAFCO and MONOKOTE browser panels show the parameter, value, unit and basis columns. The FyreWrap application panel shows the named use, continuous layers and directional FRLs; penetration takeoff shows the count and unit. The underlying A:H and J:Q source coordinates remain unchanged.
 
 ## Structural Steel (board)
 

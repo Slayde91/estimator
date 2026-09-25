@@ -221,7 +221,12 @@ class CalculatorCleanupTests(unittest.TestCase):
                 expected_columns = {("ductwork", "CALCULATOR"): [37, 38, 42, 43, 44],
                                     ("steel_board", "EXTRA BOARDS"): [14]}
                 self.assertEqual(sheet["omitted_columns"], expected_columns.get((identity, sheet["name"]), []))
-                expected_ranges = {("ductwork", "PRODUCT SETTINGS"): ["J6:Q21", "J132:Q149"],
+                expected_ranges = {("ductwork", "PRODUCT SETTINGS"): [
+                    "J6:Q21", "E7:H46", "E161:H162", "A21:H24", "A33:H34", "A36:H43",
+                    "E49:H92", "E163:H164", "A70:H72", "A83:H89",
+                    "A123:H127", "A142:H144", "A146:H149",
+                    "K95:L104", "P95:Q104", "J106:Q113",
+                    "M116:Q125", "J126:Q130", "J132:Q149"],
                                    ("steel_board", "SETTINGS"): ["D5:D34", "G12:N13"],
                                    ("steel_board", "CALCULATOR"): ["Y1:AI1", "A6:L6"]}
                 self.assertEqual(sheet["omitted_ranges"], expected_ranges.get((identity, sheet["name"]), []))

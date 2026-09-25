@@ -6,7 +6,7 @@ import json
 import unittest
 
 from estimator.excel_engine import coordinates
-from estimator.workbook_calculators import calculator_definition, input_field, source_model
+from estimator.workbook_calculators import calculate_page, calculator_definition, input_field, source_model
 from estimator.workbook_catalog import editable_cells
 
 
@@ -139,6 +139,39 @@ class CalculatorSectionNavigationTests(unittest.TestCase):
         for address, owner in [('A341', 'A341'), ('N342', 'A341'), ('D346', 'A341'),
                                ('D362', 'A356'), ('H371', 'A370'), ('N374', 'A370')]:
             self.assertEqual(owners(verm, address), [owner], address)
+
+    def test_duct_technical_basis_is_hidden_without_losing_live_settings(self):
+        metadata = self.metadata('ductwork', 'PRODUCT SETTINGS')
+        source = next(sheet for sheet in source_model('ductwork')['sheets']
+                      if sheet['name'] == 'PRODUCT SETTINGS')
+        basis = metadata['technical_basis']
+        self.assertEqual(basis['label'], 'TECHNICAL BASIS')
+        self.assertFalse(basis['visible'])
+        self.assertEqual([area['section_id'] for area in basis['sections']],
+                         ['A6', 'A48', 'A94', 'J94', 'J115'])
+        self.assertEqual([section['id'] for section in metadata['settings_sections']],
+                         ['A6', 'A48', 'A94', 'J94', 'J115'])
+        for area in basis['sections']:
+            for reference in area['ranges']:
+                self.assertIn(reference, metadata['omitted_ranges'])
+        for address in ('B21', 'B37', 'B70', 'B85', 'B143', 'J126', 'J137'):
+            self.assertFalse(visible(metadata, address), address)
+            self.assertIn(address, source['cells'], address)
+        hidden_row = calculate_page('ductwork', sheet='PRODUCT SETTINGS', start_row=21, row_count=1)
+        self.assertTrue(any(cell.get('address') == 'B21' for cell in hidden_row['rows'][0]['cells']))
+        live = ('B8', 'B20', 'B25', 'B26', 'B35', 'B44', 'B45', 'B46', 'B161', 'B162',
+                'B50', 'B65', 'B66', 'B67', 'B68', 'B69', 'B73', 'B90', 'B91', 'B92',
+                'B163', 'B164', 'B96', 'B97', 'B100', 'B112', 'B145', 'B150',
+                'C75', 'D79', 'E118', 'D130', 'E134', 'D137', 'E141',
+                'J96', 'M99', 'N99', 'O99', 'M103', 'M104', 'K117', 'K125')
+        for address in live:
+            self.assertTrue(visible(metadata, address), address)
+        for address, cell in source['cells'].items():
+            if cell.get('formula'):
+                self.assertTrue(visible(metadata, address), address)
+        for section in metadata['settings_sections']:
+            if section['id'] != 'J94':
+                self.assertTrue(section['note'])
 
     def test_navigation_metadata_is_detached_and_source_models_do_not_change(self):
         for identity, name in SECTIONS:

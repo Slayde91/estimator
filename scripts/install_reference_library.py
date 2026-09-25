@@ -43,7 +43,11 @@ def install(source, destination, replace=False):
             content, _, filename = library.asset(asset['id'], asset['pdf'])
             (stage / ('documents' if asset['pdf'] else 'images') / filename).write_bytes(content)
         public_data = {key: value for key, value in data.items() if not key.startswith('_')}
-        (stage / 'library.json').write_text(json.dumps(public_data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        # Formatting must not expand an already valid bundle beyond the reader's
+        # size limit. Serialize the validated in-memory data, not a second read
+        # of a source index that could have changed during asset copying.
+        (stage / 'library.json').write_bytes((json.dumps(public_data, ensure_ascii=False,
+            separators=(',', ':'), allow_nan=False) + '\n').encode('utf-8'))
         staged = ReferenceLibrary(stage)
         summary = staged.overview()
         for asset in data['_assets'].values():

@@ -174,6 +174,19 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertEqual(ReferenceLibrary(destination).detail('penetration', 'pkb-001')['title'], 'Reviewed update')
         self.assertFalse(list(destination.parent.glob('.reference-library-*')))
 
+    def test_installation_does_not_expand_valid_index_past_reader_limit(self):
+        compact = (json.dumps(self.data, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+        (self.root / 'library.json').write_bytes(compact)
+        limit = len(compact)
+        self.assertGreater(len(json.dumps(self.data, ensure_ascii=False, indent=2).encode('utf-8')), limit)
+        destination = Path(self.temp.name) / 'installed'
+        with patch('estimator.reference_library.MAX_INDEX', limit):
+            receipt = install(self.root, destination)
+            self.assertTrue(receipt['installed'])
+            self.assertEqual(ReferenceLibrary(destination).asset('report-a')[0], self.pdf)
+        self.assertLessEqual((destination / 'library.json').stat().st_size, limit)
+        self.assertEqual(json.loads((destination / 'library.json').read_bytes()), self.data)
+
     def test_installation_refuses_changed_assets_without_disturbing_destination(self):
         destination = Path(self.temp.name) / 'installed'
         install(self.root, destination)

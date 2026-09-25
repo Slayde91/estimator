@@ -398,7 +398,7 @@ units and prose retain their existing formatting and values.
 
 ### PRODUCT SETTINGS
 
-The five browser panels are CAFCO, MONOKOTE, FyreWrap, FyreWrap application and Penetration takeoff. Each has a short visible operating qualification. The `technical_basis` metadata groups historical yield references, duplicate prose, audit notes and non-calculating detail by panel; `visible: false` means it is not offered in the chooser or rendered. CAFCO and MONOKOTE source-interpretation columns are hidden; FyreWrap retains the operating interpretation beside its live wrap settings and lookups. The browser omission ranges are derived from the hidden grouping. Source worksheet cells, API values, formulas, editable inputs, saved-project data and report calculations remain intact. Formula-fed lookup tables, calculated yields, editable CAFCO and MK-6 estimating bag mass and density in rows 161–164, and FyreWrap application and takeoff values stay visible.
+The five browser panels are CAFCO, MONOKOTE, FyreWrap, FyreWrap application and Penetration takeoff. Each has a short visible operating qualification. The `technical_basis` metadata groups historical yield references, duplicate prose, audit notes and non-calculating detail by panel; `visible: false` means it is not offered in the chooser or rendered. CAFCO and MONOKOTE source-interpretation columns are hidden; FyreWrap retains the operating interpretation beside its live wrap settings and lookups. The browser omission ranges are derived from the hidden grouping. Hiding Technical Basis does not itself alter source worksheet cells, formulas, inputs, saved-project data or report calculations. The editable FyreWrap assumptions below add a separate, explicit quantity rule while leaving the packaged workbook intact. Formula-fed lookup tables, calculated yields, editable CAFCO and MK-6 estimating bag mass and density in rows 161–164, and FyreWrap application and takeoff values stay visible.
 
 The picker independently exposes CAFCO A6:H46, MONOKOTE A48:H92 and the three
 FyreWrap rectangles below. All five start hidden. Bounds include columns as well
@@ -419,22 +419,20 @@ Each selected heading appears once above its own data. Hidden Technical Basis
 cells retain their values and calculation effects in the complete API page.
 The formerly visible gray J105/J108/J111 and J131/J136 separator rows are
 now hidden with their documentary blocks; their source merges remain intact.
-All eleven workbook editable controls, four runtime estimating controls and
-calculation dependencies remain.
+All eleven workbook editable controls, four runtime estimating controls, four
+editable FyreWrap assumptions and calculation dependencies remain.
 
-The source workbook still marks the following first-column anchors bold, although
-the Technical Basis filter hides some of these rows from the browser:
-
-- A8:A35, A37:A39, A50:A73 and A75:A79 for CAFCO/MONOKOTE reference labels.
-- A96:A115, A118:A121, A124:A127, A130:A134 and A137:A150 for FyreWrap and Maxilite reference labels.
-- J96:J104, J117:J130 and J137:J149 for the application/penetration tables and live lookup list.
+Browser presentation marks every parameter label bold in all five duct product
+panels, including calibration and runtime estimating rows. This covers the
+visible A-column labels in the three product forms and the J-column labels in
+the application and penetration tables.
 
 The A142:A150 source labels and explanations remain in the worksheet, but the
 historical/audit rows are now hidden from the browser. Critical application and
 layer-selection qualification rows 145 and 150 stay visible. No input, lookup
 choice or technical rule changes with the presentation filter.
 
-Place the eleven workbook editable controls prominently within their product groups: CAFCO B35/B44:B46; MONOKOTE B65/B73/B90:B92; FyreWrap B97/B100. Keep the four runtime estimating controls B161:B164 visible as well. Show CAFCO working yield B25 and coverage B26, MONOKOTE working yield B69, and FyreWrap actual roll area B112 as readonly outputs beside the related inputs. The hidden Technical Basis is a presentation category, not an editable or separately persisted calculator page.
+CAFCO displays B35, B44:B46, B161:B162 and calculated B25 immediately after its header. MONOKOTE displays B65, B73, B90:B92, B163:B164, calculated B68 and B69 in that order immediately after its header. These are browser row orders; source addresses do not move. FyreWrap B96, B98, B99 and B111 are editable alongside B97 and B100. B111 appears immediately after B100 and calculated actual roll area B112 follows B111. Small editable metric values retain their actual precision in the browser, including 0.038 m blanket thickness and the 0.005 m board gap. The hidden Technical Basis is a presentation category, not an editable or separately persisted calculator page.
 
 CAFCO and MONOKOTE browser panels show the parameter, value, unit and basis columns. The FyreWrap application panel shows the named use, continuous layers and directional FRLs; penetration takeoff shows the count and unit. The underlying A:H and J:Q source coordinates remain unchanged.
 
@@ -623,14 +621,14 @@ not a promise that every intermediate worksheet cell is printed.
 | --- | --- | --- |
 | Vermiculite schedule | SCHEDULE A/B/F/I/J/O/P/R/T/U/V/W, rows 10–1009 | Item/product/section, quantity and length, published and usable thickness, spray area, net/per-line whole bags and main status |
 | Vermiculite pooled ordering | BAGS A20:I24 | B line count, C area, D volume, E net bags, F waste, G whole bags by product, H incomplete count, I status |
-| Ductwork schedule | CALCULATOR B/C/D/E/J/K/L/M/N/O, rows 11–310; PRODUCT SETTINGS B96 for wrap-layer thickness | Product/duct size, length, FRL, thickness, duct area, net spray bags, wrap area, roll equivalents and main status |
+| Ductwork schedule | CALCULATOR B/C/D/E/J/K/L/M/N/O, rows 11–1010; PRODUCT SETTINGS B96/B98/B99/B111 for selected wrap assumptions | Product/duct size, length, FRL, thickness, duct area, net spray bags, wrap area including selected waste, roll equivalents and main status |
 | Ductwork product totals | SUMMARY A9:L11 | C area; D bags; E wrap; F rolls; G board; H steel length; I/J withheld counts; K/L basis |
 | Ductwork ancillary totals | SUMMARY A19:F26, A31:F32, A40:I41 | Angle sizes/locations, working yields and board-strip quantities with original limitations |
 | Board schedule | CALCULATOR A/C/D/Z/AB/AD/AE/AF/AG/AN/AO/AR/AS, rows 9–208 | Item/product/section, design period/temperature, stack and thickness, reference box area, actual net/waste board areas, standalone sheet count and main status |
 | Board extra detail | EXTRA BOARDS A:N, rows 6–45 | J net area, K area with waste, L stock key, M validity; invalid rows retain their status and no quantity |
 | Board pooled purchasing | BOARD SUMMARY A6/E6/I6 and A12:K29 | Product/thickness pooling, including valid extra boards; use source whole-sheet and purchase-area totals |
 
-For vermiculite ordering, use BAGS G20:G24. Do not sum the individually rounded SCHEDULE U values. Whole bags are withheld when the corresponding source incomplete/yield/waste conditions are not satisfied. Ductwork supplies net bags and roll equivalents, without an added waste factor or automatic whole-bag rounding.
+For vermiculite ordering, use BAGS G20:G24. Do not sum the individually rounded SCHEDULE U values. Whole bags are withheld when the corresponding source incomplete/yield/waste conditions are not satisfied. Ductwork supplies net bags and roll equivalents without automatic whole-bag rounding. FyreWrap B111 is a fraction applied once to total wrap area N; roll equivalents O follow from N/B112. Zero preserves the original workbook quantities.
 
 For board purchasing, SUMMARY E is the sum of both box-layer areas grouped by product and thickness; F is matching EXTRA BOARDS J by stock key; G=E+F. H pools both box layers with waste and EXTRA BOARDS K. I rounds H divided by that stock sheet area upward; J is I times sheet area. A6 sums net box plus extra area; E6 sums pooled whole sheets; I6 sums purchase area. Never sum schedule AG to obtain the pooled job order.
 

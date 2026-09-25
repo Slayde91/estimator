@@ -201,6 +201,32 @@ def _add_ductwork_estimating_yields(model):
         cells[address].pop('cached_value', None)
 
 
+def _add_ductwork_fyrewrap_inputs(model):
+    """Expose the selected wrap assumptions without changing the source package."""
+    sheet = next(item for item in model['sheets'] if item['name'] == 'PRODUCT SETTINGS')
+    settings = (
+        ('B96', 'Blanket layer thickness', 'm', 'greaterThan',
+         'Manual p.5 default is 38 mm per layer. Confirm the selected blanket detail before changing.'),
+        ('B98', 'Roll length', 'm', 'greaterThan',
+         'Manual p.21 default is 7.62 m. Enter the actual supplied roll length.'),
+        ('B99', 'Required wrap overlap', 'm', 'greaterThanOrEqual',
+         'Manual pp.10–13 default is 100 mm. Confirm the selected detail before changing.'),
+        ('B111', 'Added waste / error allowance', 'fraction', 'greaterThanOrEqual',
+         'Enter 0 for no added waste; 0.10 adds 10% to wrap area and derived rolls.'),
+    )
+    for address, label, unit, operator, note in settings:
+        row = int(address[1:])
+        sheet['cells'][f'D{row}']['value'] = 'Editable estimate'
+        sheet['cells'][f'E{row}']['value'] = note
+        validation = {'type': 'decimal', 'operator': operator, 'sqref': address, 'formula1': '0'}
+        model['fields']['PRODUCT SETTINGS'].append({
+            'cell': address, 'label': label, 'type': 'number', 'setting': True,
+            'validation': validation, 'units': unit, 'notes': note,
+        })
+        sheet['validations'].append(validation)
+        model['setting_ranges']['PRODUCT SETTINGS'].append(address)
+
+
 def _add_monokote_z106(model):
     """Add a product-specific bag profile while reusing MK-6 technical rules.
 
@@ -332,6 +358,7 @@ def _application_catalog(calculator_id):
     elif calculator_id == 'ductwork':
         apply_ductwork_choices(model)
         _add_ductwork_estimating_yields(model)
+        _add_ductwork_fyrewrap_inputs(model)
     return model
 
 

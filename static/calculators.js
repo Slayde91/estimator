@@ -5,6 +5,7 @@
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const controlExactNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 15 });
   const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, calculating: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
   const descriptions = {
     steel_vermiculite: "Steel schedules, coating thicknesses and material quantities",
@@ -330,7 +331,7 @@
   function numericInputValue(value, cell, editing = false) {
     if (!isNumber(value)) return value ?? "";
     const visible = percent(cell) ? decimalShift(value, 2) : value;
-    return editing ? String(visible) : controlNumber.format(visible);
+    return editing ? String(visible) : (cell.control_exact ? controlExactNumber : controlNumber).format(visible);
   }
 
   function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
@@ -812,6 +813,26 @@
     update(); return { chooser, panels };
   }
 
+  function arrangeSettingRows(sourceRows, section) {
+    let ordered = sourceRows;
+    if (section.promote_rows?.length) {
+      const promoted = section.promote_rows.map((number) => sourceRows.find((row) => row.row === number)).filter(Boolean);
+      const priorities = new Set(section.promote_rows);
+      ordered = sourceRows.filter((row) => !priorities.has(row.row));
+      const afterHeader = ordered.findIndex((row) => row.row > section.header_row);
+      ordered.splice(afterHeader < 0 ? ordered.length : afterHeader, 0, ...promoted);
+    }
+    for (const move of section.move_after || []) {
+      const moved = move.rows.map((number) => ordered.find((row) => row.row === number)).filter(Boolean);
+      const selected = new Set(move.rows);
+      ordered = ordered.filter((row) => !selected.has(row.row));
+      const anchor = ordered.findIndex((row) => row.row === move.row);
+      if (anchor >= 0) ordered.splice(anchor + 1, 0, ...moved);
+      else ordered.push(...moved);
+    }
+    return ordered;
+  }
+
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
     const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry), page = pageDefinition(entry);
@@ -946,6 +967,26 @@
           groupColumns = groupColumns.filter((column) => occupied.has(column));
         }
         sections.set(`${key}-settings-${owner || "common"}`, { ...original, body: node("tbody"), sourceRows, rows: sourceRows.map((row) => row.row), columns: groupColumns, visibleCell, settingsSectionId: owner });
+      }
+      // Spray input rows can come from both the original report table and the
+      // application-only estimating rows. Combine their browser groups before
+      // placing controls at the top, without moving any workbook coordinates.
+      const firstByOwner = new Map();
+      for (const [key, group] of [...sections]) {
+        const section = settingsDefinitions.find((item) => item.id === group.settingsSectionId);
+        if (!section?.promote_rows?.length || group.definition) continue;
+        const first = firstByOwner.get(section.id);
+        if (first) {
+          first.sourceRows.push(...group.sourceRows);
+          first.columns = [...new Set([...first.columns, ...group.columns])].sort((left, right) => left - right);
+          sections.delete(key);
+        } else firstByOwner.set(section.id, group);
+      }
+      for (const group of sections.values()) {
+        const section = settingsDefinitions.find((item) => item.id === group.settingsSectionId);
+        if (!section) continue;
+        group.sourceRows = arrangeSettingRows(group.sourceRows, section);
+        group.rows = group.sourceRows.map((row) => row.row);
       }
     }
     const sectionStarts = sectionLinks.filter((section) => section.address).map((section) => parseAddress(section.address).row).sort((left, right) => left - right);

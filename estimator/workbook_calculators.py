@@ -159,14 +159,15 @@ _DISPLAY_CELLS = {
             'B35': {'control': 'select'},
             'B65': {'control': 'select'},
             'B73': {'control': 'select'},
-            **{f'J{row}': {'merge': f'J{row}:Q{row}'} for row in (105, 108, 111, 131, 136)},
+            **{address: {'control_exact': True}
+               for address in ('B96', 'B98', 'B99', 'B100', 'B111')},
             # First-column reference labels, excluding section headings, prose
             # and separator rows. These ranges follow the source tables.
             **{f'A{row}': {'bold': True} for row in (
-                *range(8, 36), *range(37, 40), *range(50, 74), *range(75, 80),
-                *range(96, 116), *range(118, 122), *range(124, 128),
-                *range(130, 135), *range(137, 151))},
-            **{f'J{row}': {'bold': True} for row in (*range(96, 105), *range(117, 131), *range(137, 150))},
+                *range(8, 47), *range(50, 93), *range(96, 152), *range(161, 165))},
+            **{f'J{row}': {'bold': True} for row in (*range(96, 114), *range(117, 150))},
+            **{f'J{row}': {'bold': True, 'merge': f'J{row}:Q{row}'}
+               for row in (105, 108, 111, 131, 136)},
         },
     },
 }
@@ -182,6 +183,13 @@ _DUCT_SETTINGS_COLUMNS = {
     'A6': [1, 2, 3, 4], 'A48': [1, 2, 3, 4],
     'J94': [10, 13, 14, 15], 'J115': [10, 11, 12],
 }
+_DUCT_SETTINGS_ROW_LAYOUT = {
+    # Browser order only. The cells keep their workbook addresses so formulas,
+    # project files and exports continue to use the original references.
+    'A6': {'header_row': 7, 'promote_rows': [35, 44, 45, 46, 161, 162, 25]},
+    'A48': {'header_row': 49, 'promote_rows': [65, 73, 90, 91, 92, 163, 164, 68, 69]},
+    'A94': {'move_after': [{'row': 100, 'rows': [111, 112]}]},
+}
 
 # Sections are browser panels, not alternate calculation/input scopes. Their
 # rectangles follow the original merged cells, including side-by-side tables.
@@ -195,7 +203,8 @@ _SETTINGS_SECTIONS = {
     ('ductwork', 'PRODUCT SETTINGS'): [
         {'id': address, 'title_address': address, 'ranges': ranges,
          'note': _DUCT_SETTINGS_NOTES.get(address, ''),
-         'display_columns': _DUCT_SETTINGS_COLUMNS.get(address, [])}
+         'display_columns': _DUCT_SETTINGS_COLUMNS.get(address, []),
+         **_DUCT_SETTINGS_ROW_LAYOUT.get(address, {})}
         for address, ranges in (('A6', ['A6:H46', 'A161:H162']),
                                 ('A48', ['A48:H92', 'A163:H164']),
                                 ('A94', ['A94:H151']), ('J94', ['J94:Q113']),
@@ -423,6 +432,21 @@ def normalize_calculator_inputs(calculator_id, inputs=None):
             if calculator_id == 'ductwork' and name == model['schedule']['sheet']:
                 value = canonical_ductwork_value(address.rstrip('0123456789'), value)
             normalized[name][address] = value
+        if calculator_id == 'ductwork' and name == 'PRODUCT SETTINGS':
+            wrap = normalized[name]
+            for address in ('B96', 'B98'):
+                if address in wrap and (not isinstance(wrap[address], (int, float)) or wrap[address] <= 0):
+                    raise ValidationError(f"{input_field(calculator_id, sheets[name], address)['label']}: enter a positive number.")
+            for address in ('B99', 'B111'):
+                if address in wrap and (
+                        not isinstance(wrap[address], (int, float)) or wrap[address] < 0):
+                    raise ValidationError(f"{input_field(calculator_id, sheets[name], address)['label']}: enter zero or more.")
+            defaults = sheets[name]['cells']
+            overlap = wrap.get('B99', defaults['B99']['value'])
+            width = wrap.get('B97', defaults['B97']['value'])
+            length = wrap.get('B98', defaults['B98']['value'])
+            if all(isinstance(item, (int, float)) for item in (overlap, width, length)) and overlap >= min(width, length):
+                raise ValidationError('Required wrap overlap must be shorter than the selected roll width and length.')
     return normalize_schedule_choices(normalized, model) if calculator_id == 'ductwork' else normalized
 
 
@@ -689,6 +713,8 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                 cell = {'column': column, 'address': address, 'value': value, 'editable': editable,
                         'type': field.get('type', 'number' if isinstance(value, (int, float)) else 'text'),
                         'number_format': style.get('number_format', 'General'), 'calculated': 'formula' in original}
+                if editable and metadata['display_cells'].get(address, {}).get('control_exact'):
+                    cell['control_exact'] = True
                 if shared_options:
                     cell['presentation'] = _presentation(style, original, value, row, column, metadata, editable)
                 if field.get('read_only'):

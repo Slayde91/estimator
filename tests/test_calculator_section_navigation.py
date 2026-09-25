@@ -140,6 +140,24 @@ class CalculatorSectionNavigationTests(unittest.TestCase):
                                ('D362', 'A356'), ('H371', 'A370'), ('N374', 'A370')]:
             self.assertEqual(owners(verm, address), [owner], address)
 
+    def test_duct_setting_row_layout_and_all_parameter_labels(self):
+        metadata = self.metadata('ductwork', 'PRODUCT SETTINGS')
+        sections = {section['id']: section for section in metadata['settings_sections']}
+        self.assertEqual(sections['A6']['promote_rows'], [35, 44, 45, 46, 161, 162, 25])
+        self.assertEqual(sections['A48']['promote_rows'], [65, 73, 90, 91, 92, 163, 164, 68, 69])
+        self.assertEqual(sections['A94']['move_after'], [{'row': 100, 'rows': [111, 112]}])
+        display = metadata['display_cells']
+        for first, last, column in ((8, 46, 'A'), (50, 92, 'A'), (96, 151, 'A'),
+                                    (161, 164, 'A'), (96, 113, 'J'), (117, 149, 'J')):
+            for row in range(first, last + 1):
+                self.assertTrue(display[f'{column}{row}']['bold'], f'{column}{row}')
+        for address in ('B96', 'B98', 'B99', 'B111'):
+            self.assertTrue(visible(metadata, address), address)
+            cell = calculate_page('ductwork', sheet='PRODUCT SETTINGS',
+                                  start_row=int(address[1:]), row_count=1)['rows'][0]['cells'][1]
+            self.assertTrue(cell['editable'], address)
+            self.assertTrue(cell['control_exact'], address)
+
     def test_duct_technical_basis_is_hidden_without_losing_live_settings(self):
         metadata = self.metadata('ductwork', 'PRODUCT SETTINGS')
         source = next(sheet for sheet in source_model('ductwork')['sheets']

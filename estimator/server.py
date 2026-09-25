@@ -229,7 +229,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         details = project_details(body.get('project_details'))
                         result = calculate_penetration(body['draft'], config)
                         if action == 'report.pdf':
-                            report = render_penetration_pdf(result, definition(config), details)
+                            report = render_penetration_pdf(result, definition(config), details, library=libraries)
                             self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination)
                         else:
                             report = build_penetration_register(result, definition(config), details)

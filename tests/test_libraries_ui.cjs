@@ -24,7 +24,8 @@ function harness(){
   let route=path=>{if(path==='/api/libraries')return meta();const [, , ,kind,id]=path.split('/');return id?detail(kind,decodeURIComponent(id)):records(kind.split('?')[0]);};
   const context={document:{getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);},fetch:async(path,options)=>{calls.push({path,options});const data=await route(path,options);return{ok:!data?.error,status:data?.error?400:200,json:async()=>data};}};
-  vm.createContext(context);vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList,renderDetail};})();`),context);
+  vm.createContext(context);vm.runInContext(fs.readFileSync('static/library-detail-text.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList,renderDetail};})();`),context);
   const api=context.window.CeasefireLibraries;
   context.window.CeasefireLibraryNavigation={open:(kind,selection)=>api.open(kind,selection)};
   const pane=kind=>context.audit.paneFor(kind);
@@ -224,6 +225,39 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','legacy-column'),fields:[field],images:[]}));await h.api.open('technical','legacy-column');const nodes=walk(h.pane('technical').detailPanel);
     assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Substrate','FRL']);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Masonry','-/120/120','Panel','-/90/90']);
     assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source Configuration|private-proof/);assert.deepEqual(field,before);
+  });
+  await check('Configuration columns are omitted for either library without changing table rows or link targets',async h=>{
+    for(const kind of ['technical','penetration']) {
+      const fields=[{label:'Service Size / Configuration',value:'',table:{columns:[' Configuration ','Service size / condition','Wrap requirement','Source Configuration'],rows:[['Wrap configuration 1','up to 50 mm','300 mm','proof-1'],['Wrap configuration 2','up to 100 mm','600 mm','proof-2']]},tables:[{columns:['Substrate configuration','FRL'],rows:[['Wall','-/60/60']]}]},{label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]}],before=copy(fields);
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'columns'),fields,images:[]}));await h.api.open(kind,'columns');
+      const nodes=walk(h.pane(kind).detailPanel);
+      assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Service size / condition','Wrap requirement','Substrate configuration','FRL']);
+      assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['up to 50 mm','300 mm','up to 100 mm','600 mm','Wall','-/60/60']);
+      assert.deepEqual(fields,before);
+      if(kind==='technical'){const link=nodes.find(n=>n.className==='library-configuration-link');await link.emit('click');assert.equal(h.context.document.activeElement,nodes.find(n=>n.className==='library-field-table-scroll'));}
+    }
+  });
+  await check('Installation Details use paragraphs and real lists in both libraries without exposing page headings',async h=>{
+    for(const kind of ['technical','penetration']) {
+      const fields=[{label:'Installation Details',value:'Source page 1, 2\nFit around the\nservice.\n\n1. Cut the board.\n2. Fill the gap.\nSource page 3\nProtect both faces.'}],before=copy(fields);
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'instructions'),fields,images:[]}));await h.api.open(kind,'instructions');
+      const nodes=walk(h.pane(kind).detailPanel),prose=nodes.find(n=>n.className==='library-detail-text');
+      assert.ok(prose);assert.doesNotMatch(text(prose),/Source page/);assert.match(text(prose),/Fit around the service\./);
+      assert.equal(walk(prose).filter(n=>n.tagName==='ol').length,1);assert.equal(walk(prose).filter(n=>n.tagName==='li').length,2);assert.match(text(prose),/Protect both faces/);assert.deepEqual(fields,before);
+    }
+  });
+  await check('Firefly service fields are formatted and Diagrams & Figures displays images without reference copy',async h=>{
+    const fields=[{label:'Manufacturer',value:'TBA FIREFLY'},{label:'Service Wrap',value:'1. Wrap the service.\n2. Secure both ends.'},{label:'Service Size / Configuration',value:'First line of\na service description.'},{label:'Diagrams & Figures',value:'Reference figures: 1, 2, 3',images:[{id:'figure-1',role:'Reference figure',caption:'Refer Figure - PDF page 12'}]}],before=copy(fields);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','firefly'),fields,images:[]}));await h.api.open('technical','firefly');let nodes=walk(h.pane('technical').detailPanel);
+    assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,2);assert.equal(nodes.filter(n=>n.tagName==='li').length,2);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,0);
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Reference figures:|Refer Figure/);assert.equal(nodes.find(n=>n.tagName==='img').src,'/api/libraries/images/figure-1');assert.match(nodes.find(n=>n.tagName==='img').alt,/Reference figure/);assert.deepEqual(fields,before);
+    fields[0].value='';h.pane('technical').detail.id='fas190235-system-synthetic';h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,2);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,0);
+    h.pane('technical').detail.id='other-system';fields[0].value='Other manufacturer';h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,0);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,1);assert.match(text(h.pane('technical').detailPanel),/Reference figures: 1, 2, 3/);
+  });
+  await check('Image references without a usable image are retained and provenance-only instructions leave no empty section',async h=>{
+    const fields=[{label:'Manufacturer',value:'Firefly'},{label:'Diagrams & Figures',value:'Reference figures: 12'},{label:'Installation Details',value:'Source page 1\n\nSource pages 2, 3'},{label:'Barrier Construction',value:'Wall',table:{columns:['Configuration'],rows:[['one']]}}];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','empty'),fields,images:[]}));await h.api.open('technical','empty');const nodes=walk(h.pane('technical').detailPanel);
+    assert.match(text(h.pane('technical').detailPanel),/Reference figures: 12/);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Installation Details|Source page/);assert.equal(nodes.filter(n=>n.tagName==='table').length,0);
   });
   await check('A saved item invalidates prices and details without losing list search and filters',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='retained search';await pane.searchInput.emit('input');await h.runTimers();const filter=walk(pane.filterControls).find(node=>node.tagName==='select');filter.value='sample & test';await filter.emit('change');await flush();

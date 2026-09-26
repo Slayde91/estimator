@@ -412,7 +412,7 @@
     } else box.append(node("span", "", heading));
     return box;
   }
-  function imageNode(item, kind) {
+  function imageNode(item, kind, imageOnly = false) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
     const captionText = diagramCaption(kind, item.caption);
     const caption = kind === "technical" && item.role ? `${item.role} — ${captionText}` : captionText;
@@ -420,11 +420,14 @@
     link.href = savedUrl || `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
     link.setAttribute("aria-label", `Open ${caption} at full size (new tab)`);
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
-    link.append(image); figure.append(link, node("figcaption", "helper", caption)); return figure;
+    link.append(image); figure.append(link);
+    if (!imageOnly) figure.append(node("figcaption", "helper", caption));
+    return figure;
   }
   const configurationField = "Service Size / Configuration";
   const tableTargetLabels = new Map([[configurationField, "configuration"], ["Barrier Construction", "barrier construction"]]);
   const fieldTables = field => [...(field.table ? [field.table] : []), ...(Array.isArray(field.tables) ? field.tables : [])];
+  const displayedColumns = table => table.columns.map((label, index) => ({ label, index })).filter(column => !["configuration", "source configuration"].includes(String(column.label).trim().replace(/\s+/g, " ").toLowerCase()));
   const validFieldTable = table => table && Array.isArray(table.columns) && Array.isArray(table.rows) && table.rows.every(Array.isArray);
   // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
   const anchorPart = value => Array.from(String(value), char => char.codePointAt(0).toString(16)).join("-");
@@ -439,9 +442,9 @@
     scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", label);
     table.setAttribute("aria-label", label);
     if (hasCaption) table.append(node("caption", "", caption));
-    // Older bundles may still carry the generated audit key as a column.
-    // Keep it out of the presentation without mutating the source evidence.
-    const columns = field.table.columns.map((label, index) => ({ label, index })).filter(column => String(column.label).trim().toLowerCase() !== "source configuration");
+    // Generated configuration labels stay in the source evidence, not the UI.
+    // Map retained columns by their original index so row values stay aligned.
+    const columns = displayedColumns(field.table);
     for (const { label } of columns) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
     for (const values of field.table.rows) { const row = node("tr"); row.append(...columns.map(column => node("td", "", values[column.index]))); body.append(row); }
@@ -477,6 +480,8 @@
   }
   function renderDetail(pane) {
     const data = pane.detail, heading = node("h3", "", data.title || data.id);
+    // Legacy Firefly report imports predate the Manufacturer field.
+    const firefly = /^fas19023[456]-/i.test(String(data.id)) || (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" && /\bfirefly\b/i.test(String(field.value)));
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("detail:")) pane.quantityBadges.delete(key);
     const title = pane.kind === "penetration" ? node("div", "library-record-heading") : heading;
@@ -496,7 +501,7 @@
     const fields = node("dl", "library-record-fields");
     const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field));
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
-      if (!validFieldTable(table)) return null;
+      if (!validFieldTable(table) || !displayedColumns(table).length) return null;
       const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);
       target.id = tableAnchor(pane.kind, data.id, field.label, index);
       return target;
@@ -511,14 +516,20 @@
       const pair = node("div", "library-record-field"), value = node("dd");
       const images = (field.images || []).filter(item => validAssetId(item.id));
       const tables = tablesByField.get(field).filter(Boolean), links = configurationLinks(field, configurationTargets);
+      const imageOnly = firefly && field.label === "Diagrams & Figures" && images.length > 0;
+      const formatted = field.label === "Installation Details" || firefly && ["Service Wrap", configurationField].includes(field.label);
       if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
-      if (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
+      if (formatted) {
+        const blocks = window.LibraryDetailText.render(document, field.value ?? "");
+        if (blocks.length) { const prose = node("div", "library-detail-text"); prose.append(...blocks); value.append(prose); }
+        else if (!images.length && !tables.length && !links.length) continue;
+      } else if (!imageOnly && (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "")) value.textContent = valueText(field.value);
       if (pane.kind === "technical" && field.label === "Diagrams & Figures" && data.diagram_status) {
         value.append(node("p", "helper library-diagram-status", data.diagram_status)); diagramStatusShown = true;
       }
       if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
       if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
-      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind))); value.append(gallery); }
+      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly))); value.append(gallery); }
       pair.append(node("dt", "", fieldLabel(pane.kind, field.label) || "Field"), value); fields.append(pair);
     }
     content.push(fields);

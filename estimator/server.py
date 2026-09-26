@@ -174,7 +174,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png", "/fonts/Montserrat-Variable.ttf", "/fonts/Montserrat-Italic-Variable.ttf"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png", "/fonts/Montserrat-Variable.ttf", "/fonts/Montserrat-Italic-Variable.ttf"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
                     kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".ttf": "font/ttf"}[path.suffix]

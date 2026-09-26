@@ -218,6 +218,7 @@ node --check static/calculators.js
 node --check static/penetration.js
 node --check static/downloads.js
 node --check static/libraries.js
+node --check static/library-detail-text.js
 node --check static/library-editor.js
 node tests/test_ui.cjs
 node tests/test_calculators_ui.cjs
@@ -225,6 +226,7 @@ node tests/test_project_ui.cjs
 node tests/test_penetration_ui.cjs
 node tests/test_downloads_ui.cjs
 node tests/test_libraries_ui.cjs
+node tests/test_library_detail_text.cjs
 node tests/test_library_editor_ui.cjs
 python scripts/build.py
 ```

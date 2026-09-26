@@ -21,6 +21,7 @@ jobs:
       - run: node --check static/penetration.js
       - run: node --check static/penetration-breakdown.js
       - run: node --check static/libraries.js
+      - run: node --check static/library-detail-text.js
       - run: node --check static/library-editor.js
       - run: node --check scripts/ocr_trafalgar_documents.cjs
       - run: node --test tests/test_trafalgar_ocr.cjs
@@ -30,5 +31,6 @@ jobs:
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_penetration_ui.cjs
       - run: node tests/test_libraries_ui.cjs
+      - run: node tests/test_library_detail_text.cjs
       - run: node tests/test_library_editor_ui.cjs
       - run: python scripts/build.py

@@ -487,7 +487,7 @@
     const first = rated[0].index, numeric = new Set(rated.map(item => item.index));
     return kept.flatMap((paragraph, index) => index === first ? [summary] : numeric.has(index) ? [] : [paragraph]).join("\n\n");
   }
-  const displayedColumns = table => table.columns.map((label, index) => ({ label, index })).filter(column => !["configuration", "source configuration"].includes(String(column.label).trim().replace(/\s+/g, " ").toLowerCase()));
+  const displayedColumns = table => table.columns.map((label, index) => ({ label, index })).filter(column => !["id", "configuration", "source configuration"].includes(String(column.label).trim().replace(/\s+/g, " ").toLowerCase()));
   const validFieldTable = table => table && Array.isArray(table.columns) && Array.isArray(table.rows) && table.rows.every(Array.isArray);
   // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
   const anchorPart = value => Array.from(String(value), char => char.codePointAt(0).toString(16)).join("-");
@@ -559,7 +559,13 @@
     }
     if (data.notice) content.push(node("p", "library-record-notice", data.notice));
     const fields = node("dl", "library-record-fields");
-    const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field));
+    const promat = /^promat-/i.test(String(data.id)) || (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" && /^promat$/i.test(String(field.value).trim()));
+    // Keep source IDs intact for search and provenance; simplify only their display.
+    const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field)).map(field => {
+      if (!promat || String(field.label).trim().toLowerCase() !== "id") return field;
+      const match = String(field.value ?? "").trim().match(/^sys_var_(\d+)_au(?:\s+\(\+\d+ variants listed below\))?$/i);
+      return match ? { ...field, value: match[1] } : field;
+    });
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
       if (!validFieldTable(table) || !displayedColumns(table).length) return null;
       const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);

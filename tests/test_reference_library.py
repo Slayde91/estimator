@@ -124,8 +124,10 @@ class ReferenceLibraryTests(unittest.TestCase):
                  'images': [{'id': 'diagram-a', 'caption': 'Table cell, page 2'}]}
         self.data['libraries']['technical']['items'][0]['fields'].append(field)
         self.write(self.data)
-        actual = self.library.detail('technical', 'report-a-v1')['fields'][-1]
-        self.assertEqual(actual, field)
+        actual = next(value for value in self.library.detail('technical', 'report-a-v1')['fields']
+                      if value['label'] == 'Diagrams & Figures')
+        self.assertEqual(actual['images'][0]['id'], field['images'][0]['id'])
+        self.assertEqual(actual['images'][0]['caption'], field['images'][0]['caption'])
         self.assertEqual(self.library.asset(actual['images'][0]['id'], False)[0], self.png)
         for invalid in ('missing', 'report-a'):
             self.data['libraries']['technical']['items'][0]['fields'][-1]['images'][0]['id'] = invalid
@@ -139,12 +141,37 @@ class ReferenceLibraryTests(unittest.TestCase):
             'rows': [['Small', '600 mm', '120'], ['Small', '750 mm', '180']]}}
         self.data['libraries']['technical']['items'][0]['fields'].append(field)
         self.write(self.data)
-        self.assertEqual(self.library.detail('technical', 'report-a-v1')['fields'][-1], field)
+        actual = next(value for value in self.library.detail('technical', 'report-a-v1')['fields']
+                      if value['label'] == 'Service')
+        self.assertEqual(actual['table'], field['table'])
         self.assertEqual(self.library.listing('technical', search='750')['total'], 1)
         field['table']['rows'][0].pop()
         self.write(self.data)
         with self.assertRaises(ValidationError):
             ReferenceLibrary(self.root).overview()
+
+    def test_technical_projection_updates_search_and_detail_without_changing_imported_evidence(self):
+        item = self.data['libraries']['technical']['items'][0]
+        item['fields'] = [{'label': 'Service', 'value': 'Synthetic pipe'},
+                          {'label': 'Service Size', 'value': 'Up to 110mm'},
+                          {'label': 'Max Aperture Size', 'value': '200 x 200 mm'},
+                          {'label': 'Lead Time', 'value': 'Never-index-this-delivery-term'},
+                          {'label': 'Source table notes', 'value': 'Internal extraction notes'},
+                          {'label': 'Service Wrap', 'value': 'None'},
+                          {'label': 'Empty', 'value': ''}]
+        self.write(self.data)
+        original = (self.root / 'library.json').read_bytes()
+        detail = self.library.detail('technical', item['id'])
+        labels = {field['label'] for field in detail['fields']}
+        self.assertIn('Service Size / Configuration', labels)
+        self.assertIn('Maximum Opening Size', labels)
+        self.assertTrue({'Lead Time', 'Source table notes', 'Empty'}.isdisjoint(labels))
+        self.assertEqual(next(field['value'] for field in detail['fields'] if field['label'] == 'Service Wrap'), 'None')
+        self.assertEqual(detail['technical_basis']['source_fields'], item['fields'])
+        self.assertEqual(self.library.listing('technical', search='configuration 110mm')['total'], 1)
+        self.assertEqual(self.library.listing('technical', search='Never-index-this-delivery-term')['total'], 0)
+        self.assertEqual(self.library._load()['libraries']['technical']['items'][0], item)
+        self.assertEqual((self.root / 'library.json').read_bytes(), original)
 
     def test_asset_symlinks_outside_the_library_are_not_served(self):
         target = Path(self.temp.name) / 'outside.pdf'

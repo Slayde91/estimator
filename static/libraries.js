@@ -9,8 +9,12 @@
   const priceText = price => typeof price?.amount === "number" && Number.isFinite(price.amount) ? money.format(price.amount) : "Price unavailable";
   const priceLabel = price => String(price?.label || "").trim().toLowerCase() === "workbook price" ? "Library price" : price?.label || "Library price";
   const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review"]);
-  const hiddenTechnicalFields = new Set(["source table notes", "source option alignment"]);
-  const visibleField = (kind, field) => { const label = String(field.label || "").trim().toLowerCase(); return !hiddenFields.has(label) && !(kind === "technical" && hiddenTechnicalFields.has(label)); };
+  const hiddenTechnicalFields = new Set(["source table notes", "source option alignment", "technical basis", "lead time"]);
+  const visibleField = (kind, field) => {
+    const label = String(field.label || "").trim().toLowerCase();
+    if (hiddenFields.has(label) || kind === "technical" && hiddenTechnicalFields.has(label)) return false;
+    return kind !== "technical" || String(field.value ?? "").trim() !== "" || field.images?.length || field.table || field.tables?.length;
+  };
   const fieldLabel = (kind, label) => kind !== "penetration" ? label
     : label === "Type" ? "Category"
     : ["Item(s)", "Items/Services"].includes(label) ? "Description"
@@ -410,8 +414,9 @@
   }
   function imageNode(item, kind) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
-    const caption = diagramCaption(kind, item.caption);
-    const savedUrl = validDiagramUrl(item.url) ? item.url : null;
+    const captionText = diagramCaption(kind, item.caption);
+    const caption = kind === "technical" && item.role ? `${item.role} — ${captionText}` : captionText;
+    const savedUrl = kind === "penetration" && validDiagramUrl(item.url) ? item.url : null;
     link.href = savedUrl || `/api/libraries/images/${encodeURIComponent(item.id)}`; link.target = "_blank"; link.rel = "noopener noreferrer";
     link.setAttribute("aria-label", `Open ${caption} at full size (new tab)`);
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
@@ -451,17 +456,22 @@
     }
     if (data.notice) content.push(node("p", "library-record-notice", data.notice));
     const fields = node("dl", "library-record-fields");
+    let diagramStatusShown = false;
     for (const field of data.fields || []) {
       if (!visibleField(pane.kind, field)) continue;
       const pair = node("div", "library-record-field"), value = node("dd");
       const images = (field.images || []).filter(item => validAssetId(item.id));
-      const table = field.table && Array.isArray(field.table.columns) && Array.isArray(field.table.rows);
-      if (!images.length && !table || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
-      if (table) { pair.className += " library-record-field-table"; value.append(fieldTable(field)); }
+      const tables = [field.table, ...(Array.isArray(field.tables) ? field.tables : [])].filter(table => table && Array.isArray(table.columns) && Array.isArray(table.rows));
+      if (!images.length && !tables.length || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
+      if (pane.kind === "technical" && field.label === "Diagrams & Figures" && data.diagram_status) {
+        value.append(node("p", "helper library-diagram-status", data.diagram_status)); diagramStatusShown = true;
+      }
+      if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables.map(table => fieldTable({ ...field, table }))); }
       if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind))); value.append(gallery); }
       pair.append(node("dt", "", fieldLabel(pane.kind, field.label) || "Field"), value); fields.append(pair);
     }
     content.push(fields);
+    if (pane.kind === "technical" && data.diagram_status && !diagramStatusShown) content.push(node("p", "helper library-diagram-status", data.diagram_status));
     const images = data.diagram?.custom && validDiagramUrl(data.diagram.url)
       ? [{ url: data.diagram.url, caption: "Source diagram" }]
       : (data.images || []).filter(item => validAssetId(item.id));

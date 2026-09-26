@@ -279,6 +279,52 @@ silently reassigned to a different report.
 
 ## Local installation and privacy
 
+### Promat Australian Selector imports
+
+`scripts/import_promat_library.py` builds a separate candidate from a captured
+`promat.public-selector.export.v1` export and the existing installed bundle:
+
+```powershell
+python scripts/import_promat_library.py EXTRACTED_EXPORT EXISTING_BUNDLE NEW_CANDIDATE --audit AUDIT_DIRECTORY
+```
+
+The importer checks the export manifest, every captured system page and attached
+diagram fingerprint. Unknown fields, conflicting repeated values, unreviewed
+source tables and incomplete inventories fail before installation. It does not
+download or execute the export's bundled scripts. Review the candidate and use
+the normal installer with `--replace` only after validation; the installer keeps
+the previous library as a backup.
+
+Variants are combined only when the report identifier (including revision),
+product, service family, barrier orientation, fire exposure and source diagram
+set agree. Missing report identifiers do not establish a common approval.
+Every original variant ID remains searchable and has its own configuration row.
+Shared facts appear once; varying requirements remain together in the existing
+**Service Size / Configuration** table, with links from their owning fields.
+Blank seals use **Barrier Construction** and **Blank Seal FRL** instead.
+Grouped selector rows describe alternatives, not interchangeable approvals.
+
+The import uses the existing labels exclusively. Products, collars, service
+dimensions, existing insulation, annular gaps, aperture sizes, wrap, local
+protection, seal depth, installation details and report numbers retain distinct
+owners. Source field labels, original values, HTML fingerprints, URLs and all
+variant-to-diagram associations remain in the local export and audit files;
+source identities and associations also accompany each imported entry.
+Linked reports are retained as publisher references: the export does not contain
+their PDF contents, and importing selector data is not a review of those reports.
+Diagrams retain the exact source image bytes and are displayed once per entry.
+
+Orientation describes the barrier, so a wall with a horizontal pipe is Vertical.
+Substrate filtering reads the actual compartment construction, including paired
+table rows. Aperture infill and local thickening do not add substrate approvals.
+Proprietary Promat barriers remain separate categories. Malformed publisher
+symbols and missing report numbers remain visible as Source Issues; missing
+diagrams are explicitly identified. No missing technical limit is inferred.
+
+The 26 September 2026 export contains 4,375 variants and 155 unique images.
+It groups into 328 entries under these rules. Imported supplier content remains
+local and is excluded from the application ZIP and public Git repository.
+
 Supplier content is local data, separate from the public source repository and
 distribution. A bundle contains `library.json`, registered PDFs under
 `documents/<id>.pdf`, and PNG/JPEG diagrams under `images/<id>.<extension>`.

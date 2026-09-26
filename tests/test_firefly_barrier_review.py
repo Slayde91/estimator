@@ -12,7 +12,9 @@ class BarrierReviewTests(unittest.TestCase):
     def setUp(self):
         self.source = {
             'id': 'sample-blank-seal',
-            'fields': [{'label': 'Separating Element', 'value': 'Original evidence'}],
+            'fields': [{'label': 'Separating Element', 'value': 'Original evidence'},
+                       {'label': 'Max Aperture Size', 'value': 'Original aperture'},
+                       {'label': 'FRL when Blank', 'value': 'Original blank-seal ratings'}],
             'sources': [{'document_id': 'report', 'page': 3},
                         {'document_id': 'report', 'page': 4}],
         }
@@ -58,6 +60,25 @@ class BarrierReviewTests(unittest.TestCase):
         self.assertEqual(result['fields'][3:], self.fields[3:])
         validate_configuration_review(result, self.source, self.args['source_documents'])
         self.assertEqual((self.source, self.fields, self.args), before)
+
+    def test_reviewed_merged_aperture_can_restore_a_missing_projected_summary(self):
+        self.fields = [field for field in self.fields if field['label'] != 'Maximum Opening Size']
+        with self.assertRaisesRegex(ValueError, 'nonempty aperture'):
+            self.build()
+        self.source['fields'][1]['value'] = ''
+        self.args['source_fields_sha256'] = review_fingerprint(self.source['fields'])
+        before = deepcopy(self.fields)
+        result = self.build()
+        field = next(f for f in result['fields'] if f['label'] == 'Maximum Opening Size')
+        self.assertEqual(field['value'], '900 mm x 1200 mm')
+        self.assertEqual(field['table_links'], [{'field': 'Barrier Construction', 'table_index': 0}])
+        self.assertEqual(self.fields, before)
+
+    def test_service_penetration_without_original_blank_seal_fields_is_ineligible(self):
+        self.source['fields'] = [self.source['fields'][0]]
+        self.args['source_fields_sha256'] = review_fingerprint(self.source['fields'])
+        with self.assertRaisesRegex(ValueError, 'original blank-seal'):
+            self.build()
 
     def test_qualified_ratings_keep_row_specific_scope_and_bare_summary(self):
         rows = deepcopy(self.args['rows'])
@@ -114,9 +135,10 @@ class BarrierReviewTests(unittest.TestCase):
 
     def test_source_options_and_unreviewed_extra_rating_cannot_leak_or_be_dropped(self):
         rows = deepcopy(self.args['rows'])
-        rows[0][1] = 'Source option 1: Panel wall'
-        with self.assertRaisesRegex(ValueError, 'Source option'):
-            self.build(rows=rows)
+        for prefix in ('Source option 1:', 'Source options 1, 2:', 'Source options 1 and 2:'):
+            rows[0][1] = prefix + ' Panel wall'
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, 'Source option'):
+                self.build(rows=rows)
         rows[0][1] = 'Panel wall'
         rows[0][2] = '-/180/180 or -/90/90 for another construction'
         with self.assertRaisesRegex(ValueError, 'match its source'):
@@ -147,17 +169,20 @@ class BarrierReviewTests(unittest.TestCase):
     def test_existing_tables_proofs_and_editorial_metadata_are_not_replaced(self):
         first = self.build()
         first['review_note'] = 'Existing private review metadata'
+        other = deepcopy(first['fields'][0])
+        other['label'] = 'Service Size / Configuration'
+        first['fields'] = deepcopy(self.fields) + [other]
+        first['configuration_sources'][0]['groups'][0]['tables'][0]['label'] = other['label']
         self.source['technical_field_review'] = deepcopy(first)
         self.fields = deepcopy(first['fields'])
         before = deepcopy((self.source, self.fields))
         result = self.build(rows=[['100 mm x 200 mm', 'Other wall', '-/90/90']],
                             row_ids=['page4-row2'], maximum_opening='100 mm x 200 mm')
-        field = result['fields'][0]
-        self.assertEqual(field['table'], first['fields'][0]['table'])
-        self.assertEqual(field['tables'][0]['rows'], [['100 mm x 200 mm', 'Other wall', '-/90/90']])
+        self.assertEqual(result['fields'][-1], other)
+        self.assertEqual(result['fields'][0]['table']['rows'], [['100 mm x 200 mm', 'Other wall', '-/90/90']])
         self.assertEqual(result['configuration_sources'][0]['groups'][0],
                          first['configuration_sources'][0]['groups'][0])
-        self.assertEqual(result['configuration_sources'][0]['groups'][1]['tables'][0]['table_index'], 1)
+        self.assertEqual(result['configuration_sources'][0]['groups'][1]['tables'][0]['table_index'], 0)
         self.assertEqual(result['review_note'], 'Existing private review metadata')
         self.assertEqual((self.source, self.fields), before)
 
@@ -175,6 +200,9 @@ class BarrierReviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'do not duplicate'):
             self.build()
         self.assertEqual((self.source, self.fields), before)
+        with self.assertRaisesRegex(ValueError, 'partially replace'):
+            self.build(rows=[['100 mm x 200 mm', 'Other wall', '-/90/90']],
+                       row_ids=['page4-row2'], maximum_opening='100 mm x 200 mm')
 
 
 if __name__ == '__main__':

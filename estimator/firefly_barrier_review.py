@@ -66,6 +66,13 @@ def build_barrier_review(source, projected_fields, *, rows, row_ids,
     """
     if source_fields_sha256 != review_fingerprint(source.get('fields')):
         raise ValueError('Barrier source fields changed; review must be updated')
+    raw_fields = source.get('fields', [])
+    source_values = {}
+    for label in ('Max Aperture Size', 'Separating Element', 'FRL when Blank'):
+        matches = [field for field in raw_fields if field.get('label') == label]
+        if len(matches) != 1 or not isinstance(matches[0].get('value'), str):
+            raise ValueError('A barrier review requires the original blank-seal source fields')
+        source_values[label] = matches[0]['value']
     _fingerprint(source_sha256)
     _fingerprint(pre_review_fields_sha256)
     if (not isinstance(rows, list) or not rows or len(rows) > 2000
@@ -77,7 +84,7 @@ def build_barrier_review(source, projected_fields, *, rows, row_ids,
     flowed = [[_flow(cell) for cell in row] for row in rows]
     if len({tuple(row) for row in flowed}) != len(flowed):
         raise ValueError('Duplicate barrier relationships must be resolved by the source review')
-    if any(re.search(r'\bSource\s+option\s+\d+\s*:', cell, re.I)
+    if any(re.search(r'\bSource\s+options?\s+\d+(?:\s*(?:,|and)\s*\d+)*\s*:', cell, re.I)
            for row in flowed for cell in row):
         raise ValueError('Source option labels must be resolved before table review')
     maxima = maximum_opening if isinstance(maximum_opening, list) else [maximum_opening]
@@ -121,25 +128,26 @@ def build_barrier_review(source, projected_fields, *, rows, row_ids,
         raise ValueError('Barrier projection requires unique, valid field labels')
     validate_table_navigation(fields)
     by_label = {field['label']: field for field in fields}
-    for label in (_TARGET, 'Blank Seal FRL', 'Maximum Opening Size'):
+    for label in (_TARGET, 'Blank Seal FRL'):
         if label not in by_label:
             raise ValueError(f'Missing barrier source field: {label}')
+    if 'Maximum Opening Size' not in by_label:
+        # A merged PDF aperture cell can be absent in the flattened record.
+        # Only the caller's source-reviewed row plan supplies the inherited size.
+        if source_values['Max Aperture Size'].strip():
+            raise ValueError('A nonempty aperture source field must survive the projection')
+        field = {'label': 'Maximum Opening Size', 'value': ''}
+        fields.insert(fields.index(by_label[_TARGET]) + 1, field)
+        by_label[field['label']] = field
     owner = by_label[_TARGET]
     index = len(field_tables(owner))
     table = {'columns': list(_COLUMNS), 'rows': flowed}
-    if table in field_tables(owner):
-        raise ValueError('This barrier table already has a review; do not duplicate the import')
     if index:
-        # Do not discard other reviewed source tables to add the new inventory.
-        owner.setdefault('tables', []).append(table)
-        if 'table_row_ids' not in owner:
-            raise ValueError('Existing barrier tables need explicit row inventories')
-        owner['table_row_ids'].append(deepcopy(row_ids))
-        if 'table_captions' in owner:
-            owner['table_captions'].append('Barrier construction alternatives')
-    else:
-        owner['table'] = table
-        owner['table_row_ids'] = [deepcopy(row_ids)]
+        # Existing tables require a complete combined review. Appending one
+        # would make the new summary omit ratings and sizes in the old table.
+        raise ValueError('Barrier tables already exist; do not duplicate or partially replace their review')
+    owner['table'] = table
+    owner['table_row_ids'] = [deepcopy(row_ids)]
     owner['value'] = ''
     link = {'field': _TARGET, 'table_index': index}
     by_label['Blank Seal FRL']['value'] = rating_summary['summary']

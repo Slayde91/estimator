@@ -3,7 +3,10 @@
 
   // Presentation only: the original source text remains in the library record.
   const sourcePage = /^source pages?\s+\d+(?:\s*(?:,|&|and|[-–—])\s*\d+)*[.:]?$/i;
-  const cleanLine = line => line.replace(/[\t\u00a0 ]+/g, " ").trim();
+  const cleanLine = line => line.replace(/[\t\u00a0 ]+/g, " ").trim()
+    // Repair the verified missing sentence space in this imported instruction;
+    // do not apply punctuation substitutions to arbitrary identifiers or URLs.
+    .replace(/\bapproved Max size\.Cut ryanbatt 502 board\b/g, "approved Max size. Cut ryanbatt 502 board");
   const join = (left, right) => left ? `${left}${/[A-Za-z0-9]-$/.test(left) && /^[a-z]/.test(right) || /^[.,;!?]/.test(right) ? "" : " "}${right}` : right;
   const heading = line => /^[A-Za-z][A-Za-z /-]{0,60}:$/.test(line) || /^OR$/.test(line);
   const longHeading = line => line.length > 61 && /^[A-Za-z][^.!?]*:$/.test(line);

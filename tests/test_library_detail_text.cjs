@@ -11,6 +11,8 @@ const list = (ordered, ...items) => ({ type: "list", ordered, items });
 assert.deepEqual(parse("Source page 1, 2\nFit the frame.\nSource page 1\nSecure at 150mm centres."), [paragraph("Fit the frame."), paragraph("Secure at 150mm centres.")]);
 assert.deepEqual(parse("Source pages 1–3\n1. See source page 2 for approved services.\n2. Fit the wrap (as per Page 2)."), [list(true, item("See source page 2 for approved services.", 1), item("Fit the wrap (as per Page 2).", 2))]);
 assert.deepEqual(parse("Source page 1 contains the installation instructions.\nSource page 2: confirm the wall type."), [paragraph("Source page 1 contains the installation instructions. Source page 2: confirm the wall type.")]);
+assert.deepEqual(parse("1. Cut hole to an approved Max size.Cut ryanbatt 502 board to size."), [list(true, item("Cut hole to an approved Max size. Cut ryanbatt 502 board to size.", 1))]);
+assert.deepEqual(parse("Keep size.Cut, object.Cut and https://example.com/size.Cut unchanged."), [paragraph("Keep size.Cut, object.Cut and https://example.com/size.Cut unchanged.")]);
 
 // PDF hard wraps, including a page gap inside a sentence, reflow without
 // changing dimensions, FRLs, report references or significant punctuation.

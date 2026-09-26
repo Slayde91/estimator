@@ -43,6 +43,18 @@ class TrafalgarReportTests(unittest.TestCase):
             'FTR 001 (Table 3)', 'PF34567', '223344 (Table 4)',
         ]), '24SFR00123; 24FSR00123; FTR 001; PF34567; 223344')
 
+    def test_additional_report_families_keep_full_identifiers_and_suffixes(self):
+        self.assertEqual(report_number_values([
+            'RTLFT 2456', 'RTL FT2456 (Page 2)', 'RTLFA2456',
+            'RT 300456', 'rt300456', 'TR002.4 0724', 'TR 002.4 0724 (Table 3)',
+            'TR002.4 0824', 'TR002.5 0724',
+        ]), ['RTL FT 2456', 'RTL FA 2456', 'RT 300456',
+             'TR002.4 0724', 'TR002.4 0824', 'TR002.5 0724'])
+        for value in ('RTLXX2456', 'TR002.4', 'RT300456 extra', 'TR002.4 0724 amended'):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, 'Unrecognized report'):
+                    report_number_values(value)
+
     def test_locator_variants_and_irrelevant_dates_never_become_report_numbers(self):
         self.assertEqual(report_number_values([
             'FAR 4567 Clause 3.11.2', 'FAR 4567 3.11.3',

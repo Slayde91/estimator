@@ -154,6 +154,9 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
     installation_review, installation_hash = (read_json(installation_path)
         if installation_path.exists() else ({'documents': []}, None))
     installation_reviews = validate_installation_reviews(installation_review, by_document_id, capture_hash)
+    installation_display_reviews = {
+        row['document_id'].casefold(): row['display_review']
+        for row in installation_review.get('documents', []) if 'display_review' in row}
     for key, review in reviewed_documents.items():
         source = by_document_id.get(key)
         if (source is None or not review.get('source_sha256')
@@ -214,6 +217,9 @@ def build_bundle(capture_path, manifest_path, prepared_directory, base_directory
             raise ValueError(f'Prepared source hash disagrees with the manifest: {entry["document_id"]}')
         reviewed = reviewed_documents.get(entry['document_id'].casefold(), {})
         document.setdefault('fields', []).extend(deepcopy(reviewed.get('fields', [])))
+        if entry['document_id'].casefold() in installation_display_reviews:
+            document['installation_display_review'] = deepcopy(
+                installation_display_reviews[entry['document_id'].casefold()])
         if reviewed.get('review_notes'):
             notes = reviewed['review_notes']
             document['review_notes'] = notes if isinstance(notes, str) else '\n'.join(notes)

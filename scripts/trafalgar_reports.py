@@ -31,12 +31,13 @@ _DATE_LABEL = re.compile(r'\b(?:report\s+)?date\s*:', re.IGNORECASE)
 _REPORT = re.compile(
     r'(?<![A-Z0-9])(?:'
     r'(?P<composite>\d{5,8}\s+FTR\s*\d+(?:\.\d+)+[A-Z]?)'
-    r'|(?P<rtl>RTL\s*FA\s*\d{3,8}(?:\.\d+)*[A-Z]?)'
+    r'|(?P<rtl>RTL\s*(?:FA|FT)\s*\d{3,8}(?:\.\d+)*[A-Z]?)'
+    r'|(?P<tr_number>TR\s*\d{3,5}(?:\.\d+)+\s+\d{4})'
     r'|(?P<tr>TR\s*[-]\s*F\s*\d{1,5}(?:\.\d+)*[A-Z]?)'
     r'|(?P<igne>IGNE\s*[-]\s*\d{5}\s*[-]\s*\d{2}[A-Z]?)'
     r'|(?P<year>\d{2}\s*(?:SFR|FSR)\s*\d{5,8})'
     r'|(?P<pf>PF\s*\d{4,9})'
-    r'|(?P<standard>(?:FCO|FAS|FAR|FRT|FTR|FSP|FSV|FC)\s*[-]?\s*\d{3,9}(?:\.\d+)*[A-Z]?)'
+    r'|(?P<standard>(?:FCO|FAS|FAR|FRT|FTR|FSP|FSV|FC|RT)\s*[-]?\s*\d{3,9}(?:\.\d+)*[A-Z]?)'
     r'|(?P<numeric>\d{5,8})'
     r')(?![A-Z0-9])', re.IGNORECASE)
 _EMPTY_VALUES = {'', '-', '—', 'n/a', 'na', 'none', 'not recorded', 'not stated',
@@ -55,7 +56,9 @@ def _canonical(match: re.Match) -> str:
         parts = re.fullmatch(r'([A-Z]+)-?(.*)', text)
         return parts[1] + ' ' + parts[2]
     if kind == 'rtl':
-        return 'RTL FA ' + text[5:]
+        return 'RTL ' + text[3:5] + ' ' + text[5:]
+    if kind == 'tr_number':
+        return re.sub(r'\s+', ' ', match.group().strip()).upper().replace('TR ', 'TR')
     if kind == 'composite':
         return text.replace('FTR', ' FTR', 1)
     return text

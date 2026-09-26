@@ -8,6 +8,7 @@ import unittest
 
 from estimator.reference_library import ReferenceLibrary
 from scripts.import_trafalgar_library import IMPORT_KEY, build_bundle, digest, json_bytes
+from scripts.trafalgar_details import installation_input_sha256
 
 
 class TrafalgarImportTests(unittest.TestCase):
@@ -233,6 +234,7 @@ class TrafalgarImportTests(unittest.TestCase):
             {'label': 'Report reference (diagram page 1)', 'value': 'FC12345; FAS 567890 (Table 3)',
              'scope': 'reference'},
             {'label': 'T-card number (diagram page 1)', 'value': 'T00999', 'scope': 'reference'},
+            {'label': 'Document revision (diagram page 1)', 'value': 'Rev. 2', 'scope': 'reference'},
             {'label': 'Application text extract (diagram page 1)', 'value': 'A different application paragraph.',
              'scope': 'reference'},
             {'label': 'Installation instructions (diagram page 1)', 'value': '1. Fit the seal.\n2. Fix securely.',
@@ -247,7 +249,8 @@ class TrafalgarImportTests(unittest.TestCase):
         self.assertEqual(self.item()['filter_values']['document'], ['FC 12345', 'FAS 567890'])
         self.assertEqual(next(field['value'] for field in fields if field['label'] == 'Installation Details'),
                          '1. Fit the seal.\n2. Fix securely.')
-        self.assertFalse(any(label.startswith(('T-card', 'Application text', 'Report reference')) for label in labels))
+        self.assertFalse(any(label.startswith(('T-card', 'Document revision', 'Application text',
+                                              'Report reference')) for label in labels))
         source = self.data()[IMPORT_KEY]['source_documents']['d-one']
         self.assertEqual(source['fields'], self.document['fields'])
         self.assertEqual(source['pages'][0]['text'], 'Full diagram notes remain available.')
@@ -256,6 +259,35 @@ class TrafalgarImportTests(unittest.TestCase):
     def test_incomplete_review_cannot_publish_or_overwrite_candidate(self):
         self.installation_review['documents'][0]['pages'] = []
         with self.assertRaisesRegex(ValueError, 'Missing reviewed installation summary'):
+            self.build()
+        self.assertFalse(self.output.exists())
+
+    def display_review(self):
+        source = deepcopy(self.document)
+        source['installation_review'] = {
+            page['page']: page for page in self.installation_review['documents'][0]['pages']}
+        return {'source_sha256': source['sha256'], 'input_sha256': installation_input_sha256(source, 11),
+                'pages': [{'page': 1, 'image_sha256': digest(self.image)}],
+                'passages': [{'pages': [1], 'text': 'Fit the synthetic seal around the service.'}],
+                'reason': 'Source-bound review confirms the repeated note is stated once.'}
+
+    def test_reviewed_display_metadata_is_validated_and_retained_with_original_evidence(self):
+        review = self.display_review()
+        self.installation_review['documents'][0]['display_review'] = review
+        self.build()
+        fields = self.item()['fields']
+        self.assertEqual(next(field['value'] for field in fields if field['label'] == 'Installation Details'),
+                         review['passages'][0]['text'])
+        evidence = self.data()[IMPORT_KEY]['source_documents']['d-one']
+        self.assertEqual(evidence['installation_display_review'], review)
+        self.assertEqual(evidence['installation_review']['1'], self.installation_review['documents'][0]['pages'][0])
+        self.assertEqual(evidence['fields'], self.document['fields'])
+
+    def test_stale_reviewed_display_cannot_create_candidate(self):
+        self.installation_review['documents'][0]['display_review'] = self.display_review()
+        self.document['fields'].append({'label': 'Installation instructions', 'source_page': 1,
+                                       'value': '1. A changed source instruction.'})
+        with self.assertRaisesRegex(ValueError, 'input fingerprint'):
             self.build()
         self.assertFalse(self.output.exists())
 

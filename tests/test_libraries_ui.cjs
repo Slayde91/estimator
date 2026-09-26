@@ -254,10 +254,10 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     fields[0].value='';h.pane('technical').detail.id='fas190235-system-synthetic';h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,2);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,0);
     h.pane('technical').detail.id='other-system';fields[0].value='Other manufacturer';h.context.audit.renderDetail(h.pane('technical'));nodes=walk(h.pane('technical').detailPanel);assert.equal(nodes.filter(n=>n.className==='library-detail-text').length,0);assert.equal(nodes.filter(n=>n.tagName==='figcaption').length,1);assert.match(text(h.pane('technical').detailPanel),/Reference figures: 1, 2, 3/);
   });
-  await check('Image references without a usable image are retained and provenance-only instructions leave no empty section',async h=>{
+  await check('Image-only Firefly figures and provenance-only instructions leave no empty sections',async h=>{
     const fields=[{label:'Manufacturer',value:'Firefly'},{label:'Diagrams & Figures',value:'Reference figures: 12'},{label:'Installation Details',value:'Source page 1\n\nSource pages 2, 3'},{label:'Barrier Construction',value:'Wall',table:{columns:['Configuration'],rows:[['one']]}}];
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','empty'),fields,images:[]}));await h.api.open('technical','empty');const nodes=walk(h.pane('technical').detailPanel);
-    assert.match(text(h.pane('technical').detailPanel),/Reference figures: 12/);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Installation Details|Source page/);assert.equal(nodes.filter(n=>n.tagName==='table').length,0);
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Reference figures: 12|Diagrams & Figures|Installation Details|Source page/);assert.equal(nodes.filter(n=>n.tagName==='table').length,0);
   });
   await check('A saved item invalidates prices and details without losing list search and filters',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='retained search';await pane.searchInput.emit('input');await h.runTimers();const filter=walk(pane.filterControls).find(node=>node.tagName==='select');filter.value='sample & test';await filter.emit('change');await flush();

@@ -516,7 +516,8 @@
       const pair = node("div", "library-record-field"), value = node("dd");
       const images = (field.images || []).filter(item => validAssetId(item.id));
       const tables = tablesByField.get(field).filter(Boolean), links = configurationLinks(field, configurationTargets);
-      const imageOnly = firefly && field.label === "Diagrams & Figures" && images.length > 0;
+      const imageOnly = firefly && field.label === "Diagrams & Figures";
+      if (imageOnly && !images.length) continue;
       const formatted = field.label === "Installation Details" || firefly && ["Service Wrap", configurationField].includes(field.label);
       if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
       if (formatted) {

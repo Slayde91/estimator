@@ -82,6 +82,8 @@ class PromatImportTests(unittest.TestCase):
     def test_wrap_cleanup_preserves_conflicting_lengths_and_scope(self):
         self.assertEqual(wrap_text(': Wrap, Configuration: 300mm Each Face, Class: Wrap, : Wall - both sides 600mm Long, 600mm Long'),
                          'Wrap; Configuration: 300mm Each Face; Wall - both sides 600mm Long')
+        self.assertEqual(wrap_text('Sample Wrap, Configuration: 600mm, Floor - both sides Sample Wrap'),
+                         'Sample Wrap; Configuration: 600mm; Floor - both sides')
 
     def test_aperture_infill_does_not_create_another_substrate(self):
         s = variant(barrier='Concrete Slab, 150 mm')

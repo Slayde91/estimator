@@ -93,6 +93,10 @@ def wrap_text(value):
     # Repeated trailing source descriptions (including a location prefix).
     result = []
     for part in parts:
+        # Some location clauses repeat the product name after their scope.
+        # Keep the location/length and the single product heading.
+        if product and part != product and part.endswith(' ' + product):
+            part = part[:-len(product)].strip()
         if part and not any(part == old or old.endswith(' ' + part) for old in result):
             result.append(part)
     return '; '.join(result)
@@ -290,7 +294,8 @@ def make_entry(members):
     report = rows[0].get('Report Number', '')
     sources = [{'label': f'Promat Australian Selector — {report or "report number not stated"} — captured 26 September 2026',
                 'filename': 'promat_systems.json'}]
-    item = {'id': item_id, 'title': rows[0]['System Products'] + ' — ' + rows[0]['Service'],
+    service_title = 'Blank seal' if rows[0]['Installation Type'] == 'Blank seal' else rows[0]['Service']
+    item = {'id': item_id, 'title': rows[0]['System Products'] + ' — ' + service_title,
             'subtitle': ' · '.join(x for x in [report, rows[0]['Barrier Type'], f'{len(rows)} selector variants'] if x),
             'summary': common.get(BARRIER, ''), 'source_label': 'Promat Australian Selector',
             'fields': fields, 'sources': sources,

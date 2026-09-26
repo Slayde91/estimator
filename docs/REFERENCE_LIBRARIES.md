@@ -258,14 +258,20 @@ source order. A nonempty `value` retains common text outside the nested table;
 it does not repeat its cells. The UI renders semantic column headers and literal
 text cells, with keyboard-accessible horizontal scrolling on narrow screens.
 
-Reviewed configuration tables retain all source columns together under
-`Service Size / Configuration`. Keep separate source tables separate, in source
-column/row order, with any applicability conditions intact. Optional
+Reviewed service configuration tables retain all source columns together under
+`Service Size / Configuration`. Separate substrate tables belong under
+`Barrier Construction`, retaining every source substrate and its dimensions,
+ratings and conditions, rather than only the entry's previously selected row.
+Keep separate source tables separate, in source column/row order, with any
+applicability conditions intact. Generated `Source configuration` audit columns
+are not displayed; row identities belong in validation metadata. Optional
 `table_captions: [string]` correspond to the sequence of `table` followed by
 `tables`; even equal table contents retain distinct captioned source positions.
 Other fields can use `table_links: [{field: "Service Size / Configuration",
-table_index: 0}]` to reference that same-record, zero-based table position.
-These are validated references, not URLs or HTML. The UI scrolls and moves
+table_index: 0}]` or the target field `Barrier Construction` to reference that
+same-record, zero-based table position. The field name and index together
+identify the target; a field cannot link to itself. These are validated
+references, not URLs or HTML. The UI labels the target type, scrolls and moves
 keyboard focus to the complete table. Link-only fields remain visible.
 
 An FRL summary can show a single observed rating or a lowest-to-highest range
@@ -280,9 +286,12 @@ Configuration tables transcribed from diagrams can carry an optional
 an attached `asset_id`, its `sha256`, and a one-based `page` (1 for raster images).
 Its `groups` contain source `row_ids` in printed order and table references
 (`label`, zero-based `table_index`, `sha256`). Table indices cover `table` first,
-then `tables`. The first column holds the source row identifier. Each referenced
-table must contain the exact reviewed row sequence, and its full contents must
-match the recorded fingerprint. The loader rejects changed source fingerprints,
+then `tables`. New fields carry `table_row_ids: [[string]]`, with one row-ID
+inventory per table in that same sequence. The identifiers are neither displayed
+nor indexed for search. Each referenced table's row metadata must equal the
+reviewed group inventory in order and row count, while its full physical-column
+contents must match the recorded fingerprint. Older bundles without row metadata
+retain their original first-column identity validation. The loader rejects changed source fingerprints,
 unattached pages, missing rows, mismatched rows and changed cells. A complete
 table uses one reference per group; older paired-table reviews remain valid.
 

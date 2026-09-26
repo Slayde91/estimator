@@ -423,6 +423,7 @@
     link.append(image); figure.append(link, node("figcaption", "helper", caption)); return figure;
   }
   const configurationField = "Service Size / Configuration";
+  const tableTargetLabels = new Map([[configurationField, "configuration"], ["Barrier Construction", "barrier construction"]]);
   const fieldTables = field => [...(field.table ? [field.table] : []), ...(Array.isArray(field.tables) ? field.tables : [])];
   const validFieldTable = table => table && Array.isArray(table.columns) && Array.isArray(table.rows) && table.rows.every(Array.isArray);
   // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
@@ -436,20 +437,25 @@
     scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", label);
     table.setAttribute("aria-label", hasCaption ? label : field.label || "Source table");
     if (hasCaption) table.append(node("caption", "", caption));
-    for (const label of field.table.columns) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
+    // Older bundles may still carry the generated audit key as a column.
+    // Keep it out of the presentation without mutating the source evidence.
+    const columns = field.table.columns.map((label, index) => ({ label, index })).filter(column => String(column.label).trim().toLowerCase() !== "source configuration");
+    for (const { label } of columns) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
-    for (const values of field.table.rows) { const row = node("tr"); row.append(...values.map(value => node("td", "", value))); body.append(row); }
+    for (const values of field.table.rows) { const row = node("tr"); row.append(...columns.map(column => node("td", "", values[column.index]))); body.append(row); }
     table.append(head, body); scroll.append(table); return scroll;
   }
   function configurationLinks(field, targets) {
-    if (field.label === configurationField || !Array.isArray(field.table_links)) return [];
+    if (!Array.isArray(field.table_links)) return [];
     const seen = new Set();
     return field.table_links.flatMap(reference => {
-      if (!reference || typeof reference !== "object" || Array.isArray(reference) || Object.keys(reference).length !== 2 || reference.field !== configurationField || !Number.isSafeInteger(reference.table_index) || reference.table_index < 0 || seen.has(reference.table_index)) return [];
-      const target = targets[reference.table_index];
+      if (!reference || typeof reference !== "object" || Array.isArray(reference) || Object.keys(reference).length !== 2 || !tableTargetLabels.has(reference.field) || field.label === reference.field || !Number.isSafeInteger(reference.table_index) || reference.table_index < 0) return [];
+      const key = `${reference.field}:${reference.table_index}`, fieldTargets = targets.get(reference.field) || [];
+      if (seen.has(key)) return [];
+      const target = fieldTargets[reference.table_index];
       if (!target) return [];
-      seen.add(reference.table_index);
-      const label = `View configuration table${targets.length > 1 ? ` ${reference.table_index + 1}` : ""}`;
+      seen.add(key);
+      const label = `View ${tableTargetLabels.get(reference.field)} table${fieldTargets.length > 1 ? ` ${reference.table_index + 1}` : ""}`;
       const link = node("a", "library-configuration-link", label); link.href = `#${target.id}`;
       link.addEventListener("click", event => {
         event.preventDefault();
@@ -493,8 +499,11 @@
       target.id = tableAnchor(pane.kind, data.id, field.label, index);
       return target;
     })]));
-    const configurationFields = visibleFields.filter(field => field.label === configurationField);
-    const configurationTargets = pane.kind === "technical" && configurationFields.length === 1 ? tablesByField.get(configurationFields[0]) : [];
+    const configurationTargets = new Map();
+    if (pane.kind === "technical") for (const label of tableTargetLabels.keys()) {
+      const matches = visibleFields.filter(field => field.label === label);
+      if (matches.length === 1) configurationTargets.set(label, tablesByField.get(matches[0]));
+    }
     let diagramStatusShown = false;
     for (const field of visibleFields) {
       const pair = node("div", "library-record-field"), value = node("dd");

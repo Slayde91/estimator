@@ -12,6 +12,7 @@ import re
 from threading import RLock
 
 from .catalog import ROOT, ValidationError
+from .technical_configuration_review import validate_configuration_review
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -182,6 +183,7 @@ class ReferenceLibrary:
                 if kind == 'technical' and 'technical_field_review' in item:
                     reviewed_fields = item['technical_field_review']['fields']
                     field_text(reviewed_fields, assets, projected=True)
+                    validate_configuration_review(item['technical_field_review'], item, assets)
                     if any(is_hidden_technical_label(field['label'])
                            or _field_label_key(field['label']) in _HIDDEN_REVIEW_LABELS
                            for field in reviewed_fields):

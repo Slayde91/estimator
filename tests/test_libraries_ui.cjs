@@ -15,16 +15,16 @@ function harness(){
   const elements=new Map(),timers=new Map(),calls=[];let timerId=0;
   function element(tagName='div'){
     const attributes=new Map();
-    return{tagName,children:[],dataset:{},listeners:{},textContent:'',value:'',hidden:false,disabled:false,
+    return{tagName,children:[],dataset:{},style:{},listeners:{},textContent:'',value:'',hidden:false,disabled:false,
       append(...children){this.children.push(...children);},replaceChildren(...children){this.children=[];this.append(...children);},
-      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name){for(const fn of this.listeners[name]||[])await fn({target:this});},
-      setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(options){this.focused=true;this.focusOptions=options;},scrollIntoView(){this.scrolled=true;}};
+      addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name,options={}){const event={target:this,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},...options};for(const fn of this.listeners[name]||[])await fn(event);return event;},
+      setAttribute(name,value){attributes.set(name,String(value));},getAttribute(name){return attributes.get(name);},focus(options){this.focused=true;this.focusOptions=options;context.document.activeElement=this;},scrollIntoView(options){this.scrolled=true;this.scrollOptions=options;},getBoundingClientRect(){return this.rect||{bottom:96};}};
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   let route=path=>{if(path==='/api/libraries')return meta();const [, , ,kind,id]=path.split('/');return id?detail(kind,decodeURIComponent(id)):records(kind.split('?')[0]);};
-  const context={document:{getElementById:byId,createElement:element},window:{},URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
+  const context={document:{getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);},fetch:async(path,options)=>{calls.push({path,options});const data=await route(path,options);return{ok:!data?.error,status:data?.error?400:200,json:async()=>data};}};
-  vm.createContext(context);vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList};})();`),context);
+  vm.createContext(context);vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList,renderDetail};})();`),context);
   const api=context.window.CeasefireLibraries;
   context.window.CeasefireLibraryNavigation={open:(kind,selection)=>api.open(kind,selection)};
   const pane=kind=>context.audit.paneFor(kind);
@@ -141,6 +141,52 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const body=tables[0].children.find(node=>node.tagName==='tbody');assert.deepEqual(copy(body.children.map(row=>row.children.map(cell=>cell.textContent))),paired);
     assert.equal(nodes.filter(node=>node.textContent==='Common source condition').length,1);assert.equal(nodes.filter(node=>node.textContent==='Service B <script>').length,1);assert.ok(nodes.every(node=>node.innerHTML===undefined));
     const scroll=nodes.filter(node=>node.className==='library-field-table-scroll');assert.equal(scroll[0].tabIndex,0);assert.equal(scroll[0].getAttribute('role'),'region');assert.equal(scroll[0].getAttribute('aria-label'),'Service options table');assert.doesNotMatch(text(scroll[1]),/Not recorded/);
+  });
+  await check('Configuration links preserve target indices and captions without copying complete tables',async h=>{
+    const source={...detail('technical','a/#<script>'),images:[],fields:[
+      {label:'FRL',value:'See the rating for the matching configuration.',table_links:[{field:'Service Size / Configuration',table_index:1},{field:'Service Size / Configuration',table_index:0}]},
+      {label:'Service Size / Configuration',value:'',table:{columns:['Service','FRL'],rows:[['Service A','-/60/60']]},tables:[{columns:['Service','FRL'],rows:[['Service B','-/120/120']]}],table_captions:['Source A — page 1','Source B <img src=x onerror=alert(1)> — page 2']},
+      {label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:1}]}
+    ]},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
+    const nodes=walk(h.pane('technical').detailPanel),tables=nodes.filter(n=>n.className==='library-field-table-scroll'),links=nodes.filter(n=>n.className==='library-configuration-link');
+    assert.equal(tables.length,2);assert.equal(links.length,3);assert.deepEqual(links.map(n=>n.textContent),['View configuration table 2','View configuration table 1','View configuration table 2']);
+    assert.deepEqual(links.map(n=>n.href),['#'+tables[1].id,'#'+tables[0].id,'#'+tables[1].id]);
+    assert.equal(tables[0].getAttribute('aria-label'),'Service Size / Configuration table 1: Source A — page 1');assert.match(tables[1].getAttribute('aria-label'),/table 2: Source B <img/);
+    assert.ok(tables.every(n=>/^library-table-technical-[a-z0-9-]+$/.test(n.id)));assert.notEqual(tables[0].id,tables[1].id);
+    assert.deepEqual(nodes.filter(n=>n.tagName==='caption').map(n=>n.textContent),source.fields[1].table_captions);assert.ok(nodes.every(n=>n.innerHTML===undefined));
+    const wrap=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Service Wrap');assert.doesNotMatch(text(wrap),/Not recorded|Service B|120/);
+    assert.match(text(h.pane('technical').detailPanel),/See the rating for the matching configuration/);assert.deepEqual(source,before);
+  });
+  await check('Configuration links use native keyboard activation, focus the table and clear the sticky header',async h=>{
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','focus'),images:[],fields:[
+      {label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]},
+      {label:'Service Size / Configuration',value:'',tables:[{columns:['Service'],rows:[['A']]}]}
+    ]}));
+    await h.api.open('technical','focus');const nodes=walk(h.pane('technical').detailPanel),link=nodes.find(n=>n.className==='library-configuration-link'),target=nodes.find(n=>n.className==='library-field-table-scroll');
+    assert.equal(link.tagName,'a');assert.equal(link.textContent,'View configuration table');assert.equal(link.href,'#'+target.id);assert.equal(link.target,undefined);
+    assert.equal(link.listeners.keydown,undefined,'Native anchor Enter activation should generate click, without duplicate custom keyboard handling.');
+    h.byId('synthetic-header').rect={bottom:176};link.focus();const calls=h.calls.length,event=await link.emit('click',{detail:0});
+    assert.equal(event.defaultPrevented,true);assert.equal(h.context.document.activeElement,target);assert.equal(target.tabIndex,0);assert.equal(target.getAttribute('role'),'region');
+    assert.equal(target.focusOptions.preventScroll,true);assert.equal(target.style.scrollMarginTop,'192px');assert.deepEqual(copy(target.scrollOptions),{block:'start',inline:'nearest'});assert.equal(h.calls.length,calls);
+    h.byId('synthetic-header').rect={bottom:302};await link.emit('click');assert.equal(target.style.scrollMarginTop,'318px','Recompute clearance after a narrow-screen header reflows.');
+  });
+  await check('Malformed, unavailable, duplicate and out-of-range configuration references are ignored',async h=>{
+    const configuration={label:'Service Size / Configuration',value:'',tables:[{columns:['A'],rows:[['first']]},null,{columns:['B'],rows:[['third']]}],table_captions:['First','Invalid','Third'],table_links:[{field:'Service Size / Configuration',table_index:0}]};
+    const refs=[null,{}, {field:'javascript:alert(1)',table_index:0},{field:'Service Wrap',table_index:0},{field:'Service Size / Configuration',table_index:0,url:'javascript:alert(1)'},...[-1,1,3,0.5,'0',null].map(table_index=>({field:'Service Size / Configuration',table_index})),{field:'Service Size / Configuration',table_index:2},{field:'Service Size / Configuration',table_index:2}];
+    let source={...detail('technical','invalid'),images:[],fields:[configuration,{label:'FRL',value:'Summary',table_links:refs},{label:'Absent links',value:'',table_links:[{field:'Service Size / Configuration',table_index:999}]}]};
+    h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','invalid');let nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.className==='library-configuration-link'),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
+    assert.equal(links.length,1);assert.equal(links[0].textContent,'View configuration table 3');assert.equal(links[0].href,'#'+tables[1].id);assert.deepEqual(nodes.filter(n=>n.tagName==='caption').map(n=>n.textContent),['First','Third']);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Absent links/);
+    source={...source,fields:[source.fields[1]]};h.pane('technical').detail=source;h.context.audit.renderDetail(h.pane('technical'));assert.equal(walk(h.pane('technical').detailPanel).filter(n=>n.className==='library-configuration-link').length,0);
+    source={...source,fields:[configuration,copy(configuration),source.fields[0]]};h.pane('technical').detail=source;h.context.audit.renderDetail(h.pane('technical'));assert.equal(walk(h.pane('technical').detailPanel).filter(n=>n.className==='library-configuration-link').length,0,'Duplicate target labels are ambiguous.');
+  });
+  await check('Configuration anchors remain stable on rerender and cannot target another record',async h=>{
+    const fields=[{label:'Service Size / Configuration',value:'',table:{columns:['A'],rows:[['value']]}},{label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]}];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical',decodeURIComponent(path.split('/').at(-1))),fields,images:[]}));
+    await h.api.open('technical','first');const pane=h.pane('technical'),old=walk(pane.detailPanel).find(n=>n.className==='library-field-table-scroll');h.context.audit.renderDetail(pane);
+    let nodes=walk(pane.detailPanel),next=nodes.find(n=>n.className==='library-field-table-scroll');assert.notEqual(next,old);assert.equal(next.id,old.id);await nodes.find(n=>n.className==='library-configuration-link').emit('click');assert.equal(h.context.document.activeElement,next);assert.equal(old.scrolled,undefined);
+    await h.api.open('technical','second');nodes=walk(pane.detailPanel);const second=nodes.find(n=>n.className==='library-field-table-scroll');assert.notEqual(second.id,next.id);assert.equal(nodes.find(n=>n.className==='library-configuration-link').href,'#'+second.id);assert.ok(!nodes.some(n=>n.id===old.id));
+    assert.equal(nodes.filter(n=>n.tagName==='caption').length,0,'Legacy tables without captions render as before.');
   });
   await check('A saved item invalidates prices and details without losing list search and filters',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='retained search';await pane.searchInput.emit('input');await h.runTimers();const filter=walk(pane.filterControls).find(node=>node.tagName==='select');filter.value='sample & test';await filter.emit('change');await flush();

@@ -13,7 +13,7 @@
   const visibleField = (kind, field) => {
     const label = String(field.label || "").trim().toLowerCase();
     if (hiddenFields.has(label) || kind === "technical" && hiddenTechnicalFields.has(label)) return false;
-    return kind !== "technical" || String(field.value ?? "").trim() !== "" || field.images?.length || field.table || field.tables?.length;
+    return kind !== "technical" || String(field.value ?? "").trim() !== "" || field.images?.length || field.table || field.tables?.length || field.table_links?.length;
   };
   const fieldLabel = (kind, label) => kind !== "penetration" ? label
     : label === "Type" ? "Category"
@@ -422,14 +422,44 @@
     image.src = link.href; image.alt = caption; image.loading = "lazy"; image.decoding = "async";
     link.append(image); figure.append(link, node("figcaption", "helper", caption)); return figure;
   }
-  function fieldTable(field) {
+  const configurationField = "Service Size / Configuration";
+  const fieldTables = field => [...(field.table ? [field.table] : []), ...(Array.isArray(field.tables) ? field.tables : [])];
+  const validFieldTable = table => table && Array.isArray(table.columns) && Array.isArray(table.rows) && table.rows.every(Array.isArray);
+  // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
+  const anchorPart = value => Array.from(String(value), char => char.codePointAt(0).toString(16)).join("-");
+  const tableAnchor = (kind, id, label, index) => `library-table-${kind}-${anchorPart(id)}-${anchorPart(label)}-${index}`;
+  function fieldTable(field, index = 0, total = 1) {
     const scroll = node("div", "library-field-table-scroll"), table = node("table", "library-field-table"), head = node("thead"), headings = node("tr"), body = node("tbody");
-    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${field.label || "Source"} table`);
-    table.setAttribute("aria-label", field.label || "Source table");
+    const caption = Array.isArray(field.table_captions) ? field.table_captions[index] : null;
+    const hasCaption = typeof caption === "string" && caption.trim();
+    const label = `${field.label || "Source"} table${total > 1 ? ` ${index + 1}` : ""}${hasCaption ? `: ${caption}` : ""}`;
+    scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", label);
+    table.setAttribute("aria-label", hasCaption ? label : field.label || "Source table");
+    if (hasCaption) table.append(node("caption", "", caption));
     for (const label of field.table.columns) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
     for (const values of field.table.rows) { const row = node("tr"); row.append(...values.map(value => node("td", "", value))); body.append(row); }
     table.append(head, body); scroll.append(table); return scroll;
+  }
+  function configurationLinks(field, targets) {
+    if (field.label === configurationField || !Array.isArray(field.table_links)) return [];
+    const seen = new Set();
+    return field.table_links.flatMap(reference => {
+      if (!reference || typeof reference !== "object" || Array.isArray(reference) || Object.keys(reference).length !== 2 || reference.field !== configurationField || !Number.isSafeInteger(reference.table_index) || reference.table_index < 0 || seen.has(reference.table_index)) return [];
+      const target = targets[reference.table_index];
+      if (!target) return [];
+      seen.add(reference.table_index);
+      const label = `View configuration table${targets.length > 1 ? ` ${reference.table_index + 1}` : ""}`;
+      const link = node("a", "library-configuration-link", label); link.href = `#${target.id}`;
+      link.addEventListener("click", event => {
+        event.preventDefault();
+        const headerBottom = document.querySelector(".app-header")?.getBoundingClientRect().bottom;
+        target.style.scrollMarginTop = `${Number.isFinite(headerBottom) ? Math.max(0, headerBottom) + 16 : 16}px`;
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: "start", inline: "nearest" });
+      });
+      return [link];
+    });
   }
   function detailNavigation(pane) {
     const nav = node("nav", "library-detail-navigation"); nav.setAttribute("aria-label", "Library record navigation");
@@ -456,17 +486,27 @@
     }
     if (data.notice) content.push(node("p", "library-record-notice", data.notice));
     const fields = node("dl", "library-record-fields");
+    const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field));
+    const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
+      if (!validFieldTable(table)) return null;
+      const target = fieldTable({ ...field, table }, index, tables.length);
+      target.id = tableAnchor(pane.kind, data.id, field.label, index);
+      return target;
+    })]));
+    const configurationFields = visibleFields.filter(field => field.label === configurationField);
+    const configurationTargets = pane.kind === "technical" && configurationFields.length === 1 ? tablesByField.get(configurationFields[0]) : [];
     let diagramStatusShown = false;
-    for (const field of data.fields || []) {
-      if (!visibleField(pane.kind, field)) continue;
+    for (const field of visibleFields) {
       const pair = node("div", "library-record-field"), value = node("dd");
       const images = (field.images || []).filter(item => validAssetId(item.id));
-      const tables = [field.table, ...(Array.isArray(field.tables) ? field.tables : [])].filter(table => table && Array.isArray(table.columns) && Array.isArray(table.rows));
-      if (!images.length && !tables.length || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
+      const tables = tablesByField.get(field).filter(Boolean), links = configurationLinks(field, configurationTargets);
+      if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
+      if (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "") value.textContent = valueText(field.value);
       if (pane.kind === "technical" && field.label === "Diagrams & Figures" && data.diagram_status) {
         value.append(node("p", "helper library-diagram-status", data.diagram_status)); diagramStatusShown = true;
       }
-      if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables.map(table => fieldTable({ ...field, table }))); }
+      if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
+      if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
       if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind))); value.append(gallery); }
       pair.append(node("dt", "", fieldLabel(pane.kind, field.label) || "Field"), value); fields.append(pair);
     }

@@ -18,6 +18,34 @@ python -m estimator
 
 Open http://127.0.0.1:8765 in a browser. Use `python -m estimator --port 8766` if the default port is occupied.
 
+### Browser annotation compatibility (optional)
+
+Some browser annotation tools inject an inline stylesheet into their overlay.
+The normal Content-Security-Policy deliberately blocks it. In the Codex browser,
+this can leave the annotation popover with the browser's white background and
+black border instead of its intended transparent, borderless overlay.
+
+For a local session that needs these tools, start the server explicitly with:
+
+```powershell
+python -m estimator --allow-annotation-styles
+```
+
+This adds only `style-src-elem 'self' 'unsafe-inline'`. It allows inline stylesheet
+elements throughout that server's pages, not just the annotation tool. The
+default `style-src 'self'`, inline-style-attribute restrictions, `script-src
+'self'`, and all other security directives remain unchanged. The server still
+binds only to `127.0.0.1`. Use this option only when annotation compatibility is
+needed; it does not change estimator layout or calculations.
+
+The flag applies to a newly started process. It cannot alter an already running
+server, and `Start-Estimator.cmd` does not enable it. Save browser drafts before
+stopping/restarting a server or reloading a page. After starting the opted-in
+process, reload the page and check the **live** response's Content-Security-Policy
+in browser developer tools. To restore the normal policy, stop that process and
+restart without the flag, then reload. Browser updates may change their overlays;
+verify transparency and alignment during scrolling in the browser being used.
+
 The application opens on **Home**, with direct cards for Estimator, Libraries,
 Calculators and Projects. **Help** provides a plain-English guide to the
 main workflow and the meaning of each area. The browser interface uses the

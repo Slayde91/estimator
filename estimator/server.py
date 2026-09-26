@@ -20,9 +20,15 @@ from .storage import Store, WORKFLOWS
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
 LOGGER = logging.getLogger(__name__)
+DEFAULT_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
 
-def create_server(port=8765, database=None, project_dialogs=None, library_directory=None):
+def create_server(port=8765, database=None, project_dialogs=None, library_directory=None, *, allow_annotation_styles=False):
+    content_security_policy = DEFAULT_CONTENT_SECURITY_POLICY
+    if allow_annotation_styles:
+        # Browser annotation tools inject stylesheet elements into their overlay.
+        # Keep style attributes and scripts under the normal strict policy.
+        content_security_policy += "; style-src-elem 'self' 'unsafe-inline'"
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
     from .project_library import ProjectLibrary
     projects = ProjectLibrary(store, project_dialogs)
@@ -43,7 +49,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+            self.send_header("Content-Security-Policy", content_security_policy)
             self.end_headers()
             self.wfile.write(body)
 
@@ -437,9 +443,12 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--database", type=Path)
     parser.add_argument("--library-directory", type=Path, help="Local reference library folder (defaults to .runtime/reference-library).")
+    parser.add_argument("--allow-annotation-styles", action="store_true", help="Opt in to local browser annotation compatibility by allowing inline stylesheet elements; scripts and style attributes keep the normal policy.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    server = create_server(args.port, args.database, library_directory=args.library_directory)
+    server = create_server(args.port, args.database, library_directory=args.library_directory, allow_annotation_styles=args.allow_annotation_styles)
+    if args.allow_annotation_styles:
+        LOGGER.warning("Local browser annotation compatibility enabled: inline stylesheet elements are allowed. Inline scripts and style attributes remain blocked.")
     print(f"Ceasefire ESTIMATOR: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()

@@ -15,6 +15,7 @@ from .catalog import ROOT, ValidationError
 from .technical_configuration_review import validate_configuration_review
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
+from .library_substrates import classify_substrates
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -172,6 +173,15 @@ class ReferenceLibrary:
                     raise ValueError('Reserved filter')
                 filter_labels[key] = string(entry['label'], 100)
             imported_filter_keys = set(filter_labels)
+            # Validate imported keys against their original schema, then replace
+            # the source-table facet with the derived, multi-value substrate facet.
+            # The source definition and records remain unchanged in the bundle.
+            filter_labels = {
+                ('substrate' if key == 'table' else key):
+                ('Substrate' if key in {'table', 'substrate'} else label)
+                for key, label in filter_labels.items()
+            }
+            filter_labels.setdefault('substrate', 'Substrate')
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
@@ -216,6 +226,7 @@ class ReferenceLibrary:
                         raise ValueError('Filter values must be lists')
                     for value in selected:
                         string(value, 1000)
+                source_item = item
                 if kind == 'technical':
                     # Validate the original evidence before projecting its display.
                     # Keep the imported record in libraries/items unchanged: source
@@ -225,10 +236,17 @@ class ReferenceLibrary:
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
                         text.extend((source.get('label', ''), source.get('filename', '')))
+                else:
+                    item = deepcopy(item)
+                values = item.setdefault('filter_values', {})
+                values.pop('table', None)
+                values['substrate'] = classify_substrates(
+                    source_item, item, selector_capture=selector_context,
+                    source_documents=assets)
                 values = item.get('filter_values', {})
-                # Collect the same projected values used by listing/detail. Only
-                # the derived technical orientation can add a runtime filter;
-                # imported and future projected filter keys remain validated.
+                # Collect the same projected values used by listing/detail.
+                # Substrate is declared above; orientation is the only other
+                # derived key allowed beyond the imported filter schema.
                 if kind == 'technical' and 'orientation' in values and 'orientation' not in filter_labels:
                     filter_labels['orientation'] = 'Orientation'
                     filter_values['orientation'] = set()

@@ -82,6 +82,44 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertEqual(left['relationship'], right['relationship'])
         self.assertEqual(self.library.detail('penetration', 'pkb-002')['links'], [])
 
+    def test_substrate_replaces_table_filter_and_matches_each_supported_barrier(self):
+        library = self.data['libraries']['technical']
+        library['filters'].append({'key': 'table', 'label': 'Table'})
+        source = library['items'][0]
+        source['filter_values']['table'] = ['Table 1']
+        source['fields'].append({'label': 'Barrier Construction', 'value':
+                                 'Plasterboard walls and concrete/masonry walls'})
+        self.write(self.data)
+        original = (self.root / 'library.json').read_bytes()
+        for substrate in ('Plasterboard wall', 'Concrete/masonry wall'):
+            listing = self.library.listing('technical', substrate=substrate, report='Sample report')
+            self.assertEqual([item['id'] for item in listing['items']], [source['id']])
+            self.assertNotIn('table', {field['key'] for field in listing['filters']})
+            self.assertEqual(listing['filters'][1]['label'], 'Substrate')
+        self.assertEqual(self.library.listing('technical', substrate='Concrete/masonry floor')['total'], 0)
+        with self.assertRaises(ValidationError):
+            self.library.listing('technical', table='Table 1')
+        self.assertEqual((self.root / 'library.json').read_bytes(), original)
+        self.assertEqual(self.library._load()['libraries']['technical'], library)
+        self.assertEqual(self.library.detail('technical', source['id'])['technical_basis']['source_fields'], source['fields'])
+
+    def test_derived_substrate_does_not_authorize_undeclared_imported_filter_keys(self):
+        source = self.data['libraries']['technical']['items'][0]
+        source['filter_values']['substrate'] = ['Plasterboard wall']
+        self.write(self.data)
+        with self.assertRaises(ValidationError):
+            self.library.overview()
+
+    def test_substrate_filter_is_recomputed_after_source_refresh(self):
+        source = self.data['libraries']['penetration']['items'][0]
+        source['fields'].append({'label': 'Substrate', 'value': 'Concrete wall'})
+        self.write(self.data)
+        self.assertEqual(self.library.listing('penetration', substrate='Concrete/masonry wall')['total'], 1)
+        source['fields'][-1]['value'] = 'Speedpanel wall'
+        self.write(self.data)
+        self.assertEqual(self.library.listing('penetration', substrate='Concrete/masonry wall')['total'], 0)
+        self.assertEqual(self.library.listing('penetration', substrate='Speedpanel wall')['total'], 1)
+
     def test_invalid_edges_duplicate_ids_and_page_references_are_rejected(self):
         mutations = [
             lambda d: d['links'][0].update(technical_id='missing'),

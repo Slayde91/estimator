@@ -54,6 +54,11 @@ and application ZIP. To install an inspected bundle, run
 an existing installation requires `--replace` and is retained as a backup.
 See [local reference libraries](docs/REFERENCE_LIBRARIES.md) for the data contract.
 
+**Substrate** replaces the Technical Library's Table filter. Entries with several
+recorded barrier alternatives appear under each matching substrate. The filter
+uses the calculator's wall/ceiling/floor categories and keeps distinct specialist
+barriers separately labelled. It does not change source conditions or calculations.
+
 Library detail text uses paragraphs and indented lists for **Installation Details**
 and **Local Protection**, plus Firefly **Service Wrap** and **Service Size / Configuration**.
 Standalone source-page headings and generated **Configuration** columns are hidden.

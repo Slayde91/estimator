@@ -126,7 +126,12 @@ _MATERIALS = (
     ('Stonewall', r'\bstonewall\b'),
     ('Ritek X-Plus', r'\britek\s+x[ -]?plus\b'),
     ('Solid gypsum block', r'\b(?:solid\s+)?gypsum\s+blocks?\b'),
-    ('Bondek', r'\bbondek\b'),
+    ('Bondek', r'\bbonde[ck]k?\b'),
+    ('Kingfloor', r'\bkingfloor\b'),
+    ('CF210 steel deck', r'\bcf210\b'),
+    ('Promat SYSTEMFLOOR', r'\bpromat\s+systemfloor\b'),
+    ('PROMASEAL Bulkhead Batt', r'\bpromaseal[®\s]*bulkhead\s+batt\b'),
+    ('PROMASIL 1100 Super', r'\bpromasil[®\s]*1100\s+super\b'),
     ('Steel deck', r'\bsteel\s+deck\b|\bcomposite\s+floor\s+slabs?\b'),
     ('Airdeck', r'\bairdeck\b'),
     ('FIREFLYBatt', r'\bfirefly\s*batt\b'),
@@ -186,6 +191,9 @@ def _types(value):
 def _classified_text(value, fallback=(), *, force_types=False):
     """Read only a construction clause supplied by a trusted evidence caller."""
     value = _text(value)
+    # The aperture infill is not a second penetrated substrate. Promat retains
+    # it beside the actual compartment construction for installation context.
+    value = re.split(r'\bAperture seal:', value, flags=re.I)[0]
     value = re.sub(r'\b(?:not\s+(?:(?:approved|suitable|permitted|assessed|tested)\s+)?for|excluding|except)\b[^.;]*', '', value, flags=re.I)
     # A non-penetrated supporting wall is not an alternative penetrated barrier.
     value = re.split(r'(?:Secondary\s+)?Support\s+Construction\s*\([^)]*non[- ]*penetrated', value, flags=re.I)[0]
@@ -266,17 +274,21 @@ def _selector_evidence(source, selector_capture):
 def _table_evidence(source, fields, fallback=(), source_documents=None):
     evidence = []
     for field in fields:
-        if field.get('label') != 'Barrier Construction':
+        configuration = (field.get('label') == 'Service Size / Configuration'
+                         and source.get('id', '').startswith('promat-'))
+        promat_rating = source.get('id', '').startswith('promat-') and any(
+            f.get('label') in {'FRL', 'Blank Seal FRL'} and f.get('value') for f in fields)
+        if field.get('label') != 'Barrier Construction' and not configuration:
             continue
         tables = ([field['table']] if field.get('table') else []) + field.get('tables', [])
         for index, table in enumerate(tables):
             columns = table.get('columns', [])
             reviewed_rows = _REVIEWED_TABLE['rows'] if (_fingerprint(table) == _REVIEWED_TABLE['sha256'] and _document_matches(source, _REVIEWED_TABLE['document_id'], _REVIEWED_TABLE['document_sha256'], source_documents)) else {}
             # Fixing alternatives do not establish approved substrate scope.
-            if not any(re.search(r'\bfrl\b|approved\s+wall', str(column), re.I) for column in columns):
+            if not any(re.search(r'\bfrl\b|approved\s+wall', str(column), re.I) for column in columns) and not (configuration or promat_rating):
                 continue
             for column_index, column in enumerate(columns):
-                if not re.fullmatch(r'(?:approved\s+walls?(?:\s+systems?)?|type\s+of\s+wall|wall\s+thickness|ceiling\s+construction|supporting\s+(?:wall|floor)\s+construction|floor\s+scope|substrate|barrier|separating\s+element)', _text(column), re.I):
+                if not re.fullmatch(r'(?:approved\s+walls?(?:\s+systems?)?|type\s+of\s+wall|wall\s+thickness|ceiling\s+construction|supporting\s+(?:wall|floor)\s+construction|floor\s+scope|substrate|barrier(?:\s+construction)?|separating\s+element)', _text(column), re.I):
                     continue
                 row_types = set().union(*(_types(str(row[column_index])) for row in table.get('rows', [])))
                 context = row_types if row_types else set(fallback)

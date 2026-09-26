@@ -403,13 +403,7 @@
   }
   function sourceNode(source) {
     const box = node("article", "library-source"), heading = source.label || source.filename || "Source reference";
-    if (validAssetId(source.document_id)) {
-      const page = Number.isSafeInteger(source.page) && source.page > 0 ? source.page : null;
-      const link = node("a", "library-record-link", heading);
-      link.href = `/api/libraries/documents/${encodeURIComponent(source.document_id)}.pdf${page ? `#page=${page}` : ""}`;
-      link.target = "_blank"; link.rel = "noopener noreferrer";
-      link.setAttribute("aria-label", `${heading} — ${page ? `open PDF page ${page}` : "open PDF"} (new tab)`); box.append(link);
-    } else box.append(node("span", "", heading));
+    box.append(node("span", "", heading));
     return box;
   }
   function imageNode(item, kind, imageOnly = false) {
@@ -427,6 +421,72 @@
   const configurationField = "Service Size / Configuration";
   const tableTargetLabels = new Map([[configurationField, "configuration"], ["Barrier Construction", "barrier construction"]]);
   const fieldTables = field => [...(field.table ? [field.table] : []), ...(Array.isArray(field.tables) ? field.tables : [])];
+  const frlKey = value => String(value).trim().replace(/\s+/g, " ").replace(/[‐‑‒–—−]/g, "-").toLowerCase();
+  function bareFrlRatings(value) {
+    const found = [], expression = frlKey(value).replace(/^frl\s*:?\s*/, "").replace(/(?:-|\d+)\s*\/\s*(?:-|\d+)\s*\/\s*(?:-|\d+)/g, rating => {
+      const parts = rating.split("/").map(part => part.trim() === "-" ? null : Number(part.trim()));
+      if (!parts.some(part => part !== null) || parts.some(part => part !== null && !Number.isSafeInteger(part))) return rating;
+      found.push(parts); return "R";
+    });
+    return /^R(?:\s*(?:to|and|or|[-,;|&])\s*R)*\.?$/.test(expression) ? found : null;
+  }
+  function frlDisplayValue(field, fields) {
+    // Hide only generated explanations whose exact table/column/row remains
+    // available through a valid link. Authored qualifications remain verbatim.
+    const original = String(field.value ?? ""), paragraphs = original.split(/\r?\n[ \t]*\r?\n/);
+    const linkedCells = (owner, ordinal, qualifier) => {
+      const index = Number(ordinal) - 1, matches = fields.filter(item => item.label === owner);
+      if (matches.length !== 1 || !Number.isSafeInteger(index) || !Array.isArray(field.table_links) || !field.table_links.some(link => link && typeof link === "object" && !Array.isArray(link) && Object.keys(link).length === 2 && link.field === owner && link.table_index === index)) return null;
+      const table = fieldTables(matches[0])[index];
+      if (!table || !Array.isArray(table.columns) || !Array.isArray(table.rows) || !table.rows.every(Array.isArray)) return null;
+      let rows = table.rows, columns = table.columns.map((name, index) => ({ name, index })).filter(column => /^(?:source )?frl(?:\b|_)/.test(frlKey(column.name)));
+      const condition = qualifier.trim();
+      if (condition.startsWith("(") && condition.endsWith(")")) columns = columns.filter(column => frlKey(column.name) === frlKey(condition.slice(1, -1)));
+      else if (condition.startsWith("; ")) {
+        const scope = condition.slice(2);
+        if (/^frl(?:\b|_)/.test(frlKey(scope))) columns = columns.filter(column => frlKey(column.name) === frlKey(scope));
+        else {
+          const requirements = scope.split("; ").map(part => { const split = part.indexOf(": "); return split > 0 ? [part.slice(0, split), part.slice(split + 2)] : null; });
+          if (requirements.some(part => !part)) return null;
+          const conditions = requirements.map(([name, value]) => ({ index: table.columns.findIndex(column => frlKey(column) === frlKey(name)), value }));
+          if (conditions.some(item => item.index < 0)) return null;
+          rows = rows.filter(row => conditions.every(item => frlKey(row[item.index]) === frlKey(item.value)));
+        }
+      } else if (condition) return null;
+      return columns.length && rows.length ? rows.flatMap(row => columns.map(column => String(row[column.index] ?? ""))) : null;
+    };
+    const generated = /^(.+?) — (?:observed source service ratings|matched source barrier row|source substrate alternatives) \((Service Size \/ Configuration|Barrier Construction) table ([1-9]\d*)(.*?)\)\.(?: The entry selection remains separate\.)?$/;
+    const unresolved = /^(?:Observed source service ratings|Matched source barrier row|Source substrate alternatives) \((Service Size \/ Configuration|Barrier Construction) table ([1-9]\d*)(.*?)\): (?:refer to the complete source cells; blank, qualified or unresolved ratings are not reduced to a range|retain the qualified source ratings as shown; no range is inferred)\.$/;
+    let changed = false;
+    const cleaned = paragraphs.map(paragraph => {
+      const match = generated.exec(paragraph.trim());
+      if (match) {
+        const ratings = bareFrlRatings(match[1]), cells = linkedCells(match[2], match[3], match[4]);
+        const sourceRatings = cells?.flatMap(cell => bareFrlRatings(cell) || []);
+        if (ratings && sourceRatings?.length && ratings.every(rating => sourceRatings.some(source => source.every((part, index) => part === rating[index])))) {
+          changed = true; return match[1].trim();
+        }
+      }
+      const reference = unresolved.exec(paragraph.trim());
+      if (reference && linkedCells(reference[1], reference[2], reference[3])?.some(cell => cell.trim())) { changed = true; return ""; }
+      return paragraph;
+    });
+    if (!changed) return original;
+    const boilerplate = "Source configuration ratings remain subject to the stated barrier construction and installation conditions.";
+    const kept = cleaned.filter(paragraph => paragraph.trim() && paragraph.trim() !== boilerplate);
+    const rated = kept.map((paragraph, index) => ({ index, ratings: bareFrlRatings(paragraph) })).filter(item => item.ratings);
+    if (!rated.length) return kept.join("\n\n");
+    const unique = [...new Map(rated.flatMap(item => item.ratings).map(rating => [JSON.stringify(rating), rating])).values()];
+    const format = rating => rating.map(part => part === null ? "-" : part).join("/");
+    let summary = unique.map(format).join("; ");
+    const sameMask = unique.every(rating => rating.every((part, index) => (part === null) === (unique[0][index] === null)));
+    if (sameMask && unique.length > 1) {
+      const ordered = [...unique].sort((a, b) => { for (let index = 0; index < 3; index++) if (a[index] !== b[index]) return a[index] - b[index]; return 0; });
+      if (ordered.every((rating, index) => !index || rating.every((part, component) => part === null || ordered[index - 1][component] <= part))) summary = `${format(ordered[0])} to ${format(ordered.at(-1))}`;
+    }
+    const first = rated[0].index, numeric = new Set(rated.map(item => item.index));
+    return kept.flatMap((paragraph, index) => index === first ? [summary] : numeric.has(index) ? [] : [paragraph]).join("\n\n");
+  }
   const displayedColumns = table => table.columns.map((label, index) => ({ label, index })).filter(column => !["configuration", "source configuration"].includes(String(column.label).trim().replace(/\s+/g, " ").toLowerCase()));
   const validFieldTable = table => table && Array.isArray(table.columns) && Array.isArray(table.rows) && table.rows.every(Array.isArray);
   // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
@@ -518,13 +578,13 @@
       const tables = tablesByField.get(field).filter(Boolean), links = configurationLinks(field, configurationTargets);
       const imageOnly = firefly && field.label === "Diagrams & Figures";
       if (imageOnly && !images.length) continue;
-      const formatted = field.label === "Installation Details" || firefly && ["Service Wrap", configurationField].includes(field.label);
+      const formatted = ["Installation Details", "Local Protection"].includes(field.label) || firefly && ["Service Wrap", configurationField].includes(field.label);
       if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
       if (formatted) {
         const blocks = window.LibraryDetailText.render(document, field.value ?? "");
         if (blocks.length) { const prose = node("div", "library-detail-text"); prose.append(...blocks); value.append(prose); }
         else if (!images.length && !tables.length && !links.length) continue;
-      } else if (!imageOnly && (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "")) value.textContent = valueText(field.value);
+      } else if (!imageOnly && (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "")) value.textContent = valueText(pane.kind === "technical" && field.label === "FRL" ? frlDisplayValue(field, visibleFields) : field.value);
       if (pane.kind === "technical" && field.label === "Diagrams & Figures" && data.diagram_status) {
         value.append(node("p", "helper library-diagram-status", data.diagram_status)); diagramStatusShown = true;
       }

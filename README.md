@@ -47,12 +47,22 @@ appendices remain available in the XLSX register instead of the PDF.
 
 The **Libraries** tab has **Pricing Library**, **Firestopping Library** and
 **Technical Library** tiles. The two reference libraries support search,
-filters, original diagrams, report-page links and navigation between related
+filters, original diagrams, report/page references and navigation between related
 records. Supplier files stay in a local bundle, separate from the public source
 and application ZIP. To install an inspected bundle, run
 `python scripts/install_reference_library.py <reviewed-bundle-directory>`;
 an existing installation requires `--replace` and is retained as a backup.
 See [local reference libraries](docs/REFERENCE_LIBRARIES.md) for the data contract.
+
+Library detail text uses paragraphs and indented lists for **Installation Details**
+and **Local Protection**, plus Firefly **Service Wrap** and **Service Size / Configuration**.
+Standalone source-page headings and generated **Configuration** columns are hidden.
+Firefly **Diagrams & Figures** displays images only. Technical FRL summaries omit
+redundant generated table explanations when the linked table retains the conditions;
+comparable ratings show their lowest and highest values. Distinct rating patterns
+and conditions not represented in the table remain visible. **Source information**
+retains the report/page label as plain text without a hyperlink. These display changes
+preserve the imported text, source tables, diagrams and saved project data.
 
 Firestopping Library entries display stable **FL-ID-001** style identifiers and
 their prices. **Edit Library Item** opens a separate Firestopping Estimator

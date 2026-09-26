@@ -253,7 +253,8 @@ once, with a human-readable `relationship` explaining its basis.
 Individual fields may include registered `images: [{id, caption}]`; related
 links may include a `notice` beside their relationship text.
 The detail page shows system fields and diagrams before related records and
-technical source links. Firestopping entries continue to omit source-information
+technical source references as plain text, retaining the report/page label without
+a PDF hyperlink. Firestopping entries continue to omit source-information
 sections. Report-family audits distinguish an independent batt substrate from
 local batt infill explicitly included in a core-hole detail; a missing service
 reference is left unresolved when the current report cannot support the stored

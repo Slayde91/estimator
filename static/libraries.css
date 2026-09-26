@@ -63,6 +63,11 @@
 .library-record-field{padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
 .library-record-field dt{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:5px}
 .library-record-field dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.library-detail-text{white-space:normal;line-height:1.55}
+.library-detail-text p{margin:0 0 .65rem}
+.library-detail-text ol,.library-detail-text ul{margin:0 0 .65rem;padding-inline-start:1.65rem}
+.library-detail-text li{margin:.25rem 0;padding-inline-start:.2rem}
+.library-detail-text>:last-child{margin-bottom:0}
 .library-detail-section{margin-top:26px}
 .library-detail-section>h4{margin:0 0 14px;font-size:15px}
 .library-source,.library-related-record{padding:16px;background:#faf7f6;border:1px solid var(--line);border-radius:8px;margin:12px 0}

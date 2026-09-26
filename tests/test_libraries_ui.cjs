@@ -259,15 +259,22 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Substrate','FRL']);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Masonry','-/120/120','Panel','-/90/90']);
     assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source Configuration|private-proof/);assert.deepEqual(field,before);
   });
-  await check('Configuration columns are omitted for either library without changing table rows or link targets',async h=>{
+  await check('ID and Configuration columns are omitted for either library without changing table rows or link targets',async h=>{
     for(const kind of ['technical','penetration']) {
-      const fields=[{label:'Service Size / Configuration',value:'',table:{columns:[' Configuration ','Service size / condition','Wrap requirement','Source Configuration'],rows:[['Wrap configuration 1','up to 50 mm','300 mm','proof-1'],['Wrap configuration 2','up to 100 mm','600 mm','proof-2']]},tables:[{columns:['Substrate configuration','FRL'],rows:[['Wall','-/60/60']]}]},{label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]}],before=copy(fields);
+      const fields=[{label:'Service Size / Configuration',value:'',table:{columns:[' Configuration ','Service size / condition',' ID ','Wrap requirement','Source Configuration'],rows:[['Wrap configuration 1','up to 50 mm','sys_var_123_au','300 mm','proof-1'],['Wrap configuration 2','up to 100 mm','sys_var_456_au','600 mm','proof-2']]},tables:[{columns:['Substrate configuration','FRL'],rows:[['Wall','-/60/60']]}]},{label:'Service Wrap',value:'',table_links:[{field:'Service Size / Configuration',table_index:0}]}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'columns'),fields,images:[]}));await h.api.open(kind,'columns');
       const nodes=walk(h.pane(kind).detailPanel);
       assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Service size / condition','Wrap requirement','Substrate configuration','FRL']);
       assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['up to 50 mm','300 mm','up to 100 mm','600 mm','Wall','-/60/60']);
       assert.deepEqual(fields,before);
       if(kind==='technical'){const link=nodes.find(n=>n.className==='library-configuration-link');await link.emit('click');assert.equal(h.context.document.activeElement,nodes.find(n=>n.className==='library-field-table-scroll'));}
+    }
+  });
+  await check('Promat main IDs show only the number without changing stored source identifiers',async h=>{
+    for(const [manufacturer,id,expected] of [['Promat','sys_var_1138716_au (+19 variants listed below)','1138716'],['Promat','sys_var_123_au','123'],['Promat','123','123'],['Promat','custom-ID','custom-ID'],['Other','sys_var_123_au','sys_var_123_au']]) {
+      const fields=[{label:'ID',value:id},{label:'Manufacturer',value:manufacturer}],before=copy(fields);
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','display-id'),fields,images:[]}));await h.api.open('technical','display-id');
+      assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,expected);assert.deepEqual(fields,before);
     }
   });
   await check('Installation Details and Local Protection use paragraphs and real lists in both libraries without exposing page headings',async h=>{

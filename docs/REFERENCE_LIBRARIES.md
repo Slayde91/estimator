@@ -120,6 +120,13 @@ tables and image IDs pass the same validation as imported fields. The public
 application contains the generic projection and synthetic tests, not supplier
 source passages. Installing a reviewed index retains the original source fields.
 
+Trafalgar **Orientation** describes the selected barrier: walls (including shaft
+walls) are **Vertical**; floors and ceilings are **Horizontal**. The display
+field and Orientation filter use the same classification. When a record occurs
+in multiple selector searches, the retained capture must cover every matching
+query before its barrier types are used. Service direction and alternative
+substrates in source tables do not reclassify the selected entry.
+
 Diagram and figure aliases share one field, preserving image identity, captions,
 source roles and page references. Duplicate references to the same image use one
 thumbnail with all distinct captions. Source instructions remain source-bound;
@@ -267,6 +274,10 @@ applicability conditions intact. Generated `Source configuration` audit columns
 are not displayed; row identities belong in validation metadata. Optional
 `table_captions: [string]` correspond to the sequence of `table` followed by
 `tables`; even equal table contents retain distinct captioned source positions.
+Technical Library captions remain private source metadata and are not displayed
+above tables or used as their accessible names. Retain unique installation
+conditions and unresolved source conflicts in the relevant visible fields when
+preparing a reviewed bundle; do not repeat provenance-only caption text there.
 Other fields can use `table_links: [{field: "Service Size / Configuration",
 table_index: 0}]` or the target field `Barrier Construction` to reference that
 same-record, zero-based table position. The field name and index together
@@ -280,6 +291,9 @@ construct a new rating from component minima/maxima. Incomparable ratings,
 different dash patterns, malformed cells and qualified ratings must not become
 an unconditional range. Keep source qualifications and distinct barrier or
 related-evidence scope explicit; the full table remains the detailed reference.
+For Trafalgar, a bare rating already printed as an exact rating or endpoint in
+a generated summary is displayed once. Attributed ratings, qualifications and
+distinct ratings inside a range remain visible; no new applicability is inferred.
 
 Configuration tables transcribed from diagrams can carry an optional
 `technical_field_review.configuration_sources` inventory. Each entry identifies

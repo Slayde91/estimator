@@ -85,6 +85,35 @@ class FirestoppingLibraryTests(unittest.TestCase):
         with patch('estimator.reference_library.Path.stat', side_effect=PermissionError('denied')):
             self.assertEqual(self.library.service_types(), [])
 
+    def test_substrate_alternatives_follow_effective_saved_fields_without_changing_calculator_inputs(self):
+        path = self.root / 'library/library.json'
+        data = json.loads(path.read_text(encoding='utf-8'))
+        item = data['libraries']['penetration']['items'][0]
+        description = 'Copper pipe\n- Concrete/masonry wall\n- Plasterboard wall'
+        item['estimate']['draft']['rows'][0]['inputs'].update(P='Concrete wall', T=description)
+        item['fields'].extend([
+            {'label': 'Substrate', 'column': 'P', 'value': 'Concrete wall'},
+            {'label': 'Item(s)', 'column': 'T', 'value': description},
+        ])
+        path.write_text(json.dumps(data), encoding='utf-8')
+        original = path.read_bytes()
+        library = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertEqual(library.listing('penetration', substrate='Plasterboard wall')['total'], 1)
+        self.assertEqual(library.listing('penetration', substrate='Concrete/masonry wall')['total'], 1)
+        opened = library.edit('pkb-001')
+        saved_draft = deepcopy(opened['draft'])
+        saved_draft['rows'][0]['inputs']['P'] = 'CLT wall'
+        snapshot = library._context('pkb-001')[3]
+        library.edits.save('pkb-001', 0, data['firestopping']['source_sha256'], {
+            'draft': saved_draft, 'pricing_token': opened['pricing_token'], 'amount': 150}, snapshot)
+        self.assertEqual(library.listing('penetration', substrate='CLT wall')['total'], 1)
+        self.assertEqual(library.listing('penetration', substrate='Plasterboard wall')['total'], 0)
+        self.assertEqual(library.listing('penetration', substrate='Concrete/masonry wall')['total'], 0)
+        self.assertEqual(path.read_bytes(), original)
+        reopened = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertEqual(reopened.listing('penetration', substrate='CLT wall')['total'], 1)
+        self.assertEqual(reopened.edit('pkb-001')['draft']['rows'][0]['inputs']['T'], description)
+
     def test_legacy_frl_is_canonical_in_source_and_saved_library_presentations(self):
         path = self.root / 'library/library.json'
         data = json.loads(path.read_text(encoding='utf-8'))

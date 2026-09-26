@@ -4,6 +4,39 @@ The Libraries page has three tiles: Pricing Library, Firestopping Library and
 Technical Library. The existing pricing editor keeps its own state and actions.
 Reference browsing does not change prices, estimates or calculator inputs.
 
+The **Substrate** filter replaces the Technical Library's former **Table**
+filter. It uses the same wall, ceiling and floor families as the calculator's
+substrate choices, with separate labels for distinct proprietary barriers.
+An entry can belong to several substrate categories and appears when any one
+of those categories is selected. Other active filters still apply together.
+
+Categories are derived from barrier fields, the entry's complete captured
+selector queries, explicit construction alternatives and approved-substrate
+tables. Materials mentioned only as services, local protection, wall linings or
+fixing alternatives do not create additional substrate approvals. Filtering
+does not change the entry's FRLs, construction conditions, source tables or
+calculator inputs. A category is a way to find the entry; its source conditions
+still describe the particular construction. Saved Firestopping edits are
+classified from their effective fields, without rewriting the supplier bundle.
+
+Some source rows contain only an FRL continuation or a reference to a separate
+construction table. `estimator/library_substrates.py` includes reviewed facts
+for those cases, bound to the record ID, barrier-field fingerprint, source page
+and document fingerprint. A different source version does not inherit them:
+
+| Source cases | Reviewed construction evidence |
+| --- | --- |
+| FAS190234 V168–V170 B/C; H71–H73 B/C | Grouped NeXTimber wall/floor rows, PDF pages 93–94 and 132–134 |
+| FAS190236 V225 B/C; V498 B/C, V499B, V502B | Grouped masonry/AAC or solid gypsum block wall rows, PDF pages 93 and 175–177 |
+| FAS190236 H109 B/C and H181 B/C | Grouped concrete/masonry/AAC floor rows, PDF pages 262 and 286 |
+| FAS190234 H75/H76; FAS190236 H288–H303 | INEX floor assemblies in Table 7, PDF pages 205–207, and Table 9, pages 358–359 respectively |
+| FAS190234 H36/H37 | Horizontal top-of-shaft FIREFLYBatt closures, PDF pages 120–121; the imported separating-element field describes the perimeter support wall |
+| FAS190235 service entries | Direct FIREFLYBatt barrier scope, page 7; supporting construction remains subject to the separate assessment referenced on page 154 |
+| Trafalgar T000220 substrate table | Exact source table/document fingerprint resolves its unlabelled wall rows independently of the selected entry's orientation |
+
+These facts supply search categories only. All rating, lining, support and
+installation conditions remain in the original source evidence.
+
 Firestopping records display stable identifiers such as `FL-ID-001`, their
 **Library price**, source table fields, and original in-cell PNG
 diagrams. The internal legacy record IDs remain unchanged so existing links

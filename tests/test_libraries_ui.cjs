@@ -56,6 +56,19 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     pane.searchInput.value='new';await pane.searchInput.emit('input');await h.runTimers();old.resolve({...records('penetration'),items:[{id:'old',title:'Stale result'}]});await first;
     assert.match(text(pane.results),/Newest result/);assert.doesNotMatch(text(pane.results),/Stale result/);
   });
+  await check('Substrate filter replaces Table and carries its selection through search and paging',async h=>{
+    const options=['Plasterboard wall','Concrete/masonry wall','CLT floor'].map(value=>({value,label:value}));
+    h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),total:105,offset:Number(new URL('http://local'+path).searchParams.get('offset')),filters:[{key:'substrate',label:'Substrate',options}]}));
+    await h.api.open('technical');const pane=h.pane('technical');
+    assert.match(text(pane.filterControls),/Substrate/);assert.doesNotMatch(text(pane.filterControls),/\bTable\b/);
+    const control=walk(pane.filterControls).find(node=>node.dataset.libraryFilter==='substrate');
+    control.value='Concrete/masonry wall';await control.emit('change');await flush();
+    assert.equal(new URL('http://local'+h.calls.at(-1).path).searchParams.get('substrate'),'Concrete/masonry wall');
+    pane.searchInput.value='synthetic';await pane.searchInput.emit('input');await h.runTimers();
+    await pane.next.emit('click');await flush();
+    const query=new URL('http://local'+h.calls.at(-1).path).searchParams;
+    assert.equal(query.get('substrate'),'Concrete/masonry wall');assert.equal(query.get('search'),'synthetic');assert.equal(query.get('offset'),'50');
+  });
   await check('Full detail retains plain source information and accessible diagram links',async h=>{
     await h.api.open('technical','technical-1');const pane=h.pane('technical'),nodes=walk(pane.detailPanel);
     assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.doesNotMatch(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
@@ -158,6 +171,26 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(nodes.filter(n=>n.tagName==='caption').length,0);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source A|Source B/);assert.ok(nodes.every(n=>n.innerHTML===undefined));
     const wrap=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Service Wrap');assert.doesNotMatch(text(wrap),/Not recorded|Service B|120/);
     assert.match(text(h.pane('technical').detailPanel),/See the rating for the matching configuration/);assert.deepEqual(source,before);
+  });
+  await check('Firefly blank-seal summaries link to one complete barrier variation table without generated labels',async h=>{
+    const rows=[['600 × 600 mm','Minimum 100 mm concrete or masonry wall.','-/60/60'],['800 × 600 mm','Two layers of 13 mm fire-rated plasterboard to each wall face.','-/90/90'],['1000 × 600 mm','Minimum 130 mm CLT wall.','-/120/120']];
+    const source={...detail('technical','fas190234-system-synthetic-blank'),images:[],fields:[
+      {label:'Barrier Construction',value:'',table:{columns:['Max Aperture Size','Separating Element','FRL'],rows},table_row_ids:[['private-option-1','private-option-2','private-option-3']],table_captions:['Source option metadata retained for audit.']},
+      {label:'Blank Seal FRL',value:'-/60/60 to -/120/120',table_links:[{field:'Barrier Construction',table_index:0}]},
+      {label:'Maximum Opening Size',value:'1000 × 600 mm',table_links:[{field:'Barrier Construction',table_index:0}]}
+    ]},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
+    const panel=h.pane('technical').detailPanel,nodes=walk(panel),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
+    assert.equal(tables.length,1);assert.equal(tables[0].getAttribute('aria-label'),'Barrier Construction table');
+    assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Max Aperture Size','Separating Element','FRL']);
+    assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),rows.flat());
+    for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['Maximum Opening Size','1000 × 600 mm']]) {
+      const pair=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent===label),value=pair.children[1],links=walk(value).filter(n=>n.className==='library-configuration-link');
+      assert.equal(value.textContent,summary);assert.equal(links.length,1);assert.equal(links[0].textContent,'View barrier construction table');assert.equal(links[0].href,'#'+tables[0].id);
+      await links[0].emit('click',{detail:0});assert.equal(h.context.document.activeElement,tables[0]);
+    }
+    assert.doesNotMatch(text(panel),/Source option|Source Configuration|private-option|retained for audit/);
+    assert.ok(nodes.every(n=>n.innerHTML===undefined));assert.deepEqual(source,before);
   });
   await check('Configuration links use native keyboard activation, focus the table and clear the sticky header',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','focus'),images:[],fields:[

@@ -5,6 +5,7 @@ prose. Paired tables must retain every reviewed source row in source order.
 """
 
 from .technical_field_reviewed import review_fingerprint
+from .technical_table_navigation import validate_table_navigation
 
 
 def _invalid():
@@ -24,6 +25,7 @@ def validate_configuration_review(review, item, assets):
     if not isinstance(sources, list) or not 1 <= len(sources) <= 100:
         _invalid()
     fields = review['fields']
+    validate_table_navigation(fields)
     used_tables, used_sources = set(), set()
     image_ids = {image['id'] for field in item.get('fields', [])
                  for image in field.get('images', [])}
@@ -74,7 +76,12 @@ def validate_configuration_review(review, item, assets):
                 if index >= len(tables):
                     _invalid()
                 table = tables[index]
-                if [row[0] for row in table['rows']] != row_ids:
+                # New tables contain only source content. Their reviewed row
+                # identity stays in aligned, non-displayed field metadata.
+                # Legacy bundles retain their first-column row identity check.
+                table_row_ids = (field['table_row_ids'][index] if 'table_row_ids' in field
+                                 else [row[0] for row in table['rows']])
+                if len(table['rows']) != len(row_ids) or table_row_ids != row_ids:
                     raise ValueError('Configuration rows changed; review must be updated')
                 if reference['sha256'] != review_fingerprint(table):
                     raise ValueError('Configuration table changed; review must be updated')

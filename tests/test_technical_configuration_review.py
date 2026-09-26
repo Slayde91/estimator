@@ -58,6 +58,47 @@ class ConfigurationReviewTests(unittest.TestCase):
             with self.subTest(column=column), self.assertRaisesRegex(ValueError, 'table changed'):
                 self.validate(invalid)
 
+    def test_physical_only_service_and_all_substrate_rows_use_hidden_row_metadata(self):
+        service = {'columns': ['Service', 'Wrap', 'FRL'],
+                   'rows': [['Small pipe', '250 mm', '-/60/60'],
+                            ['Large pipe', '500 mm', '-/90/60']]}
+        substrates = {'columns': ['Substrate', 'Minimum thickness', 'Maximum opening', 'FRL'],
+                      'rows': [['Masonry', '100 mm', '600 x 400 mm', '-/120/120'],
+                               ['Panel wall', '75 mm', '400 x 300 mm', '-/90/90'],
+                               ['Framed wall', '130 mm', '300 x 300 mm', '-/60/60']]}
+        self.review['fields'] = [
+            {'label': 'Service Size / Configuration', 'value': '', 'table': service,
+             'table_row_ids': [['service-1', 'service-2']]},
+            {'label': 'Barrier Construction', 'value': 'All source substrate alternatives.',
+             'table': substrates, 'table_row_ids': [['substrate-1', 'substrate-2', 'substrate-3']]},
+        ]
+        self.review['configuration_sources'][0]['groups'] = [
+            {'row_ids': list(field['table_row_ids'][0]), 'tables': [
+                {'label': field['label'], 'table_index': 0,
+                 'sha256': review_fingerprint(field['table'])}]}
+            for field in self.review['fields']
+        ]
+        before = deepcopy(self.review)
+        self.validate()
+        self.assertEqual(self.review, before)
+        self.assertNotIn('Source configuration', str([f['table'] for f in self.review['fields']]))
+        for ids in (['substrate-2', 'substrate-1', 'substrate-3'],
+                    ['substrate-1', 'changed', 'substrate-3']):
+            invalid = deepcopy(self.review)
+            invalid['fields'][1]['table_row_ids'][0] = ids
+            with self.subTest(ids=ids), self.assertRaisesRegex(ValueError, 'rows changed'):
+                self.validate(invalid)
+        invalid = deepcopy(self.review)
+        invalid['fields'][1]['table']['rows'].pop()
+        invalid['fields'][1]['table_row_ids'][0].pop()
+        invalid['configuration_sources'][0]['groups'][1]['tables'][0]['sha256'] = review_fingerprint(invalid['fields'][1]['table'])
+        with self.assertRaises(ValueError):
+            self.validate(invalid)
+        invalid = deepcopy(self.review)
+        invalid['fields'][1]['table']['rows'][2][-1] = '-/240/240'
+        with self.assertRaisesRegex(ValueError, 'table changed'):
+            self.validate(invalid)
+
     def test_changed_document_fingerprint_rejects_review(self):
         self.assets['report-a']['sha256'] = 'c' * 64
         with self.assertRaisesRegex(ValueError, 'source changed'):

@@ -66,6 +66,44 @@ class TableNavigationTests(unittest.TestCase):
         self.assertEqual(len(size['tables']), 2)
         field_text(projected, {}, projected=True)
 
+    def test_equal_indices_in_distinct_target_fields_are_independent(self):
+        fields = deepcopy(self.fields)
+        fields.append({'label': 'Barrier Construction', 'value': '',
+                       'table': {'columns': ['Substrate', 'FRL'],
+                                 'rows': [['Masonry', '-/120/120'], ['Panel', '-/90/90'],
+                                          ['Framed wall', '-/60/60']]},
+                       'table_row_ids': [['wall-a', 'wall-b', 'wall-c']]})
+        fields[1]['table_links'] = [
+            {'field': 'Service Size / Configuration', 'table_index': 0},
+            {'field': 'Barrier Construction', 'table_index': 0},
+        ]
+        fields[0]['table_links'] = [{'field': 'Barrier Construction', 'table_index': 0}]
+        fields[3]['table_links'] = [{'field': 'Service Size / Configuration', 'table_index': 1}]
+        field_text(fields, {}, projected=True)
+        field_text(projection._merge_fields(fields), {}, projected=True)
+        fields[3]['table_links'] = [{'field': 'Barrier Construction', 'table_index': 0}]
+        with self.assertRaisesRegex(ValueError, 'Invalid configuration table link'):
+            field_text(fields, {}, projected=True)
+
+    def test_row_metadata_is_aligned_validated_preserved_and_not_search_text(self):
+        fields = deepcopy(self.fields)
+        fields[0].pop('table_captions')
+        fields[0]['table_row_ids'] = [['private-row-a', 'private-row-b'],
+                                     ['private-row-c', 'private-row-d']]
+        fields = fields[:1]  # Metadata alone must preserve equal tables.
+        text = field_text(fields, {}, projected=True)
+        self.assertNotIn('private-row-a', text)
+        projected = projection._merge_fields(fields)
+        self.assertEqual(projected[0]['table_row_ids'], fields[0]['table_row_ids'])
+        self.assertEqual(len(projected[0]['tables']), 2)
+        for inventories in ([], 'bad', [['a', 'b']], [['a', 'b'], ['c']],
+                            [['a', 'a'], ['b', 'c']], [['', 'b'], ['c', 'd']],
+                            [[None, 'b'], ['c', 'd']], [['a' * 501, 'b'], ['c', 'd']]):
+            invalid = deepcopy(fields)
+            invalid[0]['table_row_ids'] = inventories
+            with self.subTest(inventories=inventories), self.assertRaises(ValueError):
+                field_text(invalid, {}, projected=True)
+
     def test_missing_duplicate_and_self_references_are_rejected(self):
         missing = deepcopy(self.fields[1:])
         duplicate_link = deepcopy(self.fields)

@@ -188,6 +188,26 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('technical','second');nodes=walk(pane.detailPanel);const second=nodes.find(n=>n.className==='library-field-table-scroll');assert.notEqual(second.id,next.id);assert.equal(nodes.find(n=>n.className==='library-configuration-link').href,'#'+second.id);assert.ok(!nodes.some(n=>n.id===old.id));
     assert.equal(nodes.filter(n=>n.tagName==='caption').length,0,'Legacy tables without captions render as before.');
   });
+  await check('Barrier and service links with equal table indices navigate to their distinct owners',async h=>{
+    const fields=[
+      {label:'FRL',value:'Use the matching service and substrate.',table_links:[{field:'Service Size / Configuration',table_index:0},{field:'Barrier Construction',table_index:0},{field:'Barrier Construction',table_index:1}]},
+      {label:'Service Size / Configuration',value:'',table:{columns:['Service','Wrap'],rows:[['Pipe','300 mm']]},table_row_ids:[['private-service-row']],table_links:[{field:'Barrier Construction',table_index:0}]},
+      {label:'Barrier Construction',value:'All source alternatives.',table:{columns:['Substrate','FRL'],rows:[['Masonry','-/120/120'],['Panel','-/90/90'],['Framed wall','-/60/60']]},tables:[{columns:['Substrate','FRL'],rows:[['Floor','-/120/90']]}],table_row_ids:[['private-wall-1','private-wall-2','private-wall-3'],['private-floor-1']],table_links:[{field:'Service Size / Configuration',table_index:0},{field:'Barrier Construction',table_index:0}]}
+    ],before=copy(fields);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','owners'),fields,images:[]}));await h.api.open('technical','owners');
+    const nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.className==='library-configuration-link'),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
+    assert.deepEqual(links.map(n=>n.textContent),['View configuration table','View barrier construction table 1','View barrier construction table 2','View barrier construction table 1','View configuration table']);
+    assert.deepEqual(links.slice(0,3).map(n=>n.href),tables.map(n=>'#'+n.id));assert.equal(new Set(tables.map(n=>n.id)).size,3);
+    for(let i=0;i<3;i++){await links[i].emit('click',{detail:0});assert.equal(h.context.document.activeElement,tables[i]);}
+    assert.deepEqual(walk(tables[1]).filter(n=>n.tagName==='td').map(n=>n.textContent),['Masonry','-/120/120','Panel','-/90/90','Framed wall','-/60/60']);
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/private-wall|private-service|private-floor/);assert.deepEqual(fields,before);
+  });
+  await check('Generated Source Configuration columns stay hidden in legacy tables without shifting source cells',async h=>{
+    const field={label:'Barrier Construction',value:'',table:{columns:['Substrate',' Source Configuration ','FRL'],rows:[['Masonry','private-proof-1','-/120/120'],['Panel','private-proof-2','-/90/90']]},table_row_ids:[['private-proof-1','private-proof-2']]},before=copy(field);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','legacy-column'),fields:[field],images:[]}));await h.api.open('technical','legacy-column');const nodes=walk(h.pane('technical').detailPanel);
+    assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Substrate','FRL']);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Masonry','-/120/120','Panel','-/90/90']);
+    assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source Configuration|private-proof/);assert.deepEqual(field,before);
+  });
   await check('A saved item invalidates prices and details without losing list search and filters',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='retained search';await pane.searchInput.emit('input');await h.runTimers();const filter=walk(pane.filterControls).find(node=>node.tagName==='select');filter.value='sample & test';await filter.emit('change');await flush();
     await h.api.open('penetration','penetration-1');h.api.invalidate();

@@ -216,7 +216,8 @@ def _merge_fields(fields):
             field['images'] = _merge_images(images)
         # Captions identify source-specific table positions. Equal cell contents
         # can have different provenance; dropping one would redirect its links.
-        if 'table_captions' not in field and label not in referenced_table_fields:
+        if ('table_captions' not in field and 'table_row_ids' not in field
+                and label not in referenced_table_fields):
             tables = _unique(tables)
         if len(tables) == 1:
             field['table'] = tables[0]

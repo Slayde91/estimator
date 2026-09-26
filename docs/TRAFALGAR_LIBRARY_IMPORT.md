@@ -66,7 +66,12 @@ review instead of silently dropping it.
 The single **Installation Details** field uses the linked diagram's explicit
 installation instructions whenever available. In that case application text and
 other diagram callouts are not appended. Repeated instructions are shown once;
-different passages retain their source page locators. For a diagram without an
+spacing around punctuation and numbered step markers does not create duplicates.
+Partly repeated numbered lists are combined only when every shared step number
+has the same text; a changed dimension, material, condition or action retains the
+whole variant. Each retained passage lists all its source pages. Words, numeric
+values, units and punctuation tokens are never removed by fuzzy matching. For a
+diagram without an
 instruction section, prepare a coherent summary of installation-relevant
 callouts, retaining dimensions, conditions and variant pairing. Exclude contact
 details, dates, title-block metadata and repeated text.
@@ -98,7 +103,19 @@ a linked document, only those passages are displayed. Otherwise every page must
 have a reviewed summary or explicit no-information decision; missing reviews
 stop the import. Source, page and image fingerprints must match.
 
-T-card numbers, Selector Search Context, raw PDF/OCR transcripts and application
+When visually reviewed source pages repeat the same instructions with wording
+differences, an optional `display_review` on the document review can consolidate
+common steps and retain distinct instructions as passages with separate source
+page labels. It must contain `source_sha256`, `input_sha256`, `pages` (each with
+`page` and `image_sha256`), a nonempty `reason`, and `passages` (each with nonempty
+`text` and a sorted, unique `pages` list). Use
+`installation_input_sha256(document, product_id)` to bind the review to the exact
+applicable instruction/summary inputs. Every applicable source page must be
+bound and represented in the output passages. Changed source bytes, page images,
+inputs or product scope stop the import until reviewed again. The raw source
+instructions and prior summaries remain unchanged in the private audit.
+
+T-card numbers, Document Revision, Selector Search Context, raw PDF/OCR transcripts and application
 extracts are omitted from entry fields. Exact selector records, paired search
 options, source transcripts, original enrichment and summary reviews remain in
 the private import audit. All source images and PDFs remain available.

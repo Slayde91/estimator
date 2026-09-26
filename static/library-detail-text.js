@@ -6,7 +6,22 @@
   const cleanLine = line => line.replace(/[\t\u00a0 ]+/g, " ").trim();
   const join = (left, right) => left ? `${left}${/[A-Za-z0-9]-$/.test(left) && /^[a-z]/.test(right) || /^[.,;!?]/.test(right) ? "" : " "}${right}` : right;
   const heading = line => /^[A-Za-z][A-Za-z /-]{0,60}:$/.test(line) || /^OR$/.test(line);
+  const longHeading = line => line.length > 61 && /^[A-Za-z][^.!?]*:$/.test(line);
   const endsInConnector = text => /(?:\b(?:of|the|and|or|with|using|in|to|on|at|by|from|for|as|a|an|into|either|each)|[×,])$/i.test(text);
+
+  function installationHeading(lines, index) {
+    if (!/^Installation (?:through|against)\b/.test(lines[index] || "")) return null;
+    let text = "";
+    for (let end = index; end < Math.min(lines.length, index + 4); end += 1) {
+      if (!lines[end] || marker(lines[end])) return null;
+      text = join(text, lines[end]);
+      if (/[–—]$/.test(text)) {
+        const next = lines.slice(end + 1).find(line => line);
+        return marker(next || "")?.ordered ? { text, end } : null;
+      }
+    }
+    return null;
+  }
 
   function marker(line, listContext = false) {
     // A delimiter followed by whitespace is required: 1.5 mm and clauses 3.2
@@ -44,6 +59,12 @@
       let line = lines[index];
       if (!line) { gap = true; continue; }
       if (sourcePage.test(line)) { end(); continue; }
+      // These source headings separate alternative procedures. Their trailing
+      // dash and following numbered step distinguish them from wrapped prose.
+      const section = installationHeading(lines, index);
+      if (section) { end(); addParagraph(section.text); index = section.end; end(); continue; }
+      if (/^With\b/.test(line) && installationHeading(lines, index + 1)) { end(); addParagraph(line); end(); continue; }
+      if (/^Notes?:\s+\S/i.test(line)) { end(); addParagraph(line); continue; }
       // PDF extraction occasionally puts a bullet on its own line. Join it to
       // the following content, never render an empty list item.
       if (/^[•●▪‣◦*−–-]$/.test(line)) {
@@ -78,6 +99,7 @@
       // with its step so the following bullets belong to the same operation.
       const continuesIntro = current && !/[.!?:]$/.test(current.text) && (/^[a-z]/.test(line) || endsInConnector(current.text));
       if (heading(line) && (!continuesIntro || /^(?:NOTE[S]?:|OR)$/.test(line))) { end(); addParagraph(line); continue; }
+      if (longHeading(line) && (!current || /[.!?]$/.test(current.text))) { end(); addParagraph(line); continue; }
       // A period extracted onto a separate line belongs to its sentence. If
       // that sentence already ends with a period, it is duplicate punctuation.
       if (line === "." && current) {
@@ -89,7 +111,7 @@
       if (gap && current && /[.!?:]$/.test(current.text) && !/^[a-z]/.test(line)) end();
       if (nestedItem) nestedItem.text = join(nestedItem.text, line);
       else if (item) item.text = join(item.text, line);
-      else if (paragraph && !heading(paragraph.text)) paragraph.text = join(paragraph.text, line);
+      else if (paragraph && !heading(paragraph.text) && !longHeading(paragraph.text)) paragraph.text = join(paragraph.text, line);
       else addParagraph(line);
       gap = false;
     }

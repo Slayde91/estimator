@@ -14,6 +14,7 @@ from threading import RLock
 from .catalog import ROOT, ValidationError
 from .technical_configuration_review import validate_configuration_review
 from .technical_table_navigation import validate_table_navigation
+from .technical_orientation import prepare_selector_orientation_context
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -153,6 +154,7 @@ class ReferenceLibrary:
                     raise ValueError('Unsupported image')
             assets[key] = {**asset, 'extension': extension, 'pdf': is_pdf}
         records, searches, filters = {}, {}, {}
+        selector_context = prepare_selector_orientation_context(data.get('trafalgar_selector_import'))
         if set(data['libraries']) != set(KINDS):
             raise ValueError('Missing library')
         for kind in KINDS:
@@ -169,6 +171,7 @@ class ReferenceLibrary:
                 if key in {'search', 'offset', 'limit', 'technical_reference'} or key in filter_labels:
                     raise ValueError('Reserved filter')
                 filter_labels[key] = string(entry['label'], 100)
+            imported_filter_keys = set(filter_labels)
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
@@ -206,22 +209,36 @@ class ReferenceLibrary:
                         raise ValueError('Image is a PDF')
                     string(image.get('caption', ''), 2000)
                 values = item.get('filter_values', {})
-                if set(values) - set(filter_labels):
+                if set(values) - imported_filter_keys:
                     raise ValueError('Unknown filter')
                 for field, selected in values.items():
                     if not isinstance(selected, list):
                         raise ValueError('Filter values must be lists')
                     for value in selected:
-                        filter_values[field].add(string(value, 1000))
+                        string(value, 1000)
                 if kind == 'technical':
                     # Validate the original evidence before projecting its display.
                     # Keep the imported record in libraries/items unchanged: source
                     # fingerprints and saved manual links depend on those bytes.
-                    item = normalize_technical_item(item)
+                    item = normalize_technical_item(item, selector_capture=selector_context)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
                         text.extend((source.get('label', ''), source.get('filename', '')))
+                values = item.get('filter_values', {})
+                # Collect the same projected values used by listing/detail. Only
+                # the derived technical orientation can add a runtime filter;
+                # imported and future projected filter keys remain validated.
+                if kind == 'technical' and 'orientation' in values and 'orientation' not in filter_labels:
+                    filter_labels['orientation'] = 'Orientation'
+                    filter_values['orientation'] = set()
+                if set(values) - set(filter_labels):
+                    raise ValueError('Unknown projected filter')
+                for field, selected in values.items():
+                    if not isinstance(selected, list):
+                        raise ValueError('Projected filter values must be lists')
+                    for value in selected:
+                        filter_values[field].add(string(value, 1000))
                 records[kind][key] = item
                 searches[kind][key] = '\n'.join(text).casefold()
             filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in sorted(filter_values[key], key=str.casefold)]} for key, label in filter_labels.items()]

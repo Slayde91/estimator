@@ -142,7 +142,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(nodes.filter(node=>node.textContent==='Common source condition').length,1);assert.equal(nodes.filter(node=>node.textContent==='Service B <script>').length,1);assert.ok(nodes.every(node=>node.innerHTML===undefined));
     const scroll=nodes.filter(node=>node.className==='library-field-table-scroll');assert.equal(scroll[0].tabIndex,0);assert.equal(scroll[0].getAttribute('role'),'region');assert.equal(scroll[0].getAttribute('aria-label'),'Service options table');assert.doesNotMatch(text(scroll[1]),/Not recorded/);
   });
-  await check('Configuration links preserve target indices and captions without copying complete tables',async h=>{
+  await check('Configuration links preserve target indices with concise table names and retained source metadata',async h=>{
     const source={...detail('technical','a/#<script>'),images:[],fields:[
       {label:'FRL',value:'See the rating for the matching configuration.',table_links:[{field:'Service Size / Configuration',table_index:1},{field:'Service Size / Configuration',table_index:0}]},
       {label:'Service Size / Configuration',value:'',table:{columns:['Service','FRL'],rows:[['Service A','-/60/60']]},tables:[{columns:['Service','FRL'],rows:[['Service B','-/120/120']]}],table_captions:['Source A — page 1','Source B <img src=x onerror=alert(1)> — page 2']},
@@ -152,9 +152,9 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const nodes=walk(h.pane('technical').detailPanel),tables=nodes.filter(n=>n.className==='library-field-table-scroll'),links=nodes.filter(n=>n.className==='library-configuration-link');
     assert.equal(tables.length,2);assert.equal(links.length,3);assert.deepEqual(links.map(n=>n.textContent),['View configuration table 2','View configuration table 1','View configuration table 2']);
     assert.deepEqual(links.map(n=>n.href),['#'+tables[1].id,'#'+tables[0].id,'#'+tables[1].id]);
-    assert.equal(tables[0].getAttribute('aria-label'),'Service Size / Configuration table 1: Source A — page 1');assert.match(tables[1].getAttribute('aria-label'),/table 2: Source B <img/);
+    assert.equal(tables[0].getAttribute('aria-label'),'Service Size / Configuration table 1');assert.equal(tables[1].getAttribute('aria-label'),'Service Size / Configuration table 2');
     assert.ok(tables.every(n=>/^library-table-technical-[a-z0-9-]+$/.test(n.id)));assert.notEqual(tables[0].id,tables[1].id);
-    assert.deepEqual(nodes.filter(n=>n.tagName==='caption').map(n=>n.textContent),source.fields[1].table_captions);assert.ok(nodes.every(n=>n.innerHTML===undefined));
+    assert.equal(nodes.filter(n=>n.tagName==='caption').length,0);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Source A|Source B/);assert.ok(nodes.every(n=>n.innerHTML===undefined));
     const wrap=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Service Wrap');assert.doesNotMatch(text(wrap),/Not recorded|Service B|120/);
     assert.match(text(h.pane('technical').detailPanel),/See the rating for the matching configuration/);assert.deepEqual(source,before);
   });
@@ -171,12 +171,29 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(target.focusOptions.preventScroll,true);assert.equal(target.style.scrollMarginTop,'192px');assert.deepEqual(copy(target.scrollOptions),{block:'start',inline:'nearest'});assert.equal(h.calls.length,calls);
     h.byId('synthetic-header').rect={bottom:302};await link.emit('click');assert.equal(target.style.scrollMarginTop,'318px','Recompute clearance after a narrow-screen header reflows.');
   });
+  await check('Technical tables omit source preambles without losing construction conditions, printed rows or source metadata',async h=>{
+    const field={label:'Barrier Construction',value:'Fixing alternatives do not establish approved wall or floor types.',tables:[
+      {columns:['#','Substrate','Fixing'],rows:[['1','Concrete','M6 at 200 mm centres']]},
+      {columns:['Substrate','FRL'],rows:[['Masonry','-/120/120']]}
+    ],table_captions:['Complete source fixing alternatives by substrate. Source: D-synthetic.pdf, page 1. Substrate fixing alternatives.','Source: D-synthetic.pdf, page 2. Approved substrates.']};
+    const source={...detail('technical','caption-review'),fields:[field],images:[]},before=copy(source);
+    h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
+    let nodes=walk(h.pane('technical').detailPanel);
+    assert.equal(nodes.filter(n=>n.tagName==='caption').length,0);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Complete source|D-synthetic|Approved substrates/);
+    assert.match(text(h.pane('technical').detailPanel),/Fixing alternatives do not establish approved wall or floor types/);
+    assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['#','Substrate','Fixing','Substrate','FRL']);
+    assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['1','Concrete','M6 at 200 mm centres','Masonry','-/120/120']);
+    for(const tag of ['table','div']){const named=nodes.filter(n=>n.tagName===tag&&(tag==='table'||n.getAttribute('role')==='region'));assert.deepEqual(named.map(n=>n.getAttribute('aria-label')),['Barrier Construction table 1','Barrier Construction table 2']);}
+    assert.deepEqual(source,before,'Hiding presentation text must not modify the original source metadata.');
+    await h.api.open('penetration',source.id);nodes=walk(h.pane('penetration').detailPanel);
+    assert.deepEqual(nodes.filter(n=>n.tagName==='caption').map(n=>n.textContent),field.table_captions,'Firestopping table caption behavior is unchanged.');assert.deepEqual(source,before);
+  });
   await check('Malformed, unavailable, duplicate and out-of-range configuration references are ignored',async h=>{
     const configuration={label:'Service Size / Configuration',value:'',tables:[{columns:['A'],rows:[['first']]},null,{columns:['B'],rows:[['third']]}],table_captions:['First','Invalid','Third'],table_links:[{field:'Service Size / Configuration',table_index:0}]};
     const refs=[null,{}, {field:'javascript:alert(1)',table_index:0},{field:'Service Wrap',table_index:0},{field:'Service Size / Configuration',table_index:0,url:'javascript:alert(1)'},...[-1,1,3,0.5,'0',null].map(table_index=>({field:'Service Size / Configuration',table_index})),{field:'Service Size / Configuration',table_index:2},{field:'Service Size / Configuration',table_index:2}];
     let source={...detail('technical','invalid'),images:[],fields:[configuration,{label:'FRL',value:'Summary',table_links:refs},{label:'Absent links',value:'',table_links:[{field:'Service Size / Configuration',table_index:999}]}]};
     h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','invalid');let nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.className==='library-configuration-link'),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
-    assert.equal(links.length,1);assert.equal(links[0].textContent,'View configuration table 3');assert.equal(links[0].href,'#'+tables[1].id);assert.deepEqual(nodes.filter(n=>n.tagName==='caption').map(n=>n.textContent),['First','Third']);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Absent links/);
+    assert.equal(links.length,1);assert.equal(links[0].textContent,'View configuration table 3');assert.equal(links[0].href,'#'+tables[1].id);assert.deepEqual(tables.map(n=>n.getAttribute('aria-label')),['Service Size / Configuration table 1','Service Size / Configuration table 3']);assert.equal(nodes.filter(n=>n.tagName==='caption').length,0);assert.doesNotMatch(text(h.pane('technical').detailPanel),/Absent links/);
     source={...source,fields:[source.fields[1]]};h.pane('technical').detail=source;h.context.audit.renderDetail(h.pane('technical'));assert.equal(walk(h.pane('technical').detailPanel).filter(n=>n.className==='library-configuration-link').length,0);
     source={...source,fields:[configuration,copy(configuration),source.fields[0]]};h.pane('technical').detail=source;h.context.audit.renderDetail(h.pane('technical'));assert.equal(walk(h.pane('technical').detailPanel).filter(n=>n.className==='library-configuration-link').length,0,'Duplicate target labels are ambiguous.');
   });

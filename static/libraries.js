@@ -429,13 +429,15 @@
   // Encode every code point so imported labels/IDs cannot create selectors or fragment URLs.
   const anchorPart = value => Array.from(String(value), char => char.codePointAt(0).toString(16)).join("-");
   const tableAnchor = (kind, id, label, index) => `library-table-${kind}-${anchorPart(id)}-${anchorPart(label)}-${index}`;
-  function fieldTable(field, index = 0, total = 1) {
+  function fieldTable(field, index = 0, total = 1, kind = "technical") {
     const scroll = node("div", "library-field-table-scroll"), table = node("table", "library-field-table"), head = node("thead"), headings = node("tr"), body = node("tbody");
     const caption = Array.isArray(field.table_captions) ? field.table_captions[index] : null;
-    const hasCaption = typeof caption === "string" && caption.trim();
+    // Technical-table captions are retained as source/audit metadata, not UI copy.
+    // Keep the table's field and position as its concise accessible name.
+    const hasCaption = kind !== "technical" && typeof caption === "string" && caption.trim();
     const label = `${field.label || "Source"} table${total > 1 ? ` ${index + 1}` : ""}${hasCaption ? `: ${caption}` : ""}`;
     scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", label);
-    table.setAttribute("aria-label", hasCaption ? label : field.label || "Source table");
+    table.setAttribute("aria-label", label);
     if (hasCaption) table.append(node("caption", "", caption));
     // Older bundles may still carry the generated audit key as a column.
     // Keep it out of the presentation without mutating the source evidence.
@@ -495,7 +497,7 @@
     const visibleFields = (data.fields || []).filter(field => visibleField(pane.kind, field));
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
       if (!validFieldTable(table)) return null;
-      const target = fieldTable({ ...field, table }, index, tables.length);
+      const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);
       target.id = tableAnchor(pane.kind, data.id, field.label, index);
       return target;
     })]));

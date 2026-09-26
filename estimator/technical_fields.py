@@ -12,6 +12,8 @@ import unicodedata
 from .technical_field_content import normalize_content
 from .technical_field_options import normalize_options
 from .technical_field_reviewed import normalize_reviewed_content
+from .technical_frl_presentation import normalize_frl_presentation
+from .technical_orientation import project_trafalgar_orientation
 
 
 PROJECTION_VERSION = 1
@@ -239,7 +241,7 @@ def _report_numbers(item):
     return [value for value in values if re.fullmatch(r'[A-Za-z]{2,}\s*[-/]?\s*\d[\w ./-]*', value)]
 
 
-def normalize_technical_item(item):
+def normalize_technical_item(item, *, selector_capture=None):
     """Return a canonical deep copy, retaining original evidence out of the UI."""
     projected = deepcopy(item)
     existing_basis = projected.get('technical_basis', {})
@@ -306,4 +308,6 @@ def normalize_technical_item(item):
     # merging, so mixed source callouts remain attributable to the right field.
     projected['fields'] = _merge_fields(normalize_reviewed_content(
         normalize_options(normalize_content(fields)), review, original_fields))
-    return projected
+    if item.get('id', '').startswith('trafalgar-'):
+        projected['fields'] = normalize_frl_presentation(projected['fields'])
+    return project_trafalgar_orientation(projected, item, selector_capture)

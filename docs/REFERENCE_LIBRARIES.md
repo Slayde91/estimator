@@ -258,6 +258,26 @@ source order. A nonempty `value` retains common text outside the nested table;
 it does not repeat its cells. The UI renders semantic column headers and literal
 text cells, with keyboard-accessible horizontal scrolling on narrow screens.
 
+Configuration tables transcribed from diagrams can carry an optional
+`technical_field_review.configuration_sources` inventory. Each entry identifies
+an attached `asset_id`, its `sha256`, and a one-based `page` (1 for raster images).
+Its `groups` contain source `row_ids` in printed order and table references
+(`label`, zero-based `table_index`, `sha256`). Table indices cover `table` first,
+then `tables`. The first column holds the source row identifier. Each paired
+table must contain the exact reviewed row sequence, and its full contents must
+match the recorded fingerprint. The loader rejects changed source fingerprints,
+unattached pages, missing rows, mismatched pairs and changed cells.
+
+This inventory records a completed source review; it does not read diagrams or
+establish technical suitability. Review the complete source table and its scope,
+including ratings, fixings, notes and alternatives, before preparing it. A
+selector summary is not evidence that every diagram option was imported. If the
+available diagram has no configuration table, retain the selector attribution
+and state that the row coverage could not be verified from that diagram.
+Original imported fields remain unchanged under the existing private editorial
+review contract. Supplier transcriptions and row inventories stay in the local
+bundle, outside the public repository and distribution.
+
 `GET /api/libraries/penetration/{id}/edit` returns one item draft, its definition
 and server-calculated result, revision, source/current price and opaque
 `pricing_token`, and source-diagram metadata. The corresponding POST routes

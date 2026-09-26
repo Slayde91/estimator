@@ -143,7 +143,7 @@ def _unique(values):
 
 def _meaningful(field):
     return bool(str(field.get('value', '')).strip() or field.get('images')
-                or field.get('table') or field.get('tables'))
+                or field.get('table') or field.get('tables') or field.get('table_links'))
 
 
 def _merge_images(images):
@@ -175,6 +175,10 @@ def _merge_images(images):
 
 def _merge_fields(fields):
     """Merge labels without flattening tables or losing source image captions."""
+    referenced_table_fields = {
+        link['field'] for field in fields for link in field.get('table_links', [])
+        if isinstance(link, dict) and isinstance(link.get('field'), str)
+    }
     groups = {}
     for field in fields:
         if not _meaningful(field):
@@ -210,7 +214,10 @@ def _merge_fields(fields):
         field['source_labels'] = list(dict.fromkeys(source_labels))
         if images:
             field['images'] = _merge_images(images)
-        tables = _unique(tables)
+        # Captions identify source-specific table positions. Equal cell contents
+        # can have different provenance; dropping one would redirect its links.
+        if 'table_captions' not in field and label not in referenced_table_fields:
+            tables = _unique(tables)
         if len(tables) == 1:
             field['table'] = tables[0]
         elif tables:

@@ -89,6 +89,10 @@
 .library-field-table{width:100%;min-width:30rem;border-collapse:collapse;white-space:normal}
 .library-field-table th,.library-field-table td{padding:10px 12px;border:1px solid var(--line);text-align:left;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}
 .library-field-table th{background:#f5f0e9;color:var(--text);font-weight:650}
+.library-field-table caption{padding:10px 12px;text-align:left;font-weight:650;white-space:normal;overflow-wrap:anywhere}
+.library-table-links{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:8px;white-space:normal}
+.library-configuration-link{max-width:100%;overflow-wrap:anywhere;text-underline-offset:3px}
+.library-configuration-link:focus-visible{outline:3px solid #b86c00;outline-offset:3px;border-radius:2px}
 .library-image{margin:0;min-width:0;border:1px solid var(--line);border-radius:8px;padding:14px}
 .library-image a{display:block}
 .library-image img{display:block;max-width:100%;max-height:520px;height:auto;object-fit:contain;margin:auto}

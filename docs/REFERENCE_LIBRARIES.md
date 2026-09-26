@@ -258,15 +258,33 @@ source order. A nonempty `value` retains common text outside the nested table;
 it does not repeat its cells. The UI renders semantic column headers and literal
 text cells, with keyboard-accessible horizontal scrolling on narrow screens.
 
+Reviewed configuration tables retain all source columns together under
+`Service Size / Configuration`. Keep separate source tables separate, in source
+column/row order, with any applicability conditions intact. Optional
+`table_captions: [string]` correspond to the sequence of `table` followed by
+`tables`; even equal table contents retain distinct captioned source positions.
+Other fields can use `table_links: [{field: "Service Size / Configuration",
+table_index: 0}]` to reference that same-record, zero-based table position.
+These are validated references, not URLs or HTML. The UI scrolls and moves
+keyboard focus to the complete table. Link-only fields remain visible.
+
+An FRL summary can show a single observed rating or a lowest-to-highest range
+whose endpoints actually occur in the relevant source cells. Summaries do not
+construct a new rating from component minima/maxima. Incomparable ratings,
+different dash patterns, malformed cells and qualified ratings must not become
+an unconditional range. Keep source qualifications and distinct barrier or
+related-evidence scope explicit; the full table remains the detailed reference.
+
 Configuration tables transcribed from diagrams can carry an optional
 `technical_field_review.configuration_sources` inventory. Each entry identifies
 an attached `asset_id`, its `sha256`, and a one-based `page` (1 for raster images).
 Its `groups` contain source `row_ids` in printed order and table references
 (`label`, zero-based `table_index`, `sha256`). Table indices cover `table` first,
-then `tables`. The first column holds the source row identifier. Each paired
+then `tables`. The first column holds the source row identifier. Each referenced
 table must contain the exact reviewed row sequence, and its full contents must
 match the recorded fingerprint. The loader rejects changed source fingerprints,
-unattached pages, missing rows, mismatched pairs and changed cells.
+unattached pages, missing rows, mismatched rows and changed cells. A complete
+table uses one reference per group; older paired-table reviews remain valid.
 
 This inventory records a completed source review; it does not read diagrams or
 establish technical suitability. Review the complete source table and its scope,

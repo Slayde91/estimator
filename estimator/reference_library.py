@@ -13,6 +13,7 @@ from threading import RLock
 
 from .catalog import ROOT, ValidationError
 from .technical_configuration_review import validate_configuration_review
+from .technical_table_navigation import validate_table_navigation
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -88,6 +89,9 @@ def field_text(fields, assets, *, projected=False):
             if assets[image['id']]['pdf']:
                 raise ValueError('Field image is a PDF')
             string(image.get('caption', ''), 2000)
+    validate_table_navigation(fields)
+    for field in fields:
+        text.extend(field.get('table_captions', []))
     return text
 
 
@@ -215,12 +219,7 @@ class ReferenceLibrary:
                     # fingerprints and saved manual links depend on those bytes.
                     item = normalize_technical_item(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
-                    for field in item.get('fields', []):
-                        text.extend((field['label'], field['value']))
-                        tables = ([field['table']] if 'table' in field else []) + field.get('tables', [])
-                        for table in tables:
-                            text.extend(table['columns'])
-                            text.extend(cell for row in table['rows'] for cell in row)
+                    text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
                         text.extend((source.get('label', ''), source.get('filename', '')))
                 records[kind][key] = item

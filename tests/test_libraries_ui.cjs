@@ -57,7 +57,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Full detail uses literal source text and accessible local source-page and diagram links',async h=>{
     await h.api.open('technical','technical-1');const pane=h.pane('technical'),nodes=walk(pane.detailPanel);
-    assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.match(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
+    assert.match(text(pane.detailPanel),/<img src=x onerror=alert\(1\)>/);assert.match(text(pane.detailPanel),/Literal second line/);assert.doesNotMatch(text(pane.detailPanel),/Not recorded/);assert.match(text(pane.detailPanel),/Zero 0/);
     const pdf=nodes.find(node=>node.tagName==='a'&&node.href.includes('documents/'));assert.equal(pdf.href,'/api/libraries/documents/synthetic-document.pdf#page=12');assert.match(pdf.getAttribute('aria-label'),/page 12.*new tab/);assert.equal(pdf.rel,'noopener noreferrer');
     const sourceCard=nodes.find(node=>node.className==='library-source');assert.deepEqual(sourceCard.children,[pdf]);assert.equal(pdf.textContent,'Synthetic source reference');assert.ok(pdf.getAttribute('aria-label').includes(pdf.textContent));assert.equal(walk(sourceCard).filter(node=>['dl','dt','dd','button'].includes(node.tagName)).length,0);assert.doesNotMatch(text(sourceCard),/Open PDF|synthetic\.pdf|Synthetic sheet/);
     const image=nodes.find(node=>node.tagName==='img');assert.equal(image.loading,'lazy');assert.equal(image.src,'/api/libraries/images/synthetic_image-1');assert.equal(image.alt,'Synthetic diagram');
@@ -292,6 +292,20 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Add completion refreshes from the current schedule, never a stale receipt quantity',async h=>{
     let quantity;const pending=deferred();h.context.window.CeasefirePenetrations={libraryQuantity:()=>quantity,addLibraryItem:()=>pending.promise};await h.api.open('penetration');const pane=h.pane('penetration'),card=pane.results.children[0],add=walk(card).find(node=>node.dataset.libraryAdd),badge=walk(card).find(node=>node.dataset.libraryQuantity);
     const adding=add.emit('click');await flush();quantity=1;h.api.scheduleChanged();assert.equal(badge.textContent,'Quantity: 1');quantity=undefined;h.api.scheduleChanged();pending.resolve({added:true,quantity:1,message:'Added to previous schedule'});await adding;assert.equal(badge.hidden,true);assert.equal(pane.results.children[0],card);
+  });
+  await check('Technical fields hide provenance and lead time, retain explicit None, paired tables and diagram status',async h=>{
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),technical_basis:{source_fields:[{label:'Private original',value:'Hidden original text'}]},diagram_status:'One source page is available.',fields:[
+      {label:'Lead Time',value:'Hidden delivery text'}, {label:'Technical Basis',value:'Hidden metadata text'}, {label:'Empty',value:' '},
+      {label:'Service Wrap',value:'None'},
+      {label:'Service Size / Configuration',value:'',tables:[{columns:['Configuration','Service condition'],rows:[['A','up to NB50']]},{columns:['Configuration','Service condition'],rows:[['B','up to NB100']]}]},
+      {label:'Diagrams & Figures',value:'',images:[{id:'synthetic_image-1',caption:'Figure A',role:'Installation concept',url:'/api/libraries/penetration/unrelated/image'}]}
+    ]}));
+    await h.api.open('technical','technical-1');const panel=h.pane('technical').detailPanel,nodes=walk(panel),display=text(panel);
+    assert.doesNotMatch(display,/Hidden|Private original|Lead Time|Technical Basis|Empty/);assert.match(display,/Service Wrap None/);
+    assert.equal(nodes.filter(node=>node.tagName==='table').length,2);assert.match(display,/up to NB50/);assert.match(display,/up to NB100/);
+    assert.equal(nodes.filter(node=>node.textContent==='One source page is available.').length,1);
+    assert(nodes.some(node=>node.tagName==='img'&&node.alt==='Installation concept — Figure A'));
+    assert(nodes.filter(node=>node.tagName==='img').every(node=>node.src==='/api/libraries/images/synthetic_image-1'));
   });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

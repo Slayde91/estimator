@@ -12,11 +12,30 @@ import re
 from threading import RLock
 
 from .catalog import ROOT, ValidationError
+from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
+                               is_hidden_technical_label, normalize_technical_item)
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
 MAX_INDEX = 64 * 1024 * 1024
 MAX_ASSET = 128 * 1024 * 1024
+
+
+def _field_label_key(value):
+    value = re.sub(r'\s*\((?:Source Reference|Selector Search)\)\s*$', '', value, flags=re.I)
+    return re.sub(r'[^a-z0-9]', '', value.casefold())
+
+
+_HIDDEN_REVIEW_LABELS = {
+    _field_label_key(label)
+    for label, destination in {**FIELD_LABELS, **LEGACY_LABELS}.items()
+    if destination is None
+} | {
+    _field_label_key(label) for label in (
+        'Technical Basis', 'Diagram captions (visually checked)',
+        'Workbook report revision', 'Reference review',
+    )
+}
 
 
 class ReferenceNotFound(Exception):
@@ -39,6 +58,36 @@ def number(value, minimum=0, maximum=100000):
     if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
         raise ValidationError('Invalid library count.')
     return value
+
+
+def field_text(fields, assets, *, projected=False):
+    """Validate imported or reviewed fields before any presentation or search."""
+    if not isinstance(fields, list) or len(fields) > 1000:
+        raise ValueError('Field limits')
+    text = []
+    for field in fields:
+        text += [string(field['label'], 500), string(field['value'])]
+        tables = [field['table']] if 'table' in field else []
+        if 'tables' in field:
+            if not isinstance(field['tables'], list) or len(field['tables']) > 100:
+                raise ValueError('Source table limits')
+            tables += field['tables']
+        for table in tables:
+            if not isinstance(table, dict) or set(table) != {'columns', 'rows'}:
+                raise ValueError('Invalid source table')
+            columns, rows = table['columns'], table['rows']
+            if not isinstance(columns, list) or not 1 <= len(columns) <= 20 or not isinstance(rows, list) or len(rows) > 2000:
+                raise ValueError('Source table limits')
+            text.extend(string(column, 500) for column in columns)
+            for row in rows:
+                if not isinstance(row, list) or len(row) != len(columns):
+                    raise ValueError('Source table columns must remain aligned')
+                text.extend(string(cell, 20000) for cell in row)
+        for image in field.get('images', []):
+            if assets[image['id']]['pdf']:
+                raise ValueError('Field image is a PDF')
+            string(image.get('caption', ''), 2000)
+    return text
 
 
 class ReferenceLibrary:
@@ -118,30 +167,25 @@ class ReferenceLibrary:
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
+                if kind == 'technical' and 'technical_basis' in item:
+                    # Only the runtime creates this metadata. Trusting a marker
+                    # imported from an index would bypass source projection and
+                    # any review fingerprints via the idempotency shortcut.
+                    raise ValueError('Technical basis is computed runtime metadata')
                 key = identifier(item['id'])
                 if key in records[kind]:
                     raise ValueError('Duplicate item')
                 text = [string(item['title'], 2000)]
                 for name in ('subtitle', 'summary', 'source_label'):
                     text.append(string(item.get(name, ''), 20000))
-                for field in item.get('fields', []):
-                    text += [string(field['label'], 500), string(field['value'])]
-                    if 'table' in field:
-                        table = field['table']
-                        if not isinstance(table, dict) or set(table) != {'columns', 'rows'}:
-                            raise ValueError('Invalid source table')
-                        columns, rows = table['columns'], table['rows']
-                        if not isinstance(columns, list) or not 1 <= len(columns) <= 20 or not isinstance(rows, list) or len(rows) > 2000:
-                            raise ValueError('Source table limits')
-                        text.extend(string(column, 500) for column in columns)
-                        for row in rows:
-                            if not isinstance(row, list) or len(row) != len(columns):
-                                raise ValueError('Source table columns must remain aligned')
-                            text.extend(string(cell, 20000) for cell in row)
-                    for image in field.get('images', []):
-                        if assets[image['id']]['pdf']:
-                            raise ValueError('Field image is a PDF')
-                        string(image.get('caption', ''), 2000)
+                text += field_text(item.get('fields', []), assets)
+                if kind == 'technical' and 'technical_field_review' in item:
+                    reviewed_fields = item['technical_field_review']['fields']
+                    field_text(reviewed_fields, assets, projected=True)
+                    if any(is_hidden_technical_label(field['label'])
+                           or _field_label_key(field['label']) in _HIDDEN_REVIEW_LABELS
+                           for field in reviewed_fields):
+                        raise ValueError('Reviewed fields cannot expose hidden technical metadata')
                 for source in item.get('sources', []):
                     text += [string(source.get('label', ''), 2000), string(source.get('filename', ''), 500)]
                     if 'document_id' in source:
@@ -163,6 +207,20 @@ class ReferenceLibrary:
                         raise ValueError('Filter values must be lists')
                     for value in selected:
                         filter_values[field].add(string(value, 1000))
+                if kind == 'technical':
+                    # Validate the original evidence before projecting its display.
+                    # Keep the imported record in libraries/items unchanged: source
+                    # fingerprints and saved manual links depend on those bytes.
+                    item = normalize_technical_item(item)
+                    text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
+                    for field in item.get('fields', []):
+                        text.extend((field['label'], field['value']))
+                        tables = ([field['table']] if 'table' in field else []) + field.get('tables', [])
+                        for table in tables:
+                            text.extend(table['columns'])
+                            text.extend(cell for row in table['rows'] for cell in row)
+                    for source in item.get('sources', []):
+                        text.extend((source.get('label', ''), source.get('filename', '')))
                 records[kind][key] = item
                 searches[kind][key] = '\n'.join(text).casefold()
             filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in sorted(filter_values[key], key=str.casefold)]} for key, label in filter_labels.items()]

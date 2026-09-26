@@ -74,13 +74,57 @@ descriptive choices do not select products or change calculation formulas.
 Technical records contain active entries from the supplied reports' main
 tables, identified by report revision, source ID and exact PDF page. Reserved or
 blank entries, standalone drawings, contents pages and report-level entries are
-excluded from the record list. Each report keeps its own source column schema:
+excluded from the record list. Each report keeps its original source column
+schema in the private bundle:
 
 | Report | Record fields |
 | --- | --- |
 | FAS190234 | ID; Type; Product; Install Notes; Installation Concept; Max Aperture Size; Separating Element; Aperture Seal Joints; Reference figure; FRL when Blank |
 | FAS190235 | ID; Service; Service Wrap; Protection; Local Protection; Refer Figure; FRL |
 | FAS190236 | ID; Service Description; Installation concept; Penetration seal description; Support Construction; FRL |
+
+The displayed Technical Library uses a shared vocabulary across suppliers:
+System Products, Installation Type, Barrier Type, Barrier Construction, Service,
+Service Size / Configuration, Maximum Opening Size, Service Wrap, Local
+Protection, Seal Depth / Fillet Size, Joint Treatment, Installation Details,
+Diagrams & Figures, and Report Number. ID, Manufacturer, FRL, Collar, Edge
+Profile and applicable spacing/gap fields remain distinct. **Blank Seal FRL**
+is the rating of an opening without services, not a fallback for a missing FRL.
+Lead Time is omitted. Empty fields are omitted, while explicit None/Wrap Free
+values remain visible.
+
+This deterministic presentation is applied after source validation, before
+technical search and detail responses. Original source fields, report files and
+source fingerprints are unchanged; existing saved technical links retain their
+source identity. Original field text and extraction metadata are retained in
+`technical_basis` in the detail data, which is not rendered in the UI. It is not
+part of technical search. Source Document Coverage appears beside the diagrams
+rather than as an ordinary parameter.
+
+Repeated technical facts have one owning field. For example, explicit service
+dimensions move to Service Size / Configuration, and installation actions can
+refer to that configuration. Conditional size-to-wrap mappings use paired
+configuration identifiers: service dimensions appear in the configuration
+table and wrap requirements in the matching wrap table. Source alternatives,
+negations, qualified values and original table row pairings remain intact;
+normalization does not infer missing limits or choose between conflicting
+sources. Unresolved differences remain visible in Source Issues. Different
+source tables may be returned as `tables` alongside the existing single `table`
+format; the UI renders every table separately.
+
+Source-specific editorial reviews stay in the private installed bundle as
+`technical_field_review`, containing reviewed `fields` and SHA-256 fingerprints
+of both `source_fields` and the generic pre-review projection. Both must match
+before the review is applied; changed evidence requires a fresh review. Reviewed
+tables and image IDs pass the same validation as imported fields. The public
+application contains the generic projection and synthetic tests, not supplier
+source passages. Installing a reviewed index retains the original source fields.
+
+Diagram and figure aliases share one field, preserving image identity, captions,
+source roles and page references. Duplicate references to the same image use one
+thumbnail with all distinct captions. Source instructions remain source-bound;
+the field projection does not change calculator inputs, formulas, saved
+projects, prices or Firestopping Library records.
 
 The Technical Library's **Source information** links identify the pages that
 contain that entry's actual table row, including continued rows. Table-wide

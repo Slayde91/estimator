@@ -149,6 +149,19 @@ class LibrarySubstrateTests(unittest.TestCase):
         facts = {'support-heading-example': ('source', _fingerprint(item['fields']), (2,), ('FIREFLYBatt floor',))}
         with patch.dict('estimator.library_substrates._REVIEWED_RECORDS', facts, clear=True), patch.dict('estimator.library_substrates._REVIEWED_DOCUMENTS', {'source': 'a' * 64}, clear=True):
             self.assertEqual(classify(item), {'FIREFLYBatt floor'})
+            projected = deepcopy(item)
+            projected['fields'] = [{'label': 'Barrier Construction', 'value': '', 'table': {
+                'columns': ['Max Aperture Size', 'Separating Element', 'FRL'],
+                'rows': [['600 × 600 mm', 'Any fire resistant wall', '-/60/60']]}}]
+            self.assertEqual(classify_substrates(item, projected), ['FIREFLYBatt floor'])
+
+    def test_blank_seal_table_classifies_each_separating_element(self):
+        item = record(('Orientation', 'Vertical'))
+        item['fields'].append({'label': 'Barrier Construction', 'value': '', 'table': {
+            'columns': ['Max Aperture Size', 'Separating Element', 'FRL'],
+            'rows': [['600 × 600 mm', 'Plasterboard wall', '-/60/60'],
+                     ['900 × 900 mm', 'Concrete/masonry wall', '-/120/120']]}})
+        self.assertEqual(classify(item), {'Plasterboard wall', 'Concrete/masonry wall'})
 
     def test_unknown_material_does_not_become_a_known_substrate_from_orientation_alone(self):
         self.assertEqual(classify(record(('Barrier Construction', 'Unspecified proprietary panel'), ('Orientation', 'Vertical'))), set())

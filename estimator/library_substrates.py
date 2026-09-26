@@ -276,7 +276,7 @@ def _table_evidence(source, fields, fallback=(), source_documents=None):
             if not any(re.search(r'\bfrl\b|approved\s+wall', str(column), re.I) for column in columns):
                 continue
             for column_index, column in enumerate(columns):
-                if not re.fullmatch(r'(?:approved\s+walls?(?:\s+systems?)?|type\s+of\s+wall|wall\s+thickness|ceiling\s+construction|supporting\s+(?:wall|floor)\s+construction|floor\s+scope|substrate|barrier)', _text(column), re.I):
+                if not re.fullmatch(r'(?:approved\s+walls?(?:\s+systems?)?|type\s+of\s+wall|wall\s+thickness|ceiling\s+construction|supporting\s+(?:wall|floor)\s+construction|floor\s+scope|substrate|barrier|separating\s+element)', _text(column), re.I):
                     continue
                 row_types = set().union(*(_types(str(row[column_index])) for row in table.get('rows', [])))
                 context = row_types if row_types else set(fallback)
@@ -327,7 +327,11 @@ def classification_evidence(source, projected, *, selector_capture=None, source_
     field_fallback = fallback if len(fallback) <= 1 or not evidence else set()
     evidence += [(field['label'], field.get('value', ''), field_fallback, False)
                  for field in fields if field.get('label') in _BARRIER_FIELDS and not reviewed]
-    evidence += _table_evidence(source, fields, fallback, source_documents)
+    # Exact reviewed facts also cover source columns that describe perimeter
+    # supports. Moving those cells into a display table must not turn them into
+    # an additional penetrated substrate.
+    if not reviewed:
+        evidence += _table_evidence(source, fields, fallback, source_documents)
     if any(field.get('label') == 'Substrate' for field in fields):
         evidence += [(origin, text, kinds, False) for origin, text, kinds in _penetration_bullets(source, projected)]
     if source.get('id', '').startswith('fas190235-') and not any(field.get('label') in _BARRIER_FIELDS for field in fields) and _document_matches(source, 'fas190235', 'a61e53af7ad9d54fbec0302ddc90ee261248ac8e73d54504cef5319295722819', source_documents):

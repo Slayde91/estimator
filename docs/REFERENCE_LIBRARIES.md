@@ -37,6 +37,33 @@ and document fingerprint. A different source version does not inherit them:
 These facts supply search categories only. All rating, lining, support and
 installation conditions remain in the original source evidence.
 
+### Firefly blank-seal barrier tables
+
+Reviewed Firefly blank-seal entries place their complete construction alternatives
+in one **Barrier Construction** table: **Max Aperture Size**, **Separating Element**
+and **FRL**. Distinct substrates have separate rows; a composite assembly remains
+one construction. Repeated rating-capability text and generated source-option
+labels are omitted from the construction description. Necessary installation,
+fire-direction and supporting-construction conditions remain associated with
+their rows or installation details.
+
+**Blank Seal FRL** shows the lowest and highest comparable stated ratings, or one
+rating when they are equal. It never combines separate rating components into a
+new FRL. **Maximum Opening Size** shows a reviewed stated maximum; it does not
+combine a width from one construction with a height from another. Both fields
+link to the complete barrier table.
+
+`estimator.firefly_barrier_review.build_barrier_review` builds the private
+`technical_field_review` from an explicitly reviewed row inventory. Flattened
+source option lists must not be zipped by position: PDF merged cells can span
+different numbers of aperture, construction and rating rows. The import review
+retains the page and cell-span evidence for every relationship. The existing
+configuration proof binds the completed table to the source document and its
+first attached page; it does not independently interpret the remaining PDF
+pages. Load the full candidate and compare its complete inventory with the
+source review before installing it with a backup. Imported fields, source
+documents, diagrams, identifiers and saved calculation inputs remain intact.
+
 Firestopping records display stable identifiers such as `FL-ID-001`, their
 **Library price**, source table fields, and original in-cell PNG
 diagrams. The internal legacy record IDs remain unchanged so existing links

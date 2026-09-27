@@ -117,7 +117,10 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         self.assertEqual(detail['price']['amount'], created['price']['amount'])
         choices = next(field['options'] for field in self.get('/api/penetration')['row_fields']
                        if field['column'] == 'K')
-        self.assertIn(body['draft']['rows'][0]['inputs']['K'], choices)
+        technical_choices = next(field['options'] for field in self.get('/api/libraries/technical')['filters']
+                                 if field['key'] == 'services')
+        self.assertEqual(choices, [option['value'] for option in technical_choices])
+        self.assertEqual(created['draft']['rows'][0]['inputs']['K'], body['draft']['rows'][0]['inputs']['K'])
         self.assertEqual(self.get('/api/libraries/penetration?manufacturer=FIREFLY')['total'], 1)
         self.assertEqual(self.protected(), before)
         self.restart_server()

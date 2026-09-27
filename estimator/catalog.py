@@ -143,7 +143,7 @@ def validate_catalog(value):
     inventory_ids = set()
     inventory_fields = {"id", "item_code", "name", "sales_description", "product_service", "supplier_price", "supplier_price_raw",
                         "sales_price", "calculated_sell_price", "pricing_mode", "markup", "status", "inventory_type", "properties", "source",
-                        "firestopping_groups"}
+                        "firestopping_groups", "pricing_yield"}
     firestopping_keys = {group["key"] for group in FIRESTOPPING_GROUPS}
     for item in data["inventory"]:
         if not isinstance(item, dict) or set(item) - inventory_fields:
@@ -167,6 +167,8 @@ def validate_catalog(value):
         if not isinstance(item.get("pricing_mode"), str) or item["pricing_mode"] not in {"supplier_markup", "manual"}:
             raise ValidationError(f"Inventory {key} has an unsupported pricing mode.")
         _amount(item.get("sales_price"), f"Inventory {key} sales price")
+        if "pricing_yield" in item:
+            _amount(item["pricing_yield"], f"Inventory {key} stored yield", blank=True)
         _amount(item.get("markup"), f"Inventory {key} markup", minimum=-1)
         if item.get("supplier_price") is not None or item["pricing_mode"] == "supplier_markup":
             _amount(item.get("supplier_price"), f"Inventory {key} supplier price")
@@ -196,7 +198,7 @@ def validate_catalog(value):
         if not isinstance(item.setdefault("source", {}), dict):
             raise ValidationError(f"Inventory {key} source must be an object.")
     rate_ids = set()
-    rate_fields = {"id", "name", "display_name", "product_service", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode"}
+    rate_fields = {"id", "name", "display_name", "product_service", "price", "yield", "yield_unit", "inventory_id", "source", "uses_yield", "price_mode", "supplier_price", "markup", "pricing_yield"}
     for group, rows in groups.items():
         if not isinstance(rows, list):
             raise ValidationError(f"Rate group {group} must be a list.")
@@ -227,6 +229,11 @@ def validate_catalog(value):
             if not isinstance(mode, str) or mode not in {"inventory", "override"} or (mode == "inventory" and linked is None):
                 raise ValidationError(f"Rate {key} has an unsupported pricing mode or is missing its linked product.")
             _amount(rate.get("price"), f"Rate {key} price")
+            if "pricing_yield" in rate:
+                _amount(rate["pricing_yield"], f"Rate {key} stored yield", blank=True)
+            if "supplier_price" in rate or "markup" in rate:
+                _amount(rate.get("supplier_price"), f"Rate {key} supplier price")
+                _amount(rate.get("markup"), f"Rate {key} markup", minimum=-1)
             if "uses_yield" in rate and (type(rate["uses_yield"]) is not bool or rate["uses_yield"] != uses_yield):
                 raise ValidationError(f"Rate {key} cannot change whether its category uses a yield.")
             rate["uses_yield"] = uses_yield
@@ -280,29 +287,30 @@ def validate_configuration(value, data=None):
         edits = value.get(category, {})
         if not isinstance(edits, dict):
             raise ValidationError(f"{category} overrides must be an object.")
-        allowed = ({"supplier_price", "markup", "sales_price", "name", "sales_description", "product_service"}
-                   if category == "inventory" else {"price", "yield", "product_service"})
+        allowed = ({"supplier_price", "markup", "sales_price", "name", "sales_description", "product_service", "pricing_yield"}
+                   if category == "inventory" else {"price", "yield", "product_service", "supplier_price", "markup", "pricing_yield"})
         for key, changes in edits.items():
             if key not in records[category] or not isinstance(changes, dict) or set(changes) - allowed:
                 raise ValidationError(f"Unknown {category} item or field: {key}.")
             record = records[category][key]
+            direct_price = "sales_price" if category == "inventory" else "price"
+            if direct_price in changes and {"supplier_price", "markup"} & changes.keys():
+                raise ValidationError(f"{key}: Use supplier price and markup, or a legacy direct price, not both.")
             for field, field_value in changes.items():
                 if field == "yield" and not has_yield(record):
                     raise ValidationError(f"{key} does not use a material yield.")
                 if field in {"name", "sales_description", "product_service"}:
                     _text(field_value, f"{key}.{field}")
                 else:
-                    if field == "yield" and (field_value is None or field_value == ""):
+                    if field in {"yield", "pricing_yield"} and (field_value is None or field_value == ""):
                         # VLOOKUP distinguishes a genuinely blank cell (zero) from
                         # a formula returning empty text (#VALUE! when dividing).
                         continue
                     finite_number(field_value, f"{key}.{field}")
-                    if field in {"supplier_price", "sales_price", "price", "yield"} and field_value < 0:
+                    if field in {"supplier_price", "sales_price", "price", "yield", "pricing_yield"} and field_value < 0:
                         raise ValidationError(f"{key}.{field} cannot be negative.")
                     if field == "markup" and field_value < -1:
                         raise ValidationError("Markup cannot be below -100%.")
-                    if category == "inventory" and field in {"supplier_price", "markup"} and record["pricing_mode"] != "supplier_markup":
-                        raise ValidationError(f"{key} has a manual selling price; edit that price instead.")
                     if category == "inventory" and field == "sales_price" and record["pricing_mode"] == "supplier_markup":
                         raise ValidationError(f"{key} selling price is calculated from supplier price and markup.")
             result[category][key] = deepcopy(changes)
@@ -316,6 +324,8 @@ def effective_catalog(configuration=None, data=None):
     inventory = {}
     for item in data["inventory"]:
         patch = edits["inventory"].get(item["id"], {})
+        if item["pricing_mode"] == "manual" and {"supplier_price", "markup"} & patch.keys():
+            item.update(supplier_price=item["sales_price"], markup=0, pricing_mode="supplier_markup")
         item.update(patch)
         # Keep the imported H value until a pricing input changes. The workbook's
         # inventory H is a stored sales price, not a live reference to O/P.
@@ -333,7 +343,18 @@ def effective_catalog(configuration=None, data=None):
                 # Selection keys remain stable when the catalog display text is edited.
                 name_field = "sales_description" if data["rate_group_rules"][group]["name_column"] == "G" else "name"
                 rate["display_name"] = patch.get(name_field, rate.get("display_name", rate["name"]))
-            rate.update(edits["rates"].get(rate["id"], {}))
+            rate_patch = edits["rates"].get(rate["id"], {})
+            if {"supplier_price", "markup"} & rate_patch.keys():
+                rate.setdefault("supplier_price", rate["price"])
+                rate.setdefault("markup", 0)
+                rate.update(rate_patch)
+                rate["price"] = rate["supplier_price"] * (1 + rate["markup"])
+                rate["price_mode"] = "override"
+            else:
+                rate.update(rate_patch)
+                if "price" in rate_patch:
+                    rate.pop("supplier_price", None)
+                    rate.pop("markup", None)
             # A single product label is presentation metadata. Raw rate names,
             # IDs, prices and yields remain the calculator's stable inputs.
             label = (linked or {}).get("product_service") or rate.get("product_service")

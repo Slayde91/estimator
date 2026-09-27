@@ -1161,6 +1161,11 @@ def import_pricing_workbook(payload, filename, current_configuration):
             rate.update({"id": identity, "name": name, "inventory_id": linked_id,
                          "price": price, "price_mode": price_mode,
                          "yield": yield_value, "uses_yield": uses_yield})
+            if old and price != old["price"]:
+                # A legacy workbook sell-rate edit starts a new zero-markup
+                # supplier basis rather than retaining stale cost metadata.
+                rate.pop("supplier_price", None)
+                rate.pop("markup", None)
             if "_product_service" in row:
                 if row["_product_service"] is None:
                     rate.pop("product_service", None)

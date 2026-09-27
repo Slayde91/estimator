@@ -14,7 +14,7 @@ CATEGORIES = ('Electrical & Communications', 'Mechanical', 'HVAC',
               'Blank Seal', 'Bulkheads')
 SERVICES = ('Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
             'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables',
-            'D2 Comms Cables', 'Data Cable Bundles', 'Downlight Box',
+            'D2 Comms Cables', 'Data Cable Bundles',
             'Downlights', 'Fibre Optic', 'Fire Dampers', 'Fire Resistant Cables',
             'Flexible Ducts', 'Junction Box', 'Lagged Pipes', 'Linear Joints',
             'Mixed Services', 'Movement Joints', 'Pair Coils',
@@ -28,7 +28,7 @@ SERVICE_ALIASES = {'mixed service bundle': 'Mixed Services',
                    'pair coil bundle': 'Pair Coils',
                    'pair coil bundles': 'Pair Coils',
                    'pair coils': 'Pair Coils'}
-HIDDEN_SERVICES = {'Floor/Deck Boxes'}
+HIDDEN_SERVICES = {'Floor/Deck Boxes', 'Downlight Box'}
 FACETS = {'category': ('Category', CATEGORIES), 'services': ('Services', SERVICES),
           'frl': ('FRL', FRLS)}
 
@@ -296,5 +296,6 @@ def facet_options(key, observed):
     if key == 'frl':
         observed = set(observed) - HIDDEN_FRLS
     elif key == 'services':
+        preferred = tuple(value for value in preferred if value not in HIDDEN_SERVICES)
         observed = set(canonical_services(observed)) - HIDDEN_SERVICES
     return list(preferred) + sorted(set(observed) - set(preferred), key=str.casefold)

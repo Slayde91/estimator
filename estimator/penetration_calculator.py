@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
+from .library_facets import facet_options
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
 from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
@@ -379,7 +380,7 @@ def definition(configuration=None, service_types=None):
     calc = _sheet('CALC')['cells']
     fields = []
     descriptions = {
-        'K': sorted({canonical_service_type(value) for value in (*SERVICE_TYPES, *(service_types or ()))}, key=str.casefold),
+        'K': facet_options('services', [canonical_service_type(value) for value in (service_types or ())]),
         'V': list(MANUFACTURERS),
     }
     for group, columns in GROUP_COLUMNS.items():

@@ -28,11 +28,11 @@ a{color:inherit}
 .brand-stack .status-label{margin:0 0 0 20px;background:#e6f4ec;color:#1b653c}
 .brand-stack .status-label.unsaved{background:#fff1bf;color:#775300}
 .brand-logo{display:block;width:200px;max-width:100%;height:auto}
-.app-header nav{display:flex;gap:7px;padding:5px;background:#f7f4f5;border-radius:11px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.app-header nav{display:flex;gap:7px;padding:5px;background:#111;border-radius:11px;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .app-header nav::-webkit-scrollbar{display:none}
-.nav-button{color:#6c6067;background:none;padding:10px 17px;font-size:13px;font-weight:650;border-radius:7px;transition:background .15s,color .15s,box-shadow .15s;flex-shrink:0}
-.nav-button:hover{color:var(--accent);background:#fff}
-.nav-button.active{color:var(--accent);background:white;box-shadow:0 2px 6px #3b202915,inset 0 -2px 0 var(--red)}
+.nav-button{color:#fff;background:none;padding:10px 17px;font-size:13px;font-weight:650;border-radius:7px;transition:background .15s,color .15s,box-shadow .15s;flex-shrink:0}
+.nav-button:hover{color:#111;background:#fff}
+.nav-button.active{color:#fff;background:#b90a15;box-shadow:inset 0 -2px 0 #fff}
 .local-badge{margin-left:auto;font-size:11px;white-space:nowrap;color:#766b72}
 .local-badge>span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);margin-right:7px}
 main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh - 155px)}
@@ -182,8 +182,8 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-controls>.field{max-width:230px}
 .pricing-controls .search-field{margin-left:0;flex:1;width:auto;max-width:560px}
 .pricing-table{min-width:850px;margin-top:15px}
-.pricing-table th:first-child{width:100px}
-.pricing-table th:nth-child(2){min-width:280px}
+.pricing-table th:first-child{min-width:280px}
+.pricing-table th:nth-child(2){min-width:110px}
 .pricing-table input{font-size:12px;padding:9px}
 .pricing-table input[type=number]{min-width:95px;max-width:140px;text-align:right}
 .pricing-table .item-name{min-width:240px}
@@ -300,3 +300,8 @@ dialog .actions{justify-content:flex-end}
 .project-browser-entry-name{min-width:0;overflow-wrap:anywhere;font-weight:650}
 .project-browser-entry-meta{color:var(--muted);font-size:11px;white-space:nowrap}
 @media (max-width: 570px) { .brand-stack .status-label { margin-left: 0; } .project-list-controls > .field { width: 100%; min-width: 0; } }
+
+.project-file-symbol{display:inline-flex;position:relative;align-items:center;justify-content:center;width:30px;height:34px;border:1.6px solid currentColor;border-radius:3px;font-size:8px;font-weight:800;color:#333;background:#fff}
+.project-file-symbol.pdf{color:#b90a15}.project-file-symbol.image{color:#333}.project-file-symbol.sheet{color:#17663c}.project-file-symbol svg{width:22px;height:22px}
+
+.gear-symbol { color: #111; }

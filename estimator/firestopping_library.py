@@ -702,13 +702,11 @@ class FirestoppingLibrary(ReferenceLibrary):
                 return []
             if not data:
                 return []
-            values = set()
-            for item in data['_records']['penetration'].values():
-                selected = [field['value'] for field in item.get('fields', []) if field.get('column') == 'K']
-                if not selected:
-                    selected = item.get('filter_values', {}).get('service_type', [])
-                values.update(canonical_service_type(value) for value in selected if value.strip())
-            return sorted(values, key=str.casefold)
+            # Use the same ordered choices as Technical Library discovery.
+            # Saved custom descriptions remain accepted in existing rows.
+            services = next((entry for entry in data['_filters']['technical']
+                             if entry['key'] == 'services'), None)
+            return [entry['value'] for entry in services['options']] if services else []
 
     @staticmethod
     def _technical_source(item, data):

@@ -46,6 +46,15 @@ def editable_library(root):
 
 
 class FirestoppingLibraryTests(unittest.TestCase):
+    def test_service_choices_match_technical_library_exactly(self):
+        listing = self.library.listing('technical')
+        expected = next(field['options'] for field in listing['filters'] if field['key'] == 'services')
+        choices = self.library.service_types()
+        self.assertEqual(choices, [entry['value'] for entry in expected])
+        field = next(field for field in definition(service_types=choices)['row_fields'] if field['column'] == 'K')
+        self.assertEqual(field['options'], choices)
+        self.assertNotIn('Downlight Box', choices)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

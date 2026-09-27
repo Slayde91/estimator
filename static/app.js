@@ -842,8 +842,10 @@
   function setOverride(kind, item, field, value) {
     state.draft[kind] ||= {};
     state.draft[kind][item.id] ||= {};
-    const baseValue = kind === "rates" && field === "price" ? rateDefaultPrice(item) : item[field];
-    if ((value === "" && field !== "yield") || value === baseValue) delete state.draft[kind][item.id][field];
+    const baseValue = kind === "rates" && field === "price" ? rateDefaultPrice(item)
+      : field === "supplier_price" ? (kind === "inventory" && item.pricing_mode === "manual" ? item.sales_price : item.supplier_price ?? item.price)
+      : field === "markup" ? (kind === "inventory" && item.pricing_mode === "manual" ? 0 : item.markup ?? 0) : item[field];
+    if ((value === "" && !["yield", "pricing_yield"].includes(field)) || value === baseValue) delete state.draft[kind][item.id][field];
     else state.draft[kind][item.id][field] = value;
     if (!Object.keys(state.draft[kind][item.id]).length) delete state.draft[kind][item.id];
     markPricingDirty();
@@ -860,11 +862,19 @@
     input.addEventListener("input", () => {
       let value = input.value;
       if (!options.text) value = editedNumber(input, options.percent);
+      if (["supplier_price", "markup"].includes(key)) {
+        const legacyKey = kind === "inventory" ? "sales_price" : "price";
+        const prior = getOverride(kind, item.id);
+        if (Object.hasOwn(prior, legacyKey)) {
+          const price = prior[legacyKey]; delete prior[legacyKey];
+          setOverride(kind, item, "supplier_price", price); setOverride(kind, item, "markup", 0);
+        }
+      }
       setOverride(kind, item, key, value);
       const row = input.closest("tr");
       row.classList.toggle("edited", !!state.draft[kind][item.id]);
       const output = row.querySelector("[data-sell-preview]");
-      if (output) output.textContent = formatMoney(inventorySellPrice(item));
+      if (output) output.textContent = formatMoney(kind === "inventory" ? inventorySellPrice(item) : rateSellPrice(item));
       options.onChange?.();
     });
     if (!options.text) input.addEventListener("blur", () => {
@@ -878,8 +888,8 @@
     const override = getOverride("inventory", item.id);
     if (Object.hasOwn(override, "sales_price")) return override.sales_price;
     if (Object.hasOwn(override, "supplier_price") || Object.hasOwn(override, "markup")) {
-      const supplier = override.supplier_price ?? item.supplier_price;
-      return isNumber(supplier) ? supplier * (1 + (override.markup ?? item.markup ?? 0)) : item.sales_price;
+      const supplier = override.supplier_price ?? (item.pricing_mode === "manual" ? item.sales_price : item.supplier_price);
+      return isNumber(supplier) ? supplier * (1 + (override.markup ?? (item.pricing_mode === "manual" ? 0 : item.markup) ?? 0)) : item.sales_price;
     }
     return item.sales_price;
   }
@@ -887,6 +897,7 @@
   function rateSellPrice(item) {
     const override = getOverride("rates", item.id);
     if (Object.hasOwn(override, "price")) return override.price;
+    if (Object.hasOwn(override, "supplier_price") || Object.hasOwn(override, "markup")) return (override.supplier_price ?? item.supplier_price ?? rateDefaultPrice(item)) * (1 + (override.markup ?? item.markup ?? 0));
     return rateDefaultPrice(item);
   }
 
@@ -1117,13 +1128,13 @@
     const mixed = values.some((value) => value !== values[0]);
     // Both stored blank kinds look empty; retain their distinct calculation
     // values until the user actually edits the yield.
-    const value = !values.length ? "" : mixed ? "Mixed" : values[0] === null || values[0] === "" ? "" : String(values[0]);
+    const override = getOverride(record.kind, record.item.id);
+    const stored = Object.hasOwn(override, "pricing_yield") ? override.pricing_yield : record.item.pricing_yield;
+    const value = !values.length ? (stored ?? "") : mixed ? "Mixed" : values[0] === null || values[0] === "" ? "" : String(values[0]);
     return { uses, values, units, mixed, value };
   }
   function setSharedPricingYield(record, text) {
     const shared = sharedPricingYield(record), token = text.trim().toLowerCase();
-    if (!shared.uses.length) throw new Error("This item does not use a yield.");
-    if (shared.units.length > 1) throw new Error("This item has different yield units. Its individual yields must be retained; edit them separately in the workbook's hidden Use yields fields.");
     let value;
     if (!token || token === "blank") value = null;
     else if (token === "empty text") value = "";
@@ -1131,6 +1142,7 @@
       if (!/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/.test(token) || !Number.isFinite(Number(token)) || Number(token) > 1e12) throw new Error("Yield must be one nonnegative number or left blank. Semicolon lists are not needed.");
       value = Number(token);
     }
+    if (!shared.uses.length) setOverride(record.kind, record.item, "pricing_yield", value);
     for (const { item } of shared.uses) setOverride("rates", item, "yield", value);
   }
   function setPricingUses(record, labels) {
@@ -1227,7 +1239,7 @@
       ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save or Save As then stores them in the project file."
       : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.";
     const heading = node("tr");
-    for (const title of ["Item code", "Product/Service", "Supplier price", "Markup %", "Sell price", "Estimator availability", "Yield", "Yield unit", "Actions"])
+    for (const title of ["Product/Service", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
       heading.append(node("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
@@ -1236,33 +1248,17 @@
       const { item, kind, uses } = record, inventoryView = kind === "inventory";
       const row = node("tr", state.draft[kind]?.[item.id] ? "edited" : "");
       row.dataset.priceId = item.id; row.dataset.priceKind = kind;
-      const codeCell = node("td");
-      if (inventoryView) codeCell.append(pricingListInput(record, "Item code", [item.item_code ?? ""], (values) => {
-        if (values.length > 1 || (values[0] || "").length > 200) throw new Error("Enter one item code of at most 200 characters.");
-        editPricingCatalog((catalog) => { catalog.inventory.find((entry) => entry.id === item.id).item_code = values[0] || ""; });
-      }));
-      else codeCell.textContent = "—";
-      row.append(codeCell);
       const nameCell = node("td");
       nameCell.append(pricingFieldInput(record, "Product/Service", productServiceName(record), (text) => setProductService(record, text), "", true));
-      const detail = inventoryView ? (item.pricing_mode === "manual" ? "Manual sell price" : "Supplier price and markup") : "Standalone rate · no inventory link";
-      nameCell.append(node("small", "subtext", detail));
-      const firestopping = usedInFirestopping(record);
-      if (!uses.length && !firestopping) nameCell.append(node("small", "subtext", "Not used in either estimator"));
       row.append(nameCell);
       if (inventoryView) {
         const supplier = node("td");
         const markup = node("td");
-        if (item.pricing_mode === "manual") {
-          supplier.textContent = formatMoney(item.supplier_price);
-          markup.textContent = "—";
-        } else {
-          supplier.append(priceInput(kind, item, "supplier_price", { label: "Supplier price", onChange: refreshPrices }));
-          markup.append(priceInput(kind, item, "markup", { percent: true, label: "Markup", onChange: refreshPrices }));
-        }
-        const sell = node("td");
-        if (item.pricing_mode === "manual") sell.append(priceInput(kind, item, "sales_price", { label: "Manual sell price", onChange: refreshPrices }));
-        else { const output = node("span", "price-value", formatMoney(inventorySellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output); }
+        const legacyPrice = getOverride(kind, item.id).sales_price;
+        supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: legacyPrice ?? (item.pricing_mode === "manual" ? item.sales_price : item.supplier_price), label: "Supplier price", onChange: refreshPrices }));
+        markup.append(priceInput(kind, item, "markup", { defaultValue: legacyPrice !== undefined || item.pricing_mode === "manual" ? 0 : item.markup, percent: true, label: "Markup", onChange: refreshPrices }));
+        const sell = node("td"), output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
+        output.dataset.sellPreview = "true"; sell.append(output);
         const rateNotice = node("small", "subtext pricing-rate-notice");
         refreshers.push(() => {
           const separate = uses.filter(({ item: rate }) => Object.hasOwn(getOverride("rates", rate.id), "price") || rate.price_mode === "override" || rateSellPrice(rate) !== inventorySellPrice(item));
@@ -1271,32 +1267,31 @@
         });
         sell.append(rateNotice); row.append(supplier, markup, sell);
       } else {
-        const sell = node("td"); sell.append(priceInput(kind, item, "price", { defaultValue: rateSellPrice(item), label: "Sell price", onChange: refreshPrices }));
-        row.append(node("td", "", "—"), node("td", "", "—"), sell);
+        const supplier = node("td"), markup = node("td"), sell = node("td");
+        supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: getOverride(kind, item.id).price ?? item.supplier_price ?? rateSellPrice(item), label: "Supplier price", onChange: refreshPrices }));
+        markup.append(priceInput(kind, item, "markup", { defaultValue: Object.hasOwn(getOverride(kind, item.id), "price") ? 0 : item.markup ?? 0, percent: true, label: "Markup", onChange: refreshPrices }));
+        const output = node("span", "price-value", formatMoney(rateSellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output);
+        row.append(supplier, markup, sell);
       }
       const groupCell = node("td", "pricing-availability");
-      groupCell.append(node("small", "pricing-availability-label", "Main Estimator groups"));
       groupCell.append(pricingListInput(record, "Main Estimator groups", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
-      groupCell.append(node("small", "pricing-availability-label", "Firestopping Estimator groups"));
+      const firestoppingCell = node("td", "pricing-availability");
       const firestoppingInput = pricingListInput(record, "Firestopping Estimator groups", firestoppingGroupLabels(record), (values) => setFirestoppingGroups(record, values), inventoryView ? "Not used in Firestopping Estimator" : "Requires an inventory product");
-      firestoppingInput.disabled = !inventoryView;
-      groupCell.append(firestoppingInput);
-      row.append(groupCell);
+      firestoppingInput.disabled = !inventoryView; firestoppingCell.append(firestoppingInput);
+      row.append(groupCell, firestoppingCell);
       const shared = sharedPricingYield(record), yieldCell = node("td");
-      if (shared.uses.length) {
-        const input = pricingFieldInput(record, "Yield", shared.value, (text) => setSharedPricingYield(record, text));
-        input.readOnly = shared.units.length > 1;
-        yieldCell.append(input);
-        if (shared.mixed || shared.units.length > 1) yieldCell.append(node("small", "subtext", shared.units.length > 1 ? "Different units: individual yields retained." : "Different saved yields: enter one value to apply it to all uses."));
-      } else yieldCell.textContent = "—";
-      row.append(yieldCell, node("td", "pricing-yield-unit", shared.units.join("; ")));
+      const input = pricingFieldInput(record, "Yield", String(shared.value), (text) => setSharedPricingYield(record, text));
+      input.title = shared.units.join("; ") || "Stored yield; not used by this item's current calculation groups";
+      yieldCell.append(input);
+      if (shared.mixed || shared.units.length > 1) yieldCell.append(node("small", "subtext", "Different saved yields: enter one value to apply it to all uses."));
+      row.append(yieldCell);
       const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only");
       remove.type = "button"; remove.dataset.pricingRemove = item.id; remove.title = `Remove ${productServiceName(record) || item.name}`; remove.setAttribute("aria-label", remove.title);
       const removeIcon = node("span", "button-symbol", "🗑︎"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
       remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(reset);
       rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 9; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = node("td", "empty-state", "No matching products or rates."); cell.colSpan = 8; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();
@@ -1693,6 +1688,21 @@
     finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
   }
 
+  function projectFileIcon(entry) {
+    const icon = node("span", "project-browser-entry-symbol"); icon.setAttribute("aria-hidden", "true");
+    if (entry.type === "folder") { icon.textContent = "📁"; return icon; }
+    const extension = String(entry.name).split(".").pop().toLowerCase();
+    const image = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "tif", "tiff", "heic"].includes(extension);
+    const sheet = ["xls", "xlsx", "csv", "ods"].includes(extension);
+    const label = extension === "pdf" ? "PDF" : sheet ? "XLS" : ["doc", "docx", "odt"].includes(extension) ? "DOC"
+      : ["zip", "7z", "rar"].includes(extension) ? "ZIP" : ["mp3", "wav", "m4a"].includes(extension) ? "AUDIO"
+      : ["mp4", "mov", "avi", "webm"].includes(extension) ? "VIDEO" : ["json", "txt", "md"].includes(extension) ? extension.toUpperCase() : "FILE";
+    icon.className += ` project-file-symbol${image ? " image" : extension === "pdf" ? " pdf" : sheet ? " sheet" : ""}`;
+    if (image) icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="3" width="20" height="18" rx="2"></rect><circle cx="8" cy="8" r="2"></circle><path d="m3 19 6-7 4 4 3-4 5 7"></path></svg>';
+    else icon.textContent = label;
+    return icon;
+  }
+
   const projectFileSize = value => {
     const bytes = Number(value);
     if (!Number.isFinite(bytes) || bytes < 0) return "";
@@ -1752,7 +1762,7 @@
       state.projectBrowserPath = data.relative_path || ""; renderProjectBreadcrumbs(data.project, state.projectBrowserPath);
       const entries = (data.entries || []).map(entry => {
         const button = node("button", "project-browser-entry"); button.type = "button";
-        const symbol = node("span", "project-browser-entry-symbol", entry.type === "folder" ? "📁" : "📄"); symbol.setAttribute("aria-hidden", "true");
+        const symbol = projectFileIcon(entry);
         const name = node("span", "project-browser-entry-name", entry.name);
         const meta = node("span", "project-browser-entry-meta", entry.type === "folder" ? "Folder" : [projectFileSize(entry.size), entry.modified_at ? new Date(entry.modified_at).toLocaleString("en-AU") : ""].filter(Boolean).join(" · "));
         button.append(symbol, name, meta);

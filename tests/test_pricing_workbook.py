@@ -659,6 +659,24 @@ def raw_pricing_text(payload, replacements, *, shared=False):
     return payload
 
 
+class CostInputRoundTripTests(unittest.TestCase):
+    def test_cost_metadata_and_unused_yield_survive_current_workbook(self):
+        from estimator.pricing_workbook import export_pricing_workbook as export_current
+        config = {'inventory': {'915': {'supplier_price': 2345.123456, 'markup': .15, 'pricing_yield': 7.25}},
+                  'rates': {'mesh:2': {'supplier_price': 45.123456, 'markup': .2}}}
+        expected = effective_catalog(config)
+        result = import_pricing_workbook(export_current(config), 'pricing.xlsx', config)
+        actual = effective_catalog(result['configuration'])
+        product = next(row for row in actual['inventory'] if row['id'] == '915')
+        self.assertEqual(product['pricing_yield'], 7.25)
+        self.assertEqual(product['sales_price'], 2345.123456 * 1.15)
+        rate = next(row for row in actual['rate_groups']['mesh'] if row['id'] == 'mesh:2')
+        self.assertEqual(rate['price'], 45.123456 * 1.2)
+        self.assertEqual(rate['supplier_price'], 45.123456)
+        self.assertEqual(rate['markup'], .2)
+        self.assertEqual(calculate({}, config)['cells'], calculate({}, result['configuration'])['cells'])
+
+
 class CompactPricingWorkbookTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

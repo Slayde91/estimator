@@ -8,6 +8,7 @@ import re
 
 from .technical_rating_summary import summarize_ratings
 from .technical_table_navigation import field_tables, validate_table_navigation
+from .library_facets import frl_values, UNWRAPPED_RATING
 
 
 _OPTION = re.compile(r'\bSource options?\s+(\d+(?:\s*(?:,|and)\s*\d+)*)\s*:\s*', re.I)
@@ -100,7 +101,7 @@ def present_options(item):
 
 
 def technical_title(item):
-    """Use the same projected service, rating facets and orientation as detail."""
+    """Use projected fields, omitting explicitly separate unwrapped title ratings."""
     fields = {field['label']: field['value'] for field in item.get('fields', [])}
     facets = item.get('filter_values', {})
     manufacturer = ', '.join(facets.get('manufacturer', [])) or fields.get('Manufacturer') or 'Unknown manufacturer'
@@ -108,6 +109,13 @@ def technical_title(item):
     identity = re.sub(r'^sys_var_(\d+)_au(?:\s+\(\+\d+ variants listed below\))?$', r'\1', identity.strip(), flags=re.I)
     service = fields.get('Service') or ', '.join(facets.get('services', [])) or fields.get('Installation Type') or 'Service not specified'
     ratings = facets.get('frl', [])
+    if any(UNWRAPPED_RATING.search(f.get('value', ''))
+           or any(UNWRAPPED_RATING.search(c) for t in field_tables(f) for c in t['columns'])
+           for f in item.get('fields', [])):
+        standard = frl_values(item, include_unwrapped=False)
+        # An unwrapped-only system still needs its own observed title rating.
+        if summarize_ratings(standard)['ratings']:
+            ratings = standard
     rating = summarize_ratings(ratings)['summary'] or '; '.join(ratings) or 'FRL not specified'
     orientation = ', '.join(facets.get('orientation', [])) or fields.get('Orientation') or 'Orientation not specified'
     return ' — '.join(' '.join(value.split()) for value in

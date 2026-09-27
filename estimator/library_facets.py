@@ -32,8 +32,12 @@ def _key(value):
         str.maketrans({c: '-' for c in '‐‑‒–—−'}))
 
 
-def _rating_column(column):
-    return bool(re.match(r'^(?:source |blank seal )?frl(?:\b|_)', _key(column)))
+UNWRAPPED_RATING = re.compile(r'\bwithout\s+(?:the\s+)?(?:T\s*Wrap|Servo\s*wrap)\b', re.I)
+
+
+def _rating_column(column, *, include_unwrapped=True):
+    return bool(re.match(r'^(?:source |blank seal )?frl(?:\b|_)', _key(column))) and (
+        include_unwrapped or not UNWRAPPED_RATING.search(column))
 
 
 def _inapplicable_rating_text(value):
@@ -42,7 +46,7 @@ def _inapplicable_rating_text(value):
             or 'related source ratings only' in lower)
 
 
-def scoped_rating_cells(field, fields):
+def scoped_rating_cells(field, fields, *, include_unwrapped=True):
     """Read only linked, applicable FRL columns/rows, including middle ratings.
 
 Older diagram reviews preserve entire source tables even when only one row or
@@ -64,7 +68,7 @@ an unresolved related table is never promoted to an entry's rating.
         if not 0 <= index < len(tables):
             continue
         table = tables[index]
-        columns = [n for n, c in enumerate(table['columns']) if _rating_column(c)]
+        columns = [n for n, c in enumerate(table['columns']) if _rating_column(c, include_unwrapped=include_unwrapped)]
         matching = [s for s in scopes if s[1] == link['field'] and int(s[2]) == index + 1]
         # Source-review prose explicitly marks other tables as non-applicable.
         marker = f"{link['field']} table {index + 1}"
@@ -102,7 +106,7 @@ an unresolved related table is never promoted to an entry's rating.
     return cells
 
 
-def frl_values(item):
+def frl_values(item, *, include_unwrapped=True):
     values = []
     for field in item.get('fields', []):
         if field['label'] not in {'FRL', 'Blank Seal FRL'}:
@@ -112,11 +116,18 @@ def frl_values(item):
         for paragraph in re.split(r'\n\s*\n', field.get('value', '')):
             if _inapplicable_rating_text(paragraph):
                 continue
+            if not include_unwrapped:
+                # Inline alternate: "-/180/120 (-/180/90 without TWrap)".
+                # Separate attributed summaries retain their full table scope.
+                paragraph = re.sub(r'\([^()]*\)', lambda m: '' if UNWRAPPED_RATING.search(m[0])
+                                   and not re.search(r'\btable\s+\d', m[0], re.I) else m[0], paragraph)
+                if UNWRAPPED_RATING.search(paragraph):
+                    continue
             values.append(paragraph)
-        values.extend(scoped_rating_cells(field, item['fields']))
+        values.extend(scoped_rating_cells(field, item['fields'], include_unwrapped=include_unwrapped))
         for table in field_tables(field):
             values.extend(row[n] for row in table['rows'] for n, c in enumerate(table['columns'])
-                          if _rating_column(c))
+                          if _rating_column(c, include_unwrapped=include_unwrapped))
     # Configuration tables without navigation are common in older imports.
     # Barrier tables require an explicit rating-field link and are never scanned
     # indiscriminately: they can state only the supporting element's capacity.
@@ -128,7 +139,7 @@ def frl_values(item):
         if not linked:
             for table in field_tables(field):
                 values.extend(row[n] for row in table['rows'] for n, c in enumerate(table['columns'])
-                              if _rating_column(c))
+                              if _rating_column(c, include_unwrapped=include_unwrapped))
     # Two legacy selector spellings omit one separator, not a duration.
     # Preserve their displayed source strings; normalize only the facet token.
     normalized = [re.sub(r'^\s*-\s*(\d+)\s*/\s*(\d+)', r'-/\1/\2',

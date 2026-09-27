@@ -4,6 +4,7 @@ import re
 from urllib.parse import urlsplit
 
 REPORT_HOSTS = {'media.promat.com', 'etex.azureedge.net'}
+TRAFALGAR_REPORT_PATH = re.compile(r'/documents/[A-Za-z0-9][A-Za-z0-9_.()=-]*')
 FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/reports'
 
 
@@ -16,8 +17,10 @@ def valid_report_url(value):
         return True
     try:
         url = urlsplit(value)
-        return (url.scheme == 'https' and url.netloc in REPORT_HOSTS
-                and url.path.lower().endswith('.pdf'))
+        return (url.scheme == 'https' and (
+            url.netloc in REPORT_HOSTS and url.path.lower().endswith('.pdf')
+            or url.netloc == 'tfire.com.au' and not url.query and not url.fragment
+            and TRAFALGAR_REPORT_PATH.fullmatch(url.path) is not None))
     except ValueError:
         return False
 
@@ -29,9 +32,13 @@ def validate_report_links(field):
     if field['label'] != 'Report Number' or not isinstance(links, list) or not 1 <= len(links) <= 20:
         raise ValueError('Invalid report links')
     labels = [s.strip() for s in field['value'].splitlines() if s.strip()]
-    if len(links) != len(labels) or len(set(labels)) != len(labels):
+    if len(set(labels)) != len(labels):
         raise ValueError('Report links must match the displayed report numbers')
-    for link, label in zip(links, labels):
+    positions = []
+    for link in links:
         if (not isinstance(link, dict) or set(link) != {'label', 'url'}
-                or link['label'] != label or not valid_report_url(link['url'])):
+                or link['label'] not in labels or not valid_report_url(link['url'])):
             raise ValueError('Invalid report link or report number')
+        positions.append(labels.index(link['label']))
+    if positions != sorted(set(positions)):
+        raise ValueError('Report links must be unique and in displayed order')

@@ -513,16 +513,29 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Report Number links use validated report metadata and unsafe links remain plain text',async h=>{
     const urls=['https://media.promat.com/example.pdf','https://etex.azureedge.net/example.pdf?brand=sample',
       'https://systems.tbafirefly.com.au/reports',
+      'https://tfire.com.au/documents/Example-report',
       'javascript:alert(1)','https://media.promat.com.evil.test/a.pdf','https://user@media.promat.com/a.pdf','http://media.promat.com/a.pdf',
-      'https://systems.tbafirefly.com.au/reports?redirect=evil','https://systems.tbafirefly.com.au.evil/reports'];
+      'https://systems.tbafirefly.com.au/reports?redirect=evil','https://systems.tbafirefly.com.au.evil/reports',
+      'https://tfire.com.au/documents/report?redirect=evil','https://user@tfire.com.au/documents/report',
+      'https://tfire.com.au.evil/documents/report','https://tfire.com.au/documents/..'];
     for(let i=0;i<urls.length;i++) {
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),fields:[{label:'Report Number',value:'EXAMPLE123',report_links:[{label:'EXAMPLE123',url:urls[i]}]}]}));
       await h.api.open('technical','technical-1');
       const anchors=walk(h.pane('technical').detailPanel).filter(n=>n.tagName==='a'&&n.textContent==='EXAMPLE123');
-      assert.equal(anchors.length,i<3?1:0);
-      if(i<3){assert.equal(anchors[0].href,urls[i]);assert.equal(anchors[0].target,'_blank');assert.equal(anchors[0].rel,'noopener noreferrer');}
+      assert.equal(anchors.length,i<4?1:0);
+      if(i<4){assert.equal(anchors[0].href,urls[i]);assert.equal(anchors[0].target,'_blank');assert.equal(anchors[0].rel,'noopener noreferrer');}
       assert.match(text(h.pane('technical').detailPanel),/EXAMPLE123/);
     }
+  });
+  await check('Partial report links keep every unmatched report visible as plain text',async h=>{
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),fields:[{
+      label:'Report Number',value:'FIRST\nUNMATCHED\nLAST',report_links:[
+        {label:'FIRST',url:'https://tfire.com.au/documents/First'},
+        {label:'LAST',url:'https://tfire.com.au/documents/Last'}]}]}));
+    await h.api.open('technical','technical-1');
+    const nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.tagName==='a'&&['FIRST','UNMATCHED','LAST'].includes(n.textContent));
+    assert.deepEqual(links.map(n=>n.textContent),['FIRST','LAST']);
+    assert(nodes.some(n=>n.tagName==='p'&&n.textContent==='UNMATCHED'));
   });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

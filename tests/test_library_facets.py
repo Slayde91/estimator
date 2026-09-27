@@ -52,6 +52,30 @@ class LibraryFacetTests(unittest.TestCase):
         item = {'fields': [], 'filter_values': {'services': ['Plastic Pipes']}}
         self.assertEqual(classify_facets(item)['category'], ['Plumbing & Hydraulic'])
 
+    def test_imported_and_derived_service_aliases_share_one_facet(self):
+        item = record(Service='Mixed cable and lagged copper pipe bundle with pair coil')
+        item['filter_values'] = {'services': ['Mixed Service Bundle', 'Multi-service Bundle',
+                                             'Mixed Services', 'Pair Coil Bundle', 'Pair coils']}
+        before = deepcopy(item)
+        result = classify_facets(item)
+        self.assertIn('Mixed Services', result['services'])
+        self.assertIn('Pair Coils', result['services'])
+        for alias in ['Mixed Service Bundle', 'Multi-service Bundle', 'Pair Coil Bundle', 'Pair coils']:
+            self.assertNotIn(alias, result['services'])
+        self.assertIn('HVAC', result['category'])
+        self.assertIn('Plumbing & Hydraulic', result['category'])
+        self.assertEqual(item, before)
+
+    def test_removed_service_option_does_not_remove_record_classification(self):
+        item = record(Service='Floor/Deck Boxes')
+        services = classify_facets(item)['services']
+        self.assertEqual(services, ['Floor/Deck Boxes'])
+        self.assertNotIn('Floor/Deck Boxes', facet_options('services', services))
+        options = facet_options('services', ['Mixed Service Bundle', 'Multi-service Bundle', 'Pair Coil Bundles'])
+        self.assertEqual(options.count('Mixed Services'), 1)
+        self.assertEqual(options.count('Pair Coils'), 1)
+        self.assertNotIn('Pair Coil Bundles', options)
+
     def test_retained_other_service_rows_do_not_reclassify_specific_entry(self):
         item = record(Service='Coaxial cable')
         item['fields'].append({'label': 'Service Size / Configuration', 'value': '',
@@ -124,6 +148,19 @@ class LibraryFacetTests(unittest.TestCase):
 class FacetIntegrationTests(unittest.TestCase):
     setUp = fixtures.ReferenceLibraryTests.setUp
     write = fixtures.ReferenceLibraryTests.write
+
+    def test_canonical_filter_finds_records_imported_with_each_alias(self):
+        original = self.data['libraries']['technical']['items'][0]
+        self.data['libraries']['technical']['filters'].append({'key': 'services', 'label': 'Services'})
+        items = []
+        for n, alias in enumerate(['Mixed Service Bundle', 'Mixed Services', 'Multi-service Bundle']):
+            item = deepcopy(original)
+            item['id'] = original['id'] if n == 0 else f'mixed-{n}'
+            item.setdefault('filter_values', {})['services'] = [alias]
+            items.append(item)
+        self.data['libraries']['technical']['items'] = items
+        self.write(self.data)
+        self.assertEqual(self.library.listing('technical', services='Mixed Services')['total'], 3)
 
     def test_facet_intersection_and_firefly_links_use_projected_record(self):
         self.data['documents'][0]['filename'] = 'FIREFLY report.pdf'

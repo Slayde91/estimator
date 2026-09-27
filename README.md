@@ -103,6 +103,10 @@ accepted. When only some report numbers have verified links, the others remain
 visible as plain text.
 The manufacturer-specific Trafalgar Category dropdown is replaced by the shared
 Category and Services filters; its source classification remains internal.
+The Services filter combines mixed-service bundle labels under **Mixed Services**
+and pair-coil bundle labels under **Pair Coils**, including legacy imported
+selections. **Floor/Deck Boxes** is omitted from the dropdown; its records remain
+available through search and other filters.
 
 Technical titles use **Manufacturer: ID — Service — FRL — Orientation** in both
 results and detail. Multiple comparable ratings show the observed minimum and

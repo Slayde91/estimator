@@ -17,12 +17,18 @@ SERVICES = ('Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
             'D2 Comms Cables', 'Data Cable Bundles', 'Downlight Box',
             'Downlights', 'Fibre Optic', 'Fire Dampers', 'Fire Resistant Cables',
             'Flexible Ducts', 'Junction Box', 'Lagged Pipes', 'Linear Joints',
-            'Mixed Service Bundle', 'Mixed Services', 'Movement Joints',
-            'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils',
+            'Mixed Services', 'Movement Joints', 'Pair Coils',
             'Plastic Pipes', 'Power Cable Bundles', 'Power Cables',
             'Single Cables', 'TPS & Fire Alarm Cable Bundles', 'Unlagged Pipes')
 FRLS = ('-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240')
 HIDDEN_FRLS = {'-/120/0', '-/180/80', 'N/A', 'Not specified'}
+SERVICE_ALIASES = {'mixed service bundle': 'Mixed Services',
+                   'multi-service bundle': 'Mixed Services',
+                   'mixed services': 'Mixed Services',
+                   'pair coil bundle': 'Pair Coils',
+                   'pair coil bundles': 'Pair Coils',
+                   'pair coils': 'Pair Coils'}
+HIDDEN_SERVICES = {'Floor/Deck Boxes'}
 FACETS = {'category': ('Category', CATEGORIES), 'services': ('Services', SERVICES),
           'frl': ('FRL', FRLS)}
 
@@ -202,12 +208,12 @@ def service_values(item):
     add('Fire Dampers', r'\bdamper')
     add('Flexible Ducts', r'flexible (?:aluminium )?duct|flexi.?duct')
     add('Mixed Services', r'mixed service|table of services|multi.service block')
-    add('Mixed Service Bundle', r'mixed (?:service|cable and lagged copper pipe) bundle')
-    add('Multi-service Bundle', r'multi(?:ple)?[ -]service bundle')
+    add('Mixed Services', r'mixed (?:service|cable and lagged copper pipe) bundle')
+    add('Mixed Services', r'multi(?:ple)?[ -]service bundle')
     pair = has(r'pair.?coil|air.?con|airco system|twin air-con')
     bundle = has(r'bundle|\b[2-9][0-9]*\s*[×x]\s*(?:cat|rg|optic)|\bbundles')
     if pair:
-        result.add('Pair Coil Bundle' if bundle or has(r'air.?con.*bundle|\bcables?\b') else 'Pair Coils')
+        result.add('Pair Coils')
     data = has(r'\bcat\s?[5-7]|data|comm(?:unication)?s?\b')
     power = has(r'power|electri(?:c|cal)|aluminium cable|cables - aluminium|\btps\b|twin and earth|\b[234]c\s*\+\s*e')
     cable = has(r'\bcables?\b|\bcat\s?[5-7]|\brg6\b')
@@ -276,12 +282,19 @@ def classify_facets(item):
     # Explicit imported selections cover source-reviewed continuation rows whose
     # service cell is merged across a page break. These are existing facet data,
     # not a guess based on neighbouring record identifiers.
-    services = sorted(set(service_values(item)) | set(item.get('filter_values', {}).get('services', [])))
+    services = canonical_services(service_values(item) + item.get('filter_values', {}).get('services', []))
     return {'category': category_values(item, services), 'services': services, 'frl': frl_values(item)}
+
+
+def canonical_services(values):
+    """Collapse requested discovery aliases without changing source service text."""
+    return sorted({SERVICE_ALIASES.get(_key(value), value) for value in values})
 
 
 def facet_options(key, observed):
     preferred = FACETS.get(key, ('', ()))[1]
     if key == 'frl':
         observed = set(observed) - HIDDEN_FRLS
+    elif key == 'services':
+        observed = set(canonical_services(observed)) - HIDDEN_SERVICES
     return list(preferred) + sorted(set(observed) - set(preferred), key=str.casefold)

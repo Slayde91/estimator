@@ -1,0 +1,13 @@
+{
+  "name": "ceasefire-estimator-browser-tests",
+  "private": true,
+  "scripts": {
+    "test:takeoffs-browser": "node tests/browser/takeoffs.cjs",
+    "test:takeoffs-lineage": "node tests/browser/lineage.cjs",
+    "test:takeoffs-capacity": "node tests/browser/capacity.cjs",
+    "test:takeoffs-timeouts": "node tests/browser/timeouts.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

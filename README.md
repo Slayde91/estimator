@@ -4,7 +4,7 @@ A local estimating application reproducing `Quote.xlsm`'s Calculator and `Penetr
 
 ## Run
 
-Requires Python 3.11 or newer and the dependencies in `requirements.txt`: ReportLab 4.4.9 generates PDFs and openpyxl 3.1.5 reads/writes pricing workbooks, calculator templates and Excel registers. Estimating calculations and storage use Python's standard library. Microsoft Excel and the original source workbooks are not required to run the app.
+Requires Python 3.11 or newer and the dependencies in `requirements.txt`: ReportLab 4.4.9 generates PDFs, openpyxl 3.1.5 reads/writes pricing workbooks and registers, and pypdf 6.10.0 parses takeoff drawing metadata in an isolated worker. Estimating calculations and storage use Python's standard library. Microsoft Excel and the original source workbooks are not required to run the app.
 
 On Windows, double-click **[Start-Estimator.cmd](Start-Estimator.cmd)**. It starts ESTIMATOR in the background and opens your browser, or reopens the existing app if it is already running. The app keeps running after the launcher or chat closes; double-click the launcher again after restarting Windows. One port accepts only one Estimator process, so two stale copies cannot split browser requests between different in-memory states. Shared pricing, the linked estimates-folder preference and older saves use `.runtime/estimator.sqlite3`; complete projects are separate files in the folder you choose. The launcher checks every pinned package in `requirements.txt`, prefers an installed compatible Python, and can also use the existing Codex Python runtime when available. It does not install software or register automatic startup. If startup fails, the launcher displays the problem; server startup logs are kept in `.runtime`. To select another port, run `Start-Estimator.cmd -Port 8766`; `-NoBrowser` starts or checks the app without opening a browser.
 
@@ -50,6 +50,13 @@ The application opens on **Home**, with direct cards for Estimator, Libraries,
 Calculators and Projects. **Help** provides a plain-English guide to the
 main workflow and the meaning of each area. The browser interface uses the
 bundled Montserrat font, so it does not depend on an internet font service.
+
+**TAKEOFFS** provides a manual Steel and Duct drawing workspace: upload PDFs,
+calibrate or cite dimensions, edit and confirm the evidence register, then
+preview transfer into an existing calculator schedule. Source PDFs and immutable
+history are retained beside the project JSON. See the [takeoff workflow, storage
+and validation contract](docs/TAKEOFFS.md). It uses the normal strict CSP and does
+not require browser annotation compatibility.
 
 The **Estimator** tab has two tiles. **Estimator** includes the **Firestopping
 Schedule** below Material Requirements & Output, with its own totals and

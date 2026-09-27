@@ -1959,6 +1959,21 @@ let passed = 0;
   byId('calculator-import-file').files=[{name:'schedule.xlsx',size:600}];const dynamicImport=audit.importSchedule();await flush();await byId('calculator-confirm-dialog').close('confirm');await dynamicImport;
   assert.deepEqual(copy(entry.scheduleRows),[9,10,11]);assert.equal(importedWorksheet.schedule_view.offset,0);assert.equal(entry.inputs.CALCULATOR.B11,1.23456789012345);assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);passed++;
 
+  // Takeoff transfers cannot replace a draft changed during human review.
+  entry=dynamicSetup([9]);
+  const takeoffBridge=context.window.CeasefireCalculators;
+  const capture=await takeoffBridge.captureTakeoffTarget('steel_board');
+  entry.inputs.CALCULATOR.B9=8;
+  assert.throws(()=>takeoffBridge.reserveTakeoffTarget('steel_board',capture.fingerprint),/changed during transfer review/);passed++;
+  const currentCapture=await takeoffBridge.captureTakeoffTarget('steel_board');
+  const lease=takeoffBridge.reserveTakeoffTarget('steel_board',currentCapture.fingerprint);
+  assert.equal(audit.state.action,true);
+  audit.setInput(entry,'CALCULATOR','B9',99);assert.equal(entry.inputs.CALCULATOR.B9,8);
+  assert.throws(()=>takeoffBridge.applyTakeoffTarget('steel_board',{calculator_id:'steel_board',inputs:{CALCULATOR:{B9:5}},schedule_rows:[9]},{}),/changed while applying/);passed++;
+  takeoffBridge.applyTakeoffTarget('steel_board',{calculator_id:'steel_board',inputs:{CALCULATOR:{B9:5},SETTINGS:{B6:0.123456789}},schedule_rows:[9]},lease);
+  assert.equal(entry.inputs.CALCULATOR.B9,5);assert.equal(entry.inputs.SETTINGS.B6,0.123456789);assert.equal(audit.dirty(entry),true);
+  audit.state.current=null;takeoffBridge.releaseTakeoffTarget(lease);assert.equal(audit.state.action,false);passed++;
+
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators".*CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

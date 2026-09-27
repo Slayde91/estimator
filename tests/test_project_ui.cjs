@@ -93,11 +93,12 @@ function harness({ penetration = false } = {}) {
 }
 
 let passed = 0;
-async function check(name, fn) { await fn(harness()); passed++; console.log(`ok - ${name}`); }
+async function deadline(name, run) { let timer; try { await Promise.race([run(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`Timed out: ${name}`)),5000);})]); } finally { clearTimeout(timer); } }
+async function check(name, fn) { await deadline(name,()=>fn(harness())); passed++; console.log(`ok - ${name}`); }
 async function penetrationCheck(name, fn) {
   const h=harness({penetration:true});h.pen.api.applyProject(await h.pen.api.prepareDefaults());
   h.pen.control=column=>h.pen.audit.makeControl(h.pen.audit.state.definition.row_fields.find(field=>field.column===column),'line-1').children[1];
-  await fn(h);passed++;console.log(`ok - ${name}`);
+  await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
   await check('Save As captures estimate and every loaded calculator, preserving edits made while the dialog is open', async h => {
@@ -548,7 +549,7 @@ async function penetrationCheck(name, fn) {
   });
   await penetrationCheck('Save As captures schedule and composer separately with frozen pricing; later composer edits remain dirty',async h=>{
     const input=h.pen.control('O');input.value='1.23456789012345';await input.emit('input');const pending=deferred();let sent;
-    await h.byId('penetration-add-to-schedule').emit('click');await flush();
+    await h.pen.audit.addToSchedule();await flush();
     h.app.setRequest((path,options)=>{sent=JSON.parse(options.body);return pending.promise;});const saving=h.app.saveProject();await flush();
     assert.equal(sent.penetration.draft.rows[0].inputs.O,1.23456789012345);assert.equal(sent.penetration.composer.rows[0].inputs.O,1.23456789012345);assert.deepEqual(sent.estimate.configuration,copy(h.app.state.quoteConfiguration));
     input.value='9.87654321098765';await input.emit('input');pending.resolve({file:{name:'penetration.json',path:'C:/estimates/penetration.json',save_token:'saved'},project:{...project(),estimate:sent.estimate,calculators:sent.calculators,penetration:{...sent.penetration,source_sha256:'penetration-source'}}});await saving;
@@ -608,7 +609,7 @@ async function penetrationCheck(name, fn) {
     await h.byId('discard-dialog').close('confirm');await loading;assert.deepEqual(h.snapshot(),before);assert.match(h.byId('app-message').textContent,/changed during review/);
   });
   await penetrationCheck('New project clears schedule, composer, Undo history and download target while returning to shared pricing',async h=>{
-    h.app.state.initialized=true;h.app.state.projectFile={save_token:'old'};const input=h.pen.control('T');input.value='Old penetration';await input.emit('input');await h.byId('penetration-add-to-schedule').emit('click');await flush();h.pen.audit.removeRow(h.pen.api.projectSnapshot().draft.rows[0].id);await flush();
+    h.app.state.initialized=true;h.app.state.projectFile={save_token:'old'};const input=h.pen.control('T');input.value='Old penetration';await input.emit('input');await h.pen.audit.addToSchedule();await flush();h.pen.audit.removeRow(h.pen.api.projectSnapshot().draft.rows[0].id);await flush();
     const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;await flush();
     assert.deepEqual(copy(h.pen.api.projectSnapshot()),{draft:penetrationHelper.definition().schedule_defaults,composer:penetrationHelper.definition().defaults,library_tracking_version:1});assert.equal(h.pen.audit.state.removed.length,0);assert.equal(h.app.state.projectFile,null);assert.equal(h.app.state.quoteConfiguration,null);assert.equal(h.pen.api.hasUnsavedChanges(),false);
     assert.deepEqual(h.pen.calls.filter(call=>call.path.endsWith('/calculate')).at(-1).payload.configuration,copy(h.app.state.configuration));
@@ -706,6 +707,22 @@ async function penetrationCheck(name, fn) {
     pending.resolve({...payload,id:'saved-quote'});await saving;
     assert.equal(h.app.state.dirty,true);assert.match(h.byId('app-message').textContent,/Changes made while saving still need/);
     assert.equal(h.pen.audit.state.schedule.invalid.get('["scheduled","O"]').value,'1e');
+  });
+  await check('Takeoff Save captures the evidence session separately and accepts only the captured portable receipt',async h=>{
+    const takeoffs={version:1,project_id:'takeoff-project',revision:2,documents:[{id:'doc'}],items:[]};let receipt;
+    h.context.window.CeasefireTakeoffs={projectSnapshot:()=>copy(takeoffs),completeProjectSnapshot:async()=>copy(takeoffs),projectFingerprint:()=>JSON.stringify(takeoffs),hasUnsavedChanges:()=>false,sessionId:()=> 'private-session',markProjectSaved:(saved,captured)=>{receipt={saved,captured};}};
+    h.app.setRequest(async(path,options)=>{const payload=JSON.parse(options.body);assert.equal(payload.takeoffs_session_id,'private-session');assert.equal(payload.takeoffs.session_id,undefined);assert.deepEqual(payload.takeoffs,takeoffs);return {file:{name:'saved.json',path:'C:/estimates/saved.json'},project:{...project(),estimate:payload.estimate,calculators:payload.calculators,takeoffs:{...payload.takeoffs,companion_folder:'saved.takeoffs'}}};});
+    await h.app.saveProject();assert.equal(receipt.saved.companion_folder,'saved.takeoffs');assert.deepEqual(copy(receipt.captured),takeoffs);
+  });
+  await check('Cancelled project replacement closes only its prepared takeoff evidence session',async h=>{
+    const closed=[],applied=[];h.context.window.CeasefireTakeoffs={projectFingerprint:()=> 'current',hasUnsavedChanges:()=>true,prepareProject:async(value,id)=>({session:{session_id:id},value}),applyProject:value=>applied.push(value),discardPreparedSession:async id=>closed.push(id)};
+    h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();await h.byId('discard-dialog').close('cancel');await loading;
+    assert.deepEqual(closed,['prepared-session']);assert.deepEqual(applied,[]);
+  });
+  await check('Takeoff edits made while a project is being read prevent replacing the current drafts',async h=>{
+    let revision=0;const pending=deferred(),closed=[];h.context.window.CeasefireTakeoffs={projectFingerprint:()=>String(revision),hasUnsavedChanges:()=>true,prepareProject:()=>pending.promise,discardPreparedSession:async id=>closed.push(id)};
+    h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();revision++;pending.resolve({session:{session_id:'prepared-session'}});await loading;
+    assert.match(h.byId('app-message').textContent,/draft changed/);assert.deepEqual(closed,['prepared-session']);assert.equal(h.app.state.inputs.B15,123);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

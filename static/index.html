@@ -10,9 +10,12 @@
   <link rel="stylesheet" href="/penetration.css">
   <link rel="stylesheet" href="/libraries.css">
   <link rel="stylesheet" href="/library-editor.css">
+  <link rel="stylesheet" href="/takeoffs.css">
   <script src="/downloads.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/calculators.js" defer></script>
+  <script src="/takeoff-geometry.js" defer></script>
+  <script src="/takeoffs.js" defer></script>
   <script src="/penetration-breakdown.js" defer></script>
   <script src="/penetration.js" defer></script>
   <script src="/library-detail-text.js" defer></script>
@@ -27,6 +30,7 @@
       <button type="button" class="nav-button active" data-view="home" aria-current="page">Home</button>
       <button type="button" class="nav-button" data-view="estimate">Quote</button>
       <button type="button" class="nav-button" data-view="calculators">Calculators</button>
+      <button type="button" class="nav-button" data-view="takeoffs">TAKEOFFS</button>
       <button type="button" class="nav-button" data-view="pricing">Libraries</button>
       <button type="button" class="nav-button" data-view="quotes">Projects</button>
       <button type="button" class="nav-button" data-view="help">Help</button>
@@ -142,6 +146,10 @@
       </div>
       <section id="library-penetration" class="library-child" aria-labelledby="penetration-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="penetration-library-heading">Firestopping Library</h2></div></div><div id="penetration-library-workspace"></div></section>
       <section id="library-technical" class="library-child" aria-labelledby="technical-library-heading" hidden><div class="page-heading"><div><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="technical-library-heading">Technical Library</h2></div></div><div id="technical-library-workspace"></div></section>
+    </section>
+    <section id="view-takeoffs" class="view" aria-labelledby="takeoffs-heading" hidden>
+      <div class="page-heading takeoffs-heading"><div><p class="eyebrow">DRAWINGS &amp; SOURCE EVIDENCE</p><h1 id="takeoffs-heading">TAKEOFFS</h1><p class="subtitle">Trace the source. Review the physical objects. Confirm the quantities.</p></div></div>
+      <div id="takeoffs-workspace"></div>
     </section>
     <section id="view-quotes" class="view" aria-labelledby="quotes-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="quotes-heading">Projects</h1><p class="subtitle">Open a complete estimate, its original prices and all three calculators.</p></div><div class="actions"><button id="link-project-folder" type="button" class="button icon-only link-action-button" aria-label="Link Project Folder" title="Link Project Folder"><span class="button-symbol" aria-hidden="true">🔗︎</span><span class="sr-only">Link Project Folder</span></button><button id="refresh-quotes" type="button" class="button secondary refresh-button icon-only" aria-label="Refresh" title="Refresh"><span class="button-symbol" aria-hidden="true">↻</span><span class="sr-only">Refresh</span></button></div></div>

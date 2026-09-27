@@ -23,6 +23,9 @@ jobs:
       - run: node --check static/libraries.js
       - run: node --check static/library-detail-text.js
       - run: node --check static/library-editor.js
+      - run: node --check static/takeoffs.js
+      - run: node --check static/takeoff-geometry.js
+      - run: node --check static/takeoff-pdf-worker.mjs
       - run: node --check scripts/ocr_trafalgar_documents.cjs
       - run: node --test tests/test_trafalgar_ocr.cjs
       - run: node tests/test_ui.cjs
@@ -33,4 +36,33 @@ jobs:
       - run: node tests/test_libraries_ui.cjs
       - run: node tests/test_library_detail_text.cjs
       - run: node tests/test_library_editor_ui.cjs
+      - run: node tests/test_takeoffs_ui.cjs
       - run: python scripts/build.py
+  takeoff-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: python -m pip install -r requirements-dev.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/pdf_render_gate.cjs
+      - run: npm run test:takeoffs-browser
+      - run: npm run test:takeoffs-lineage
+      - run: npm run test:takeoffs-capacity
+      - run: npm run test:takeoffs-timeouts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: takeoff-browser-evidence
+          path: |
+            .runtime/browser-qa/**/*.png
+            .runtime/browser-qa/**/result.json
+            .runtime/browser-qa/pdf-render-gate.json
+          retention-days: 7

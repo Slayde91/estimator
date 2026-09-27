@@ -22,6 +22,8 @@ sys.path.insert(0, str(ROOT))
 from estimator.reference_library import ReferenceLibrary, MAX_INDEX
 from estimator.technical_fields import FIELD_ORDER, normalize_technical_item
 from estimator.technical_field_reviewed import review_fingerprint
+from estimator.promat_service_text import clean_service_size
+from estimator.library_report_links import valid_report_url
 
 SECTIONS = ('product_details', 'specifications', 'installation_details')
 LABELS = {'Fire protection product', 'Service part', 'PI number',
@@ -174,7 +176,7 @@ def map_variant(system):
     insulation = one(system, 'Insulation (in place)')
     if insulation:
         size.append('Existing insulation: ' + ('None' if insulation == 'None None' else insulation))
-    row[CONFIG] = joined(size) if not blank else ''
+    row[CONFIG] = clean_service_size(joined(size)) if not blank else ''
 
     install = []
     firing = one(system, 'Fire rating direction')
@@ -292,6 +294,11 @@ def make_entry(members):
     if image_refs:
         fields.append({'label': 'Diagrams & Figures', 'value': '', 'images': image_refs})
     report = rows[0].get('Report Number', '')
+    report_urls = unique(d['source_url'] for s in systems for d in s['documents']
+                         if d.get('label') == report and valid_report_url(d.get('source_url')))
+    if len(report_urls) == 1:
+        next(f for f in fields if f['label'] == 'Report Number')['report_links'] = [
+            {'label': report, 'url': report_urls[0]}]
     sources = [{'label': f'Promat Australian Selector — {report or "report number not stated"} — captured 26 September 2026',
                 'filename': 'promat_systems.json'}]
     service_title = 'Blank seal' if rows[0]['Installation Type'] == 'Blank seal' else rows[0]['Service']

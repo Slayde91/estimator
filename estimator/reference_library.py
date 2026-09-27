@@ -18,6 +18,7 @@ from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
 from .library_display import display_subtitle, remove_resolved_source_notices
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
+from .library_report_links import validate_report_links
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -94,6 +95,7 @@ def field_text(fields, assets, *, projected=False):
     text = []
     for field in fields:
         text += [string(field['label'], 500), string(field['value'])]
+        validate_report_links(field)
         tables = [field['table']] if 'table' in field else []
         if 'tables' in field:
             if not isinstance(field['tables'], list) or len(field['tables']) > 100:

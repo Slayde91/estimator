@@ -4,6 +4,10 @@ The Libraries page has three tiles: Pricing Library, Firestopping Library and
 Technical Library. The existing pricing editor keeps its own state and actions.
 Reference browsing does not change prices, estimates or calculator inputs.
 
+Explicitly reviewed duplicates appear once in discovery. Original IDs and saved
+references remain usable. See [reviewed duplicate consolidation](TECHNICAL_DUPLICATES.md)
+for fingerprint validation, source preservation and link behavior.
+
 The **Substrate** filter replaces the Technical Library's former **Table**
 filter. It uses the same wall, ceiling and floor families as the calculator's
 substrate choices, with separate labels for distinct proprietary barriers.

@@ -83,6 +83,14 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const heading=nodes.find(node=>node.tagName==='h3');assert.equal(heading.focusOptions.preventScroll,true);assert.equal(pane.detailPanel.scrolled,true);assert.equal(heading.scrolled,undefined,'Keep Back navigation above the heading inside the scrolled view.');
     assert.equal(pane.detailPanel.children.filter(node=>node.textContent==='Record-specific source qualification.').length,1);assert.doesNotMatch(pane.notice.textContent,/Record-specific/);assert.match(pane.notice.textContent,/Synthetic local reference library/);
   });
+  await check('Consolidated details expose every reviewed source ID without changing historical navigation',async h=>{
+    const source={...detail('technical','alias-source'),consolidated_ids:['canonical-source','alias-source'],canonical_id:'canonical-source'};
+    h.setRoute(path=>path==='/api/libraries'?meta():source);
+    await h.api.open('technical','alias-source');
+    assert.match(text(h.pane('technical').detailPanel),/Consolidated source IDs: canonical-source, alias-source/);
+    assert.equal(h.pane('technical').detail.id,'alias-source');
+    assert.equal(h.pane('technical').selected,'alias-source');
+  });
   await check('Firestopping labels and diagrams omit workbook locations while retaining technical captions and source data',async h=>{
     const source={...detail('penetration','source'),fields:[{label:'Item(s)',value:'Two insulated pipes'},{label:'System',value:'Install both face seals'},{label:'Service Size or Diameter',value:'Not stated'}],images:[
       {id:'diagram-1',caption:'Source diagram · CALC!S6'},

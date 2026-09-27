@@ -13,7 +13,7 @@ from threading import RLock
 from uuid import uuid4
 
 from .catalog import ValidationError
-from .takeoff_model import (MAX_ITEMS, audit_state_digest, digest, identity, item_digest, item_result,
+from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
 
@@ -229,11 +229,16 @@ class TakeoffService:
     def _commit(self, session_id, request, before, after, approvals=(), transfers=()):
         after['revision'] = before['revision'] + 1
         after['audit_head'] = before['audit_head']
-        validate_snapshot(after)
-        strip = lambda value: {k: deepcopy(v) for k, v in value.items() if k != 'audit_head'}
+        validate_snapshot(after, copy_result=False)
+        # put_blob serializes synchronously while the service lock protects
+        # both states. Root projections remove the head without copying each
+        # immutable source/page tree merely to serialize it immediately.
+        strip = lambda value: {k: v for k, v in value.items() if k != 'audit_head'}
         event = {'version': 1, 'project_id': before['project_id'], 'revision': after['revision'],
                  'previous': before['audit_head'], 'request_id': request['request_id'],
-                 'op': request['op'], 'at': timestamp(), 'before': strip(before), 'after': strip(after)}
+                 'op': request['op'], 'at': timestamp(), 'before': strip(before), 'after': strip(after),
+                 'actor': {'kind': 'local-session', 'session_id': session_id},
+                 'affected_ids': audit_affected(before, after)}
         after['audit_head'] = self.documents.put_blob(event, kind='audit')
         # Check the prospective retained graph before any session/authority
         # change. A rejected event leaves only an unreferenced immutable blob.
@@ -268,7 +273,7 @@ class TakeoffService:
     def _create_item(self, snapshot, proposed, predecessors=None):
         object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids'}, 'New takeoff item', {'mode'})
         item = {'id': proposed.get('id', str(uuid4())), 'version': 1, 'mode': proposed['mode'], 'state': 'draft',
-                'geometry': proposed.get('geometry'), 'measurement': proposed.get('measurement'),
+                'geometry': deepcopy(proposed.get('geometry')), 'measurement': deepcopy(proposed.get('measurement')),
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
                 'evidence': deepcopy(proposed.get('evidence', [])), 'review': None, 'confirmation': None,
                 'predecessor_ids': predecessors or []}
@@ -277,7 +282,7 @@ class TakeoffService:
             self._resize_members(item)
         if any(i['id'] == item['id'] for i in snapshot['items']):
             raise ValidationError('This takeoff item ID already exists.')
-        validate_item(item, snapshot)
+        validate_item(item, snapshot, copy_result=False)
         snapshot['items'].append(item)
         return item
 
@@ -349,7 +354,7 @@ class TakeoffService:
                     if 'quantity' in changes and 'member_ids' not in changes:
                         self._resize_members(item)
                     self._invalidate(after, item)
-                    validate_item(item, after)
+                    validate_item(item, after, copy_result=False)
             elif op == 'delete_items':
                 self._remove(after, self._items(after, request['item_ids']))
             elif op == 'detach_transfers':
@@ -522,7 +527,7 @@ class TakeoffService:
                 if event['project_id'] != snapshot['project_id']:
                     raise ValidationError('The audit event belongs to another project.')
                 if index >= offset:
-                    rows.append({key: event[key] for key in ('revision', 'op', 'at', 'request_id')})
+                    rows.append({key: event[key] for key in ('revision', 'op', 'at', 'request_id', 'actor', 'affected_ids') if key in event})
                 head = event['previous']; index += 1
             return {'items': rows, 'offset': offset, 'limit': limit, 'has_more': bool(head)}
 

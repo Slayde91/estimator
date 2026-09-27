@@ -26,7 +26,7 @@
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
   function option(value, label = value) { const el = node("option", "", label); el.value = value; return el; }
   function button(label, fn, cls = "button secondary") { const el = node("button", cls, label); el.type = "button"; el.addEventListener("click", () => void safely(fn)); return el; }
-  function select(options, change, value = "") { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
+  function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
   function message(text = "", error = false) { if (!state.ui) return; state.ui.message.textContent = text; state.ui.message.hidden = !text; state.ui.message.className = `message${error ? " error" : ""}`; state.ui.message.setAttribute("role", error ? "alert" : "status"); }
   async function safely(fn) { try { return await fn(); } catch (error) { message(error.message || String(error), true); } }
   async function api(path, data, method = data === undefined ? "GET" : "POST") {
@@ -45,10 +45,11 @@
   }
   function markFormEdited() { state.formDirty = true; state.formRevision = (state.formRevision || 0) + 1; window.CeasefireProject?.changed?.(); }
   function working(value) { state.busy = value; if (state.ui) { state.ui.root.setAttribute("aria-busy", String(value)); for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) control.disabled = value; state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`; } window.CeasefireProject?.changed?.(); }
-  function command(op, values = {}) {
+  function command(op, values = {}, guard) {
     const sessionId = state.session?.session_id;
     const task = state.queue.then(async () => {
       if (sessionId !== state.session?.session_id) throw new Error("The project changed. Repeat this action in the current project.");
+      if (guard && !guard()) return null;
       working(true);
       try {
         const reply = await api(`/sessions/${sessionId}/commands`, { expected_revision: state.session.revision, request_id: uuid(), op, ...values });
@@ -179,6 +180,43 @@
   }
   async function navigateDocument(id, page = 1) { if (state.busy || !await discardEditor()) return; state.document = id; state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); }
   async function navigatePage(page) { const doc = currentDocument(); if (!doc || !Number.isInteger(page) || page < 1 || page > doc.pages.length) throw new Error("Choose a page within this document."); if (!await discardEditor()) return; state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); }
+  function boundedPdf(promise, label, abort, timeout = 30000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const error = new Error(`${label} timed out after ${timeout / 1000} seconds. Retry the page or supply a simpler source PDF.`);
+        error.name = "PdfTimeoutError";
+        try { abort?.(); } catch { /* The timeout must remain actionable even if cleanup fails. */ }
+        reject(error);
+      }, timeout);
+      Promise.resolve(promise).then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
+    });
+  }
+  function destroyPdfResources(task, pdfWorker, worker) {
+    // A stalled worker cannot acknowledge PDF.js's asynchronous destroy.
+    // Terminate the OS worker immediately; never await that acknowledgement.
+    try { Promise.resolve(task.destroy()).catch(() => {}); } catch { /* Already destroyed. */ }
+    try { pdfWorker.destroy(); } finally { worker.terminate(); }
+  }
+  function discardPdf(id, sessionId = state.session?.session_id, expectedPdf) {
+    const key = `${sessionId}/${id}`, entry = state.pdfs.get(key);
+    if (entry && (!expectedPdf || entry.document === expectedPdf)) { state.pdfs.delete(key); entry.destroy(); }
+  }
+  function pdfPage(pdf, id, page, sessionId) {
+    if (sessionId !== state.session?.session_id) { const error = new Error("The project changed before loading the drawing page."); error.name = "RenderingCancelledException"; return Promise.reject(error); }
+    return boundedPdf(pdf.getPage(page), `Loading PDF page ${page}`, () => discardPdf(id, sessionId, pdf));
+  }
+  async function recordPdfFailure(docId, page, error, sessionId = state.session?.session_id, visible = true, guard = () => true) {
+    if (sessionId !== state.session?.session_id || !guard()) return;
+    if (visible && docId === state.document && page === state.page && state.ui) {
+      const notice = `This page could not be rendered completely. Review and confirmation are blocked. ${error.message}`;
+      state.pageError = { document_id: docId, page, notice };
+      state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false;
+      state.ui.empty.replaceChildren(node("strong", "", "Drawing unavailable"), node("p", "", error.message));
+      state.ui.progress.textContent = `Page ${page} blocked: ${error.message}`;
+      message(notice, true);
+    }
+    await command("record_render", { document_id: docId, page, success: false, warnings: [...documentWarnings(docId), error.message] }, guard).catch(() => {});
+  }
   function documentWarnings(id) {
     const retained = (snapshot()?.render_checks || []).filter(check => check.document_id === id).flatMap(check => check.warnings || []).filter(text => text.startsWith("PDF warning:"));
     return [...new Set([...(state.pdfWarnings.get(id) || []), ...retained])].slice(0, 20);
@@ -249,11 +287,13 @@
       cMapUrl: "/vendor/pdfjs/cmaps/", cMapPacked: true, standardFontDataUrl: "/vendor/pdfjs/standard_fonts/", wasmUrl: "/vendor/pdfjs/wasm/", iccUrl: "/vendor/pdfjs/iccs/",
       disableFontFace: true, useWasm: false, useWorkerFetch: true, stopAtErrors: true, enableXfa: false,
       maxImageSize: 64000000, canvasMaxAreaInBytes: 64000000, disableAutoFetch: true, disableStream: true });
-    const entry = { promise: task.promise, destroy: async () => { worker.removeEventListener("message", onWarning); try { await task.destroy(); } finally { pdfWorker.destroy(); worker.terminate(); } } };
+    let destroyed = false;
+    const entry = { promise: null, destroy: () => { if (destroyed) return; destroyed = true; worker.removeEventListener("message", onWarning); destroyPdfResources(task, pdfWorker, worker); } };
+    entry.promise = boundedPdf(task.promise, "Opening PDF", () => entry.destroy());
     task.onPassword = () => { void entry.destroy(); message("Password-protected PDFs are not supported. Supply an authorised unlocked copy.", true); };
     state.pdfs.set(key, entry);
     while (state.pdfs.size > 2) { const oldest = [...state.pdfs.keys()].find(candidate => candidate !== key && candidate !== `${sessionId}/${state.document}`); if (!oldest) break; const evicted = state.pdfs.get(oldest); state.pdfs.delete(oldest); void evicted.destroy(); }
-    try { return await entry.promise; } catch (error) { state.pdfs.delete(key); await entry.destroy(); throw error; }
+    try { const pdf = await entry.promise; entry.document = pdf; return pdf; } catch (error) { if (state.pdfs.get(key) === entry) state.pdfs.delete(key); entry.destroy(); throw error; }
   }
   async function releaseDocuments() { const tasks = [...state.pdfs.values()]; state.pdfs.clear(); state.pdfLoads.clear(); for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear(); state.thumbnailPages.clear(); state.pdfWarnings.clear(); state.consoleRestore?.(); await Promise.allSettled(tasks.map(task => task.destroy())); }
   async function renderPage() {
@@ -264,35 +304,34 @@
     state.pending?.cancel?.(); state.pending = null;
     for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear();
     try {
-      const pdf = await pdfDocument(docId), page = await pdf.getPage(pageNumber);
+      const pdf = await pdfDocument(docId), page = await pdfPage(pdf, docId, pageNumber, sessionId);
       if (renderId !== state.renderId) return;
       const viewport = page.getViewport({ scale: state.zoom }); state.viewport = viewport;
       const ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(16000000 / (viewport.width * viewport.height)));
       if (!(ratio > 0) || viewport.width > 40000 || viewport.height > 40000) throw new Error("This zoom is too large to display safely. Use Fit page.");
       const canvas = node("canvas"); canvas.width = Math.max(1, Math.floor(viewport.width * ratio)); canvas.height = Math.max(1, Math.floor(viewport.height * ratio)); canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`; canvas.setAttribute("aria-label", "Original PDF page");
       const render = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0] }); state.pending = render;
-      await render.promise; if (renderId !== state.renderId || sessionId !== state.session?.session_id) return;
+      await boundedPdf(render.promise, `Rendering PDF page ${pageNumber}`, () => { render.cancel(); discardPdf(docId, sessionId, pdf); }); if (renderId !== state.renderId || sessionId !== state.session?.session_id) return;
       state.ui.canvas.replaceWith(canvas); state.ui.canvas = canvas; state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`); state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
       state.ui.pageWrap.hidden = false; state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; state.ui.progress.textContent = `${currentDocument().name} · Page ${pageNumber} · Original source`; renderOverlay();
       const warnings = documentWarnings(docId);
-      await command("record_render", { document_id: docId, page: pageNumber, success: warnings.length === 0, warnings });
+      await command("record_render", { document_id: docId, page: pageNumber, success: warnings.length === 0, warnings }, () => renderId === state.renderId);
       if (warnings.length) message(`PDF content could not be verified. Review and confirmation are blocked. ${warnings.join(" ")}`, true);
+      else if (state.pageError?.document_id === docId && state.pageError.page === pageNumber) { if (state.ui.message.textContent === state.pageError.notice) message(); state.pageError = null; }
       void renderThumbnails(pdf, renderId, docId);
     } catch (error) {
       if (renderId !== state.renderId || error.name === "RenderingCancelledException") return;
-      state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.empty.replaceChildren(node("strong", "", "Drawing unavailable"), node("p", "", error.message));
-      message("This page could not be rendered completely. Review and confirmation are blocked for its items.", true);
-      if (sessionId === state.session?.session_id) await command("record_render", { document_id: docId, page: pageNumber, success: false, warnings: [error.message] }).catch(() => {});
+      await recordPdfFailure(docId, pageNumber, error, sessionId, true, () => renderId === state.renderId);
     } finally { if (renderId === state.renderId) state.pending = null; }
   }
   async function renderThumbnails(pdf, renderId, docId) {
-    const buttons = [...state.ui.thumbnails?.querySelectorAll("[data-page]") || []];
+    const sessionId = state.session?.session_id, buttons = [...state.ui.thumbnails?.querySelectorAll("[data-page]") || []];
     for (const el of buttons) {
       if (renderId !== state.renderId) return;
       if (el.dataset.previewReady === "true") continue;
       let render, canvas;
       try {
-        const page = await pdf.getPage(Number(el.dataset.page)); if (renderId !== state.renderId) return;
+        const page = await pdfPage(pdf, docId, Number(el.dataset.page), sessionId); if (renderId !== state.renderId) return;
         const natural = page.getViewport({ scale: 1 });
         if (![natural.width, natural.height].every(value => Number.isFinite(value) && value > 0)) throw new Error("The source page has invalid dimensions.");
         const viewport = page.getViewport({ scale: Math.min(110 / natural.width, 145 / natural.height) });
@@ -300,14 +339,22 @@
         // tasks share a canvas, even when the previous task was cancelled.
         canvas = node("canvas"); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
         render = page.render({ canvasContext: canvas.getContext("2d"), viewport }); state.thumbnailTasks.set(canvas, render); state.thumbnailPages.set(canvas, { document_id: docId, page: Number(el.dataset.page) });
-        await render.promise;
+        await boundedPdf(render.promise, `Rendering PDF preview ${el.dataset.page}`, () => { render.cancel(); discardPdf(docId, sessionId, pdf); });
         if (renderId === state.renderId && el.isConnected) { el.querySelector("canvas").replaceWith(canvas); el.dataset.previewReady = "true"; }
       } catch (error) {
-        if (renderId === state.renderId && error.name !== "RenderingCancelledException") { el.append(node("small", "", "Preview unavailable")); notePdfWarning(docId, `Page ${el.dataset.page} preview failed: ${error.message}`); }
+        if (renderId === state.renderId && error.name !== "RenderingCancelledException") { el.append(node("small", "", "Preview unavailable")); if (error.name === "PdfTimeoutError") { await recordPdfFailure(docId, Number(el.dataset.page), error, sessionId, false, () => renderId === state.renderId); return; } notePdfWarning(docId, `Page ${el.dataset.page} preview failed: ${error.message}`); }
       } finally { if (canvas && state.thumbnailTasks.get(canvas) === render) state.thumbnailTasks.delete(canvas); if (canvas) state.thumbnailPages.delete(canvas); }
     }
   }
-  async function fitPage() { if (!state.document) return; const pdf = await pdfDocument(state.document), page = await pdf.getPage(state.page), viewport = page.getViewport({ scale: 1 }); state.zoom = Math.max(0.05, Math.min((state.ui.viewport.clientWidth - 50) / viewport.width, (state.ui.viewport.clientHeight - 50) / viewport.height)); await renderPage(); }
+  async function fitPage() {
+    if (!state.document) return; const docId = state.document, pageNumber = state.page, sessionId = state.session?.session_id, renderId = state.renderId, fitId = state.fitId = (state.fitId || 0) + 1;
+    const current = () => fitId === state.fitId && renderId === state.renderId;
+    try {
+      const pdf = await pdfDocument(docId), page = await pdfPage(pdf, docId, pageNumber, sessionId), viewport = page.getViewport({ scale: 1 });
+      if (!current() || docId !== state.document || pageNumber !== state.page || sessionId !== state.session?.session_id) return;
+      state.zoom = Math.max(0.05, Math.min((state.ui.viewport.clientWidth - 50) / viewport.width, (state.ui.viewport.clientHeight - 50) / viewport.height)); await renderPage();
+    } catch (error) { await recordPdfFailure(docId, pageNumber, error, sessionId, true, current); }
+  }
   async function zoomBy(factor) { if (!state.document || state.points.length) return; state.zoom = Math.max(0.05, Math.min(8, state.zoom * factor)); await renderPage(); }
   function setTool(tool) { if (state.busy) return; if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first."); if (state.points.length) throw new Error("Finish or cancel the current trace first."); if (tool === "trace" && !state.calibration) throw new Error("Choose or create the applicable calibration before tracing."); state.tool = tool; state.ui.viewport.dataset.tool = tool; for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool); state.ui.viewport.focus(); state.ui.progress.textContent = ({ calibrate: "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Finish trace or press Enter. Backspace removes the last point.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to inspect its source and fields." })[tool]; }
   function cancelTrace() { state.retraceId = null; state.points = []; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; renderOverlay(); } window.CeasefireProject?.changed?.(); }
@@ -500,14 +547,15 @@
     const query = state.ui.search.value.trim().toLocaleLowerCase(); if (!query) return;
     const docs = state.ui.searchScope.value === "all" ? documents() : [currentDocument()].filter(Boolean); const total = docs.reduce((sum, doc) => sum + doc.pages.length, 0), run = ++state.searchId, sessionId = state.session.session_id; let checked = 0, empty = 0, failed = 0; state.searchHits = []; state.ui.searchResults.replaceChildren(); state.ui.searchResults.hidden = false;
     for (const doc of docs) {
-      let pdf; try { pdf = await pdfDocument(doc.id); } catch { failed += doc.pages.length; continue; }
+      let pdf; try { pdf = await pdfDocument(doc.id); } catch (error) { failed += doc.pages.length; if (error.name === "PdfTimeoutError") await recordPdfFailure(doc.id, doc.id === state.document ? state.page : 1, error, sessionId, false, () => run === state.searchId); continue; }
       if (run !== state.searchId || sessionId !== state.session?.session_id) return;
       for (const metadata of doc.pages) {
         if (run !== state.searchId || sessionId !== state.session?.session_id) return;
-        let page;
-        try { page = await pdf.getPage(metadata.page); const content = await page.getTextContent(); if (run !== state.searchId || sessionId !== state.session?.session_id) return; checked++; if (!content.items.some(item => item.str?.trim())) empty++; for (const text of content.items) if (text.str?.toLocaleLowerCase().includes(query)) { const x = text.transform[4], y = text.transform[5], height = Math.max(1, text.height || Math.hypot(text.transform[2], text.transform[3])); const hit = { document_id: doc.id, page: metadata.page, points: [[x, y], [x + text.width, y + height]], text: text.str }; state.searchHits.push(hit); const el = button(`${doc.name} · p${metadata.page}: ${text.str}`, async () => { await navigateDocument(doc.id, metadata.page); renderOverlay(); focusGeometry({ geometry: { points: hit.points } }); }, "takeoff-search-result"); state.ui.searchResults.append(el); if (state.searchHits.length >= 500) break; } } catch { failed++; }
+        let page, timedOut = false;
+        try { page = await pdfPage(pdf, doc.id, metadata.page, sessionId); const content = await boundedPdf(page.getTextContent(), `Searching PDF page ${metadata.page}`, () => discardPdf(doc.id, sessionId, pdf)); if (run !== state.searchId || sessionId !== state.session?.session_id) return; checked++; if (!content.items.some(item => item.str?.trim())) empty++; for (const text of content.items) if (text.str?.toLocaleLowerCase().includes(query)) { const x = text.transform[4], y = text.transform[5], height = Math.max(1, text.height || Math.hypot(text.transform[2], text.transform[3])); const hit = { document_id: doc.id, page: metadata.page, points: [[x, y], [x + text.width, y + height]], text: text.str }; state.searchHits.push(hit); const el = button(`${doc.name} · p${metadata.page}: ${text.str}`, async () => { await navigateDocument(doc.id, metadata.page); renderOverlay(); focusGeometry({ geometry: { points: hit.points } }); }, "takeoff-search-result"); state.ui.searchResults.append(el); if (state.searchHits.length >= 500) break; } } catch (error) { if (run !== state.searchId || sessionId !== state.session?.session_id) return; failed++; if (error.name === "PdfTimeoutError") { timedOut = true; failed += doc.pages.length - metadata.page; await recordPdfFailure(doc.id, metadata.page, error, sessionId, false, () => run === state.searchId); } }
         finally { if (page && !(doc.id === state.document && metadata.page === state.page) && ![...state.thumbnailPages.values()].some(active => active.document_id === doc.id && active.page === metadata.page)) page.cleanup(); }
         state.ui.progress.textContent = `Text search: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed`;
+        if (timedOut) break;
         if (state.searchHits.length >= 500) { state.ui.progress.textContent += " · Stopped at 500 matches; coverage is incomplete."; renderOverlay(); return; }
       }
     }
@@ -557,7 +605,7 @@
   function applyProject(prepared) {
     const prior = state.session?.session_id;
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();
-    state.session = null; state.railKey = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.selected.clear(); state.hidden.clear(); state.points = []; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
+    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.selected.clear(); state.hidden.clear(); state.points = []; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
     if (prepared.session) accept(prepared.session);
     if (prior && prior !== state.session?.session_id) void discardPreparedSession(prior);
     if (state.ui) { renderData(); state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.searchResults.replaceChildren(); }

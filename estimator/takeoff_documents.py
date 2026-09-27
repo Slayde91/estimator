@@ -21,6 +21,7 @@ import sys
 import tempfile
 from threading import BoundedSemaphore, RLock
 import uuid
+from weakref import WeakValueDictionary
 
 from .catalog import ValidationError
 
@@ -37,6 +38,8 @@ PARSER_TIMEOUT = 40
 DISK_RESERVE = 64 * 1024 * 1024
 MAX_SPOOLS = 4
 MAX_SPOOL_BYTES = 1024 * 1024 * 1024
+MAX_AUDIT_RECORDS = 4096
+MAX_AUDIT_CACHE_BYTES = 32 * 1024 * 1024
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 _PARSER_SLOTS = BoundedSemaphore(2)
 
@@ -198,6 +201,12 @@ def _metadata(document):
     return document
 
 
+class _AuditDocument:
+    """Private shared metadata; never returned through the mutable blob API."""
+    def __init__(self, metadata):
+        self.metadata = metadata
+
+
 class TakeoffDocuments:
     def __init__(self, root):
         self.root = _directory(root, create=True)
@@ -207,6 +216,11 @@ class TakeoffDocuments:
         self._spools = OrderedDict()
         self._sources = {}
         self._audit_sources = {}
+        # Semantic summaries omit full item states. Every use still requires
+        # fresh file bytes and SHA verification; no stat-only integrity cache.
+        self._audit_records = OrderedDict()
+        self._audit_cache_bytes = 0
+        self._audit_documents = WeakValueDictionary()
         self._closing = False
         self._closed_owners = set()
         for name in ("uploads", "documents", "audit"):
@@ -599,8 +613,100 @@ class TakeoffDocuments:
         parent = _directory(Path(project_file_path).absolute().parent)
         return _directory(parent / ".ceasefire-evidence" / project, create=create), relative
 
-    def _graph(self, snapshot, loader):
+    def _audit_record(self, digest):
+        """Read fresh bytes, then reuse only their immutable semantic summary."""
         from .takeoff_model import audit_state_digest
+        digest = _digest(digest)
+        with self._lock:
+            record = self._audit_records.get(digest)
+            if record is not None:
+                self._audit_records.move_to_end(digest)
+        if record is not None:
+            _verified(self.root / "audit" / (digest + ".json"), digest, MAX_AUDIT_BLOB)
+            return record
+        event = self.get_blob(digest)
+        fields = {"version", "project_id", "revision", "previous", "request_id", "op", "at", "before", "after"}
+        attribution = {"actor", "affected_ids"}
+        if (set(event) not in (fields, fields | attribution) or type(event["version"]) is not int or event["version"] != 1
+                or type(event["revision"]) is not int or event["revision"] < 1):
+            raise ValidationError("The audit event has an unsupported schema or broken revision sequence.")
+        _uuid(event["project_id"])
+        _uuid(event["request_id"])
+        if event["previous"] is not None:
+            _digest(event["previous"])
+        if any(not isinstance(event[key], str) or not 1 <= len(event[key]) <= 100 for key in ("op", "at")):
+            raise ValidationError("The audit event must retain its operation and timestamp.")
+        if "actor" in event:
+            actor = event["actor"]
+            if not isinstance(actor, dict) or set(actor) != {"kind", "session_id"} or actor["kind"] != "local-session":
+                raise ValidationError("The audit actor must identify its local session.")
+            _uuid(actor["session_id"])
+            affected = event["affected_ids"]
+            limits = {"items": 20000, "documents": 200, "calibrations": 4000, "transfers": 60000}
+            if not isinstance(affected, dict) or set(affected) != set(limits):
+                raise ValidationError("The audit affected IDs must identify every supported collection.")
+            for name, limit in limits.items():
+                identifiers = affected[name]
+                if (not isinstance(identifiers, list) or len(identifiers) > limit
+                        or any(not isinstance(value, str) for value in identifiers)):
+                    raise ValidationError("The audit affected IDs must be bounded UUID lists.")
+                for identifier in identifiers:
+                    _uuid(identifier)
+                if identifiers != sorted(set(identifiers)):
+                    raise ValidationError("The audit affected IDs must be sorted and unique.")
+        documents = {}
+        for side in ("before", "after"):
+            state = event[side]
+            revision = event["revision"] - (1 if side == "before" else 0)
+            if (not isinstance(state, dict) or state.get("project_id") != event["project_id"]
+                    or type(state.get("version")) is not int or state["version"] != 1
+                    or type(state.get("revision")) is not int or state["revision"] != revision):
+                raise ValidationError("The audit history contains invalid takeoff state.")
+            state_documents = state.get("documents", [])
+            if not isinstance(state_documents, list) or len(state_documents) > MAX_DOCUMENTS:
+                raise ValidationError("The audit history contains an invalid PDF collection.")
+            for document in state_documents:
+                # Equality alone cannot prove schema validity: Python considers
+                # True equal to 1, but page identities must be actual integers.
+                _metadata(document)
+                identifier = document.get("id") if isinstance(document, dict) else None
+                if not isinstance(identifier, str):
+                    raise ValidationError("Invalid retained PDF metadata.")
+                previous = documents.get(identifier)
+                if previous is not None:
+                    if previous.metadata != document:
+                        raise ValidationError("An original PDF identity was rewritten in the audit history.")
+                    continue
+                with self._lock:
+                    shared = self._audit_documents.get(identifier)
+                if shared is None or shared.metadata != document:
+                    shared = _AuditDocument(document)
+                    with self._lock:
+                        self._audit_documents[identifier] = shared
+                documents[identifier] = shared
+        if "affected_ids" in event:
+            from .takeoff_model import audit_affected
+            if event["affected_ids"] != audit_affected(event["before"], event["after"]):
+                raise ValidationError("The audit affected IDs do not match its retained state changes.")
+        retained = tuple(documents.values())
+        # Count repeated metadata conservatively, even though records share it.
+        weight = 512 + len(_canonical([entry.metadata for entry in retained]))
+        record = {"project_id": event["project_id"], "revision": event["revision"], "previous": event["previous"],
+                  "before": audit_state_digest(event["before"]), "after": audit_state_digest(event["after"]),
+                  "documents": retained, "size": len(_canonical(event)), "weight": weight}
+        if weight <= MAX_AUDIT_CACHE_BYTES:
+            with self._lock:
+                existing = self._audit_records.pop(digest, None)
+                if existing is not None:
+                    self._audit_cache_bytes -= existing["weight"]
+                self._audit_records[digest] = record
+                self._audit_cache_bytes += weight
+                while len(self._audit_records) > MAX_AUDIT_RECORDS or self._audit_cache_bytes > MAX_AUDIT_CACHE_BYTES:
+                    _, removed = self._audit_records.popitem(last=False)
+                    self._audit_cache_bytes -= removed["weight"]
+        return record
+
+    def _graph(self, snapshot, loader):
         documents = {}
         current = snapshot.get("documents", [])
         if not isinstance(current, list) or len(current) > MAX_DOCUMENTS:
@@ -621,44 +727,28 @@ class TakeoffDocuments:
             if head in seen or len(seen) >= MAX_AUDIT_EVENTS:
                 raise ValidationError("The audit history is cyclic or exceeds its review limit.")
             seen.add(head)
-            event = loader(head)
-            audit_bytes += len(_canonical(event))
+            record = loader(head)
+            audit_bytes += record["size"]
             if audit_bytes > MAX_AUDIT_BYTES:
                 raise ValidationError("The retained audit history exceeds its 256 MiB read budget.")
-            if event.get("project_id") != snapshot["project_id"] or "previous" not in event:
+            if record["project_id"] != snapshot["project_id"]:
                 raise ValidationError("The audit history belongs to a different project or is incomplete.")
-            fields = {"version", "project_id", "revision", "previous", "request_id", "op", "at", "before", "after"}
-            if (set(event) != fields or type(event["version"]) is not int or event["version"] != 1
-                    or type(event["revision"]) is not int or event["revision"] != expected_revision
-                    or event["revision"] < 1):
+            if record["revision"] != expected_revision:
                 raise ValidationError("The audit event has an unsupported schema or broken revision sequence.")
-            _uuid(event["request_id"])
-            if any(not isinstance(event[key], str) or not 1 <= len(event[key]) <= 100 for key in ("op", "at")):
-                raise ValidationError("The audit event must retain its operation and timestamp.")
             audit.append(head)
-            for side in ("before", "after"):
-                state = event.get(side, {})
-                revision = event["revision"] - (1 if side == "before" else 0)
-                if (not isinstance(state, dict) or state.get("project_id") != snapshot["project_id"]
-                        or type(state.get("version")) is not int or state["version"] != 1
-                        or type(state.get("revision")) is not int or state["revision"] != revision):
-                    raise ValidationError("The audit history contains invalid takeoff state.")
-                state_documents = state.get("documents", [])
-                if not isinstance(state_documents, list) or len(state_documents) > MAX_DOCUMENTS:
-                    raise ValidationError("The audit history contains an invalid PDF collection.")
-                for document in state_documents:
-                    _metadata(document)
-                    previous = documents.get(document["id"])
-                    if previous is not None and previous != document:
-                        raise ValidationError("An original PDF identity was rewritten in the audit history.")
-                    documents[document["id"]] = document
-                    if len(documents) > MAX_DOCUMENTS:
-                        raise ValidationError("A project supports at most 100 retained PDFs, including history.")
-            if expected_after is not None and audit_state_digest(event["after"]) != expected_after:
+            for retained in record["documents"]:
+                document = retained.metadata
+                previous = documents.get(document["id"])
+                if previous is not None and previous != document:
+                    raise ValidationError("An original PDF identity was rewritten in the audit history.")
+                documents[document["id"]] = document
+                if len(documents) > MAX_DOCUMENTS:
+                    raise ValidationError("A project supports at most 100 retained PDFs, including history.")
+            if expected_after is not None and record["after"] != expected_after:
                 raise ValidationError("The audit history contains an unrecorded physical-state change.")
-            expected_after = audit_state_digest(event["before"])
+            expected_after = record["before"]
             expected_revision -= 1
-            head = event["previous"]
+            head = record["previous"]
         if expected_revision != 0:
             raise ValidationError("The audit history does not reach its initial revision.")
         if sum(len(document["pages"]) for document in documents.values()) > MAX_PROJECT_PAGES:
@@ -668,7 +758,7 @@ class TakeoffDocuments:
     def assert_add_capacity(self, snapshot, document):
         """Refuse intake that could create a draft too large to save with history."""
         _metadata(document)
-        documents, _ = self._graph(snapshot, self.get_blob)
+        documents, _ = self._graph(snapshot, self._audit_record)
         if any(value["id"] == document["id"] for value in documents):
             raise ValidationError("This PDF identity is already retained in the project history.")
         if len(documents) + 1 > MAX_DOCUMENTS:
@@ -689,7 +779,7 @@ class TakeoffDocuments:
                 reached_source = True
             if reached_source:
                 _verified(source["folder"] / "audit" / (digest + ".json"), digest, MAX_AUDIT_BLOB)
-            return self.get_blob(digest)
+            return self._audit_record(digest)
 
         self._graph(snapshot, load)
         if source and source["head"] is not None and not reached_source:
@@ -698,7 +788,7 @@ class TakeoffDocuments:
     def publish(self, snapshot, project_file_path):
         with self._lock:
             _uuid(snapshot.get("project_id"))
-            documents, audit = self._graph(snapshot, self.get_blob)
+            documents, audit = self._graph(snapshot, self._audit_record)
             self.assert_documents(documents)
             folder, relative = self._companion(snapshot, project_file_path, create=True)
             for document in documents:
@@ -742,7 +832,7 @@ class TakeoffDocuments:
             def load(digest):
                 _verified(folder / "audit" / (digest + ".json"), digest, MAX_AUDIT_BLOB)
                 self._copy(folder / "audit" / (digest + ".json"), self.root / "audit" / (digest + ".json"), digest, MAX_AUDIT_BLOB)
-                return self.get_blob(digest)
+                return self._audit_record(digest)
 
             documents, _ = self._graph(snapshot, load)
         except (ValidationError, OSError) as error:

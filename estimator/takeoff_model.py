@@ -68,11 +68,44 @@ Reopening on another computer can remove local approval badges or mark a
 transfer conflicted, without changing the retained physical/evidence state.
 Those derived authority annotations and the portability path are excluded.
 """
-    body = {key: deepcopy(value) for key, value in snapshot.items() if key not in ('audit_head', 'companion_folder')}
+    # Only these shallow containers change. digest() reads nested source/page
+    # data without mutating it, so copying every retained PDF tree here would
+    # repeat that work twice for every historical state during audit checks.
+    body = {key: value for key, value in snapshot.items() if key not in ('audit_head', 'companion_folder')}
     body['items'] = [{key: value for key, value in item.items() if key not in ('state', 'review', 'confirmation')}
                      for item in body.get('items', [])]
     body['transfers'] = [{key: value for key, value in binding.items() if key != 'status'} for binding in body.get('transfers', [])]
     return digest(body)
+
+
+def audit_affected(before, after):
+    """Deterministic changed identities, including source-render observations."""
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        raise ValidationError('Audit state must contain structured before and after snapshots.')
+    def entries(state, name, limit, *, render=False):
+        values = state.get(name, [])
+        if not isinstance(values, list) or len(values) > limit:
+            raise ValidationError('Audit affected identities require bounded state collections.')
+        result = {}
+        for value in values:
+            if not isinstance(value, dict):
+                raise ValidationError('Audit affected identities require structured collection entries.')
+            identifier = identity(value.get('document_id' if render else 'id'), 'Affected source ID' if render else 'Affected ID')
+            if render:
+                number(value.get('page'), 'Affected source page', positive=True, integer=True)
+            key = (identifier, value['page']) if render else identifier
+            if key in result:
+                raise ValidationError('Audit affected identities cannot contain duplicate state entries.')
+            result[key] = digest(value)
+        return result
+    def changed(left, right):
+        return {key for key in left.keys() | right.keys() if left.get(key) != right.get(key)}
+    affected = {}
+    for key, limit in (('items', MAX_ITEMS), ('documents', 100), ('calibrations', 2000), ('transfers', MAX_ITEMS * 3)):
+        affected[key] = sorted(changed(entries(before, key, limit), entries(after, key, limit)))
+    renders = changed(entries(before, 'render_checks', 2000, render=True), entries(after, 'render_checks', 2000, render=True))
+    affected['documents'] = sorted(set(affected['documents']) | {document for document, _ in renders})
+    return affected
 
 
 def identity(value, label='ID'):
@@ -143,7 +176,7 @@ def polyline_length(value):
     return math.fsum(segments)
 
 
-def validate_calibration(value, snapshot):
+def validate_calibration(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'document_id', 'page', 'name', 'points', 'distance_m', 'uniform_scale'}, 'Calibration',
                   {'id', 'document_id', 'page', 'points', 'distance_m', 'uniform_scale'})
     identity(value['id'], 'Calibration ID')
@@ -154,10 +187,10 @@ def validate_calibration(value, snapshot):
     if value['uniform_scale'] is not True:
         raise ValidationError('Confirm that this region has a uniform, undistorted scale before calibration.')
     text(value.get('name', ''), 'Calibration name', 200)
-    return deepcopy(value)
+    return deepcopy(value) if copy_result else value
 
 
-def validate_item(value, snapshot):
+def validate_item(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields',
                         'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids'}, 'Takeoff item',
                   {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'review', 'confirmation', 'member_ids'})
@@ -269,7 +302,7 @@ def validate_item(value, snapshot):
         raise ValidationError('Reviewed items must retain a review receipt.')
     if value['state'] == 'confirmed' and value['confirmation'] is None:
         raise ValidationError('Confirmed items must retain a confirmation receipt.')
-    return deepcopy(value)
+    return deepcopy(value) if copy_result else value
 
 
 def item_digest(item, snapshot):
@@ -342,7 +375,7 @@ def item_result(item, snapshot):
             'issues': issues}
 
 
-def validate_snapshot(value):
+def validate_snapshot(value, *, copy_result=True):
     """Pure validation for portable files; never trusts imported approvals."""
     keys = new_snapshot().keys()
     object_fields(value, {*keys, 'companion_folder'}, 'Takeoff snapshot', keys)
@@ -402,7 +435,7 @@ def validate_snapshot(value):
     for key, validator in (('calibrations', validate_calibration), ('items', validate_item)):
         ids = set()
         for entry in value[key]:
-            validator(entry, value)
+            validator(entry, value, copy_result=False)
             if entry['id'] in ids:
                 raise ValidationError(f'{key} IDs must be unique.')
             ids.add(entry['id'])
@@ -464,4 +497,4 @@ def validate_snapshot(value):
     if value['audit_head'] is not None and (not isinstance(value['audit_head'], str) or not HASH.fullmatch(value['audit_head'])):
         raise ValidationError('Audit head must be a SHA-256 digest.')
     digest(value)
-    return deepcopy(value)
+    return deepcopy(value) if copy_result else value

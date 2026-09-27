@@ -125,6 +125,34 @@ class TakeoffDocumentTests(unittest.TestCase):
             self.assertEqual(json.loads(output.getvalue()), {"error": "limits unavailable"})
         self.assertEqual(list((self.store.root / "documents").iterdir()), [])
 
+    def test_real_parser_timeout_terminates_and_reaps_child_without_publishing(self):
+        original = pdf_bytes()
+        identifier = self.store.begin_upload(self.owner, "timeout.pdf", len(original))["upload_id"]
+        self.store.write_chunk(self.owner, identifier, 0, original)
+        processes = []
+        real_popen = subprocess.Popen
+
+        def observe_child(*args, **kwargs):
+            process = real_popen(*args, **kwargs)
+            processes.append(process)
+            return process
+
+        # Keep the real subprocess.run/Popen execution and cleanup path. This
+        # deadline expires during child startup, without a slow hostile PDF.
+        with patch("estimator.takeoff_documents.PARSER_TIMEOUT", 0.0001), \
+             patch("estimator.takeoff_documents.subprocess.Popen", side_effect=observe_child):
+            with self.assertRaisesRegex(ValidationError, "exceeded its time limit"):
+                self.store.finish_upload(self.owner, identifier)
+        self.assertEqual(len(processes), 1)
+        process = processes[0]
+        self.assertEqual(Path(process.args[2]).name, "takeoff_pdf_worker.py")
+        self.assertIsNotNone(process.poll(), "The actual parser child is still running")
+        self.assertNotEqual(process.returncode, 0)
+        self.assertEqual(process.wait(timeout=0), process.returncode)
+        self.assertEqual(list((self.store.root / "documents").iterdir()), [])
+        self.assertEqual(self.store._parsed, {})
+        self.assertFalse(self.store._uploads[identifier]["finishing"])
+
     def test_session_document_page_and_free_space_limits(self):
         with patch("estimator.takeoff_documents.MAX_DOCUMENTS", 1):
             self.upload()
@@ -383,7 +411,10 @@ class TakeoffDocumentTests(unittest.TestCase):
     def test_audit_hash_foreign_project_and_rewritten_source_fail_closed(self):
         document = self.upload()
         snapshot = self.snapshot([document])
-        event = {"project_id": str(uuid.uuid4()), "previous": None, "before": {}, "after": {}}
+        foreign = self.snapshot([])
+        event = {"version": 1, "project_id": foreign["project_id"], "revision": 1, "previous": None,
+                 "request_id": str(uuid.uuid4()), "op": "change", "at": "2026-09-28T00:00:00Z",
+                 "before": foreign, "after": {**deepcopy(foreign), "revision": 1}}
         snapshot["audit_head"] = self.store.put_blob(event)
         with self.assertRaisesRegex(ValidationError, "different project"):
             self.store.publish(snapshot, self.root / "quote.json")
@@ -497,6 +528,94 @@ class TakeoffDocumentTests(unittest.TestCase):
         self.store.validate_audit(saved)  # The cached original remains intact.
         with self.assertRaisesRegex(ValidationError, "hash has changed"):
             self.store.validate_audit(saved, owner=self.owner)
+
+    def _audit_chain(self, document, count=3):
+        snapshot = self.snapshot([document])
+        for revision in range(1, count+1):
+            after = {**deepcopy(snapshot), "revision": revision}
+            event = {"version": 1, "project_id": snapshot["project_id"], "revision": revision,
+                     "previous": snapshot["audit_head"], "request_id": str(uuid.uuid4()),
+                     "op": "test_operation", "at": "2026-09-28T00:00:00Z",
+                     "before": deepcopy(snapshot), "after": deepcopy(after)}
+            after["audit_head"] = self.store.put_blob(event)
+            snapshot = after
+        return snapshot
+
+    def test_warm_audit_cache_reuses_semantics_but_rehashes_every_original_blob(self):
+        document = self.upload()
+        snapshot = self._audit_chain(document)
+        first = self.store._graph(snapshot, self.store._audit_record)
+        public_blob = self.store.get_blob(snapshot["audit_head"])
+        public_blob["after"]["documents"][0]["name"] = "mutated-return-value.pdf"
+        with patch("estimator.takeoff_model.audit_state_digest", side_effect=AssertionError("Unexpected repeated semantic work")):
+            self.assertEqual(self.store._graph(snapshot, self.store._audit_record), first)
+        self.assertEqual(len(self.store._audit_records), 3)
+        self.assertEqual(len(self.store._audit_documents), 1)
+        # An older ancestor is still read and hashed, even after all its derived
+        # semantic values are present in memory and the head remains unchanged.
+        ancestor = first[1][-1]
+        (self.store.root / "audit" / (ancestor + ".json")).write_bytes(b"{}")
+        with self.assertRaisesRegex(ValidationError, "hash has changed"):
+            self.store.validate_audit(snapshot)
+
+    def test_audit_semantic_cache_has_entry_and_byte_bounds(self):
+        snapshot = self._audit_chain(self.upload())
+        with patch("estimator.takeoff_documents.MAX_AUDIT_RECORDS", 2):
+            self.store.validate_audit(snapshot)
+        self.assertEqual(len(self.store._audit_records), 2)
+        self.assertEqual(self.store._audit_cache_bytes, sum(record["weight"] for record in self.store._audit_records.values()))
+        fresh = TakeoffDocuments(self.store.root)
+        self.addCleanup(fresh.close)
+        with patch("estimator.takeoff_documents.MAX_AUDIT_CACHE_BYTES", 1):
+            fresh.validate_audit(snapshot)
+        self.assertEqual(len(fresh._audit_records), 0)
+        self.assertEqual(fresh._audit_cache_bytes, 0)
+
+    def test_metadata_interning_cannot_hide_boolean_page_identity(self):
+        snapshot = self._audit_chain(self.upload(), count=1)
+        self.store.validate_audit(snapshot)
+        event = self.store.get_blob(snapshot["audit_head"])
+        event["after"]["documents"][0]["pages"][0]["page"] = True
+        snapshot["audit_head"] = self.store.put_blob(event)
+        with self.assertRaisesRegex(ValidationError, "page identity"):
+            self.store.validate_audit(snapshot)
+
+    def test_audit_attribution_is_optional_for_legacy_and_exact_when_present(self):
+        document = self.upload()
+        snapshot = self._audit_chain(document, count=1)
+        self.store.validate_audit(snapshot)  # Existing version-one events remain readable.
+        event = self.store.get_blob(snapshot["audit_head"])
+        event["actor"] = {"kind": "local-session", "session_id": str(uuid.uuid4())}
+        event["affected_ids"] = {name: [] for name in ("items", "documents", "calibrations", "transfers")}
+        event["after"]["documents"] = []
+        event["affected_ids"]["documents"] = [document["id"]]
+        snapshot = {**event["after"], "audit_head": self.store.put_blob(event)}
+        self.store.validate_audit(snapshot)
+        self.assertEqual(self.store.get_blob(snapshot["audit_head"])["actor"], event["actor"])
+
+        changes = [
+            {"actor": None},
+            {"actor": {"kind": "authenticated-user", "session_id": str(uuid.uuid4())}},
+            {"actor": {"kind": "local-session", "session_id": "not-a-session"}},
+            {"actor": {**event["actor"], "user": "invented"}},
+            {"affected_ids": []},
+            {"affected_ids": {"items": []}},
+            {"affected_ids": {**event["affected_ids"], "documents": [document["id"], document["id"]]}},
+            {"affected_ids": {**event["affected_ids"], "documents": ["invalid"]}},
+            {"affected_ids": {**event["affected_ids"], "documents": []}},
+            {"affected_ids": {**event["affected_ids"], "documents": sorted(str(uuid.uuid4()) for _ in range(201))}},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                changed = {**deepcopy(event), **change}
+                invalid = {**snapshot, "audit_head": self.store.put_blob(changed)}
+                with self.assertRaises(ValidationError):
+                    self.store.validate_audit(invalid)
+        for omitted in ("actor", "affected_ids"):
+            changed = deepcopy(event)
+            del changed[omitted]
+            with self.subTest(omitted=omitted), self.assertRaises(ValidationError):
+                self.store.validate_audit({**snapshot, "audit_head": self.store.put_blob(changed)})
 
     def test_add_capacity_includes_deleted_originals_before_creating_draft(self):
         original = self.upload()

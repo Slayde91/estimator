@@ -15,7 +15,7 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -80,6 +80,28 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Prepared loads require an authorised evidence session and do not mutate the current workspace',async()=>{
     const h=harness();h.audit.accept(response(blank(),'current'));await assert.rejects(h.api.prepareProject(blank()),/authorised/);
     h.audit.setApi(async()=>response(blank(),'prepared'));const prepared=await h.api.prepareProject(blank(),'prepared');assert.equal(h.api.sessionId(),'current');assert.equal(prepared.session.session_id,'prepared');
+  });
+  await check('PDF deadlines abort stalled operations but preserve successful and rejected results',async()=>{
+    const h=harness();let aborted=0;
+    await assert.rejects(h.audit.boundedPdf(new Promise(()=>{}),'Opening PDF',()=>{aborted++;},5),error=>error.name==='PdfTimeoutError' && /timed out/.test(error.message));assert.equal(aborted,1);
+    assert.equal(await h.audit.boundedPdf(Promise.resolve('page'),'Loading PDF page',()=>{aborted++;},20),'page');
+    await assert.rejects(h.audit.boundedPdf(Promise.reject(new Error('source changed')),'Loading PDF page',()=>{aborted++;},20),/source changed/);
+    assert.equal(aborted,1);
+  });
+  await check('PDF cleanup terminates workers immediately without waiting for a stalled destroy acknowledgement',()=>{
+    const h=harness(),calls=[];
+    h.audit.destroyPdfResources({destroy(){calls.push('task');return new Promise(()=>{});}},{destroy(){calls.push('pdfWorker');}},{terminate(){calls.push('terminate');}});
+    assert.deepEqual(calls,['task','pdfWorker','terminate']);
+  });
+  await check('Late PDF callbacks cannot terminate a replacement project or a newer cached worker',async()=>{
+    const h=harness(),oldPdf={getPage(){throw new Error('stale PDF should not be accessed');}},newPdf={};let destroyed=0;h.audit.accept(response(blank(),'new'));
+    h.audit.state.pdfs.set('new/doc',{document:newPdf,destroy(){destroyed++;}});
+    await assert.rejects(h.audit.pdfPage(oldPdf,'doc',1,'old'),error=>error.name==='RenderingCancelledException');assert.equal(destroyed,0);
+    h.audit.discardPdf('doc','new',oldPdf);assert.equal(destroyed,0);assert.equal(h.audit.state.pdfs.size,1);
+  });
+  await check('A stale queued render failure cannot overwrite a newer successful retry',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const pending=deferred();h.audit.state.queue=pending.promise;let current=true,requested=false;h.audit.setApi(async()=>{requested=true;return response(blank());});
+    const failure=h.audit.recordPdfFailure('doc',1,new Error('old timeout'),'session',false,()=>current);current=false;pending.resolve();await failure;assert.equal(requested,false);
   });
   await check('Worker diagnostics preserve console output, bound payloads, and signal readiness after upstream import',()=>{
     const messages=[],logged=[],context={console:{warn:(...args)=>logged.push(args),error:(...args)=>logged.push(args)},self:{postMessage:data=>messages.push(data)},String};

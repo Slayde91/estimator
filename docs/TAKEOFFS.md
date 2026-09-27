@@ -128,6 +128,12 @@ contracts. `npm ci`, `npx playwright install chromium`, then
 synthetic drawings, a disposable database and controlled save dialogs.
 `node tests/browser/pdf_render_gate.cjs` independently checks strict-CSP fonts,
 scans, crop/rotation/UserUnit coordinates and JPEG2000 rendering.
+`npm run test:takeoffs-capacity` exercises 100 separate PDFs and 2,000 pages
+through the rendered upload/search workflow, including complete search coverage
+and bounded document workers and thumbnails.
+`npm run test:takeoffs-timeouts` verifies that a stalled PDF request becomes a
+visible failure, blocks its evidence and permits a healthy retry. PDF opening,
+page loading, rendering and text extraction each have a 30-second deadline.
 
 The rendered tests never connect to the user's running server. CI also runs the
 complete existing Python/JavaScript regression suites and distribution build.

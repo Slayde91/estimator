@@ -555,6 +555,28 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         invalid = deepcopy(valid); invalid['calibrations'][0]['points'][1] = invalid['calibrations'][0]['points'][0]
         with self.assertRaises(ValidationError): validate_snapshot(invalid)
 
+    def test_audit_digest_and_validation_avoid_redundant_copies_without_changing_evidence(self):
+        from unittest.mock import patch
+        from estimator.takeoff_model import audit_state_digest
+        identity = self.create(); self.confirm(identity)
+        state = deepcopy(self.state['snapshot'])
+        state['companion_folder'] = 'portable locator'
+        state['documents'][0]['pages'][0]['width'] = 200.0
+        original = deepcopy(state)
+        legacy = {key: deepcopy(value) for key, value in state.items() if key not in ('audit_head', 'companion_folder')}
+        legacy['items'] = [{key: value for key, value in item.items() if key not in ('state', 'review', 'confirmation')}
+                           for item in legacy['items']]
+        legacy['transfers'] = [{key: value for key, value in binding.items() if key != 'status'}
+                               for binding in legacy['transfers']]
+        expected = digest(legacy)
+        with patch('estimator.takeoff_model.deepcopy', side_effect=AssertionError('Unexpected evidence-tree copy')):
+            self.assertEqual(audit_state_digest(state), expected)
+            self.assertIs(validate_snapshot(state, copy_result=False), state)
+        self.assertEqual(state, original)
+        copied = validate_snapshot(state)
+        copied['documents'][0]['pages'][0]['view'][0] = 999
+        self.assertEqual(state, original)
+
     def test_malformed_operations_previews_and_huge_numbers_return_validation_errors(self):
         from estimator.takeoff_model import number
         before = deepcopy(self.state['snapshot'])
@@ -567,6 +589,37 @@ class TakeoffWorkspaceTests(unittest.TestCase):
             with self.subTest(value=str(value)), self.assertRaises(ValidationError):
                 number(value, 'test number')
         self.assertEqual(self.service.get(self.sid)['snapshot'], before)
+
+    def test_create_item_detaches_caller_geometry_and_measurement_before_auditing(self):
+        geometry = {'document_id': self.doc['id'], 'page': 1, 'points': [[10, 30], [110, 30]]}
+        measurement = {'method': 'cited', 'length_m': 10, 'citation': 'Source dimension'}
+        self.create(geometry=geometry, measurement=measurement)
+        committed = deepcopy(self.state['snapshot'])
+        head = committed['audit_head']
+        audit = self.documents.get_blob(head)
+        geometry['points'][0][0] = 99
+        measurement['length_m'] = 77
+        self.assertEqual(self.service.get(self.sid)['snapshot'], committed)
+        self.assertEqual(self.documents.get_blob(head), audit)
+
+    def test_new_audit_events_record_actor_and_exact_changed_ids_in_bounded_history(self):
+        from estimator.takeoff_model import audit_affected
+        first = self.create(); second = self.create()
+        self.command('bulk_update', item_ids=[second, first], changes={'fields': {'level': 'L2'}})
+        row = self.service.history(self.sid, limit=1)['items'][0]
+        self.assertEqual(row['actor'], {'kind': 'local-session', 'session_id': self.sid})
+        self.assertEqual(row['affected_ids'], {'items': sorted([first, second]), 'documents': [],
+                                             'calibrations': [], 'transfers': []})
+        self.assertNotIn('before', row); self.assertNotIn('after', row)
+        self.command('record_render', document_id=self.doc['id'], page=1, success=False, warnings=['Raster failed'])
+        event = self.documents.get_blob(self.state['snapshot']['audit_head'])
+        self.assertEqual(event['affected_ids']['documents'], [self.doc['id']])
+        self.assertEqual(event['affected_ids']['items'], sorted([first, second]))
+        self.assertEqual(audit_affected(event['before'], event['after']), event['affected_ids'])
+        for malformed in (None, {'items': {}}, {'items': [None]}, {'items': [{'id': []}]},
+                          {'render_checks': [{'document_id': self.doc['id'], 'page': True}]}):
+            with self.subTest(malformed=malformed), self.assertRaises(ValidationError):
+                audit_affected(malformed, event['after'])
 
 
 if __name__ == '__main__':

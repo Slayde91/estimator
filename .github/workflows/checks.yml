@@ -54,9 +54,14 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser/pdf_render_gate.cjs
       - run: npm run test:takeoffs-browser
+      - run: npm run test:takeoffs-capacity
+      - run: npm run test:takeoffs-timeouts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: takeoff-browser-evidence
-          path: .runtime/browser-qa/
+          path: |
+            .runtime/browser-qa/**/*.png
+            .runtime/browser-qa/**/result.json
+            .runtime/browser-qa/pdf-render-gate.json
           retention-days: 7

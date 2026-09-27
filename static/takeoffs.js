@@ -493,7 +493,8 @@
     const calculator = state.ui.target.value, request = (state.optionRequest || 0) + 1; state.optionRequest = request;
     const maps = { steel_vermiculite: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_board: { product: "C", section: "D", sides: "G", fire_period_min: "H", member_type: "I", critical_temperature: "J" }, ductwork: { product: "C", frl: "E", exposure: "H", orientation: "I" } };
     try {
-      const choices = await api(`/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(product ?? item.fields.product ?? "")}`);
+      const memberType = controls.find(field => field.control.name === "member_type")?.control.value ?? item.fields.member_type ?? "";
+      const choices = await api(`/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(product ?? item.fields.product ?? "")}&member_type=${encodeURIComponent(memberType)}`);
       if (request !== state.optionRequest || state.ui.target.value !== calculator || selectedItems()[0]?.id !== item.id) return;
       for (const field of controls) {
         const values = choices.columns.find(column => column.column === maps[calculator]?.[field.control.name])?.options || [];
@@ -503,6 +504,8 @@
       }
       const productField = controls.find(field => field.control.name === "product");
       if (productField && !productField.control.dataset.optionsListener) { productField.control.dataset.optionsListener = "true"; productField.control.addEventListener("change", () => void enrichInspectorOptions(item, controls, productField.control.value)); }
+      const memberField = controls.find(field => field.control.name === "member_type");
+      if (memberField && !memberField.control.dataset.optionsListener) { memberField.control.dataset.optionsListener = "true"; memberField.control.addEventListener("change", () => void enrichInspectorOptions(item, controls, productField?.control.value)); }
     } catch (error) { message(`Calculator choices could not be loaded. ${error.message}`, true); }
   }
   async function findProfile(item) { const data = await ask("Find steel section", [["search", "Section designation", "text", item.fields.section || "", true]], "Select an exact section from the existing calculator database.", "Search"); if (!data) return; const result = await api(`/profiles?calculator=${encodeURIComponent(state.ui.target.value)}&search=${encodeURIComponent(data.search)}`); if (!result.items?.length) throw new Error("No exact database candidates. Refine the section search."); const choice = await ask("Choose a database section", [["section", "Steel section", result.items.map(row => row.id), "", true]], `${result.total} matches. ${result.items.length} shown.`, "Use section"); if (choice) { const control = state.ui.inspector.querySelector('[name="section"]'); if (!control) throw new Error("Select the item again before changing its section."); control.value = choice.section; markFormEdited(); message("Database section selected. Apply item edits to keep this and your other changes."); } }

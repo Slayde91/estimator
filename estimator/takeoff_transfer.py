@@ -22,6 +22,8 @@ def calculator_options(calculator_id, fields=None):
     row = schedule['first_row']
     product_column = 'B' if calculator_id == 'steel_vermiculite' else 'C'
     inputs = {schedule['sheet']: {product_column+str(row): fields['product']}} if fields and fields.get('product') else {}
+    if calculator_id == 'steel_board' and fields and fields.get('member_type'):
+        inputs.setdefault(schedule['sheet'], {})['I'+str(row)] = fields['member_type']
     _, engine, lock = calculator_session(calculator_id, inputs)
     with lock:
         columns = [{'column': f['column'], 'label': f['label'], 'type': f['type'],
@@ -105,6 +107,10 @@ def mapped_values(item, snapshot, calculator_id, row):
     options = calculator_options(calculator_id, fields)
     for field in options['columns']:
         value = values.get(field['column'])
+        if calculator_id == 'steel_board' and field['column'] == 'J':
+            # Temperature and member/product scope must be diagnosed together
+            # by the complete native board row, including its exact explanation.
+            continue
         if value not in (None, '') and field['options'] and value not in field['options']:
             raise ValidationError(f"{field['label']}: select an exact supported calculator value; '{value}' cannot be transferred.")
     return {column+str(row): value for column, value in values.items()}, normalizations
@@ -114,6 +120,28 @@ def row_values(inputs, schedule, row):
     """Hash every editable cell, including advanced fields and explicit blanks."""
     cells = inputs.get(schedule['sheet'], {})
     return {f['column']+str(row): cells.get(f['column']+str(row)) for f in schedule['columns'] if f.get('editable')}
+
+
+def _board_review(inputs, bindings, items):
+    """Use existing workbook scope/quantity decisions without changing inputs."""
+    _, engine, lock = calculator_session('steel_board', inputs)
+    invalid, warnings = [], []
+    with lock:
+        for binding in bindings:
+            row = binding['row']; item = items[binding['item_id']]
+            status = engine.value('CALCULATOR', f'AR{row}')
+            message = engine.value('CALCULATOR', f'AI{row}')
+            label = item['fields'].get('mark') or item['id']
+            if status != 'CLADDING ESTIMATE':
+                invalid.append(f"{label} ({item['id']}), row {row}: {status}. {message}")
+            elif message:
+                warnings.append({'item_id': item['id'], 'row': row, 'code': 'EXISTING_CALCULATOR_NOTE',
+                                 'status': status, 'message': message})
+    if invalid:
+        raise ValidationError('Board transfer contains invalid items. No items were transferred. '
+                              'Resolve the existing calculator diagnosis without changing the project requirements:\n'
+                              + '\n'.join(invalid))
+    return warnings
 
 
 def transfer_preview(snapshot, request):
@@ -182,6 +210,7 @@ def transfer_preview(snapshot, request):
         rows = sorted(set(rows) | {row})
         changes.append({'item_id': item_id, 'row': row, 'action': action})
     validate_calculator_edits(calculator_id, inputs, original)
+    warnings = _board_review(inputs, selected, items) if calculator_id == 'steel_board' else []
     return {'calculator_id': calculator_id, 'base_fingerprint': digest({'inputs': original, 'schedule_rows': request['schedule_rows']}),
             'inputs': inputs, 'schedule_rows': rows, 'bindings': selected, 'all_bindings': bindings,
-            'changes': changes, 'normalizations': normalizations, 'warnings': []}
+            'changes': changes, 'normalizations': normalizations, 'warnings': warnings}

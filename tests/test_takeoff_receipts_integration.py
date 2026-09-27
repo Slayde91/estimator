@@ -48,10 +48,13 @@ class TakeoffReceiptIntegrationTests(unittest.TestCase):
             documents.write_chunk(session_id, upload['upload_id'], 0, payload)
             document = documents.finish_upload(session_id, upload['upload_id'])
             state = service.add_document(session_id, document, state['revision'])
+            requests = {}
 
             def command(op, **values):
                 nonlocal state
-                state = service.command(session_id, {'expected_revision': state['revision'], 'request_id': str(uuid4()), 'op': op, **values})
+                request = {'expected_revision': state['revision'], 'request_id': str(uuid4()), 'op': op, **values}
+                requests[op] = request
+                state = service.command(session_id, request)
 
             command('record_render', document_id=document['id'], page=1, success=True, warnings=[])
             command('create_item', item={'mode': 'steel', 'quantity': 2,
@@ -68,13 +71,40 @@ class TakeoffReceiptIntegrationTests(unittest.TestCase):
             original = calculators['steel_vermiculite']
             preview = service.preview_transfer(session_id, {'expected_revision': state['revision'], 'calculator_id': 'steel_vermiculite',
                 **deepcopy(original), 'item_ids': [item_id], 'update_linked': False})
-            state = service.apply_transfer(session_id, {'expected_revision': state['revision'], 'request_id': str(uuid4()),
-                'preview_id': preview['preview_id'], **deepcopy(original)})
+            apply_request = {'expected_revision': state['revision'], 'request_id': str(uuid4()),
+                             'preview_id': preview['preview_id'], **deepcopy(original)}
+            state = service.apply_transfer(session_id, apply_request)
             calculators['steel_vermiculite'] = {key: state['calculator'][key] for key in ('inputs', 'schedule_rows')}
             target = root / 'project.json'; dialogs.selection = SaveSelection(str(target), None)
             library.save_as({'estimate': baseline['estimate'], 'calculators': calculators,
                              'takeoffs': state['snapshot'], 'takeoffs_session_id': session_id})
             saved = json.loads(target.read_bytes())
+            companion = root / saved['takeoffs']['companion_folder']
+            source_path = companion / 'documents' / (document['sha256'] + '.pdf')
+            audit_path = companion / 'audit' / (state['snapshot']['audit_head'] + '.json')
+            original_audit = audit_path.read_bytes()
+            before_retry = deepcopy(state['snapshot'])
+
+            def counts():
+                with store.connect() as db:
+                    return tuple(db.execute('SELECT count(*) FROM '+table).fetchone()[0]
+                                 for table in ('takeoff_approvals', 'takeoff_transfer_receipts'))
+
+            original_counts = counts()
+            for changed_path, original_bytes in ((source_path, payload), (audit_path, original_audit)):
+                changed_path.write_bytes(original_bytes + b' changed-evidence')
+                with self.subTest(changed=changed_path.suffix):
+                    with self.assertRaises(ValidationError):
+                        service.apply_transfer(session_id, apply_request)
+                    for op in ('review_items', 'confirm_items'):
+                        with self.assertRaises(ValidationError):
+                            service.command(session_id, requests[op])
+                changed_path.write_bytes(original_bytes)
+                self.assertEqual(service.apply_transfer(session_id, apply_request)['calculator'], state['calculator'])
+                for op in ('review_items', 'confirm_items'):
+                    self.assertEqual(service.command(session_id, requests[op])['snapshot'], before_retry)
+                self.assertEqual(service.get(session_id)['snapshot'], before_retry)
+                self.assertEqual(counts(), original_counts)
             dialogs.opened = str(target)
             reopened = library.open_file()
             self.assertEqual(reopened['takeoffs_issues'], [])

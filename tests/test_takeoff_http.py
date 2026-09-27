@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from urllib.parse import urlencode
 from reportlab.pdfgen import canvas
 from estimator.server import create_server
 
@@ -54,6 +55,16 @@ class TakeoffHTTPTests(unittest.TestCase):
         _, _, other = self.request('POST', '/api/takeoffs/sessions', {})
         other_route = '/api/takeoffs/sessions/'+json.loads(other)['session_id']+'/documents/'+document['id']+'/file'
         self.assertEqual(self.request('GET',other_route)[0],400)
+
+    def test_board_temperature_choices_use_current_member_type(self):
+        for member_type, temperature in (('Beam', 620), ('Column', 550)):
+            query = urlencode({'calculator': 'steel_board', 'product': 'TRAFALGAR COREX',
+                               'member_type': member_type})
+            status, _, payload = self.request('GET', '/api/takeoffs/options?' + query)
+            self.assertEqual(status, 200, payload)
+            field = next(field for field in json.loads(payload)['columns'] if field['column'] == 'J')
+            self.assertIn(temperature, field['options'])
+            self.assertNotIn(550 if temperature == 620 else 620, field['options'])
 
     def test_vendor_manifest_and_same_origin_guards(self):
         for name in ('build/pdf.mjs','build/pdf.worker.mjs','wasm/openjpeg_nowasm_fallback.js'):

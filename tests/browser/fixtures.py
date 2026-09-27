@@ -64,6 +64,30 @@ def make_pdf(path):
         writer.write(output)
 
 
+def make_board_pdf(path):
+    """Explicitly artificial board requirements for transfer browser acceptance."""
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    pdfmetrics.registerFont(TTFont('BoardFixture', str(ROOT / 'static/fonts/Montserrat-Variable.ttf')))
+    drawing = canvas.Canvas(str(path), pagesize=(842, 595), invariant=1)
+    drawing.setFont('BoardFixture', 18)
+    drawing.drawString(35, 555, 'SYNTHETIC BOARD TRANSFER ACCEPTANCE - NOT A PROJECT DESIGN')
+    drawing.setFont('BoardFixture', 11)
+    drawing.drawString(75, 490, 'Supported test requirements: 100UC15 | TRAFALGAR COREX | Beam | 120 min | 620 C | 3 sides')
+    drawing.drawString(100, 425, 'BOARD-MEASURED | 2 separate physical members | 10.0 m EACH')
+    drawing.setStrokeColorRGB(.8, 0, 0); drawing.setLineWidth(5)
+    drawing.line(100, 400, 500, 400)
+    drawing.drawString(100, 285, 'BOARD-CITED | 3 separate physical members | 7.25 m EACH')
+    drawing.setStrokeColorRGB(0, .2, .8); drawing.setLineWidth(2)
+    drawing.rect(100, 230, 290, 20)
+    drawing.drawString(100, 180, 'BOARD-UNSUPPORTED | 1 beam | 10.0 m | COREX | 120 min | 550 C | 3 sides')
+    drawing.drawString(100, 160, 'Deliberately unsupported: transfer must preserve requirements and refuse this row.')
+    drawing.drawString(100, 90, 'Calibration baseline = 10 m; uniform horizontal and vertical scale')
+    drawing.line(100, 75, 500, 75)
+    drawing.save()
+
+
 def make_failed_image_pdf(path):
     """Structurally valid PDF whose image bytes cannot be decoded completely."""
     from pypdf import PdfWriter
@@ -97,6 +121,7 @@ if __name__ == '__main__':
         folder.mkdir(parents=True, exist_ok=True)
         fixture = folder / 'synthetic-drawings.pdf'; make_pdf(fixture)
         failed_fixture = folder / 'failed-image.pdf'; make_failed_image_pdf(failed_fixture)
+        board_fixture = folder / 'synthetic-board.pdf'; make_board_pdf(board_fixture)
         project = folder / 'browser-project.json'
         class Dialogs:
             def choose_save(self, initial_directory, filename):
@@ -106,7 +131,7 @@ if __name__ == '__main__':
             def choose_folder(self, initial_directory):
                 return str(folder)
         server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
-        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'project': str(project), 'directory': str(folder)}), flush=True)
+        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'project': str(project), 'directory': str(folder)}), flush=True)
         try:
             server.serve_forever()
         finally:

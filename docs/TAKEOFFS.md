@@ -39,6 +39,10 @@ Choose the explicit destination and exact database section/product choices.
 Steel spray and steel board have separate section databases; no fuzzy mapping
 is performed. Preview shows normalized inputs and proposed changes before they
 are applied to the current project draft.
+For Steel Board, preview also evaluates the proposed rows with the existing
+calculator. An unavailable board design blocks the batch and shows the
+calculator's reason. Supported designs retain its technical notes in the
+preview; the application never changes project requirements to find a match.
 
 | Destination | Inputs supplied by the register |
 | --- | --- |

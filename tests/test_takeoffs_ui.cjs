@@ -15,7 +15,7 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -139,6 +139,19 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Draft');
     assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Needs review');
     assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Reviewed');
+  });
+  await check('Board choices follow the current unsaved member type and product instead of stale saved requirements',async()=>{
+    const h=harness(),value=blank(),item={id:'member',mode:'steel',fields:{member_type:'Column',product:'Old product'}};
+    value.items=[item];h.audit.accept(response(value));h.audit.state.selected.add(item.id);h.audit.state.ui={target:{value:'steel_board'}};
+    const control=(name,value)=>({name,value,dataset:{},addEventListener(event,callback){this[event]=callback;}});
+    const member=control('member_type','Beam'),product=control('product','TRAFALGAR COREX'),controls=[{control:member},{control:product}],paths=[];
+    h.audit.setApi(async path=>{paths.push(path);return {columns:[]};});
+    await h.audit.enrichInspectorOptions(item,controls);
+    assert.equal(new URL(paths.at(-1),'http://localhost').searchParams.get('member_type'),'Beam');
+    member.value='Column';member.change();await flush();
+    let query=new URL(paths.at(-1),'http://localhost').searchParams;assert.equal(query.get('member_type'),'Column');assert.equal(query.get('product'),'TRAFALGAR COREX');
+    product.value='PROMATECT 250';product.change();await flush();query=new URL(paths.at(-1),'http://localhost').searchParams;
+    assert.equal(query.get('product'),'PROMATECT 250');assert.equal(query.get('member_type'),'Column');
   });
   console.log(`${passed} takeoff UI and geometry checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

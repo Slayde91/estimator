@@ -205,6 +205,10 @@ class TakeoffService:
             if 'payload' not in prior or prior['applied_revision'] != response['revision']:
                 raise ValidationError('This transfer was already applied. Its response expired or the workspace changed; inspect the current calculator and review a new preview. It will not be applied twice.')
             result = prior['payload']
+            self._session_evidence(session_id)
+            snapshot = self._session(session_id)['snapshot']
+            self._assert_eligible(snapshot, self._items(snapshot, [binding['item_id'] for binding in result['bindings']]),
+                                  confirmed=True, session_id=session_id)
             response['transfer'] = deepcopy(result)
             response['calculator'] = {'id': result['calculator_id'], 'inputs': deepcopy(result['inputs']),
                                       'schedule_rows': deepcopy(result['schedule_rows'])}
@@ -221,6 +225,12 @@ class TakeoffService:
         if prior:
             if prior['request_hash'] != request_hash:
                 raise ValidationError('This request ID was already used for a different operation.')
+            if request.get('op') in ('review_items', 'confirm_items'):
+                # A retry may return the current state without another receipt,
+                # but it must not present cached authority over changed evidence.
+                self._session_evidence(session_id)
+                self.documents.assert_documents(session['snapshot']['documents'], owner=session_id)
+                self._verify_audit_head(session['snapshot'], owner=session_id)
             return session, self._request_response(session_id, prior)
         if type(request.get('expected_revision')) is not int or request['expected_revision'] != session['snapshot']['revision']:
             raise ValidationError('The takeoff draft changed. Reload its current state before applying this operation.')

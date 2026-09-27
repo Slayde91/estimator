@@ -43,9 +43,10 @@ class TakeoffHTTP:
             raise ValidationError('Use one value per takeoff option.')
         query = {key: value[0] for key, value in query.items()}
         if route == '/api/takeoffs/options' and handler.command == 'GET':
-            if set(query) - {'calculator', 'product'}:
-                raise ValidationError('Choose a calculator and optional product.')
-            handler.send_payload(200, self.service.options(query.get('calculator', ''), {'product': query.get('product', '')}))
+            if set(query) - {'calculator', 'product', 'member_type'}:
+                raise ValidationError('Choose a calculator and optional product/member type.')
+            fields = {key: query[key] for key in ('product', 'member_type') if key in query}
+            handler.send_payload(200, self.service.options(query.get('calculator', ''), fields))
             return True
         if route == '/api/takeoffs/profiles' and handler.command == 'GET':
             if set(query) - {'calculator', 'search'}:

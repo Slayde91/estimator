@@ -271,7 +271,7 @@ class TakeoffWorkspaceTests(unittest.TestCase):
 
     def test_board_and_duct_transfer_total_length_once_and_circular_remains_register_only(self):
         identity = self.create()
-        self.command('update_item', item_id=identity, changes={'fields': {'product': 'TRAFALGAR COREX'}})
+        self.command('update_item', item_id=identity, changes={'fields': {'product': 'TRAFALGAR COREX', 'critical_temperature': 620}})
         self.confirm(identity)
         board = self.preview(identity, 'steel_board')
         self.assertEqual(board['inputs']['CALCULATOR']['F9'], 20)
@@ -396,11 +396,11 @@ class TakeoffWorkspaceTests(unittest.TestCase):
              'C10': 'Re-entrant - 3 sides', 'D10': 550, 'E10': 'Section', 'F10': '100UC15',
              'H10': 120, 'I10': 3, 'J10': length}),
             ('steel_board', 'CALCULATOR', {'A9': 'B17', 'B9': 'L2 / East', 'C9': 'TRAFALGAR COREX',
-             'D9': '100UC15', 'F9': length * 3, 'G9': 3, 'H9': 120, 'I9': 'Beam', 'J9': 550}),
+             'D9': '100UC15', 'F9': length * 3, 'G9': 3, 'H9': 120, 'I9': 'Beam', 'J9': 620}),
         ):
             with self.subTest(calculator=calculator_id):
                 if calculator_id == 'steel_board':
-                    self.command('update_item', item_id=identity, changes={'fields': {'product': 'TRAFALGAR COREX'}})
+                    self.command('update_item', item_id=identity, changes={'fields': {'product': 'TRAFALGAR COREX', 'critical_temperature': 620}})
                 self.confirm(identity)
                 preview = self.preview(identity, calculator_id)
                 manual = empty_schedule_inputs(calculator_id)
@@ -424,6 +424,52 @@ class TakeoffWorkspaceTests(unittest.TestCase):
                     self.assertEqual(preview['inputs'][sheet]['J10'], length)
                 else:
                     self.assertEqual(preview['inputs'][sheet]['F9'], length * 3)
+                    self.assertGreater(actual.value(sheet, 'AE9'), 0)
+                    self.assertGreater(actual.value(sheet, 'AG9'), 0)
+                    self.assertTrue(any('supports' in warning['message'] for warning in preview['warnings']))
+
+    def test_board_native_unsupported_design_invalidates_entire_transfer_batch_before_apply(self):
+        def temperatures(member):
+            return next(column['options'] for column in self.service.options('steel_board',
+                {'product': 'TRAFALGAR COREX', 'member_type': member})['columns'] if column['column'] == 'J')
+        self.assertEqual(temperatures('Beam'), [620])
+        self.assertEqual(temperatures('Column'), [550])
+        supported = self.create()
+        self.command('update_item', item_id=supported, changes={'fields': {'mark': 'Supported beam',
+            'product': 'TRAFALGAR COREX', 'critical_temperature': 620}})
+        self.confirm(supported)
+        unsupported = self.create()
+        self.command('update_item', item_id=unsupported, changes={'fields': {'mark': 'Unsupported beam',
+            'product': 'TRAFALGAR COREX', 'critical_temperature': 550}})
+        self.confirm(unsupported)
+        original = empty_schedule_inputs('steel_board'); before = deepcopy(self.state['snapshot'])
+        request = {'expected_revision': self.state['revision'], 'calculator_id': 'steel_board',
+                   'inputs': deepcopy(original), 'schedule_rows': [9], 'item_ids': [supported, unsupported]}
+        with self.assertRaisesRegex(ValidationError, 'Board transfer contains invalid items') as caught:
+            self.service.preview_transfer(self.sid, request)
+        message = str(caught.exception)
+        self.assertIn('Unsupported beam', message)
+        self.assertIn('NO BOARD DESIGN', message)
+        self.assertIn('No thickness table for TRAFALGAR COREX, beam, 120 min at 550 C.', message)
+        self.assertIn('keep the project requirements unchanged', message)
+        self.assertEqual(request['inputs'], original)
+        self.assertEqual(self.service.get(self.sid)['snapshot'], before)
+        self.assertFalse(self.service._sessions[self.sid]['previews'])
+        self.assertFalse(before['transfers'])
+        valid = self.preview(supported, 'steel_board')
+        self.assertEqual(valid['inputs']['CALCULATOR']['J9'], 620)
+        self.assertTrue(valid['warnings'])
+
+    def test_applied_transfer_retry_rechecks_changed_source_evidence_before_returning_calculator(self):
+        identity = self.create(); self.confirm(identity)
+        preview = self.preview(identity); request = self.apply(preview)
+        snapshot = deepcopy(self.state['snapshot'])
+        self.documents.blocked = True
+        with self.assertRaisesRegex(ValidationError, 'Changed source evidence'):
+            self.service.apply_transfer(self.sid, request)
+        self.assertEqual(self.service.get(self.sid, verify_evidence=False)['snapshot'], snapshot)
+        self.documents.blocked = False
+        self.assertEqual(self.service.apply_transfer(self.sid, request), self.state)
 
     def test_failed_saved_source_binding_blocks_later_capture(self):
         identity = self.create(); self.confirm(identity)

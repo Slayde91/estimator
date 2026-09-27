@@ -193,7 +193,7 @@
     remove.title = `Remove ${item.title || item.id} from the Firestopping Library`;
     remove.setAttribute("aria-label", remove.title); remove.dataset.libraryDelete = item.id;
     remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);
-    add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(link, add, remove, status); return actions;
+    add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(remove, link, add, status); return actions;
   }
   async function deleteItem(pane, item) {
     const id = item.id;

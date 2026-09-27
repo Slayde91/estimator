@@ -184,13 +184,36 @@ class ConfigurationTests(unittest.TestCase):
             {"rates": {"unknown:1": {"price": 1}}}, {"inventory": {"200": {"unknown": 1}}},
             {"inventory": {"200": {"supplier_price": True}}}, {"inventory": {"200": {"markup": "30%"}}},
             {"inventory": {"200": {"name": "  "}}}, {"inventory": {"200": {"name": "a" * 1001}}},
-            {"inventory": {"915": {"supplier_price": 10}}}, {"inventory": {"915": {"markup": 0.5}}},
+            {"inventory": {"915": {"supplier_price": 10, "sales_price": 20}}}, {"rates": {"mesh:2": {"price": 10, "markup": 0.5}}},
             {"inventory": {"200": {"sales_price": 20}}},
             {"rates": {"mesh:2": {"yield": -1}}}]
         invalid.extend({"inventory": {"200": {"supplier_price": number}}} for number in (float("nan"), float("inf"), -float("inf"), -1, 1e13))
         for config in invalid:
             with self.subTest(config=config), self.assertRaises(ValidationError):
                 validate_configuration(config, self.data)
+
+    def test_manual_and_standalone_cost_inputs_preserve_legacy_prices(self):
+        original = deepcopy(self.data)
+        old = next(row for row in self.data['inventory'] if row['id'] == '915')
+        result = effective_catalog({'inventory': {'915': {'supplier_price': old['sales_price'], 'markup': 0}}}, self.data)
+        current = next(row for row in result['inventory'] if row['id'] == '915')
+        self.assertEqual(current['sales_price'], old['sales_price'])
+        self.assertEqual(current['pricing_mode'], 'supplier_markup')
+        changed = effective_catalog({'inventory': {'915': {'markup': .1}}}, self.data)
+        self.assertEqual(next(row for row in changed['inventory'] if row['id'] == '915')['sales_price'], old['sales_price'] * 1.1)
+        result = effective_catalog({'rates': {'mesh:2': {'supplier_price': 45.123456, 'markup': .2}}}, self.data)
+        rate = next(row for row in result['rate_groups']['mesh'] if row['id'] == 'mesh:2')
+        self.assertEqual(rate['price'], 45.123456 * 1.2)
+        self.assertEqual(rate['price_mode'], 'override')
+        self.assertEqual(self.data, original)
+
+    def test_unused_yield_is_stored_without_changing_calculation_inputs(self):
+        result = effective_catalog({'inventory': {'915': {'pricing_yield': 7.123456}}}, self.data)
+        self.assertEqual(result['rate_groups'], effective_catalog({}, self.data)['rate_groups'])
+        self.assertEqual(next(row for row in result['inventory'] if row['id'] == '915')['pricing_yield'], 7.123456)
+        for invalid in [-1, float('nan'), True]:
+            with self.assertRaises(ValidationError):
+                validate_configuration({'inventory': {'915': {'pricing_yield': invalid}}}, self.data)
 
 
 class ReplacementCatalogTests(unittest.TestCase):

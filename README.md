@@ -97,6 +97,15 @@ and conditions not represented in the table remain visible. **Source information
 retains the report/page label as plain text without a hyperlink. These display changes
 preserve the imported text, source tables, diagrams and saved project data.
 
+Trafalgar diagram captions, source labels and JPEG download filenames use reviewed
+Drawing No., T-card No. or Drawing Name values. Page and diagram suffixes distinguish
+reused names. Internal asset IDs and file hashes remain stable, preserving existing
+links and source-review evidence. Prepare a naming-only index with
+`scripts/name_trafalgar_diagrams.py --index <library.json> --review <review.json> --output <new-library.json>`.
+The review must cover every Trafalgar image and match its SHA-256; supplier images
+and naming reviews remain outside the repository. Install through the existing
+reference-library bundle workflow.
+
 Firestopping Library entries display stable **FL-ID-001** style identifiers and
 their prices. **Edit Library Item** opens a separate Firestopping Estimator
 session, retaining the current project's unsaved inputs and pricing. Each item

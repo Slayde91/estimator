@@ -16,6 +16,7 @@ from .technical_configuration_review import validate_configuration_review
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
+from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -154,6 +155,10 @@ class ReferenceLibrary:
                 if extension not in {'.png', '.jpg', '.jpeg'}:
                     raise ValueError('Unsupported image')
             assets[key] = {**asset, 'extension': extension, 'pdf': is_pdf}
+            if is_pdf and 'drawing_identity' in asset:
+                raise ValueError('Drawing image names cannot rename a PDF.')
+            validate_drawing_name(assets[key])
+        source_names = drawing_source_names(assets)
         records, searches, filters = {}, {}, {}
         selector_context = prepare_selector_orientation_context(data.get('trafalgar_selector_import'))
         if set(data['libraries']) != set(KINDS):
@@ -232,12 +237,14 @@ class ReferenceLibrary:
                     # Keep the imported record in libraries/items unchanged: source
                     # fingerprints and saved manual links depend on those bytes.
                     item = normalize_technical_item(item, selector_capture=selector_context)
+                    apply_drawing_names(item, assets, source_names)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
                         text.extend((source.get('label', ''), source.get('filename', '')))
                 else:
                     item = deepcopy(item)
+                    apply_drawing_names(item, assets, source_names)
                 values = item.setdefault('filter_values', {})
                 values.pop('table', None)
                 values['substrate'] = classify_substrates(
@@ -367,4 +374,5 @@ class ReferenceLibrary:
             except OSError as exc:
                 raise ReferenceNotFound() from exc
             mime = 'application/pdf' if pdf else 'image/png' if asset['extension'] == '.png' else 'image/jpeg'
-            return payload, mime, key + asset['extension']
+            filename = asset['filename'] if asset.get('drawing_identity') else key + asset['extension']
+            return payload, mime, filename

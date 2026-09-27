@@ -22,6 +22,7 @@ from .schedule_rows import blank_schedule_defaults, normalize_schedule_rows
 
 PROJECT_FORMAT = "ceasefire-project"
 PROJECT_VERSION = 1
+TAKEOFF_PROJECT_VERSION = 2
 PROJECT_FILENAME = "CEASEFIRE-Project.json"
 MAX_PROJECT_FILE = 16 * 1_048_576
 CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
@@ -102,7 +103,7 @@ def project_summary(payload):
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ValidationError("The project file must contain valid JSON.") from error
     _check_tree(snapshot)
-    if not isinstance(snapshot, dict) or snapshot.get("format") != PROJECT_FORMAT or type(snapshot.get("version")) is not int or snapshot["version"] != PROJECT_VERSION:
+    if not isinstance(snapshot, dict) or snapshot.get("format") != PROJECT_FORMAT or type(snapshot.get("version")) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
     estimate = snapshot.get("estimate")
     if not isinstance(estimate, dict) or not isinstance(snapshot.get("calculators"), dict):
@@ -186,7 +187,7 @@ def _portable_penetration(value, *, saved=False):
 
 def export_project(store, request):
     """Return a self-contained snapshot of the active estimate and calculators."""
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -224,6 +225,10 @@ def export_project(store, request):
     }
     if penetration is not None:
         snapshot["penetration"] = penetration
+    if "takeoffs" in request:
+        from .takeoff_model import validate_snapshot
+        snapshot["takeoffs"] = validate_snapshot(request["takeoffs"])
+        snapshot["version"] = TAKEOFF_PROJECT_VERSION
     payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
     if len(payload) > MAX_PROJECT_FILE:
         raise ValidationError("The project file must be at most 16 MB.")
@@ -255,10 +260,12 @@ def load_project_bytes(store, payload):
         raise ValidationError("The project file must contain valid JSON.") from error
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
-    if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] != PROJECT_VERSION:
+    if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
+    if (snapshot["version"] == TAKEOFF_PROJECT_VERSION) != ("takeoffs" in snapshot):
+        raise ValidationError("Takeoff projects require version 2 and a complete takeoff snapshot.")
     estimate = snapshot["estimate"]
     if (not isinstance(estimate, dict) or not ESTIMATE_REQUIRED_FIELDS <= set(estimate)
             or set(estimate) - ESTIMATE_FIELDS):
@@ -292,4 +299,7 @@ def load_project_bytes(store, payload):
               "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
     if penetration is not None:
         result["penetration"] = penetration
+    if "takeoffs" in snapshot:
+        from .takeoff_model import validate_snapshot
+        result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])
     return result

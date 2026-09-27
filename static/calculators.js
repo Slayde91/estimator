@@ -388,6 +388,7 @@
   }
 
   function setInput(entry, sheet, address, value) {
+    if (state.takeoffReservation) { message("Wait for the takeoff transfer to finish before editing the schedule."); return; }
     entry.inputs[sheet] ||= {};
     entry.inputs[sheet][address] = value;
     // Reusing a removed source row is a new draft. Undo must never overwrite
@@ -1026,7 +1027,13 @@
         icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
         remove.append(icon); remove.title = `Remove line ${item}`;
         remove.type = "button"; remove.dataset.scheduleRemove = String(row.row); remove.disabled = state.action || entry.invalid.size > 0;
-        remove.setAttribute("aria-label", `Remove line ${item}`); remove.addEventListener("click", () => removeScheduleRow(row.row, entry)); action.append(remove); tr.append(action);
+        remove.setAttribute("aria-label", `Remove line ${item}`); remove.addEventListener("click", () => removeScheduleRow(row.row, entry)); action.append(remove);
+        for (const binding of window.CeasefireTakeoffs?.scheduleBindings(entry.definition.id, row.row) || []) {
+          const source = node("button", "takeoff-source-indicator", "Source"); source.type = "button";
+          source.title = `Open takeoff ${binding.item_id}`; source.setAttribute("aria-label", source.title);
+          source.addEventListener("click", () => void window.CeasefireTakeoffs.showSource(binding.item_id)); action.append(source);
+        }
+        tr.append(action);
       }
       if (syntheticLine) tr.append(node("td", "calculator-line-number", item));
       const requestedLayout = renderedGroup.definition?.row_layouts?.[row.row];
@@ -1581,6 +1588,44 @@
     return projectSnapshot();
   }
 
+  // The public takeoff bridge captures a complete calculator draft. Only a
+  // server-validated preview may replace it, under an exclusive short lease.
+  async function captureTakeoffTarget(id) {
+    document.activeElement?.blur?.();
+    await completeProjectSnapshot();
+    if (state.action) throw new Error("Finish the current calculator action first.");
+    const entry = state.entries.get(id);
+    if (!entry?.definition.schedule || entry.invalid.size) throw new Error("Choose a valid calculator schedule and correct its input errors first.");
+    return { inputs: clone(entry.inputs), ...scheduleState(entry), fingerprint: projectFingerprint() };
+  }
+  function reserveTakeoffTarget(id, fingerprint) {
+    document.activeElement?.blur?.();
+    if (state.action || projectFingerprint() !== fingerprint) throw new Error("The calculator changed during transfer review. Preview the transfer again.");
+    const entry = state.entries.get(id);
+    if (!entry || entry.invalid.size) throw new Error("The destination calculator is unavailable or has invalid inputs.");
+    const reservation = { id, entry, entries: state.entries, inputs: JSON.stringify(entry.inputs), rows: JSON.stringify(entry.scheduleRows), revision: entry.revision };
+    state.takeoffReservation = reservation; state.action = true; clearTimeout(state.timer); ++state.requestRevision;
+    for (const control of $("calculator-grid").querySelectorAll("input,select,textarea,button")) control.disabled = true;
+    updateStatus(); return reservation;
+  }
+  function applyTakeoffTarget(id, transferred, reservation) {
+    const entry = state.entries.get(id);
+    if (!reservation || state.takeoffReservation !== reservation || id !== reservation.id || entry !== reservation.entry || state.entries !== reservation.entries
+        || entry.revision !== reservation.revision || JSON.stringify(entry.inputs) !== reservation.inputs || JSON.stringify(entry.scheduleRows) !== reservation.rows) throw new Error("The calculator changed while applying the transfer. Reopen the transfer before proceeding.");
+    if (transferred?.calculator_id !== id || !transferred.inputs || !Array.isArray(transferred.schedule_rows)) throw new Error("The transfer response does not contain a complete destination schedule.");
+    entry.inputs = clone(transferred.inputs); entry.scheduleRows = [...transferred.schedule_rows]; entry.invalid.clear(); entry.scheduleViewport = null; entry.removedRows = [];
+    scheduleChanged(entry); entry.result = null;
+    return { inputs: clone(entry.inputs), ...scheduleState(entry) };
+  }
+  function releaseTakeoffTarget(reservation) {
+    if (state.takeoffReservation !== reservation) return;
+    state.takeoffReservation = null; state.action = false;
+    const entry = current();
+    if (entry) { entry.needsRender = true; void calculate(); }
+    updateStatus();
+  }
+
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
+  Object.assign(window.CeasefireCalculators, { captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });
 })();

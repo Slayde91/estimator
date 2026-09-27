@@ -1,0 +1,10 @@
+{
+  "name": "ceasefire-estimator-browser-tests",
+  "private": true,
+  "scripts": {
+    "test:takeoffs-browser": "node tests/browser/takeoffs.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

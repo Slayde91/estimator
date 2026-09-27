@@ -30,8 +30,13 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         # Keep style attributes and scripts under the normal strict policy.
         content_security_policy += "; style-src-elem 'self' 'unsafe-inline'"
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
+    from .takeoff_documents import TakeoffDocuments
+    from .takeoff_workspace import TakeoffService
+    from .takeoff_http import TakeoffHTTP
+    takeoffs = TakeoffService(store, TakeoffDocuments(store.path.parent / 'takeoffs'))
+    takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
     from .project_library import ProjectLibrary
-    projects = ProjectLibrary(store, project_dialogs)
+    projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs)
     from .reference_library import ReferenceNotFound
     from .firestopping_library import FirestoppingLibrary, LibraryConflict
     libraries = FirestoppingLibrary(library_directory, store)
@@ -127,6 +132,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.send_payload(403, {"error": "Cross-origin requests are not allowed."})
                 return
             route = urlsplit(self.path).path
+            if takeoff_http.dispatch(self, route):
+                return
             if self.command == "GET":
                 if route == '/api/libraries':
                     self.send_payload(200, libraries.overview())
@@ -180,10 +187,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png", "/fonts/Montserrat-Variable.ttf", "/fonts/Montserrat-Italic-Variable.ttf"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png", "/fonts/Montserrat-Variable.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-pdf-worker.mjs"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
-                    kind = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".ttf": "font/ttf"}[path.suffix]
+                    kind = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".ttf": "font/ttf"}[path.suffix]
                     self.send_payload(200, path.read_bytes(), kind)
                 else:
                     self.send_payload(404, {"error": "Not found."})
@@ -242,6 +249,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                             self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Schedule.xlsx', destination)
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
+                    if 'takeoffs' in body:
+                        raise ValidationError('Use Save As to save the project together with its takeoff evidence folder.')
                     project = export_project(store, body)
                     filename = project_filename(json.loads(project)['estimate']['title'])
                     self.send_payload(200, project, 'application/octet-stream',
@@ -277,7 +286,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     from .project_file import import_project
                     if set(body) != {'filename', 'content_base64'}:
                         raise ValidationError('Include the project filename and file content only.')
-                    self.send_payload(200, import_project(store, body['filename'], body['content_base64']))
+                    project = import_project(store, body['filename'], body['content_base64'])
+                    if 'takeoffs' in project:
+                        session = takeoffs.open(project['takeoffs'])
+                        project.update(takeoffs=session['snapshot'], takeoffs_session_id=session['session_id'], takeoffs_issues=session.get('issues', []))
+                    self.send_payload(200, project)
                 elif route.startswith('/api/quotes/') and route.endswith('/report.pdf') and self.command == 'POST':
                     if set(body) - {'download'}:
                         raise ValidationError('Saved quote report requests accept download options only.')
@@ -434,6 +447,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 super().server_close()
             finally:
                 projects.close()
+                takeoffs.documents.close()
 
     return Server(("127.0.0.1", port), Handler)
 

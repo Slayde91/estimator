@@ -231,8 +231,9 @@ def _atomic_write(selection, payload):
 
 
 class ProjectLibrary:
-    def __init__(self, store, dialogs=None):
+    def __init__(self, store, dialogs=None, *, takeoffs=None):
         self.store = store
+        self.takeoffs = takeoffs
         self.dialogs = dialogs if dialogs is not None else NativeDialogs()
         self._lock = threading.RLock()
         self._cache = {}
@@ -241,6 +242,53 @@ class ProjectLibrary:
         # Browser requests receive opaque, session-only capabilities, never a
         # writable path argument. Each successful Save consumes its capability.
         self._save_targets = {}
+
+    def _capture_takeoffs(self, request):
+        """Do not let a browser manufacture evidence paths or confirmation state."""
+        prepared = {key: value for key, value in request.items() if key != 'takeoffs_session_id'}
+        if 'takeoffs' in prepared:
+            if self.takeoffs is None:
+                raise ValidationError('Takeoff workspace is unavailable. Reopen the project in the current application.')
+            prepared['takeoffs'] = self.takeoffs.capture(request.get('takeoffs_session_id'), prepared['takeoffs'])
+        elif 'takeoffs_session_id' in request:
+            raise ValidationError('Include the takeoff snapshot with its workspace selection.')
+        return prepared
+
+    def _publish_takeoffs(self, request, path):
+        if 'takeoffs' not in request:
+            return request
+        prepared = dict(request)
+        prepared['takeoffs'] = self.takeoffs.documents.publish(request['takeoffs'], path)
+        return prepared
+
+    def _saved_takeoff_source(self, request, captured, path):
+        if 'takeoffs' not in captured:
+            return None
+        try:
+            self.takeoffs.saved_source(request['takeoffs_session_id'], captured['takeoffs'], path)
+        except Exception:
+            # JSON and its assets are already committed. Report the actual save
+            # result while requiring the saved evidence to be reopened.
+            return 'The project was saved, but its evidence session could not be rebound. Reopen the saved project before continuing takeoff work.'
+        return None
+
+    def _restore_takeoffs(self, project, path):
+        if 'takeoffs' not in project:
+            return project
+        if self.takeoffs is None:
+            raise ValidationError('This application cannot open a takeoff workspace.')
+        session = self.takeoffs.open(project['takeoffs'], source_path=path)
+        return {**project, 'takeoffs': session['snapshot'],
+                'takeoffs_session_id': session['session_id'], 'takeoffs_issues': session.get('issues', [])}
+
+    def _preserve_takeoffs(self, path, request):
+        previous, _ = _read_file(path)
+        try:
+            snapshot = json.loads(previous)
+        except (ValueError, UnicodeDecodeError, RecursionError):
+            return
+        if isinstance(snapshot, dict) and snapshot.get('format') == 'ceasefire-project' and 'takeoffs' in snapshot and 'takeoffs' not in request:
+            raise ValidationError('Reload this project before saving; this window has not loaded its takeoffs.')
 
     def close(self):
         """Release a partially scanned directory when the server shuts down."""
@@ -421,6 +469,7 @@ class ProjectLibrary:
             raise ValidationError("Choose a project from the linked estimates folder.")
         payload, info = _read_file(path)
         project = load_project_bytes(self.store, payload)
+        project = self._restore_takeoffs(project, path)
         return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder))}
 
     def _project_path(self, identifier):
@@ -615,6 +664,7 @@ class ProjectLibrary:
                 raise ValidationError("Choose a project JSON file in an accessible folder.")
             payload, info = _read_file(path)
             project = load_project_bytes(self.store, payload)
+            project = self._restore_takeoffs(project, path)
             selected_folder = self.store.project_folder()
             try:
                 folder = _directory(selected_folder) if selected_folder else None
@@ -625,7 +675,7 @@ class ProjectLibrary:
 
     def save(self, request):
         required = {"save_token", "estimate", "calculators"}
-        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration"}:
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if not isinstance(request["calculators"], dict) or set(request["calculators"]) != set(CALCULATOR_IDS):
             raise ValidationError("Save must include all three calculator drafts.")
@@ -639,7 +689,8 @@ class ProjectLibrary:
             selection = self._save_targets.get(token)
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
-        payload = export_project(self.store, {key: request[key] for key in ("estimate", "calculators", "penetration") if key in request})
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id") if key in request})
+        payload = export_project(self.store, captured)
         project = load_project_bytes(self.store, payload)
         # Serialize writes and recheck the capability after preparation so two
         # simultaneous requests cannot both consume one saved-file version.
@@ -650,8 +701,14 @@ class ProjectLibrary:
             if file_fingerprint(path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
             _preserve_penetration_inputs(path, request)
+            self._preserve_takeoffs(path, request)
             selected_folder = self.store.project_folder()
+            if 'takeoffs' in captured:
+                captured = self._publish_takeoffs(captured, path)
+                payload = export_project(self.store, captured)
+                project = load_project_bytes(self.store, payload)
             path, info = _atomic_write(selection, payload)
+            warning = self._saved_takeoff_source(request, captured, path)
             del self._save_targets[token]
             try:
                 folder = _directory(selected_folder) if selected_folder else None
@@ -667,11 +724,15 @@ class ProjectLibrary:
             else:
                 self._scan = None
             metadata = self._authorize_save(path, info, payload, metadata)
-        return {"cancelled": False, "file": metadata, "folder": selected_folder, "project": project}
+        result = {"cancelled": False, "file": metadata, "folder": selected_folder, "project": project}
+        if warning:
+            result['warning'] = warning
+        return result
 
     def save_as(self, request):
         # No dialog or preference/file writes until the complete captured state is valid.
-        payload = export_project(self.store, request)
+        captured = self._capture_takeoffs(request)
+        payload = export_project(self.store, captured)
         project = load_project_bytes(self.store, payload)
         with _dialog():
             selected_folder = self.store.project_folder()
@@ -681,15 +742,20 @@ class ProjectLibrary:
             with self._lock:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
                     _preserve_penetration_inputs(Path(selection.path), request)
+                    self._preserve_takeoffs(Path(selection.path), request)
+                if 'takeoffs' in captured:
+                    captured = self._publish_takeoffs(captured, Path(selection.path))
+                    payload = export_project(self.store, captured)
+                    project = load_project_bytes(self.store, payload)
                 path, saved_info = _atomic_write(selection, payload)
-            warning = None
+                warning = self._saved_takeoff_source(request, captured, path)
             if selected_folder is None:
                 try:
                     self.store.set_project_folder(path.parent)
                     selected_folder = str(path.parent)
                 except Exception:
                     # The file has already been saved; never report this as a failed save.
-                    warning = "The project was saved, but its folder could not be linked. Use Link folder to try again."
+                    warning = (warning + ' ' if warning else '') + "The project was saved, but its folder could not be linked. Use Link folder to try again."
             try:
                 folder = _directory(selected_folder) if selected_folder else None
             except ValidationError:

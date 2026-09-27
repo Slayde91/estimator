@@ -206,19 +206,21 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
             self.library.create(self.body())
         self.assertEqual(self.counts(), (0, 0, 0))
 
-    def test_service_type_choices_use_effective_saved_fields_and_filter_fallback(self):
+    def test_service_choices_match_technical_library_without_changing_saved_custom_values(self):
         library = self.data['libraries']['penetration']
         library['filters'].append({'key': 'service_type', 'label': 'Service type'})
         item = library['items'][0]
         item['fields'] = [field for field in item['fields'] if field.get('column') != 'K']
         item['filter_values']['service_type'] = ['Fallback service']
         self.index.write_text(json.dumps(self.data), encoding='utf-8')
-        self.assertEqual(self.library.service_types(), ['Copper service', 'Fallback service'])
+        expected = [option['value'] for field in self.library.listing('technical')['filters'] if field['key'] == 'services' for option in field['options']]
+        self.assertEqual(self.library.service_types(), expected)
         edit = self.library.edit(item['id'])
         body = {key: deepcopy(edit[key]) for key in ('draft', 'revision', 'pricing_token')}
         body['draft']['rows'][0]['inputs']['K'] = 'Saved service Ø65'
         self.library.action(item['id'], 'save', body)
-        self.assertEqual(self.library.service_types(), ['Copper service', 'Saved service Ø65'])
+        self.assertEqual(self.library.service_types(), expected)
+        self.assertEqual(self.library.edit(item['id'])['draft']['rows'][0]['inputs']['K'], 'Saved service Ø65')
 
     def test_invalid_reference_bundle_cannot_disable_estimator_http_endpoints(self):
         server = create_server(0, self.root / 'test.sqlite3', library_directory=self.root / 'library')

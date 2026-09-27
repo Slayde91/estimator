@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 
 from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
-from .library_facets import SERVICE_ALIASES, facet_options
+from .library_facets import facet_options
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
 from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
@@ -85,7 +85,7 @@ PIPE_DISPLAY_GROUPS = {
         'TPS & Fire Alarm Cable Bundles',
     ),
 }
-SERVICE_TYPE_ALIASES = {**SERVICE_ALIASES, 'conduit': 'Conduits', 'conduits': 'Conduits'}
+SERVICE_TYPE_ALIASES = {'conduit': 'Conduits', 'conduits': 'Conduits'}
 GROUP_LABELS = {'Penetration': 'DETAILS', 'Cabletrays': 'CABLE TRAYS',
                 'Cables/Bundles': 'BUNDLES', 'Additional Allowances': 'OTHER'}
 SUBSTRATE_OPTIONS = (

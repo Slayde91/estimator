@@ -22,7 +22,7 @@ function harness(){
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
   let route=path=>{if(path==='/api/libraries')return meta();const [, , ,kind,id]=path.split('/');return id?detail(kind,decodeURIComponent(id)):records(kind.split('?')[0]);};
-  const context={document:{getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
+  const context={document:{getElementById:byId,createElement:element,querySelector:selector=>selector==='.app-header'?byId('synthetic-header'):null},window:{},URL,URLSearchParams,AbortController,Map,Set,JSON,Number,String,Object,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);},fetch:async(path,options)=>{calls.push({path,options});const data=await route(path,options);return{ok:!data?.error,status:data?.error?400:200,json:async()=>data};}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/library-detail-text.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/libraries.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.audit={state,paneFor,loadList,loadDetail,navigate,back,refresh,showList,renderDetail};})();`),context);
@@ -509,6 +509,18 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(nodes.filter(node=>node.textContent==='One source page is available.').length,1);
     assert(nodes.some(node=>node.tagName==='img'&&node.alt==='Installation concept — Figure A'));
     assert(nodes.filter(node=>node.tagName==='img').every(node=>node.src==='/api/libraries/images/synthetic_image-1'));
+  });
+  await check('Report Number links use validated report metadata and unsafe links remain plain text',async h=>{
+    const urls=['https://media.promat.com/example.pdf','https://etex.azureedge.net/example.pdf?brand=sample',
+      'javascript:alert(1)','https://media.promat.com.evil.test/a.pdf','https://user@media.promat.com/a.pdf','http://media.promat.com/a.pdf'];
+    for(let i=0;i<urls.length;i++) {
+      h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','technical-1'),fields:[{label:'Report Number',value:'EXAMPLE123',report_links:[{label:'EXAMPLE123',url:urls[i]}]}]}));
+      await h.api.open('technical','technical-1');
+      const anchors=walk(h.pane('technical').detailPanel).filter(n=>n.tagName==='a'&&n.textContent==='EXAMPLE123');
+      assert.equal(anchors.length,i<2?1:0);
+      if(i<2){assert.equal(anchors[0].href,urls[i]);assert.equal(anchors[0].target,'_blank');assert.equal(anchors[0].rel,'noopener noreferrer');}
+      assert.match(text(h.pane('technical').detailPanel),/EXAMPLE123/);
+    }
   });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -288,7 +288,7 @@ The pricing table has separate **Main Estimator groups** and **Firestopping Esti
 
 All pricing rows expose Supplier price and Markup inputs with a read-only Sell price. For legacy manual prices and standalone rates, the existing sell value becomes the displayed supplier price with 0% markup. Editing either cost input calculates sell price as supplier price × (1 + markup). Untouched saved prices and historical project snapshots retain their exact values.
 
-The pricing table has one **Sell price** column, with no separate **Sell rate override** column or editor toggle. Manual-price products and standalone rates retain editable sell prices; supplier/markup products show their calculated sell price. Saved per-use rate overrides and pricing-workbook compatibility data remain intact, and existing projects keep their frozen pricing. Where separate rates are retained, the Sell price cell shows the read-only **Legacy estimator rates retained for compatibility** notice with the relevant groups and rates.
+The pricing table has one read-only **Sell price** column, with no separate **Sell rate override** column or editor toggle. Change prices through Supplier price and Markup. Saved per-use rate overrides and pricing-workbook compatibility data remain intact, and existing projects keep their frozen pricing. Where separate rates are retained, the Sell price cell shows the read-only **Legacy estimator rates retained for compatibility** notice with the relevant groups and rates.
 
 ### Export or replace the pricing library
 

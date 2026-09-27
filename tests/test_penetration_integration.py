@@ -28,7 +28,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory()
         cls.root = Path(cls.temp.name)
         cls.store = Store(cls.root / 'test.sqlite3')
-        cls.server = create_server(0, cls.root / 'server.sqlite3')
+        cls.server = create_server(0, cls.root / 'server.sqlite3', library_directory=cls.root / 'empty-library')
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
 

@@ -79,7 +79,10 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         original_prices = self.library.edits.snapshot(created['pricing_token'])
         self.assertEqual(created['draft'], normalize_draft(request['draft']))
         self.assertIn('catalog', created['configuration'])
-        self.assertIn('Unknown saved service Ø65', self.library.service_types())
+        self.assertEqual(created['draft']['rows'][0]['inputs']['K'], 'Unknown saved service Ø65')
+        self.assertEqual(self.library.service_types(), [option['value']
+                         for field in self.library.listing('technical')['filters']
+                         if field['key'] == 'services' for option in field['options']])
         edit = {key: deepcopy(created[key]) for key in ('draft', 'revision', 'pricing_token')}
         edit['draft']['rows'][0]['inputs'].update(K='Edited service', AI=75.987654321)
         saved = self.library.action(created['id'], 'save', edit)

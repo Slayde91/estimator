@@ -97,6 +97,10 @@ and conditions not represented in the table remain visible. **Source information
 retains the report/page label as plain text without a hyperlink. These display changes
 preserve the imported text, source tables, diagrams and saved project data.
 
+The Technical Library's **Manufacturer** filter includes manufacturers from
+explicit entry metadata and the linked legacy Firefly reports. Firefly, Promat
+and Trafalgar entries can each be filtered without changing the source records.
+
 Trafalgar diagram captions, source labels and JPEG download filenames use reviewed
 Drawing No., T-card No. or Drawing Name values. Page and diagram suffixes distinguish
 reused names. Internal asset IDs and file hashes remain stable, preserving existing

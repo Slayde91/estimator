@@ -65,6 +65,27 @@ def number(value, minimum=0, maximum=100000):
     return value
 
 
+def manufacturer_values(item, assets):
+    """Resolve the facet from explicit metadata, then linked supplier reports.
+
+    Legacy Firefly reports predate the manufacturer facet. Do not classify an
+    entry from incidental product mentions in installation text or diagrams.
+    """
+    explicit = item.get('filter_values', {}).get('manufacturer', [])
+    if explicit:
+        return list(explicit)
+    fields = [value.strip() for field in item.get('fields', [])
+              if field['label'].casefold() == 'manufacturer'
+              for value in field['value'].splitlines() if value.strip()]
+    if fields:
+        return list(dict.fromkeys(fields))
+    for source in item.get('sources', []):
+        document = assets.get(source.get('document_id'), {})
+        if document.get('pdf') and re.search(r'\bFIREFLY(?:BATT)?\b', document['filename'], re.I):
+            return ['Firefly']
+    return []
+
+
 def field_text(fields, assets, *, projected=False):
     """Validate imported or reviewed fields before any presentation or search."""
     if not isinstance(fields, list) or len(fields) > 1000:
@@ -187,6 +208,8 @@ class ReferenceLibrary:
                 for key, label in filter_labels.items()
             }
             filter_labels.setdefault('substrate', 'Substrate')
+            if kind == 'technical':
+                filter_labels.setdefault('manufacturer', 'Manufacturer')
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
@@ -247,6 +270,8 @@ class ReferenceLibrary:
                     apply_drawing_names(item, assets, source_names)
                 values = item.setdefault('filter_values', {})
                 values.pop('table', None)
+                if kind == 'technical':
+                    values['manufacturer'] = manufacturer_values(item, assets)
                 values['substrate'] = classify_substrates(
                     source_item, item, selector_capture=selector_context,
                     source_documents=assets)

@@ -82,6 +82,49 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertEqual(left['relationship'], right['relationship'])
         self.assertEqual(self.library.detail('penetration', 'pkb-002')['links'], [])
 
+    def test_legacy_firefly_reports_gain_a_working_manufacturer_filter(self):
+        self.data['documents'][0]['filename'] = 'Synthetic FIREFLYBATT substrate report.pdf'
+        source = self.data['libraries']['technical']['items'][0]
+        source['fields'].append({'label': 'Barrier Construction', 'value': 'Concrete wall'})
+        self.write(self.data)
+        original = (self.root / 'library.json').read_bytes()
+        result = self.library.listing('technical', manufacturer='Firefly', substrate='Concrete/masonry wall')
+        self.assertEqual([item['id'] for item in result['items']], [source['id']])
+        options = next(f['options'] for f in result['filters'] if f['key'] == 'manufacturer')
+        self.assertEqual(options, [{'value': 'Firefly', 'label': 'Firefly'}])
+        self.assertEqual(self.library.listing('technical', manufacturer='Promat')['total'], 0)
+        self.assertEqual(self.library.detail('technical', source['id'])['technical_basis']['source_fields'], source['fields'])
+        self.assertEqual((self.root / 'library.json').read_bytes(), original)
+
+    def test_all_explicit_manufacturers_remain_available_alongside_firefly(self):
+        technical = self.data['libraries']['technical']
+        technical['filters'].append({'key': 'manufacturer', 'label': 'Manufacturer'})
+        self.data['documents'][0]['filename'] = 'Synthetic FIREFLY report.pdf'
+        source = technical['items'][0]
+        for key, values in (('promat', ['Promat']), ('trafalgar', ['Trafalgar']), ('multi', ['Supplier A', 'Supplier B'])):
+            item = deepcopy(source)
+            item['id'] = key
+            item['filter_values']['manufacturer'] = values
+            technical['items'].append(item)
+        field_item = deepcopy(source)
+        field_item['id'] = 'field-manufacturer'
+        field_item['fields'].append({'label': 'Manufacturer', 'value': 'Supplier C'})
+        technical['items'].append(field_item)
+        self.write(self.data)
+        result = self.library.listing('technical')
+        names = [o['value'] for f in result['filters'] if f['key'] == 'manufacturer' for o in f['options']]
+        self.assertEqual(names, ['Firefly', 'Promat', 'Supplier A', 'Supplier B', 'Supplier C', 'Trafalgar'])
+        for name, key in (('Promat', 'promat'), ('Trafalgar', 'trafalgar'), ('Supplier A', 'multi'), ('Supplier B', 'multi'), ('Supplier C', 'field-manufacturer')):
+            self.assertEqual(self.library.listing('technical', manufacturer=name)['items'][0]['id'], key)
+
+    def test_incidental_firefly_text_does_not_classify_an_unrelated_report(self):
+        item = self.data['libraries']['technical']['items'][0]
+        item['title'] = 'Comparison mentioning FIREFLY'
+        item['fields'].append({'label': 'Installation Details', 'value': 'FIREFLY is mentioned here.'})
+        item['sources'][0]['filename'] = 'Unregistered FIREFLY filename.pdf'
+        self.write(self.data)
+        self.assertEqual(self.library.listing('technical', manufacturer='Firefly')['total'], 0)
+
     def test_substrate_replaces_table_filter_and_matches_each_supported_barrier(self):
         library = self.data['libraries']['technical']
         library['filters'].append({'key': 'table', 'label': 'Table'})

@@ -164,6 +164,24 @@ def transfer_preview(snapshot, request):
     if set(item_ids) - items.keys():
         raise ValidationError('A selected takeoff item no longer exists.')
     bindings = deepcopy(snapshot['transfers'])
+    # Replacements retain predecessor closure. An old linked schedule row is
+    # deliberately preserved when its source record is split/merged; copying
+    # successors while that row remains populated would count the same work
+    # twice. Only a fully cleared row or an explicit detached link resolves it.
+    conflicts = []
+    for item_id in item_ids:
+        item = items[item_id]
+        ancestors = set(item.get('predecessor_ids', []))
+        for binding in bindings:
+            if binding['calculator_id'] != calculator_id or binding['item_id'] not in ancestors:
+                continue
+            if any(value not in (None, '') for value in row_values(inputs, schedule, binding['row']).values()):
+                conflicts.append(f"{item['fields'].get('mark') or item_id} ({item_id}): predecessor {binding['item_id']} "
+                                 f"still has a linked {sheet} row {binding['row']}.")
+    if conflicts:
+        raise ValidationError('Transfer blocked by unresolved predecessor rows. No items were transferred. '
+                              'Review and clear every editable value in each old row, including advanced values, '
+                              'or explicitly detach its source link after resolving the duplicate quantity:\n' + '\n'.join(conflicts))
     by_item = {b['item_id']: b for b in bindings if b['calculator_id'] == calculator_id}
     occupied = populated_schedule_rows(calculator_id, inputs) | {b['row'] for b in bindings if b['calculator_id'] == calculator_id}
     available = iter(row for row in range(schedule['first_row'], schedule['last_row']+1) if row not in occupied)

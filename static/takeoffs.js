@@ -134,7 +134,7 @@
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Review", () => reviewSelected(false)), button("Confirm", () => reviewSelected(true)), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], () => { if (!state.formDirty) renderInspector(); }); ui.target.setAttribute("aria-label", "Destination schedule");
-    exports.append(ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit));
+    exports.append(ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Linked calculator rows", () => manageLinkedRows()), button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit));
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     workspace.append(layout, register); root.append(modes, ui.message, toolbar, navigation, ui.progress, ui.searchResults, workspace);
     ui.overlay.addEventListener("pointerdown", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan);
@@ -452,7 +452,14 @@
   function renderSelection() { renderRegister(); renderInspector(); renderOverlay(); }
   function renderRegister() {
     if (!state.ui) return;
-    const list = visibleItems(), selected = selectedItems(); const individualMeasuredDuct = selected.length && selected.every(item => item.mode === "duct" && item.quantity === 1 && item.measurement?.method === "calibrated"); state.ui.split.disabled = !(individualMeasuredDuct && selected.length === 1); state.ui.merge.disabled = !(individualMeasuredDuct && selected.length === 2); state.ui.split.title = state.ui.merge.title = "Split or merge measured segments of one individual duct run. Separate physical objects use Group."; state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
+    const list = visibleItems(), selected = selectedItems();
+    const individualMeasuredDuct = selected.length && selected.every(item => item.mode === "duct" && item.quantity === 1 && item.measurement?.method === "calibrated");
+    const steelGroups = selected.length && selected.every(item => item.mode === "steel" && Number.isInteger(item.quantity) && item.quantity > 0);
+    state.ui.split.disabled = !(selected.length === 1 && (individualMeasuredDuct || steelGroups && selected[0].quantity > 1));
+    state.ui.merge.disabled = !(individualMeasuredDuct && selected.length === 2 || steelGroups && selected.length >= 2);
+    state.ui.split.title = state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
+    state.ui.merge.title = state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
+    state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
     const columns = state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", "sides"] : ["mark", "level", "shape", "width_mm", "height_mm", "frl", "system", "orientation"];
     for (const title of ["Select", "Show", "Source / ID", "State", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), "Qty", "Length (m)", "Total (m)", "Evidence / issues"]) header.append(node("th", "", title)); head.append(header); table.append(head, body);
@@ -522,8 +529,34 @@
   async function selectedCommand(op) { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select at least one item."); await command(op, { item_ids: selected.map(item => item.id) }); }
   async function reviewSelected(confirming) { const selected = selectedItems(); if (!selected.length) throw new Error("Select items to review."); if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished edits first."); if (!await confirm(`${confirming ? "Confirm" : "Review"} ${selected.length} items?`, confirming ? "Confirm only after inspecting the original drawings, physical quantities, length basis, dimensions, fire requirements and source references. Deterministic checks must pass. Confirmation does not certify technical suitability." : "Mark these objects as human-reviewed after checking their drawing geometry, source dimensions and recorded fields. This does not yet permit schedule transfer.", confirming ? "Confirm reviewed items" : "Mark reviewed")) return; await selectedCommand(confirming ? "confirm_items" : "review_items"); }
   async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; if (await confirm(`Delete ${selected.length} objects?`, "Their source documents are retained. Linked schedule rows require explicit handling. Undo restores the previous draft.", "Delete objects")) await selectedCommand("delete_items"); }
-  async function splitSelected() { requireFinishedEdits(); const selected = selectedItems(); if (selected.length !== 1) throw new Error("Select one calibrated run to split."); const item = selected[0]; if (item.mode !== "duct" || item.quantity !== 1) throw new Error("Only individual duct runs can be split. Model distinct steel members separately."); if (item.measurement?.method !== "calibrated") throw new Error("Split requires traced geometry. Cited source lengths need individually evidenced replacements."); const data = await ask("Split this physical run", [["percentage", "Split position (% of traced length)", "number", 50, true]], "Use a real branch or change of dimensions, orientation or system. Two new IDs replace this item and require review.", "Split run"); if (!data) return; const parts = G.split(item.geometry.points, data.percentage / 100).map(points => ({ mode: item.mode, geometry: { ...item.geometry, points }, measurement: clone(item.measurement), quantity: item.quantity, fields: clone(item.fields), evidence: clone(item.evidence) })); await command("split_item", { item_id: item.id, parts }); }
-  async function mergeSelected() { requireFinishedEdits(); const selected = selectedItems(); if (selected.length !== 2) throw new Error("Select exactly two adjoining traced segments of one physical object."); const [a, b] = selected; if (a.mode !== "duct" || a.quantity !== 1 || b.quantity !== 1) throw new Error("Merge applies only to segments of one individual duct run. Use Group for separate objects."); if (a.measurement.method !== "calibrated" || b.measurement.method !== "calibrated" || a.measurement.calibration_id !== b.measurement.calibration_id || a.geometry.document_id !== b.geometry.document_id || a.geometry.page !== b.geometry.page) throw new Error("Merge requires two calibrated segments on the same page and calibration."); const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.001; let left = clone(a.geometry.points), right = clone(b.geometry.points); if (same(left[0], right[0])) left.reverse(); else if (same(left[0], right[right.length - 1])) { left.reverse(); right.reverse(); } else if (same(left[left.length - 1], right[right.length - 1])) right.reverse(); if (!same(left[left.length - 1], right[0])) throw new Error("Segments must share an endpoint; merging must not invent connecting geometry."); if (!await confirm("Merge one physical object?", "Only use this when both segments are genuinely the same object with matching size, system and physical quantity. Grouping is the correct choice for separate objects. The replacement gets a new ID and requires review.", "Merge segments")) return; await command("merge_items", { item_ids: selected.map(item => item.id), item: { mode: a.mode, geometry: { ...a.geometry, points: [...left, ...right.slice(1)] }, measurement: clone(a.measurement), quantity: a.quantity, fields: clone(a.fields), evidence: [...a.evidence, ...b.evidence] } }); }
+  async function splitSelected() {
+    requireFinishedEdits(); const selected = selectedItems(); if (selected.length !== 1) throw new Error("Select one repeated steel group or calibrated duct run to split.");
+    const item = selected[0];
+    if (item.mode === "steel") {
+      if (!Number.isInteger(item.quantity) || item.quantity < 2) throw new Error("A steel split requires at least two explicitly counted physical members.");
+      const data = await ask("Partition repeated steel members", [["first_quantity", "Physical members in the first group", "number", 1, true]], `${item.quantity} physical members will be divided into two groups. Each member keeps its original identity, per-member length, drawing geometry and evidence. This does not cut a member or infer new quantities. Both groups require review again.`, "Partition members");
+      if (!data) return;
+      if (!Number.isInteger(data.first_quantity) || data.first_quantity <= 0 || data.first_quantity >= item.quantity) throw new Error(`Enter a whole number from 1 to ${item.quantity - 1}.`);
+      await command("split_steel_group", { item_id: item.id, quantities: [data.first_quantity, item.quantity - data.first_quantity] }); return;
+    }
+    if (item.quantity !== 1 || item.measurement?.method !== "calibrated") throw new Error("Duct splitting requires one individually traced run. Cited source lengths need individually evidenced replacements.");
+    const data = await ask("Split this physical run", [["percentage", "Split position (% of traced length)", "number", 50, true]], "Use a real branch or change of dimensions, orientation or system. Two new IDs replace this item and require review.", "Split run"); if (!data) return;
+    const parts = G.split(item.geometry.points, data.percentage / 100).map(points => ({ mode: item.mode, geometry: { ...item.geometry, points }, measurement: clone(item.measurement), quantity: item.quantity, fields: clone(item.fields), evidence: clone(item.evidence) })); await command("split_item", { item_id: item.id, parts });
+  }
+  async function mergeSelected() {
+    requireFinishedEdits(); const selected = selectedItems();
+    if (selected.length >= 2 && selected.every(item => item.mode === "steel")) {
+      if (await confirm("Merge repeated-member groups?", "Only groups with identical fields, per-member length basis and source geometry can be combined. Every physical member identity and evidence reference is retained. This does not join geometric segments. The combined group requires review again.", "Merge steel groups")) await command("merge_steel_groups", { item_ids: selected.map(item => item.id) });
+      return;
+    }
+    if (selected.length !== 2) throw new Error("Select compatible steel groups or exactly two adjoining segments of one duct run.");
+    const [a, b] = selected; if (a.mode !== "duct" || a.quantity !== 1 || b.quantity !== 1) throw new Error("Duct merging applies only to segments of one individual run. Use Group for separate objects.");
+    if (a.measurement.method !== "calibrated" || b.measurement.method !== "calibrated" || a.measurement.calibration_id !== b.measurement.calibration_id || a.geometry.document_id !== b.geometry.document_id || a.geometry.page !== b.geometry.page) throw new Error("Merge requires two calibrated segments on the same page and calibration.");
+    const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.001; let left = clone(a.geometry.points), right = clone(b.geometry.points); if (same(left[0], right[0])) left.reverse(); else if (same(left[0], right[right.length - 1])) { left.reverse(); right.reverse(); } else if (same(left[left.length - 1], right[right.length - 1])) right.reverse();
+    if (!same(left[left.length - 1], right[0])) throw new Error("Segments must share an endpoint; merging must not invent connecting geometry.");
+    if (!await confirm("Merge one physical object?", "Only use this when both segments are genuinely the same object with matching size, system and physical quantity. Grouping is the correct choice for separate objects. The replacement gets a new ID and requires review.", "Merge segments")) return;
+    await command("merge_items", { item_ids: selected.map(item => item.id), item: { mode: a.mode, geometry: { ...a.geometry, points: [...left, ...right.slice(1)] }, measurement: clone(a.measurement), quantity: a.quantity, fields: clone(a.fields), evidence: [...a.evidence, ...b.evidence] } });
+  }
   async function removeDocument() { requireFinishedEdits(); const doc = currentDocument(); if (!doc) return; if (await confirm(`Remove ${doc.name}?`, "A source document cannot be removed while takeoff objects depend on it. Original evidence remains recoverable through project history.", "Remove document")) { await command("delete_document", { document_id: doc.id }); await renderPage(); } }
   async function upload(files) {
     if (!files.length || state.busy) return; await ensureSession(); if (files.length + documents().length > 100) throw new Error("A project supports up to 100 PDFs.");
@@ -567,14 +600,60 @@
   async function transfer(updateLinked) {
     const selected = selectedItems(); if (!selected.length) throw new Error("Select confirmed items to transfer."); if (state.formDirty || state.points.length) throw new Error("Apply or discard unfinished edits before transfer.");
     const calculatorId = state.ui.target.value, target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId), sessionId = state.session.session_id;
+    const sourceResults = selected.map(item => clone(itemResult(item)));
     const preview = await api(`/sessions/${sessionId}/transfer-preview`, { expected_revision: state.session.revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id), update_linked: updateLinked });
-    const accepted = await confirm(`${updateLinked ? "Update" : "Transfer"} ${selected.length} confirmed items?`, JSON.stringify({ changes: preview.changes, normalizations: preview.normalizations, warnings: preview.warnings }, null, 2), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
+    const choices = await api(`/options?calculator=${encodeURIComponent(calculatorId)}`);
+    const accepted = await confirm(`${updateLinked ? "Update" : "Transfer"} ${selected.length} confirmed items?`, transferSummary(preview, selected, sourceResults, choices.columns), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
     if (sessionId !== state.session?.session_id || preview.revision !== state.session.revision) throw new Error("Takeoffs changed during transfer review. Preview again.");
     const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);
     try { const result = await api(`/sessions/${sessionId}/transfer-apply`, { expected_revision: state.session.revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows }); window.CeasefireCalculators.applyTakeoffTarget(calculatorId, result.transfer, reservation); accept(result); renderData(); message("Confirmed quantities applied to the calculator draft. Save the project to retain both the schedule and its source links."); }
     finally { window.CeasefireCalculators.releaseTakeoffTarget(reservation); working(false); }
   }
-  async function detachSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select linked items to detach."); if (await confirm(`Detach links for ${selected.length} items?`, "The existing calculator values remain as manual schedule entries. Future takeoff edits will no longer update those rows.", "Detach links")) await command("detach_transfers", { item_ids: selected.map(item => item.id), calculator_id: state.ui.target.value }); }
+  function calculatorName(id) { return { steel_vermiculite: "Steel Spray", steel_board: "Steel Board", ductwork: "Ductwork" }[id] || id; }
+  function boundInputDetails(binding, columns) {
+    const labels = new Map(columns.map(column => [column.column, column.label]));
+    return Object.entries(binding.values || {}).filter(([, value]) => value !== null && value !== undefined && value !== "").map(([address, value]) => `${labels.get(address.replace(/\d+$/, "")) || address}: ${String(value)}`).join("\n");
+  }
+  function transferSummary(preview, selected, results, columns) {
+    const objects = new Map(selected.map(item => [item.id, item])), quantities = new Map(results.map(result => [result.id, result]));
+    const sections = preview.changes.map(change => {
+      const item = objects.get(change.item_id), result = quantities.get(change.item_id), binding = preview.bindings.find(value => value.item_id === change.item_id);
+      const action = { append: "Add", update: "Update", unchanged: "Keep unchanged" }[change.action] || change.action;
+      return `${action}: ${item.fields.mark || item.id}\nSource ID: ${item.id}\nDestination: ${calculatorName(preview.calculator_id)} · ${binding.sheet} row ${binding.row}\nPhysical quantity: ${item.quantity}\n${item.mode === "steel" ? "Per-member" : "Per-run"} length: ${result.length_m} m\nTotal length: ${result.total_length_m} m\n\nDestination inputs:\n${boundInputDetails(binding, columns)}`;
+    });
+    for (const change of preview.normalizations || []) {
+      const item = objects.get(change.item_id), label = fields[item?.mode]?.find(field => field[0] === change.field)?.[1] || change.field;
+      sections.push(`Existing calculator adjustment for ${item?.fields.mark || change.item_id}: ${label}\n${change.before} → ${change.after}\nReason: ${change.reason}`);
+    }
+    for (const warning of preview.warnings || []) sections.push(typeof warning === "string" ? warning : `${warning.status || "Calculator note"}${warning.item_id ? ` · ${objects.get(warning.item_id)?.fields.mark || warning.item_id}` : ""}\n${warning.message || warning.reason || "Review the calculator notes before applying."}`);
+    return sections.join("\n\n────────────────────\n\n");
+  }
+  async function detachSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select linked items to detach."); if (await confirm(`Detach links for ${selected.length} items?`, "The existing calculator values remain as manual schedule entries and remain in totals. Review or remove those manual rows before adding successor items. Future takeoff edits will no longer update detached rows.", "Detach links")) await command("detach_transfers", { item_ids: selected.map(item => item.id), calculator_id: state.ui.target.value }); }
+  function linkedRowLabel(binding) {
+    const calculator = calculatorName(binding.calculator_id);
+    const current = items().find(item => item.id === binding.item_id), mark = current?.fields.mark || binding.values?.[`A${binding.row}`] || `Source ${binding.item_id.slice(0, 8)}`;
+    return `${calculator} · ${binding.sheet} row ${binding.row} · ${mark} · ${current ? "retained source link" : "source replaced or deleted"}`;
+  }
+  async function manageLinkedRows(itemId) {
+    requireFinishedEdits();
+    const bindings = (snapshot()?.transfers || []).filter(binding => itemId ? binding.item_id === itemId : binding.calculator_id === state.ui.target.value).sort((a, b) => a.row - b.row);
+    if (!bindings.length) { message("There are no retained links for this destination or source."); return; }
+    let offset = 0;
+    for (;;) {
+      const choices = bindings.slice(offset, offset + 100).map(binding => [binding.id, linkedRowLabel(binding)]);
+      if (offset) choices.unshift(["previous", "Previous 100 linked rows"]);
+      if (offset + 100 < bindings.length) choices.push(["next", "Next 100 linked rows"]);
+      const chosen = await ask("Linked calculator rows", [["link_id", "Linked row or page", choices, "", true]], `Showing ${offset + 1}–${Math.min(offset + 100, bindings.length)} of ${bindings.length} retained links. This includes sources that were replaced or deleted. Select a row to review its link, or another page. Detaching leaves its manual quantities in calculator totals.`, "Review selected link");
+      if (!chosen) return;
+      if (chosen.link_id === "previous") { offset -= 100; continue; }
+      if (chosen.link_id === "next") { offset += 100; continue; }
+      const binding = bindings.find(value => value.id === chosen.link_id); if (!binding) throw new Error("Choose an existing linked row.");
+      const calculatorOptions = await api(`/options?calculator=${encodeURIComponent(binding.calculator_id)}`);
+      const detail = `${linkedRowLabel(binding)}\nOriginal source ID: ${binding.item_id}\n\nDetaching keeps every calculator value unchanged. Its manual quantities remain in totals and must be reviewed or removed in the calculator before adding successor items. No row or quantity is deleted by this action.\n\nRetained input values:\n${boundInputDetails(binding, calculatorOptions.columns)}`;
+      if (await confirm(`Detach workbook row ${binding.row}?`, detail, "Detach link")) { await command("detach_transfers", { item_ids: [binding.item_id], calculator_id: binding.calculator_id }); message("Link detached. Its manual calculator quantities remain in totals; review or remove that row before adding successor items."); }
+      return;
+    }
+  }
   async function exportRegister(format) { requireFinishedEdits();
     const ids = selectedItems().map(item => item.id); if (!ids.length) throw new Error("Select confirmed register items to export. All selected items must be eligible.");
     const response = await fetch(`/api/takeoffs/sessions/${state.session.session_id}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selected_ids: ids }) });
@@ -618,7 +697,7 @@
 
   async function completeProjectSnapshot() { await state.queue; return projectSnapshot(); }
   function scheduleBindings(calculatorId, row) { return (snapshot()?.transfers || []).filter(binding => binding.calculator_id === calculatorId && binding.row === row && binding.status !== "detached"); }
-  async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); await selectItem(itemId); }
+  async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); if (!items().some(item => item.id === itemId)) { await safely(() => manageLinkedRows(itemId)); return; } await selectItem(itemId); }
   window.CeasefireTakeoffs = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
     sessionId: () => state.session?.session_id, scheduleBindings, showSource, discardPreparedSession };
 })();

@@ -15,7 +15,7 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -152,6 +152,14 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     let query=new URL(paths.at(-1),'http://localhost').searchParams;assert.equal(query.get('member_type'),'Column');assert.equal(query.get('product'),'TRAFALGAR COREX');
     product.value='PROMATECT 250';product.change();await flush();query=new URL(paths.at(-1),'http://localhost').searchParams;
     assert.equal(query.get('product'),'PROMATECT 250');assert.equal(query.get('member_type'),'Column');
+  });
+  await check('Transfer review shows exact mapped values, physical quantities and native notes in readable labels',()=>{
+    const h=harness(),item={id:'member',mode:'steel',quantity:3,fields:{mark:'B17'}},binding={item_id:'member',sheet:'CALCULATOR',row:9,values:{A9:'B17',F9:.370370367,L9:0,X9:null}};
+    const columns=[{column:'A',label:'Member mark'},{column:'F',label:'Lineal metres'},{column:'L',label:'Waste'},{column:'X',label:'Design reference'}];
+    const preview={calculator_id:'steel_board',changes:[{item_id:'member',action:'append'}],bindings:[binding],warnings:[{item_id:'member',status:'CLADDING ESTIMATE',message:'Add supports separately.'}]};
+    const summary=h.audit.transferSummary(preview,[item],[{id:'member',length_m:.123456789,total_length_m:.370370367}],columns);
+    for(const text of ['Add: B17','Source ID: member','Steel Board · CALCULATOR row 9','Physical quantity: 3','Per-member length: 0.123456789 m','Total length: 0.370370367 m','Lineal metres: 0.370370367','Waste: 0','CLADDING ESTIMATE','Add supports separately.'])assert.ok(summary.includes(text),text);
+    assert.ok(!summary.includes('Design reference:'));assert.ok(!summary.includes('"changes"'));
   });
   console.log(`${passed} takeoff UI and geometry checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

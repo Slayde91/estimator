@@ -589,7 +589,7 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         self.assertTrue(all(i['predecessor_ids'] == [original_id] for i in items))
         self.command('merge_items', item_ids=[i['id'] for i in items], item=part([[10, 30], [60, 30], [110, 30]]))
         self.assertEqual(len(self.state['snapshot']['items']), 1)
-        self.assertEqual(len(self.state['snapshot']['items'][0]['predecessor_ids']), 2)
+        self.assertEqual(set(self.state['snapshot']['items'][0]['predecessor_ids']), {original_id, *(item['id'] for item in items)})
 
     def test_pure_snapshot_validation_rejects_orphans_unknown_values_and_invalid_calibration(self):
         self.create()

@@ -51,13 +51,14 @@ async function reviewConfirm() {
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   return command(() => dialog('Confirm 1 items?', {}, 'Confirm reviewed items'), 'confirm_items');
 }
-async function transfer(update = false, expectedNote = null) {
+async function transfer(update = false, expectedNote = null, expectedDetails = []) {
   const pending = page.waitForResponse(r => r.url().endsWith('/transfer-preview'));
   await page.getByRole('button', { name: update ? 'Update linked rows' : 'Preview transfer', exact: true }).click();
   const response = await pending; const preview = await response.json();
   fs.writeFileSync(path.join(output, `transfer-${Date.now()}.json`), JSON.stringify({ request: response.request().postDataJSON(), response: preview }, null, 2));
   assert.equal(response.status(), 200, JSON.stringify(preview));
   if (expectedNote) await expect(page.getByRole('dialog')).toContainText(expectedNote);
+  for (const detail of expectedDetails) await expect(page.getByRole('dialog')).toContainText(detail);
   const applied = page.waitForResponse(r => r.url().endsWith('/transfer-apply'));
   await dialog(`${update ? 'Update' : 'Transfer'} 1 confirmed items?`, {}, update ? 'Update linked rows' : 'Add to schedule');
   const result = await applied; const state = await result.json(); assert.equal(result.status(), 200, JSON.stringify(state)); await workspaceIdle();
@@ -108,7 +109,7 @@ async function boardJourney(info) {
   const measured = state.item_results.find(item => item.id === measuredId);
   assert.ok(Math.abs(measured.length_m - 10) < 0.02); assert.equal(measured.total_length_m, measured.length_m * 2);
   assert.equal(state.snapshot.items.find(item => item.id === measuredId).member_ids.length, 2);
-  await reviewConfirm(); let transferred = await transfer(false, 'CLADDING ESTIMATE');
+  await reviewConfirm(); let transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 2', `Per-member length: ${measured.length_m} m`, `Total length: ${measured.total_length_m} m`, `Lineal metres: ${measured.total_length_m}`]);
   const measuredBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === measuredId);
   assert.equal(measuredBinding.calculator_id, 'steel_board');
   assert.equal(transferred.preview.inputs[measuredBinding.sheet]['F' + measuredBinding.row], measured.total_length_m);
@@ -124,7 +125,7 @@ async function boardJourney(info) {
   state = await fillInspector({ ...supported, 'Steel section': '100UC15' });
   assert.equal(state.item_results.find(item => item.id === citedId).total_length_m, 21.75);
   assert.equal(state.snapshot.items.find(item => item.id === citedId).member_ids.length, 3);
-  await reviewConfirm(); transferred = await transfer(false, 'CLADDING ESTIMATE');
+  await reviewConfirm(); transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 3', 'Per-member length: 7.25 m', 'Total length: 21.75 m', 'Lineal metres: 21.75']);
   const citedBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === citedId);
   assert.equal(transferred.preview.inputs[citedBinding.sheet]['F' + citedBinding.row], 21.75);
   transferred = await transfer(); assert.equal(transferred.preview.changes[0].action, 'unchanged');
@@ -253,7 +254,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Select filtered items', exact: true }).click();
   await page.getByRole('button', { name: 'Merge', exact: true }).click();
   extra = await command(() => dialog('Merge one physical object?', {}, 'Merge segments'), 'merge_items');
-  const mergedRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT'); assert.deepEqual(new Set(mergedRun.predecessor_ids), new Set(splitRuns.map(i => i.id)));
+  const mergedRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT'); assert.deepEqual(new Set(mergedRun.predecessor_ids), new Set([originalRun, ...splitRuns.map(i => i.id)]));
   await page.locator('.takeoff-row-link').filter({ hasText: mergedRun.id.slice(0, 8) }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');

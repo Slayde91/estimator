@@ -25,6 +25,11 @@ are outside this release.
    retain item IDs. Bulk changes show the affected count and form one undoable
    edit. Split and merge create successors with predecessor IDs and invalidate
    review. Delete is recoverable through Undo and retained history.
+   For Steel, split partitions an explicit repeated-member quantity while keeping
+   the original member identities and per-member length. Merge reunites compatible
+   records with identical properties and measurement basis. For Duct, split/merge
+   operates on adjoining measured segments of an individual run. Neither operation
+   infers physical steel cuts or resolves conflicting properties.
 6. Review the exact revision, then explicitly confirm it. Missing evidence,
    invalid dimensions/quantities and unsuccessful rendering prevent confirmation.
    An edit invalidates the current approval; historical receipts remain readable.
@@ -62,6 +67,11 @@ no-op. Changed source items require fresh confirmation and **Update linked
 rows**. Manual destination edits, deletion, imports and stale previews create
 conflicts. Detach links explicitly retains the row as a manual entry and keeps
 its historical lineage. There is no automatic transfer to the priced quote.
+After split/merge, successor transfers are blocked while a predecessor still has
+an occupied linked row in that destination. Resolve the prior row explicitly;
+the application never clears its quantities automatically. Historical links are
+listed for review and detachment. Detaching retains the manual row's quantities,
+so check them before adding successor quantities to the same schedule.
 
 CSV and values-only XLSX exports require current confirmations and verified
 source evidence. They include IDs, member identities, measurement basis, source
@@ -132,6 +142,8 @@ contracts. `npm ci`, `npx playwright install chromium`, then
 synthetic drawings, a disposable database and controlled save dialogs.
 `node tests/browser/pdf_render_gate.cjs` independently checks strict-CSP fonts,
 scans, crop/rotation/UserUnit coordinates and JPEG2000 rendering.
+`npm run test:takeoffs-lineage` checks Steel member partition/reunion and prevents
+split successors from duplicating quantities in a retained predecessor row.
 `npm run test:takeoffs-capacity` exercises 100 separate PDFs and 2,000 pages
 through the rendered upload/search workflow, including complete search coverage
 and bounded document workers and thumbnails.

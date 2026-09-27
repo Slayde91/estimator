@@ -286,7 +286,7 @@ class TakeoffService:
                 'geometry': deepcopy(proposed.get('geometry')), 'measurement': deepcopy(proposed.get('measurement')),
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
                 'evidence': deepcopy(proposed.get('evidence', [])), 'review': None, 'confirmation': None,
-                'predecessor_ids': predecessors or []}
+                'predecessor_ids': deepcopy(predecessors or [])}
         item['member_ids'] = deepcopy(proposed.get('member_ids', []))
         if 'member_ids' not in proposed:
             self._resize_members(item)
@@ -312,6 +312,18 @@ class TakeoffService:
         for binding in snapshot['transfers']:
             if binding['item_id'] in ids:
                 binding['status'] = 'deleted'
+
+    def _predecessors(self, originals):
+        return sorted({identifier for item in originals for identifier in (item['id'], *item.get('predecessor_ids', []))})
+
+    def _steel_group(self, item):
+        if item['mode'] != 'steel' or type(item['quantity']) is not int or item['quantity'] <= 0:
+            raise ValidationError('Choose steel groups with explicit positive physical quantities.')
+        if len(item['member_ids']) != item['quantity'] or len(set(item['member_ids'])) != item['quantity']:
+            raise ValidationError('Steel groups must retain one distinct identity for every physical member.')
+
+    def _group_proposal(self, original):
+        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids')}
 
     def _assert_eligible(self, snapshot, items, *, confirmed=False, session_id=None):
         self.documents.assert_documents(snapshot['documents'], owner=session_id)
@@ -339,6 +351,7 @@ class TakeoffService:
                      'update_calibration': {'calibration_id', 'changes'},
                      'delete_document': {'document_id'}, 'record_render': {'document_id', 'page', 'success', 'warnings'},
                      'undo': set(), 'split_item': {'item_id', 'parts'}, 'merge_items': {'item_ids', 'item'},
+                     'split_steel_group': {'item_id', 'quantities'}, 'merge_steel_groups': {'item_ids'},
                      'detach_transfers': {'item_ids', 'calculator_id'}}
             if not isinstance(op, str) or op not in specs:
                 raise ValidationError('This takeoff operation is not supported.')
@@ -368,10 +381,17 @@ class TakeoffService:
             elif op == 'delete_items':
                 self._remove(after, self._items(after, request['item_ids']))
             elif op == 'detach_transfers':
-                selected = self._items(after, request['item_ids'])
                 if request['calculator_id'] not in ('steel_vermiculite', 'steel_board', 'ductwork'):
                     raise ValidationError('Choose a supported calculator to detach.')
-                ids = {item['id'] for item in selected}
+                requested = request['item_ids']
+                if not isinstance(requested, list) or not 1 <= len(requested) <= MAX_ITEMS:
+                    raise ValidationError('Select a bounded nonempty list of linked item IDs to detach.')
+                ids = {identity(value, 'Linked item ID') for value in requested}
+                if len(ids) != len(requested):
+                    raise ValidationError('Select distinct linked item IDs to detach.')
+                linked = {binding['item_id'] for binding in after['transfers'] if binding['calculator_id'] == request['calculator_id']}
+                if ids - linked:
+                    raise ValidationError('Every selected item must have a retained link to the chosen calculator, including historical items.')
                 after['transfers'] = [b for b in after['transfers'] if not (b['item_id'] in ids and b['calculator_id'] == request['calculator_id'])]
             elif op in ('review_items', 'confirm_items', 'unconfirm_items'):
                 selected = self._items(after, request['item_ids'])
@@ -466,15 +486,51 @@ class TakeoffService:
                     raise ValidationError('Split requires two to 100 explicit replacement runs.')
                 if original['mode'] != 'duct' or original['quantity'] != 1 or not original['measurement'] or original['measurement']['method'] != 'calibrated':
                     raise ValidationError('Split supports individual calibrated duct runs; edit distinct steel members individually.')
-                created = [self._create_item(after, part, [original['id']]) for part in parts]
+                created = [self._create_item(after, part, self._predecessors([original])) for part in parts]
                 self._validate_topology_change(original, created, after)
                 self._remove(after, [original])
             elif op == 'merge_items':
                 originals = self._items(after, request['item_ids'])
                 if len(originals) < 2:
                     raise ValidationError('Merge requires at least two adjoining runs.')
-                replacement = self._create_item(after, request['item'], [i['id'] for i in originals])
+                replacement = self._create_item(after, request['item'], self._predecessors(originals))
                 self._validate_topology_change(replacement, originals, after)
+                self._remove(after, originals)
+            elif op == 'split_steel_group':
+                original = self._items(after, [request['item_id']])[0]
+                self._steel_group(original)
+                quantities = request['quantities']
+                if (not isinstance(quantities, list) or not 2 <= len(quantities) <= 100
+                        or any(type(value) is not int or value <= 0 for value in quantities)
+                        or sum(quantities) != original['quantity']):
+                    raise ValidationError('Partition the steel group into two to 100 positive integer quantities whose sum exactly matches the original quantity.')
+                offset = 0
+                for quantity in quantities:
+                    proposed = self._group_proposal(original)
+                    proposed['quantity'] = quantity
+                    proposed['member_ids'] = original['member_ids'][offset:offset+quantity]
+                    self._create_item(after, proposed, self._predecessors([original]))
+                    offset += quantity
+                self._remove(after, [original])
+            elif op == 'merge_steel_groups':
+                originals = self._items(after, request['item_ids'])
+                if len(originals) < 2:
+                    raise ValidationError('Choose at least two compatible steel groups to merge.')
+                first = originals[0]
+                members = []
+                for original in originals:
+                    self._steel_group(original)
+                    if (any(original[key] != first[key] for key in ('fields', 'geometry', 'measurement'))
+                            or item_result(original, after)['issues']):
+                        raise ValidationError('Steel groups must have identical complete fields, source geometry and length basis. Resolve differences explicitly before merging.')
+                    members.extend(original['member_ids'])
+                if len(members) != len(set(members)):
+                    raise ValidationError('Merged steel groups cannot count the same physical member twice.')
+                proposed = self._group_proposal(first)
+                proposed.update(quantity=sum(item['quantity'] for item in originals), member_ids=members)
+                references = {digest(reference): deepcopy(reference) for item in originals for reference in item['evidence']}
+                proposed['evidence'] = list(references.values())
+                self._create_item(after, proposed, self._predecessors(originals))
                 self._remove(after, originals)
             response = self._commit(session_id, request, before, after, approvals)
             if revised_calibration_id:

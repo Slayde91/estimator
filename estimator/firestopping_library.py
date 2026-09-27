@@ -720,6 +720,13 @@ class FirestoppingLibrary(ReferenceLibrary):
         return hashlib.sha256(encoded({'id': item['id'], 'sources': item.get('sources', []),
                 'documents': {s['document_id']: documents[s['document_id']] for s in item.get('sources', []) if 'document_id' in s}}).encode()).hexdigest()
 
+    @classmethod
+    def _original_technical_source(cls, key, data):
+        # Display projection can rename source labels and filenames. Durable
+        # edges must use the same immutable record checked during overlay load.
+        source = next(item for item in data['libraries']['technical']['items'] if item['id'] == key)
+        return cls._technical_source(source, data)
+
     def add_link(self, key, body):
         with self._lock:
             identifier(key)
@@ -750,7 +757,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                     missing.append(right)
                     targets.append(target)
                     existing.add(target)
-            created = self.edits.link_many(key, [(right, left_source, self._technical_source(data['_records']['technical'][right], data)) for right in targets]) if targets else []
+            created = self.edits.link_many(key, [(right, left_source, self._original_technical_source(right, data)) for right in targets]) if targets else []
             created_ids = [right for right, added in zip(missing, created) if added]
             receipt = {'linked': True, 'penetration_id': key, 'technical_ids': rights,
                        'created_ids': created_ids, 'existing_ids': [right for right in rights if right not in created_ids]}
@@ -773,7 +780,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 raise ValidationError('This item has no source identity for a durable removed reference.')
             canonical = data['_aliases'].get(right, right)
             members = data['_groups'].get(canonical, [right])
-            self.edits.unlink_many(key, [(member, left_source, self._technical_source(data['_records']['technical'][member], data))
+            self.edits.unlink_many(key, [(member, left_source, self._original_technical_source(member, data))
                                         for member in members])
             return {'unlinked': True, 'penetration_id': key, 'technical_id': right}
 

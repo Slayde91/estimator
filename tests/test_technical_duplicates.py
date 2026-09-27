@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
@@ -129,3 +130,27 @@ class TechnicalDuplicateTests(unittest.TestCase):
         self.assertEqual(receipt['created_ids'], ['report-a-v2'])
         self.assertEqual(len(self.library.edits.links()), 1)
         self.assertEqual(self.library.edits.links()[0][1], 'report-a-v1')
+
+    def test_renamed_display_sources_do_not_change_durable_link_identity(self):
+        def rename(item, *args):
+            for source in item.get('sources', []):
+                source['filename'] = 'Reviewed drawing name.pdf'
+                source['label'] = 'Reviewed drawing label'
+
+        with patch('estimator.reference_library.apply_drawing_names', side_effect=rename):
+            self.data.pop('technical_duplicate_reviews')
+            self.write()
+            projected = ReferenceLibrary(self.directory)._load()
+            originals = self.data['libraries']['technical']['items']
+            self.data['technical_duplicate_reviews'] = [{'canonical_id': 'report-a-v1', 'members': [
+                {'id': item['id'], 'sha256': review_fingerprint(item, projected['_records']['technical'][item['id']], projected['_assets'])}
+                for item in originals]}]
+            self.write()
+            self.library.add_link('pkb-002', {'technical_id': 'report-a-v2'})
+            reopened = FirestoppingLibrary(self.directory, self.store)
+            self.assertEqual(reopened.detail('penetration', 'pkb-002')['links'][0]['id'], 'report-a-v1')
+            self.assertEqual(reopened.edits.links()[0][3], reopened._technical_source(originals[0], self.data))
+            reopened.remove_link('pkb-001', {'technical_id': 'report-a-v2'})
+            reopened.remove_link('pkb-002', {'technical_id': 'report-a-v1'})
+            final = FirestoppingLibrary(self.directory, self.store)
+            self.assertEqual(final.detail('technical', 'report-a-v1')['links'], [])

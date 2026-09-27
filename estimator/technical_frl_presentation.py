@@ -76,7 +76,7 @@ def normalize_frl_presentation(fields: list[dict]) -> list[dict]:
         other = repeated | {r for p in paragraphs if (r := _bare_rating(p))}
         clean = []
         for paragraph in paragraphs:
-            note = re.fullmatch(r'Selector / previously recorded rating: (?:Up to )?(.+)', paragraph.strip())
+            note = re.fullmatch(r'Selector / previously recorded rating: (?:Up to )?(.+)', paragraph.strip(), re.I)
             rating = _bare_rating(note[1]) if note else None
             if rating and rating in supported and rating in other:
                 continue

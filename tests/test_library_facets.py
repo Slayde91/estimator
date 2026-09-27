@@ -103,6 +103,9 @@ class LibraryFacetTests(unittest.TestCase):
             'columns': ['FRL'], 'rows': [['-/120/120']]}})
         result = normalize_frl_presentation(item['fields'])
         self.assertNotIn('previously recorded', result[0]['value'])
+        item['fields'][0]['value'] = item['fields'][0]['value'].replace('Up to', 'up to')
+        self.assertNotIn('previously recorded', normalize_frl_presentation(item['fields'])[0]['value'])
+        item['fields'][0]['value'] = item['fields'][0]['value'].replace('up to', 'Up to')
         item['fields'][1]['table']['rows'] = [['-/60/60']]
         self.assertIn(note, normalize_frl_presentation(item['fields'])[0]['value'])
 

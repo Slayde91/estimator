@@ -10,6 +10,7 @@ import unittest
 from estimator.catalog import ValidationError
 from estimator.reference_library import ReferenceLibrary
 from scripts.name_trafalgar_diagrams import apply_names
+from scripts.install_reference_library import install
 from tests.test_reference_library import sample_library
 
 
@@ -106,6 +107,15 @@ class DiagramNamesTests(unittest.TestCase):
         (self.root / 'images' / (self.key + '.jpg')).write_bytes(self.jpeg + b'changed')
         with self.assertRaisesRegex(ValidationError, 'changed'):
             library.asset(self.key, False)
+
+    def test_bundle_install_preserves_storage_ids_and_download_names(self):
+        self.library(apply_names(self.bundle, self.review))
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / 'installed'
+            install(self.root, target)
+            self.assertTrue((target / 'images' / (self.key + '.jpg')).is_file())
+            self.assertEqual(ReferenceLibrary(target).asset(self.key, False),
+                             (self.jpeg, 'image/jpeg', 'AB 5.jpg'))
 
 
 if __name__ == '__main__':

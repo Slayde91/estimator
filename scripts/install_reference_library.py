@@ -40,7 +40,10 @@ def install(source, destination, replace=False):
         (stage / 'documents').mkdir()
         (stage / 'images').mkdir()
         for asset in data['_assets'].values():
-            content, _, filename = library.asset(asset['id'], asset['pdf'])
+            content, _, _ = library.asset(asset['id'], asset['pdf'])
+            # Download filenames may be human-readable; storage and URLs remain
+            # keyed by the registered asset ID.
+            filename = asset['id'] + asset['extension']
             (stage / ('documents' if asset['pdf'] else 'images') / filename).write_bytes(content)
         public_data = {key: value for key, value in data.items() if not key.startswith('_')}
         # Formatting must not expand an already valid bundle beyond the reader's

@@ -34,6 +34,13 @@ class LibraryFacetTests(unittest.TestCase):
                                ('Structural Elements, Kwila beam', 'Structural Timber'),
                                ('Fire rated access panel', 'Access Panel')]:
             self.assertIn(service, service_values(record(Service=value)))
+        self.assertEqual(service_values(record(Service='Structural Elements - Timber',
+                         **{'Service Size / Configuration': 'Timber Purlin maximum 45mm wide x 285mm high'})),
+                         ['Structural Timber'])
+        self.assertEqual(service_values(record(Service='Pipes - Drinks Python',
+                         **{'Service Size / Configuration': '14 tubes with 30mm FR foam insulation'})),
+                         ['Lagged Pipes'])
+        self.assertIn('Communications Cables', service_values(record(Service='Cables - Data & Comms, Cables - Power')))
 
     def test_blank_linear_and_bulkhead_categories(self):
         self.assertEqual(classify_facets(record(Installation_Type='Horizontal Linear Gap Seal'))['services'], ['Linear Joints'])

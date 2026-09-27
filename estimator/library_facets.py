@@ -193,6 +193,8 @@ def service_values(item):
             if data: result.add('Data Cable Bundles')
             if power: result.add('Power Cable Bundles')
         if power: result.add('Power Cables')
+        if data and not bundle and not has(r'\bd2\b') and has(r'data|\bcat\s?[5-7]|communication cables'):
+            result.add('Communications Cables')
         if has(r'\btps\b|fire alarm|alarm / fire|alarm cable'):
             result.add('TPS & Fire Alarm Cable Bundles' if bundle or has(r'cables\b') else 'Single Cables')
         if has(r'\bsingle cable|\b1\s*[×x]\s.*cable|\b1 of,|\bone of,'):
@@ -206,11 +208,14 @@ def service_values(item):
     if plastic and pipe: result.add('Plastic Pipes')
     if pipe and not pair:
         # Cable insulation and fire-protection wrap do not mean a lagged pipe.
-        lagged = has(r'lagged|lagging|pipes - insulated|insulated (?:beer|gas|pipe)|nitrile|rubber insulation|pipe insulation|insulation.*pipe')
+        lagged = has(r'lagged|lagging|pipes - insulated|insulated (?:beer|gas|pipe)|nitrile|(?:rubber|foam) insulation|pipe insulation|insulation.*pipe')
         if lagged: result.add('Lagged Pipes')
         elif not plastic: result.add('Unlagged Pipes')
     add('Structural Steel', r'structural elements - steel|steel.*beam|\bub beam|\bpurlin|threaded rod|steel plate')
     add('Structural Timber', r'timber (?:joist|post)|glulam|structural elements - timber')
+    if has(r'timber purlin'):
+        result.discard('Structural Steel')
+        result.add('Structural Timber')
     if has(r'structural elements'):
         if has(r'\b(?:ub|uc|shs|rhs|chs|ea)\b|[0-9](?:ub|uc)[0-9]'):
             result.add('Structural Steel')

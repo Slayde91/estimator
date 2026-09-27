@@ -214,6 +214,8 @@ class ReferenceLibrary:
             filter_labels.setdefault('substrate', 'Substrate')
             if kind == 'technical':
                 filter_labels.setdefault('manufacturer', 'Manufacturer')
+                for key in FACETS:
+                    filter_labels.pop(key, None)
                 for key, (label, _) in FACETS.items():
                     filter_labels[key] = label
             records[kind], searches[kind] = {}, {}

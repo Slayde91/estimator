@@ -87,6 +87,17 @@ recorded barrier alternatives appear under each matching substrate. The filter
 uses the calculator's wall/ceiling/floor categories and keeps distinct specialist
 barriers separately labelled. It does not change source conditions or calculations.
 
+**Category**, **Services** and **FRL** filter the Technical Library across all
+manufacturers. An entry can match several services, categories and explicitly
+recorded ratings, including intermediate ratings in its applicable configuration
+tables. Selecting several filters intersects their results. Supporting-element
+ratings and unrelated source rows do not become service approvals. The requested
+choices remain available; distinct source services and FRL triples add choices
+only when present. **Not specified** identifies an entry without a complete FRL;
+**N/A** includes report rows reserved for future use. FRL filtering does not
+remove installation conditions or additional RISF requirements from the detail.
+Firefly **Report Number** links open the manufacturer's report directory.
+
 Library detail text uses paragraphs and indented lists for **Installation Details**
 and **Local Protection**, plus Firefly **Service Wrap** and **Service Size / Configuration**.
 Standalone source-page headings and generated **Configuration** columns are hidden.

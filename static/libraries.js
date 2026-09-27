@@ -590,6 +590,7 @@
       const reportLabels = String(field.value ?? "").split(/\n/).map(x => x.trim()).filter(Boolean);
       const validReports = reportLinks.length > 0 && reportLinks.length === reportLabels.length && reportLinks.every((link, i) => {
         if (link?.label !== reportLabels[i] || typeof link.url !== "string" || /[\s<>"\\\x00-\x1f\x7f]/.test(link.url)) return false;
+        if (link.url === "https://systems.tbafirefly.com.au/reports") return true;
         try { const u = new URL(link.url); return u.protocol === "https:" && ["media.promat.com", "etex.azureedge.net"].includes(u.host) && !u.username && !u.password && /\.pdf$/i.test(u.pathname); } catch { return false; }
       });
       if (validReports) {

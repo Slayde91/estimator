@@ -104,8 +104,25 @@ async function boardJourney(info) {
   assert.deepEqual(profiles.items, [{ id: '100UC15', label: '100UC15' }]);
   await dialog('Choose a database section', { 'Steel section': '100UC15' }, 'Use section');
   const supported = { 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Protection product': 'TRAFALGAR COREX', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 620, 'Exposure description': '3 sides exposed' };
-  state = await fillInspector(supported);
-  await expect.poll(() => page.locator('.takeoff-inspector').getByLabel('Critical temperature (°C)', { exact: true }).evaluate(control => [...control.list.options].map(option => option.value))).toContain('620');
+  // The rebuilt inspector loads its datalist asynchronously. Exercise that loading state explicitly.
+  const optionsUrl = '**/api/takeoffs/options?calculator=steel_board&**';
+  let releaseOptions;
+  const optionsGate = new Promise(resolve => { releaseOptions = resolve; });
+  const holdOptions = async route => { await optionsGate; await route.continue(); };
+  await page.route(optionsUrl, holdOptions);
+  try {
+    state = await fillInspector(supported);
+    const temperature = page.locator('.takeoff-inspector').getByLabel('Critical temperature (°C)', { exact: true });
+    await expect.poll(() => temperature.evaluate(control => control.list === null)).toBe(true);
+    await expect.poll(async () => {
+      const choices = await temperature.evaluate(control => Array.from(control.list?.options || [], option => option.value));
+      releaseOptions();
+      return choices;
+    }).toContain('620');
+  } finally {
+    releaseOptions();
+    await page.unroute(optionsUrl, holdOptions);
+  }
   const measured = state.item_results.find(item => item.id === measuredId);
   assert.ok(Math.abs(measured.length_m - 10) < 0.02); assert.equal(measured.total_length_m, measured.length_m * 2);
   assert.equal(state.snapshot.items.find(item => item.id === measuredId).member_ids.length, 2);

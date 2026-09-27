@@ -104,7 +104,8 @@ human review, even when its portable evidence is intact.
 - `takeoff_documents.py` manages exact-byte originals, upload ownership, verified
   snapshots, companion files and immutable history. Uploads use retry-checked
   binary chunks of at most 8 MiB. Limits are 100 PDFs, 250 MiB each and 2,000
-  total pages; exceeding a limit is an error, never truncation.
+  total pages, including retained document history. Removing a visible document
+  does not free that capacity. Exceeding a limit is an error, never truncation.
 - `takeoff_pdf_worker.py` parses with pinned pypdf in a child process with time,
   memory and CPU limits. Encrypted or malformed PDFs are explicitly rejected.
 - `takeoff_model.py` validates typed state and computes lengths in metres from
@@ -124,6 +125,11 @@ human review, even when its portable evidence is intact.
 - `takeoffs.js`, `takeoff-geometry.js` and `takeoffs.css` provide the manual
   workspace. Rendering, page thumbnails, search results and register pages are
   bounded and loaded on demand.
+
+Project JSON is limited to 16 MiB. Retained audit history is limited to 10,000
+events, 32 MiB per segment and 256 MiB in total. These bounds can stop further
+edits or saves before the PDF limits are reached; history is never automatically
+discarded to make room.
 
 PDF.js **6.3.289 legacy display build** is bundled under `static/vendor/pdfjs`,
 with its matching worker, fonts, CMaps, decoder assets, Apache licence and a

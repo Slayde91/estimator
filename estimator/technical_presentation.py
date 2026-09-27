@@ -77,7 +77,7 @@ def present_options(item):
         for field, common, rows in numbered:
             field['value'] = common
             if field['label'] in {'FRL', 'Blank Seal FRL'}:
-                summary = summarize_ratings(list(rows.values()))['summary']
+                summary = summarize_ratings([rows.get(key, '') for key in ids])['summary']
                 field['value'] = '\n\n'.join(filter(None, [common, summary]))
             if field is not owner and link not in field.setdefault('table_links', []):
                 field['table_links'].append(dict(link))

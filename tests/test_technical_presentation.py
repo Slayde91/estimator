@@ -59,6 +59,13 @@ class TechnicalPresentationTests(unittest.TestCase):
         self.assertEqual(item['fields'][0]['table']['rows'][0], ['-/240/-', 'None\n\nRetained shared text'])
         self.assertEqual(item['images'][0]['caption'], 'Diagram')
 
+    def test_missing_rating_does_not_borrow_the_other_barriers_rating(self):
+        item = {'fields': [field('Barrier Construction', 'Source option 1: Wall A\nSource option 2: Wall B'),
+                           field('FRL', 'Source option 1: -/120/120')]}
+        present_options(item)
+        self.assertEqual(item['fields'][1]['value'], '')
+        self.assertEqual(item['fields'][0]['table']['rows'][1], ['Wall B', ''])
+
     def test_new_table_appends_without_redirecting_existing_links(self):
         owner = field('Barrier Construction', 'Source option 1: Another wall')
         owner.update(table={'columns': ['Barrier', 'FRL'], 'rows': [['Original wall', '-/60/60']]},

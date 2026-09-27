@@ -95,6 +95,14 @@ class TechnicalDuplicateTests(unittest.TestCase):
         self.assertTrue(reopened.add_link('pkb-002', {'technical_id': 'report-a-v2'})['created'])
         self.assertEqual(len(reopened.detail('penetration', 'pkb-002')['links']), 1)
 
+    def test_multiline_relationship_text_is_retained_exactly_once(self):
+        relationship = 'First source condition\nSecond source condition'
+        self.data['links'][0]['relationship'] = relationship
+        self.data['links'].append({**self.data['links'][0], 'technical_id': 'report-a-v2'})
+        self.write()
+        for kind, key in [('penetration', 'pkb-001'), ('technical', 'report-a-v1')]:
+            self.assertEqual(self.library.detail(kind, key)['links'][0]['relationship'], relationship)
+
     def test_multiple_alias_edges_display_once_and_unlink_atomically(self):
         self.data['links'].append({**self.data['links'][0], 'technical_id': 'report-a-v2', 'relationship': 'Second source reference'})
         self.write()

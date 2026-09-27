@@ -65,24 +65,23 @@ def reviewed_groups(data, records, assets):
 
 def consolidate_links(links, aliases, groups):
     """Project reciprocal links once per group without rewriting stored edges."""
-    for left, entries in links['penetration'].items():
-        combined = {}
+    def combine(entries, canonicalize=False):
+        combined, relationships = {}, {}
         for entry in entries:
-            target = aliases.get(entry['id'], entry['id'])
+            target = aliases.get(entry['id'], entry['id']) if canonicalize else entry['id']
             value = combined.setdefault(target, {**entry, 'id': target})
-            if entry['relationship'] and entry['relationship'] not in value['relationship'].split('\n'):
-                value['relationship'] += '\n' + entry['relationship']
+            parts = relationships.setdefault(target, [])
+            if entry['relationship'] and entry['relationship'] not in parts:
+                parts.append(entry['relationship'])
             if entry.get('origin') == 'user':
                 value['origin'] = 'user'
-        links['penetration'][left] = list(combined.values())
+        for target, value in combined.items():
+            value['relationship'] = '\n'.join(relationships[target])
+        return list(combined.values())
+
+    for left, entries in links['penetration'].items():
+        links['penetration'][left] = combine(entries, canonicalize=True)
     for canonical, members in groups.items():
-        combined = {}
+        combined = combine(entry for member in members for entry in links['technical'][member])
         for member in members:
-            for entry in links['technical'][member]:
-                value = combined.setdefault(entry['id'], deepcopy(entry))
-                if entry['relationship'] and entry['relationship'] not in value['relationship'].split('\n'):
-                    value['relationship'] += '\n' + entry['relationship']
-                if entry.get('origin') == 'user':
-                    value['origin'] = 'user'
-        for member in members:
-            links['technical'][member] = deepcopy(list(combined.values()))
+            links['technical'][member] = deepcopy(combined)

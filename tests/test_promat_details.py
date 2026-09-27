@@ -6,12 +6,14 @@ from estimator.promat_service_text import clean_service_size
 from estimator.reference_library import field_text
 from estimator.technical_field_reviewed import review_fingerprint
 from scripts.review_promat_details import apply_reviews, evidence
-from tests.test_promat_wrap_review import PromatWrapReviewTests
+from tests import test_promat_wrap_review
+from tests.test_promat_import import variant
+from scripts.import_promat_library import make_entry, map_variant
 
 
 class PromatDetailsTests(unittest.TestCase):
     def fixture(self):
-        bundle, _ = PromatWrapReviewTests().fixture()
+        bundle, _ = test_promat_wrap_review.PromatWrapReviewTests().fixture()
         item = bundle['libraries']['technical']['items'][0]
         item['technical_field_review']['wrap_reviews'] = [{'reason': 'Keep prior decision'}]
         return bundle, {'id': item['id'], 'expected_sha256': review_fingerprint(evidence(item)),
@@ -36,6 +38,29 @@ class PromatDetailsTests(unittest.TestCase):
         report = next(f for f in review['fields'] if f['label'] == 'Report Number')
         field_text([report], {})
         self.assertEqual(report['report_links'], [decision['report']])
+
+    def test_import_retains_only_unambiguous_matching_report_links(self):
+        source = variant()
+        source['documents'] = [{'label': 'EXAMPLE123', 'source_url': 'https://media.promat.com/example.pdf'}]
+        def report_field():
+            entry = make_entry([(source, map_variant(source))])
+            return next(f for f in entry['fields'] if f['label'] == 'Report Number')
+        self.assertEqual(report_field()['report_links'], [{'label': 'EXAMPLE123', 'url': 'https://media.promat.com/example.pdf'}])
+        source['documents'].append({'label': 'EXAMPLE123', 'source_url': 'https://media.promat.com/other.pdf'})
+        self.assertNotIn('report_links', report_field())
+        source['documents'] = [{'label': 'OTHER', 'source_url': 'https://media.promat.com/example.pdf'}]
+        self.assertNotIn('report_links', report_field())
+
+    def test_recovered_report_resolves_only_its_exact_notices(self):
+        from scripts.review_promat_details import RECOVERED_REPORT_NOTICES
+        bundle, decision = self.fixture()
+        item = bundle['libraries']['technical']['items'][0]
+        item['technical_field_review']['fields'].append({'label': 'Source Issues',
+            'value': '\n\n'.join(sorted(RECOVERED_REPORT_NOTICES)) + '\n\nSeparate discrepancy.'})
+        decision['expected_sha256'] = review_fingerprint(evidence(item))
+        result = apply_reviews(bundle, [decision])['libraries']['technical']['items'][0]
+        issue = next(f for f in result['technical_field_review']['fields'] if f['label'] == 'Source Issues')
+        self.assertEqual(issue['value'], 'Separate discrepancy.')
 
     def test_stale_partial_wrong_diagrams_and_duplicate_reviews_fail(self):
         for change in ('expected_sha256', 'variant_ids', 'diagram_sha256'):

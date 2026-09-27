@@ -17,6 +17,12 @@ from estimator.promat_service_text import clean_service_size
 from estimator.technical_table_navigation import field_tables
 
 
+RECOVERED_REPORT_NOTICES = {
+    'The publisher report field contains a test standard rather than a report number; no report number is stated.',
+    'The publisher report link is malformed; the captured link is retained in the source evidence.',
+}
+
+
 def evidence(item):
     return {'source_fields': item['fields'],
             'reviewed_fields': item['technical_field_review']['fields'],
@@ -67,6 +73,14 @@ def apply_reviews(bundle, decisions):
                 raise ValueError('Report identity cannot be replaced by a details review')
             field['report_links'] = [deepcopy(report)]
             field_text([field], {})
+            # A recovered report resolves these two exact import notices. Keep
+            # unrelated issues and all original evidence untouched.
+            for issue in fields:
+                if issue['label'] == 'Source Issues':
+                    issue['value'] = '\n\n'.join(p for p in issue['value'].split('\n\n')
+                        if p.strip() not in RECOVERED_REPORT_NOTICES)
+            fields[:] = [f for f in fields if f['label'] != 'Source Issues'
+                         or any(f.get(k) for k in ('value', 'images', 'table', 'tables', 'table_links'))]
         item['technical_field_review'].setdefault('details_reviews', []).append(deepcopy(decision))
     return candidate
 

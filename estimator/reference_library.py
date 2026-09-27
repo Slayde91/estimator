@@ -16,6 +16,7 @@ from .technical_configuration_review import validate_configuration_review
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
+from .library_display import display_subtitle, remove_resolved_selector_notices
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
@@ -63,6 +64,27 @@ def number(value, minimum=0, maximum=100000):
     if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
         raise ValidationError('Invalid library count.')
     return value
+
+
+def manufacturer_values(item, assets):
+    """Resolve the facet from explicit metadata, then linked supplier reports.
+
+    Legacy Firefly reports predate the manufacturer facet. Do not classify an
+    entry from incidental product mentions in installation text or diagrams.
+    """
+    explicit = item.get('filter_values', {}).get('manufacturer', [])
+    if explicit:
+        return list(explicit)
+    fields = [value.strip() for field in item.get('fields', [])
+              if field['label'].casefold() == 'manufacturer'
+              for value in field['value'].splitlines() if value.strip()]
+    if fields:
+        return list(dict.fromkeys(fields))
+    for source in item.get('sources', []):
+        document = assets.get(source.get('document_id'), {})
+        if document.get('pdf') and re.search(r'\bFIREFLY(?:BATT)?\b', document['filename'], re.I):
+            return ['Firefly']
+    return []
 
 
 def field_text(fields, assets, *, projected=False):
@@ -187,6 +209,8 @@ class ReferenceLibrary:
                 for key, label in filter_labels.items()
             }
             filter_labels.setdefault('substrate', 'Substrate')
+            if kind == 'technical':
+                filter_labels.setdefault('manufacturer', 'Manufacturer')
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
@@ -238,6 +262,7 @@ class ReferenceLibrary:
                     # fingerprints and saved manual links depend on those bytes.
                     item = normalize_technical_item(item, selector_capture=selector_context)
                     apply_drawing_names(item, assets, source_names)
+                    remove_resolved_selector_notices(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
@@ -246,7 +271,10 @@ class ReferenceLibrary:
                     item = deepcopy(item)
                     apply_drawing_names(item, assets, source_names)
                 values = item.setdefault('filter_values', {})
+                item['subtitle'] = display_subtitle(item.get('subtitle', ''))
                 values.pop('table', None)
+                if kind == 'technical':
+                    values['manufacturer'] = manufacturer_values(item, assets)
                 values['substrate'] = classify_substrates(
                     source_item, item, selector_capture=selector_context,
                     source_documents=assets)

@@ -595,7 +595,7 @@
       if (validReports) {
         for (const report of reportLinks) { const p = node("p"), a = node("a", "", report.label); a.href = report.url; a.target = "_blank"; a.rel = "noopener noreferrer"; p.append(a); value.append(p); }
       } else if (formatted) {
-        const blocks = window.LibraryDetailText.render(document, field.value ?? "");
+        const blocks = window.LibraryDetailText.render(document, field.value ?? "", { sourceMarkers: firefly });
         if (blocks.length) { const prose = node("div", "library-detail-text"); prose.append(...blocks); value.append(prose); }
         else if (!images.length && !tables.length && !links.length) continue;
       } else if (!imageOnly && (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "")) value.textContent = valueText(pane.kind === "technical" && field.label === "FRL" ? frlDisplayValue(field, visibleFields) : field.value);

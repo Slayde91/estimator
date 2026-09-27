@@ -60,4 +60,17 @@ assert.equal(rendered[1].tagName, "p");
 assert.equal(rendered[2].tagName, "ul");
 assert.equal(rendered[2].children[0].tagName, "li");
 assert.equal(rendered[2].children[0].textContent, "Keep the gap.");
+// Firefly source labels replace imported outer numbering, with safe, hanging
+// markers. Other manufacturers retain the existing presentation by default.
+const labelled = render(document, "1. Prepare.\n4. (A) Fit the strip\nusing screws.\n5. (B) Apply fillet.\n6. 1) First alternative.\n7. 2) Second alternative.", { sourceMarkers: true });
+assert.equal(labelled[0].children[0].attributes.value, "1");
+assert.equal(labelled[1].className, "library-source-labelled-list");
+assert.deepEqual(labelled[1].children.map(el => el.attributes), [
+  { "data-source-marker": "(A)" }, { "data-source-marker": "(B)" },
+  { "data-source-marker": "1)" }, { "data-source-marker": "2)" }
+]);
+assert.equal(labelled[1].children[0].textContent, "Fit the strip using screws.");
+assert.equal(render(document, "4. (A) Fit strip.")[0].children[0].attributes.value, "4");
+assert.equal(render(document, "A) Fit strip.\nB) Apply fillet.", { sourceMarkers: true })[0].children[1].attributes["data-source-marker"], "B)");
+assert.deepEqual(parse("1.5 mm steel.\n3. 4. remains a reference.", { sourceMarkers: true }), [paragraph("1.5 mm steel."), list(true, item("4. remains a reference.", 3))]);
 console.log("Library detail text formatting tests passed");

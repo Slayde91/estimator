@@ -26,7 +26,13 @@
     return null;
   }
 
-  function marker(line, listContext = false) {
+  function marker(line, listContext = false, sourceMarkers = false) {
+    // Imported lists can add an outer number to an existing report label.
+    // Prefer that explicit label without changing the stored source text.
+    if (sourceMarkers) {
+      const labelled = /^(?:\d+[.)]\s+)?(\([A-Z]\)|[A-Z]\)|\([1-9]\d?\)|[1-9]\d?\))\s+(.+)$/.exec(line);
+      if (labelled) return { ordered: true, number: null, label: labelled[1], text: labelled[2] };
+    }
     // A delimiter followed by whitespace is required: 1.5 mm and clauses 3.2
     // are measurements/references, not list markers. Years are not step numbers.
     const numbered = /^((?:([1-9]\d?)[.)]|\(([1-9]\d?)\)))\s+(.+)$/.exec(line);
@@ -45,7 +51,7 @@
     return bullet ? { ordered: false, text: bullet[1] } : null;
   }
 
-  function parse(value) {
+  function parse(value, { sourceMarkers = false } = {}) {
     const lines = String(value ?? "").replace(/\r\n?|[\f\u2028\u2029]/g, "\n").split("\n").map(cleanLine);
     const blocks = [];
     let paragraph = null, list = null, item = null, nested = null, nestedItem = null, gap = false;
@@ -54,6 +60,7 @@
     const addItem = (target, found) => {
       const result = { text: found.text, children: [] };
       if (found.ordered) result.number = found.number;
+      if (found.label) result.label = found.label;
       target.items.push(result);
       return result;
     };
@@ -80,7 +87,7 @@
           end(); addParagraph(line); continue;
         }
       }
-      const found = marker(line, Boolean(nested || list && !list.ordered || /:$/.test((item || paragraph)?.text || "")));
+      const found = marker(line, Boolean(nested || list && !list.ordered || /:$/.test((item || paragraph)?.text || "")), sourceMarkers);
       if (found) {
         paragraph = null;
         if (!found.ordered && list?.ordered && item && (nested || /:$/.test(item.text))) {
@@ -89,7 +96,7 @@
         } else {
           // Numbering resets represent a new list; gaps/skipped numbers retain
           // their explicit values so a source step is never silently renumbered.
-          if (!list || list.ordered !== found.ordered || found.ordered && found.number <= item.number) {
+          if (!list || list.ordered !== found.ordered || Boolean(found.label) !== Boolean(item?.label) || found.ordered && found.number !== null && found.number <= item.number) {
             list = { type: "list", ordered: found.ordered, items: [] }; blocks.push(list);
           }
           item = addItem(list, found); nested = null; nestedItem = null;
@@ -121,23 +128,25 @@
     return blocks;
   }
 
-  function render(document, value) {
+  function render(document, value, options) {
     const renderBlock = block => {
       if (block.type === "paragraph") {
         const paragraph = document.createElement("p"); paragraph.textContent = block.text; return paragraph;
       }
       const list = document.createElement(block.ordered ? "ol" : "ul");
-      if (block.ordered && block.items[0].number !== 1) list.setAttribute("start", String(block.items[0].number));
+      if (block.items[0].label) list.className = "library-source-labelled-list";
+      else if (block.ordered && block.items[0].number !== 1) list.setAttribute("start", String(block.items[0].number));
       for (const item of block.items) {
         const element = document.createElement("li");
-        if (block.ordered) element.setAttribute("value", String(item.number));
+        if (item.label) element.setAttribute("data-source-marker", item.label);
+        else if (block.ordered) element.setAttribute("value", String(item.number));
         element.textContent = item.text;
         element.append(...item.children.map(renderBlock));
         list.append(element);
       }
       return list;
     };
-    return parse(value).map(renderBlock);
+    return parse(value, options).map(renderBlock);
   }
 
   const api = Object.freeze({ parse, render });

@@ -67,6 +67,8 @@
 .library-detail-text p{margin:0 0 .65rem}
 .library-detail-text ol,.library-detail-text ul{margin:0 0 .65rem;padding-inline-start:1.65rem}
 .library-detail-text li{margin:.25rem 0;padding-inline-start:.2rem}
+.library-detail-text .library-source-labelled-list{padding-inline-start:2rem}
+.library-detail-text .library-source-labelled-list>li::marker{content:attr(data-source-marker) " "}
 .library-detail-text>:last-child{margin-bottom:0}
 .library-detail-section{margin-top:26px}
 .library-detail-section>h4{margin:0 0 14px;font-size:15px}

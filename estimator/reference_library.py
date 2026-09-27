@@ -20,6 +20,7 @@ from .library_display import display_subtitle, remove_resolved_source_notices
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
 from .library_facets import FACETS, classify_facets, facet_options
+from .technical_presentation import present_options, technical_title
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -270,6 +271,7 @@ class ReferenceLibrary:
                     item = normalize_technical_item(item, selector_capture=selector_context)
                     apply_drawing_names(item, assets, source_names)
                     remove_resolved_source_notices(item)
+                    present_options(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
@@ -283,6 +285,8 @@ class ReferenceLibrary:
                 if kind == 'technical':
                     values['manufacturer'] = manufacturer_values(item, assets)
                     values.update(classify_facets(item))
+                    item['title'] = technical_title(item)
+                    text.append(item['title'])
                     if values['manufacturer'] == ['Firefly']:
                         for field in item.get('fields', []):
                             if field['label'] == 'Report Number':
@@ -309,7 +313,8 @@ class ReferenceLibrary:
                         filter_values[field].add(string(value, 1000))
                 records[kind][key] = item
                 searches[kind][key] = '\n'.join(text).casefold()
-            filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))]} for key, label in filter_labels.items()]
+            filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))]} for key, label in filter_labels.items()
+                             if kind != 'technical' or key != 'trafalgar_category']
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:

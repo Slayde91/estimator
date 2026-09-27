@@ -21,7 +21,8 @@ SERVICES = ('Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
             'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils',
             'Plastic Pipes', 'Power Cable Bundles', 'Power Cables',
             'Single Cables', 'TPS & Fire Alarm Cable Bundles', 'Unlagged Pipes')
-FRLS = ('N/A', '-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240')
+FRLS = ('-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240')
+HIDDEN_FRLS = {'-/120/0', '-/180/80', 'N/A', 'Not specified'}
 FACETS = {'category': ('Category', CATEGORIES), 'services': ('Services', SERVICES),
           'frl': ('FRL', FRLS)}
 
@@ -270,4 +271,6 @@ def classify_facets(item):
 
 def facet_options(key, observed):
     preferred = FACETS.get(key, ('', ()))[1]
+    if key == 'frl':
+        observed = set(observed) - HIDDEN_FRLS
     return list(preferred) + sorted(set(observed) - set(preferred), key=str.casefold)

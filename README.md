@@ -93,10 +93,19 @@ recorded ratings, including intermediate ratings in its applicable configuration
 tables. Selecting several filters intersects their results. Supporting-element
 ratings and unrelated source rows do not become service approvals. The requested
 choices remain available; distinct source services and FRL triples add choices
-only when present. **Not specified** identifies an entry without a complete FRL;
-**N/A** includes report rows reserved for future use. FRL filtering does not
+only when present. The FRL dropdown excludes **N/A**, **Not specified**,
+**-/120/0** and **-/180/80**. FRL filtering does not
 remove installation conditions or additional RISF requirements from the detail.
 Firefly **Report Number** links open the manufacturer's report directory.
+The manufacturer-specific Trafalgar Category dropdown is replaced by the shared
+Category and Services filters; its source classification remains internal.
+
+Technical titles use **Manufacturer: ID — Service — FRL — Orientation** in both
+results and detail. Multiple comparable ratings show the observed minimum and
+maximum; the detail tables retain their configuration conditions. Imported
+**Source option** prefixes are replaced by aligned table rows. Barrier alternatives
+and their FRLs stay together, with a link from the FRL field back to the table.
+Wrap and installation alternatives keep the same explicit row relationships.
 
 Library detail text uses paragraphs and indented lists for **Installation Details**
 and **Local Protection**, plus Firefly **Service Wrap** and **Service Size / Configuration**.

@@ -13,6 +13,7 @@ from threading import RLock
 
 from .catalog import ROOT, ValidationError
 from .technical_configuration_review import validate_configuration_review
+from .technical_duplicates import reviewed_groups, consolidate_links
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
@@ -315,6 +316,15 @@ class ReferenceLibrary:
                 searches[kind][key] = '\n'.join(text).casefold()
             filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))]} for key, label in filter_labels.items()
                              if kind != 'technical' or key != 'trafalgar_category']
+        aliases, groups = reviewed_groups(data, records['technical'], assets)
+        visible = {kind: [key for key in records[kind]
+                          if kind != 'technical' or aliases.get(key, key) == key] for kind in KINDS}
+        for canonical, members in groups.items():
+            searches['technical'][canonical] += '\n' + '\n'.join(
+                key + '\n' + searches['technical'][key] for key in members)
+            for key in members:
+                records['technical'][key]['consolidated_ids'] = list(members)
+                records['technical'][key]['canonical_id'] = canonical
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:
@@ -330,15 +340,20 @@ class ReferenceLibrary:
                 title = records[target_kind][target]['title']
                 links[kind][source].append({'kind': target_kind, 'id': target, 'title': title, 'relationship': relationship,
                                           **({'origin': 'user'} if link.get('origin') == 'user' else {})})
+        consolidate_links(links, aliases, groups)
+        for entries in links['penetration'].values():
+            for entry in entries:
+                entry['title'] = records['technical'][entry['id']]['title']
+        data['_aliases'], data['_groups'], data['_visible'] = aliases, groups, visible
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
 
     def overview(self):
         with self._lock:
             data = self._load()
             return {'libraries': [{'id': kind, 'title': title, 'available': data is not None,
-                     'count': len(data['_records'][kind]) if data else 0,
-                     'linked_count': sum(bool(value) for value in data['_links'][kind].values()) if data else 0,
-                     'unlinked_count': sum(not value for value in data['_links'][kind].values()) if data else 0,
+                     'count': len(data['_visible'][kind]) if data else 0,
+                     'linked_count': sum(bool(data['_links'][kind][key]) for key in data['_visible'][kind]) if data else 0,
+                     'unlinked_count': sum(not data['_links'][kind][key] for key in data['_visible'][kind]) if data else 0,
                      'source_count': len(data['documents']) if data and kind == 'technical' else 1 if data else 0,
                      'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'} for kind, title in KINDS.items()],
                     'notice': data.get('notice', '') if data else ''}
@@ -364,7 +379,8 @@ class ReferenceLibrary:
             chosen = {key: string(query[key], 1000) for key in filter_keys if query.get(key)}
             items = []
             if data:
-                for key, item in data['_records'][kind].items():
+                for key in data['_visible'][kind]:
+                    item = data['_records'][kind][key]
                     linked = bool(data['_links'][kind][key])
                     if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
                         continue
@@ -372,9 +388,9 @@ class ReferenceLibrary:
                         items.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
                                       **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
                                       'related_count': len(data['_links'][kind][key])})
-            counts = {'total': len(data['_records'][kind]) if data else 0,
-                      'linked': sum(bool(value) for value in data['_links'][kind].values()) if data else 0,
-                      'unlinked': sum(not value for value in data['_links'][kind].values()) if data else 0}
+            counts = {'total': len(data['_visible'][kind]) if data else 0,
+                      'linked': sum(bool(data['_links'][kind][key]) for key in data['_visible'][kind]) if data else 0,
+                      'unlinked': sum(not data['_links'][kind][key] for key in data['_visible'][kind]) if data else 0}
             filters = deepcopy(data['_filters'][kind]) if data else []
             if kind == 'penetration':
                 filters.append({'key': 'technical_reference', 'label': 'Technical reference', 'options': [

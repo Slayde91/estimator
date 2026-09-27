@@ -641,6 +641,7 @@
     content.push(related);
     if (pane.kind === "technical") {
       const sources = node("section", "library-detail-section"); sources.append(node("h4", "", "Source information"));
+      if (data.consolidated_ids?.length > 1) sources.append(node("p", "helper", `Consolidated source IDs: ${data.consolidated_ids.join(", ")}`));
       sources.append(...(data.sources?.length ? data.sources.map(sourceNode) : [node("p", "helper", "No source reference is recorded for this item.")])); content.push(sources);
     }
     // Item qualifications belong in the card that receives navigation focus;

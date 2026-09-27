@@ -16,6 +16,7 @@ from .technical_configuration_review import validate_configuration_review
 from .technical_table_navigation import validate_table_navigation
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
+from .library_display import display_subtitle, remove_resolved_selector_notices
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
@@ -261,6 +262,7 @@ class ReferenceLibrary:
                     # fingerprints and saved manual links depend on those bytes.
                     item = normalize_technical_item(item, selector_capture=selector_context)
                     apply_drawing_names(item, assets, source_names)
+                    remove_resolved_selector_notices(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(item.get('fields', []), assets, projected=True)
                     for source in item.get('sources', []):
@@ -269,6 +271,7 @@ class ReferenceLibrary:
                     item = deepcopy(item)
                     apply_drawing_names(item, assets, source_names)
                 values = item.setdefault('filter_values', {})
+                item['subtitle'] = display_subtitle(item.get('subtitle', ''))
                 values.pop('table', None)
                 if kind == 'technical':
                     values['manufacturer'] = manufacturer_values(item, assets)

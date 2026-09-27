@@ -86,6 +86,10 @@ class LibraryFacetTests(unittest.TestCase):
         item['fields'].append({'label': 'Service Size / Configuration', 'value': '', 'table': {
             'columns': ['FRL'], 'rows': [['-/240/240']]}})
         self.assertEqual(frl_values(item), ['-/60/60'])
+        item['fields'][0]['value'] = ('Selector / previously recorded rating: -/60/60\n\n'
+            '-/120/90 to -/120/120 — observed concrete-slab service ratings '
+            '(Service Size / Configuration table 1; applicability to the CLT entry is not established).')
+        self.assertEqual(frl_values(item), ['-/60/60'])
 
     def test_qualified_ratings_dash_masks_and_missing_data_stay_distinct(self):
         self.assertEqual(frl_values(record(FRL='-/90/90 + 60 RISF; -/120/-; 120/120/120')),

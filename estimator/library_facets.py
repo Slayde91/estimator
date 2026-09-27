@@ -99,7 +99,14 @@ def frl_values(item):
     for field in item.get('fields', []):
         if field['label'] not in {'FRL', 'Blank Seal FRL'}:
             continue
-        values.append(field.get('value', ''))
+        # A retained source summary can name ratings while expressly stating
+        # that the table does not establish applicability to this entry.
+        for paragraph in re.split(r'\n\s*\n', field.get('value', '')):
+            lower = paragraph.casefold()
+            if ('applicability' in lower and 'not established' in lower
+                    or 'related source ratings only' in lower):
+                continue
+            values.append(paragraph)
         values.extend(scoped_rating_cells(field, item['fields']))
         for table in field_tables(field):
             values.extend(row[n] for row in table['rows'] for n, c in enumerate(table['columns'])

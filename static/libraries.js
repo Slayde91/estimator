@@ -588,13 +588,22 @@
       if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
       const reportLinks = pane.kind === "technical" && field.label === "Report Number" && Array.isArray(field.report_links) ? field.report_links : [];
       const reportLabels = String(field.value ?? "").split(/\n/).map(x => x.trim()).filter(Boolean);
-      const validReports = reportLinks.length > 0 && reportLinks.length === reportLabels.length && reportLinks.every((link, i) => {
-        if (link?.label !== reportLabels[i] || typeof link.url !== "string" || /[\s<>"\\\x00-\x1f\x7f]/.test(link.url)) return false;
+      const reportPositions = reportLinks.map(link => reportLabels.indexOf(link?.label));
+      const validReports = reportLinks.length > 0 && reportLinks.length <= 20 && new Set(reportLabels).size === reportLabels.length && reportLinks.every((link, i) => {
+        if (reportPositions[i] < 0 || i > 0 && reportPositions[i] <= reportPositions[i - 1] || typeof link.url !== "string" || /[\s<>"\\\x00-\x1f\x7f]/.test(link.url)) return false;
         if (link.url === "https://systems.tbafirefly.com.au/reports") return true;
-        try { const u = new URL(link.url); return u.protocol === "https:" && ["media.promat.com", "etex.azureedge.net"].includes(u.host) && !u.username && !u.password && /\.pdf$/i.test(u.pathname); } catch { return false; }
+        try { const u = new URL(link.url); return u.protocol === "https:" && !u.username && !u.password && (
+          ["media.promat.com", "etex.azureedge.net"].includes(u.host) && /\.pdf$/i.test(u.pathname) ||
+          u.host === "tfire.com.au" && /^https:\/\/tfire\.com\.au\/documents\/[A-Za-z0-9][A-Za-z0-9_.()=-]*$/.test(link.url)
+        ); } catch { return false; }
       });
       if (validReports) {
-        for (const report of reportLinks) { const p = node("p"), a = node("a", "", report.label); a.href = report.url; a.target = "_blank"; a.rel = "noopener noreferrer"; p.append(a); value.append(p); }
+        for (const label of reportLabels) {
+          const p = node("p"), report = reportLinks.find(link => link.label === label);
+          if (report) { const a = node("a", "", label); a.href = report.url; a.target = "_blank"; a.rel = "noopener noreferrer"; p.append(a); }
+          else p.textContent = label;
+          value.append(p);
+        }
       } else if (formatted) {
         const blocks = window.LibraryDetailText.render(document, field.value ?? "", { sourceMarkers: firefly });
         if (blocks.length) { const prose = node("div", "library-detail-text"); prose.append(...blocks); value.append(prose); }

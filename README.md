@@ -97,13 +97,19 @@ only when present. The FRL dropdown excludes **N/A**, **Not specified**,
 **-/120/0** and **-/180/80**. FRL filtering does not
 remove installation conditions or additional RISF requirements from the detail.
 Firefly **Report Number** links open the manufacturer's report directory.
+Trafalgar report links use verified report-number matches stored in the local
+library review. Only HTTPS document links on the publisher's exact host are
+accepted. When only some report numbers have verified links, the others remain
+visible as plain text.
 The manufacturer-specific Trafalgar Category dropdown is replaced by the shared
 Category and Services filters; its source classification remains internal.
 
 Technical titles use **Manufacturer: ID — Service — FRL — Orientation** in both
 results and detail. Multiple comparable ratings show the observed minimum and
-maximum; the detail tables retain their configuration conditions. Imported
-**Source option** prefixes are replaced by aligned table rows. Barrier alternatives
+maximum; the detail tables retain their configuration conditions. Separate
+ratings explicitly labelled **without TWrap/Servowrap** are excluded from the
+title when a standard rating is available, while remaining in detail and FRL filters.
+Imported **Source option** prefixes are replaced by aligned table rows. Barrier alternatives
 and their FRLs stay together, with a link from the FRL field back to the table.
 Wrap and installation alternatives keep the same explicit row relationships.
 

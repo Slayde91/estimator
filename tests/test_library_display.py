@@ -2,6 +2,7 @@ from copy import deepcopy
 import unittest
 
 from estimator.library_display import display_subtitle, remove_resolved_source_notices
+from estimator.technical_table_navigation import validate_table_navigation
 
 
 class LibraryDisplayTests(unittest.TestCase):
@@ -76,6 +77,95 @@ class LibraryDisplayTests(unittest.TestCase):
             'attributed to the selector; no missing values have been inferred.'}]}
         remove_resolved_source_notices(item)
         self.assertEqual(item['fields'], [])
+
+    def test_resolved_table_column_and_issue_link_removed_without_changing_row_pairings(self):
+        notice = ('The publisher wrap text contains an unrecognised <gt/> element. '
+                  'The comparison symbol is unresolved; verify the wrap length against the approval.')
+        link = {'field': 'Service Size / Configuration', 'table_index': 0}
+        source = {'id': 'promat-example', 'fields': [
+            {'label': 'Service Size / Configuration', 'value': '', 'table': {
+                'columns': ['FRL', 'Service Wrap', 'Source Issues'],
+                'rows': [['-/120/120', '', ''], ['-/90/90', 'LI (300mm on top side)', notice]]},
+                'table_row_ids': [['variant-a', 'variant-b']], 'table_captions': ['Source table']},
+            {'label': 'FRL', 'value': '', 'table_links': [link]},
+            {'label': 'Service Wrap', 'value': '', 'table_links': [link]},
+            {'label': 'Source Issues', 'value': '', 'table_links': [link]},
+        ]}
+        item = deepcopy(source)
+        remove_resolved_source_notices(item)
+        table = item['fields'][0]['table']
+        self.assertEqual(table['columns'], ['FRL', 'Service Wrap'])
+        self.assertEqual(table['rows'], [['-/120/120', ''], ['-/90/90', 'LI (300mm on top side)']])
+        self.assertEqual(item['fields'][0]['table_row_ids'], [['variant-a', 'variant-b']])
+        self.assertEqual([f['label'] for f in item['fields']], ['Service Size / Configuration', 'FRL', 'Service Wrap'])
+        self.assertEqual(source['fields'][0]['table']['rows'][1][-1], notice)
+        validate_table_navigation(item['fields'])
+        after = deepcopy(item)
+        remove_resolved_source_notices(item)
+        self.assertEqual(item, after)
+
+    def test_mixed_table_issues_keep_the_column_and_link(self):
+        resolved = ('Source image has clipped edges: Left drawing-title labels clipped. '
+                    'The missing text was not reconstructed.')
+        item = {'fields': [
+            {'label': 'Service Size / Configuration', 'value': '', 'tables': [{
+                'columns': ['FRL', 'Source Issues'],
+                'rows': [['-/60/60', resolved], ['-/90/90', 'A separate unresolved discrepancy.']]}]},
+            {'label': 'Source Issues', 'value': '', 'table_links': [
+                {'field': 'Service Size / Configuration', 'table_index': 0}]}]}
+        remove_resolved_source_notices(item)
+        self.assertEqual(item['fields'][0]['tables'][0]['rows'],
+                         [['-/60/60', ''], ['-/90/90', 'A separate unresolved discrepancy.']])
+        self.assertEqual(len(item['fields']), 2)
+        validate_table_navigation(item['fields'])
+
+    def test_issue_links_to_supporting_tables_without_issue_columns_are_retained(self):
+        item = {'fields': [
+            {'label': 'Barrier Construction', 'value': '', 'table': {
+                'columns': ['Separating Element', 'FRL'], 'rows': [['Concrete', '-/120/120']]}},
+            {'label': 'Source Issues', 'value': 'Another substrate has no rating row.', 'table_links': [
+                {'field': 'Barrier Construction', 'table_index': 0}]}]}
+        original = deepcopy(item)
+        remove_resolved_source_notices(item)
+        self.assertEqual(item, original)
+
+    def test_selector_depth_replaces_attributed_conflict_with_requested_summary(self):
+        notice = ('The selector and source installation instruction use different seal-depth '
+                  'descriptions. Both are attributed in Seal Depth / Fillet Size; neither overrides the other.')
+        other = 'The source names TPS cables, not a general fire-cable class.'
+        source = {'id': 'trafalgar-example', 'fields': [
+            {'label': 'Seal Depth / Fillet Size', 'value':
+                'Selector: 20mm (Both Sides) / No Fillet\n\nSource installation instruction: '
+                'Fill FyreFLEX sealant in the annular gap to full depth, on both sides of the wall.'},
+            {'label': 'Source Issues', 'value': notice + '\n\n' + other}]}
+        item = deepcopy(source)
+        remove_resolved_source_notices(item)
+        self.assertEqual(item['fields'][0]['value'],
+                         'Fill FyreFLEX sealant in the annular gap to max 20mm (Both Sides) / No Fillet')
+        self.assertEqual(item['fields'][1]['value'], other)
+        self.assertIn('Source installation instruction:', source['fields'][0]['value'])
+        # Do not hide the notice when the depth or source instruction is unreviewed.
+        for replacement in ('30mm (Both Sides) / No Fillet', '20mm (One Side) / No Fillet'):
+            item = deepcopy(source)
+            item['fields'][0]['value'] = item['fields'][0]['value'].replace('20mm (Both Sides) / No Fillet', replacement)
+            original = deepcopy(item)
+            remove_resolved_source_notices(item)
+            self.assertEqual(item, original)
+
+    def test_plasterboard_selector_depth_preserves_separate_maxilite_instruction(self):
+        item = {'id': 'trafalgar-example', 'fields': [
+            {'label': 'Seal Depth / Fillet Size', 'value':
+                'Selector: Full depth of Plasterboard (Both Sides) / No Fillet\n\n'
+                'Source installation instruction: Fill FyreFLEX sealant in the annular gap '
+                'to 20mm depth on both sides of the wall + Maxilite.'},
+            {'label': 'Source Issues', 'value':
+                'The selector and source installation instruction use different seal-depth descriptions. '
+                'Both are attributed in Seal Depth / Fillet Size; neither overrides the other.'}]}
+        remove_resolved_source_notices(item)
+        self.assertEqual(len(item['fields']), 1)
+        self.assertEqual(item['fields'][0]['value'],
+            'Fill FyreFLEX sealant in the annular gap to full depth of Plasterboard (Both Sides) / No Fillet. '
+            'At the Maxilite, apply FyreFLEX sealant to 20mm depth on both sides.')
 
 
 if __name__ == '__main__':

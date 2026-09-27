@@ -9,6 +9,7 @@ from copy import deepcopy
 import re
 
 from .technical_rating_summary import summarize_ratings
+from .library_facets import scoped_rating_cells
 
 
 _DASHES = str.maketrans({char: '-' for char in '\u2010\u2011\u2012\u2013\u2014\u2212'})
@@ -68,6 +69,21 @@ def normalize_frl_presentation(fields: list[dict]) -> list[dict]:
             continue
         repeated = {rating for paragraph in paragraphs
                     for rating in _explicit_summary_ratings(paragraph)}
+        # This exact import note repeats the displayed rating; retain it when
+        # the source table cannot support that rating or carries extra conditions.
+        cells = scoped_rating_cells(field, result)
+        supported = set(summarize_ratings(cells)['ratings'])
+        other = repeated | {r for p in paragraphs if (r := _bare_rating(p))}
+        clean = []
+        for paragraph in paragraphs:
+            note = re.fullmatch(r'Selector / previously recorded rating: (?:Up to )?(.+)', paragraph.strip())
+            rating = _bare_rating(note[1]) if note else None
+            if rating and rating in supported and rating in other:
+                continue
+            clean.append(paragraph)
+        if clean != paragraphs:
+            paragraphs = clean
+            field['value'] = '\n\n'.join(clean)
         if not repeated:
             continue
         keep = [paragraph for paragraph in paragraphs if _bare_rating(paragraph) not in repeated]

@@ -18,7 +18,8 @@ from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import classify_substrates
 from .library_display import display_subtitle, remove_resolved_source_notices
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
-from .library_report_links import validate_report_links
+from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
+from .library_facets import FACETS, classify_facets, facet_options
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
                                is_hidden_technical_label, normalize_technical_item)
 
@@ -213,6 +214,8 @@ class ReferenceLibrary:
             filter_labels.setdefault('substrate', 'Substrate')
             if kind == 'technical':
                 filter_labels.setdefault('manufacturer', 'Manufacturer')
+                for key, (label, _) in FACETS.items():
+                    filter_labels[key] = label
             records[kind], searches[kind] = {}, {}
             filter_values = {key: set() for key in filter_labels}
             for item in items:
@@ -277,6 +280,14 @@ class ReferenceLibrary:
                 values.pop('table', None)
                 if kind == 'technical':
                     values['manufacturer'] = manufacturer_values(item, assets)
+                    values.update(classify_facets(item))
+                    if values['manufacturer'] == ['Firefly']:
+                        for field in item.get('fields', []):
+                            if field['label'] == 'Report Number':
+                                field['report_links'] = [
+                                    {'label': label.strip(), 'url': FIREFLY_REPORTS_URL}
+                                    for label in field['value'].splitlines() if label.strip()]
+                                validate_report_links(field)
                 values['substrate'] = classify_substrates(
                     source_item, item, selector_capture=selector_context,
                     source_documents=assets)
@@ -296,7 +307,7 @@ class ReferenceLibrary:
                         filter_values[field].add(string(value, 1000))
                 records[kind][key] = item
                 searches[kind][key] = '\n'.join(text).casefold()
-            filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in sorted(filter_values[key], key=str.casefold)]} for key, label in filter_labels.items()]
+            filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))]} for key, label in filter_labels.items()]
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:

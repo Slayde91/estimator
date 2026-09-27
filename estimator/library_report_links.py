@@ -4,6 +4,7 @@ import re
 from urllib.parse import urlsplit
 
 REPORT_HOSTS = {'media.promat.com', 'etex.azureedge.net'}
+FIREFLY_REPORTS_URL = 'https://systems.tbafirefly.com.au/reports'
 
 
 def valid_report_url(value):
@@ -11,6 +12,8 @@ def valid_report_url(value):
         return False
     if re.search(r'[\s<>"\\\x00-\x1f\x7f]', value):
         return False
+    if value == FIREFLY_REPORTS_URL:
+        return True
     try:
         url = urlsplit(value)
         return (url.scheme == 'https' and url.netloc in REPORT_HOSTS

@@ -35,6 +35,12 @@ def _rating_column(column):
     return bool(re.match(r'^(?:source |blank seal )?frl(?:\b|_)', _key(column)))
 
 
+def _inapplicable_rating_text(value):
+    lower = value.casefold()
+    return ('applicability' in lower and 'not established' in lower
+            or 'related source ratings only' in lower)
+
+
 def scoped_rating_cells(field, fields):
     """Read only linked, applicable FRL columns/rows, including middle ratings.
 
@@ -60,8 +66,9 @@ an unresolved related table is never promoted to an entry's rating.
         columns = [n for n, c in enumerate(table['columns']) if _rating_column(c)]
         matching = [s for s in scopes if s[1] == link['field'] and int(s[2]) == index + 1]
         # Source-review prose explicitly marks other tables as non-applicable.
-        marker = f"{link['field']} table {index + 1}: related source ratings only"
-        if marker in value:
+        marker = f"{link['field']} table {index + 1}"
+        if any(marker in paragraph and _inapplicable_rating_text(paragraph)
+               for paragraph in re.split(r'\n\s*\n', value)):
             continue
         if not matching:
             # Generated attribution with an unrecognised scope is not permission
@@ -102,9 +109,7 @@ def frl_values(item):
         # A retained source summary can name ratings while expressly stating
         # that the table does not establish applicability to this entry.
         for paragraph in re.split(r'\n\s*\n', field.get('value', '')):
-            lower = paragraph.casefold()
-            if ('applicability' in lower and 'not established' in lower
-                    or 'related source ratings only' in lower):
+            if _inapplicable_rating_text(paragraph):
                 continue
             values.append(paragraph)
         values.extend(scoped_rating_cells(field, item['fields']))

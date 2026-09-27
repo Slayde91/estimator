@@ -119,6 +119,16 @@ class LibraryDisplayTests(unittest.TestCase):
         self.assertEqual(len(item['fields']), 2)
         validate_table_navigation(item['fields'])
 
+    def test_issue_links_to_supporting_tables_without_issue_columns_are_retained(self):
+        item = {'fields': [
+            {'label': 'Barrier Construction', 'value': '', 'table': {
+                'columns': ['Separating Element', 'FRL'], 'rows': [['Concrete', '-/120/120']]}},
+            {'label': 'Source Issues', 'value': 'Another substrate has no rating row.', 'table_links': [
+                {'field': 'Barrier Construction', 'table_index': 0}]}]}
+        original = deepcopy(item)
+        remove_resolved_source_notices(item)
+        self.assertEqual(item, original)
+
     def test_selector_depth_replaces_attributed_conflict_with_requested_summary(self):
         notice = ('The selector and source installation instruction use different seal-depth '
                   'descriptions. Both are attributed in Seal Depth / Fillet Size; neither overrides the other.')

@@ -105,8 +105,9 @@ def remove_resolved_source_notices(item):
     resolved_seal = _resolve_selector_seal_depth(item)
     # Configuration rows can carry their own Source Issues column. Preserve
     # row order, identities and table indices while removing resolved cells.
+    removed_issue_tables = set()
     for field in item.get('fields', []):
-        for table in field_tables(field):
+        for table_index, table in enumerate(field_tables(field)):
             for index in reversed(range(len(table['columns']))):
                 if table['columns'][index] != 'Source Issues':
                     continue
@@ -116,14 +117,14 @@ def remove_resolved_source_notices(item):
                     table['columns'].pop(index)
                     for row in table['rows']:
                         row.pop(index)
-    by_label = {f['label']: f for f in item.get('fields', [])}
+                    removed_issue_tables.add((field['label'], table_index))
     fields = []
     for field in item.get('fields', []):
         if field['label'] == 'Source Issues':
             field['value'] = _clean_notice(field['value'], resolved_seal)
-            if 'table_links' in field:
+            if not field['value'] and 'table_links' in field:
                 field['table_links'] = [link for link in field['table_links']
-                    if 'Source Issues' in field_tables(by_label[link['field']])[link['table_index']]['columns']]
+                    if (link['field'], link['table_index']) not in removed_issue_tables]
                 if not field['table_links']:
                     field.pop('table_links')
             if not any(field.get(key) for key in ('value', 'images', 'table', 'tables', 'table_links')):

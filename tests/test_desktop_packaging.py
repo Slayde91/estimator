@@ -18,6 +18,7 @@ from estimator.catalog import ValidationError
 from estimator.desktop_seed_content import (encoded, export_library_edits, validate_library_edits,
     insert_library_edits, TABLE_COLUMNS)
 from estimator.firestopping_library import FirestoppingLibrary
+from estimator.reference_library import ReferenceLibrary
 from estimator.storage import Store
 from test_firestopping_library import editable_library
 
@@ -63,6 +64,58 @@ class DesktopPackagingTests(unittest.TestCase):
         # FirestoppingLibrary.create emits captured; it is distinct from shared/workbook.
         value=self.saved_payload('captured')
         self.assertIs(validate_library_edits(value,self.library_dir),value)
+
+    def test_reused_source_validates_once_but_still_checks_saved_prices_and_changes(self):
+        value=self.saved_payload()
+        reference=ReferenceLibrary(self.library_dir)
+        with patch.object(reference,'_validate',wraps=reference._validate) as validate:
+            validate_library_edits(value,self.library_dir,reference)
+            validate_library_edits(value,self.library_dir,reference)
+            self.assertEqual(validate.call_count,1)
+            damaged=deepcopy(value)
+            damaged['tables']['firestopping_prices'][0]['data']='{}'
+            with self.assertRaises(ValidationError):
+                validate_library_edits(damaged,self.library_dir,reference)
+            self.assertEqual(validate.call_count,1)
+            (self.library_dir/'library.json').write_text('{"schema_version":999}')
+            with self.assertRaises(ValidationError):
+                validate_library_edits(value,self.library_dir,reference)
+            self.assertEqual(validate.call_count,2)
+
+    def test_reused_source_requires_exact_library_directory_and_read_only_type(self):
+        value=self.saved_payload()
+        other=self.root/'other-library'
+        editable_library(other)
+        with self.assertRaises(ValidationError):
+            validate_library_edits(value,self.library_dir,ReferenceLibrary(other))
+        # A FirestoppingLibrary overlays DB records and is not an immutable source.
+        with self.assertRaises(ValidationError):
+            validate_library_edits(value,self.library_dir,self.library)
+
+    def test_created_item_validation_preserves_reused_source_cache(self):
+        self.library.create({'idempotency_key':'desktop-seed-create-001','configuration':{},'draft':{
+            'globals':{'J':'No','K':None,'L':0.125,'M':0},
+            'rows':[{'id':'created-test-row','inputs':{'K':'Saved copper service','T':'65 mm copper',
+                'Q':None,'O':1,'AH':2,'AI':50,'AJ':100,'AL':65,'AO':0}}]}})
+        with self.store.connect() as database:
+            value=export_library_edits(database)
+        reference=ReferenceLibrary(self.library_dir)
+        cached=reference._load()
+        before=deepcopy(cached)
+        with patch.object(reference,'_validate',wraps=reference._validate) as validate:
+            validate_library_edits(value,self.library_dir,reference)
+            self.assertEqual(validate.call_count,1)
+            self.assertIs(reference._load(),cached)
+            self.assertEqual(cached,before)
+            damaged=deepcopy(value)
+            created=json.loads(damaged['tables']['firestopping_created'][0]['data'])
+            created['item']['title']=123
+            damaged['tables']['firestopping_created'][0]['data']=encoded(created)
+            with self.assertRaises(ValidationError):
+                validate_library_edits(damaged,self.library_dir,reference)
+            self.assertEqual(validate.call_count,2)
+            self.assertIs(reference._load(),cached)
+            self.assertEqual(cached,before)
 
     def test_rejects_extra_database_tables(self):
         value=self.saved_payload()

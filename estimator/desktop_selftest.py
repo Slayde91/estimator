@@ -106,6 +106,46 @@ def self_test(data_directory, output_report):
             return str(directory)
 
     def mounted(window, controller, origin):
+        cold_started = time.monotonic()
+        phase_lock = threading.Lock()
+        phase = {'generation': 0, 'timer': None}
+
+        def arm_deadline(name):
+            with phase_lock:
+                if phase['timer']:
+                    phase['timer'].cancel()
+                phase['generation'] += 1
+                generation = phase['generation']
+
+                def deadline():
+                    with phase_lock:
+                        if done.is_set() or generation != phase['generation']:
+                            return
+                        report['errors'].append('Native ' + name + ' exceeded its 180 second deadline.')
+                        checkpoint('timeout')
+                    with controller._lock:
+                        controller._approved = True
+                    window.destroy()
+
+                timer = threading.Timer(180, deadline)
+                timer.daemon = True
+                phase['timer'] = timer
+                timer.start()
+
+        def cancel_deadline():
+            with phase_lock:
+                phase['generation'] += 1
+                if phase['timer']:
+                    phase['timer'].cancel()
+
+        def cold_remaining():
+            remaining = 180 - (time.monotonic() - cold_started)
+            if remaining <= 0:
+                raise TimeoutError('Native first-launch readiness exceeded 180 seconds.')
+            return remaining
+
+        arm_deadline('first-launch readiness')
+        window.events.closed += cancel_deadline
         checkpoint('native window configured')
         report['requests'], report['responses'] = [], []
         def requested(request):
@@ -133,13 +173,20 @@ def self_test(data_directory, output_report):
                 checkpoint('native document loaded')
                 probe = NativeProbe(window)
                 checkpoint('native script probe starting')
-                probe.wait('window.CeasefireDesktop?.status().ready === true && !!window.chrome?.webview')
+                probe.wait('window.CeasefireDesktop?.status().ready === true && !!window.chrome?.webview', seconds=cold_remaining())
                 assert probe.script('window.CeasefireDesktop.status().takeoffs') is False
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="estimate"]')
+                # The complete private catalogue performs its deterministic cold
+                # validation here. Give first-launch readiness a separate bound;
+                # do not spend the edit/save/export/close journey's time budget.
+                probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"', seconds=cold_remaining())
+                report['cold_readiness_seconds'] = round(time.monotonic() - cold_started, 3)
+                checkpoint('native first-launch ready')
+                arm_deadline('acceptance journey')
                 probe.fill('#project-no', 'NATIVE-WEBVIEW2')
                 probe.fill('#client', 'Disposable desktop acceptance')
                 probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"')
@@ -212,17 +259,8 @@ def self_test(data_directory, output_report):
                 window.destroy()
             finally:
                 done.set()
+                cancel_deadline()
         window.events.loaded += lambda: threading.Thread(target=check, name='NativeAcceptance', daemon=True).start()
-        def deadline():
-            if done.is_set():
-                return
-            report['errors'].append('Native acceptance exceeded its 180 second deadline.')
-            checkpoint('timeout')
-            with controller._lock:
-                controller._approved = True
-            window.destroy()
-        timer = threading.Timer(180, deadline); timer.daemon = True; timer.start()
-        window.events.closed += timer.cancel
     try:
         run(data_directory=directory, seed_directory=seed, project_dialogs=Dialogs(), hidden=False, on_window=mounted)
         if not done.wait(1):

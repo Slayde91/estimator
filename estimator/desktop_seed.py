@@ -111,7 +111,8 @@ def initialize_data(seed_root, destination):
             if size != record['size'] or digest.hexdigest() != record['sha256']:
                 raise ValueError('An installer seed file failed its integrity check.')
         from .reference_library import ReferenceLibrary
-        source_library = ReferenceLibrary(temporary / 'reference-library')._load()
+        source_library_store = ReferenceLibrary(temporary / 'reference-library')
+        source_library = source_library_store._load()
         expected_assets = {}
         for entry in source_library['documents']:
             expected_assets['reference-library/documents/' + entry['id'] + '.pdf'] = entry['sha256']
@@ -124,7 +125,8 @@ def initialize_data(seed_root, destination):
             from .desktop_seed_content import validate_library_edits, insert_library_edits
             pricing = json.loads((temporary / 'pricing.json').read_text(encoding='utf-8'))
             edits = json.loads((temporary / 'library-edits.json').read_text(encoding='utf-8'))
-            validate_library_edits(edits, temporary / 'reference-library' if missing_library else library)
+            validate_library_edits(edits, temporary / 'reference-library' if missing_library else library,
+                                   reference_library=source_library_store if missing_library else None)
             store = Store(temporary / 'estimator.sqlite3')
             store.save_configuration(pricing)
             insert_library_edits(store, edits)

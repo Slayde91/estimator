@@ -96,6 +96,11 @@ Setup and uninstall wait for the desktop application to close; they never force
 it to terminate. A shared setup mutex blocks new app starts during file changes.
 After Finish, open the app using either shortcut; setup does not auto-launch it.
 
+First launch verifies and copies the offline content into the user's data folder.
+Large libraries can take a minute or more to prepare; their first use in a new
+session also builds the search/filter index. Later requests reuse that index.
+Allow preparation to finish before saving or closing the application.
+
 Release validation must exercise the actual frozen executable: all navigation,
 native Save/Save As/load and close protection, pricing/library persistence,
 calculator equivalence, PDF/XLSX exports, and reference PDF/image display. Inspect

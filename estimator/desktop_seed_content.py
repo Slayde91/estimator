@@ -1,9 +1,11 @@
 """Allowlisted factory library content, never a copy of the user's database."""
 
 import base64
+from copy import deepcopy
 import hashlib
 import json
 import math
+from pathlib import Path
 import re
 
 from .catalog import ValidationError, validate_configuration
@@ -36,7 +38,7 @@ def _json(value):
     return json.loads(value, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Nonfinite JSON')))
 
 
-def validate_library_edits(value, library_directory):
+def validate_library_edits(value, library_directory, reference_library=None):
     """Validate schema, identities, source references and frozen pricing content."""
     try:
         if (not isinstance(value, dict) or set(value) != {'schema_version', 'tables'}
@@ -44,9 +46,21 @@ def validate_library_edits(value, library_directory):
                 or not isinstance(value['tables'], dict) or set(value['tables']) != set(TABLE_COLUMNS)
                 or len(encoded(value).encode('utf-8')) > MAX_CONTENT_BYTES):
             raise ValueError('Factory library content schema')
-        from .firestopping_library import empty_library, FirestoppingLibrary
+        from .firestopping_library import empty_library, FILTER_COLUMNS
         from .penetration_calculator import normalize_draft
-        base = ReferenceLibrary(library_directory)._load() or empty_library()
+        reference = reference_library if reference_library is not None else ReferenceLibrary(library_directory)
+        if type(reference) is not ReferenceLibrary or reference.directory.resolve() != Path(library_directory).resolve():
+            raise ValueError('Factory content validation requires the matching source library.')
+        with reference._lock:
+            base = reference._load() or empty_library()
+        # _load has already validated the unchanged source. Created records need
+        # a separate combined validation without modifying that cached source.
+        if value['tables']['firestopping_created']:
+            base = deepcopy(base)
+            collection = base['libraries']['penetration']
+            existing_filters = {entry['key'] for entry in collection.get('filters', [])}
+            collection.setdefault('filters', []).extend({'key': key, 'label': label}
+                for key, (label, _) in FILTER_COLUMNS.items() if key not in existing_filters)
         penetration = {item['id'] for item in base['libraries']['penetration']['items']}
         technical = {item['id'] for item in base['libraries']['technical']['items']}
         tables = value['tables']
@@ -142,7 +156,8 @@ def validate_library_edits(value, library_directory):
                     if column == 'image_data' and (image.size != (row['width'], row['height']) or hashlib.sha256(raw).hexdigest() != row['sha256']):
                         raise ValueError('Factory diagram does not match its provenance')
                     image.verify()
-        ReferenceLibrary(library_directory)._validate(base)
+        if tables['firestopping_created']:
+            reference._validate(base)
     except (KeyError, TypeError, ValueError, OverflowError) as error:
         if isinstance(error, ValidationError):
             raise

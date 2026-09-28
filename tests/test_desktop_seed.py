@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from estimator.desktop_seed import initialize_data, verified_manifest
 from estimator.desktop_selftest import synthetic_seed
+from estimator.reference_library import ReferenceLibrary
 
 
 class DesktopSeedTests(unittest.TestCase):
@@ -61,6 +62,27 @@ class DesktopSeedTests(unittest.TestCase):
         self.assertTrue(initialize_data(self.seed, self.user)['initialized'])
         self.assertEqual((library / 'library.json').read_bytes(), content)
         self.assertEqual((library / 'user-added.txt').read_text(), 'retained')
+
+    def test_first_run_reuses_validated_staged_library_but_retry_validates_existing_library(self):
+        validate = ReferenceLibrary._validate
+        directories = []
+
+        def record(instance, value):
+            directories.append(instance.directory.resolve())
+            return validate(instance, value)
+
+        with patch.object(ReferenceLibrary, '_validate', autospec=True, side_effect=record):
+            initialize_data(self.seed, self.user)
+        self.assertEqual(len(directories), 1)
+        self.assertTrue(directories[0].parent.name.startswith('.estimator-first-run-'))
+        # An interrupted publication may leave a user library. Its own contents
+        # must be validated, never authorized by the unrelated staged seed cache.
+        (self.user / 'estimator.sqlite3').unlink()
+        directories.clear()
+        with patch.object(ReferenceLibrary, '_validate', autospec=True, side_effect=record):
+            initialize_data(self.seed, self.user)
+        self.assertEqual(len(directories), 2)
+        self.assertEqual(directories[-1], (self.user / 'reference-library').resolve())
 
     def test_manifest_traversal_and_duplicate_case_are_rejected_even_with_recomputed_hash(self):
         manifest = json.loads((self.seed / 'manifest.json').read_text())

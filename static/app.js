@@ -9,11 +9,11 @@
     result: null, revision: 0, timer: null, controller: null, pricingExpanded: new Set(), legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null,
+    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
-    pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } },
+    pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } }, takeoffsEnabled: true,
   };
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const quantity = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,6 +34,7 @@
     boards: "Boards", mastic: "Mastic", primers: "Primers", topcoats: "Topcoats",
   };
   const pricingUnsavedPrompt = "The Pricing Library has unsaved changes. Are you sure you want to continue?";
+  const takeoffContents = () => state.takeoffsEnabled ? "takeoff drawings and registers, " : "";
   const pricingSavePrompt = "The changes in this Pricing Library will be saved for future projects. Are you sure you want to save?";
   const additionLabels = {
     E26: "Extra days · labour team", F26: "Extra labour days",
@@ -163,6 +164,8 @@
   }
 
   async function request(path, options = {}) {
+    state.desktopRequests++;
+    try {
     const response = await fetch(path, {
       ...options,
       headers: { "Content-Type": "application/json", ...options.headers },
@@ -175,6 +178,7 @@
       throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
     }
     return data;
+    } finally { state.desktopRequests--; }
   }
 
   function updateDirty(value = true) {
@@ -564,7 +568,7 @@
 
   async function newQuote() {
     if (state.projectBusy) return;
-    if (projectHasChanges() && !await confirmReplace("Start a new project?", "The Quote, Firestopping items, takeoff drawings and registers, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library.", "New project")) return;
+    if (projectHasChanges() && !await confirmReplace("Start a new project?", `The Quote, Firestopping items, ${takeoffContents()}project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library.`, "New project")) return;
     if (state.initialized) {
       try {
         const captured = projectStamp();
@@ -715,6 +719,7 @@
   }
 
   function showView(view, librarySelection) {
+    if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
     state.currentView = view;
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
@@ -1420,6 +1425,7 @@
   async function bootstrap() {
     try {
       const data = await request("/api/bootstrap");
+      state.takeoffsEnabled = data.features?.takeoffs !== false;
       state.currentFields = clone(data.fields || []);
       state.fields = clone(state.currentFields);
       state.baseline = data.baseline || { inventory: [], rate_groups: {} };
@@ -1525,7 +1531,7 @@
           $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
         } else updateDirty();
       }
-      message(`Project saved to ${saved.file.path}. It includes the Quote, Firestopping items, takeoff drawings and registers, pricing library and all three specialist calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
+      message(`Project saved to ${saved.file.path}. It includes the Quote, Firestopping items, ${takeoffContents()}pricing library and all three specialist calculators.${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
     } catch (error) { message(`Project was not saved. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
@@ -1598,10 +1604,11 @@
   async function reviewAndLoadProject(project, file, captured) {
     let takeoffsAdopted = false;
     try {
+      if (!state.takeoffsEnabled && (project.takeoffs || project.takeoffs_session_id)) throw new Error("This project contains TAKEOFFS data. Open it in the full edition; this edition cannot remove or overwrite that evidence.");
       const [prepared, penetration, takeoffs] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id)]);
       if (captured !== projectStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the Quote, Firestopping items, takeoff drawings and registers, their pricing and all three specialist calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
+      const accepted = await confirmReplace("Load this project?", `${file.name}\nProject No.: ${detail.project_no || "Not recorded"}\nClient: ${detail.client || "Not recorded"}\nSite Address: ${detail.site_address || "Not recorded"}\n\nThis replaces the Quote, Firestopping items, ${takeoffContents()}their pricing and all three specialist calculator drafts. The shared pricing library stays unchanged.`, "Load Project");
       if (!accepted) { message("Project load cancelled. Your current drafts were kept."); return; }
       if (captured !== projectStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
@@ -1625,8 +1632,8 @@
       selectEstimator("estimate"); showView("estimate"); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
       message(file.save_token
-        ? "Project loaded with the Quote, Firestopping items, takeoff drawings and registers, original pricing and all three specialist calculators. Save updates this file; Save As stores the complete project in another file."
-        : "Project imported with the Quote, Firestopping items, takeoff drawings and registers, original pricing and all three specialist calculators. Use Save As to choose its project file.");
+        ? `Project loaded with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Save updates this file; Save As stores the complete project in another file.`
+        : `Project imported with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Use Save As to choose its project file.`);
     } finally {
       if (!takeoffsAdopted) await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
     }
@@ -1883,6 +1890,36 @@
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });
+  // The desktop shell asks this page to review a close request; it never reads
+  // calculator internals or assumes that the browser's unload dialog will run.
+  let desktopInputRevision = 0, desktopClosePending = false;
+  window.addEventListener("input", () => { desktopInputRevision++; }, true);
+  window.addEventListener("change", () => { desktopInputRevision++; }, true);
+  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges() }); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.(); }
+  async function reviewDesktopClose() {
+    if (desktopBusy()) { message("Finish the current operation or dialog before closing ESTIMATOR.", true); return false; }
+    const captured = desktopCloseStamp();
+    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges()) {
+      if (!await confirmReplace("Close ESTIMATOR?", "There are unsaved project, calculator or library edits. Close without saving discards these edits. Keep editing to save them first.", "Close without saving")) return false;
+    }
+    if (desktopBusy() || captured !== desktopCloseStamp()) { message("Your draft changed during the close review. Close again when ready to keep your latest edits safe.", true); return false; }
+    return true;
+  }
+  window.CeasefireDesktop = {
+    showHome() { showView("home"); },
+    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges()), busy: desktopBusy() }; },
+    async requestClose(nonce) {
+      const host = window.chrome?.webview;
+      if (!host || !/^[a-f0-9]{64}$/.test(nonce || "")) return;
+      const reply = (action, allowed = false) => host.postMessage({ type: "ceasefire.close", action, nonce, allowed });
+      if (desktopClosePending) { reply("resolve", false); return; }
+      desktopClosePending = true; let allowed = false;
+      try { reply("ack"); allowed = await reviewDesktopClose(); }
+      catch (error) { message(`ESTIMATOR was not closed. ${error.message}`, true); }
+      finally { desktopClosePending = false; reply("resolve", allowed); }
+    },
+  };
   function scheduleChanged() {
     const stamp = window.CeasefirePenetrations?.quoteFingerprint?.();
     if (stamp === state.firestoppingStamp) return;

@@ -511,4 +511,5 @@
     state.version++; renderDiagram(); status(); message(state.diagramChange === null ? "The saved image will be removed when you save this library item." : "The current saved image is retained.");
   });
   window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem };
+  Object.assign(window.CeasefireLibraryEditor, { hasPendingOperation: () => !!state.busy });
 })();

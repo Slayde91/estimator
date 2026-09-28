@@ -1,0 +1,14 @@
+Public dependency notices retained for the Windows desktop distribution.
+
+proxy_tools 0.1.0:
+https://github.com/jtushman/proxy_tools
+https://raw.githubusercontent.com/jtushman/proxy_tools/master/LICENSE.txt
+The published wheel omits its licence text. Upstream text is retained here.
+PyPI metadata labels it MIT; upstream LICENSE.txt contains BSD terms, reproduced verbatim.
+
+Microsoft.Web.WebView2 SDK 1.0.3856.49 (version of DLLs bundled by pywebview 6.2.1):
+https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3856.49
+https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3856.49/microsoft.web.webview2.1.0.3856.49.nupkg
+NuGet package SHA-256: bc0f76eb911b569838dc4aa8f8d325269b966bedb592863d26211aef3a099f1a
+LICENSE.txt and NOTICE.txt are reproduced without modification.
+The SDK licence is distinct from Microsoft's separately redistributed Evergreen Runtime.

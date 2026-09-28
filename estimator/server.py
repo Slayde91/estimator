@@ -16,6 +16,7 @@ from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, v
 from .presentation import calculation_error_details
 from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
+from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
 
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
@@ -23,20 +24,24 @@ LOGGER = logging.getLogger(__name__)
 DEFAULT_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
 
-def create_server(port=8765, database=None, project_dialogs=None, library_directory=None, *, allow_annotation_styles=False):
+def create_server(port=8765, database=None, project_dialogs=None, library_directory=None, *, allow_annotation_styles=False, edition='full'):
+    edition = validate_edition(edition)
+    capabilities = features(edition)
     content_security_policy = DEFAULT_CONTENT_SECURITY_POLICY
     if allow_annotation_styles:
         # Browser annotation tools inject stylesheet elements into their overlay.
         # Keep style attributes and scripts under the normal strict policy.
         content_security_policy += "; style-src-elem 'self' 'unsafe-inline'"
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
-    from .takeoff_documents import TakeoffDocuments
-    from .takeoff_workspace import TakeoffService
-    from .takeoff_http import TakeoffHTTP
-    takeoffs = TakeoffService(store, TakeoffDocuments(store.path.parent / 'takeoffs'))
-    takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
+    takeoffs = takeoff_http = None
+    if capabilities['takeoffs']:
+        from .takeoff_documents import TakeoffDocuments
+        from .takeoff_workspace import TakeoffService
+        from .takeoff_http import TakeoffHTTP
+        takeoffs = TakeoffService(store, TakeoffDocuments(store.path.parent / 'takeoffs'))
+        takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
     from .project_library import ProjectLibrary
-    projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs)
+    projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs, edition=edition)
     from .reference_library import ReferenceNotFound
     from .firestopping_library import FirestoppingLibrary, LibraryConflict
     libraries = FirestoppingLibrary(library_directory, store)
@@ -56,7 +61,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Content-Security-Policy", content_security_policy)
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != 'HEAD':
+                self.wfile.write(body)
 
         def send_download(self, payload, content_type, filename, destination=None):
             if destination is not None:
@@ -132,7 +138,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.send_payload(403, {"error": "Cross-origin requests are not allowed."})
                 return
             route = urlsplit(self.path).path
-            if takeoff_http.dispatch(self, route):
+            if excluded_route(route, edition):
+                self.send_payload(404, {'error': 'Not found.'})
+                return
+            if takeoff_http is not None and takeoff_http.dispatch(self, route):
                 return
             if self.command == "GET":
                 if route == '/api/libraries':
@@ -173,7 +182,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     catalog = effective_catalog(config)
                     self.send_payload(200, {"fields": fields(catalog), "baseline": baseline(), "configuration": config,
                                             "catalog": configuration_catalog(config), "workflows": WORKFLOWS,
-                                            "pricing_usage": pricing_usage_metadata()})
+                                            "pricing_usage": pricing_usage_metadata(),
+                                            "edition": edition, "features": capabilities})
                 elif route == "/api/configuration":
                     self.send_payload(200, store.configuration())
                 elif route == "/api/projects":
@@ -187,11 +197,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png", "/fonts/Montserrat-Variable.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-pdf-worker.mjs"}:
+                elif route in {"/", "/index.html", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-pdf-worker.mjs"}:
                     name = "index.html" if route == "/" else route[1:]
                     path = ROOT / "static" / name
-                    kind = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".ttf": "font/ttf"}[path.suffix]
-                    self.send_payload(200, path.read_bytes(), kind)
+                    kind = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".png": "image/png", ".ico": "image/x-icon", ".ttf": "font/ttf"}[path.suffix]
+                    payload = path.read_bytes()
+                    if name == 'index.html':
+                        payload = render_index(payload, edition)
+                    self.send_payload(200, payload, kind)
                 else:
                     self.send_payload(404, {"error": "Not found."})
             elif self.command in {"POST", "PUT"}:
@@ -249,9 +262,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                             self.send_download(report, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'CEASEFIRE-Firestopping-Schedule.xlsx', destination)
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
+                    require_project_edition(body, edition)
                     if 'takeoffs' in body:
                         raise ValidationError('Use Save As to save the project together with its takeoff evidence folder.')
-                    project = export_project(store, body)
+                    project = export_project(store, body, edition=edition)
                     filename = project_filename(json.loads(project)['estimate']['title'])
                     self.send_payload(200, project, 'application/octet-stream',
                                       {'Content-Disposition': project_download_header(filename)})
@@ -286,7 +300,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     from .project_file import import_project
                     if set(body) != {'filename', 'content_base64'}:
                         raise ValidationError('Include the project filename and file content only.')
-                    project = import_project(store, body['filename'], body['content_base64'])
+                    project = import_project(store, body['filename'], body['content_base64'], edition=edition)
                     if 'takeoffs' in project:
                         session = takeoffs.open(project['takeoffs'])
                         project.update(takeoffs=session['snapshot'], takeoffs_session_id=session['session_id'], takeoffs_issues=session.get('issues', []))
@@ -431,6 +445,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         do_POST = handle_request
         do_PUT = handle_request
         do_OPTIONS = handle_request
+        if edition == 'standard':
+            # Disabled assets remain absent for metadata probes as well.
+            do_HEAD = handle_request
 
         def log_message(self, format_string, *args):
             LOGGER.info("%s", format_string % args)
@@ -447,7 +464,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 super().server_close()
             finally:
                 projects.close()
-                takeoffs.documents.close()
+                if takeoffs is not None:
+                    takeoffs.documents.close()
 
     return Server(("127.0.0.1", port), Handler)
 

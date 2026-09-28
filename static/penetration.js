@@ -981,4 +981,5 @@
   for (const id of ["penetration-pdf", "penetration-item-pdf"]) $(id).addEventListener("click", () => download("pdf"));
   for (const id of ["penetration-excel", "penetration-item-excel"]) $(id).addEventListener("click", () => download("xlsx"));
   window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged };
+  Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading) });
 })();

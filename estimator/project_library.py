@@ -19,8 +19,9 @@ import threading
 import time
 
 from .catalog import ValidationError
+from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, export_project, has_project_identity, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, assert_project_overwrite, export_project, has_project_identity, load_project_bytes, project_filename, project_summary
 
 
 MAX_PROJECT_FILES = 200
@@ -231,7 +232,10 @@ def _atomic_write(selection, payload):
 
 
 class ProjectLibrary:
-    def __init__(self, store, dialogs=None, *, takeoffs=None):
+    def __init__(self, store, dialogs=None, *, takeoffs=None, edition='full'):
+        self.edition = validate_edition(edition)
+        if self.edition == 'standard' and takeoffs is not None:
+            raise ValidationError('The standard edition cannot attach a TAKEOFFS service.')
         self.store = store
         self.takeoffs = takeoffs
         self.dialogs = dialogs if dialogs is not None else NativeDialogs()
@@ -245,6 +249,9 @@ class ProjectLibrary:
 
     def _capture_takeoffs(self, request):
         """Do not let a browser manufacture evidence paths or confirmation state."""
+        require_project_edition(request, self.edition)
+        if not isinstance(request, dict):
+            raise ValidationError('Include the complete project as an object.')
         prepared = {key: value for key, value in request.items() if key != 'takeoffs_session_id'}
         if 'takeoffs' in prepared:
             if self.takeoffs is None:
@@ -273,6 +280,7 @@ class ProjectLibrary:
         return None
 
     def _restore_takeoffs(self, project, path):
+        require_project_edition(project, self.edition)
         if 'takeoffs' not in project:
             return project
         if self.takeoffs is None:
@@ -283,6 +291,7 @@ class ProjectLibrary:
 
     def _preserve_takeoffs(self, path, request):
         previous, _ = _read_file(path)
+        assert_project_overwrite(previous, edition=self.edition)
         try:
             snapshot = json.loads(previous)
         except (ValueError, UnicodeDecodeError, RecursionError):
@@ -380,7 +389,7 @@ class ProjectLibrary:
                         if recognized:
                             if info.st_size > MAX_PROJECT_FILE:
                                 raise ValidationError("The project file must be at most 16 MB.")
-                            value = _metadata(path, info, project_summary(payload), scan["folder"])
+                            value = _metadata(path, info, project_summary(payload, edition=self.edition), scan["folder"])
                         else:
                             value = {"ignored": True}
                     except (OSError, ValidationError) as error:
@@ -468,7 +477,7 @@ class ProjectLibrary:
         if not path.is_relative_to(folder) or _file_id(folder, path.relative_to(folder).as_posix()) != identifier:
             raise ValidationError("Choose a project from the linked estimates folder.")
         payload, info = _read_file(path)
-        project = load_project_bytes(self.store, payload)
+        project = load_project_bytes(self.store, payload, edition=self.edition)
         project = self._restore_takeoffs(project, path)
         return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder))}
 
@@ -663,7 +672,7 @@ class ProjectLibrary:
             if not path.is_absolute() or ".." in path.parts or not path.name.lower().endswith(".json"):
                 raise ValidationError("Choose a project JSON file in an accessible folder.")
             payload, info = _read_file(path)
-            project = load_project_bytes(self.store, payload)
+            project = load_project_bytes(self.store, payload, edition=self.edition)
             project = self._restore_takeoffs(project, path)
             selected_folder = self.store.project_folder()
             try:
@@ -674,6 +683,7 @@ class ProjectLibrary:
             return {"cancelled": False, **project, "file": metadata}
 
     def save(self, request):
+        require_project_edition(request, self.edition)
         required = {"save_token", "estimate", "calculators"}
         if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
@@ -690,8 +700,8 @@ class ProjectLibrary:
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
         captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id") if key in request})
-        payload = export_project(self.store, captured)
-        project = load_project_bytes(self.store, payload)
+        payload = export_project(self.store, captured, edition=self.edition)
+        project = load_project_bytes(self.store, payload, edition=self.edition)
         # Serialize writes and recheck the capability after preparation so two
         # simultaneous requests cannot both consume one saved-file version.
         with self._lock:
@@ -705,8 +715,8 @@ class ProjectLibrary:
             selected_folder = self.store.project_folder()
             if 'takeoffs' in captured:
                 captured = self._publish_takeoffs(captured, path)
-                payload = export_project(self.store, captured)
-                project = load_project_bytes(self.store, payload)
+                payload = export_project(self.store, captured, edition=self.edition)
+                project = load_project_bytes(self.store, payload, edition=self.edition)
             path, info = _atomic_write(selection, payload)
             warning = self._saved_takeoff_source(request, captured, path)
             del self._save_targets[token]
@@ -732,8 +742,8 @@ class ProjectLibrary:
     def save_as(self, request):
         # No dialog or preference/file writes until the complete captured state is valid.
         captured = self._capture_takeoffs(request)
-        payload = export_project(self.store, captured)
-        project = load_project_bytes(self.store, payload)
+        payload = export_project(self.store, captured, edition=self.edition)
+        project = load_project_bytes(self.store, payload, edition=self.edition)
         with _dialog():
             selected_folder = self.store.project_folder()
             selection = self.dialogs.choose_save(selected_folder, project_filename(project["estimate"]["title"]))
@@ -745,8 +755,8 @@ class ProjectLibrary:
                     self._preserve_takeoffs(Path(selection.path), request)
                 if 'takeoffs' in captured:
                     captured = self._publish_takeoffs(captured, Path(selection.path))
-                    payload = export_project(self.store, captured)
-                    project = load_project_bytes(self.store, payload)
+                    payload = export_project(self.store, captured, edition=self.edition)
+                    project = load_project_bytes(self.store, payload, edition=self.edition)
                 path, saved_info = _atomic_write(selection, payload)
                 warning = self._saved_takeoff_source(request, captured, path)
             if selected_folder is None:

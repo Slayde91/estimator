@@ -41,8 +41,9 @@ function harness({ penetration = false } = {}) {
     };
   }
   const byId = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
-  const context = { document: { getElementById: byId, querySelector: selector => byId(selector), querySelectorAll: () => [], createElement: element, createTextNode: text => text, body: element(), activeElement: null },
-    window: { addEventListener() {}, scrollTo() {}, location: { origin: 'http://127.0.0.1:8765' } },
+  const windowListeners = {};
+  const context = { document: { getElementById: byId, querySelector: selector => selector.startsWith('dialog[open]') ? [...elements.values()].find(item => item.open || item.getAttribute('aria-busy') === 'true') || null : byId(selector), querySelectorAll: () => [], createElement: element, createTextNode: text => text, body: element(), activeElement: null },
+    window: { addEventListener(name, fn) { (windowListeners[name] ||= []).push(fn); }, scrollTo() {}, location: { origin: 'http://127.0.0.1:8765' } },
     Intl, Number, String, JSON, Object, Set, Map, WeakMap, Array, Promise, Error, AbortController, console,
     URL: { createObjectURL: () => 'blob:project-audit', revokeObjectURL() {} }, setTimeout: () => 1, clearTimeout() {},
     FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,QUFBQQ=='; queueMicrotask(() => this.onload()); } },
@@ -65,7 +66,7 @@ function harness({ penetration = false } = {}) {
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,uploadProjectFiles,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,uploadProjectFiles,reviewDesktopClose,
       setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -89,7 +90,7 @@ function harness({ penetration = false } = {}) {
   function snapshot() { return copy({ estimate: { inputs: app.state.inputs, configuration: app.state.quoteConfiguration, quote: app.state.quote },
     pricing: app.state.configuration, pricingDraft: app.state.draft, calculators: bridgeApi.projectSnapshot(), details: context.window.CeasefireProject.details(), ...(pen ? {penetration:pen.api.projectSnapshot()} : {}) }); }
   async function loadAccepted() { chooseFile(); const pending = app.loadProject(); await flush(); assert.equal(byId('discard-dialog').open, true); await byId('discard-dialog').close('confirm'); await pending; }
-  return { context, app, calc, bridgeApi, byId, element, addEntry, calls, chooseFile, snapshot, loadAccepted, pen };
+  return { context, app, calc, bridgeApi, byId, element, addEntry, calls, chooseFile, snapshot, loadAccepted, pen, windowListeners };
 }
 
 let passed = 0;
@@ -101,6 +102,43 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Desktop close cancellation keeps all unsaved project and pricing drafts', async h => {
+    h.app.state.initialized = true; const before = h.snapshot();
+    const closing = h.app.reviewDesktopClose(); await flush();
+    assert.equal(h.byId('discard-dialog').open,true);
+    await h.byId('discard-dialog').close('cancel'); assert.equal(await closing,false);
+    assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Desktop close approval is rejected when a draft changes during review', async h => {
+    h.app.state.initialized = true; const closing = h.app.reviewDesktopClose(); await flush();
+    h.byId('client').value = 'Changed while review was open';
+    for (const listener of h.windowListeners.input) listener({});
+    await h.byId('discard-dialog').close('confirm'); assert.equal(await closing,false);
+    assert.match(h.byId('app-message').textContent,/draft changed/);
+    const retry = h.app.reviewDesktopClose(); await flush();
+    await h.byId('discard-dialog').close('confirm'); assert.equal(await retry,true);
+  });
+  await check('Desktop close refuses a pending calculator save or application request', async h => {
+    h.app.state.initialized = true; h.calc.state.action = true;
+    assert.equal(await h.app.reviewDesktopClose(),false);
+    h.calc.state.action = false; h.app.state.desktopRequests = 1;
+    assert.equal(await h.app.reviewDesktopClose(),false);
+    assert.notEqual(h.byId('discard-dialog').open,true);
+  });
+  await check('Desktop native reply is bounded to an explicit nonce and boolean result', async h => {
+    h.app.state.initialized = true; const messages = [];
+    h.context.window.chrome = {webview:{postMessage: value => messages.push(copy(value))}};
+    await h.context.window.CeasefireDesktop.requestClose('invalid'); assert.equal(messages.length,0);
+    const pending = h.context.window.CeasefireDesktop.requestClose('a'.repeat(64)); await flush();
+    assert.equal(messages[0].action,'ack');
+    await h.byId('discard-dialog').close('cancel'); await pending;
+    assert.deepEqual(messages.at(-1),{type:'ceasefire.close',action:'resolve',nonce:'a'.repeat(64),allowed:false});
+  });
+  await check('Standard edition cannot navigate into an absent TAKEOFFS workspace', async h => {
+    h.app.state.takeoffsEnabled = false; const view = h.app.state.currentView;
+    h.app.showView('takeoffs'); assert.equal(h.app.state.currentView,view);
+    assert.match(h.byId('app-message').textContent,/not included/);
+  });
   await check('Save As captures estimate and every loaded calculator, preserving edits made while the dialog is open', async h => {
     const before = h.snapshot(), pending = deferred(); let sent;
     h.app.setRequest((path, options) => { sent = { path, body: JSON.parse(options.body), method: options.method }; return pending.promise; });

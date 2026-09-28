@@ -322,8 +322,8 @@ class ProjectLibraryTests(unittest.TestCase):
         original_export = export_project
         barrier = threading.Barrier(2)
         outcomes = []
-        def prepare(*args):
-            payload = original_export(*args)
+        def prepare(*args, **kwargs):
+            payload = original_export(*args, **kwargs)
             barrier.wait(timeout=30)
             return payload
         def save():

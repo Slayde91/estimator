@@ -2,6 +2,17 @@
 
 A local estimating application reproducing `Quote.xlsm`'s Calculator and `Penetration_Calculator.xlsx` with shared pricing from `Inventory_list.xlsm`, plus the three supplied ductwork and structural-steel workbooks.
 
+## Windows desktop edition
+
+The separately built Windows installer opens ESTIMATOR in its own window with
+the CEASEFIRE flame icon. It bundles Python, application dependencies and an
+offline WebView2 installer. This standard edition includes estimating,
+calculators and libraries; TAKEOFFS is excluded. Projects containing takeoff
+evidence must be opened in the full edition and cannot be overwritten by the
+standard edition. Installed user data is kept separately from program files
+and retained during upgrades and uninstall. See [installer build and validation
+instructions](docs/WINDOWS_INSTALLER.md).
+
 ## Run
 
 Requires Python 3.11 or newer and the dependencies in `requirements.txt`: ReportLab 4.4.9 generates PDFs, openpyxl 3.1.5 reads/writes pricing workbooks and registers, and pypdf 6.10.0 parses takeoff drawing metadata in an isolated worker. Estimating calculations and storage use Python's standard library. Microsoft Excel and the original source workbooks are not required to run the app.

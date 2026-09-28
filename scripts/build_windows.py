@@ -113,9 +113,9 @@ def collect_notices(destination):
 
 def vendor_signature(path, publisher):
     # Only a fixed script and JSON arguments are supplied; paths are not shell code.
-    script = "$p = [Console]::In.ReadToEnd() | ConvertFrom-Json; $s = Get-AuthenticodeSignature -LiteralPath $p.path; @{status=$s.Status.ToString();subject=$s.SignerCertificate.Subject} | ConvertTo-Json -Compress"
+    script = "Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop; $p = [Console]::In.ReadToEnd() | ConvertFrom-Json; $s = Get-AuthenticodeSignature -LiteralPath $p.path; @{status=$s.Status.ToString();subject=$s.SignerCertificate.Subject} | ConvertTo-Json -Compress"
     result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
-        input=json.dumps({'path':str(path)}),capture_output=True,text=True,check=True,
+        input=json.dumps({'path':str(path)}),capture_output=True,text=True,check=True,timeout=60,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     value = json.loads(result.stdout)
     if value['status'] != 'Valid' or publisher not in value['subject']:

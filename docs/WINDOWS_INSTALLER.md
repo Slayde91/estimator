@@ -87,8 +87,10 @@ by this x64 offline runtime package. It installs per user without requiring an
 administrator, creates Start-menu and optional desktop shortcuts, and does not
 associate `.json` files or alter default apps. WebView2 is detected in both the
 documented machine and user registry locations. The bundled offline installer
-runs silently only when it is missing or older than the pinned pywebview minimum
-(86.0.622.0). A supported installed runtime is retained. Failure stops setup with an error; the app
+runs silently only when it is missing or older than the application's Chromium
+minimum (105.0.0.0, including the [CSS `:has()` requirement](https://developer.chrome.com/blog/has-with-cq-m105/)). pywebview's own lower
+runtime floor does not cover the application's JavaScript/CSS features.
+A supported installed runtime is retained. Failure stops setup with an error; the app
 never falls back to MSHTML. .NET Framework 4.6.2 or newer is checked before install.
 Setup and uninstall wait for the desktop application to close; they never force
 it to terminate. A shared setup mutex blocks new app starts during file changes.

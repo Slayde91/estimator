@@ -63,7 +63,7 @@ begin
   Result := StrToVersion(Value, Packed);
   if Result then begin
     if RequireSupported then
-      Result := ComparePackedVersion(Packed, PackVersionComponents(86, 0, 622, 0)) >= 0
+      Result := ComparePackedVersion(Packed, PackVersionComponents(105, 0, 0, 0)) >= 0
     else
       Result := ComparePackedVersion(Packed, PackVersionComponents(0, 0, 0, 0)) > 0;
   end;

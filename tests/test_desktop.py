@@ -4,7 +4,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 from estimator.desktop import (CloseController, RUNNING_MUTEX, SETUP_MUTEX, _installer_guard,
-                               abort_native_load, external_document, install_navigation_guard, main_document)
+                               abort_native_load, external_document, fitted_window_geometry,
+                               install_navigation_guard, main_document)
 
 
 class Event:
@@ -19,6 +20,25 @@ class Event:
 
 class DesktopTests(unittest.TestCase):
     origin = 'http://127.0.0.1:54321'
+
+    def test_native_frame_fits_high_dpi_work_area_without_a_second_scale(self):
+        bounds, minimum = fitted_window_geometry((2880, 1920), (2000, 1400), (0, 0, 2880, 1824))
+        self.assertEqual(bounds, (0, 0, 2880, 1824))
+        self.assertEqual(minimum, (2000, 1400))
+
+    def test_small_work_area_reduces_minimum_without_hiding_frame_controls(self):
+        bounds, minimum = fitted_window_geometry((1440, 960), (1000, 700), (40, 24, 800, 576))
+        self.assertEqual(bounds, (40, 24, 800, 576))
+        self.assertEqual(minimum, (800, 576))
+
+    def test_roomy_negative_coordinate_monitor_preserves_size_and_centers_within_work_area(self):
+        bounds, minimum = fitted_window_geometry((1440, 960), (1000, 700), (-2560, -200, 2560, 1392))
+        self.assertEqual(bounds, (-2000, 16, 1440, 960))
+        self.assertEqual(minimum, (1000, 700))
+
+    def test_unavailable_native_work_area_fails_before_show(self):
+        with self.assertRaisesRegex(RuntimeError, 'working area'):
+            fitted_window_geometry((1440, 960), (1000, 700), (0, 0, 0, 960))
 
     def test_only_exact_main_document_has_close_authority(self):
         for suffix in ('/', '/index.html', '/#home'):

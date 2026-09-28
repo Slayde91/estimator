@@ -269,6 +269,35 @@ def abort_native_load(window, controller):
     threading.Thread(target=window.destroy, daemon=True).start()
 
 
+def fitted_window_geometry(size, minimum, work_area):
+    """Fit native pixel dimensions without mixing logical and physical DPI units."""
+    left, top, available_width, available_height = work_area
+    if available_width <= 0 or available_height <= 0:
+        raise RuntimeError('The desktop monitor has no usable working area.')
+    width = max(1, min(size[0], available_width))
+    height = max(1, min(size[1], available_height))
+    bounds = (left + (available_width - width) // 2,
+              top + (available_height - height) // 2, width, height)
+    minimum = (max(1, min(minimum[0], width)), max(1, min(minimum[1], height)))
+    return bounds, minimum
+
+
+def fit_native_window(window):
+    """Run on the native GUI thread before the window becomes visible."""
+    from System.Drawing import Rectangle, Size
+    from System.Windows.Forms import FormStartPosition, Screen
+    form = window.native
+    area = Screen.FromControl(form).WorkingArea
+    bounds, minimum = fitted_window_geometry(
+        (form.Width, form.Height), (form.MinimumSize.Width, form.MinimumSize.Height),
+        (area.X, area.Y, area.Width, area.Height))
+    # WinForms has already scaled these dimensions. Use native pixels for both
+    # the frame and the work area; do not apply the monitor DPI a second time.
+    form.StartPosition = FormStartPosition.Manual
+    form.MinimumSize = Size(*minimum)
+    form.Bounds = Rectangle(*bounds)
+
+
 def run(*, data_directory=None, seed_directory=None, project_dialogs=None, hidden=False, on_window=None):
     if os.name != 'nt':
         raise RuntimeError('The desktop installer requires Windows and the Microsoft Edge WebView2 Runtime.')
@@ -308,6 +337,7 @@ def run(*, data_directory=None, seed_directory=None, project_dialogs=None, hidde
         def install_guards():
             try:
                 from System.Drawing import Icon
+                fit_native_window(window)
                 window.native.Icon = Icon(str(ROOT / 'static' / 'ceasefire-app.ico'))
                 if hidden:
                     # Hiding a WinForms WebView before first navigation can

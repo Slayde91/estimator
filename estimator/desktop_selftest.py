@@ -59,6 +59,18 @@ class NativeProbe:
     def fill(self, selector, value):
         self.script(f'(() => {{ const element=document.querySelector({json.dumps(selector)}); element.value={json.dumps(value)}; element.dispatchEvent(new Event("input",{{bubbles:true}})); }})();')
 
+    def window_geometry(self):
+        from System.Windows.Forms import Screen
+
+        def inspect():
+            form = self.window.native
+            area = Screen.FromControl(form).WorkingArea
+            return json.dumps({'bounds': [form.Left, form.Top, form.Width, form.Height],
+                               'minimum': [form.MinimumSize.Width, form.MinimumSize.Height],
+                               'working_area': [area.X, area.Y, area.Width, area.Height]})
+
+        return json.loads(str(self.control.Invoke(self.callback(inspect))))
+
     def screenshot(self, path):
         from System.IO import MemoryStream
         from Microsoft.Web.WebView2.Core import CoreWebView2CapturePreviewImageFormat
@@ -174,6 +186,14 @@ def self_test(data_directory, output_report):
                 probe = NativeProbe(window)
                 checkpoint('native script probe starting')
                 probe.wait('window.CeasefireDesktop?.status().ready === true && !!window.chrome?.webview', seconds=cold_remaining())
+                frame = probe.window_geometry()
+                report['native_frame'] = frame
+                left, top, width, height = frame['bounds']
+                area_left, area_top, area_width, area_height = frame['working_area']
+                assert area_left <= left and area_top <= top
+                assert left + width <= area_left + area_width and top + height <= area_top + area_height
+                assert 0 < frame['minimum'][0] <= width and 0 < frame['minimum'][1] <= height
+                report['checks'].append('Native frame and minimum size fit within the monitor working area')
                 assert probe.script('window.CeasefireDesktop.status().takeoffs') is False
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False

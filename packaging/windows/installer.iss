@@ -5,6 +5,9 @@
 #ifndef WebViewInstaller
   #error The verified Microsoft offline WebView2 installer is required
 #endif
+#ifndef WebViewArm64Installer
+  #error The verified Microsoft offline ARM64 WebView2 installer is required
+#endif
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
@@ -16,7 +19,7 @@ AppPublisher=CEASEFIRE
 DefaultDirName={localappdata}\Programs\CEASEFIRE Estimator
 DefaultGroupName=CEASEFIRE
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64compatible and not arm64
+ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputBaseFilename=CEASEFIRE-Estimator-{#AppVersion}-Setup-x64
@@ -42,6 +45,7 @@ Name: desktopicon; Description: "Create a desktop shortcut"
 [Files]
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#WebViewInstaller}"; DestName: "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Flags: dontcopy
+Source: "{#WebViewArm64Installer}"; DestName: "MicrosoftEdgeWebView2RuntimeInstallerARM64.exe"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\CEASEFIRE Estimator"; Filename: "{app}\CEASEFIRE Estimator.exe"; WorkingDir: "{app}"
@@ -85,8 +89,20 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ExitCode: Integer;
+  WindowsVersion: TWindowsVersion;
+  RuntimeInstaller: String;
 begin
   Result := '';
+  GetWindowsVersionEx(WindowsVersion);
+  if IsArm64 and (WindowsVersion.Major = 10) and (WindowsVersion.Build < 22000) then begin
+    Result := 'Windows 11 or later is required to run this x64 application on ARM64.';
+    Exit;
+  end;
+  if IsArm64 then
+    RuntimeInstaller := 'MicrosoftEdgeWebView2RuntimeInstallerARM64.exe'
+  else
+    RuntimeInstaller := 'MicrosoftEdgeWebView2RuntimeInstallerX64.exe';
+  Log('Native WebView2 prerequisite: ' + RuntimeInstaller);
   if CheckForMutexes('Local\CEASEFIRE.Estimator.Desktop.Running') then begin
     Result := 'CEASEFIRE Estimator is open. Save your work and close it before installing or updating.';
     Exit;
@@ -96,8 +112,8 @@ begin
     Exit;
   end;
   if not WebView2Installed(True) then begin
-    ExtractTemporaryFile('MicrosoftEdgeWebView2RuntimeInstallerX64.exe');
-    if not Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe'),
+    ExtractTemporaryFile(RuntimeInstaller);
+    if not Exec(ExpandConstant('{tmp}\') + RuntimeInstaller,
         '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then begin
       Result := 'Microsoft WebView2 could not be installed. No application files have been changed.';
       Exit;
@@ -109,7 +125,8 @@ begin
     NeedsRestart := ExitCode = 3010;
     if not WebView2Installed(True) then
       Result := 'Microsoft WebView2 is still unavailable. Restart Windows if requested, then run setup again.';
-  end;
+  end else
+    Log('Supported WebView2 runtime already installed; no prerequisite installer executed.');
 end;
 
 function InitializeUninstall: Boolean;

@@ -19,8 +19,8 @@ Use the official Inno Setup 7.1.0 x64 compiler. Its installer supports
 `/PORTABLE=1 /CURRENTUSER /VERYSILENT /DIR=<local-tools-folder>`; verify its
 Authenticode publisher is Pyrsys B.V. before running it. The official licence
 permits commercial use; the project requests commercial users purchase a licence.
-Use the official Microsoft **Evergreen Standalone Installer x64**, not the small
-online bootstrapper. Verify its Authenticode publisher is Microsoft Corporation.
+Use both official Microsoft **Evergreen Standalone Installers, x64 and ARM64**,
+not the small online bootstrapper. Verify each Authenticode publisher is Microsoft Corporation.
 Record the download URL, version, bytes and SHA-256. Keep downloaded binaries and
 build outputs outside the source repository.
 
@@ -34,7 +34,7 @@ For a private deliverable, explicitly export the intended factory content:
 
 ```powershell
 python scripts/prepare_desktop_seed.py --library C:\private\reference-library --database C:\private\estimator.sqlite3 --output C:\local-build\factory-seed
-python scripts/build_windows.py --seed C:\local-build\factory-seed --output C:\local-build\release --iscc C:\local-tools\inno\ISCC.exe --webview2-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerX64.exe --version 1.0.0
+python scripts/build_windows.py --seed C:\local-build\factory-seed --output C:\local-build\release --iscc C:\local-tools\inno\ISCC.exe --webview2-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerX64.exe --webview2-arm64-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerARM64.exe --version 1.0.0
 ```
 
 Use new output folders. Build scripts refuse to erase previous builds or write
@@ -43,7 +43,8 @@ explicit factory seed; only the frozen CI mode allows the synthetic empty seed.
 
 The application is a PyInstaller one-folder bundle under
 `frozen/CEASEFIRE Estimator/CEASEFIRE Estimator.exe`. Inno Setup embeds that complete
-folder plus the offline WebView2 installer in one `*-Setup-x64.exe` file. The build
+folder plus both offline WebView2 installers in one `*-Setup-x64.exe` file. The x64
+application also runs under supported Windows 11 ARM64 emulation. The build
 inspects the executable's Python archive to reject TAKEOFFS modules, verifies
 every frozen factory/resource/font/licence asset against its source, checks
 vendor signatures and writes `BUILD_REPORT.json` with the source commit and hashes.
@@ -82,8 +83,11 @@ shortcuts, while retaining user data, project files and the shared WebView2 runt
 
 ## Installer behavior and release checks
 
-The installer targets x64 Windows 10/11; ARM64 and 32-bit Windows are not covered
-by this x64 offline runtime package. It installs per user without requiring an
+The installer targets x64 Windows 10/11 and Windows 11 ARM64 (build 22000 or later)
+using Windows' x64 application emulation. It rejects 32-bit Windows and Windows
+10 ARM64. It selects the native ARM64 or x64 offline WebView2 prerequisite using
+the operating system architecture, not the emulated Python process architecture.
+Both packages have separate signature, size and hash evidence. It installs per user without requiring an
 administrator, creates Start-menu and optional desktop shortcuts, and does not
 associate `.json` files or alter default apps. WebView2 is detected in both the
 documented machine and user registry locations. The bundled offline installer
@@ -116,3 +120,6 @@ Official references: [pywebview freezing](https://pywebview.flowrl.com/guide/fre
 [Inno licence](https://jrsoftware.org/files/is/license.txt),
 [PyInstaller operating modes](https://pyinstaller.org/en/stable/operating-mode.html),
 [PyInstaller licence](https://pyinstaller.org/en/stable/license.html).
+
+ARM64 references: [Microsoft Windows emulation](https://learn.microsoft.com/en-us/windows/arm/apps-on-arm-x86-emulation)
+and [Inno native architecture detection](https://jrsoftware.org/ishelp/topic_isxfunc_isarm64.htm).

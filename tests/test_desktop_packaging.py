@@ -13,7 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from prepare_desktop_seed import prepare
-from build_windows import verify_seed, verify_packaged_content, check_output, DATA_FILES, STATIC_FILES
+from build_windows import verify_seed, verify_packaged_content, runtime_provenance, verify_runtime_fingerprints, check_output, DATA_FILES, STATIC_FILES
 from estimator.catalog import ValidationError
 from estimator.desktop_seed_content import (encoded, export_library_edits, validate_library_edits,
     insert_library_edits, TABLE_COLUMNS)
@@ -177,6 +177,27 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('fonts/Montserrat-Variable.ttf',STATIC_FILES)
         self.assertIn('ceasefire-app.ico',STATIC_FILES)
         self.assertFalse(any('takeoff' in path or 'pdfjs' in path for path in (*DATA_FILES,*STATIC_FILES)))
+
+    def test_native_runtime_inputs_require_both_distinct_verified_packages(self):
+        x64=self.root/'runtime-x64.exe'
+        arm64=self.root/'runtime-arm64.exe'
+        x64.write_bytes(b'synthetic x64 runtime')
+        arm64.write_bytes(b'synthetic ARM64 runtime')
+        with self.assertRaises(ValueError):
+            runtime_provenance({'x64':x64})
+        with patch('build_windows.vendor_signature',return_value={'status':'Valid'}) as verify:
+            proof=runtime_provenance({'x64':x64,'arm64':arm64})
+            self.assertEqual(verify.call_count,2)
+            self.assertNotEqual(proof['x64']['sha256'],proof['arm64']['sha256'])
+            verify_runtime_fingerprints({'x64':x64,'arm64':arm64},proof)
+            arm64.write_bytes(x64.read_bytes())
+            with self.assertRaisesRegex(ValueError,'changed during the build'):
+                verify_runtime_fingerprints({'x64':x64,'arm64':arm64},proof)
+            with self.assertRaises(ValueError):
+                runtime_provenance({'x64':x64,'arm64':arm64})
+        with patch('build_windows.vendor_signature',side_effect=[{'status':'Valid'},ValueError('Invalid signature')]):
+            with self.assertRaisesRegex(ValueError,'Invalid signature'):
+                runtime_provenance({'x64':x64,'arm64':arm64})
 
     def test_frozen_content_requires_exact_resources_fonts_and_private_seed(self):
         import reportlab

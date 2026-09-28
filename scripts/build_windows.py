@@ -139,6 +139,26 @@ def verify_bundle(bundle):
         'takeoff_modules':0,'takeoff_assets':0,'module_count':len(names)}
 
 
+def runtime_provenance(paths):
+    if set(paths) != {'x64', 'arm64'}:
+        raise ValueError('Both native runtime installers are required.')
+    result = {}
+    for architecture, path in paths.items():
+        result[architecture] = {'architecture':architecture,
+            'signature':vendor_signature(path, 'Microsoft Corporation'),
+            'sha256':checksum(path),'bytes':path.stat().st_size}
+    if result['x64']['sha256'] == result['arm64']['sha256']:
+        raise ValueError('The x64 and ARM64 runtime inputs must be distinct vendor packages.')
+    return result
+
+
+def verify_runtime_fingerprints(paths, provenance):
+    for architecture, path in paths.items():
+        recorded = provenance[architecture]
+        if path.stat().st_size != recorded['bytes'] or checksum(path) != recorded['sha256']:
+            raise ValueError('A verified native runtime installer changed during the build: ' + architecture)
+
+
 def verify_packaged_content(bundle, resources, seed_info, notices):
     """Check actual frozen files, including export fonts and the complete private seed."""
     import reportlab
@@ -231,14 +251,17 @@ def main():
     parser.add_argument('--seed', type=Path)
     parser.add_argument('--iscc', type=Path)
     parser.add_argument('--webview2-installer', type=Path)
+    parser.add_argument('--webview2-arm64-installer', type=Path)
     parser.add_argument('--skip-installer', action='store_true')
     parser.add_argument('--version', default='1.0.0')
     args = parser.parse_args()
     if os.name != 'nt': parser.error('Build Windows binaries on Windows.')
-    if not args.skip_installer and not (args.seed and args.iscc and args.webview2_installer):
-        parser.error('A deliverable installer requires explicit --seed, --iscc and --webview2-installer inputs.')
+    if not args.skip_installer and not (args.seed and args.iscc and args.webview2_installer and args.webview2_arm64_installer):
+        parser.error('A deliverable installer requires explicit --seed, --iscc, --webview2-installer and --webview2-arm64-installer inputs.')
     if not all(part.isdigit() and 0 <= int(part) <= 65535 for part in args.version.split('.')) or len(args.version.split('.')) != 3:
         parser.error('Version must contain three integer components.')
+    runtime_paths = {'x64':args.webview2_installer,'arm64':args.webview2_arm64_installer}
+    runtimes = runtime_provenance(runtime_paths) if not args.skip_installer else None
     output = check_output(args.output)
     from estimator.desktop_seed import safe_directory
     seed = safe_directory(args.seed.absolute()).resolve(strict=True) if args.seed else output / 'synthetic-seed'
@@ -277,14 +300,17 @@ def main():
         'source_revision':revision,
         'dependencies':json.loads((notices/'DEPENDENCIES.json').read_text(encoding='utf-8'))}
     if not args.skip_installer:
-        report['webview2'] = {'signature':vendor_signature(args.webview2_installer, 'Microsoft Corporation'),
-            'sha256':checksum(args.webview2_installer),'bytes':args.webview2_installer.stat().st_size}
+        report['webview2'] = runtimes['x64']
+        report['webview2_arm64'] = runtimes['arm64']
         vendor_signature(args.iscc, 'Pyrsys')
+        verify_runtime_fingerprints(runtime_paths, runtimes)
         command = [str(args.iscc), '--no-ide-signtools', '--output-dir=' + str(output/'installer'),
             '--define=BundleDir=' + str(bundle),'--define=WebViewInstaller=' + str(args.webview2_installer),
+            '--define=WebViewArm64Installer=' + str(args.webview2_arm64_installer),
             '--define=SourceRoot=' + str(ROOT),'--define=AppVersion=' + args.version,str(ROOT/'packaging/windows/installer.iss')]
         with (output/'inno.log').open('w',encoding='utf-8') as log:
             subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,check=True)
+        verify_runtime_fingerprints(runtime_paths, runtimes)
         installer=next((output/'installer').glob('*.exe'))
         report['installer']={'filename':installer.name,'bytes':installer.stat().st_size,'sha256':checksum(installer),
             'icon':verify_icon(installer, ROOT/'static/ceasefire-app.ico')}

@@ -15,7 +15,7 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderInspector,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderInspector,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,normalizePhysicalImages,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -143,6 +143,20 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Opening an empty workspace does not create a project snapshot or mark the project dirty',async()=>{
     const h=harness();h.audit.setApi(async()=>response(blank()));await h.audit.ensureSession();
     assert.equal(h.api.projectSnapshot(),undefined);assert.equal(h.api.hasUnsavedChanges(),false);
+  });
+  await check('Version-two physical-only drafts and retained image records are preserved even without linear items',()=>{
+    const h=harness(),value={...blank(),version:2,physical:{id:'physical',revision:1,barriers:[{id:'barrier'}]},image_extractions:[]};h.audit.accept(response(value));assert.deepEqual(copy(h.api.projectSnapshot()),value);
+    value.physical=null;value.image_extractions=[{id:'extraction',pages:[1]}];h.audit.accept(response(value));assert.deepEqual(copy(h.api.projectSnapshot()),value);
+  });
+  await check('Physical forms participate in save, dirty, fingerprint and project-reset protection',async()=>{
+    const h=harness(),value=blank();h.audit.accept(response(value));let dirty=true,destroyed=false,revision=1;h.audit.state.physicalUI={hasUnfinishedChanges:()=>dirty,editRevision:()=>revision,render(){},destroy(){destroyed=true;}};
+    assert.equal(h.api.hasUnsavedChanges(),true);assert.throws(()=>h.api.projectSnapshot(),/physical edits/);assert.equal(JSON.parse(h.api.projectFingerprint()).physicalUnfinished,true);await assert.rejects(h.audit.discardEditor(),/physical edits/);
+    const first=h.api.projectFingerprint();revision++;assert.notEqual(h.api.projectFingerprint(),first);assert.equal(JSON.parse(h.api.projectFingerprint()).physicalUnfinished,true);
+    dirty=false;h.api.applyProject({session:null,saved:null});assert.equal(destroyed,true);assert.equal(h.audit.state.physicalUI,null);assert.equal(h.api.hasUnsavedChanges(),false);
+  });
+  await check('Image inventory preserves failed occurrences and explicit page coverage without counting issue reports as images',()=>{
+    const h=harness();h.audit.accept(response(blank()));const records=h.audit.normalizePhysicalImages({items:[{asset_id:'asset',image_id:'image',image_sha256:null,has_rendition:false,occurrence_id:'occurrence',document_id:'doc',page:1,issues:['Decode failed']}],extractions:[{document_id:'doc',document_sha256:'d'.repeat(64),pages:[1,2],page_results:[{page:1,status:'incomplete',occurrence_ids:['occurrence'],issues:['Image failed']},{page:2,status:'complete',occurrence_ids:[],issues:[]}]}]});
+    assert.equal(records.length,3);assert.equal(records[0].coverage_only,undefined);assert.ok(records[0].issues.includes('Decode failed'));assert.ok(records[0].issues.some(issue=>issue.includes('no retained display bitmap')));assert.equal(records[1].coverage_only,true);assert.equal(records[1].page,1);assert.ok(records[2].coverage.includes('0 image occurrences'));assert.equal(records[2].page,2);
   });
   await check('Persisted snapshot excludes derived quantities and transient session capabilities',()=>{
     const h=harness(),value=blank();value.documents=[{id:'doc',name:'Source.pdf',pages:[]}];

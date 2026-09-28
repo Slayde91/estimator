@@ -106,6 +106,40 @@ def make_failed_image_pdf(path):
         writer.write(stream)
 
 
+def make_physical_pdf(path):
+    """Repeated embedded bitmap views never imply distinct physical quantities."""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+    from PIL import Image, ImageDraw
+    photograph = Image.new('RGB', (640, 360), '#b9b8b3')
+    ink = ImageDraw.Draw(photograph)
+    ink.rectangle((30, 25, 610, 335), outline='#555753', width=8)
+    ink.ellipse((95, 90, 245, 240), fill='#24272b', outline='#ddddcf', width=8)
+    ink.ellipse((365, 90, 535, 260), fill='#24272b', outline='#ddddcf', width=8)
+    ink.line((430, 40, 430, 305), fill='#b87642', width=27)
+    ink.line((477, 50, 477, 308), fill='#192149', width=8)
+    ink.line((489, 50, 489, 308), fill='#253162', width=8)
+    ink.line((501, 50, 501, 308), fill='#303e7d', width=8)
+    ink.text((90, 275), 'EMPTY CORE', fill='black')
+    ink.text((355, 315), 'ONE PIPE + THREE CABLES', fill='black')
+    drawing = canvas.Canvas(str(path), pagesize=(842, 595), invariant=1)
+    drawing.setFont('Helvetica', 16)
+    drawing.drawString(35, 555, 'SYNTHETIC PHYSICAL DRAFT FIXTURE - NOT A SITE ASSESSMENT')
+    drawing.setFont('Helvetica', 11)
+    drawing.drawString(40, 526, 'Barrier B-01: concrete wall, vertical, 150 mm. Defect D-001: L02 north, FRL -/120/120.')
+    drawing.drawString(40, 508, 'Opening O-EMPTY contains no service. Opening O-MIXED contains copper pipe and cables.')
+    drawing.drawImage(ImageReader(photograph), 80, 230, width=480, height=270)
+    drawing.drawImage(ImageReader(photograph), 40, 40, width=240, height=135)
+    drawing.drawImage(ImageReader(photograph), 350, 40, width=240, height=135)
+    drawing.drawString(40, 190, 'All three image occurrences repeat the same two openings. Image count is not physical quantity.')
+    drawing.showPage()
+    drawing.setFont('Helvetica', 14)
+    drawing.drawString(40, 540, 'SYNTHETIC TEXT-ONLY REFERENCE PAGE: no embedded images.')
+    drawing.setFont('Helvetica', 11)
+    drawing.drawString(40, 510, 'This page corroborates the reference only. Do not invent images or placeholder physical records.')
+    drawing.save()
+
+
 def make_area_pdf(path):
     """True-plane synthetic wall/slab surfaces, with an offset rotated copy."""
     from reportlab.pdfgen import canvas
@@ -157,6 +191,7 @@ if __name__ == '__main__':
         failed_fixture = folder / 'failed-image.pdf'; make_failed_image_pdf(failed_fixture)
         board_fixture = folder / 'synthetic-board.pdf'; make_board_pdf(board_fixture)
         area_fixture = folder / 'synthetic-surfaces.pdf'; make_area_pdf(area_fixture)
+        physical_fixture = folder / 'synthetic-physical-report.pdf'; make_physical_pdf(physical_fixture)
         project = folder / 'browser-project.json'
         class Dialogs:
             def choose_save(self, initial_directory, filename):
@@ -166,7 +201,7 @@ if __name__ == '__main__':
             def choose_folder(self, initial_directory):
                 return str(folder)
         server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
-        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'area_fixture': str(area_fixture), 'project': str(project), 'directory': str(folder)}), flush=True)
+        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'area_fixture': str(area_fixture), 'physical_fixture': str(physical_fixture), 'project': str(project), 'directory': str(folder)}), flush=True)
         try:
             server.serve_forever()
         finally:

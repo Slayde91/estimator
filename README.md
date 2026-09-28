@@ -51,11 +51,13 @@ Calculators and Projects. **Help** provides a plain-English guide to the
 main workflow and the meaning of each area. The browser interface uses the
 bundled Montserrat font, so it does not depend on an internet font service.
 
-**TAKEOFFS** provides manual Steel, Duct, Walls and Slabs drawing workspaces: upload PDFs,
-calibrate or cite dimensions, edit and confirm the evidence register, then
-preview Steel/Duct transfer into an existing calculator schedule. Walls and Slabs
-measure true-surface polygons and exclusions in square metres. Source PDFs and immutable
-history are retained beside the project JSON. See the [takeoff workflow, storage
+**TAKEOFFS** provides manual Steel, Duct, Walls, Slabs and Penetrations workspaces.
+Upload PDFs, calibrate or cite dimensions, confirm measured Steel/Duct items and
+preview their transfer into an existing calculator schedule. Walls and Slabs
+measure true-surface polygons and exclusions in square metres. Penetrations keeps
+an explicit Barrier → Defect → Opening → Service hierarchy and retained image
+evidence; its register and exports remain unapproved drafts. Source PDFs, image
+originals and immutable history are retained beside the project JSON. See the [takeoff workflow, storage
 and validation contract](docs/TAKEOFFS.md). It uses the normal strict CSP and does
 not require browser annotation compatibility.
 

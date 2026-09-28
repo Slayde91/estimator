@@ -17,6 +17,8 @@ from .takeoff_area import AREA_MODES
 from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
+from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
+from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
 
 SESSION_CACHE_BYTES = 4 * 1_048_576
 PROCESS_CACHE_BYTES = 16 * 1_048_576
@@ -26,12 +28,50 @@ def timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+def image_annotation_region(quad, view):
+    """Clip a convex image placement for a source marker, never image pixels."""
+    polygon = deepcopy(quad)
+    for axis, boundary, lower in ((0, view[0], True), (0, view[2], False),
+                                  (1, view[1], True), (1, view[3], False)):
+        if not polygon:
+            break
+        output = []
+        start = polygon[-1]
+        start_inside = start[axis] >= boundary if lower else start[axis] <= boundary
+        for end in polygon:
+            end_inside = end[axis] >= boundary if lower else end[axis] <= boundary
+            if start_inside != end_inside:
+                ratio = (boundary-start[axis])/(end[axis]-start[axis])
+                intersection = [start[index]+ratio*(end[index]-start[index]) for index in (0, 1)]
+                intersection[axis] = boundary
+                output.append(intersection)
+            if end_inside:
+                output.append(list(end))
+            start, start_inside = end, end_inside
+        polygon = output
+    unique = []
+    for point in polygon:
+        point = [min(max(point[0], view[0]), view[2]), min(max(point[1], view[1]), view[3])]
+        if point not in unique:
+            unique.append(point)
+    if len(unique) < 3:
+        return None
+    origin = unique[0]
+    area = math.fsum((a[0]-origin[0])*(b[1]-origin[1])-(b[0]-origin[0])*(a[1]-origin[1])
+                     for a, b in zip(unique, unique[1:]+unique[:1]))
+    return unique if area else None
+
+
 class TakeoffService:
     def __init__(self, store, documents):
         self.store, self.documents = store, documents
         self._lock = RLock()
         self._sessions = {}
         self._cache_sequence = 0
+        self._image_jobs = set()
+        if not hasattr(documents, 'images') and hasattr(documents, 'root'):
+            from .takeoff_image_evidence import TakeoffImageEvidence
+            documents.images = TakeoffImageEvidence(store, documents)
         with store.connect() as db:
             db.execute('''CREATE TABLE IF NOT EXISTS takeoff_approvals (
                 receipt_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
@@ -90,17 +130,19 @@ class TakeoffService:
             persistent_issues = list(evidence_issues or [])
             if source_path is not None:
                 persistent_issues.extend(self.documents.restore(value, source_path, owner=session_id))
-            elif snapshot is not None and (value['documents'] or value['items'] or value['audit_head']):
+            elif snapshot is not None and (value['documents'] or value['items'] or value['audit_head']
+                                           or value.get('physical') or value.get('image_extractions')):
                 persistent_issues.append({'code': 'EVIDENCE_BUNDLE_UNAVAILABLE', 'message': 'Open the original project with its evidence companion folder to verify its retained source files. An uploaded snapshot cannot recover source or approval authority from cached files.'})
             try:
                 self._verify_audit_head(value, owner=session_id)
             except (ValidationError, OSError) as error:
                 persistent_issues.append({'code': 'AUDIT_STATE_MISMATCH', 'message': str(error)})
             issues = persistent_issues + self.documents.validate_project_documents(value['documents'], owner=session_id)
-            blocked_docs = {issue.get('document_id') for issue in issues}
+            blockers = [issue for issue in issues if issue.get('code') != 'IMAGE_EXTRACTION_UNREGISTERED']
+            blocked_docs = {issue.get('document_id') for issue in blockers}
             for item in value['items']:
                 refs = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
-                if issues or any(r['document_id'] in blocked_docs for r in refs) or not self._registered(value, item, 'review'):
+                if blockers or any(r['document_id'] in blocked_docs for r in refs) or not self._registered(value, item, 'review'):
                     item.update(state='draft', review=None, confirmation=None)
                 elif item['state'] == 'confirmed' and not self._registered(value, item, 'confirmation'):
                     item.update(state='reviewed', confirmation=None)
@@ -147,17 +189,21 @@ class TakeoffService:
             self._session_evidence(session_id)
             self.documents.assert_documents(state['documents'], owner=session_id)
             self._verify_audit_head(state, owner=session_id)
+            self._validate_physical_links(session_id, state)
+            if hasattr(self.documents, 'assert_image_evidence'):
+                self.documents.assert_image_evidence(state, owner=session_id)
             return deepcopy(state)
 
     def _verify_audit_head(self, snapshot, owner=None):
         head = snapshot['audit_head']
         if head is None:
-            if snapshot['revision'] != 0 or any(snapshot[key] for key in ('documents', 'calibrations', 'items', 'transfers', 'render_checks')):
+            if (snapshot['revision'] != 0 or any(snapshot[key] for key in ('documents', 'calibrations', 'items', 'transfers', 'render_checks'))
+                    or snapshot.get('physical') or snapshot.get('image_extractions')):
                 raise ValidationError('The takeoff state has no matching retained audit history.')
             return
         self.documents.validate_audit(snapshot, owner=owner)
         event = self.documents.get_blob(head, kind='audit')
-        if (event.get('version') != 1 or event.get('project_id') != snapshot['project_id']
+        if (event.get('version') != snapshot['version'] or event.get('project_id') != snapshot['project_id']
                 or type(event.get('revision')) is not int or event['revision'] != snapshot['revision']
                 or not isinstance(event.get('after'), dict)
                 or audit_state_digest(event['after']) != audit_state_digest(snapshot)):
@@ -165,11 +211,259 @@ class TakeoffService:
 
     def _session_evidence(self, session_id):
         issues = self._session(session_id).get('evidence_issues', [])
-        if issues:
+        if any(issue.get('code') != 'IMAGE_EXTRACTION_UNREGISTERED' for issue in issues):
             raise ValidationError('Retained evidence is unavailable or changed. Restore the complete original evidence bundle before review, confirmation, export or transfer.')
 
     def _binding_digest(self, binding):
         return digest({key: value for key, value in binding.items() if key != 'status'})
+
+    def _images(self):
+        manager = getattr(self.documents, 'images', None)
+        if manager is None:
+            raise ValidationError('The image evidence manager is unavailable.')
+        return manager
+
+    def _validate_physical_links(self, session_id, snapshot):
+        graph = snapshot.get('physical')
+        if graph is None:
+            return
+        needed = set()
+        def collect(reference):
+            needed.add(tuple(reference[key] for key in ('document_id', 'document_sha256', 'page',
+                                                        'image_id', 'image_sha256', 'occurrence_id')))
+        validate_source_links(graph, snapshot, collect)
+        source_ids = {ref['document_id'] for collection in PHYSICAL_COLLECTIONS.values()
+                      for entity in graph[collection] if not entity['deleted'] for ref in entity['evidence']}
+        documents = {document['id']: document for document in snapshot['documents']}
+        self.documents.assert_documents([documents[identifier] for identifier in source_ids], owner=session_id)
+        if not needed:
+            return
+        manager = self._images()
+        # Retain only the requested tuples, not every manifest or occurrence in
+        # the project. Each relevant manifest is read once and then released.
+        for descriptor in snapshot.get('image_extractions', []):
+            if not any(value[0] == descriptor['document_id'] and value[2] in descriptor['pages'] for value in needed):
+                continue
+            document = documents[descriptor['document_id']]
+            manager.assert_evidence([descriptor], [document], owner=session_id, require_registered=False)
+            manifest = manager.read(descriptor, document, verify_assets=False)
+            assets = {asset['id']: asset for asset in manifest['assets']}
+            for occurrence in manifest['occurrences']:
+                asset = assets[occurrence['asset_id']]; rendition = asset.get('rendition')
+                if rendition:
+                    needed.discard((document['id'], document['sha256'], occurrence['page'], asset['id'],
+                                    rendition['sha256'], occurrence['id']))
+            if not needed:
+                return
+        raise ValidationError('Physical image evidence must match a retained document, page, asset, rendition hash and occurrence.')
+
+    def _physical_gate(self, session_id, snapshot, *, links=True):
+        self._session_evidence(session_id)
+        self._verify_audit_head(snapshot, owner=session_id)
+        if links:
+            self._validate_physical_links(session_id, snapshot)
+
+    def preview_physical(self, session_id, request):
+        with self._lock:
+            object_fields(request, {'expected_revision', 'commands'}, 'Physical preview', {'expected_revision', 'commands'})
+            session = self._session(session_id); snapshot = session['snapshot']
+            if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+                raise ValidationError('The takeoff draft changed before physical preview.')
+            self._physical_gate(session_id, snapshot, links=False)
+            prepared = prepare_changes(snapshot, request['commands'], lambda reference: None)
+            self._validate_physical_links(session_id, {**snapshot, 'physical': prepared['graph']})
+            preview_id = str(uuid4())
+            self._cache_payload(session_id, 'previews', preview_id,
+                {'kind': 'physical', 'revision': snapshot['revision'], 'summary': prepared['summary']})
+            if len(session['previews']) > 20:
+                session['previews'].pop(next(iter(session['previews'])))
+            return {**deepcopy(prepared['summary']), 'preview_id': preview_id, 'revision': snapshot['revision']}
+
+    def apply_physical(self, session_id, request):
+        from .takeoff_model import upgrade_snapshot
+        with self._lock:
+            object_fields(request, {'expected_revision', 'request_id', 'preview_id'}, 'Physical apply',
+                          {'expected_revision', 'request_id', 'preview_id'})
+            actual = {**request, 'op': 'apply_physical'}
+            session, prior = self._start(session_id, actual)
+            if prior:
+                self._physical_gate(session_id, session['snapshot'])
+                return prior
+            identity(request['preview_id'], 'Physical preview ID')
+            cached = session['previews'].get(request['preview_id'], {}).get('payload')
+            if not cached or cached.get('kind') != 'physical' or cached['revision'] != session['snapshot']['revision']:
+                raise ValidationError('This physical preview expired. Review a new preview.')
+            before = session['snapshot']
+            self._physical_gate(session_id, before, links=False)
+            prepared = prepare_changes(before, cached['summary']['commands'], lambda reference: None)
+            self._validate_physical_links(session_id, {**before, 'physical': prepared['graph']})
+            if prepared['summary']['digest'] != cached['summary']['digest']:
+                raise ValidationError('The physical graph or evidence changed. Review a fresh preview.')
+            after = upgrade_snapshot(before)
+            after['physical'] = prepared['graph']
+            return self._commit(session_id, actual, before, after)
+
+    def extract_images(self, session_id, request):
+        from .takeoff_model import upgrade_snapshot
+        from .takeoff_image_evidence import MAX_IMAGE_DESCRIPTORS
+        object_fields(request, {'expected_revision', 'request_id', 'document_id', 'first_page', 'page_count'},
+                      'Image extraction', {'expected_revision', 'request_id', 'document_id', 'first_page', 'page_count'})
+        actual = {**request, 'op': 'extract_images'}
+        job = (session_id, request['request_id'])
+        with self._lock:
+            session, prior = self._start(session_id, actual)
+            if prior:
+                self._physical_gate(session_id, session['snapshot'])
+                return prior
+            identity(request['document_id'], 'Source document ID')
+            before = session['snapshot']
+            if len(before.get('image_extractions', [])) >= MAX_IMAGE_DESCRIPTORS:
+                raise ValidationError('The project already retains the maximum number of image extraction events.')
+            document = next((value for value in before['documents'] if value['id'] == request['document_id']), None)
+            if document is None:
+                raise ValidationError('Choose a source document in this workspace.')
+            if (type(request['first_page']) is not int or type(request['page_count']) is not int
+                    or request['first_page'] < 1 or not 1 <= request['page_count'] <= 25
+                    or request['first_page'] + request['page_count'] - 1 > len(document['pages'])):
+                raise ValidationError('Choose an exact available page range of one to 25 pages.')
+            if job in self._image_jobs:
+                raise ValidationError('This image extraction is already running. Retry the same request after it finishes.')
+            if len(self._image_jobs) >= 2:
+                raise ValidationError('Two image extractions are already running. Retry after one finishes.')
+            self._physical_gate(session_id, before, links=False)
+            self.documents.assert_documents([document], owner=session_id)
+            source = deepcopy(document)
+            base_digest = audit_state_digest(before)
+            manager = self._images()
+            self._image_jobs.add(job)
+        try:
+            # The disposable parser and image decoder must not hold the global
+            # workspace lock. Closing/editing any session remains responsive.
+            descriptor = manager.extract(source, request['first_page'], request['page_count'])
+            if (descriptor.get('document_id') != source['id'] or descriptor.get('source_sha256') != source['sha256']
+                    or descriptor.get('pages') != list(range(request['first_page'], request['first_page']+request['page_count']))):
+                raise ValidationError('The extracted evidence does not match the exact requested source pages.')
+            with self._lock:
+                session, prior = self._start(session_id, actual)
+                if prior:
+                    return prior
+                before = session['snapshot']
+                if audit_state_digest(before) != base_digest:
+                    raise ValidationError('The workspace changed during extraction; its draft was preserved. Request a new extraction.')
+                self._physical_gate(session_id, before, links=False)
+                self.documents.assert_documents([source], owner=session_id)
+                manager.assert_evidence([descriptor], before['documents'], owner=session_id, require_registered=False)
+                after = upgrade_snapshot(before)
+                if any(value['id'] == descriptor['id'] for value in after['image_extractions']):
+                    raise ValidationError('This extraction identity is already retained.')
+                after['image_extractions'].append(deepcopy(descriptor))
+                response = self._commit(session_id, actual, before, after)
+                session['requests'][request['request_id']]['metadata'] = {'extraction_id': descriptor['id']}
+                response['extraction_id'] = descriptor['id']
+                return response
+        finally:
+            with self._lock:
+                self._image_jobs.discard(job)
+
+    def images(self, session_id, extraction_id=None, offset=0, limit=100):
+        with self._lock:
+            if type(offset) is not int or not 0 <= offset <= 512 or type(limit) is not int or not 1 <= limit <= 100:
+                raise ValidationError('Image inventory requires an offset up to 512 and a page size of one to 100.')
+            snapshot = self._session(session_id)['snapshot']
+            descriptors = snapshot.get('image_extractions', [])
+            if extraction_id is not None:
+                identity(extraction_id, 'Image extraction ID')
+                descriptor = next((value for value in descriptors if value['id'] == extraction_id), None)
+                if descriptor is None:
+                    raise ValidationError('This image extraction is not part of the workspace.')
+            else:
+                descriptor = descriptors[-1] if descriptors else None
+            extractions, rows, total = [], [], 0
+            if descriptor:
+                document = next(value for value in snapshot['documents'] if value['id'] == descriptor['document_id'])
+                self.documents.assert_documents([document], owner=session_id)
+                manager = self._images()
+                manager.assert_evidence([descriptor], [document], owner=session_id, require_registered=False)
+                manifest = manager.read(descriptor, document, verify_assets=False)
+                extractions.append({**deepcopy(descriptor), 'coverage': deepcopy(manifest['coverage']),
+                                    'page_results': deepcopy(manifest['pages']), 'issues': deepcopy(manifest['issues'])})
+                assets = {asset['id']: asset for asset in manifest['assets']}
+                pages = {page['page']: page for page in manifest['pages']}
+                total = len(manifest['occurrences'])
+                for occurrence in manifest['occurrences'][offset:offset+limit]:
+                    asset = assets[occurrence['asset_id']]; rendition = asset.get('rendition')
+                    issues = [*manifest['issues'], *pages[occurrence['page']]['issues'], *occurrence['issues'], *asset['issues']]
+                    page = next(page for page in document['pages'] if page['page'] == occurrence['page'])
+                    region = image_annotation_region(occurrence['quad_pdf'], page['view'])
+                    clipped = region != occurrence['quad_pdf']
+                    if clipped:
+                        issues.append({'code': 'SOURCE_MARKER_CLIPPED' if region else 'SOURCE_MARKER_OUTSIDE_VIEW',
+                            'message': 'The source marker is clipped to the page view; original image placement and pixels are retained.' if region
+                            else 'The image placement has no visible marker area in this page view; original placement and pixels are retained.'})
+                    rows.append({'extraction_id': descriptor['id'], 'asset_id': asset['id'], 'image_id': asset['id'],
+                        'image_sha256': rendition['sha256'] if rendition else None, 'occurrence_id': occurrence['id'],
+                        'document_id': document['id'], 'document_sha256': document['sha256'], 'page': occurrence['page'],
+                        'region': region, 'quad_pdf': deepcopy(occurrence['quad_pdf']), 'region_clipped': clipped,
+                        'source_name': document['name'],
+                        'appearance_status': occurrence['appearance_status'], 'has_rendition': bool(rendition),
+                        'issues': list({digest(issue): deepcopy(issue) for issue in issues}.values())})
+            return {'revision': snapshot['revision'], 'extraction_id': descriptor['id'] if descriptor else None,
+                    'extractions': extractions, 'items': rows, 'total': total, 'offset': offset, 'limit': limit,
+                    'has_more': offset+len(rows) < total}
+
+    def image_file(self, session_id, extraction_id, asset_id):
+        with self._lock:
+            identity(extraction_id, 'Image extraction ID'); identity(asset_id, 'Image asset ID')
+            snapshot = self._session(session_id)['snapshot']
+            descriptor = next((value for value in snapshot.get('image_extractions', []) if value['id'] == extraction_id), None)
+            if descriptor is None:
+                raise ValidationError('This image extraction is not part of the workspace.')
+            document = next((value for value in snapshot['documents'] if value['id'] == descriptor['document_id']), None)
+            if document is None:
+                raise ValidationError('The retained image source is unavailable.')
+            self.documents.assert_documents([document], owner=session_id)
+            return self._images().rendition(descriptor, document, asset_id, owner=session_id)
+
+    def export_physical(self, session_id, format):
+        from .takeoff_physical_exports import export_physical_graph
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            self._physical_gate(session_id, snapshot)
+            if hasattr(self.documents, 'assert_image_evidence'):
+                self.documents.assert_image_evidence(snapshot, owner=session_id)
+            return export_physical_graph(current_graph(snapshot), format,
+                                         {document['id']: document['name'] for document in snapshot['documents']})
+
+    def _undo_physical(self, session_id, before, after):
+        from .takeoff_model import upgrade_snapshot
+        after = upgrade_snapshot(after)
+        after['image_extractions'] = deepcopy(before.get('image_extractions', []))
+        current = before.get('physical')
+        if current is None:
+            after['physical'] = None
+            return after
+        target = current_graph(after)
+        restored = deepcopy(current)
+        changed = False
+        next_revision = current['revision'] + 1
+        for collection in PHYSICAL_COLLECTIONS.values():
+            previous = {value['id']: value for value in target[collection]}
+            for index, entity in enumerate(restored[collection]):
+                desired = deepcopy(previous.get(entity['id'], entity))
+                if entity['id'] not in previous:
+                    desired.update(deleted=True, deleted_at_revision=next_revision)
+                if digest({k: v for k, v in desired.items() if k != 'revision'}) != digest({k: v for k, v in entity.items() if k != 'revision'}):
+                    if desired['deleted'] and not entity['deleted']:
+                        desired['deleted_at_revision'] = next_revision
+                    desired['revision'] = entity['revision'] + 1
+                    restored[collection][index] = desired
+                    changed = True
+        if changed:
+            restored['revision'] = next_revision
+        validate_graph(restored, copy_result=False)
+        after['physical'] = restored
+        self._validate_physical_links(session_id, after)
+        return after
 
     def _remember_request(self, session, request, **metadata):
         session['requests'][request['request_id']] = {'request_hash': digest(request), **metadata}
@@ -180,7 +474,7 @@ class TakeoffService:
         """Bound reusable previews/results; completed operation hashes stay small."""
         size = len(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode())
         if size > SESSION_CACHE_BYTES:
-            raise ValidationError('This transfer preview exceeds the supported memory limit. Reduce the selected items and preview again.')
+            raise ValidationError('This preview exceeds the supported memory limit. Reduce the selected records and preview again.')
         def entries():
             return [(sid, name, identity, value) for sid, session in self._sessions.items()
                     for name in ('previews', 'requests') for identity, value in session[name].items()
@@ -247,7 +541,7 @@ class TakeoffService:
         # both states. Root projections remove the head without copying each
         # immutable source/page tree merely to serialize it immediately.
         strip = lambda value: {k: v for k, v in value.items() if k != 'audit_head'}
-        event = {'version': 1, 'project_id': before['project_id'], 'revision': after['revision'],
+        event = {'version': after['version'], 'project_id': before['project_id'], 'revision': after['revision'],
                  'previous': before['audit_head'], 'request_id': request['request_id'],
                  'op': request['op'], 'at': timestamp(), 'before': strip(before), 'after': strip(after),
                  'actor': {'kind': 'local-session', 'session_id': session_id},
@@ -448,6 +742,12 @@ class TakeoffService:
                     refs = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
                     if any(r['document_id'] == document_id for r in refs):
                         raise ValidationError('Remove or reassign all linked items before deleting their source document.')
+                if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
+                    raise ValidationError('A source document with retained image extraction history cannot be deleted.')
+                if after.get('physical') and any(reference['document_id'] == document_id
+                        for collection in PHYSICAL_COLLECTIONS.values() for entity in after['physical'][collection]
+                        for reference in entity['evidence']):
+                    raise ValidationError('A source document referenced by physical records or tombstones cannot be deleted.')
                 after['documents'] = [d for d in after['documents'] if d['id'] != document_id]
                 after['calibrations'] = [c for c in after['calibrations'] if c['document_id'] != document_id]
                 after['render_checks'] = [r for r in after['render_checks'] if r['document_id'] != document_id]
@@ -473,9 +773,12 @@ class TakeoffService:
                 event = self.documents.get_blob(before['audit_head'], kind='audit')
                 if event['project_id'] != before['project_id'] or event['revision'] != before['revision']:
                     raise ValidationError('Audit history does not match this takeoff revision.')
-                if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers'):
+                if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images'):
                     raise ValidationError('Schedule transfers, source-render observations and undo receipts cannot be reversed by takeoff-only undo.')
                 after = deepcopy(event['before']); after['audit_head'] = before['audit_head']
+                if before['version'] == 2:
+                    self._physical_gate(session_id, before)
+                    after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
                 for item in after['items']:
                     original = originals.get(item['id'])
@@ -646,6 +949,8 @@ class TakeoffService:
             if not cached:
                 raise ValidationError('This transfer preview expired. Review a new preview.')
             preview = cached['payload']
+            if preview.get('kind') == 'physical':
+                raise ValidationError('Choose a calculator transfer preview, not a physical edit preview.')
             before = session['snapshot']; result = preview['result']
             if digest({'inputs': request['inputs'], 'schedule_rows': request['schedule_rows']}) != result['base_fingerprint']:
                 raise ValidationError('The calculator draft changed during transfer review. Your edits were preserved; preview again.')

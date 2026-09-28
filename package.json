@@ -6,7 +6,8 @@
     "test:takeoffs-lineage": "node tests/browser/lineage.cjs",
     "test:takeoffs-capacity": "node tests/browser/capacity.cjs",
     "test:takeoffs-timeouts": "node tests/browser/timeouts.cjs",
-    "test:takeoffs-areas": "node tests/browser/areas.cjs"
+    "test:takeoffs-areas": "node tests/browser/areas.cjs",
+    "test:takeoffs-penetrations": "node tests/browser/penetrations.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

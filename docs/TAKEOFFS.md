@@ -2,8 +2,9 @@
 
 TAKEOFFS adds a drawing and evidence register to the existing project. It does
 not change calculator formulas, shared pricing, frozen project prices or the
-priced quote. Steel, Duct, Walls and Slabs are the available modes. Penetrations and AI
-are outside this release.
+priced quote. Steel, Duct, Walls, Slabs and a manual Penetrations draft workspace
+are available. AI proposals, independent visual validation and Physical Model
+Locks are not part of this increment.
 
 ## Working with a drawing
 
@@ -68,6 +69,49 @@ Each surface supports at most 1,000 total vertices and 64 exclusions. Invalid,
 self-crossing, degenerate or out-of-page geometry is rejected without changing
 the current item. Multiple page scales must be separately calibrated.
 
+## Penetrations: manual physical draft
+
+The hierarchy is **Barrier → Defect → Opening → Service**. Create the barrier
+first, then explicitly choose each child's parent. A defect may have several
+openings; an opening may have several service types or no services at all.
+An empty opening remains visible with zero services. Existing services require
+an explicit positive integer quantity. No quantity is inferred from photographs,
+image occurrences or missing inputs.
+
+Each record has a persistent ID, its own typed fields, uncertainty and source
+references. Parent fields are shown as context rather than copied into children.
+Selecting a row opens its cited source page/region; supported evidence overlays
+and register rows share selection and hover. Unknown dimensions and properties
+remain blank. The hierarchical register can filter and page records while
+retaining their parent context. Bulk edits preview all affected IDs and form
+one undoable operation. Reparenting and cascade deletion require explicit
+preview. Deleted records retain their identities, fields and evidence and can
+be restored. A restore does not silently revive descendants deleted earlier.
+
+Use **Extract images from selected PDF page** to retain the actual embedded
+image evidence. The gallery identifies source, page, extraction and image
+occurrence. Repeated views remain separate provenance occurrences but never
+create physical records or quantities. Link an image to the specific barrier,
+defect, opening or service it supports; one image may support several records.
+The original source page remains available for text and surrounding context.
+
+The original encoded PDF image stream and typed PDF metadata are retained
+separately from the PNG display derivative. Inline images retain their exact
+decoded BI–EI span and original enclosing content streams; normalized decoder
+input is labelled separately. A PNG is not the original stream or a composite
+rendering of the PDF page. Unsupported appearance effects, masks, colour spaces,
+clipping, annotations and extraction failures are visible diagnostic issues.
+Coverage states identify requested, processed, complete, failed and unrequested
+pages. The application does not claim that an extracted image depicts all visible
+page content. Text remains available through the shared PDF search, without OCR.
+
+All physical records in this increment are **UNAPPROVED DRAFT**. CSV and
+values-only XLSX exports retain the hierarchy, source/image hashes, quantities
+asserted by the user, uncertainty and tombstone history with that label. They
+cannot represent approved quantities, create calculator rows or advance a priced
+quote. Independent image validation and a verified Physical Model Lock are
+required by the later approval workflow.
+
 ## Transferring to calculators
 
 Choose the explicit destination and exact database section/product choices.
@@ -123,6 +167,16 @@ automatically deleted. To replace a drawing, ingest its new bytes as a new
 document revision and explicitly update affected objects. Historical evidence
 remains retained.
 
+The nested takeoff snapshot remains schema version 1 for existing measurement
+projects. The first physical edit or image extraction records an explicit
+upgrade to nested schema version 2. Old audit files retain their original hashes.
+Image manifests, original streams and display derivatives live in the companion
+folder and are published before the JSON, including assets retained only in
+history. Save As binds the window to the new copy of every retained asset.
+An intact imported image manifest can be inspected and saved as a diagnostic
+draft, but requires fresh local extraction before it can support later physical
+approval. Its local extraction registry is never reconstructed from imported text.
+
 Missing or damaged evidence can reopen for diagnosis but cannot authorize
 confirmation, transfer or approved export. Imported receipt text is insufficient:
 each load matches the project identity and content digest against the local
@@ -144,6 +198,18 @@ human review, even when its portable evidence is intact.
   retained until display/export formatting.
 - `takeoff_area.py` validates bounded polygon topology and computes true-surface
   areas and exclusions with the square of the retained page calibration.
+- `takeoff_physical.py` and `takeoff_physical_operations.py` validate the separate
+  draft graph and atomic previews. There are at most 10,000 entities including
+  tombstones, 32 references per entity and 100 commands per bulk operation.
+- `takeoff_image_worker.py` extracts images in a restricted child process;
+  `takeoff_image_evidence.py` verifies every inventory path, byte hash, source
+  binding and PNG dimension before retaining the result. A batch supports one
+  to 25 explicit pages, 512 image occurrences, 16 megapixels per image, 256 MiB
+  of files and a 16 MiB manifest. A project retains at most 2,000 extraction
+  descriptors and 4 GiB of image evidence, including history. Limits fail
+  explicitly; images are never resized or omitted to disguise incomplete work.
+- The local image extraction registry records only this installation's verified
+  worker results. Extraction provenance alone does not approve a physical fact.
 - `takeoff_workspace.py` controls expected revisions, idempotent commands,
   review/confirmation, transfer receipts and paged history. Small additive SQLite
   tables store local approval/transfer authority.
@@ -154,7 +220,7 @@ human review, even when its portable evidence is intact.
   path containment, regular-file/reparse-point and manifest checks remain active.
   PDF range reads use a bounded verified snapshot cache instead of rehashing
   250 MiB for each range. Sensitive approval/export gates reverify originals.
-- `takeoffs.js`, `takeoff-geometry.js` and `takeoffs.css` provide the manual
+- `takeoffs.js`, `takeoff-geometry.js`, `takeoff-physical.js` and `takeoffs.css` provide the manual
   workspace. Rendering, page thumbnails, search results and register pages are
   bounded and loaded on demand.
 
@@ -191,6 +257,10 @@ page loading, rendering and text extraction each have a 30-second deadline.
 `npm run test:takeoffs-areas` exercises wall/slab tracing, exclusions, rotated and
 cropped sources with UserUnit 2, bulk edit/undo, confirmation, Save As/reopen and
 CSV/XLSX export while checking that calculator state is unchanged.
+`npm run test:takeoffs-penetrations` covers the rendered manual hierarchy,
+retained images, evidence associations, bulk edit/undo, source navigation and
+draft export through Save As/reopen. `node tests/test_takeoff_physical_ui.cjs`
+checks the physical module's controlled-edit and stale-review contracts.
 
 The rendered tests never connect to the user's running server. CI also runs the
 complete existing Python/JavaScript regression suites and distribution build.

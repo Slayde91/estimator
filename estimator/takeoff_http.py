@@ -68,6 +68,22 @@ class TakeoffHTTP:
         if not action and handler.command == 'GET':
             handler.send_payload(200, current)
             return True
+        if action == 'images' and handler.command == 'GET':
+            if set(query) - {'extraction_id', 'offset', 'limit'}:
+                raise ValidationError('Image inventory accepts one extraction, offset and page size.')
+            try:
+                offset, limit = int(query.get('offset', '0')), int(query.get('limit', '100'))
+            except ValueError as error:
+                raise ValidationError('Image inventory offset and page size must be integers.') from error
+            handler.send_payload(200, self.service.images(session_id, query.get('extraction_id'), offset, limit))
+            return True
+        image_match = re.fullmatch(rf'images/({TOKEN})/({TOKEN})/file', action or '')
+        if image_match and handler.command == 'GET':
+            if query:
+                raise ValidationError('Image files do not accept extra options.')
+            payload, kind = self.service.image_file(session_id, image_match[1], image_match[2])
+            handler.send_payload(200, payload, kind)
+            return True
         file_match = re.fullmatch(rf'documents/({TOKEN})/file', action or '')
         if file_match and handler.command == 'GET':
             document = next((doc for doc in current['snapshot']['documents'] if doc['id'] == file_match[1]), None)
@@ -130,6 +146,18 @@ class TakeoffHTTP:
             result = {'cancelled': True}
         elif action == 'commands':
             result = self.service.command(session_id, body)
+        elif action == 'physical/preview':
+            result = self.service.preview_physical(session_id, body)
+        elif action == 'physical/apply':
+            result = self.service.apply_physical(session_id, body)
+        elif action == 'images/extract':
+            result = self.service.extract_images(session_id, body)
+        elif action in {'physical/export/csv', 'physical/export/xlsx'}:
+            if body:
+                raise ValidationError('Draft physical export does not accept approval or filtering options.')
+            payload, kind, filename = self.service.export_physical(session_id, action.rsplit('/', 1)[1])
+            handler.send_download(payload, kind, filename)
+            return True
         elif action == 'transfer-preview':
             result = self.service.preview_transfer(session_id, body)
         elif action == 'transfer-apply':

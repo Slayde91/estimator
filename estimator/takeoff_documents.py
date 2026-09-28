@@ -104,12 +104,12 @@ def _identity(info):
 
 
 @contextmanager
-def _open_regular(path, maximum):
+def _open_regular(path, maximum, *, allow_empty=False):
     path = Path(path)
     _directory(path.parent)
     try:
         before = path.lstat()
-        if _linked(before) or not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= maximum:
+        if _linked(before) or not stat.S_ISREG(before.st_mode) or not (0 if allow_empty else 1) <= before.st_size <= maximum:
             raise ValidationError("The evidence file is not a bounded regular file.")
         flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
         with os.fdopen(os.open(path, flags), "rb") as stream:
@@ -131,8 +131,8 @@ def _hash_stream(stream):
     return value.hexdigest()
 
 
-def _verified(path, digest, maximum):
-    with _open_regular(path, maximum) as stream:
+def _verified(path, digest, maximum, *, allow_empty=False):
+    with _open_regular(path, maximum, allow_empty=allow_empty) as stream:
         if _hash_stream(stream) != _digest(digest):
             raise ValidationError("The retained evidence hash has changed.")
 
@@ -317,7 +317,7 @@ class TakeoffDocuments:
             raise ValidationError("The PDF changed before inspection. Its page metadata was not accepted.")
         return data["pages"]
 
-    def _copy(self, source, destination, digest, maximum):
+    def _copy(self, source, destination, digest, maximum, *, allow_empty=False):
         """Copy exact verified bytes, never overwrite an existing evidence object."""
         _directory(destination.parent, create=True)
         try:
@@ -325,9 +325,9 @@ class TakeoffDocuments:
         except FileNotFoundError:
             pass
         else:
-            _verified(destination, digest, maximum)
+            _verified(destination, digest, maximum, allow_empty=allow_empty)
             return
-        with _open_regular(source, maximum) as incoming:
+        with _open_regular(source, maximum, allow_empty=allow_empty) as incoming:
             size = os.fstat(incoming.fileno()).st_size
             self._space(size, destination.parent)
             if _hash_stream(incoming) != digest:
@@ -339,7 +339,7 @@ class TakeoffDocuments:
                     output = destination.open("xb")
                     created = True
                 except FileExistsError:
-                    _verified(destination, digest, maximum)
+                    _verified(destination, digest, maximum, allow_empty=allow_empty)
                     return
                 with output:
                     info = os.fstat(output.fileno())
@@ -357,7 +357,7 @@ class TakeoffDocuments:
                 if created and identity is not None:
                     _remove_created(destination, identity)
                 raise
-        _verified(destination, digest, maximum)
+        _verified(destination, digest, maximum, allow_empty=allow_empty)
 
     def finish_upload(self, owner, upload_id):
         with self._lock:
@@ -427,6 +427,8 @@ class TakeoffDocuments:
                 if not item.get("document"):
                     _remove_created(item["path"], item["file_identity"])
                 del self._uploads[upload_id]
+        if getattr(self, 'images', None) is not None:
+            self.images.close_owner(owner)
 
     def document_path(self, document, verify=True):
         _metadata(document)
@@ -627,9 +629,11 @@ class TakeoffDocuments:
         event = self.get_blob(digest)
         fields = {"version", "project_id", "revision", "previous", "request_id", "op", "at", "before", "after"}
         attribution = {"actor", "affected_ids"}
-        if (set(event) not in (fields, fields | attribution) or type(event["version"]) is not int or event["version"] != 1
+        if (set(event) not in (fields, fields | attribution) or type(event["version"]) is not int or event["version"] not in (1, 2)
                 or type(event["revision"]) is not int or event["revision"] < 1):
             raise ValidationError("The audit event has an unsupported schema or broken revision sequence.")
+        if event['version'] == 2 and set(event) != fields | attribution:
+            raise ValidationError('Physical audit events require session attribution and affected identities.')
         _uuid(event["project_id"])
         _uuid(event["request_id"])
         if event["previous"] is not None:
@@ -643,6 +647,8 @@ class TakeoffDocuments:
             _uuid(actor["session_id"])
             affected = event["affected_ids"]
             limits = {"items": 20000, "documents": 200, "calibrations": 4000, "transfers": 60000}
+            if event['version'] == 2:
+                limits.update(physical=20000, image_extractions=4000)
             if not isinstance(affected, dict) or set(affected) != set(limits):
                 raise ValidationError("The audit affected IDs must identify every supported collection.")
             for name, limit in limits.items():
@@ -654,12 +660,12 @@ class TakeoffDocuments:
                     _uuid(identifier)
                 if identifiers != sorted(set(identifiers)):
                     raise ValidationError("The audit affected IDs must be sorted and unique.")
-        documents = {}
+        documents, images = {}, {}
         for side in ("before", "after"):
             state = event[side]
             revision = event["revision"] - (1 if side == "before" else 0)
             if (not isinstance(state, dict) or state.get("project_id") != event["project_id"]
-                    or type(state.get("version")) is not int or state["version"] != 1
+                    or type(state.get("version")) is not int or state['version'] not in (1, 2)
                     or type(state.get("revision")) is not int or state["revision"] != revision):
                 raise ValidationError("The audit history contains invalid takeoff state.")
             state_documents = state.get("documents", [])
@@ -684,16 +690,27 @@ class TakeoffDocuments:
                     with self._lock:
                         self._audit_documents[identifier] = shared
                 documents[identifier] = shared
+            from .takeoff_model import validate_physical_extension
+            validate_physical_extension(state)
+            for descriptor in state.get('image_extractions', []):
+                prior = images.get(descriptor['id'])
+                if prior is not None and prior != descriptor:
+                    raise ValidationError('An image extraction identity was rewritten in the audit history.')
+                images[descriptor['id']] = descriptor
+        before_version, after_version = event['before']['version'], event['after']['version']
+        if (event['version'] != after_version or before_version > after_version
+                or (before_version != after_version and event['op'] not in ('apply_physical', 'extract_images'))):
+            raise ValidationError('The takeoff schema changed outside a controlled physical operation.')
         if "affected_ids" in event:
             from .takeoff_model import audit_affected
             if event["affected_ids"] != audit_affected(event["before"], event["after"]):
                 raise ValidationError("The audit affected IDs do not match its retained state changes.")
         retained = tuple(documents.values())
         # Count repeated metadata conservatively, even though records share it.
-        weight = 512 + len(_canonical([entry.metadata for entry in retained]))
+        weight = 512 + len(_canonical([entry.metadata for entry in retained])) + len(_canonical(list(images.values())))
         record = {"project_id": event["project_id"], "revision": event["revision"], "previous": event["previous"],
                   "before": audit_state_digest(event["before"]), "after": audit_state_digest(event["after"]),
-                  "documents": retained, "size": len(_canonical(event)), "weight": weight}
+                  "documents": retained, 'images': tuple(images.values()), "size": len(_canonical(event)), "weight": weight}
         if weight <= MAX_AUDIT_CACHE_BYTES:
             with self._lock:
                 existing = self._audit_records.pop(digest, None)
@@ -707,7 +724,11 @@ class TakeoffDocuments:
         return record
 
     def _graph(self, snapshot, loader):
-        documents = {}
+        documents, images = {}, {}
+        from .takeoff_model import validate_physical_extension
+        validate_physical_extension(snapshot)
+        for descriptor in snapshot.get('image_extractions', []):
+            images[descriptor['id']] = descriptor
         current = snapshot.get("documents", [])
         if not isinstance(current, list) or len(current) > MAX_DOCUMENTS:
             raise ValidationError("A project supports at most 100 PDFs.")
@@ -744,6 +765,13 @@ class TakeoffDocuments:
                 documents[document["id"]] = document
                 if len(documents) > MAX_DOCUMENTS:
                     raise ValidationError("A project supports at most 100 retained PDFs, including history.")
+            for descriptor in record['images']:
+                previous = images.get(descriptor['id'])
+                if previous is not None and previous != descriptor:
+                    raise ValidationError('An image extraction identity was rewritten in the audit history.')
+                images[descriptor['id']] = descriptor
+                if len(images) > 2000:
+                    raise ValidationError('The project retains too many image extraction events, including history.')
             if expected_after is not None and record["after"] != expected_after:
                 raise ValidationError("The audit history contains an unrecorded physical-state change.")
             expected_after = record["before"]
@@ -753,12 +781,14 @@ class TakeoffDocuments:
             raise ValidationError("The audit history does not reach its initial revision.")
         if sum(len(document["pages"]) for document in documents.values()) > MAX_PROJECT_PAGES:
             raise ValidationError("A project supports at most 2,000 retained PDF pages, including history.")
-        return list(documents.values()), audit
+        if sum(image['total_bytes'] for image in images.values()) > 4 * 1024**3:
+            raise ValidationError('The retained image evidence exceeds 4 GiB, including history.')
+        return list(documents.values()), audit, list(images.values())
 
     def assert_add_capacity(self, snapshot, document):
         """Refuse intake that could create a draft too large to save with history."""
         _metadata(document)
-        documents, _ = self._graph(snapshot, self._audit_record)
+        documents, _, _ = self._graph(snapshot, self._audit_record)
         if any(value["id"] == document["id"] for value in documents):
             raise ValidationError("This PDF identity is already retained in the project history.")
         if len(documents) + 1 > MAX_DOCUMENTS:
@@ -785,10 +815,17 @@ class TakeoffDocuments:
         if source and source["head"] is not None and not reached_source:
             raise ValidationError("The audit history no longer includes this window's saved source history.")
 
+    def assert_image_evidence(self, snapshot, owner=None):
+        """Reverify current and historical images for save/approved evidence use."""
+        documents, _, images = self._graph(snapshot, self._audit_record)
+        self.assert_documents(documents, owner=owner)
+        if images:
+            self._images().assert_evidence(images, documents, owner=owner)
+
     def publish(self, snapshot, project_file_path):
         with self._lock:
             _uuid(snapshot.get("project_id"))
-            documents, audit = self._graph(snapshot, self._audit_record)
+            documents, audit, images = self._graph(snapshot, self._audit_record)
             self.assert_documents(documents)
             folder, relative = self._companion(snapshot, project_file_path, create=True)
             for document in documents:
@@ -796,7 +833,15 @@ class TakeoffDocuments:
                 self._copy(self.root / "documents" / name, folder / "documents" / name, document["sha256"], MAX_DOCUMENT_SIZE)
             for digest in audit:
                 self._copy(self.root / "audit" / (digest + ".json"), folder / "audit" / (digest + ".json"), digest, MAX_AUDIT_BLOB)
+            if images:
+                self._images().publish(images, documents, folder)
             return {**deepcopy(snapshot), "companion_folder": relative}
+
+    def _images(self):
+        manager = getattr(self, 'images', None)
+        if manager is None:
+            raise ValidationError('The retained image evidence service is unavailable.')
+        return manager
 
     def register_source(self, owner, snapshot, project_file_path):
         """Bind a window to its portable originals; never infer authority from a path."""
@@ -816,10 +861,28 @@ class TakeoffDocuments:
                 raise ValidationError("This takeoff session has closed.")
             self._sources[owner] = mapping
             self._audit_sources[owner] = {"head": snapshot.get("audit_head"), "folder": folder}
+        if snapshot.get('image_extractions'):
+            self._images().bind_source(owner, snapshot['image_extractions'], folder)
 
     def bind_source(self, owner, snapshot, project_file_path):
         """Rebind only after the caller atomically commits its saved project."""
         self.register_source(owner, snapshot, project_file_path)
+        documents, _, images = self._graph(snapshot, self._audit_record)
+        folder, _ = self._companion(snapshot, project_file_path)
+        self._bind_retained(owner, documents, images, folder)
+
+    def _bind_retained(self, owner, documents, images, folder):
+        """A new saved path must cover historical assets as well as visible ones."""
+        _owner(owner)
+        mapping = {document['id']: folder / 'documents' / (document['sha256'] + '.pdf') for document in documents}
+        with self._lock:
+            if owner in self._closed_owners:
+                raise ValidationError('This takeoff session has closed.')
+            self._sources[owner] = mapping
+        if getattr(self, 'images', None) is not None:
+            self.images.bind_source(owner, images, folder)
+        elif images:
+            self._images()
 
     def restore(self, snapshot, project_file_path, owner=None):
         """Diagnose missing evidence without preventing old estimating inputs opening."""
@@ -834,10 +897,13 @@ class TakeoffDocuments:
                 self._copy(folder / "audit" / (digest + ".json"), self.root / "audit" / (digest + ".json"), digest, MAX_AUDIT_BLOB)
                 return self._audit_record(digest)
 
-            documents, _ = self._graph(snapshot, load)
+            documents, _, images = self._graph(snapshot, load)
+            if owner is not None:
+                self._bind_retained(owner, documents, images, folder)
         except (ValidationError, OSError) as error:
             issues.append({"code": "EVIDENCE_UNAVAILABLE", "message": str(error)})
             documents = snapshot.get("documents", [])
+            images = snapshot.get('image_extractions', [])
             folder = None
         for document in documents:
             try:
@@ -852,4 +918,12 @@ class TakeoffDocuments:
             except (ValidationError, OSError) as error:
                 issues.append({"document_id": document.get("id") if isinstance(document, dict) else None,
                                "code": "EVIDENCE_UNAVAILABLE", "message": str(error)})
+        if images:
+            if folder is None:
+                issues.append({'code': 'IMAGE_EVIDENCE_UNAVAILABLE', 'message': 'The retained image evidence companion is missing or invalid.'})
+            else:
+                try:
+                    issues.extend(self._images().restore(images, documents, folder, owner=owner))
+                except (ValidationError, OSError) as error:
+                    issues.append({'code': 'IMAGE_EVIDENCE_UNAVAILABLE', 'message': str(error)})
         return issues

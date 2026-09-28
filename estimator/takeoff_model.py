@@ -111,6 +111,13 @@ def audit_affected(before, after):
         affected[key] = sorted(changed(entries(before, key, limit), entries(after, key, limit)))
     renders = changed(entries(before, 'render_checks', 2000, render=True), entries(after, 'render_checks', 2000, render=True))
     affected['documents'] = sorted(set(affected['documents']) | {document for document, _ in renders})
+    if before.get('version') == 2 or after.get('version') == 2:
+        affected['image_extractions'] = sorted(changed(entries(before, 'image_extractions', 2000), entries(after, 'image_extractions', 2000)))
+        def physical_entries(state):
+            graph = state.get('physical')
+            return entries({'physical': [entity for kind in ('barriers', 'defects', 'openings', 'services')
+                                         for entity in graph[kind]] if graph else []}, 'physical', 10000)
+        affected['physical'] = sorted(changed(physical_entries(before), physical_entries(after)))
     return affected
 
 
@@ -148,6 +155,55 @@ def object_fields(value, allowed, label, required=()):
 def new_snapshot():
     return {'version': 1, 'project_id': str(uuid4()), 'revision': 0, 'documents': [],
             'calibrations': [], 'items': [], 'transfers': [], 'render_checks': [], 'audit_head': None}
+
+
+def upgrade_snapshot(snapshot):
+    """Explicit additive upgrade; the controlled operation records both schemas."""
+    result = validate_snapshot(snapshot)
+    if result['version'] == 1:
+        result.update(version=2, physical=None, image_extractions=[])
+    return result
+
+
+def validate_physical_extension(snapshot):
+    """Validate portable draft structure without granting image or lock authority."""
+    if snapshot['version'] == 1:
+        if 'physical' in snapshot or 'image_extractions' in snapshot:
+            raise ValidationError('Physical evidence requires takeoff schema version two.')
+        return
+    from .takeoff_physical import validate_graph
+    from .takeoff_image_evidence import validate_descriptor, MAX_IMAGE_DESCRIPTORS, MAX_IMAGE_PROJECT_BYTES
+    if not {'physical', 'image_extractions'} <= snapshot.keys():
+        raise ValidationError('Physical takeoff state is incomplete.')
+    descriptors = snapshot['image_extractions']
+    if not isinstance(descriptors, list) or len(descriptors) > MAX_IMAGE_DESCRIPTORS:
+        raise ValidationError('The project has too many retained image extraction events.')
+    ids, total = set(), 0
+    for descriptor in descriptors:
+        validate_descriptor(descriptor)
+        if descriptor['id'] in ids:
+            raise ValidationError('Image extraction identities must be unique.')
+        ids.add(descriptor['id']); total += descriptor['total_bytes']
+        for page in descriptor['pages']:
+            document, _ = page_metadata(snapshot, descriptor['document_id'], page)
+            if document['sha256'] != descriptor['source_sha256']:
+                raise ValidationError('An image extraction must retain its exact source PDF revision.')
+    if total > MAX_IMAGE_PROJECT_BYTES:
+        raise ValidationError('The retained image evidence exceeds the project byte limit.')
+    graph = snapshot['physical']
+    if graph is None:
+        return
+    validate_graph(graph, copy_result=False)
+    if graph['project_id'] != snapshot['project_id']:
+        raise ValidationError('The physical draft belongs to another project.')
+    for kind in ('barriers', 'defects', 'openings', 'services'):
+        for entity in graph[kind]:
+            for ref in entity['evidence']:
+                document, page = page_metadata(snapshot, ref['document_id'], ref['page'])
+                if document['sha256'] != ref['document_sha256']:
+                    raise ValidationError('Physical evidence must identify its exact retained PDF revision.')
+                if 'region' in ref:
+                    points(ref['region'], 'Physical source region', page, minimum=3, maximum=64)
 
 
 def page_metadata(snapshot, document_id, page):
@@ -416,11 +472,13 @@ def item_result(item, snapshot):
 
 def validate_snapshot(value, *, copy_result=True):
     """Pure validation for portable files; never trusts imported approvals."""
-    keys = new_snapshot().keys()
+    keys = set(new_snapshot())
+    if isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 2:
+        keys.update(('physical', 'image_extractions'))
     object_fields(value, {*keys, 'companion_folder'}, 'Takeoff snapshot', keys)
     if 'companion_folder' in value:
         text(value['companion_folder'], 'Evidence companion folder', 255)
-    if type(value['version']) is not int or value['version'] != 1:
+    if type(value['version']) is not int or value['version'] not in (1, 2):
         raise ValidationError('This takeoff schema version is not supported.')
     identity(value['project_id'], 'Takeoff project ID')
     number(value['revision'], 'Revision', integer=True)
@@ -470,6 +528,7 @@ def validate_snapshot(value, *, copy_result=True):
                         raise ValidationError('PDF page boxes must have positive dimensions.')
     if total_pages > 2000:
         raise ValidationError('A takeoff project may contain at most 2,000 pages.')
+    validate_physical_extension(value)
     physical_ids = set()
     for key, validator in (('calibrations', validate_calibration), ('items', validate_item)):
         ids = set()

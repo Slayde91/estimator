@@ -25,6 +25,7 @@ jobs:
       - run: node --check static/library-editor.js
       - run: node --check static/takeoffs.js
       - run: node --check static/takeoff-geometry.js
+      - run: node --check static/takeoff-physical.js
       - run: node --check static/takeoff-pdf-worker.mjs
       - run: node --check scripts/ocr_trafalgar_documents.cjs
       - run: node --test tests/test_trafalgar_ocr.cjs
@@ -37,6 +38,7 @@ jobs:
       - run: node tests/test_library_detail_text.cjs
       - run: node tests/test_library_editor_ui.cjs
       - run: node tests/test_takeoffs_ui.cjs
+      - run: node tests/test_takeoff_physical_ui.cjs
       - run: python scripts/build.py
   takeoff-browser:
     runs-on: ubuntu-latest
@@ -58,6 +60,7 @@ jobs:
       - run: npm run test:takeoffs-capacity
       - run: npm run test:takeoffs-timeouts
       - run: npm run test:takeoffs-areas
+      - run: npm run test:takeoffs-penetrations
       - uses: actions/upload-artifact@v4
         if: always()
         with:

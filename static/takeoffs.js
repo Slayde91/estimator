@@ -7,9 +7,11 @@
     zoom: 1, tool: "select", points: [], selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
-    formDirty: false, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null };
+    formDirty: false, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
+    physicalUI: null, physicalSelected: new Set(), physicalVisible: new Set(), physicalHovered: null, physicalPreviews: new Map() };
   const units = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 3 });
-  const labels = { steel: "Steel", duct: "Duct", wall: "Walls", slab: "Slabs" };
+  const labels = { steel: "Steel", duct: "Duct", wall: "Walls", slab: "Slabs", physical: "Penetrations" };
+  const physicalUnfinished = () => !!state.physicalUI?.hasUnfinishedChanges();
   const isArea = (mode = state.mode) => mode === "wall" || mode === "slab";
   const areaFields = [["level", "Level"], ["substrate", "Substrate"], ["treatment", "Treatment"], ["system", "Protection system"], ["product", "Protection product"], ["frl", "FRL / fire rating"], ["surface_citation", "True-surface source citation", "textarea"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]];
   const surfaceHelp = "Trace one actual treatment surface in true projection. A wall plan footprint is not its wall-face surface. No height, second face or multiplier is inferred. Use elevations for wall faces and a stated soffit/top view for slabs. Distorted or perspective views cannot establish calibrated surface areas.";
@@ -46,6 +48,7 @@
     state.selected = new Set([...state.selected].filter(id => items().some(item => item.id === id)));
     if (!currentDocument()) { state.document = documents()[0]?.id || null; state.page = 1; }
     state.bindings = snapshot().transfers || [];
+    state.physicalUI?.render(snapshot());
     window.CeasefireProject?.changed?.();
   }
   function markFormEdited() { state.formDirty = true; state.formRevision = (state.formRevision || 0) + 1; window.CeasefireProject?.changed?.(); }
@@ -103,7 +106,7 @@
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
     const modes = node("div", "takeoff-modes"); modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", "Takeoff modes");
-    for (const [mode, label] of [["steel", "STEEL"], ["duct", "DUCT"], ["wall", "WALLS"], ["slab", "SLABS"]]) {
+    for (const [mode, label] of [["steel", "STEEL"], ["duct", "DUCT"], ["physical", "PENETRATIONS"], ["wall", "WALLS"], ["slab", "SLABS"]]) {
       const el = button(label, () => changeMode(mode), "takeoff-mode"); el.dataset.mode = mode; el.setAttribute("role", "tab"); el.setAttribute("aria-selected", String(state.mode === mode));
       if (!labels[mode]) { el.disabled = true; el.title = "Planned after the Steel and Duct release"; }
       modes.append(el);
@@ -115,8 +118,8 @@
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
     for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["cite", "Cite length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : setTool(tool)); el.dataset.tool = tool; ui.tools[tool] = el; toolbar.append(el); }
-    toolbar.append(button("Finish trace", finishTrace), button("Cancel trace", cancelTrace));
-    ui.calibration = select([["", "Select calibration"]], value => { state.calibration = value; }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, button("Edit calibration", editCalibration));
+    toolbar.append(ui.finishTrace = button("Finish trace", finishTrace), ui.cancelTrace = button("Cancel trace", cancelTrace));
+    ui.calibration = select([["", "Select calibration"]], value => { state.calibration = value; }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, ui.editCalibration = button("Edit calibration", editCalibration));
     const navigation = node("div", "takeoff-toolbar"); navigation.setAttribute("aria-label", "Drawing navigation");
     navigation.append(button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
@@ -124,9 +127,9 @@
     ui.zoom = node("span", "helper", "100%"); navigation.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); navigation.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
-    ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true;
+    ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
-    const layout = node("div", "takeoff-drawing-layout"); ui.rail = node("aside", "takeoff-rail"); ui.rail.setAttribute("aria-label", "Documents and page thumbnails");
+    const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; ui.rail = node("aside", "takeoff-rail"); ui.rail.setAttribute("aria-label", "Documents and page thumbnails");
     ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.setAttribute("aria-label", "Drawing. Choose a drawing tool, then click to mark source positions.");
     ui.pageWrap = node("div", "takeoff-page"); ui.pageWrap.hidden = true; ui.canvas = node("canvas"); ui.canvas.setAttribute("aria-label", "Original PDF page"); ui.overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ui.overlay.classList.add("takeoff-overlay"); ui.overlay.setAttribute("aria-label", "Takeoff markups");
     ui.pageWrap.append(ui.canvas, ui.overlay); ui.empty = node("div", "takeoff-empty"); ui.empty.append(node("strong", "", "Your drawing workspace"), node("p", "", "Upload the original PDFs, calibrate a known distance, then trace or cite each physical object. Review and confirm before transferring quantities.")); ui.viewport.append(ui.pageWrap, ui.empty);
@@ -144,18 +147,28 @@
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit), ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
-    workspace.append(layout, register); root.append(modes, ui.message, toolbar, navigation, ui.progress, ui.searchResults, workspace);
+    ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
+    workspace.append(layout, register); root.append(modes, ui.message, toolbar, navigation, ui.progress, ui.searchResults, ui.physicalOverlayStatus, workspace, ui.physicalContainer);
     ui.overlay.addEventListener("pointerdown", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan);
     ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); void safely(() => zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15)); } }, { passive: false });
     ui.viewport.addEventListener("keydown", event => { if (event.key === "Escape") cancelTrace(); if (event.key === "Enter" && ["trace", "polygon", "exclusion"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); } if (event.key === "Backspace" && state.points.length) { event.preventDefault(); state.points.pop(); renderOverlay(); } });
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); if (state.document) await renderPage(); }
   async function changeMode(mode) { if (!labels[mode] || state.busy) return; if (!await discardEditor()) return; state.mode = mode; state.offset = 0; state.selected.clear(); cancelTrace(); renderData(); }
-  function requireFinishedEdits() { if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished item edits and finish or cancel the current trace first."); }
-  async function discardEditor() { if (!state.formDirty && !state.points.length) { if (state.retraceId || state.exclusionItemId) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; cancelTrace(); return true; }
+  function requireFinishedEdits() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished item edits and finish or cancel the current trace first."); }
+  async function discardEditor() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.points.length) { if (state.retraceId || state.exclusionItemId) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; cancelTrace(); return true; }
   function renderData() {
     if (!state.ui) return;
     for (const el of state.ui.root.querySelectorAll("[data-mode]")) el.setAttribute("aria-selected", String(el.dataset.mode === state.mode));
+    const physical = state.mode === "physical";
+    state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = !physical; state.ui.register.hidden = physical; state.ui.inspector.hidden = physical; state.ui.layout.classList.toggle("takeoff-physical-drawing", physical);
+    state.ui.workspace.classList.toggle("beside", !physical && state.ui.registerLayout.value === "beside");
+    state.ui.registerLayout.disabled = physical;
+    for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.finishTrace, state.ui.cancelTrace, state.ui.tools.calibrate]) control.hidden = physical;
+    if (physical) {
+      for (const tool of ["trace", "cite", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
+      ensurePhysicalUI(); state.physicalUI.render(snapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
+    }
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
@@ -169,6 +182,98 @@
     const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => option(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
     const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(...(area ? [] : [option("quantity", "Quantity")]), ...fields[state.mode].map(([key, label]) => option(key, label))); if ((!area && oldBulk === "quantity") || fields[state.mode].some(([key]) => key === oldBulk)) state.ui.bulkField.value = oldBulk;
     renderRail(); renderCalibrations(); renderRegister(); if (!state.formDirty) renderInspector(); renderOverlay(); working(state.busy);
+  }
+  function physicalRequest(path, values, { mutate = false, expected, sessionId = state.session?.session_id } = {}) {
+    const task = state.queue.then(async () => {
+      if (!sessionId || sessionId !== state.session?.session_id) throw new Error("The project changed. Repeat the physical action in the current project.");
+      working(true);
+      try {
+        const reply = await api(`/sessions/${sessionId}/${path}`, { expected_revision: expected ?? state.session.revision, ...(mutate ? { request_id: uuid() } : {}), ...values });
+        if (sessionId !== state.session?.session_id) throw new Error("The project changed while the physical request was running.");
+        if (mutate) { accept(reply); renderData(); }
+        return reply;
+      } finally { working(false); }
+    });
+    state.queue = task.catch(() => {}); return task;
+  }
+  function normalizePhysicalImages(inventory) {
+    const records = (inventory.items || []).map(item => ({
+      ...item, id: item.image_id || item.asset_id, sha256: item.image_sha256,
+      name: `${item.source_name || documentById(item.document_id)?.name || "Source PDF"} · page ${item.page}`,
+      issues: [...(item.issues || []), ...(!item.has_rendition ? ["This occurrence has no retained display bitmap. Inspect the original source and resolve the extraction issue."] : [])],
+    }));
+    for (const extraction of inventory.extractions || []) {
+      const doc = documentById(extraction.document_id), pages = extraction.page_results || (extraction.coverage?.pages || []).filter(page => typeof page === "object");
+      const documentId = extraction.document_id, documentHash = extraction.document_sha256 || extraction.source_sha256 || doc?.sha256;
+      if (pages.length) for (const page of pages) records.push({ coverage_only: true, document_id: documentId, document_sha256: documentHash, page: page.page, name: `${doc?.name || extraction.source_name || "Source PDF"} · page ${page.page} extraction coverage`, coverage: `Status: ${page.status || "unknown"}. ${page.occurrence_ids?.length ?? page.occurrence_count ?? "Unknown"} image occurrences recorded. No physical quantity is derived.`, issues: [...(page.issues || [])] });
+      else records.push({ coverage_only: true, document_id: documentId, document_sha256: documentHash, page: extraction.first_page, name: `${doc?.name || "Source PDF"} extraction coverage`, coverage: JSON.stringify(extraction.coverage || { status: extraction.status || "Coverage unavailable", first_page: extraction.first_page, page_count: extraction.page_count }), issues: extraction.issues || [] });
+      if (extraction.issues?.length && pages.length) records.push({ coverage_only: true, document_id: documentId, document_sha256: documentHash, page: extraction.first_page || pages[0].page, name: `${doc?.name || "Source PDF"} extraction issues`, coverage: "These extraction issues require source review.", issues: extraction.issues });
+    }
+    return records;
+  }
+  async function physicalSource(reference) {
+    const doc = documentById(reference.document_id);
+    if (!doc || doc.sha256 !== reference.document_sha256) throw new Error("This physical evidence source is missing or its exact source hash no longer matches.");
+    if (!Number.isInteger(reference.page) || reference.page < 1 || reference.page > doc.pages.length) throw new Error("This physical evidence page is unavailable.");
+    await navigateDocument(reference.document_id, reference.page);
+    if (reference.region?.length >= 3 && reference.region.every(point => Array.isArray(point))) await focusGeometry({ geometry: { points: reference.region } });
+    renderOverlay();
+  }
+  function hoverPhysical(id) {
+    state.physicalHovered = id;
+    for (const hit of state.ui?.overlay.querySelectorAll("[data-physical-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.physicalId === id);
+  }
+  async function exportPhysical(format) {
+    const sessionId = state.session?.session_id;
+    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
+    if (sessionId !== state.session?.session_id) throw new Error("The project changed during draft export. Export the current draft again.");
+    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-Penetrations-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+    message("Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
+  }
+  function ensurePhysicalUI() {
+    if (state.physicalUI) return;
+    if (!window.CeasefireTakeoffPhysical?.mount) throw new Error("The physical draft workspace could not be loaded.");
+    state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
+      ask, confirm, notify: message, changed: () => window.CeasefireProject?.changed?.(), source: physicalSource,
+      preview: async commands => {
+        const sessionId = state.session?.session_id, reply = await physicalRequest("physical/preview", { commands }, { sessionId });
+        state.physicalPreviews.set(reply.preview_id, { sessionId, revision: reply.revision });
+        while (state.physicalPreviews.size > 20) state.physicalPreviews.delete(state.physicalPreviews.keys().next().value);
+        return reply;
+      },
+      apply: async previewId => {
+        const preview = state.physicalPreviews.get(previewId);
+        if (!preview || preview.sessionId !== state.session?.session_id) throw new Error("The physical preview belongs to a previous project. Review the current draft again.");
+        return physicalRequest("physical/apply", { preview_id: previewId }, { mutate: true, expected: preview.revision, sessionId: preview.sessionId });
+      },
+      imageContext: () => ({ document_id: state.document, page: state.page }),
+      images: async extractionId => {
+        const sessionId = state.session?.session_id; if (!sessionId || !extractionId) return [];
+        let offset = 0, inventory = null;
+        do {
+          const reply = await api(`/sessions/${sessionId}/images?extraction_id=${encodeURIComponent(extractionId)}&offset=${offset}&limit=100`);
+          if (sessionId !== state.session?.session_id) throw new Error("The project changed while loading retained images.");
+          if (reply.extraction_id !== extractionId || !Number.isInteger(reply.total) || reply.total < 0 || reply.total > 512 || reply.offset !== offset || !Array.isArray(reply.items) || reply.items.length > 100 || offset + reply.items.length > reply.total) throw new Error("The selected image extraction returned invalid or excessive inventory coverage.");
+          if (!inventory) inventory = { ...reply, items: [] };
+          if (reply.total !== inventory.total || reply.revision !== inventory.revision) throw new Error("The retained image inventory changed during loading. Refresh it again.");
+          inventory.items.push(...reply.items); offset += reply.items.length;
+          if (Boolean(reply.has_more) !== (offset < reply.total) || reply.has_more && !reply.items.length) throw new Error("The selected image extraction returned incomplete pagination.");
+          if (!reply.has_more) break;
+        } while (offset < 512);
+        if (offset !== inventory.total) throw new Error("The retained image inventory is incomplete. No partial inventory has been shown.");
+        return normalizePhysicalImages(inventory);
+      },
+      imageUrl: image => `/api/takeoffs/sessions/${state.session.session_id}/images/${encodeURIComponent(image.extraction_id)}/${encodeURIComponent(image.asset_id || image.id)}/file`,
+      extract: async () => {
+        if (!state.document || !state.viewport) throw new Error("Open a successfully rendered original PDF page before extracting its embedded images.");
+        return physicalRequest("images/extract", { document_id: state.document, first_page: state.page, page_count: 1 }, { mutate: true });
+      },
+      export: exportPhysical, undo: () => command("undo"), history: showAudit,
+      selection: async (ids, reference, focus) => { state.physicalSelected = new Set(ids); if (reference && focus) await physicalSource(reference); else renderOverlay(); },
+      hover: hoverPhysical,
+      viewChanged: (ids, selected) => { state.physicalVisible = new Set(ids); state.physicalSelected = new Set(selected); if (state.mode === "physical") renderOverlay(); },
+    });
   }
   function renderCalibrations() {
     const calibrations = (snapshot()?.calibrations || []).filter(calibration => calibration.document_id === state.document && calibration.page === state.page);
@@ -376,6 +481,7 @@
     if (state.busy) return;
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
+    if (state.mode === "physical" && !["select", "pan"].includes(tool)) throw new Error("Physical drafts use retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
     if (["polygon", "exclusion"].includes(tool) && state.formDirty) throw new Error("Apply or discard the unfinished item edits before tracing a surface.");
     if (["trace", "polygon"].includes(tool) && !state.calibration) throw new Error("Choose or create the applicable calibration before tracing.");
@@ -493,6 +599,7 @@
   function renderOverlay() {
     if (!state.ui || !state.viewport) return;
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
+    if (state.mode === "physical") { renderPhysicalOverlay(overlay); return; }
     for (const item of visibleItems().filter(item => item.geometry && item.measurement && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page)) {
       const points = item.geometry.points.map(convert), className = `takeoff-shape ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`;
       let shape, hit; if (item.geometry.kind === "polygon") { const attrs = { d: G.polygonPath(item.geometry, state.viewport.transform), "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, class: `${className} takeoff-area-shape` }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
@@ -506,6 +613,27 @@
     }
     for (const hit of state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page)) if (hit.points?.length) { const box = G.bounds(hit.points.map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: Math.max(4, box[2] - box[0]), height: Math.max(4, box[3] - box[1]), class: "takeoff-search-hit" })); }
     if (state.points.length) { const points = state.points.map(convert); if (state.tool === "cite" && points.length === 2) { const box = G.region(...points); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2], height: box[3], class: "takeoff-pending" })); } else overlay.append(svg(["polygon", "exclusion"].includes(state.tool) && points.length >= 3 ? "polygon" : "polyline", { points: points.map(p => p.join(",")).join(" "), class: "takeoff-pending" })); for (const p of points) overlay.append(svg("circle", { cx: p[0], cy: p[1], r: 4, class: "takeoff-pending" })); }
+  }
+  function renderPhysicalOverlay(overlay) {
+    const seen = new Set(), regions = [];
+    for (const [kind, collection] of [["Barrier", "barriers"], ["Defect", "defects"], ["Opening", "openings"], ["Service", "services"]]) for (const entity of snapshot()?.physical?.[collection] || []) {
+      if (entity.deleted || !state.physicalVisible.has(entity.id) && !state.physicalSelected.has(entity.id)) continue;
+      for (const reference of entity.evidence || []) {
+        if (reference.document_id !== state.document || reference.page !== state.page || !Array.isArray(reference.region) || !reference.region.every(point => Array.isArray(point)) || reference.region.length < 3) continue;
+        const key = `${entity.id}/${JSON.stringify(reference.region)}`; if (seen.has(key)) continue; seen.add(key); regions.push({ entity, kind, reference });
+      }
+    }
+    regions.sort((a, b) => Number(state.physicalSelected.has(b.entity.id)) - Number(state.physicalSelected.has(a.entity.id)));
+    for (const { entity, kind, reference } of regions.slice(0, 500)) {
+      const path = G.polygonPath({ kind: "polygon", points: reference.region, exclusions: [] }, state.viewport.transform), first = G.transform(reference.region[0], state.viewport.transform);
+      const shape = svg("path", { d: path, class: `takeoff-shape takeoff-physical-shape${state.physicalSelected.has(entity.id) ? " selected" : ""}${state.physicalHovered === entity.id ? " hovered" : ""}` });
+      const hit = svg("path", { d: path, class: "takeoff-hit takeoff-area-hit", role: "button", tabindex: 0, "aria-label": `${kind}: ${entity.fields.label || entity.id} · unapproved draft evidence` }); hit.dataset.physicalId = entity.id;
+      hit.addEventListener("click", event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => state.physicalUI.select(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
+      hit.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(() => state.physicalUI.select(entity.id, event.ctrlKey || event.metaKey, false)); } });
+      hit.addEventListener("pointerenter", () => state.physicalUI?.hover(entity.id)); hit.addEventListener("pointerleave", () => state.physicalUI?.hover(null));
+      const label = svg("text", { x: first[0] + 6, y: first[1] - 7, class: "takeoff-label" }); label.textContent = `${kind}: ${entity.fields.label || entity.id.slice(0, 8)}`; overlay.append(shape, hit, label);
+    }
+    state.ui.physicalOverlayStatus.textContent = regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions on this page. Select a register record to prioritize its evidence. All overlays are unapproved draft associations.` : `${regions.length} linked physical source regions on this page. These are unapproved draft evidence associations; no quantities are inferred from images.`;
   }
   function itemResult(item) { return state.resultMap.get(item.id) || {}; }
   function reviewStatus(item) {
@@ -796,13 +924,14 @@
     const result = await command("update_calibration", { calibration_id: calibration.id, changes: { ...data, uniform_scale: true } });
     state.calibration = result.revised_calibration_id || ""; renderCalibrations();
   }
-  function projectSnapshot() { if (state.busy || state.modal) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished takeoff edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length) return undefined; return clone(snapshot()); }
-  function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, points: state.points, modal: state.modal }); }
-  function hasUnsavedChanges() { return state.busy || state.formDirty || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
+  function projectSnapshot() { if (state.busy || state.modal) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.points.length || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
+  function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, formRevision: state.formRevision || 0, physicalUnfinished: physicalUnfinished(), physicalEditRevision: state.physicalUI?.editRevision?.() || 0, points: state.points, modal: state.modal }); }
+  function hasUnsavedChanges() { return state.busy || state.formDirty || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
   async function prepareDefaults() { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
   async function prepareProject(value, sessionId) { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
     const prior = state.session?.session_id;
+    const physical = state.physicalUI; state.physicalUI = null; physical?.destroy(); state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear();
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();
     state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.selected.clear(); state.hidden.clear(); state.points = []; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
     if (prepared.session) accept(prepared.session);

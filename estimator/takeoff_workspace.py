@@ -13,6 +13,7 @@ from threading import RLock
 from uuid import uuid4
 
 from .catalog import ValidationError
+from .takeoff_area import AREA_MODES
 from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
@@ -57,10 +58,12 @@ class TakeoffService:
 
     def _receipt(self, snapshot, item, session_id):
         result = item_result(item, snapshot)
+        measurements = ({key: result[key] for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
+                        if item['mode'] in AREA_MODES else {key: result[key] for key in ('length_m', 'total_length_m')})
         return {'id': str(uuid4()), 'digest': item_digest(item, snapshot), 'at': timestamp(),
                 'actor': {'kind': 'local-session', 'session_id': session_id},
-                'checks': {'engine': 'takeoffs-v1', 'quantity': item['quantity'],
-                           'length_m': result['length_m'], 'total_length_m': result['total_length_m'],
+                'checks': {'engine': 'takeoffs-area-v1' if item['mode'] in AREA_MODES else 'takeoffs-v1',
+                           'quantity': item['quantity'], **measurements,
                            'evidence_verified': True, 'issues': deepcopy(result['issues'])}}
 
     def _remember(self, snapshot, approvals):
@@ -481,6 +484,8 @@ class TakeoffService:
                         self._invalidate(after, item)
             elif op == 'split_item':
                 original = self._items(after, [request['item_id']])[0]
+                if original['mode'] in AREA_MODES:
+                    raise ValidationError('Surface split is unavailable until exact coverage and exclusion preservation can be verified. Edit its polygon or group separate surfaces explicitly.')
                 parts = request['parts']
                 if not isinstance(parts, list) or not 2 <= len(parts) <= 100:
                     raise ValidationError('Split requires two to 100 explicit replacement runs.')
@@ -491,6 +496,8 @@ class TakeoffService:
                 self._remove(after, [original])
             elif op == 'merge_items':
                 originals = self._items(after, request['item_ids'])
+                if any(item['mode'] in AREA_MODES for item in originals):
+                    raise ValidationError('Surface merge is unavailable until exact coverage and exclusion preservation can be verified. Group separate surfaces without changing their identities.')
                 if len(originals) < 2:
                     raise ValidationError('Merge requires at least two adjoining runs.')
                 replacement = self._create_item(after, request['item'], self._predecessors(originals))

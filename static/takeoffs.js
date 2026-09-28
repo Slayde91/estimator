@@ -9,10 +9,15 @@
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null };
   const units = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 3 });
-  const labels = { steel: "Steel", duct: "Duct" };
+  const labels = { steel: "Steel", duct: "Duct", wall: "Walls", slab: "Slabs" };
+  const isArea = (mode = state.mode) => mode === "wall" || mode === "slab";
+  const areaFields = [["level", "Level"], ["substrate", "Substrate"], ["treatment", "Treatment"], ["system", "Protection system"], ["product", "Protection product"], ["frl", "FRL / fire rating"], ["surface_citation", "True-surface source citation", "textarea"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]];
+  const surfaceHelp = "Trace one actual treatment surface in true projection. A wall plan footprint is not its wall-face surface. No height, second face or multiplier is inferred. Use elevations for wall faces and a stated soffit/top view for slabs. Distorted or perspective views cannot establish calibrated surface areas.";
   const fields = {
     steel: [["mark", "Member mark"], ["level", "Level"], ["member_type", "Member type", ["Beam", "Column"]], ["section", "Steel section"], ["product", "Protection product"], ["fire_period_min", "Fire period (min)", "number"], ["sides", "Exposed sides", "number"], ["critical_temperature", "Critical temperature (°C)", "number"], ["exposure", "Exposure description"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
     duct: [["mark", "Run ID"], ["level", "Level"], ["shape", "Shape", ["rectangular", "circular"]], ["width_mm", "Width (mm)", "number"], ["height_mm", "Height (mm)", "number"], ["diameter_mm", "Diameter (mm)", "number"], ["product", "Protection product"], ["exposure", "Duct application / exposure"], ["system", "Mechanical system"], ["frl", "FRL"], ["orientation", "Orientation", ["Horizontal", "Vertical", "Both"]], ["wall_penetrations", "Wall penetrations", "number"], ["floor_penetrations", "Floor penetrations", "number"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
+    wall: [["mark", "Wall ID"], ["surface_basis", "Surface basis", [["wall-face", "Wall face (true elevation)"]]], ...areaFields],
+    slab: [["mark", "Slab / zone ID"], ["surface_basis", "Surface basis", [["slab-soffit", "Slab soffit"], ["slab-top", "Slab top"]]], ...areaFields],
   };
   const snapshot = () => state.session?.snapshot;
   const documents = () => snapshot()?.documents || [];
@@ -98,7 +103,7 @@
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
     const modes = node("div", "takeoff-modes"); modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", "Takeoff modes");
-    for (const [mode, label] of [["steel", "STEEL"], ["duct", "DUCT"]]) {
+    for (const [mode, label] of [["steel", "STEEL"], ["duct", "DUCT"], ["wall", "WALLS"], ["slab", "SLABS"]]) {
       const el = button(label, () => changeMode(mode), "takeoff-mode"); el.dataset.mode = mode; el.setAttribute("role", "tab"); el.setAttribute("aria-selected", String(state.mode === mode));
       if (!labels[mode]) { el.disabled = true; el.title = "Planned after the Steel and Duct release"; }
       modes.append(el);
@@ -108,7 +113,8 @@
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["cite", "Cite length"]]) { const el = button(title, () => setTool(tool)); el.dataset.tool = tool; toolbar.append(el); }
+    ui.tools = {};
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["cite", "Cite length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : setTool(tool)); el.dataset.tool = tool; ui.tools[tool] = el; toolbar.append(el); }
     toolbar.append(button("Finish trace", finishTrace), button("Cancel trace", cancelTrace));
     ui.calibration = select([["", "Select calibration"]], value => { state.calibration = value; }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, button("Edit calibration", editCalibration));
     const navigation = node("div", "takeoff-toolbar"); navigation.setAttribute("aria-label", "Drawing navigation");
@@ -134,24 +140,34 @@
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Review", () => reviewSelected(false)), button("Confirm", () => reviewSelected(true)), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], () => { if (!state.formDirty) renderInspector(); }); ui.target.setAttribute("aria-label", "Destination schedule");
-    exports.append(ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Linked calculator rows", () => manageLinkedRows()), button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit));
+    ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Linked calculator rows", () => manageLinkedRows())];
+    ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
+    exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit), ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     workspace.append(layout, register); root.append(modes, ui.message, toolbar, navigation, ui.progress, ui.searchResults, workspace);
     ui.overlay.addEventListener("pointerdown", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan);
     ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); void safely(() => zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15)); } }, { passive: false });
-    ui.viewport.addEventListener("keydown", event => { if (event.key === "Escape") cancelTrace(); if (event.key === "Enter" && state.tool === "trace") { event.preventDefault(); void safely(finishTrace); } if (event.key === "Backspace" && state.points.length) { event.preventDefault(); state.points.pop(); renderOverlay(); } });
+    ui.viewport.addEventListener("keydown", event => { if (event.key === "Escape") cancelTrace(); if (event.key === "Enter" && ["trace", "polygon", "exclusion"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); } if (event.key === "Backspace" && state.points.length) { event.preventDefault(); state.points.pop(); renderOverlay(); } });
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); if (state.document) await renderPage(); }
   async function changeMode(mode) { if (!labels[mode] || state.busy) return; if (!await discardEditor()) return; state.mode = mode; state.offset = 0; state.selected.clear(); cancelTrace(); renderData(); }
   function requireFinishedEdits() { if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished item edits and finish or cancel the current trace first."); }
-  async function discardEditor() { if (!state.formDirty && !state.points.length) return true; if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; state.points = []; return true; }
+  async function discardEditor() { if (!state.formDirty && !state.points.length) { if (state.retraceId || state.exclusionItemId) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; cancelTrace(); return true; }
   function renderData() {
     if (!state.ui) return;
     for (const el of state.ui.root.querySelectorAll("[data-mode]")) el.setAttribute("aria-selected", String(el.dataset.mode === state.mode));
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
-    const targets = state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
+    const area = isArea();
+    for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
+    state.ui.areaNotice.hidden = !area;
+    for (const tool of ["trace", "cite"]) state.ui.tools[tool].hidden = area;
+    for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
+    const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Review state"]];
+    if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
+    state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => option(key, label))); state.ui.sort.value = state.sort;
+    const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
     const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => option(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
-    const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(option("quantity", "Quantity"), ...fields[state.mode].map(([key, label]) => option(key, label))); if (oldBulk) state.ui.bulkField.value = oldBulk;
+    const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(...(area ? [] : [option("quantity", "Quantity")]), ...fields[state.mode].map(([key, label]) => option(key, label))); if ((!area && oldBulk === "quantity") || fields[state.mode].some(([key]) => key === oldBulk)) state.ui.bulkField.value = oldBulk;
     renderRail(); renderCalibrations(); renderRegister(); if (!state.formDirty) renderInspector(); renderOverlay(); working(state.busy);
   }
   function renderCalibrations() {
@@ -356,10 +372,24 @@
     } catch (error) { await recordPdfFailure(docId, pageNumber, error, sessionId, true, current); }
   }
   async function zoomBy(factor) { if (!state.document || state.points.length) return; state.zoom = Math.max(0.05, Math.min(8, state.zoom * factor)); await renderPage(); }
-  function setTool(tool) { if (state.busy) return; if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first."); if (state.points.length) throw new Error("Finish or cancel the current trace first."); if (tool === "trace" && !state.calibration) throw new Error("Choose or create the applicable calibration before tracing."); state.tool = tool; state.ui.viewport.dataset.tool = tool; for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool); state.ui.viewport.focus(); state.ui.progress.textContent = ({ calibrate: "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Finish trace or press Enter. Backspace removes the last point.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to inspect its source and fields." })[tool]; }
-  function cancelTrace() { state.retraceId = null; state.points = []; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function setTool(tool, target = {}) {
+    if (state.busy) return;
+    if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
+    if (state.points.length) throw new Error("Finish or cancel the current trace first.");
+    if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
+    if (["polygon", "exclusion"].includes(tool) && state.formDirty) throw new Error("Apply or discard the unfinished item edits before tracing a surface.");
+    if (["trace", "polygon"].includes(tool) && !state.calibration) throw new Error("Choose or create the applicable calibration before tracing.");
+    if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
+    state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null;
+    state.tool = tool; state.ui.viewport.dataset.tool = tool;
+    for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
+    state.ui.viewport.focus();
+    state.ui.progress.textContent = ({ calibrate: "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Finish trace or press Enter. Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then Finish trace or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. It must not touch or overlap another exclusion. Finish trace or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to inspect its source and fields." })[tool];
+  }
+  function cancelTrace() { state.retraceId = null; state.exclusionItemId = null; state.points = []; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function drawingPointer(event) {
-    if (state.busy || !state.viewport || !["calibrate", "trace", "cite"].includes(state.tool) || event.button !== 0) return;
+    if (state.busy || !state.viewport || !["calibrate", "trace", "cite", "polygon", "exclusion"].includes(state.tool) || event.button !== 0) return;
+    if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
     const view = pageMetadata()?.view; if (view && (p[0] < view[0] || p[1] < view[1] || p[0] > view[2] || p[1] > view[3])) return;
     state.points.push(p); renderOverlay(); window.CeasefireProject?.changed?.();
@@ -381,16 +411,75 @@
     const id = uuid(); await command("add_calibration", { calibration: { id, document_id: docId, page, name: result.name, points, distance_m: result.distance_m, uniform_scale: true } }); state.calibration = id; cancelTrace(); renderCalibrations();
   }
   async function createDrawnItem(measurement, geometry, evidence = []) {
+    if (isArea()) {
+      const details = await ask(`Add ${state.mode === "wall" ? "wall" : "slab"} surface`, [["mark", state.mode === "wall" ? "Wall ID" : "Slab / zone ID", "text", "", true], ["quantity", "Explicit physical quantity", [["1", "One physical treatment surface"]], "", true], [...fields[state.mode].find(field => field[0] === "surface_basis"), "", true], ["surface_citation", "True-surface source citation", "textarea", "", true]], surfaceHelp, "Add draft surface");
+      if (!details) return cancelTrace();
+      if (details.quantity !== "1") throw new Error("Identify one physical treatment surface. Separate surfaces need separate items.");
+      const id = uuid();
+      await command("create_item", { item: { id, mode: state.mode, geometry, measurement, quantity: 1, fields: { mark: details.mark, surface_basis: details.surface_basis, surface_citation: details.surface_citation }, evidence } });
+      state.selected = new Set([id]); cancelTrace(); renderSelection(); return;
+    }
     const details = await ask(`Add ${labels[state.mode].toLowerCase()} object`, [["mark", state.mode === "steel" ? "Member mark" : "Run ID", "text", "", true], ["quantity", "Explicit physical quantity", "number", "", true]], "One trace represents one physical object. A repeated quantity must be explicitly supported by the source. This starts as a draft.", "Add draft item");
     if (!details) return cancelTrace(); if (!Number.isInteger(details.quantity) || details.quantity < 1) throw new Error("Enter an explicit positive whole quantity.");
     const id = uuid(); await command("create_item", { item: { id, mode: state.mode, geometry, measurement, quantity: details.quantity, fields: { mark: details.mark }, evidence } }); state.selected = new Set([id]); cancelTrace(); renderSelection();
   }
   async function finishTrace() {
+    if (["polygon", "exclusion"].includes(state.tool)) return finishAreaTrace();
     if (state.tool !== "trace" || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
     if (!state.calibration) throw new Error("Choose the correct calibration.");
     const measurement = { method: "calibrated", calibration_id: state.calibration }, geometry = { document_id: state.document, page: state.page, points: clone(state.points) };
     if (state.retraceId) { const id = state.retraceId; await command("update_item", { item_id: id, changes: { geometry, measurement } }); cancelTrace(); state.selected = new Set([id]); renderSelection(); }
     else await createDrawnItem(measurement, geometry);
+  }
+  async function finishAreaTrace() {
+    G.ring(state.points);
+    if (state.tool === "exclusion") {
+      const item = items().find(value => value.id === state.exclusionItemId);
+      if (!item || !isArea(item.mode) || !item.geometry || item.geometry.document_id !== state.document || item.geometry.page !== state.page) throw new Error("The surface changed. Cancel this trace and select the surface again.");
+      const details = await ask("Add excluded opening", [["note", "Exclusion source / reason", "textarea", "", true]], "This opening is subtracted once from the selected treatment surface. The server checks its geometry. Review and confirmation will be invalidated.", "Add exclusion");
+      if (!details) return cancelTrace();
+      const geometry = clone(item.geometry); geometry.exclusions.push({ id: uuid(), points: clone(state.points), note: details.note });
+      await command("update_item", { item_id: item.id, changes: { geometry } }); cancelTrace(); renderSelection(); return;
+    }
+    if (!state.calibration) throw new Error("Choose the applicable surface calibration.");
+    const measurement = { method: "calibrated", calibration_id: state.calibration };
+    const previous = state.retraceId ? items().find(item => item.id === state.retraceId) : null;
+    if (previous && !isArea(previous.mode)) throw new Error("A linear item cannot become a surface.");
+    const geometry = { kind: "polygon", document_id: state.document, page: state.page, points: clone(state.points), exclusions: previous?.geometry ? clone(previous.geometry.exclusions) : [] };
+    if (previous?.geometry && (previous.geometry.document_id !== state.document || previous.geometry.page !== state.page) && geometry.exclusions.length) throw new Error("Remove existing exclusions before replacing the source page. Their coordinates cannot be moved to another drawing automatically.");
+    if (previous) { await command("update_item", { item_id: previous.id, changes: { geometry, measurement } }); cancelTrace(); state.selected = new Set([previous.id]); renderSelection(); }
+    else await createDrawnItem(measurement, geometry);
+  }
+  function areaTraceLimit() {
+    const item = items().find(value => value.id === (state.tool === "exclusion" ? state.exclusionItemId : state.retraceId));
+    if (!item?.geometry || !isArea(item.mode)) return 1000;
+    return 1000 - item.geometry.exclusions.reduce((total, exclusion) => total + exclusion.points.length, 0) - (state.tool === "exclusion" ? item.geometry.points.length : 0);
+  }
+  async function startExclusion() {
+    requireFinishedEdits(); const selected = selectedItems();
+    if (selected.length !== 1 || !isArea(selected[0].mode)) throw new Error("Select one wall or slab surface to add an exclusion.");
+    const item = selected[0];
+    if (!item.geometry) throw new Error("This surface has no source boundary. Use Attach source on current page before adding exclusions.");
+    if (item.geometry.exclusions.length >= 64) throw new Error("A surface supports up to 64 exclusions.");
+    if (item.geometry.points.length + item.geometry.exclusions.reduce((total, exclusion) => total + exclusion.points.length, 0) > 997) throw new Error("An exclusion needs at least three vertices within the surface's 1,000 total-vertex limit.");
+    await selectItem(item.id); setTool("exclusion", { exclusionItemId: item.id });
+  }
+  async function editAreaBoundary(item, exclusionId) {
+    requireFinishedEdits(); if (!item.geometry) throw new Error("Attach source geometry before editing its vertices."); const exclusion = exclusionId ? item.geometry.exclusions.find(value => value.id === exclusionId) : null;
+    if (exclusionId && !exclusion) throw new Error("This exclusion no longer exists.");
+    const definitions = [["points", "Source vertices (x, y per line)", "textarea", (exclusion?.points || item.geometry.points).map(point => point.join(", ")).join("\n"), true]];
+    if (exclusion) definitions.push(["note", "Exclusion source / reason", "textarea", exclusion.note, true]);
+    const changed = await ask(exclusion ? "Edit excluded opening" : "Edit surface vertices", definitions, "Coordinates are original unrotated PDF coordinates, independent of zoom and screen pixels. Enter at least three distinct points in boundary order; closure is automatic. A surface has a maximum of 1,000 total vertices across all boundaries. The server rejects crossings, invalid holes and points outside the source page. Applying resets review and confirmation.", "Apply geometry");
+    if (!changed) return;
+    const geometry = clone(item.geometry), points = G.parseVertices(changed.points);
+    if (exclusion) { const target = geometry.exclusions.find(value => value.id === exclusionId); target.points = points; target.note = changed.note; } else geometry.points = points;
+    await command("update_item", { item_id: item.id, changes: { geometry } });
+  }
+  async function removeAreaExclusion(item, exclusion) {
+    requireFinishedEdits(); if (!item.geometry) throw new Error("This surface has no source boundary or exclusions.");
+    if (!await confirm("Remove excluded opening?", `The opening “${exclusion.note}” will no longer be subtracted from this surface. Review and confirmation are invalidated. Undo can restore it.`, "Remove exclusion")) return;
+    const geometry = clone(item.geometry); geometry.exclusions = geometry.exclusions.filter(value => value.id !== exclusion.id);
+    await command("update_item", { item_id: item.id, changes: { geometry } });
   }
   async function finishCitation() {
     const points = clone(state.points), region = G.region(points[0], points[1]); if (!(region[2] > 0 && region[3] > 0)) throw new Error("Mark a source region with width and height.");
@@ -406,7 +495,8 @@
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
     for (const item of visibleItems().filter(item => item.geometry && item.measurement && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page)) {
       const points = item.geometry.points.map(convert), className = `takeoff-shape ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`;
-      let shape, hit; if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, class: className }); hit = svg("rect", { ...attrs, class: "takeoff-hit" }); }
+      let shape, hit; if (item.geometry.kind === "polygon") { const attrs = { d: G.polygonPath(item.geometry, state.viewport.transform), "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, class: `${className} takeoff-area-shape` }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
+      else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, class: className }); hit = svg("rect", { ...attrs, class: "takeoff-hit" }); }
       else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, class: className }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
       hit.dataset.itemId = item.id; hit.setAttribute("aria-label", `${item.fields.mark || item.id} · ${reviewStatus(item).label}`); hit.setAttribute("tabindex", "0"); hit.setAttribute("role", "button");
       hit.addEventListener("click", event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
@@ -415,7 +505,7 @@
       const label = svg("text", { x: points[0][0] + 6, y: points[0][1] - 7, class: "takeoff-label" }); label.textContent = item.fields.mark || item.id.slice(0, 8); overlay.append(shape, hit, label);
     }
     for (const hit of state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page)) if (hit.points?.length) { const box = G.bounds(hit.points.map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: Math.max(4, box[2] - box[0]), height: Math.max(4, box[3] - box[1]), class: "takeoff-search-hit" })); }
-    if (state.points.length) { const points = state.points.map(convert); if (state.tool === "cite" && points.length === 2) { const box = G.region(...points); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2], height: box[3], class: "takeoff-pending" })); } else overlay.append(svg("polyline", { points: points.map(p => p.join(",")).join(" "), class: "takeoff-pending" })); for (const p of points) overlay.append(svg("circle", { cx: p[0], cy: p[1], r: 4, class: "takeoff-pending" })); }
+    if (state.points.length) { const points = state.points.map(convert); if (state.tool === "cite" && points.length === 2) { const box = G.region(...points); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2], height: box[3], class: "takeoff-pending" })); } else overlay.append(svg(["polygon", "exclusion"].includes(state.tool) && points.length >= 3 ? "polygon" : "polyline", { points: points.map(p => p.join(",")).join(" "), class: "takeoff-pending" })); for (const p of points) overlay.append(svg("circle", { cx: p[0], cy: p[1], r: 4, class: "takeoff-pending" })); }
   }
   function itemResult(item) { return state.resultMap.get(item.id) || {}; }
   function reviewStatus(item) {
@@ -430,17 +520,22 @@
   function visibleItems() {
     const result = items().filter(item => item.mode === state.mode && (!state.filter || [item.id, ...Object.values(item.fields || {})].join(" ").toLowerCase().includes(state.filter)));
     const filter = state.ui?.statusFilter.value;
-    return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => state.sort === "length" ? (itemResult(a).length_m || 0) - (itemResult(b).length_m || 0) : String(state.sort === "state" ? a.state : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? b.state : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
+    return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => ["length", "area"].includes(state.sort) ? (itemResult(a)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) - (itemResult(b)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) : String(state.sort === "state" ? a.state : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? b.state : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
   }
+  function itemGroup(item) { return state.group ? (state.group === "state" ? item.state : item.fields[state.group] || "Ungrouped") : null; }
+  function groupedItems(list = visibleItems()) { return state.group ? [...list].sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : list; }
   async function selectItem(id, multiple = false, focus = true) {
     if (!await discardEditor()) return;
     const item = items().find(value => value.id === id); if (!item) return;
-    state.mode = item.mode; state.offset = Math.floor(Math.max(0, visibleItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
-    if (focus) { if (!item.geometry) throw new Error("This draft has no source markup yet."); const changed = state.document !== item.geometry.document_id || state.page !== item.geometry.page; state.document = item.geometry.document_id; state.page = item.geometry.page; state.hidden.delete(id); if (changed) { renderRail(); renderCalibrations(); await renderPage(); } await focusGeometry(item); }
-    renderSelection();
+    const modeChanged = state.mode !== item.mode;
+    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));
+    if (focus && !item.geometry) message("This draft has no source markup yet. Inspect its fields, then attach source geometry before review or confirmation.", true);
+    if (focus && item.geometry) { const changed = state.document !== item.geometry.document_id || state.page !== item.geometry.page; state.document = item.geometry.document_id; state.page = item.geometry.page; state.hidden.delete(id); if (changed) { renderRail(); renderCalibrations(); await renderPage(); } await focusGeometry(item); }
+    if (modeChanged) renderData(); else renderSelection();
   }
   async function focusGeometry(item) {
-    if (!state.viewport) return;
+    if (!state.viewport || !item.geometry) return;
     const viewport = state.ui.viewport, firstBox = G.bounds(item.geometry.points.map(p => G.transform(p, state.viewport.transform)));
     const desired = Math.max(0.05, Math.min(4, state.zoom * Math.min((viewport.clientWidth - 90) / Math.max(40, firstBox[2] - firstBox[0]), (viewport.clientHeight - 90) / Math.max(40, firstBox[3] - firstBox[1]))));
     if (Math.abs(desired - state.zoom) > 0.05) { state.zoom = desired; await renderPage(); }
@@ -457,46 +552,58 @@
     const steelGroups = selected.length && selected.every(item => item.mode === "steel" && Number.isInteger(item.quantity) && item.quantity > 0);
     state.ui.split.disabled = !(selected.length === 1 && (individualMeasuredDuct || steelGroups && selected[0].quantity > 1));
     state.ui.merge.disabled = !(individualMeasuredDuct && selected.length === 2 || steelGroups && selected.length >= 2);
-    state.ui.split.title = state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
-    state.ui.merge.title = state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
+    state.ui.split.title = isArea() ? "Surface splitting is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
+    state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
-    const columns = state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", "sides"] : ["mark", "level", "shape", "width_mm", "height_mm", "frl", "system", "orientation"];
-    for (const title of ["Select", "Show", "Source / ID", "State", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), "Qty", "Length (m)", "Total (m)", "Evidence / issues"]) header.append(node("th", "", title)); head.append(header); table.append(head, body);
+    const area = isArea(), columns = area ? ["mark", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", "sides"] : ["mark", "level", "shape", "width_mm", "height_mm", "frl", "system", "orientation"];
+    for (const title of ["Select", "Show", "Source / ID", "State", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length (m)", "Total (m)"]), "Evidence / issues"]) header.append(node("th", "", title)); head.append(header); table.append(head, body);
     let lastGroup = null;
-    const grouped = state.group ? [...list].sort((a, b) => String(state.group === "state" ? a.state : a.fields[state.group] || "Ungrouped").localeCompare(String(state.group === "state" ? b.state : b.fields[state.group] || "Ungrouped"))) : list;
+    const grouped = groupedItems(list);
     state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((grouped.length - 1) / 100) * 100)));
     for (const item of grouped.slice(state.offset, state.offset + 100)) {
-      const group = state.group ? (state.group === "state" ? item.state : item.fields[state.group] || "Ungrouped") : null;
+      const group = itemGroup(item);
       if (state.group && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = columns.length + 8; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
       if (group && state.collapsed.has(group)) continue;
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.addEventListener("pointerenter", () => hover(item.id)); row.addEventListener("pointerleave", () => hover(null));
       const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); check.setAttribute("aria-label", `Select ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
       const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = !state.hidden.has(item.id); show.setAttribute("aria-label", `Show ${item.fields.mark || item.id} on drawing`); show.addEventListener("change", () => { show.checked ? state.hidden.delete(item.id) : state.hidden.add(item.id); renderOverlay(); }); showCell.append(show);
       const linkCell = node("td"); linkCell.append(button(item.id.slice(0, 8), () => selectItem(item.id), "takeoff-row-link")); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
-      for (const key of [...columns, "quantity"]) { const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key); const field = formField(def, key === "quantity" ? item.quantity : item.fields[key]); field.control.addEventListener("change", () => void safely(async () => { if (state.formDirty || state.points.length) { field.control.value = key === "quantity" ? item.quantity ?? "" : item.fields[key] ?? ""; requireFinishedEdits(); } const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
-      const result = itemResult(item); row.append(node("td", "", Number.isFinite(result.length_m) ? units.format(result.length_m) : "—"), node("td", "", Number.isFinite(result.total_length_m) ? units.format(result.total_length_m) : "—"));
-      const evidence = node("td"); evidence.append(node("span", "", `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}`)); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
+      for (const key of [...columns, ...(area ? [] : ["quantity"])]) { const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key); const field = formField(def, key === "quantity" ? item.quantity : item.fields[key]); field.control.addEventListener("change", () => void safely(async () => { if (state.formDirty || state.points.length) { field.control.value = key === "quantity" ? item.quantity ?? "" : item.fields[key] ?? ""; requireFinishedEdits(); } const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
+      const result = itemResult(item);
+      for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", Number.isFinite(result[key]) ? units.format(result[key]) : "—"));
+      const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
     }
     state.ui.pagination.replaceChildren(button("Previous 100", () => { state.offset = Math.max(0, state.offset - 100); renderRegister(); }), node("span", "helper", `${list.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, list.length)} of ${list.length} matching items`), button("Next 100", () => { if (state.offset + 100 < list.length) state.offset += 100; renderRegister(); }));
-    state.ui.tableWrap.replaceChildren(table); if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
+    state.ui.tableWrap.replaceChildren(table); if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", area ? `No matching surfaces. Calibrate the applicable drawing scale, then Trace surface. ${surfaceHelp}` : "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
   }
   function renderInspector() {
     if (!state.ui || state.formDirty) return; const panel = state.ui.inspector, selected = selectedItems(); panel.replaceChildren(node("h3", "", "ITEM INSPECTOR"));
     if (selected.length !== 1) { panel.append(node("p", "helper", selected.length ? `${selected.length} items selected. Use bulk editing below to make one explicit, reversible change.` : "Select a drawing markup or register row to edit its fields and inspect its source.")); return; }
-    const item = selected[0], result = itemResult(item); panel.append(node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} length`));
+    const item = selected[0], result = itemResult(item), area = isArea(item.mode); panel.append(node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} ${area ? "surface area" : "length"}`));
+    const geometryAction = (label, action) => { const control = button(label, action); if (!item.geometry) { control.disabled = true; control.title = "Attach source geometry before using this tool."; } return control; };
+    if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked. Open a rendered source page, select its calibration and use Attach source on current page."));
+    if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
     const controls = fields[item.mode].map(def => { const control = formField(def, item.fields[def[0]]); control.control.addEventListener("input", markFormEdited); panel.append(control.wrapper); return control; });
-    const quantity = formField(["quantity", "Physical quantity", "number"], item.quantity); quantity.control.addEventListener("input", markFormEdited); panel.append(quantity.wrapper);
-    void enrichInspectorOptions(item, controls);
+    const quantity = area ? null : formField(["quantity", "Physical quantity", "number"], item.quantity); if (quantity) { quantity.control.addEventListener("input", markFormEdited); panel.append(quantity.wrapper); }
+    if (!area) void enrichInspectorOptions(item, controls);
     if (item.mode === "steel") panel.append(button("Find steel section", () => findProfile(item), "text-button"));
     if (item.mode === "duct") panel.append(node("p", "helper", "Calculator transfer requires one actual run per item (quantity 1). Circular ducts stay in this register and cannot transfer to the rectangular duct calculator."));
     if (item.member_ids?.length) { const members = node("details"); members.append(node("summary", "helper", `${item.member_ids.length} persistent physical member identities`)); for (const id of item.member_ids) members.append(node("p", "takeoff-identity", id)); panel.append(members); }
-    panel.append(node("p", "takeoff-calibration-summary", `Length: ${Number.isFinite(result.length_m) ? units.format(result.length_m) + " m" : "Unresolved"}${item.measurement?.method === "cited" ? ` · ${item.measurement?.citation}` : ` · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`}`));
-    const actions = node("div", "actions"); actions.append(button("Apply item edits", async () => { const formRevision = state.formRevision || 0; const changes = { fields: Object.fromEntries(controls.map(field => [field.control.name, field.read()])), quantity: quantity.read() }; await command("update_item", { item_id: item.id, changes }); if ((state.formRevision || 0) === formRevision) { state.formDirty = false; renderInspector(); } else message("The captured item edits were applied. Later form edits remain unfinished; apply or discard them separately."); }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderInspector(); window.CeasefireProject?.changed?.(); }), button("Change length basis", () => changeLength(item)), button("Re-trace geometry", () => retrace(item)), button("Replace source on current page", () => replaceSource(item)), button("Add evidence reference", () => addEvidence(item)));
+    const formatArea = key => Number.isFinite(result[key]) ? `${units.format(result[key])} m²` : "Unresolved";
+    panel.append(node("p", "takeoff-calibration-summary", `${area ? `Gross: ${formatArea("gross_area_m2")} · Excluded: ${formatArea("excluded_area_m2")} · Net: ${formatArea("net_area_m2")}` : `Length: ${Number.isFinite(result.length_m) ? units.format(result.length_m) + " m" : "Unresolved"}`}${item.measurement?.method === "cited" ? ` · ${item.measurement?.citation}` : ` · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`}`));
+    const actions = node("div", "actions"); actions.append(button("Apply item edits", async () => { const formRevision = state.formRevision || 0; const changes = { fields: Object.fromEntries(controls.map(field => [field.control.name, field.read()])), ...(quantity ? { quantity: quantity.read() } : {}) }; await command("update_item", { item_id: item.id, changes }); if ((state.formRevision || 0) === formRevision) { state.formDirty = false; renderInspector(); } else message("The captured item edits were applied. Later form edits remain unfinished; apply or discard them separately."); }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderInspector(); window.CeasefireProject?.changed?.(); }), geometryAction(area ? "Change surface calibration" : "Change length basis", () => area ? changeAreaCalibration(item) : changeLength(item)), geometryAction("Re-trace geometry", () => retrace(item)), button(item.geometry ? "Replace source on current page" : "Attach source on current page", () => replaceSource(item)), button("Add evidence reference", () => addEvidence(item)));
+    if (area) actions.append(geometryAction("Edit surface vertices", () => editAreaBoundary(item)), geometryAction("Add excluded opening", startExclusion));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
+    if (area) {
+      const entries = item.geometry?.exclusions || [], exclusions = node("div", "takeoff-exclusions"); exclusions.append(node("h3", "", `${entries.length} EXCLUDED OPENINGS`));
+      for (const exclusion of entries) { const entry = node("div", "takeoff-exclusion"); entry.append(node("p", "helper", exclusion.note), node("p", "takeoff-identity", exclusion.id), button("Edit exclusion", () => editAreaBoundary(item, exclusion.id), "text-button"), button("Remove exclusion", () => removeAreaExclusion(item, exclusion), "text-button")); exclusions.append(entry); }
+      panel.append(exclusions);
+    }
     for (const evidence of item.evidence || []) panel.append(button(`${documentById(evidence.document_id)?.name || "Missing source"} · p${evidence.page}${evidence.fields?.length ? " · " + evidence.fields.join(", ") : ""}: ${evidence.note}`, () => navigateDocument(evidence.document_id, evidence.page), "text-button"));
   }
   async function enrichInspectorOptions(item, controls, product) {
+    if (isArea(item.mode)) return;
     const calculator = state.ui.target.value, request = (state.optionRequest || 0) + 1; state.optionRequest = request;
     const maps = { steel_vermiculite: { product: "B", exposure: "C", critical_temperature: "D", section: "F", fire_period_min: "H" }, steel_board: { product: "C", section: "D", sides: "G", fire_period_min: "H", member_type: "I", critical_temperature: "J" }, ductwork: { product: "C", frl: "E", exposure: "H", orientation: "I" } };
     try {
@@ -517,19 +624,26 @@
   }
   async function findProfile(item) { const data = await ask("Find steel section", [["search", "Section designation", "text", item.fields.section || "", true]], "Select an exact section from the existing calculator database.", "Search"); if (!data) return; const result = await api(`/profiles?calculator=${encodeURIComponent(state.ui.target.value)}&search=${encodeURIComponent(data.search)}`); if (!result.items?.length) throw new Error("No exact database candidates. Refine the section search."); const choice = await ask("Choose a database section", [["section", "Steel section", result.items.map(row => row.id), "", true]], `${result.total} matches. ${result.items.length} shown.`, "Use section"); if (choice) { const control = state.ui.inspector.querySelector('[name="section"]'); if (!control) throw new Error("Select the item again before changing its section."); control.value = choice.section; markFormEdited(); message("Database section selected. Apply item edits to keep this and your other changes."); } }
   async function changeLength(item) { requireFinishedEdits(); const calibrations = snapshot().calibrations.filter(value => value.document_id === item.geometry.document_id && value.page === item.geometry.page); const data = await ask("Change length basis", [["method", "Length basis", ["calibrated", "cited"], item.measurement?.method, true], ["calibration_id", "Page calibration (for measured geometry)", calibrations.map(value => [value.id, value.name]), item.measurement?.calibration_id || ""], ["length_m", "Cited length (metres)", "number", item.measurement?.length_m || ""], ["citation", "Source citation", "textarea", item.measurement?.citation || ""]], "This invalidates review and confirmation. A cited region cannot become a measured run: re-trace its geometry first."); if (!data) return; if (data.method === "calibrated" && item.measurement?.method === "cited") throw new Error("Re-trace this object's actual geometry before using a calibration."); const measurement = data.method === "calibrated" ? { method: "calibrated", calibration_id: data.calibration_id } : { method: "cited", length_m: data.length_m, citation: data.citation }; await command("update_item", { item_id: item.id, changes: { measurement } }); }
-  async function retrace(item) { if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); state.retraceId = item.id; setTool("trace"); message("Trace the replacement geometry, then Finish trace. The same item ID is retained and its confirmation is invalidated."); }
+  async function changeAreaCalibration(item) {
+    requireFinishedEdits(); if (!item.geometry) throw new Error("Attach source geometry before selecting its calibration."); const calibrations = snapshot().calibrations.filter(value => value.document_id === item.geometry.document_id && value.page === item.geometry.page);
+    const changed = await ask("Change surface calibration", [["calibration_id", "Surface page calibration", calibrations.map(value => [value.id, value.name]), item.measurement?.calibration_id || "", true]], "This applies one uniform page scale to the complete surface and all its exclusions. Areas are recalculated by the server. Review and confirmation are invalidated.", "Apply calibration");
+    if (changed) await command("update_item", { item_id: item.id, changes: { measurement: { method: "calibrated", calibration_id: changed.calibration_id } } });
+  }
+  async function retrace(item) { if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isArea(item.mode) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then Finish trace. The same item ID is retained and its confirmation is invalidated.${isArea(item.mode) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
   async function replaceSource(item) {
     requireFinishedEdits(); if (!state.viewport) throw new Error("Open the revised source document page first.");
-    const choice = await ask("Replace this object's primary source", [["method", "Replacement length basis", ["calibrated", "cited"], "", true]], `The current page is ${currentDocument().name}, page ${state.page}. The same physical item ID is retained; its old references remain in evidence and history. The new geometry and measurement will invalidate review, confirmation and linked transfers. Upload revised drawings as new documents first.`, "Mark replacement source");
+    if (isArea(item.mode) && item.geometry?.exclusions.length && (item.geometry.document_id !== state.document || item.geometry.page !== state.page)) throw new Error("Remove the existing exclusions before moving this surface to a revised source page. Exclusion coordinates cannot be mapped between drawings automatically; the old boundaries remain in audit history.");
+    const choice = await ask("Replace this object's primary source", [["method", isArea(item.mode) ? "Replacement surface basis" : "Replacement length basis", isArea(item.mode) ? ["calibrated"] : ["calibrated", "cited"], "", true]], `The current page is ${currentDocument().name}, page ${state.page}. The same physical item ID is retained; its old references remain in evidence and history. The new geometry and measurement will invalidate review, confirmation and linked transfers. Upload revised drawings as new documents first.`, "Mark replacement source");
     if (!choice) return; if (choice.method === "calibrated" && !state.calibration) throw new Error("Select a calibration on the replacement page first.");
-    state.retraceId = item.id; setTool(choice.method === "calibrated" ? "trace" : "cite");
+    setTool(isArea(item.mode) ? "polygon" : choice.method === "calibrated" ? "trace" : "cite", { retraceId: item.id });
   }
-  async function addEvidence(item) { requireFinishedEdits(); const data = await ask("Link supporting source evidence", [["document_id", "Source document", documents().map(value => [value.id, value.name]), state.document, true], ["page", "Page", "number", state.page, true], ["field", "Source field (blank applies to the whole object)", [["quantity", "Physical quantity"], ["length_m", "Length basis"], ...fields[item.mode].map(value => [value[0], value[1]])], ""], ["note", "Evidence note / exact reference", "textarea", "", true]], "Supporting evidence does not create another physical object or add quantities. Use the cited page to corroborate this object's fields."); if (data) await command("update_item", { item_id: item.id, changes: { evidence: [...item.evidence, { document_id: data.document_id, page: data.page, note: data.note, ...(data.field ? { fields: [data.field] } : {}) }] } }); }
-  async function bulkEdit() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value, definition = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(value => value[0] === key), raw = state.ui.bulkValue.value.trim(), value = definition[2] === "number" ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); }
+  async function addEvidence(item) { requireFinishedEdits(); const data = await ask("Link supporting source evidence", [["document_id", "Source document", documents().map(value => [value.id, value.name]), state.document, true], ["page", "Page", "number", state.page, true], ["field", "Source field (blank applies to the whole object)", [["quantity", "Physical quantity"], ...(isArea(item.mode) ? [["net_area_m2", "Surface area basis"]] : [["length_m", "Length basis"]]), ...fields[item.mode].map(value => [value[0], value[1]])], ""], ["note", "Evidence note / exact reference", "textarea", "", true]], "Supporting evidence does not create another physical object or add quantities. Use the cited page to corroborate this object's fields."); if (data) await command("update_item", { item_id: item.id, changes: { evidence: [...item.evidence, { document_id: data.document_id, page: data.page, note: data.note, ...(data.field ? { fields: [data.field] } : {}) }] } }); }
+  async function bulkEdit() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value; if (isArea() && key === "quantity") throw new Error("Each surface is one physical object. Create separate evidenced items for other surfaces."); const definition = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(value => value[0] === key); if (!definition) throw new Error("Choose a bulk edit field."); const raw = state.ui.bulkValue.value.trim(), value = definition[2] === "number" ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); }
   async function selectedCommand(op) { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select at least one item."); await command(op, { item_ids: selected.map(item => item.id) }); }
-  async function reviewSelected(confirming) { const selected = selectedItems(); if (!selected.length) throw new Error("Select items to review."); if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished edits first."); if (!await confirm(`${confirming ? "Confirm" : "Review"} ${selected.length} items?`, confirming ? "Confirm only after inspecting the original drawings, physical quantities, length basis, dimensions, fire requirements and source references. Deterministic checks must pass. Confirmation does not certify technical suitability." : "Mark these objects as human-reviewed after checking their drawing geometry, source dimensions and recorded fields. This does not yet permit schedule transfer.", confirming ? "Confirm reviewed items" : "Mark reviewed")) return; await selectedCommand(confirming ? "confirm_items" : "review_items"); }
+  async function reviewSelected(confirming) { const selected = selectedItems(); if (!selected.length) throw new Error("Select items to review."); if (state.formDirty || state.points.length) throw new Error("Apply or discard the unfinished edits first."); const areaDetail = "Inspect the original true-surface view, every boundary and excluded opening, calibration, gross/excluded/net m², substrate, treatment and fire rating. A wall footprint never establishes wall-face area; no second face or height is inferred. Confirmation permits register export only and does not certify technical suitability."; if (!await confirm(`${confirming ? "Confirm" : "Review"} ${selected.length} items?`, isArea() ? areaDetail : confirming ? "Confirm only after inspecting the original drawings, physical quantities, length basis, dimensions, fire requirements and source references. Deterministic checks must pass. Confirmation does not certify technical suitability." : "Mark these objects as human-reviewed after checking their drawing geometry, source dimensions and recorded fields. This does not yet permit schedule transfer.", confirming ? "Confirm reviewed items" : "Mark reviewed")) return; await selectedCommand(confirming ? "confirm_items" : "review_items"); }
   async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; if (await confirm(`Delete ${selected.length} objects?`, "Their source documents are retained. Linked schedule rows require explicit handling. Undo restores the previous draft.", "Delete objects")) await selectedCommand("delete_items"); }
   async function splitSelected() {
+    if (isArea()) throw new Error("Surface splitting is unavailable. Group separate physical surfaces without changing their identities.");
     requireFinishedEdits(); const selected = selectedItems(); if (selected.length !== 1) throw new Error("Select one repeated steel group or calibrated duct run to split.");
     const item = selected[0];
     if (item.mode === "steel") {
@@ -544,6 +658,7 @@
     const parts = G.split(item.geometry.points, data.percentage / 100).map(points => ({ mode: item.mode, geometry: { ...item.geometry, points }, measurement: clone(item.measurement), quantity: item.quantity, fields: clone(item.fields), evidence: clone(item.evidence) })); await command("split_item", { item_id: item.id, parts });
   }
   async function mergeSelected() {
+    if (isArea()) throw new Error("Surface merging is unavailable. Group separate physical surfaces without changing their identities.");
     requireFinishedEdits(); const selected = selectedItems();
     if (selected.length >= 2 && selected.every(item => item.mode === "steel")) {
       if (await confirm("Merge repeated-member groups?", "Only groups with identical fields, per-member length basis and source geometry can be combined. Every physical member identity and evidence reference is retained. This does not join geometric segments. The combined group requires review again.", "Merge steel groups")) await command("merge_steel_groups", { item_ids: selected.map(item => item.id) });
@@ -598,6 +713,7 @@
     state.ui.progress.textContent = `Text search complete: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed. Scanned pages require visual inspection.`; renderOverlay();
   }
   async function transfer(updateLinked) {
+    if (isArea()) throw new Error("Area records export as m² and cannot transfer to the existing steel or duct calculators.");
     const selected = selectedItems(); if (!selected.length) throw new Error("Select confirmed items to transfer."); if (state.formDirty || state.points.length) throw new Error("Apply or discard unfinished edits before transfer.");
     const calculatorId = state.ui.target.value, target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId), sessionId = state.session.session_id;
     const sourceResults = selected.map(item => clone(itemResult(item)));
@@ -628,13 +744,14 @@
     for (const warning of preview.warnings || []) sections.push(typeof warning === "string" ? warning : `${warning.status || "Calculator note"}${warning.item_id ? ` · ${objects.get(warning.item_id)?.fields.mark || warning.item_id}` : ""}\n${warning.message || warning.reason || "Review the calculator notes before applying."}`);
     return sections.join("\n\n────────────────────\n\n");
   }
-  async function detachSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select linked items to detach."); if (await confirm(`Detach links for ${selected.length} items?`, "The existing calculator values remain as manual schedule entries and remain in totals. Review or remove those manual rows before adding successor items. Future takeoff edits will no longer update detached rows.", "Detach links")) await command("detach_transfers", { item_ids: selected.map(item => item.id), calculator_id: state.ui.target.value }); }
+  async function detachSelected() { if (isArea()) throw new Error("Area records have no calculator transfer links."); requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select linked items to detach."); if (await confirm(`Detach links for ${selected.length} items?`, "The existing calculator values remain as manual schedule entries and remain in totals. Review or remove those manual rows before adding successor items. Future takeoff edits will no longer update detached rows.", "Detach links")) await command("detach_transfers", { item_ids: selected.map(item => item.id), calculator_id: state.ui.target.value }); }
   function linkedRowLabel(binding) {
     const calculator = calculatorName(binding.calculator_id);
     const current = items().find(item => item.id === binding.item_id), mark = current?.fields.mark || binding.values?.[`A${binding.row}`] || `Source ${binding.item_id.slice(0, 8)}`;
     return `${calculator} · ${binding.sheet} row ${binding.row} · ${mark} · ${current ? "retained source link" : "source replaced or deleted"}`;
   }
   async function manageLinkedRows(itemId) {
+    if (isArea() && !itemId) throw new Error("Area records have no calculator transfer links.");
     requireFinishedEdits();
     const bindings = (snapshot()?.transfers || []).filter(binding => itemId ? binding.item_id === itemId : binding.calculator_id === state.ui.target.value).sort((a, b) => a.row - b.row);
     if (!bindings.length) { message("There are no retained links for this destination or source."); return; }
@@ -687,7 +804,7 @@
   function applyProject(prepared) {
     const prior = state.session?.session_id;
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();
-    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.selected.clear(); state.hidden.clear(); state.points = []; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
+    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.selected.clear(); state.hidden.clear(); state.points = []; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
     if (prepared.session) accept(prepared.session);
     if (prior && prior !== state.session?.session_id) void discardPreparedSession(prior);
     if (state.ui) { renderData(); state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.searchResults.replaceChildren(); }

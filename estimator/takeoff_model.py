@@ -13,10 +13,11 @@ import re
 from uuid import UUID, uuid4
 
 from .catalog import ValidationError
+from .takeoff_area import AREA_MODES, measured_area, validate_polygon
 
 MAX_ITEMS = 10000
 MAX_POINTS = 10000
-MODES = ('steel', 'duct')
+MODES = ('steel', 'duct', *AREA_MODES)
 FIELDS = frozenset(('mark', 'level', 'zone', 'group', 'member_type', 'section',
     'product', 'critical_temperature', 'fire_period_min', 'exposure', 'sides',
     'frl', 'shape', 'width_mm', 'height_mm', 'diameter_mm', 'system', 'orientation',
@@ -24,7 +25,8 @@ FIELDS = frozenset(('mark', 'level', 'zone', 'group', 'member_type', 'section',
     'girth_override_m', 'area_override_m2', 'family', 'waste_fraction',
     'exposure_layout', 'partial_depth_mm', 'layer_preference', 'thickness_lookup',
     'installation_detail', 'depth_mm', 'steel_area_cm2', 'steel_mass_kg_m',
-    'added_girth_m', 'design_reference', 'classification', 'riser'))
+    'added_girth_m', 'design_reference', 'classification', 'riser', 'substrate',
+    'treatment', 'surface_basis', 'surface_citation'))
 NUMERIC_FIELDS = frozenset(('critical_temperature', 'fire_period_min', 'sides',
     'width_mm', 'height_mm', 'diameter_mm', 'wall_penetrations', 'floor_penetrations',
     'factor', 'girth_override_m', 'area_override_m2', 'waste_fraction',
@@ -40,6 +42,10 @@ EVIDENCE_FIELDS = {
     'duct': COMMON_EVIDENCE_FIELDS | frozenset(('shape', 'width_mm', 'height_mm', 'diameter_mm',
         'frl', 'orientation', 'wall_penetrations', 'floor_penetrations', 'riser')),
 }
+for _mode in AREA_MODES:
+    EVIDENCE_FIELDS[_mode] = frozenset(('mark', 'level', 'zone', 'group', 'notes', 'product',
+        'system', 'classification', 'quantity', 'frl', 'substrate', 'treatment',
+        'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -200,6 +206,8 @@ def validate_item(value, snapshot, *, copy_result=True):
         raise ValidationError('Choose a supported takeoff mode and review state.')
     if value['quantity'] is not None:
         number(value['quantity'], 'Physical quantity', positive=True, integer=True)
+    if value['mode'] in AREA_MODES and value['quantity'] != 1:
+        raise ValidationError('Each wall or slab item represents exactly one traced treatment surface, with quantity 1.')
     members = value['member_ids']
     if (not isinstance(members, list) or len(members) != (value['quantity'] or 0)
             or len(members) > MAX_ITEMS or any(not isinstance(i, str) for i in members)
@@ -220,9 +228,14 @@ def validate_item(value, snapshot, *, copy_result=True):
             text(field, key)
     geometry = value['geometry']
     if geometry is not None:
-        object_fields(geometry, {'document_id', 'page', 'points'}, 'Markup geometry', {'document_id', 'page', 'points'})
+        if not isinstance(geometry, dict) or not {'document_id', 'page'} <= geometry.keys():
+            raise ValidationError('Markup geometry requires its source document and page.')
         _, page = page_metadata(snapshot, geometry['document_id'], geometry['page'])
-        points(geometry['points'], 'Markup', page)
+        if value['mode'] in AREA_MODES:
+            validate_polygon(geometry, page)
+        else:
+            object_fields(geometry, {'document_id', 'page', 'points'}, 'Markup geometry', {'document_id', 'page', 'points'})
+            points(geometry['points'], 'Markup', page)
     measurement = value['measurement']
     if measurement is not None:
         if not isinstance(measurement, dict):
@@ -234,6 +247,8 @@ def validate_item(value, snapshot, *, copy_result=True):
             if calibration is None or geometry is None or (calibration['document_id'], calibration['page']) != (geometry['document_id'], geometry['page']):
                 raise ValidationError('A calibrated measurement must use a calibration on its own source page.')
         elif measurement.get('method') == 'cited':
+            if value['mode'] in AREA_MODES:
+                raise ValidationError('Surface polygons require calibrated area; a cited length cannot determine surface area.')
             object_fields(measurement, {'method', 'length_m', 'citation'}, 'Cited measurement', {'method', 'length_m', 'citation'})
             number(measurement['length_m'], 'Cited length', positive=True)
             text(measurement['citation'], 'Dimension citation')
@@ -278,16 +293,25 @@ def validate_item(value, snapshot, *, copy_result=True):
                 if actor['kind'] != 'local-session':
                     raise ValidationError('Receipt actor must identify its local review session.')
                 identity(actor['session_id'], 'Receipt actor session ID')
-                fields = {'engine', 'quantity', 'length_m', 'total_length_m', 'evidence_verified', 'issues'}
+                area = value['mode'] in AREA_MODES
+                measurement_fields = ('gross_area_m2', 'excluded_area_m2', 'net_area_m2') if area else ('length_m', 'total_length_m')
+                fields = {'engine', 'quantity', *measurement_fields, 'evidence_verified', 'issues'}
                 checks = object_fields(receipt.get('checks'), fields, 'Receipt checks', fields)
-                if checks['engine'] != 'takeoffs-v1' or checks['evidence_verified'] is not True:
+                if checks['engine'] != ('takeoffs-area-v1' if area else 'takeoffs-v1') or checks['evidence_verified'] is not True:
                     raise ValidationError('Receipt checks must identify verified takeoff evidence and the check engine.')
-                for field in ('quantity', 'length_m'):
+                for field in ('quantity',) if area else ('quantity', 'length_m'):
                     if checks[field] is not None:
                         number(checks[field], 'Receipt '+field, positive=True, integer=field == 'quantity')
-                total = checks['total_length_m']
-                if total is not None and (type(total) not in (int, float) or not 0 < total <= 1e16 or not math.isfinite(total)):
-                    raise ValidationError('Receipt total length must be a bounded positive number.')
+                if area and checks['quantity'] != 1:
+                    raise ValidationError('Area receipt quantity must identify one treatment surface.')
+                for field in measurement_fields if area else ('total_length_m',):
+                    total = checks[field]
+                    if total is not None and (type(total) not in (int, float) or not 0 <= total <= 1e16 or not math.isfinite(total)
+                                              or total == 0 and field != 'excluded_area_m2'):
+                        raise ValidationError('Receipt measurements must be bounded positive values; excluded area may be zero.')
+                if area and all(checks[field] is not None for field in measurement_fields):
+                    if checks['net_area_m2'] != checks['gross_area_m2'] - checks['excluded_area_m2']:
+                        raise ValidationError('Area receipt net area must exactly equal gross area less exclusions.')
                 if not isinstance(checks['issues'], list) or len(checks['issues']) > 256:
                     raise ValidationError('Receipt checks require a bounded issue list.')
                 for issue in checks['issues']:
@@ -296,7 +320,7 @@ def validate_item(value, snapshot, *, copy_result=True):
                         raise ValidationError('Receipt issues must identify their own item.')
                     text(issue['code'], 'Receipt issue code', 100)
                     text(issue['message'], 'Receipt issue message')
-                if key == 'confirmation' and (checks['issues'] or any(checks[field] is None for field in ('quantity', 'length_m', 'total_length_m'))):
+                if key == 'confirmation' and (checks['issues'] or any(checks[field] is None for field in ('quantity', *measurement_fields))):
                     raise ValidationError('Confirmation requires complete deterministic checks with no unresolved issues.')
     if value['state'] in ('reviewed', 'confirmed') and value['review'] is None:
         raise ValidationError('Reviewed items must retain a review receipt.')
@@ -318,6 +342,8 @@ def item_digest(item, snapshot):
 
 
 def measured_length(item, snapshot):
+    if item['mode'] in AREA_MODES:
+        raise ValidationError('Wall and slab surfaces have area measurements, not transferable linear lengths.')
     measurement = item['measurement']
     if not measurement:
         raise ValidationError('Choose a calibrated or source-cited length.')
@@ -334,9 +360,13 @@ def item_result(item, snapshot):
     def add(code, message):
         issues.append({'item_id': item['id'], 'code': code, 'message': message})
     length = None
+    area = {key: None for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
     try:
-        length = measured_length(item, snapshot)
-        number(length, 'Measured length', positive=True)
+        if item['mode'] in AREA_MODES:
+            area = measured_area(item, snapshot)
+        else:
+            length = measured_length(item, snapshot)
+            number(length, 'Measured length', positive=True)
     except (ValidationError, StopIteration, TypeError) as error:
         add('MISSING_MEASUREMENT', str(error) or 'The measurement is incomplete.')
     if item['quantity'] is None:
@@ -352,10 +382,16 @@ def item_result(item, snapshot):
         if not render or render['sha256'] != doc['sha256'] or not render['success'] or render['warnings']:
             add('PAGE_REVIEW_BLOCKED', 'Render and visually inspect every supporting page without unresolved rendering warnings.')
     fields = item['fields']
-    required = ('section', 'member_type', 'exposure', 'fire_period_min') if item['mode'] == 'steel' else ('shape', 'frl', 'orientation')
+    required = (('mark', 'treatment', 'substrate', 'frl', 'surface_basis', 'surface_citation') if item['mode'] in AREA_MODES
+                else ('section', 'member_type', 'exposure', 'fire_period_min') if item['mode'] == 'steel'
+                else ('shape', 'frl', 'orientation'))
     for name in required:
-        if fields.get(name) in (None, ''):
+        if fields.get(name) in (None, '') or item['mode'] in AREA_MODES and isinstance(fields.get(name), str) and not fields[name].strip():
             add('MISSING_FIELD', f'Enter {name.replace("_", " ")}.')
+    if item['mode'] in AREA_MODES:
+        bases = ('wall-face',) if item['mode'] == 'wall' else ('slab-soffit', 'slab-top')
+        if fields.get('surface_basis') not in bases:
+            add('INVALID_SURFACE_BASIS', 'Identify the actual treated surface. A wall footprint is not a wall-face area.')
     if item['mode'] == 'steel' and fields.get('fire_period_min') is not None and fields['fire_period_min'] <= 0:
         add('INVALID_FRL', 'Fire period must be positive.')
     if item['mode'] == 'duct':
@@ -366,10 +402,13 @@ def item_result(item, snapshot):
         for name in dimensions:
             if fields.get(name) is None or fields[name] <= 0:
                 add('MISSING_DIMENSION', f'Enter a positive {name.replace("_", " ")}.')
+    if item['mode'] == 'duct' or item['mode'] in AREA_MODES:
         rating = fields.get('frl')
         if rating and (not re.fullmatch(r'(?:-|\d{1,4})/(?:-|\d{1,4})/(?:-|\d{1,4})', rating)
                        or not any(component != '-' and int(component) > 0 for component in rating.split('/'))):
             add('INVALID_FRL', 'FRL must retain its three explicit fire-rating components.')
+    if item['mode'] in AREA_MODES:
+        return {'id': item['id'], **area, 'issues': issues}
     return {'id': item['id'], 'length_m': length,
             'total_length_m': length * item['quantity'] if length is not None and item['quantity'] is not None else None,
             'issues': issues}

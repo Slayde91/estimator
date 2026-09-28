@@ -41,7 +41,26 @@
     throw new Error("The trace cannot be split here.");
   }
   function region(a, b) { const box = bounds([a, b]); return [box[0], box[1], box[2] - box[0], box[3] - box[1]]; }
-  const api = { transform, inverse, length, bounds, split, region };
+  function ring(points) {
+    if (!Array.isArray(points) || points.length < 3 || points.length > 1000 || !points.every(point)) throw new Error("An area boundary needs 3–1,000 finite source-coordinate vertices.");
+    const seen = new Set(points.map(p => JSON.stringify(p)));
+    if (seen.size !== points.length) throw new Error("Each boundary vertex must be distinct. The boundary closes automatically; do not repeat its first vertex.");
+    return points;
+  }
+  function polygonPath(geometry, matrix) {
+    if (geometry?.kind !== "polygon" || !Array.isArray(geometry.exclusions)) throw new Error("The polygon boundary or exclusions are missing.");
+    return [geometry.points, ...geometry.exclusions.map(exclusion => exclusion.points)].map(points => ring(points).map(p => transform(p, matrix)).map((p, i) => `${i ? "L" : "M"}${p[0]},${p[1]}`).join(" ") + " Z").join(" ");
+  }
+  function parseVertices(text) {
+    const lines = String(text).trim().split(/\r?\n/);
+    const points = lines.map(line => {
+      const parts = line.trim().split(/[\s,]+/);
+      if (parts.length !== 2 || parts.some(value => !value || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value))) throw new Error("Enter one source-coordinate pair per line, in the form x, y.");
+      return parts.map(Number);
+    });
+    return ring(points);
+  }
+  const api = { transform, inverse, length, bounds, split, region, ring, polygonPath, parseVertices };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.CeasefireTakeoffGeometry = api;
 })(globalThis);

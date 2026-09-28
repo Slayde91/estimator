@@ -106,6 +106,40 @@ def make_failed_image_pdf(path):
         writer.write(stream)
 
 
+def make_area_pdf(path):
+    """True-plane synthetic wall/slab surfaces, with an offset rotated copy."""
+    from reportlab.pdfgen import canvas
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject, NumberObject, RectangleObject
+    source = BytesIO()
+    drawing = canvas.Canvas(source, pagesize=(842, 595), invariant=1)
+    for name in ('WALL ELEVATION: ONE TREATED FACE', 'SLAB SOFFIT: TRUE-PLANE SURFACE'):
+        drawing.setFont('Helvetica', 16)
+        drawing.drawString(50, 550, 'SYNTHETIC AREA ACCEPTANCE - NOT A PROJECT DESIGN')
+        drawing.setFont('Helvetica', 11)
+        drawing.drawString(100, 510, name)
+        drawing.drawString(100, 490, 'Concrete | nominated board treatment | FRL 120/120/120')
+        drawing.setLineWidth(2)
+        drawing.rect(100, 200, 400, 240)
+        drawing.setStrokeColorRGB(.8, 0, 0)
+        drawing.rect(180, 260, 80, 80)
+        drawing.setStrokeColorRGB(0, 0, 0)
+        drawing.drawString(100, 170, 'Surface: 10 m x 6 m = 60 m2; exclusion: 2 m x 2 m = 4 m2')
+        drawing.drawString(100, 150, 'Net treated area = 56 m2. One physical surface; no inferred faces.')
+        drawing.drawString(100, 100, 'Baseline 10 m. Uniform scale in both axes.')
+        drawing.line(100, 75, 500, 75)
+        drawing.showPage()
+    drawing.save()
+    writer = PdfWriter()
+    for page in PdfReader(source).pages:
+        writer.add_page(page)
+    writer.pages[1].cropbox = RectangleObject([20, 30, 800, 570])
+    writer.pages[1].rotate(90)
+    writer.pages[1][NameObject('/UserUnit')] = NumberObject(2)
+    with Path(path).open('wb') as stream:
+        writer.write(stream)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fixture-only')
@@ -122,6 +156,7 @@ if __name__ == '__main__':
         fixture = folder / 'synthetic-drawings.pdf'; make_pdf(fixture)
         failed_fixture = folder / 'failed-image.pdf'; make_failed_image_pdf(failed_fixture)
         board_fixture = folder / 'synthetic-board.pdf'; make_board_pdf(board_fixture)
+        area_fixture = folder / 'synthetic-surfaces.pdf'; make_area_pdf(area_fixture)
         project = folder / 'browser-project.json'
         class Dialogs:
             def choose_save(self, initial_directory, filename):
@@ -131,7 +166,7 @@ if __name__ == '__main__':
             def choose_folder(self, initial_directory):
                 return str(folder)
         server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
-        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'project': str(project), 'directory': str(folder)}), flush=True)
+        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'area_fixture': str(area_fixture), 'project': str(project), 'directory': str(folder)}), flush=True)
         try:
             server.serve_forever()
         finally:

@@ -1,8 +1,8 @@
-# Manual Steel and Duct takeoffs
+# Manual drawing takeoffs
 
 TAKEOFFS adds a drawing and evidence register to the existing project. It does
 not change calculator formulas, shared pricing, frozen project prices or the
-priced quote. Steel and Duct are the available modes. Other disciplines and AI
+priced quote. Steel, Duct, Walls and Slabs are the available modes. Penetrations and AI
 are outside this release.
 
 ## Working with a drawing
@@ -37,6 +37,36 @@ are outside this release.
 Unknown properties remain blank. Review and confirmation record a local
 user/session action, not an authenticated person's identity or a manufacturer
 approval of technical suitability.
+
+## Walls and Slabs
+
+Choose WALLS or SLABS, calibrate the applicable page scale, then **Trace surface**.
+Click the boundary vertices in order and finish the trace; closure is automatic.
+Identify the actual treated surface, its source reference, substrate, nominated
+treatment and FRL. A wall polygon must depict a true wall face, such as an
+elevation. A slab polygon explicitly identifies its top or soffit. A wall plan
+footprint does not establish a wall-face area; no height or second face is inferred.
+
+Each item represents one distinct physical treatment surface. Use **Add exclusion**
+to trace an opening within the selected boundary and record its source/reason.
+Exclusions must be strictly inside, without touching or overlapping each other
+or the outer boundary. The register reports gross, excluded and net square metres.
+The backend squares the calibration scale and keeps unrounded results; page
+rotation, CropBox offsets, UserUnit, zoom and screen density do not change area.
+
+The inspector can re-trace the boundary, edit original PDF vertices and edit or
+remove individual exclusions. Each exclusion has a persistent ID. These edits
+invalidate review and confirmation and can be undone. Bulk edits, row/source
+selection, filtering, grouping, review, confirmation and project persistence use
+the shared workspace. Surface split/merge is explicitly unavailable; grouping
+separate surfaces preserves their individual identities.
+
+Confirmed CSV/XLSX registers retain all exclusion geometry and source-bound area
+checks. Surface items have no mapping to the existing length-based calculators
+or priced quote, so calculator transfer is blocked for every area item.
+Each surface supports at most 1,000 total vertices and 64 exclusions. Invalid,
+self-crossing, degenerate or out-of-page geometry is rejected without changing
+the current item. Multiple page scales must be separately calibrated.
 
 ## Transferring to calculators
 
@@ -112,6 +142,8 @@ human review, even when its portable evidence is intact.
   original, unrotated PDF coordinates. CropBox, page rotation and UserUnit are
   retained. Screen zoom/device pixel ratio affect display only. Precision is
   retained until display/export formatting.
+- `takeoff_area.py` validates bounded polygon topology and computes true-surface
+  areas and exclusions with the square of the retained page calibration.
 - `takeoff_workspace.py` controls expected revisions, idempotent commands,
   review/confirmation, transfer receipts and paged history. Small additive SQLite
   tables store local approval/transfer authority.
@@ -156,6 +188,9 @@ and bounded document workers and thumbnails.
 `npm run test:takeoffs-timeouts` verifies that a stalled PDF request becomes a
 visible failure, blocks its evidence and permits a healthy retry. PDF opening,
 page loading, rendering and text extraction each have a 30-second deadline.
+`npm run test:takeoffs-areas` exercises wall/slab tracing, exclusions, rotated and
+cropped sources with UserUnit 2, bulk edit/undo, confirmation, Save As/reopen and
+CSV/XLSX export while checking that calculator state is unchanged.
 
 The rendered tests never connect to the user's running server. CI also runs the
 complete existing Python/JavaScript regression suites and distribution build.

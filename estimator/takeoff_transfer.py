@@ -58,7 +58,10 @@ def _required(fields, keys):
 
 def mapped_values(item, snapshot, calculator_id, row):
     fields = item['fields']
-    if (calculator_id == 'ductwork') != (item['mode'] == 'duct'):
+    expected_mode = {'steel_vermiculite': 'steel', 'steel_board': 'steel', 'ductwork': 'duct'}.get(calculator_id)
+    if item['mode'] in ('wall', 'slab'):
+        raise ValidationError('Wall and slab areas remain in the confirmed takeoff register; no approved calculator transfer mapping exists for these surfaces.')
+    if expected_mode is None or item['mode'] != expected_mode:
         raise ValidationError('The selected item does not belong in this calculator.')
     _required(fields, ('product',))
     length = measured_length(item, snapshot)

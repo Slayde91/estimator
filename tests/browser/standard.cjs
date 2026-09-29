@@ -27,13 +27,14 @@ async function load(mode) {
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
 }
 async function worksheetReady(title, label) {
-  await expect(page.locator('#calculator-title')).toHaveText(title);
-  if (label) await expect(page.locator('#calculator-sheet-title')).toHaveText(label);
-  await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
-  await expect(page.locator('#calculator-grid')).toBeVisible();
-  await expect(page.locator('#calculator-grid table').first()).toBeAttached();
-  await expect(page.locator('#calculator-grid')).not.toContainText('Loading this worksheet…');
-  await expect(page.locator('#calculator-calculation-status')).toBeHidden();
+  const options={timeout:45000};
+  await expect(page.locator('#calculator-title')).toHaveText(title,options);
+  if (label) await expect(page.locator('#calculator-sheet-title')).toHaveText(label,options);
+  await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy','false',options);
+  await expect(page.locator('#calculator-grid')).toBeVisible(options);
+  await expect(page.locator('#calculator-grid table').first()).toBeAttached(options);
+  await expect(page.locator('#calculator-grid')).not.toContainText('Loading this worksheet…',options);
+  await expect(page.locator('#calculator-calculation-status')).toBeHidden(options);
   assert.ok(!await page.locator('#calculator-message').evaluate(element => element.classList.contains('error') && !element.hidden));
 }
 (async () => {

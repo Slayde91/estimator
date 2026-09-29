@@ -6,7 +6,7 @@
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlExactNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 15 });
-  const state = { list: null, entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, calculating: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
+  const state = { list: null, listRequest: null, definitionRequests: new Map(), entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, calculating: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
   const descriptions = {
     steel_vermiculite: "Steel schedules, coating thicknesses and material quantities",
     ductwork: "Ductwork dimensions, protection systems and quantities",
@@ -296,6 +296,28 @@
     catch { throw new Error(`The server returned an unreadable response (${response.status}).`); }
     if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
     return data;
+  }
+
+  async function calculatorList() {
+    if (state.list) return state.list;
+    if (!state.listRequest) {
+      const pending = request("/api/calculators").then(data => data.calculators);
+      state.listRequest = pending;
+      try { state.list = await pending; return state.list; }
+      finally { if (state.listRequest === pending) state.listRequest = null; }
+    }
+    return state.listRequest;
+  }
+
+  async function calculatorDefinition(id) {
+    if (state.entries.has(id)) return state.entries.get(id).definition;
+    if (state.definitionRequests.has(id)) return state.definitionRequests.get(id);
+    // Share only an in-flight read. Each caller still applies its own navigation
+    // and project guards, and draft inputs are cloned when creating an entry.
+    const pending = request(endpoint(id));
+    state.definitionRequests.set(id, pending);
+    try { return await pending; }
+    finally { if (state.definitionRequests.get(id) === pending) state.definitionRequests.delete(id); }
   }
 
   function columnName(value) {
@@ -1373,7 +1395,7 @@
     try {
       let entry = state.entries.get(id);
       if (!entry) {
-        const definition = await request(endpoint(id));
+        const definition = await calculatorDefinition(id);
         if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
         const inputs = clone(definition.inputs || {});
         const page = displayPages(definition)[0];
@@ -1391,10 +1413,13 @@
   }
 
   async function open() {
+    const serial = ++state.loadRevision;
     try {
-      if (!state.list) { const data = await request("/api/calculators"); state.list = data.calculators; renderChoices(); }
-      if (state.list.length) await selectCalculator(state.current || state.list[0].id);
-    } catch (error) { message(`Could not load the calculators. ${error.message}`, true); }
+      const list = await calculatorList();
+      if (serial !== state.loadRevision || window.CeasefireProposalCalculators?.isFirestopping?.()) return;
+      renderChoices();
+      if (list.length) await selectCalculator(state.current || list[0].id);
+    } catch (error) { if (serial === state.loadRevision && !window.CeasefireProposalCalculators?.isFirestopping?.()) message(`Could not load the calculators. ${error.message}`, true); }
   }
 
   function confirmReplace(title, detail, buttonText) {
@@ -1518,16 +1543,24 @@
     return JSON.stringify({ action: state.action, entries: [...state.entries].map(([id, entry]) => [id, entry.inputs, entry.saved, entry.scheduleRows, entry.savedRows, [...entry.invalid]]) });
   }
 
-  async function prepareProject(calculators) {
+  function preparedProject(list, definitions, calculators) {
     if (state.action) throw new Error("Wait for the current calculator action to finish.");
-    const list = state.list || (await request("/api/calculators")).calculators;
-    const entries = await Promise.all(list.map(async ({ id }) => {
-      const definition = state.entries.get(id)?.definition || await request(endpoint(id));
+    const entries = definitions.map(definition => {
+      const id = definition.id;
       if (!calculators[id]?.inputs) throw new Error("The project is missing a calculator.");
       const page = displayPages(definition)[0];
       return [id, { definition, inputs: clone(calculators[id].inputs), saved: null, scheduleRows: calculators[id].schedule_rows && [...calculators[id].schedule_rows], savedRows: JSON.stringify(calculators[id].schedule_rows), revision: 0, page: page.id, sheet: page.sheet, needsRender: true, result: null, pendingResult: null, labels: {}, invalid: new Map() }];
-    }));
+    });
     return { list, entries };
+  }
+
+  async function prepareProject(calculators) {
+    if (state.action) throw new Error("Wait for the current calculator action to finish.");
+    const list = await calculatorList();
+    // Project preparation has a separate lifetime from navigation. An older
+    // first-open read must not delay loading or populate the previous draft.
+    const definitions = await Promise.all(list.map(async ({ id }) => state.entries.get(id)?.definition || await request(endpoint(id))));
+    return preparedProject(list, definitions, calculators);
   }
 
   function applyProject(prepared) {
@@ -1542,10 +1575,10 @@
 
   async function prepareDefaults() {
     if (state.action) throw new Error("Wait for the current calculator action to finish.");
-    const list = state.list || (await request("/api/calculators")).calculators;
+    const list = await calculatorList();
     const definitions = await Promise.all(list.map(async ({ id }) => state.entries.get(id)?.definition || await request(endpoint(id))));
     const calculators = Object.fromEntries(definitions.map(definition => [definition.id, { inputs: clone(definition.defaults || {}), ...(definition.schedule ? { schedule_rows: [definition.schedule.first_row] } : {}) }]));
-    const prepared = await prepareProject(calculators);
+    const prepared = preparedProject(list, definitions, calculators);
     for (const [, entry] of prepared.entries) entry.saved = JSON.stringify(entry.inputs);
     return prepared;
   }
@@ -1575,9 +1608,9 @@
   function hasUnsavedChanges() { return [...state.entries.values()].some(entry => dirty(entry) || entry.invalid.size); }
 
   async function completeProjectSnapshot() {
-    const list = state.list || (await request("/api/calculators")).calculators;
+    const list = await calculatorList();
     const context = state.entries;
-    const definitions = await Promise.all(list.filter(({ id }) => !context.has(id)).map(async ({ id }) => request(endpoint(id))));
+    const definitions = await Promise.all(list.filter(({ id }) => !context.has(id)).map(({ id }) => request(endpoint(id))));
     if (state.entries !== context) throw new Error("The project changed while reading calculator inputs. Save it again when ready.");
     state.list = list;
     for (const definition of definitions) {

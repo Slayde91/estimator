@@ -5,7 +5,6 @@ calculations must use ``formula`` and literal ``value`` fields, never caches.
 Public loaders return independent copies so an estimate cannot mutate defaults.
 """
 
-from copy import deepcopy
 from functools import lru_cache
 import gzip
 import json
@@ -121,18 +120,23 @@ def _require_id(workbook_id):
 
 
 @lru_cache(maxsize=3)
-def _load(workbook_id):
+def _source_json(workbook_id):
+    """Cache immutable source text, not a large mutable object graph."""
     _require_id(workbook_id)
     with gzip.open(DATA_DIRECTORY / f"{workbook_id}.json.gz", "rt", encoding="utf-8") as source:
-        data = json.load(source)
-    if data.get("schema_version") != SCHEMA_VERSION or data.get("id") != workbook_id:
-        raise ValueError("Packaged calculator schema does not match the application.")
-    return data
+        return source.read()
 
 
 def load_workbook_catalog(workbook_id):
-    """Return an independent full model; modifications never change defaults."""
-    return deepcopy(_load(_require_id(workbook_id)))
+    """Decode an independent model; modifications never change defaults.
+
+    JSON decoding preserves every packaged value while avoiding a Python-level
+    deepcopy of the entire formula graph on the first calculator visit.
+    """
+    data = json.loads(_source_json(_require_id(workbook_id)))
+    if data.get("schema_version") != SCHEMA_VERSION or data.get("id") != workbook_id:
+        raise ValueError("Packaged calculator schema does not match the application.")
+    return data
 
 
 def list_workbook_catalogs():

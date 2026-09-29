@@ -72,8 +72,12 @@ def application_formula_overrides(model):
     masters['AQ'] = ('IF(AND(AS11,BD11=3),"FyreWrap manual v290426 pp.8-9,24-27,38-39; '
                      'FC17299-01-1; FCO3226 Rev F. Application FRL preserves directional requirements.",'
                      + original('AQ11') + ')')
+    # Translation is relative to the fixed master, so its tokens can be reused
+    # for every row without reparsing the same formula 1,000 times.
+    translators = {column: Translator('=' + formula, origin=f'{column}11')
+                   for column, formula in masters.items()}
     return {'CALCULATOR': {
-        f'{column}{row}': Translator('=' + formula, origin=f'{column}11').translate_formula(f'{column}{row}').lstrip('=')
-        for column, formula in masters.items()
+        f'{column}{row}': translator.translate_formula(f'{column}{row}').lstrip('=')
+        for column, translator in translators.items()
         for row in range(model['schedule']['first_row'], model['schedule']['last_row'] + 1)
     }}

@@ -159,9 +159,20 @@ class ReferenceLibrary:
         self._data, self._stamp = data, stamp
         return data
 
-    def _validate(self, data):
+    def _same_technical_source(self, data, source):
+        # Saved Firestopping overlays only change penetration items and links.
+        # Reuse technical projection only from this instance's validated source,
+        # with the exact same raw records, assets and review dependencies. This
+        # capability is passed by Python code, never read from an imported index.
+        return (source is not None and source is self._data
+                and data['libraries']['technical'] is source['libraries']['technical']
+                and all(data.get(key) is source.get(key) for key in (
+                    'documents', 'images', 'trafalgar_selector_import', 'technical_duplicate_reviews')))
+
+    def _validate(self, data, *, validated_source=None):
         if not isinstance(data, dict) or type(data['schema_version']) is not int or data['schema_version'] != 1:
             raise ValueError('Unsupported library schema')
+        reuse_technical = self._same_technical_source(data, validated_source)
         documents = data['documents']
         images = data.get('images', [])
         if not isinstance(documents, list) or len(documents) > 1000 or not isinstance(images, list) or len(images) > 50000:
@@ -191,6 +202,11 @@ class ReferenceLibrary:
         if set(data['libraries']) != set(KINDS):
             raise ValueError('Missing library')
         for kind in KINDS:
+            if kind == 'technical' and reuse_technical:
+                records[kind] = validated_source['_records'][kind]
+                searches[kind] = validated_source['_searches'][kind]
+                filters[kind] = validated_source['_filters'][kind]
+                continue
             library = data['libraries'][kind]
             items = library['items']
             if not isinstance(items, list) or len(items) > 50000:
@@ -316,15 +332,17 @@ class ReferenceLibrary:
                 searches[kind][key] = '\n'.join(text).casefold()
             filters[kind] = [{'key': key, 'label': label, 'options': [{'value': value, 'label': value} for value in (facet_options(key, filter_values[key]) if kind == 'technical' else sorted(filter_values[key], key=str.casefold))]} for key, label in filter_labels.items()
                              if kind != 'technical' or key != 'trafalgar_category']
-        aliases, groups = reviewed_groups(data, records['technical'], assets)
+        aliases, groups = ((validated_source['_aliases'], validated_source['_groups']) if reuse_technical
+                           else reviewed_groups(data, records['technical'], assets))
         visible = {kind: [key for key in records[kind]
                           if kind != 'technical' or aliases.get(key, key) == key] for kind in KINDS}
-        for canonical, members in groups.items():
-            searches['technical'][canonical] += '\n' + '\n'.join(
-                key + '\n' + searches['technical'][key] for key in members)
-            for key in members:
-                records['technical'][key]['consolidated_ids'] = list(members)
-                records['technical'][key]['canonical_id'] = canonical
+        if not reuse_technical:
+            for canonical, members in groups.items():
+                searches['technical'][canonical] += '\n' + '\n'.join(
+                    key + '\n' + searches['technical'][key] for key in members)
+                for key in members:
+                    records['technical'][key]['consolidated_ids'] = list(members)
+                    records['technical'][key]['canonical_id'] = canonical
         links = {kind: {key: [] for key in records[kind]} for kind in KINDS}
         seen = set()
         if not isinstance(data['links'], list) or len(data['links']) > 500000:

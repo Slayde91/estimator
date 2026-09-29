@@ -169,6 +169,12 @@ class WorkbookCatalogTests(unittest.TestCase):
         index.clear()
         self.assertEqual(len(list_workbook_catalogs()), 3)
 
+    def test_loaded_models_preserve_every_packaged_json_value(self):
+        for identity, actual in self.books.items():
+            with self.subTest(identity=identity):
+                with gzip.open(DATA_DIRECTORY / f'{identity}.json.gz', 'rt', encoding='utf-8') as source:
+                    self.assertEqual(actual, json.load(source))
+
     def test_identifiers_and_ranges_are_bounded(self):
         for invalid in ("../ductwork", "unknown", None):
             with self.assertRaises(ValidationError):

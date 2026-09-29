@@ -34,7 +34,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
 let source = fs.readFileSync('static/calculators.js', 'utf8');
 source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };', `
-  globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,
+  globalThis.audit = {state,current,dirty,displayValue,numericInputValue,makeControl,setInput,calculate,save,reset,importSchedule,open,
      addScheduleRow,removeScheduleRow,undoScheduleRemove,projectSnapshot,projectFingerprint,prepareDefaults,markProjectSaved,choiceSignature,
      exportTemplate,downloadSchedulePdf,downloadExcelRegister,downloadMaterialsSummaryPdf,selectCalculator,selectPage,prepareProject,applyProject,headerLabels,safeDocumentUrl,renderGrid,renderOverview,renderProductTotals,outputState,updateOutputCell,renderDocuments,renderChoices,sourceDisplayText,hiddenColumns,
     setRequest(fn){request=fn;},setFetch(fn){globalThis.fetch=fn;},setRender(fn){renderGrid=fn;}};
@@ -51,7 +51,7 @@ const renderedTable=()=>descendants(byId('calculator-grid')).find(node=>node.tag
 const renderedControls=()=>descendants(byId('calculator-grid')).filter(node=>node.dataset?.calculatorCell);
 function setup(inputs = {}) {
   audit.state.entries.clear();
-  Object.assign(audit.state, { current: 'steel_board', requestRevision: 0, loadRevision: 0, action: false, list: [{ id: 'steel_board', title: 'Structural Steel Board' }] });
+  Object.assign(audit.state, { current: 'steel_board', requestRevision: 0, loadRevision: 0, action: false, listRequest: null, definitionRequests: new Map(), list: [{ id: 'steel_board', title: 'Structural Steel Board' }] });
   const entry = {
     definition: { id: 'steel_board', title: 'Structural Steel Board', pages: ['CALCULATOR', 'SETTINGS'],
       sheets: [{ name: 'CALCULATOR', max_row: 208, max_column: 3, header_rows: [8], hidden_columns: [], merges: [] }, { name: 'SETTINGS', header_rows: [5], hidden_columns: [], merges: [] }],
@@ -314,15 +314,69 @@ let passed = 0;
   oldResponse.resolve(result({ CALCULATOR: { B9: 0 } })); await oldRun;
   assert.equal(entry.inputs.CALCULATOR.B9, 8); assert.equal(other.inputs.CALCULATOR.B9, 22); passed++;
 
-  // An older metadata response cannot replace a calculator draft opened by a newer request.
+  // Repeated first opens share one definition read and create one independent draft.
   entry = setup(); const definition = copy(entry.definition); audit.state.entries.clear(); audit.state.current = null;
-  const earlier = deferred(), later = deferred(); let loads = 0;
-  audit.setRequest(path => path.endsWith('/worksheet') ? Promise.resolve(result()) : (++loads === 1 ? earlier.promise : later.promise));
+  const firstDefinition = deferred(); let loads = 0, firstWorksheets = 0;
+  const sourceDefinition = { ...definition, inputs: { CALCULATOR: { B9: 2 } } };
+  audit.setRequest((path, options) => path.endsWith('/worksheet') ? (++firstWorksheets, Promise.resolve(result(JSON.parse(options.body).inputs))) : (++loads, firstDefinition.promise));
   const firstOpen = audit.selectCalculator('steel_board'), secondOpen = audit.selectCalculator('steel_board');
-  later.resolve({ ...definition, inputs: {} }); await secondOpen;
+  assert.equal(loads,1);firstDefinition.resolve(sourceDefinition);await Promise.all([firstOpen,secondOpen]);
   const retained = audit.current(); audit.setInput(retained, 'CALCULATOR', 'B9', 33);
-  earlier.resolve({ ...definition, inputs: { CALCULATOR: { B9: 2 } } }); await firstOpen;
-  assert.equal(audit.current(), retained); assert.equal(audit.current().inputs.CALCULATOR.B9, 33); passed++;
+  assert.equal(firstWorksheets,1);assert.equal(audit.state.definitionRequests.size,0);
+  assert.equal(audit.current(), retained);assert.equal(audit.current().inputs.CALCULATOR.B9,33);assert.equal(sourceDefinition.inputs.CALCULATOR.B9,2);passed++;
+
+  // Concurrent section opens coalesce list and definition requests; only the newest navigates.
+  setup();audit.state.entries.clear();Object.assign(audit.state,{current:null,list:null});
+  const firstList=deferred(), sharedDefinition=deferred();let listLoads=0,definitionLoads=0,worksheetLoads=0;
+  audit.setRequest((path,options)=>path==='/api/calculators'?(++listLoads,firstList.promise):path.endsWith('/worksheet')?(++worksheetLoads,Promise.resolve(result(JSON.parse(options.body).inputs))):(++definitionLoads,sharedDefinition.promise));
+  const openSection1=audit.open(),openSection2=audit.open();assert.equal(listLoads,1);
+  firstList.resolve({calculators:[{id:'steel_board',title:'Structural Steel Board'}]});await flush();assert.equal(definitionLoads,1);
+  const openSection3=audit.open();await flush();assert.equal(definitionLoads,1);
+  sharedDefinition.resolve(sourceDefinition);await Promise.all([openSection1,openSection2,openSection3]);
+  assert.equal(worksheetLoads,1);assert.equal(audit.current().inputs.CALCULATOR.B9,2);assert.equal(audit.state.listRequest,null);passed++;
+
+  // A slow list cannot override a more recent explicit calculator selection.
+  setup();audit.state.entries.clear();Object.assign(audit.state,{current:null,list:null});
+  const delayedList=deferred();let selectedDefinitionLoads=0;
+  audit.setRequest((path,options)=>path==='/api/calculators'?delayedList.promise:path.endsWith('/worksheet')?Promise.resolve(result(JSON.parse(options.body).inputs)):(++selectedDefinitionLoads,Promise.resolve({...sourceDefinition,id:'ductwork',title:'Ductwork'})));
+  const waitingListOpen=audit.open();await audit.selectCalculator('ductwork');
+  delayedList.resolve({calculators:[{id:'steel_board',title:'Structural Steel Board'},{id:'ductwork',title:'Ductwork'}]});await waitingListOpen;
+  assert.equal(audit.current().definition.id,'ductwork');assert.equal(selectedDefinitionLoads,1);passed++;
+
+  // Independently pending definitions keep the newest selection, regardless of completion order.
+  setup();audit.state.entries.clear();audit.state.current=null;
+  const oldDefinition=deferred(),newDefinition=deferred();
+  audit.setRequest((path,options)=>path.endsWith('/worksheet')?Promise.resolve(result(JSON.parse(options.body).inputs)):path.endsWith('/steel_board')?oldDefinition.promise:newDefinition.promise);
+  const oldDefinitionOpen=audit.selectCalculator('steel_board'),newDefinitionOpen=audit.selectCalculator('ductwork');
+  newDefinition.resolve({...sourceDefinition,id:'ductwork',title:'Ductwork'});await newDefinitionOpen;
+  audit.setInput(audit.current(),'CALCULATOR','B9',44);oldDefinition.resolve(sourceDefinition);await oldDefinitionOpen;
+  assert.equal(audit.current().definition.id,'ductwork');assert.equal(audit.current().inputs.CALCULATOR.B9,44);assert.equal(audit.state.entries.has('steel_board'),false);passed++;
+
+  // Failed shared reads are removed so a later open retries instead of retaining a rejected promise.
+  setup();audit.state.entries.clear();Object.assign(audit.state,{current:null,list:null});
+  const failedList=deferred();let retryLists=0,retryDefinitions=0;const failedDefinition=deferred();
+  audit.setRequest((path,options)=>path==='/api/calculators'?(++retryLists,retryLists===1?failedList.promise:Promise.resolve({calculators:[{id:'steel_board',title:'Structural Steel Board'}]})):path.endsWith('/worksheet')?Promise.resolve(result(JSON.parse(options.body).inputs)):(++retryDefinitions,retryDefinitions===1?failedDefinition.promise:Promise.resolve(sourceDefinition)));
+  const failedOpen1=audit.open(),failedOpen2=audit.open();failedList.reject(new Error('List unavailable'));await Promise.all([failedOpen1,failedOpen2]);
+  assert.equal(retryLists,1);assert.equal(audit.state.listRequest,null);assert.match(byId('calculator-message').textContent,/List unavailable/);
+  const definitionRetry1=audit.open();await flush();const definitionRetry2=audit.selectCalculator('steel_board');
+  assert.equal(retryDefinitions,1);failedDefinition.reject(new Error('Definition unavailable'));await Promise.all([definitionRetry1,definitionRetry2]);
+  assert.equal(audit.state.definitionRequests.size,0);assert.match(byId('calculator-message').textContent,/Definition unavailable/);
+  await audit.open();assert.equal(retryLists,2);assert.equal(retryDefinitions,2);assert.equal(audit.current().definition.id,'steel_board');passed++;
+
+  // Preparing a new project's defaults uses each fetched definition once and clones its inputs.
+  setup();audit.state.entries.clear();Object.assign(audit.state,{current:null,list:null});
+  const defaultDefinitions=[{...sourceDefinition,defaults:{CALCULATOR:{B9:12}}},{...sourceDefinition,id:'ductwork',title:'Ductwork',defaults:{CALCULATOR:{B9:34}}}],defaultRequests=[];
+  audit.setRequest(async path=>{defaultRequests.push(path);return path==='/api/calculators'?{calculators:defaultDefinitions.map(({id,title})=>({id,title}))}:defaultDefinitions.find(item=>path.endsWith(`/${item.id}`));});
+  const preparedDefaults=await audit.prepareDefaults();assert.equal(defaultRequests.length,3);assert.equal(audit.state.entries.size,0);
+  assert.deepEqual(copy(preparedDefaults.entries.map(([,item])=>item.inputs.CALCULATOR.B9)),[12,34]);
+  preparedDefaults.entries[0][1].inputs.CALCULATOR.B9=99;assert.equal(defaultDefinitions[0].defaults.CALCULATOR.B9,12);assert.equal(preparedDefaults.entries[1][1].inputs.CALCULATOR.B9,34);passed++;
+
+  // Loading a project while a shared definition is pending invalidates its navigation only.
+  const loadedDefinition=copy(definition);setup();audit.state.entries.clear();audit.state.current=null;
+  const projectDefinition=deferred();audit.setRequest(()=>projectDefinition.promise);
+  const obsoleteOpen=audit.selectCalculator('steel_board');
+  audit.applyProject({list:[{id:'steel_board',title:'Structural Steel Board'}],entries:[['steel_board',{definition:loadedDefinition,inputs:{CALCULATOR:{B9:81}},saved:'{}',revision:0,page:'CALCULATOR',sheet:'CALCULATOR',invalid:new Map(),result:null,needsRender:true}]]});
+  projectDefinition.resolve(sourceDefinition);await obsoleteOpen;assert.equal(audit.state.current,null);assert.equal(audit.state.entries.get('steel_board').inputs.CALCULATOR.B9,81);passed++;
 
   // A slow first workbook load cannot reopen its workspace after Firestopping is selected.
   audit.state.entries.clear();Object.assign(audit.state,{current:null,loadRevision:0,list:[{id:'steel_board',title:'Structural Steel Board'}]});byId('calculator-workspace').hidden=true;

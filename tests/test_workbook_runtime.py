@@ -19,6 +19,21 @@ def sheet(model, name):
 
 
 class WorkbookRuntimeTests(unittest.TestCase):
+    def test_duct_override_rows_match_independent_master_translation(self):
+        from openpyxl.formula.translate import Translator
+        model = source_model('ductwork')
+        overrides = approved_formula_overrides('ductwork')['CALCULATOR']
+        first, last = model['schedule']['first_row'], model['schedule']['last_row']
+        columns = {address.rstrip('0123456789') for address in overrides}
+        for column in columns:
+            origin = f'{column}{first}'
+            master = overrides.get(origin, sheet(model, 'CALCULATOR')['cells'][origin]['formula'])
+            for row in (last, first + 1, (first + last) // 2):
+                target = f'{column}{row}'
+                with self.subTest(target=target):
+                    self.assertEqual(overrides[target],
+                                     Translator('=' + master, origin=origin).translate_formula(target).lstrip('='))
+
     def test_runtime_capacity_titles_and_source_evidence_are_separate(self):
         before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in DATA_DIRECTORY.glob('*') if path.is_file()}
         self.assertEqual([(entry['id'], entry['title']) for entry in calculator_list()['calculators']],

@@ -234,7 +234,9 @@ def self_test(data_directory, output_report):
                 for index, label in enumerate(('Steel spray', 'Steel board', 'Ductwork')):
                     before = set(directory.glob('*.xlsx'))
                     probe.script(f'document.querySelectorAll("#calculator-list button[data-estimator-kind=estimate]")[{index}].click();')
-                    probe.wait('!document.querySelector("#calculator-workspace").hidden && !document.querySelector("#calculator-excel").disabled')
+                    # Export availability alone can precede the first worksheet
+                    # response. Require calculated, rendered content as well.
+                    probe.wait('!document.querySelector("#calculator-workspace").hidden && !document.querySelector("#calculator-excel").disabled && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table") && !document.querySelector("#calculator-grid").textContent.includes("Loading this worksheet")')
                     probe.script('document.querySelector("#calculator-message").textContent="";')
                     probe.click('#calculator-excel')
                     probe.wait('document.querySelector("#calculator-message").textContent.includes("saved to")')
@@ -282,7 +284,7 @@ def self_test(data_directory, output_report):
                 cancel_deadline()
         window.events.loaded += lambda: threading.Thread(target=check, name='NativeAcceptance', daemon=True).start()
     try:
-        run(data_directory=directory, seed_directory=seed, project_dialogs=Dialogs(), hidden=False, on_window=mounted)
+        run(data_directory=directory, seed_directory=seed, project_dialogs=Dialogs(), hidden=True, on_window=mounted)
         if not done.wait(1):
             report['errors'].append('Native window closed before acceptance completed.')
         report['completed'] = report['completed'] and not report['errors']

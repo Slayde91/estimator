@@ -153,7 +153,8 @@ def project_calculator_report(calculator_id, inputs=None):
             record['complete'] = _numeric(values['N'] if record['wrap'] else values['M'])
         elif calculator_id == 'steel_vermiculite':
             record['complete'] = isinstance(values['W'], str) and values['W'].startswith('QUANTIFIED')
-            if values['B'] in ('MONOKOTE MK-6 HY', 'MONOKOTE Z106') and values['C'] == 'Hollow - 4 sides':
+            if (str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
+                    and str(values['C']).casefold() == 'hollow - 4 sides'):
                 record['assessment_reference'] = values['X']
                 # Y binds the retained input factor to the new thickness basis.
                 # Blocked results can have a separate X source locator.

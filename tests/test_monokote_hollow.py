@@ -128,6 +128,89 @@ class MonokoteHollowTests(unittest.TestCase):
         self.assertEqual(engine.value('SCHEDULE', 'V10'), 'UNSUPPORTED HOLLOW SECTION')
         self.assertEqual(engine.value('SCHEDULE', 'T10'), '')
 
+    def test_saved_case_variants_preserve_inputs_and_use_the_same_policy(self):
+        variants = [('monokote mk-6 hy', 'hollow - 4 sides'),
+                    ('MoNoKoTe Mk-6 Hy', 'HoLlOw - 4 SiDeS'),
+                    ('monokote z106', 'hollow - 4 sides'),
+                    ('MoNoKoTe Z106', 'HoLlOw - 4 SiDeS')]
+        for product, exposure in variants:
+            inputs = row_inputs(product, C=exposure)
+            original_inputs = deepcopy(inputs)
+            normalized, engine, _ = calculator_session('steel_vermiculite', inputs)
+            reference = self.engine(row_inputs(product.upper()))
+            with self.subTest(product=product, exposure=exposure):
+                self.assertEqual(normalized['SCHEDULE']['B10'], product)
+                self.assertEqual(normalized['SCHEDULE']['C10'], exposure)
+                self.assertEqual(inputs, original_inputs)
+                for column in ('M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'):
+                    self.assertEqual(engine.value('SCHEDULE', column + '10'),
+                                     reference.value('SCHEDULE', column + '10'))
+                self.assertEqual(engine.value('CALCULATOR', 'G29'), 41.94)
+                self.assertEqual(engine.value('CALCULATOR', 'G30'), 'UPPER ROW')
+                self.assertNotIn('H23:N24', calculate_worksheet(
+                    'steel_vermiculite', inputs, 'CALCULATOR')['omitted_ranges'])
+                held = self.engine(row_inputs(product, C=exposure, E='HP/A', G=250, D=650, H=240))
+                self.assertEqual(held.value('SCHEDULE', 'V10'), 'BLOCKED - SOURCE REVIEW')
+                self.assertEqual(held.value('SCHEDULE', 'P10'), '')
+                self.assertEqual(held.value('SCHEDULE', 'T10'), '')
+
+    def test_method_and_lookup_case_variants_keep_excel_option_semantics(self):
+        for method, canonical, factor in [('section', 'Section', None),
+                                          ('HP/A', 'Hp/A', 122), ('esa/m', 'ESA/M', 15.4)]:
+            for choice, canonical_choice in [('NEXT HIGHER (ESTIMATE)', 'Next higher (estimate)'),
+                                              ('exact only', 'Exact only')]:
+                inputs = row_inputs(E=method, G=factor)
+                inputs['SETTINGS']['D14'] = choice
+                expected = row_inputs(E=canonical, G=factor)
+                expected['SETTINGS']['D14'] = canonical_choice
+                normalized, engine, _ = calculator_session('steel_vermiculite', inputs)
+                reference = self.engine(expected)
+                with self.subTest(method=method, choice=choice):
+                    self.assertEqual(normalized['SCHEDULE']['E10'], method)
+                    self.assertEqual(normalized['SETTINGS']['D14'], choice)
+                    for column in ('M', 'N', 'O', 'P', 'S', 'T', 'V', 'W'):
+                        self.assertEqual(engine.value('SCHEDULE', column + '10'),
+                                         reference.value('SCHEDULE', column + '10'))
+        assessment = policy.load_assessment()
+        self.assertEqual(policy.lookup(assessment, 125, 550, 120, policy='exact only').thickness, 41.94)
+        self.assertEqual(policy.lookup(assessment, 122, 550, 120, policy='exact only').status, 'NO EXACT FACTOR ROW')
+        self.assertEqual(policy.lookup(assessment, 125, 550, 120, policy=' Exact only').status, 'CHECK LOOKUP POLICY')
+        self.assertEqual(self.engine(row_inputs(E='Section ')).value('SCHEDULE', 'V10'), 'CHECK METHOD')
+
+    def test_case_variant_pdf_and_xlsx_keep_valid_and_missing_evidence_receipts(self):
+        for available in (True, False):
+            if not available:
+                self.path.unlink()
+            expected_receipt = sha256(self.payload).hexdigest() if available else 'data is not installed'
+            for product in ('monokote mk-6 hy', 'MoNoKoTe Mk-6 Hy', 'monokote z106', 'MoNoKoTe Z106'):
+                with self.subTest(available=available, product=product):
+                    inputs = row_inputs(product, C='hollow - 4 sides')
+                    data = project_calculator_report('steel_vermiculite', inputs)
+                    self.assertEqual(data['inputs']['SCHEDULE']['B10'], product)
+                    self.assertEqual(data['assessment_evidence']['available'], available)
+                    self.assertEqual(data['rows'][0]['complete'], available)
+                    self.assertEqual(data['rows'][0]['values']['P'], 41.94 if available else '')
+                    self.assertIn('columns only', data['rows'][0]['assessment_source'])
+                    if not available:
+                        self.assertEqual(self.engine(inputs).value('SCHEDULE', 'V10'), 'ASSESSMENT DATA UNAVAILABLE')
+                        self.assertEqual(self.engine(inputs).value('SCHEDULE', 'T10'), '')
+                        self.assertEqual(self.engine(inputs).value('CALCULATOR', 'G29'), '')
+                    workbook = load_workbook(BytesIO(build_calculator_register('steel_vermiculite', inputs)))
+                    text = '\n'.join(str(cell.value) for sheet in workbook for row in sheet for cell in row)
+                    self.assertIn(expected_receipt, text)
+                    self.assertIn('columns only', text)
+                    self.assertIn(product, text)
+                    for build in (build_calculator_report, build_calculator_summary_report):
+                        pdf = PdfReader(BytesIO(build('steel_vermiculite', inputs)))
+                        text = '\n'.join(page.extract_text() for page in pdf.pages)
+                        self.assertIn(expected_receipt, text.replace('\n', ''))
+                        self.assertIn('columns only', text)
+                        if build is build_calculator_report:
+                            self.assertIn(product, text)
+                        else:
+                            # Product totals retain the workbook's canonical labels.
+                            self.assertIn(product.casefold(), text.casefold())
+
     def test_all_period_comparison_uses_new_evidence_and_visible_basis(self):
         inputs = row_inputs()
         engine = self.engine(inputs)

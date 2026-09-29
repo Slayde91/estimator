@@ -159,14 +159,16 @@ def lookup(assessment, factor, temperature, period, *, policy='Next higher (esti
         return HollowResult('ENTER POSITIVE FACTOR', 'Enter a valid positive hollow-section factor. ' + SCOPE)
     if factor < FACTORS[0] or factor > FACTORS[-1]:
         return HollowResult('FACTOR OUT OF RANGE', 'The factor is outside FAR4856 Issue2. No extrapolation or reduced factor is permitted. ' + SCOPE, actual_factor=factor)
-    if policy not in ('Exact only', 'Next higher (estimate)'):
+    # Excel option comparisons ignore case; retain the original saved text.
+    policy_key = str(policy).casefold()
+    if policy_key not in ('exact only', 'next higher (estimate)'):
         return HollowResult('CHECK LOOKUP POLICY', 'Select Exact only or Next higher (estimate). ' + SCOPE, actual_factor=factor)
     position = bisect_left(FACTORS, factor)
     selected = FACTORS[position]
     exact = factor == selected
     table = assessment.tables[PERIODS.index(period)]
     source = f'FAR4856 Issue2 p{table.page} Table {table.table}; {temperature:g}C; Hp/A up to {selected}'
-    if not exact and policy == 'Exact only':
+    if not exact and policy_key == 'exact only':
         return HollowResult('NO EXACT FACTOR ROW', 'No exact assessment factor row is available under the selected policy. ' + SCOPE,
                             actual_factor=factor, table_factor=selected, source=source)
     held = next((cell[3] for cell in assessment.blocked_cells if cell[:3] == (period, selected, temperature)), None)
@@ -211,8 +213,8 @@ the source graph and consume the corrected estimating thickness through AD.
 
     def _affected(self, row):
         if row not in self._hollow_cases:
-            self._hollow_cases[row] = (self._original(row, 'A') == 'MONOKOTE MK-6 HY'
-                                       and self._original(row, 'B') == 'H4')
+            self._hollow_cases[row] = (str(self._original(row, 'A')).casefold() == 'monokote mk-6 hy'
+                                       and str(self._original(row, 'B')).casefold() == 'h4')
         return self._hollow_cases[row]
 
     def hollow_scope_active(self, row):
@@ -237,8 +239,9 @@ the source graph and consume the corrected estimating thickness through AD.
         if row in self._hollow_basis:
             return self._hollow_basis[row]
         method = self._original(row, 'D')
+        method_key = str(method).casefold()
         factor, note, issue = '', '', None
-        if method == 'Section':
+        if method_key == 'section':
             section = self._original(row, 'AN')
             index = self._original(row, 'BY')
             if not section or not _number(index) or index <= 0:
@@ -264,9 +267,9 @@ the source graph and consume the corrected estimating thickness through AD.
                             note = f'Retained shared section factor {factor} m-1; source: {source}. Verify the actual section geometry.'
                         else:
                             issue = ('NO SHARED SECTION FACTOR', 'No retained section factor is available for this hollow member.')
-        elif method in ('Hp/A', 'ESA/M'):
+        elif method_key in ('hp/a', 'esa/m'):
             factor = self._original(row, 'F')
-            if method == 'ESA/M' and _number(factor):
+            if method_key == 'esa/m' and _number(factor):
                 density = super().cell('SETTINGS', 13, column_number('D'))
                 factor = factor * density / 1000 if _number(density) and density > 0 else ''
             note = f'User-entered {method} factor; verify the fully exposed hollow-column geometry and source.'

@@ -160,6 +160,10 @@ The desktop build installs the separately verified artifact as
 Missing, changed, malformed or redirected evidence withholds affected results;
 it never restores the old manual thickness. Each request verifies the evidence
 before selecting a cached session, and report/Excel exports use the same policy.
+Product, exposure, method and lookup-policy comparisons retain Excel's
+case-insensitive option matching. Saved input text remains unchanged; the policy
+does not trim whitespace or guess another option. Case variants receive the
+same assessment scope, evidence receipt and fail-closed checks in exports.
 
 The policy requires an exact published temperature and period, and retains the
 existing `Exact only` or `Next higher (estimate)` factor choice. Next-higher

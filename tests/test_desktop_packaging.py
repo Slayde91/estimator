@@ -1,19 +1,24 @@
 """Private content stays outside code; factory packaging preserves scoped state."""
 from copy import deepcopy
+from contextlib import redirect_stderr
 import hashlib
+import io
 import json
 from pathlib import Path
 import sqlite3
 import shutil
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from prepare_desktop_seed import prepare
-from build_windows import verify_seed, verify_packaged_content, runtime_provenance, verify_runtime_fingerprints, check_output, DATA_FILES, STATIC_FILES
+from build_windows import (verify_seed, verify_packaged_content, runtime_provenance,
+    verify_runtime_fingerprints, check_output, DATA_FILES, STATIC_FILES,
+    stage_calculator_evidence, verify_calculator_evidence, verify_packaged_calculator_evidence)
 from estimator.catalog import ValidationError
 from estimator.desktop_seed_content import (encoded, export_library_edits, validate_library_edits,
     insert_library_edits, TABLE_COLUMNS)
@@ -21,6 +26,121 @@ from estimator.firestopping_library import FirestoppingLibrary
 from estimator.reference_library import ReferenceLibrary
 from estimator.storage import Store
 from test_firestopping_library import editable_library
+
+
+class CalculatorEvidencePackagingTests(unittest.TestCase):
+    """Exercise packaging with a stub authority; private assessment rows stay local."""
+    def setUp(self):
+        from estimator.monokote_hollow import DATASET_FILENAME
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.source = self.root / 'private-evidence'
+        self.source.mkdir()
+        self.filename = DATASET_FILENAME
+        self.payload = b'{"synthetic_packaging_fixture":true}'
+        (self.source / self.filename).write_bytes(self.payload)
+        self.stage = self.root / 'staged'
+
+    @staticmethod
+    def synthetic_authority(payload):
+        # Deliberately accepts any bytes so fingerprint tests independently prove
+        # that a later accepted revision cannot replace the recorded build input.
+        return SimpleNamespace(digest=hashlib.sha256(payload).hexdigest(), report_sha256='0' * 64)
+
+    def test_stages_only_expected_file_and_records_exact_identity(self):
+        from estimator.monokote_hollow import DATASET_ID
+        (self.source / 'source-report.pdf').write_bytes(b'private neighboring report')
+        (self.source / 'unrelated.json').write_text('{}')
+        with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority):
+            receipt = stage_calculator_evidence(self.source, self.stage, required=True)
+            self.assertEqual(receipt, {'id':DATASET_ID, 'filename':self.filename,
+                'sha256':hashlib.sha256(self.payload).hexdigest(), 'bytes':len(self.payload),
+                'report_sha256':'0' * 64})
+            self.assertEqual([path.name for path in self.stage.iterdir()], [self.filename])
+            self.assertEqual((self.stage / self.filename).read_bytes(), self.payload)
+            self.assertEqual(verify_calculator_evidence(self.source, receipt, private_input=True), receipt)
+            # Existing staged output must never be overwritten.
+            with self.assertRaises(FileExistsError):
+                stage_calculator_evidence(self.source, self.stage)
+
+    def test_synthetic_omission_is_explicit_but_deliverable_requires_evidence(self):
+        self.assertIsNone(stage_calculator_evidence(None, self.stage))
+        self.assertFalse(self.stage.exists())
+        with self.assertRaisesRegex(ValueError, '--calculator-evidence'):
+            stage_calculator_evidence(None, self.stage, required=True)
+        bundle = self.root / 'bundle'
+        self.assertIsNone(verify_packaged_calculator_evidence(bundle, None))
+        (bundle / '_internal/calculator-evidence').mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError, 'Unexpected calculator evidence'):
+            verify_packaged_calculator_evidence(bundle, None)
+
+    def test_full_installer_rejects_missing_explicit_evidence_before_build(self):
+        import build_windows
+        args = ['build_windows.py', '--output', str(self.root / 'out'), '--seed', str(self.source),
+            '--iscc', 'compiler.exe', '--webview2-installer', 'runtime-x64.exe',
+            '--webview2-arm64-installer', 'runtime-arm64.exe']
+        error = io.StringIO()
+        with patch('build_windows.os', SimpleNamespace(name='nt')), patch.object(sys, 'argv', args), \
+                patch('build_windows.runtime_provenance') as runtimes, redirect_stderr(error):
+            with self.assertRaises(SystemExit):
+                build_windows.main()
+            runtimes.assert_not_called()
+        self.assertIn('--calculator-evidence', error.getvalue())
+
+    def test_unreviewed_evidence_is_rejected_by_real_runtime_validator(self):
+        with self.assertRaisesRegex(ValueError, 'reviewed digest'):
+            stage_calculator_evidence(self.source, self.stage)
+        self.assertFalse(self.stage.exists())
+
+    def test_input_and_stage_must_remain_outside_source_checkout(self):
+        with patch('build_windows.ROOT', self.source):
+            with self.assertRaisesRegex(ValueError, 'outside the repository'):
+                stage_calculator_evidence(self.source, self.stage)
+        with patch('build_windows.ROOT', self.stage), \
+                patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority):
+            with self.assertRaisesRegex(ValueError, 'outside the repository'):
+                stage_calculator_evidence(self.source, self.stage)
+        self.assertFalse(self.stage.exists())
+
+    def test_missing_and_nonregular_evidence_are_rejected(self):
+        (self.source / self.filename).unlink()
+        with self.assertRaises(FileNotFoundError):
+            stage_calculator_evidence(self.source, self.stage)
+        (self.source / self.filename).mkdir()
+        with self.assertRaisesRegex(ValueError, 'nonregular file'):
+            stage_calculator_evidence(self.source, self.stage)
+
+    def test_evidence_read_is_bounded_before_validation(self):
+        from estimator.monokote_hollow import MAX_DATASET_BYTES
+        (self.source / self.filename).write_bytes(b'x' * (MAX_DATASET_BYTES + 4096))
+        with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=ValueError('bounded size')) as validate:
+            with self.assertRaisesRegex(ValueError, 'bounded size'):
+                stage_calculator_evidence(self.source, self.stage)
+        self.assertEqual(len(validate.call_args.args[0]), MAX_DATASET_BYTES + 1)
+        self.assertFalse(self.stage.exists())
+
+    def test_source_stage_and_frozen_mutations_fail_against_recorded_snapshot(self):
+        with patch('estimator.monokote_hollow.validate_assessment_payload', side_effect=self.synthetic_authority):
+            receipt = stage_calculator_evidence(self.source, self.stage)
+            bundle = self.root / 'bundle'
+            frozen = bundle / '_internal/calculator-evidence'
+            shutil.copytree(self.stage, frozen)
+            self.assertEqual(verify_packaged_calculator_evidence(bundle, receipt), receipt)
+            for directory in (self.source, self.stage, frozen):
+                file = directory / self.filename
+                file.write_bytes(self.payload.replace(b'true', b'null'))
+                with self.assertRaisesRegex(ValueError, 'changed during the build'):
+                    verify_calculator_evidence(directory, receipt)
+                file.write_bytes(self.payload)
+            extra = frozen / 'unreviewed.json'
+            extra.write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'unexpected files'):
+                verify_packaged_calculator_evidence(bundle, receipt)
+            extra.unlink()
+            (frozen / self.filename).unlink()
+            with self.assertRaisesRegex(ValueError, 'missing or unexpected files'):
+                verify_packaged_calculator_evidence(bundle, receipt)
 
 
 class DesktopPackagingTests(unittest.TestCase):

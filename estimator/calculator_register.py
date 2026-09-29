@@ -106,7 +106,7 @@ def _schedule(data, workbook):
                   'Estimating thickness (mm)', 'Spray surface (m²)', 'Net bags', 'Whole bags per line', 'Status']
         widths = [9, 28, 25, 26, 24, 14, 16, 21, 21, 19, 18, 18, 65]
         records = [[item['line'], v['AA'], v['A'], v['B'], v['F'], v['I'], v['J'], v['O'], v['P'], v['R'], v['T'], v['U'],
-                    '\n'.join(str(value) for value in (v['V'], v['W']) if value not in (None, '')) or 'No calculated status returned']
+                    '\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_source')) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     else:
         labels = ['Line', 'Mark', 'Location', 'Product', 'Section', 'Design period (min)', 'Critical temperature (°C)', 'Board stack (mm)',
@@ -138,6 +138,9 @@ def _summary(data, workbook):
     row += 1
     _band(sheet, row, f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Totals retain the source workbook's exclusions; review item statuses before ordering.", len(widths))
     row += 2
+    if data.get('assessment_receipt'):
+        _band(sheet, row, data['assessment_receipt'], len(widths))
+        row += 2
     if data.get('application_notes'):
         _band(sheet, row, 'FyreWrap application notes', len(widths), title=True)
         row += 1

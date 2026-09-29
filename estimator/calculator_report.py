@@ -14,9 +14,9 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle
 
-from .excel_engine import WorkbookEngine, column_name
+from .excel_engine import column_name
 from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
-from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, approved_formula_overrides,
+from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
 
 
@@ -129,7 +129,7 @@ def project_calculator_report(calculator_id, inputs=None):
     """Prepare testable raw report data without display rounding or persistence."""
     model = source_model(calculator_id)
     normalized = normalize_calculator_inputs(calculator_id, inputs)
-    engine = WorkbookEngine(model, normalized, approved_formula_overrides(calculator_id))
+    engine = calculator_engine(calculator_id, normalized)
     sheets = {sheet['name']: sheet for sheet in model['sheets']}
     schedule = model['schedule']
     sheet_name = schedule['sheet']
@@ -153,6 +153,14 @@ def project_calculator_report(calculator_id, inputs=None):
             record['complete'] = _numeric(values['N'] if record['wrap'] else values['M'])
         elif calculator_id == 'steel_vermiculite':
             record['complete'] = isinstance(values['W'], str) and values['W'].startswith('QUANTIFIED')
+            if (str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
+                    and str(values['C']).casefold() == 'hollow - 4 sides'):
+                record['assessment_reference'] = values['X']
+                # Y binds the retained input factor to the new thickness basis.
+                # Blocked results can have a separate X source locator.
+                record['assessment_source'] = '\n'.join(str(value) for value in (
+                    values['X'] if values['X'] and str(values['X']) not in str(values['Y']) else '',
+                    values['Y']) if value not in (None, ''))
         else:
             record['complete'] = values['AR'] == 'CLADDING ESTIMATE'
         rows.append(record)
@@ -193,6 +201,23 @@ def project_calculator_report(calculator_id, inputs=None):
                           ('Available net bags', _sum_values(item['values']['E'] for item in data['summaries'][0]['rows'])),
                           ('Available pooled whole bags (incomplete products excluded)', _sum_values(item['values']['G'] for item in data['summaries'][0]['rows']))]
         data['basis'] = 'Spray surface follows the selected exposure, member quantity, length, girth and any area override. Published thickness and usable estimating thickness are reported separately. Unresolved rows remain listed.'
+        if any('assessment_source' in row for row in rows):
+            from .monokote_hollow import DATASET_ID, SCOPE
+            data['assessment_scope'] = SCOPE
+            data['basis'] += ' ' + SCOPE
+            data['assessment_evidence'] = {'id': DATASET_ID, 'dataset_sha256': engine.assessment.digest,
+                                           'source_report_sha256': engine.assessment.report_sha256,
+                                           'available': not bool(engine.assessment.error)}
+            data['assessment_receipt'] = (
+                'FAR4856 Issue2 dataset SHA-256: ' + engine.assessment.digest
+                + '; source report SHA-256: ' + engine.assessment.report_sha256
+                if not engine.assessment.error else engine.assessment.error)
+            assessment_bases = {}
+            for row in rows:
+                if 'assessment_source' in row:
+                    assessment_bases.setdefault(row['assessment_source'], []).append(str(row['line']))
+            data['assessment_notes'] = ['Schedule lines ' + ', '.join(lines) + ': ' + basis
+                                        for basis, lines in assessment_bases.items()]
     else:
         summary = table('Board stock totals by product and thickness', 'BOARD SUMMARY', 11, 12, 29, 'ABCDEFGHIJK',
             note='Stock is pooled by product and actual board thickness. Waste is applied before each stock-line sheet count is rounded. Per-line sheet counts are not pooled order quantities.')
@@ -258,6 +283,13 @@ class _ScheduleReport(_Report):
         coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
                     'Every used item remains in this report.')
         self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
+        if data.get('assessment_scope') and not materials:
+            self.story.append(self.p(data['assessment_scope'], 'small'))
+        if data.get('assessment_receipt'):
+            self.story.append(self.p(data['assessment_receipt'], 'small'))
+        if data.get('assessment_notes'):
+            self.story.append(self.p('Monokote hollow-column assessment basis', 'subheading'))
+            self.story.extend(self.p(note, 'small') for note in data['assessment_notes'])
         if data.get('application_notes'):
             heading = self.p('FyreWrap application notes', 'subheading')
             heading.keepWithNext = True
@@ -291,7 +323,7 @@ class _ScheduleReport(_Report):
                 rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'), self.detail(v['B'] or 'Product missing', v['F']),
                     self.p(self.display(v['I']) + ' x ' + self.display(v['J']) + ' m', 'numeric'),
                     self.numeric(v['O']), self.numeric(v['P']), self.numeric(v['R']), self.numeric(v['T']), self.numeric(v['U']),
-                    self.p('\n'.join(str(value) for value in (v['V'], v['W']) if _has_value(value)) or 'No calculated status returned', 'cell')])
+                    self.p('\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_reference')) if _has_value(value)) or 'No calculated status returned', 'cell')])
             else:
                 rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'), self.detail(v['C'] or 'Product missing', v['D']),
                     self.p(self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),
@@ -405,6 +437,11 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
     logo = ImageReader(str(ROOT / 'static' / 'ceasefire-logo.png'))
     report = _ScheduleReport(data, project_details)
     report.overview(materials=materials)
+    if data.get('assessment_notes'):
+        # Assessment evidence can occupy several pages. Start its quantities
+        # on a fresh page so neither a section title nor table header is left
+        # alone beneath the basis. Unaffected report pagination stays intact.
+        report.story.append(PageBreak())
     if materials:
         report.product_totals()
         report.extras()

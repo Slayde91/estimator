@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import struct
 import sys
@@ -75,6 +76,66 @@ def verify_seed(seed):
     if actual != expected:
         raise ValueError('Factory seed contains unexpected or missing files.')
     return {'id': ident, 'files': len(manifest['files']), 'bytes': sum(x['size'] for x in manifest['files'])}
+
+
+def _read_calculator_evidence(directory, *, private_input=False):
+    """Read only the fixed, bounded assessment file through its runtime authority gate."""
+    from estimator.desktop_seed import safe_directory
+    from estimator.monokote_hollow import (DATASET_FILENAME, DATASET_ID,
+        MAX_DATASET_BYTES, validate_assessment_payload)
+    directory = safe_directory(Path(directory).absolute()).resolve(strict=True)
+    if private_input and directory.is_relative_to(ROOT.resolve()):
+        raise ValueError('Private calculator evidence must remain outside the repository.')
+    path = directory / DATASET_FILENAME
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+        raise ValueError('Calculator evidence cannot be a linked or nonregular file.')
+    with path.open('rb') as stream:
+        payload = stream.read(MAX_DATASET_BYTES + 1)
+    assessment = validate_assessment_payload(payload)
+    return payload, {'id':DATASET_ID, 'filename':DATASET_FILENAME,
+        'sha256':assessment.digest, 'bytes':len(payload), 'report_sha256':assessment.report_sha256}
+
+
+def verify_calculator_evidence(directory, expected, *, private_input=False):
+    """A build cannot substitute another valid revision after recording its input."""
+    _, actual = _read_calculator_evidence(directory, private_input=private_input)
+    if actual != expected:
+        raise ValueError('Reviewed calculator evidence changed during the build.')
+    return actual
+
+
+def stage_calculator_evidence(directory, destination, *, required=False):
+    """Stage one reviewed JSON snapshot, never neighboring private reports or files."""
+    if directory is None:
+        if required:
+            raise ValueError('A deliverable installer requires explicit --calculator-evidence.')
+        return None
+    payload, receipt = _read_calculator_evidence(directory, private_input=True)
+    from estimator.desktop_seed import safe_directory
+    destination = safe_directory(Path(destination).absolute())
+    if destination.resolve().is_relative_to(ROOT.resolve()):
+        raise ValueError('Private calculator evidence staging must remain outside the repository.')
+    destination.mkdir()
+    with (destination / receipt['filename']).open('xb') as stream:
+        stream.write(payload)
+    verify_calculator_evidence(directory, receipt, private_input=True)
+    verify_calculator_evidence(destination, receipt)
+    return receipt
+
+
+def verify_packaged_calculator_evidence(bundle, expected):
+    """The frozen application must contain exactly the reviewed optional snapshot."""
+    from estimator.desktop_seed import safe_directory
+    directory = bundle / '_internal/calculator-evidence'
+    if expected is None:
+        if directory.exists() or directory.is_symlink():
+            raise ValueError('Unexpected calculator evidence was included in the frozen bundle.')
+        return None
+    safe_directory(directory)
+    if {path.name for path in directory.iterdir()} != {expected['filename']}:
+        raise ValueError('Frozen calculator evidence contains missing or unexpected files.')
+    return verify_calculator_evidence(directory, expected)
 
 
 def collect_notices(destination):
@@ -249,6 +310,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--seed', type=Path)
+    parser.add_argument('--calculator-evidence', type=Path,
+        help='External directory containing the reviewed private calculator assessment JSON.')
     parser.add_argument('--iscc', type=Path)
     parser.add_argument('--webview2-installer', type=Path)
     parser.add_argument('--webview2-arm64-installer', type=Path)
@@ -256,13 +319,15 @@ def main():
     parser.add_argument('--version', default='1.0.0')
     args = parser.parse_args()
     if os.name != 'nt': parser.error('Build Windows binaries on Windows.')
-    if not args.skip_installer and not (args.seed and args.iscc and args.webview2_installer and args.webview2_arm64_installer):
-        parser.error('A deliverable installer requires explicit --seed, --iscc, --webview2-installer and --webview2-arm64-installer inputs.')
+    if not args.skip_installer and not (args.seed and args.calculator_evidence and args.iscc and args.webview2_installer and args.webview2_arm64_installer):
+        parser.error('A deliverable installer requires explicit --seed, --calculator-evidence, --iscc, --webview2-installer and --webview2-arm64-installer inputs.')
     if not all(part.isdigit() and 0 <= int(part) <= 65535 for part in args.version.split('.')) or len(args.version.split('.')) != 3:
         parser.error('Version must contain three integer components.')
     runtime_paths = {'x64':args.webview2_installer,'arm64':args.webview2_arm64_installer}
     runtimes = runtime_provenance(runtime_paths) if not args.skip_installer else None
     output = check_output(args.output)
+    evidence_stage = output / 'calculator-evidence'
+    evidence = stage_calculator_evidence(args.calculator_evidence, evidence_stage, required=not args.skip_installer)
     from estimator.desktop_seed import safe_directory
     seed = safe_directory(args.seed.absolute()).resolve(strict=True) if args.seed else output / 'synthetic-seed'
     if args.seed and seed.is_relative_to(ROOT): parser.error('Private factory seed content must remain outside the repository.')
@@ -283,10 +348,13 @@ def main():
         + "[StringStruct('CompanyName','CEASEFIRE'),StringStruct('FileDescription','CEASEFIRE Estimator'),StringStruct('ProductName','CEASEFIRE Estimator'),StringStruct('FileVersion','"
         + args.version + "'),StringStruct('ProductVersion','" + args.version + "')])]),VarFileInfo([VarStruct('Translation',[1033,1200])])])", encoding='utf-8')
     config = {'root':str(ROOT),'resources':resources,'seed':str(seed),'notices':str(notices),'version_file':str(version_file),
+        'calculator_evidence':str(evidence_stage / evidence['filename']) if evidence else None,
         'excluded_modules':['estimator.' + path.stem for path in (ROOT/'estimator').glob('takeoff*.py')]}
     config_path = output / 'build-config.json'
     config_path.write_text(json.dumps(config, indent=2), encoding='utf-8')
     environment = dict(os.environ, CEASEFIRE_BUILD_CONFIG=str(config_path))
+    # Source QA overrides must never become an implicit private packaging input.
+    environment.pop('CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY', None)
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--distpath', str(output/'frozen'),
         '--workpath', str(output/'work'), str(ROOT/'packaging/windows/estimator.spec')]
     with (output/'pyinstaller.log').open('w', encoding='utf-8') as log:
@@ -294,11 +362,15 @@ def main():
     bundle = output/'frozen/CEASEFIRE Estimator'
     report = {'version':args.version,'seed':seed_info,'private_seed':bool(args.seed),'bundle':verify_bundle(bundle),
         'packaged_content':verify_packaged_content(bundle, resources, seed_info, notices),
+        'calculator_evidence':verify_packaged_calculator_evidence(bundle, evidence),
         'executable_icon':verify_icon(bundle/'CEASEFIRE Estimator.exe', ROOT/'static/ceasefire-app.ico'),
         'executable_sha256':checksum(bundle/'CEASEFIRE Estimator.exe'),'signed_by_ceasefire':False,
         'source_files':fingerprints,'python_version':sys.version,
         'source_revision':revision,
         'dependencies':json.loads((notices/'DEPENDENCIES.json').read_text(encoding='utf-8'))}
+    if evidence:
+        verify_calculator_evidence(args.calculator_evidence, evidence, private_input=True)
+        verify_calculator_evidence(evidence_stage, evidence)
     if not args.skip_installer:
         report['webview2'] = runtimes['x64']
         report['webview2_arm64'] = runtimes['arm64']
@@ -314,6 +386,10 @@ def main():
         installer=next((output/'installer').glob('*.exe'))
         report['installer']={'filename':installer.name,'bytes':installer.stat().st_size,'sha256':checksum(installer),
             'icon':verify_icon(installer, ROOT/'static/ceasefire-app.ico')}
+    if evidence:
+        verify_calculator_evidence(args.calculator_evidence, evidence, private_input=True)
+        verify_calculator_evidence(evidence_stage, evidence)
+    verify_packaged_calculator_evidence(bundle, evidence)
     if source_fingerprints(resources) != fingerprints:
         raise ValueError('Source files changed during the build. Keep this diagnostic output and rebuild from stable source.')
     (output/'BUILD_REPORT.json').write_text(json.dumps(report,indent=2),encoding='utf-8')

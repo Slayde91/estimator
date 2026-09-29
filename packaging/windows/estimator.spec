@@ -8,6 +8,8 @@ config = json.loads(Path(os.environ['CEASEFIRE_BUILD_CONFIG']).read_text(encodin
 root = Path(config['root'])
 datas = [(str(root / path), str(Path(path).parent)) for path in config['resources']]
 datas += [(config['seed'], 'factory-seed'), (config['notices'], 'THIRD_PARTY_LICENSES')]
+if config.get('calculator_evidence'):
+    datas.append((config['calculator_evidence'], 'calculator-evidence'))
 datas += collect_data_files('reportlab', includes=['fonts/*'])
 excluded = config['excluded_modules'] + [
     'PyQt5', 'PyQt6', 'PySide2', 'PySide6', 'cefpython3', 'gi', 'gtk',

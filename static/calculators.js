@@ -1627,5 +1627,6 @@
 
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
+  Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });
   Object.assign(window.CeasefireCalculators, { captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });
 })();

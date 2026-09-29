@@ -61,6 +61,7 @@ jobs:
       - run: npm run test:takeoffs-timeouts
       - run: npm run test:takeoffs-areas
       - run: npm run test:takeoffs-penetrations
+      - run: npm run test:standard-browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -69,4 +70,51 @@ jobs:
             .runtime/browser-qa/**/*.png
             .runtime/browser-qa/**/result.json
             .runtime/browser-qa/pdf-render-gate.json
+          retention-days: 7
+  windows-desktop:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-desktop.txt
+      - name: Ensure official WebView2 runtime is available
+        shell: pwsh
+        run: |
+          $keys = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKCU:\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}')
+          $present = @($keys | ForEach-Object { (Get-ItemProperty -LiteralPath $_ -Name pv -ErrorAction SilentlyContinue).pv } | Where-Object { try { [version]$_ -ge [version]'105.0.0.0' } catch { $false } }).Count -gt 0
+          if (-not $present) {
+            $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
+            Invoke-WebRequest 'https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/06fb6ad8-1976-4e78-9ceb-3ae170edebde/MicrosoftEdgeWebView2RuntimeInstallerX64.exe' -OutFile $installer
+            if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash -ne '771042db15cb5c463bac51a8408e70183d7130e8ac946709384c2223da582c1b') { throw 'WebView2 installer hash mismatch.' }
+            $signature = Get-AuthenticodeSignature -LiteralPath $installer
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw 'WebView2 installer signature is invalid.' }
+            $install = Start-Process -FilePath $installer -ArgumentList '/silent /install' -WindowStyle Hidden -Wait -PassThru
+            if ($install.ExitCode -notin @(0,3010)) { throw "WebView2 install failed: $($install.ExitCode)" }
+          }
+      - name: Freeze standard desktop with synthetic factory content
+        shell: pwsh
+        run: python scripts/build_windows.py --skip-installer --output "$env:RUNNER_TEMP\desktop-build"
+      - name: Exercise the frozen native WebView2 window
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:RUNNER_TEMP 'desktop-build\frozen\CEASEFIRE Estimator\CEASEFIRE Estimator.exe'
+          $data = Join-Path $env:RUNNER_TEMP 'desktop-smoke-data'
+          $report = Join-Path $env:RUNNER_TEMP 'desktop-smoke.json'
+          $arguments = @('--self-test', '--data-dir', ('"' + $data + '"'), '--output-report', ('"' + $report + '"'))
+          $process = Start-Process -FilePath $app -ArgumentList $arguments -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(240000)) { Stop-Process -InputObject $process -Force; throw 'Native desktop smoke test timed out.' }
+          if ($process.ExitCode -ne 0) { throw "Native desktop smoke failed: $($process.ExitCode)" }
+          if (-not (Test-Path -LiteralPath $report)) { throw 'Native desktop smoke report is missing.' }
+          Get-Content -LiteralPath $report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-desktop-evidence
+          path: |
+            ${{ runner.temp }}/desktop-build/BUILD_REPORT.json
+            ${{ runner.temp }}/desktop-build/pyinstaller.log
+            ${{ runner.temp }}/desktop-smoke*
           retention-days: 7

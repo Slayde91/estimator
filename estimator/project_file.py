@@ -18,6 +18,7 @@ from .catalog import ValidationError, effective_catalog
 from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
 from .workbook_calculators import source_model, validate_calculator_edits
 from .schedule_rows import blank_schedule_defaults, normalize_schedule_rows
+from .edition import require_project_edition, validate_edition
 
 
 PROJECT_FORMAT = "ceasefire-project"
@@ -90,7 +91,7 @@ def has_project_identity(payload, *, previously_recognized=False):
     return False
 
 
-def project_summary(payload):
+def project_summary(payload, *, edition='full'):
     """Read display metadata without calculating or applying a project.
 
     Browsing a folder must remain cheap. Full pricing, source and calculator
@@ -102,6 +103,7 @@ def project_summary(payload):
         snapshot = json.loads(payload.decode("utf-8-sig"), object_pairs_hook=_unique_object, parse_constant=_reject_constant)
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ValidationError("The project file must contain valid JSON.") from error
+    require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     if not isinstance(snapshot, dict) or snapshot.get("format") != PROJECT_FORMAT or type(snapshot.get("version")) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -185,8 +187,9 @@ def _portable_penetration(value, *, saved=False):
     return result
 
 
-def export_project(store, request):
+def export_project(store, request, *, edition='full'):
     """Return a self-contained snapshot of the active estimate and calculators."""
+    require_project_edition(request, edition)
     if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
@@ -235,8 +238,9 @@ def export_project(store, request):
     return payload
 
 
-def import_project(store, filename, content_base64):
+def import_project(store, filename, content_base64, *, edition='full'):
     """Validate the entire file and return drafts, leaving all local saves intact."""
+    validate_edition(edition)
     # Browsers add collision suffixes before .json (for example "project (1)").
     # The internal format/version, not a user-controlled filename, identifies it.
     if not isinstance(filename, str) or len(filename) > 255 or not filename.lower().endswith(".json"):
@@ -247,17 +251,19 @@ def import_project(store, filename, content_base64):
         payload = base64.b64decode(content_base64, validate=True)
     except (ValueError, binascii.Error) as error:
         raise ValidationError("The project file upload is invalid.") from error
-    return load_project_bytes(store, payload)
+    return load_project_bytes(store, payload, edition=edition)
 
 
-def load_project_bytes(store, payload):
+def load_project_bytes(store, payload, *, edition='full'):
     """Validate a portable snapshot from either an upload or the linked folder."""
+    validate_edition(edition)
     if not payload or len(payload) > MAX_PROJECT_FILE:
         raise ValidationError("Choose a nonempty project file of at most 16 MB.")
     try:
         snapshot = json.loads(payload.decode("utf-8-sig"), object_pairs_hook=_unique_object, parse_constant=_reject_constant)
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ValidationError("The project file must contain valid JSON.") from error
+    require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
     if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs"}:
@@ -303,3 +309,24 @@ def load_project_bytes(store, payload):
         from .takeoff_model import validate_snapshot
         result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])
     return result
+
+
+def assert_project_overwrite(payload, *, edition='full'):
+    """A reduced edition must never erase data it cannot load or understand.
+
+    This is called on the actual selected target immediately before its atomic
+    replacement. Malformed JSON cannot prove compatibility and is retained.
+    """
+    if validate_edition(edition) == 'full':
+        return
+    try:
+        snapshot = json.loads(payload.decode('utf-8-sig'), object_pairs_hook=_unique_object,
+                              parse_constant=_reject_constant)
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        raise ValidationError('This existing file cannot be checked for edition compatibility. '
+                              'Choose a new filename; the original file has not been changed.') from error
+    require_project_edition(snapshot, edition)
+    if isinstance(snapshot, dict) and snapshot.get('format') == PROJECT_FORMAT:
+        if type(snapshot.get('version')) is not int or snapshot['version'] != PROJECT_VERSION:
+            raise ValidationError('This existing project version is not supported by this edition. '
+                                  'Choose a new filename; the original file has not been changed.')

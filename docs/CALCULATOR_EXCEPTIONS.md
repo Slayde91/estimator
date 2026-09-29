@@ -186,6 +186,33 @@ the assessment page/table, selected upper factor and column-only scope. Tests
 use clearly synthetic matrices; private evidence verification remains a local
 release check, separate from preservation of the original Excel oracle.
 
+## Monokote named PFC web-to-slab calculation repair
+
+The 29 September 2026 follow-up requested a review of missing PFC web-to-slab
+data. The existing source contains ten named channels at 620°C with values for
+60, 90, 120, 180 and 240 minutes (MK6-030521, page 15). It intentionally has no
+generic section-factor table for this exposure. These named values are retained;
+FAR4856 hollow-column tables are not applied to channels against a slab.
+
+The same empty-text exact-factor flag caused all supported named PFC cases to
+report `CALCULATION ERROR` after finding their source thickness. The application
+repair in `estimator/monokote_pfc.py` guards only the irrelevant `NOT(AO)` check in
+ENGINE CE/CF when the canonical product is Monokote, the exposure is PFC3W and
+the existing BM flag confirms a named lookup. Z106 retains its existing MK-6
+technical mapping. Other products, exposures and unsuccessful named lookups
+keep the original expression. Source exclusion/retirement flags and the
+remaining status, thickness, girth, area, yield, waste and quantity formulas
+remain authoritative. Unexpected source guard shapes refuse the override.
+
+Original workbook files, imported formulas and native Excel fixtures are not
+changed. Regression checks compare all 100 supported product/section/period
+combinations against their retained source thicknesses and exercise unsupported
+temperatures, periods, generic factors, missing sections, source flags, invalid
+quantities, saved overrides and the last schedule row. No new technical coverage
+or commercial rule is introduced by this repair.
+The PDF schedule and values-only Excel register retain the named table's source
+citation with the corrected result; they do not label it as a hollow assessment.
+
 ## Later presentation and read-only basis instruction
 
 The later 14 September 2026 instruction supersedes the earlier editable-basis

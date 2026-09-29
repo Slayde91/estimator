@@ -73,6 +73,20 @@ _DISPLAY_TEXT = {
                               'MANDOLITE CP2', 'FENDOLITE MII', 'PERLIFOC HP ECO+',
                               'MONOKOTE MK-6 HY', 'COMPLETE WORKBOOK OPERATING RULES'))),
                                       'A559': 'MONOKOTE Z106',
+                                      'A255': 'MONOKOTE HOLLOW COVERAGE',
+                                      'A256': 'MONOKOTE HOLLOW EXCLUSIONS',
+                                      'D255': 'FAR4856 Issue 2 now governs fully exposed SHS, RHS and CHS columns for both MK-6 HY and Z106. Use the exact published temperature: 350, 400, 450, 500, 550, 600, 620, 650, 700 or 750 °C. Published decimal thicknesses are retained; the former named-section rounding rule is superseded.',
+                                      'D256': 'Use the FAR4856 table for the exact fire period. The former named CHS 90-minute substitution is superseded for fully exposed columns. Unpublished cells and the unresolved 240 min / 650 °C / Hp/A 250 entry remain blocked.',
+                                      'D261': '350–750 (discrete)',
+                                      'E261': '30', 'F261': '365',
+                                      'G261': '30, 60, 90, 120, 180, 240',
+                                      'J261': 'FAR4856 Issue 2; Hp/A / converted',
+                                      'L261': 'Columns only; check live result',
+                                      'E260': 'Named only', 'F260': 'Named only',
+                                      'L260': 'Named section at 620 °C; outside FAR4856 H4 scope',
+                                      'E262': 'Named only', 'F262': 'Named only',
+                                      'L262': 'Named section at 620 °C; no generic factor table',
+                                      'D568': 'MK-6 HY technical coverage is shared, including FAR4856 Issue 2 for fully exposed hollow columns; see the MK-6 HY coverage table. Z106 bag quantities use its own settings.',
                                       'A356': 'IDEALISED HOLLOW GEOMETRY',
                                       'A370': 'FENDOLITE CASTELLATED SECTION',
                                       'A285': 'For Monokote MK-6 HY and Z106 fully exposed hollow columns (Hollow - 4 sides), FAR4856 Issue 2 governs thickness. Named members supply a retained section factor; Hp/A and ESA/M inputs use the same assessment tables. Other cases retain their named-member and factor-table rules.',
@@ -336,6 +350,9 @@ def source_model(calculator_id):
 
 @lru_cache(maxsize=3)
 def approved_formula_overrides(calculator_id):
+    if calculator_id == 'steel_vermiculite':
+        from .monokote_pfc import application_formula_overrides
+        return application_formula_overrides(source_model(calculator_id))
     if calculator_id != 'ductwork':
         return {}
     model = source_model(calculator_id)
@@ -719,6 +736,9 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
     with lock:
+        if calculator_id == 'steel_vermiculite' and sheet == 'SETTINGS' and engine.assessment.error:
+            metadata = {**metadata, 'display_text': {**metadata['display_text'],
+                        'L261': 'ASSESSMENT DATA UNAVAILABLE — H4 results blocked'}}
         if calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and engine.hollow_scope_active(2):
             # The assessment replaces the formerly hidden manual citation.
             # Its scope and blocked outcomes must be visible with the result.

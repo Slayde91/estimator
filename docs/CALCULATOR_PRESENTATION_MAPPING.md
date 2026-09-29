@@ -668,6 +668,17 @@ Default source examples are three duct rows, 36 board rows and one vermiculite s
 
 This document records inspected source facts and implementation recommendations. Final UI, endpoint and report verification belongs in the current session evidence; this mapping alone does not claim those checks have passed.
 
+The September 2026 Monokote follow-up extends the existing summary alignment
+through Z106 at BAGS row 25 and applies the product-settings left alignment to
+D561:F566. The six product totals and their original cell identities are unchanged.
+SETTINGS A255/D255 and A256/D256 supersede the obsolete named hollow exceptions
+with the governing FAR4856 Issue 2 scope and exclusions. Row 261 describes the
+discrete 350–750°C temperatures, Hp/A 30–365 and 30–240 minute periods; missing or
+invalid private assessment evidence explicitly marks H4 results unavailable.
+Rows 260 and 262 identify named-section-only coverage instead of suggesting that
+their blank generic factor limits are missing data. These are browser descriptions;
+the imported workbook and stored settings remain unchanged.
+
 The earlier detail-layout checkpoint had 25 targeted Python tests, 75 calculator UI
 checks and 20 original UI checks passing, plus browser, unchanged worksheet/PDF
 and refreshed-runtime evidence. Exact checks and retained artifacts are recorded

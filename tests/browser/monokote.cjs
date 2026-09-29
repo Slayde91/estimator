@@ -17,7 +17,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', data=>{stdout+=data;if(stdout.includes('\n')){clearTimeout(timer);try{resolve(JSON.parse(stdout.split('\n')[0]));}catch(error){reject(error);}}});
   server.once('exit', code=>{clearTimeout(timer);reject(new Error(`Server exited ${code}: ${logs}`));});
 });
-const errors=[], journeys=[];
+const errors=[], journeys=[], pfcJourneys=[];
 const control = (sheet,address) => page.locator(`[data-calculator-sheet="${sheet}"][data-calculator-cell="${address}"]`);
 const rendered = address => page.locator(`[data-calculator-output="${address}"]`);
 const values = result => Object.fromEntries(result.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell.value])));
@@ -80,6 +80,24 @@ async function screenshot(name,fixture) {
   assert.match(blocked.H9,/BLOCKED - SOURCE REVIEW/);await expect(rendered('H23')).toContainText('No thickness or quantities');
   await screenshot('blocked.png',fixture);
   console.log('Verified blocked lookup withholds quantities.');
+  for(const [product,mass,density] of products) {
+    await fill('CALCULATOR',{D6:product,D7:'PFC web to slab - 3 sides',D8:620,D9:'Section',D10:'250X90PFC',D12:120,D14:2,D15:3});
+    const pfc=await recalculate('CALCULATOR');
+    closeNumber(pfc.H6,19,'PFC published thickness');closeNumber(pfc.K14,19,'PFC estimating thickness');
+    closeNumber(pfc.K17,pfc.K16*19/1000,'PFC coating volume');closeNumber(pfc.K18,pfc.K17/(mass/density),'PFC net bags');
+    assert.equal(pfc.H9,'PUBLISHED - TABLE LOOKUP');assert.equal(pfc.H20,'QUANTIFIED - ESTIMATE');assert.equal(pfc.H23,'MK6-030521 p15');
+    await expect(rendered('H9')).toHaveText('PUBLISHED - TABLE LOOKUP');await expect(rendered('H20')).toHaveText('QUANTIFIED - ESTIMATE');
+    await screenshot(product==='MONOKOTE Z106'?'pfc-z106-lookup.png':'pfc-mk6-lookup.png',fixture);
+    await fill('CALCULATOR',{D12:30});
+    const unsupportedPfc=await recalculate('CALCULATOR');
+    for(const address of ['H6','K14','K17','K18']) assert.equal(unsupportedPfc[address],'',`unsupported PFC ${address}`);
+    assert.equal(unsupportedPfc.H9,'NO GENERIC FACTOR TABLE');assert.equal(unsupportedPfc.H20,'THICKNESS NOT AVAILABLE');
+    await expect(rendered('H20')).toHaveText('THICKNESS NOT AVAILABLE');
+    pfcJourneys.push({product,thickness:19,netBags:pfc.K18,source:pfc.H23,unsupported30MinutesWithheld:true});
+    console.log(`Verified named PFC lookup and unsupported 30-minute hold: ${product}.`);
+  }
+  await fill('CALCULATOR',{D7:'Hollow - 4 sides',D8:550,D9:'Section',D10:'100X100X9SHS',D11:'',D12:120});
+  closeNumber((await recalculate('CALCULATOR')).H6,thickness,'restored hollow lookup');
   await tab('SCHEDULE');
   for(const [index,[product,mass,density]] of products.entries()){
     const row=index+10;if(index) await page.getByRole('button',{name:'Add row',exact:true}).click();
@@ -90,10 +108,48 @@ async function screenshot(name,fixture) {
   }
   await page.getByRole('button',{name:'Add row',exact:true}).click();
   await fill('SCHEDULE',{A12:'SYNTHETIC-BLOCKED',B12:'MONOKOTE Z106',C12:'Hollow - 4 sides',D12:650,E12:'Hp/A',G12:250,H12:240,I12:1,J12:1,K12:1});
-  const scheduled=await recalculate('SCHEDULE');
+  let scheduled=await recalculate('SCHEDULE');
   for(const address of ['O12','P12','S12','T12','U12']) assert.equal(scheduled[address],'',`blocked schedule ${address}`);
   assert.match(scheduled.V12,/BLOCKED - SOURCE REVIEW/);await expect(rendered('Y12')).toContainText('BLOCKED - SOURCE REVIEW');
+  await page.getByRole('button',{name:'Add row',exact:true}).click();
+  await fill('SCHEDULE',{A13:'SYNTHETIC-PFC',B13:'MONOKOTE Z106',C13:'PFC web to slab - 3 sides',D13:620,E13:'Section',F13:'250X90PFC',H13:120,I13:2,J13:3});
+  scheduled=await recalculate('SCHEDULE');
+  closeNumber(scheduled.O13,19,'PFC schedule published thickness');closeNumber(scheduled.P13,19,'PFC schedule estimating thickness');
+  closeNumber(scheduled.S13,scheduled.R13*19/1000,'PFC schedule coating volume');closeNumber(scheduled.T13,scheduled.S13/(22.2/325),'PFC schedule net bags');
+  assert.equal(scheduled.V13,'PUBLISHED - TABLE LOOKUP');assert.equal(scheduled.W13,'QUANTIFIED - ESTIMATE');assert.equal(scheduled.X13,'MK6-030521 p15');
+  await expect(rendered('Y13')).not.toContainText('CALCULATION ERROR');
   await screenshot('schedule.png',fixture);
+  const orderProducts=['CAFCO 300','MANDOLITE CP2','FENDOLITE MII','PERLIFOC HP ECO+','MONOKOTE MK-6 HY','MONOKOTE Z106'];
+  await expect(page.locator('#calculator-product-totals tbody th')).toHaveText(orderProducts);
+  await tab('SUMMARY');
+  const orderTable=page.getByRole('table',{name:'PRODUCT ORDER SUMMARY',exact:true});
+  await expect(orderTable).toBeVisible();
+  for(const [index,product] of orderProducts.entries()) {
+    await expect(orderTable.locator(`[data-calculator-output="A${index+20}"]`)).toHaveText(product);
+  }
+  for(const column of 'ABCDEFGHI') {
+    const cell=orderTable.locator(`[data-calculator-output="${column}25"]`);
+    await expect(cell).toBeVisible();await expect(cell).toHaveCSS('text-align','center');
+  }
+  await screenshot('summary-alignment.png',fixture);
+  await tab('SETTINGS');
+  await page.getByRole('button',{name:'MONOKOTE Z106',exact:true}).click();
+  for(const row of [561,562,563,564]) {
+    await expect(control('SETTINGS',`D${row}`)).toBeVisible();
+    await expect(control('SETTINGS',`D${row}`)).toHaveCSS('text-align','left');
+  }
+  await expect(rendered('D565')).toBeVisible();await expect(rendered('D565')).toHaveCSS('text-align','left');
+  await expect(rendered('D568')).toContainText('FAR4856 Issue 2');
+  await screenshot('z106-settings-alignment.png',fixture);
+  await page.getByRole('button',{name:'MONOKOTE MK-6 HY',exact:true}).click();
+  for(const [address,text] of Object.entries({D261:'350–750 (discrete)',E261:'30',F261:'365',G261:'30, 60, 90, 120, 180, 240',J261:'FAR4856 Issue 2; Hp/A / converted'})) {
+    await expect(rendered(address)).toBeVisible();await expect(rendered(address)).toHaveText(text);
+  }
+  await expect(rendered('A262')).toHaveText('PFC web to slab - 3 sides');
+  await expect(rendered('E262')).toHaveText('Named only');await expect(rendered('F262')).toHaveText('Named only');
+  await expect(rendered('L262')).toContainText('no generic factor table');
+  await screenshot('monokote-coverage.png',fixture);
+  console.log('Verified all six order products, Z106 alignment, hollow coverage and named-only PFC coverage.');
   await apiReply(()=>page.getByRole('button',{name:'Save As',exact:true}).click(),'/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved=JSON.parse(fs.readFileSync(path.join(output,'standard-project.json'),'utf8'));
@@ -106,7 +162,7 @@ async function screenshot(name,fixture) {
   assert.equal(saved.version,1);
   await page.getByRole('button',{name:'Calculators',exact:true}).click();await tab('SCHEDULE');
   const reopened=await recalculate('SCHEDULE');
-  for(const address of ['P10','T10','P11','T11','P12','T12','V12']) assert.deepEqual(reopened[address],scheduled[address],`reopened ${address}`);
+  for(const address of ['P10','T10','P11','T11','P12','T12','V12','O13','P13','S13','T13','V13','W13','X13']) assert.deepEqual(reopened[address],scheduled[address],`reopened ${address}`);
   const exported=await apiReply(()=>page.locator('#calculator-excel').click(),'/register.xlsx');
   assert.equal(exported.saved,true);assert.equal(exported.destination,'project');
   assert.ok(within(output,path.resolve(exported.path)));
@@ -119,7 +175,9 @@ async function screenshot(name,fixture) {
   }
   const blockedRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-BLOCKED');assert.ok(blockedRow);
   for(const index of [7,8,10,11]) assert.equal(blockedRow[index],null,`blocked export column ${index}`);
+  const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
+  closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],19,'exported PFC estimating thickness');closeNumber(pfcRow[10],scheduled.T13,'exported PFC bags');assert.match(pfcRow[12],/MK6-030521 p15/);
   assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,journeys,blockedQuantitiesWithheld:true,schedule:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
-  console.log(`PASS: ${fixture.evidence_mode}; MONOKOTE lookup, bags, blocked source, schedule, save/reopen and values-only XLSX. Evidence: ${output}`);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,...fixture,journeys,pfcJourneys,blockedQuantitiesWithheld:true,schedule:true,pfcSchedule:true,pfcSaveReopen:true,pfcExport:true,allSixProductTotals:true,z106SummaryCentered:true,z106SettingsLeftAligned:true,hollowAssessmentCoverage:true,pfcNamedOnlyCoverage:true,saveReopen:true,valuesOnlyExport:true,errors,csp:[]},null,2));
+  console.log(`PASS: ${fixture.evidence_mode}; MONOKOTE hollow/PFC lookup, bags, blocked source, schedule, save/reopen and values-only XLSX. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));if(page)await screenshot('failure.png',fixtureInfo || {synthetic:!privateEvidence}).catch(()=>{});process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

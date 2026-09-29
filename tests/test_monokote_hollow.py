@@ -260,6 +260,24 @@ class MonokoteHollowTests(unittest.TestCase):
             inputs['SETTINGS']['D14'] = 'Exact only'
             self.assertEqual(self.engine(inputs).value('SCHEDULE', 'V10'), expected)
 
+    def test_settings_coverage_matches_assessment_scope_and_current_evidence(self):
+        source = WorkbookEngine(source_model('steel_vermiculite'))
+        before = {cell: source.value('SETTINGS', cell) for cell in ('D261', 'E261', 'F261', 'G261', 'J261')}
+        result = calculate_worksheet('steel_vermiculite', {}, 'SETTINGS')
+        text = result['display_text']
+        self.assertEqual(text['D261'], '350–750 (discrete)')
+        self.assertEqual((text['E261'], text['F261']), ('30', '365'))
+        self.assertEqual(text['G261'], '30, 60, 90, 120, 180, 240')
+        self.assertIn('FAR4856 Issue 2', text['J261'])
+        self.assertIn('Columns only', text['L261'])
+        self.assertIn('superseded', text['D255'])
+        self.assertIn('superseded', text['D256'])
+        self.assertIn('no generic factor table', text['L262'])
+        self.path.unlink()
+        missing = calculate_worksheet('steel_vermiculite', {}, 'SETTINGS')
+        self.assertIn('ASSESSMENT DATA UNAVAILABLE', missing['display_text']['L261'])
+        self.assertEqual({cell: source.value('SETTINGS', cell) for cell in before}, before)
+
     def test_missing_and_tampered_evidence_invalidate_identical_cached_inputs(self):
         inputs = row_inputs()
         first = self.engine(inputs)

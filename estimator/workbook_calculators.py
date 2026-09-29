@@ -343,8 +343,9 @@ def approved_formula_overrides(calculator_id):
     # wording. Original formulas stay intact in the imported source package.
     from .ductwork_rules import application_formula_overrides
     overrides = application_formula_overrides(model)
+    translator = Translator(master, origin='AL11')
     overrides['CALCULATOR'].update({
-        f'AL{row}': Translator(master, origin='AL11').translate_formula(f'AL{row}').lstrip('=')
+        f'AL{row}': translator.translate_formula(f'AL{row}').lstrip('=')
         for row in range(12, model['schedule']['last_row'] + 1)})
     return overrides
 

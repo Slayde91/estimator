@@ -83,6 +83,25 @@ shortcuts, while retaining user data, project files and the shared WebView2 runt
 
 ## Installer behavior and release checks
 
+First visits still prepare calculator models and validate the local reference
+index. Workbook loaders cache immutable JSON text and decode independent models;
+formula translators reuse their master tokens while producing the same row
+formulas. Repeated navigation shares pending definition requests and retains the
+existing bounded worksheet caches. Failed requests remain retryable.
+
+Firestopping service choices use the validated Technical Library directly.
+Saved Firestopping overlays reuse its projection only when the same instance owns
+the validated source and all technical dependencies remain identical. Changed
+source files undergo full validation; edited penetration records and reciprocal
+links are always rebuilt and validated. These optimizations do not persist a
+second library index or change source evidence, prices or calculation formulas.
+
+Measure a fresh disposable service separately from repeat navigation. A visible
+workspace or enabled export button is not sufficient: wait for a rendered
+worksheet and its cleared busy/loading state. Do not benchmark by refreshing a
+user's open project. Native acceptance also waits for actual worksheet content
+before testing export.
+
 The installer targets x64 Windows 10/11 and Windows 11 ARM64 (build 22000 or later)
 using Windows' x64 application emulation. It rejects 32-bit Windows and Windows
 10 ARM64. It selects the native ARM64 or x64 offline WebView2 prerequisite using

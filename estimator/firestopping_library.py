@@ -344,6 +344,17 @@ class FirestoppingLibrary(ReferenceLibrary):
         self._price_cache = OrderedDict()
         self._diagram_cache = OrderedDict()
 
+    @staticmethod
+    def _copy_for_overlay(source):
+        # Technical records, assets and their reviews are immutable in an
+        # overlay. Only copy the Firestopping records and reciprocal edges that
+        # edits can change; public responses copy their own mutable values.
+        data = {key: value for key, value in source.items() if not key.startswith('_')}
+        data['libraries'] = {**source['libraries'],
+                             'penetration': deepcopy(source['libraries']['penetration'])}
+        data['links'] = deepcopy(source['links'])
+        return data
+
     def _load(self):
         base = super()._load()
         stamp = id(base), self.edits.overlay_stamp()
@@ -352,7 +363,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         created = self.edits.created()
         if base is None and not created:
             return None
-        data = deepcopy({key: value for key, value in (base or empty_library()).items() if not key.startswith('_')})
+        data = self._copy_for_overlay(base or empty_library())
         saved = self.edits.all()
         library = data['libraries']['penetration']
         deleted = set(self.edits.deleted())
@@ -454,7 +465,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 continue
             data['links'] = [link for link in data['links'] if (link['penetration_id'], link['technical_id']) != (left, right)]
             pairs.discard((left, right))
-        self._validate(data)
+        self._validate(data, validated_source=base)
         for related in data['_links']['technical'].values():
             for link in related:
                 key = link['id']
@@ -701,7 +712,9 @@ class FirestoppingLibrary(ReferenceLibrary):
     def service_types(self):
         with self._lock:
             try:
-                data = self._load()
+                # These choices come only from validated Technical Library
+                # evidence. Saved Firestopping edits and links cannot alter them.
+                data = super()._load()
             except ValidationError:
                 # Optional descriptions must not disable the independent
                 # estimator. Library endpoints still report the source error.
@@ -858,14 +871,15 @@ class FirestoppingLibrary(ReferenceLibrary):
                                   saved['revision'] if saved else 0, snapshot, token)
 
     def _validate_save(self, key, edit):
-        # Validate the complete prospective index before any database write.
+        # Validate the prospective overlay before any database write. Unchanged
+        # technical evidence has already passed the source validation above.
         # Calculator text limits are wider than searchable library text limits.
-        data = deepcopy({name: value for name, value in self._load().items() if not name.startswith('_')})
+        data = self._copy_for_overlay(self._load())
         item = next(item for item in data['libraries']['penetration']['items'] if item['id'] == key)
         item['fields'] = [field for field in item['fields'] if field['label'] != 'Saved library edit']
         self._apply_edit(item, {**edit, 'updated_at': timestamp()})
         try:
-            self._validate(data)
+            self._validate(data, validated_source=self._data)
         except (ValueError, KeyError, TypeError) as exc:
             raise ValidationError('This item cannot be displayed in the library. Shorten its description or selection text before saving; nothing has been saved.') from exc
 

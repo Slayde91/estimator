@@ -26,6 +26,16 @@ async function load(mode) {
   await page.getByRole('dialog').getByRole('button', {name:'Load Project', exact:true}).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
 }
+async function worksheetReady(title, label) {
+  await expect(page.locator('#calculator-title')).toHaveText(title);
+  if (label) await expect(page.locator('#calculator-sheet-title')).toHaveText(label);
+  await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('#calculator-grid')).toBeVisible();
+  await expect(page.locator('#calculator-grid table').first()).toBeAttached();
+  await expect(page.locator('#calculator-grid')).not.toContainText('Loading this worksheet…');
+  await expect(page.locator('#calculator-calculation-status')).toBeHidden();
+  assert.ok(!await page.locator('#calculator-message').evaluate(element => element.classList.contains('error') && !element.hidden));
+}
 (async () => {
   const info = await ready; browser = await chromium.launch({headless:true});
   page = await browser.newPage({viewport:{width:1440,height:1000}}); page.setDefaultTimeout(45000);
@@ -73,7 +83,39 @@ async function load(mode) {
   await page.screenshot({path:path.join(output,'standard-calculators.png'),fullPage:true});
   assert.ok(!requests.some(p => p.startsWith('/api/takeoffs/') || /takeoff|pdfjs/.test(p)));
   assert.deepEqual(errors,[]); assert.deepEqual(await page.evaluate(() => window.qaCsp),[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,edition:'standard',legacyRoundtrip:true,frozenPricingPreserved:true,calculatorSnapshotsPreserved:true,takeoffLoadRejected:true,takeoffOverwriteRejected:true,errors,csp:[],requests},null,2));
-  console.log(`PASS: standard edition renders without TAKEOFFS, preserves frozen pricing/calculators through save/reopen and rejects incompatible load/overwrite. Evidence: ${output}`);
+  // Hold cold browser responses to exercise rapid clicks without timing thresholds.
+  await page.close();page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(45000);
+  const navigationRequests=[];page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>navigationRequests.push(new URL(request.url()).pathname));
+  await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
+  let releaseList,releaseDefinition;
+  const listGate=new Promise(resolve=>{releaseList=resolve;}),definitionGate=new Promise(resolve=>{releaseDefinition=resolve;});
+  await page.route('**/api/calculators',async route=>{await listGate;await route.continue();});
+  await page.route('**/api/calculators/steel_vermiculite',async route=>{await definitionGate;await route.continue();});
+  await page.goto(`http://127.0.0.1:${info.port}/`);await expect(page.locator('#project-tools')).toBeVisible();
+  const calculatorsButton=page.getByRole('button',{name:'Calculators',exact:true});
+  await calculatorsButton.click();await calculatorsButton.click();
+  const count=pathname=>navigationRequests.filter(value=>value===pathname).length;
+  await expect.poll(()=>count('/api/calculators')).toBe(1);releaseList();
+  await expect.poll(()=>count('/api/calculators/steel_vermiculite')).toBe(1);
+  await calculatorsButton.click();releaseDefinition();
+  await worksheetReady('Steel (spray)','START');
+  assert.equal(count('/api/calculators'),1);assert.equal(count('/api/calculators/steel_vermiculite'),1);assert.equal(count('/api/calculators/steel_vermiculite/worksheet'),1);
+  await page.unroute('**/api/calculators');await page.unroute('**/api/calculators/steel_vermiculite');
+  const destinations=['Steel (spray)','Ductwork (spray/wrap)','Steel (board)'],lastPages=[];
+  for(const title of destinations){
+    await page.locator('#calculator-list button').filter({has:page.locator('strong',{hasText:title})}).click();await worksheetReady(title);
+    const pages=page.locator('#calculator-pages button'),label=await pages.nth(1).textContent();
+    await pages.nth(1).click();await worksheetReady(title,label);lastPages.push(label);
+  }
+  const snapshot=await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),beforeRevisit=navigationRequests.filter(value=>value.endsWith('/worksheet')).length;
+  for(const [index,title] of destinations.entries()){
+    await page.locator('#calculator-list button').filter({has:page.locator('strong',{hasText:title})}).click();await worksheetReady(title,lastPages[index]);
+  }
+  assert.equal(navigationRequests.filter(value=>value.endsWith('/worksheet')).length,beforeRevisit);
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),snapshot);
+  assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);
+  await page.screenshot({path:path.join(output,'calculator-navigation.png'),fullPage:true});
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,edition:'standard',legacyRoundtrip:true,frozenPricingPreserved:true,calculatorSnapshotsPreserved:true,takeoffLoadRejected:true,takeoffOverwriteRejected:true,coldRequestsCoalesced:true,warmNavigationWithoutRequests:true,navigationRequests,errors,csp:[],requests},null,2));
+  console.log(`PASS: standard edition preserves saved data, rejects incompatible projects, coalesces cold calculator requests and reuses rendered worksheets without requests. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if(page) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); process.exitCode=1;
 }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); if(browser) await browser.close(); server.kill(); });

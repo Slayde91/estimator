@@ -161,6 +161,9 @@ def project_calculator_report(calculator_id, inputs=None):
                 record['assessment_source'] = '\n'.join(str(value) for value in (
                     values['X'] if values['X'] and str(values['X']) not in str(values['Y']) else '',
                     values['Y']) if value not in (None, ''))
+            elif (str(values['B']).casefold() in ('monokote mk-6 hy', 'monokote z106')
+                    and str(values['C']).casefold() == 'pfc web to slab - 3 sides'):
+                record['source_reference'] = values['X']
         else:
             record['complete'] = values['AR'] == 'CLADDING ESTIMATE'
         rows.append(record)
@@ -323,7 +326,7 @@ class _ScheduleReport(_Report):
                 rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'), self.detail(v['B'] or 'Product missing', v['F']),
                     self.p(self.display(v['I']) + ' x ' + self.display(v['J']) + ' m', 'numeric'),
                     self.numeric(v['O']), self.numeric(v['P']), self.numeric(v['R']), self.numeric(v['T']), self.numeric(v['U']),
-                    self.p('\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_reference')) if _has_value(value)) or 'No calculated status returned', 'cell')])
+                    self.p('\n'.join(str(value) for value in (v['V'], v['W'], item.get('assessment_reference') or item.get('source_reference')) if _has_value(value)) or 'No calculated status returned', 'cell')])
             else:
                 rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'), self.detail(v['C'] or 'Product missing', v['D']),
                     self.p(self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),

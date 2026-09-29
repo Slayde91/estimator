@@ -17,11 +17,11 @@
   const browserPresentation = {
     steel_vermiculite: {
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
-      BAGS: { center: ["A6:N15", "A19:I24"] }, // 8–9
+      BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
         omit: ["A1"],
         center: ["A10:L15", "A54:L58", "A86:L90", "A123:L167", "A196:L223", "A259:L264"], // 10–11, 17–20
-        left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239"], // 12–16
+        left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239", "D561:F566"], // Product quantity settings
       },
     },
     steel_board: {

@@ -34,12 +34,14 @@ For a private deliverable, explicitly export the intended factory content:
 
 ```powershell
 python scripts/prepare_desktop_seed.py --library C:\private\reference-library --database C:\private\estimator.sqlite3 --output C:\local-build\factory-seed
-python scripts/build_windows.py --seed C:\local-build\factory-seed --output C:\local-build\release --iscc C:\local-tools\inno\ISCC.exe --webview2-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerX64.exe --webview2-arm64-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerARM64.exe --version 1.0.0
+python scripts/build_windows.py --seed C:\local-build\factory-seed --calculator-evidence C:\private\calculator-evidence --output C:\local-build\release --iscc C:\local-tools\inno\ISCC.exe --webview2-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerX64.exe --webview2-arm64-installer C:\local-tools\MicrosoftEdgeWebView2RuntimeInstallerARM64.exe --version 1.0.0
 ```
 
 Use new output folders. Build scripts refuse to erase previous builds or write
 private output inside the source checkout. An actual installer requires an
-explicit factory seed; only the frozen CI mode allows the synthetic empty seed.
+explicit factory seed and reviewed calculator evidence; only the frozen CI mode
+allows the synthetic empty seed and omitted assessment evidence. A synthetic
+bundle without this evidence withholds the affected Monokote H4 calculations.
 
 The application is a PyInstaller one-folder bundle under
 `frozen/CEASEFIRE Estimator/CEASEFIRE Estimator.exe`. Inno Setup embeds that complete
@@ -72,6 +74,20 @@ files, quotes, calculator drafts, project paths, preferences, TAKEOFFS evidence,
 unreferenced price snapshots, logs and credentials are excluded. Source reports,
 private review metadata and pricing remain local build inputs and must never be
 committed or uploaded with public CI artifacts.
+
+`--calculator-evidence` names a separate directory outside the source checkout.
+Only `monokote-far4856-issue2.json` is copied; neighboring reports, workbooks and
+other files are excluded. The same bounded schema and pinned SHA-256 validator
+used at runtime must accept it before packaging. The build stages the exact
+bytes, checks the original and staged inputs again during the build, and verifies
+the frozen `_internal/calculator-evidence/monokote-far4856-issue2.json` against
+that receipt. Missing, changed or extra bundled evidence fails the build.
+`BUILD_REPORT.json` records its dataset identity, filename, byte count, exact
+SHA-256 and source-report SHA-256; it does not include the private table rows.
+Keep the assessment JSON and private build reports outside the public repository.
+For source-only QA, `CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY` may point to the
+external evidence directory. It is ignored by frozen runtime lookup and removed
+from the packaging subprocess environment; a build requires the explicit option.
 
 The library edits use a fixed table allowlist for saved Firestopping items,
 created items, their referenced frozen price snapshots, manual links/unlinks,

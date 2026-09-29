@@ -8,7 +8,8 @@
     "test:takeoffs-timeouts": "node tests/browser/timeouts.cjs",
     "test:takeoffs-areas": "node tests/browser/areas.cjs",
     "test:takeoffs-penetrations": "node tests/browser/penetrations.cjs",
-    "test:standard-browser": "node tests/browser/standard.cjs"
+    "test:standard-browser": "node tests/browser/standard.cjs",
+    "test:monokote-browser": "node tests/browser/monokote.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

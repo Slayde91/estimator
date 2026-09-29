@@ -74,7 +74,9 @@ _DISPLAY_TEXT = {
                               'MONOKOTE MK-6 HY', 'COMPLETE WORKBOOK OPERATING RULES'))),
                                       'A559': 'MONOKOTE Z106',
                                       'A356': 'IDEALISED HOLLOW GEOMETRY',
-                                      'A370': 'FENDOLITE CASTELLATED SECTION'},
+                                      'A370': 'FENDOLITE CASTELLATED SECTION',
+                                      'A285': 'For Monokote MK-6 HY and Z106 fully exposed hollow columns (Hollow - 4 sides), FAR4856 Issue 2 governs thickness. Named members supply a retained section factor; Hp/A and ESA/M inputs use the same assessment tables. Other cases retain their named-member and factor-table rules.',
+                                      'A289': 'Match the exposed sides, slab-contact face and engineer\'s critical temperature. Monokote Hollow - 4 sides covers fully exposed SHS, RHS and CHS columns only; missing assessment data and unresolved table entries block quantities. Three-sided Monokote hollow cases and channels against slabs keep their existing named-section rules. CAFCO/Mandolite hollow tables remain column cases.'},
                          'SCHEDULE': {'Z9': 'Line', 'A4': 'TOTAL ENTERED SPRAY AREA (m²)',
                                       'G4': 'COATING VOLUME QUANTIFIED (m³)'}},
     'steel_board': {'START': {
@@ -474,14 +476,29 @@ def validate_calculator_edits(calculator_id, inputs, saved_inputs):
     return normalized
 
 
+def calculator_engine(calculator_id, normalized_inputs, *, assessment=None):
+    """One application evaluation path for the UI, PDF and XLSX projection."""
+    model = source_model(calculator_id)
+    overrides = approved_formula_overrides(calculator_id)
+    if calculator_id == 'steel_vermiculite':
+        from .monokote_hollow import MonokoteHollowEngine, load_assessment
+        return MonokoteHollowEngine(model, normalized_inputs, overrides,
+                                    assessment=load_assessment() if assessment is None else assessment)
+    return WorkbookEngine(model, normalized_inputs, overrides)
+
+
 @lru_cache(maxsize=6)
-def _session(calculator_id, serialized_inputs):
-    return WorkbookEngine(source_model(calculator_id), json.loads(serialized_inputs), approved_formula_overrides(calculator_id)), RLock()
+def _session(calculator_id, serialized_inputs, assessment=None):
+    return calculator_engine(calculator_id, json.loads(serialized_inputs), assessment=assessment), RLock()
 
 
 def calculator_session(calculator_id, inputs):
     normalized = normalize_calculator_inputs(calculator_id, inputs)
-    engine, lock = _session(calculator_id, json.dumps(normalized, sort_keys=True, ensure_ascii=False, allow_nan=False))
+    assessment = None
+    if calculator_id == 'steel_vermiculite':
+        from .monokote_hollow import load_assessment
+        assessment = load_assessment()
+    engine, lock = _session(calculator_id, json.dumps(normalized, sort_keys=True, ensure_ascii=False, allow_nan=False), assessment)
     return normalized, engine, lock
 
 
@@ -702,6 +719,11 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                if include_advanced or column not in metadata['hidden_columns']]
     option_sets, option_keys, option_cache = {}, {}, {}
     with lock:
+        if calculator_id == 'steel_vermiculite' and sheet == 'CALCULATOR' and engine.hollow_scope_active(2):
+            # The assessment replaces the formerly hidden manual citation.
+            # Its scope and blocked outcomes must be visible with the result.
+            metadata = {**metadata, 'omitted_ranges': [value for value in metadata['omitted_ranges']
+                                                     if value != 'H23:N24']}
         for row in range(start_row, end_row + 1) if selected_rows is None else selected_rows:
             cells = []
             for column in columns:

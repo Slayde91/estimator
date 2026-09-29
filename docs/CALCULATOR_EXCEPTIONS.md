@@ -136,6 +136,52 @@ Missing Z106 settings fall back to its new runtime defaults without rewriting
 the saved file. Reset Calc applies the startup profile and a blank schedule to
 the draft; Save or Save As is required to persist that draft.
 
+## Reviewed Monokote fully exposed hollow-column assessment
+
+The 29 September 2026 instruction makes FAR4856 Issue 2 the governing thickness
+source for the MK-6 HY and Z106 **Hollow - 4 sides** application case. This case
+means fully exposed SHS, RHS and CHS columns within the assessment scope. It does
+not extend the three-sided case or approve hollow beams or another exposure.
+
+The original Excel model has a real named-hollow error: its generic-factor
+exact-match flag becomes empty text when no generic table is loaded, and the
+status formulas still evaluate `NOT` on that text. Native Excel captures retain
+the same `CALCULATION ERROR`. Fixing that expression alone would expose old
+manual thicknesses that conflict with the assessment. The application therefore
+uses a separate, bounded assessment policy; the packaged source workbook,
+imported formulas, original manual values and native Excel oracle stay unchanged.
+
+`estimator/monokote_hollow.py` accepts only the reviewed private dataset with
+SHA-256 `d75eb118a7061df08d2732393719f902e52042f93de9a955ab0c9ac5386840ff`.
+The report PDF and full assessment matrix are not part of the public repository.
+The desktop build installs the separately verified artifact as
+`calculator-evidence/monokote-far4856-issue2.json`. Source QA can explicitly set
+`CEASEFIRE_CALCULATOR_EVIDENCE_DIRECTORY` to an external evidence directory.
+Missing, changed, malformed or redirected evidence withholds affected results;
+it never restores the old manual thickness. Each request verifies the evidence
+before selecting a cached session, and report/Excel exports use the same policy.
+
+The policy requires an exact published temperature and period, and retains the
+existing `Exact only` or `Next higher (estimate)` factor choice. Next-higher
+selection stays inside the report's 30–365 m⁻¹ range, without interpolation or
+extrapolation. Source dashes remain unavailable. The unresolved publisher cell
+at factor 250, 650°C and 240 minutes is explicitly blocked. The exact decimal
+assessment thickness is retained; no new whole-millimetre rounding is applied.
+
+Named sections retain their original printed H4 section factor consistently
+across temperatures. Where no named factor exists, the existing shared section
+factor remains the estimating basis. Section identity exclusions, required
+hollow families, invalid quantities, yield checks and pooled bag calculations
+remain in force. The application does not change geometry, frozen pricing,
+saved inputs or authoritative workbooks. MK-6 and Z106 still have separate bag
+mass, yield and waste inputs.
+
+The quick calculator, all-period comparison, all 1,000 schedule rows, PDF and
+values-only XLSX use the same corrected assessment result. Affected outputs show
+the assessment page/table, selected upper factor and column-only scope. Tests
+use clearly synthetic matrices; private evidence verification remains a local
+release check, separate from preservation of the original Excel oracle.
+
 ## Later presentation and read-only basis instruction
 
 The later 14 September 2026 instruction supersedes the earlier editable-basis

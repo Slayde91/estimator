@@ -203,6 +203,8 @@ class CalculatorCleanupTests(unittest.TestCase):
                                     "A31": "CAFCO 300", "A64": "MANDOLITE CP2", "A96": "FENDOLITE MII",
                                     "A173": "PERLIFOC HP ECO+", "A229": "MONOKOTE MK-6 HY", "A559": "MONOKOTE Z106",
                                     "A270": "COMPLETE WORKBOOK OPERATING RULES",
+                                    "A285": "For Monokote MK-6 HY and Z106 fully exposed hollow columns (Hollow - 4 sides), FAR4856 Issue 2 governs thickness. Named members supply a retained section factor; Hp/A and ESA/M inputs use the same assessment tables. Other cases retain their named-member and factor-table rules.",
+                                    "A289": "Match the exposed sides, slab-contact face and engineer's critical temperature. Monokote Hollow - 4 sides covers fully exposed SHS, RHS and CHS columns only; missing assessment data and unresolved table entries block quantities. Three-sided Monokote hollow cases and channels against slabs keep their existing named-section rules. CAFCO/Mandolite hollow tables remain column cases.",
                                     "A356": "IDEALISED HOLLOW GEOMETRY", "A370": "FENDOLITE CASTELLATED SECTION"},
                        "SCHEDULE": {"Z9": "Line", "A4": "TOTAL ENTERED SPRAY AREA (m²)", "G4": "COATING VOLUME QUANTIFIED (m³)"}}
             self.assertEqual(sheet["display_text"], aliases.get(sheet["name"], {}))

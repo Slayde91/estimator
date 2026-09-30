@@ -46,10 +46,8 @@ async function fillInspector(values) {
   return command(() => inspector.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
 }
 async function reviewConfirm() {
-  await page.getByRole('button', { name: 'Review', exact: true }).click();
-  await command(() => dialog('Review 1 items?', {}, 'Mark reviewed'), 'review_items');
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
-  return command(() => dialog('Confirm 1 items?', {}, 'Confirm reviewed items'), 'confirm_items');
+  return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items');
 }
 async function transfer(update = false, expectedNote = null, expectedDetails = []) {
   const pending = page.waitForResponse(r => r.url().endsWith('/transfer-preview'));
@@ -94,7 +92,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-MEASURED', 'Explicit physical quantity': 2 }, 'Add draft item'), 'create_item');
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-MEASURED', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const measuredId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-MEASURED').id;
   // The exact profile is selected using the same catalog dialog available to operators.
   await page.getByRole('button', { name: 'Find steel section', exact: true }).click();
@@ -137,7 +135,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Cite length', exact: true }).click();
   await draw([[100 / 842, 1 - 300 / 595], [730 / 842, 1 - 270 / 595]]);
   await dialog('Record a cited length', { 'Source-stated length (metres)': 7.25, 'Exact source reference / dimension': 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH' }, 'Use cited length');
-  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-CITED', 'Explicit physical quantity': 3 }, 'Add draft item'), 'create_item');
+  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-CITED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
   const citedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-CITED').id;
   state = await fillInspector({ ...supported, 'Steel section': '100UC15' });
   assert.equal(state.item_results.find(item => item.id === citedId).total_length_m, 21.75);
@@ -177,7 +175,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Cite length', exact: true }).click();
   await draw([[100 / 842, 1 - 193 / 595], [790 / 842, 1 - 148 / 595]]);
   await dialog('Record a cited length', { 'Source-stated length (metres)': 10, 'Exact source reference / dimension': 'Synthetic board drawing p1, BOARD-UNSUPPORTED: explicitly 120 min beam at 550 C; do not substitute a design' }, 'Use cited length');
-  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-UNSUPPORTED', 'Explicit physical quantity': 1 }, 'Add draft item'), 'create_item');
+  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-UNSUPPORTED', 'Physical quantity': 1 }, 'Add item'), 'create_item');
   const unsupportedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-UNSUPPORTED').id;
   await fillInspector({ ...supported, 'Steel section': '100UC15', 'Critical temperature (°C)': 550 }); await reviewConfirm();
   const beforeRejection = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
@@ -216,7 +214,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'B17', 'Explicit physical quantity': 2 }, 'Add draft item'), 'create_item');
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'B17', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const steelId = state.snapshot.items[0].id;
   assert.ok(Math.abs(state.item_results[0].length_m - 10) < 0.02);
   state = await fillInspector({ 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
@@ -252,9 +250,9 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Cite length', exact: true }).click();
   await draw([[100 / 842, 1 - 245 / 595], [600 / 842, 1 - 220 / 595]]);
   await dialog('Record a cited length', { 'Source-stated length (metres)': 10, 'Exact source reference / dimension': 'Synthetic duct schedule D-001, page 1: 10.0 m' }, 'Use cited length');
-  state = await command(() => dialog('Add duct object', { 'Run ID': 'D-001', 'Explicit physical quantity': 1 }, 'Add draft item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Run ID': 'D-001', 'Physical quantity': 1 }, 'Add item'), 'create_item');
   const ductId = state.snapshot.items.find(i => i.mode === 'duct').id;
-  await fillInspector({ 'Level': 'L02', 'Shape': 'rectangular', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
+  await fillInspector({ 'Level': 'L02', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); transferred = await transfer();
   assert.equal(transferred.preview.inputs.CALCULATOR.B11, '600x400'); assert.equal(transferred.preview.inputs.CALCULATOR.D11, 10);
   // Real split/merge and recoverable deletion preserve source lineage and selection.
@@ -262,7 +260,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
   await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
-  let extra = await command(() => dialog('Add duct object', { 'Run ID': 'QA-SPLIT', 'Explicit physical quantity': 1 }, 'Add draft item'), 'create_item');
+  let extra = await command(() => dialog('Add duct object', { 'Run ID': 'QA-SPLIT', 'Physical quantity': 1 }, 'Add item'), 'create_item');
   const originalRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT').id;
   await page.getByRole('button', { name: 'Split', exact: true }).click();
   extra = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');

@@ -46,10 +46,8 @@ async function fillInspector(values) {
   return command(() => inspector.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
 }
 async function reviewConfirm(count = 1) {
-  await page.getByRole('button', { name: 'Review', exact: true }).click();
-  await command(() => dialog(`Review ${count} items?`, {}, 'Mark reviewed'), 'review_items');
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
-  return command(() => dialog(`Confirm ${count} items?`, {}, 'Confirm reviewed items'), 'confirm_items');
+  return command(() => dialog(`Confirm ${count} items?`, {}, 'Confirm items'), 'confirm_items');
 }
 async function transfer(update = false, expectedNote = null, count = 1) {
   const pending = page.waitForResponse(r => r.url().endsWith('/transfer-preview'));
@@ -98,7 +96,7 @@ async function fitCurrentDrawing(name) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Explicit physical quantity': 3 }, 'Add draft item'), 'create_item');
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
   await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
   state = await reviewConfirm(); const steel = state.snapshot.items.find(item => item.mode === 'steel');
   await page.getByRole('button', { name: 'Split', exact: true }).click();
@@ -130,9 +128,9 @@ async function fitCurrentDrawing(name) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
   await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
-  state = await command(() => dialog('Add duct object', { 'Run ID': 'LINEAGE-DUCT', 'Explicit physical quantity': 1 }, 'Add draft item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Run ID': 'LINEAGE-DUCT', 'Physical quantity': 1 }, 'Add item'), 'create_item');
   const originalRun = state.snapshot.items.find(item => item.mode === 'duct').id;
-  await fillInspector({ 'Level': 'SYNTHETIC', 'Shape': 'rectangular', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
+  await fillInspector({ 'Level': 'SYNTHETIC', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); let transferred = await transfer(); const ancestorBinding = transferred.state.snapshot.transfers[0];
   assert.ok(Math.abs(transferred.preview.inputs.CALCULATOR['D' + ancestorBinding.row] - 10) < .02);
   await page.getByRole('button', { name: 'Split', exact: true }).click();

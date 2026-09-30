@@ -16,6 +16,8 @@ from .catalog import ValidationError
 from .takeoff_area import AREA_MODES
 from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
+from .takeoff_model import (active_calibrations, item_references, preset_distance,
+                           validate_calibration_revisions, validate_measurement_scope)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
 from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
@@ -141,7 +143,7 @@ class TakeoffService:
             blockers = [issue for issue in issues if issue.get('code') != 'IMAGE_EXTRACTION_UNREGISTERED']
             blocked_docs = {issue.get('document_id') for issue in blockers}
             for item in value['items']:
-                refs = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
+                refs = item_references(item)
                 if blockers or any(r['document_id'] in blocked_docs for r in refs) or not self._registered(value, item, 'review'):
                     item.update(state='draft', review=None, confirmation=None)
                 elif item['state'] == 'confirmed' and not self._registered(value, item, 'confirmation'):
@@ -577,19 +579,36 @@ class TakeoffService:
             if binding['item_id'] == item['id']:
                 binding['status'] = 'stale'
 
+    def _invalidate_changed_scopes(self, before, after):
+        previous = {item['id']: item for item in before['items']}
+        for item in after['items']:
+            try:
+                validate_measurement_scope(item, after)
+            except ValidationError:
+                original = previous.get(item['id'])
+                if original is not None:
+                    try:
+                        validate_measurement_scope(original, before)
+                    except ValidationError:
+                        continue
+                    self._invalidate(after, item)
+
     def _create_item(self, snapshot, proposed, predecessors=None):
-        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids'}, 'New takeoff item', {'mode'})
+        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions'}, 'New takeoff item', {'mode'})
         item = {'id': proposed.get('id', str(uuid4())), 'version': 1, 'mode': proposed['mode'], 'state': 'draft',
                 'geometry': deepcopy(proposed.get('geometry')), 'measurement': deepcopy(proposed.get('measurement')),
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
                 'evidence': deepcopy(proposed.get('evidence', [])), 'review': None, 'confirmation': None,
                 'predecessor_ids': deepcopy(predecessors or [])}
         item['member_ids'] = deepcopy(proposed.get('member_ids', []))
+        if 'length_additions' in proposed:
+            item['length_additions'] = deepcopy(proposed['length_additions'])
         if 'member_ids' not in proposed:
             self._resize_members(item)
         if any(i['id'] == item['id'] for i in snapshot['items']):
             raise ValidationError('This takeoff item ID already exists.')
         validate_item(item, snapshot, copy_result=False)
+        validate_measurement_scope(item, snapshot)
         snapshot['items'].append(item)
         return item
 
@@ -620,16 +639,16 @@ class TakeoffService:
             raise ValidationError('Steel groups must retain one distinct identity for every physical member.')
 
     def _group_proposal(self, original):
-        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids')}
+        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions') if key in original}
 
-    def _assert_eligible(self, snapshot, items, *, confirmed=False, session_id=None):
+    def _assert_eligible(self, snapshot, items, *, confirmed=False, session_id=None, require_review=True):
         self.documents.assert_documents(snapshot['documents'], owner=session_id)
         self._verify_audit_head(snapshot, owner=session_id)
         for item in items:
             issues = item_result(item, snapshot)['issues']
             if issues:
                 raise ValidationError(issues[0]['message'])
-            if not self._registered(snapshot, item, 'review'):
+            if require_review and not self._registered(snapshot, item, 'review'):
                 raise ValidationError('Review each current takeoff item before confirmation.')
             if confirmed and (item['state'] != 'confirmed' or not self._registered(snapshot, item, 'confirmation')):
                 raise ValidationError('Every selected item must have a current locally verified confirmation.')
@@ -659,7 +678,7 @@ class TakeoffService:
                 self._create_item(after, request['item'])
             elif op in ('update_item', 'bulk_update'):
                 selected = self._items(after, [request['item_id']] if op == 'update_item' else request['item_ids'])
-                allowed = {'fields', 'quantity'} if op == 'bulk_update' else {'fields', 'quantity', 'geometry', 'measurement', 'evidence', 'member_ids'}
+                allowed = {'fields', 'quantity'} if op == 'bulk_update' else {'fields', 'quantity', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions'}
                 changes = object_fields(request['changes'], allowed, 'Takeoff edit')
                 if not changes:
                     raise ValidationError('Choose at least one field to edit.')
@@ -675,6 +694,7 @@ class TakeoffService:
                         self._resize_members(item)
                     self._invalidate(after, item)
                     validate_item(item, after, copy_result=False)
+                    validate_measurement_scope(item, after)
             elif op == 'delete_items':
                 self._remove(after, self._items(after, request['item_ids']))
             elif op == 'detach_transfers':
@@ -704,8 +724,14 @@ class TakeoffService:
                         approvals.append((item, 'review'))
                 elif op == 'confirm_items':
                     self._session_evidence(session_id)
-                    self._assert_eligible(after, selected, session_id=session_id)
+                    self._assert_eligible(after, selected, session_id=session_id, require_review=False)
                     for item in selected:
+                        # One explicit human confirmation records the review of
+                        # this exact revision without a separate UI gate. Keep
+                        # compatible review receipts and all historical events.
+                        if not self._registered(after, item, 'review'):
+                            item['review'] = self._receipt(after, item, session_id)
+                            approvals.append((item, 'review'))
                         item['confirmation'] = self._receipt(after, item, session_id)
                         item['state'] = 'confirmed'; approvals.append((item, 'confirmation'))
                 else:
@@ -716,30 +742,53 @@ class TakeoffService:
                 if not isinstance(proposed, dict):
                     raise ValidationError('Calibration must be an object.')
                 proposed.setdefault('id', str(uuid4()))
+                if 'supersedes_id' in proposed:
+                    raise ValidationError('Use calibration revision to replace an existing scale.')
                 if any(c['id'] == proposed['id'] for c in after['calibrations']):
                     raise ValidationError('Calibration revisions are immutable. Add a new calibration ID.')
-                after['calibrations'].append(validate_calibration(proposed, after))
+                if 'scale_denominator' in proposed:
+                    proposed.setdefault('distance_m', preset_distance(proposed, after))
+                calibrated = validate_calibration(proposed, after)
+                if 'scale_denominator' in calibrated:
+                    calibrated['distance_m'] = preset_distance(calibrated, after)
+                after['calibrations'].append(calibrated)
+                validate_calibration_revisions(after)
+                self._invalidate_changed_scopes(before, after)
             elif op == 'update_calibration':
                 calibration_id = identity(request['calibration_id'], 'Calibration ID')
                 original = next((c for c in after['calibrations'] if c['id'] == calibration_id), None)
                 if original is None:
                     raise ValidationError('Choose an existing calibration to revise.')
-                changes = object_fields(request['changes'], {'name', 'distance_m', 'points', 'uniform_scale'}, 'Calibration revision')
+                if calibration_id not in {entry['id'] for entry in active_calibrations(after)}:
+                    raise ValidationError('Choose the current calibration revision, not a superseded scale.')
+                changes = object_fields(request['changes'], {'name', 'distance_m', 'points', 'uniform_scale', 'region', 'scale_denominator'}, 'Calibration revision')
                 if not changes:
                     raise ValidationError('Choose a calibration property to revise.')
-                revised = {**deepcopy(original), **deepcopy(changes), 'id': str(uuid4())}
-                after['calibrations'].append(validate_calibration(revised, after))
+                revised = {**deepcopy(original), **deepcopy(changes), 'id': str(uuid4()), 'supersedes_id': calibration_id}
+                for key in ('region', 'scale_denominator'):
+                    if revised.get(key, False) is None:
+                        revised.pop(key)
+                if 'scale_denominator' in revised:
+                    if 'distance_m' not in changes:
+                        revised['distance_m'] = preset_distance(revised, after)
+                calibrated = validate_calibration(revised, after)
+                if 'scale_denominator' in calibrated:
+                    calibrated['distance_m'] = preset_distance(calibrated, after)
+                after['calibrations'].append(calibrated)
+                validate_calibration_revisions(after)
                 revised_calibration_id = revised['id']
                 for item in after['items']:
                     if item['measurement'] and item['measurement'].get('calibration_id') == calibration_id:
                         item['measurement']['calibration_id'] = revised_calibration_id
                         self._invalidate(after, item)
+                        validate_measurement_scope(item, after)
+                self._invalidate_changed_scopes(before, after)
             elif op == 'delete_document':
                 document_id = identity(request['document_id'], 'Document ID')
                 if not any(d['id'] == document_id for d in after['documents']):
                     raise ValidationError('The selected source document no longer exists.')
                 for item in after['items']:
-                    refs = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
+                    refs = item_references(item)
                     if any(r['document_id'] == document_id for r in refs):
                         raise ValidationError('Remove or reassign all linked items before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
@@ -764,7 +813,7 @@ class TakeoffService:
                 after['render_checks'].append(record)
                 if record['success'] is not True or record['warnings']:
                     for item in after['items']:
-                        refs = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
+                        refs = item_references(item)
                         if any((r['document_id'], r['page']) == (record['document_id'], record['page']) for r in refs):
                             self._invalidate(after, item)
             elif op == 'undo':
@@ -831,6 +880,7 @@ class TakeoffService:
                 for original in originals:
                     self._steel_group(original)
                     if (any(original[key] != first[key] for key in ('fields', 'geometry', 'measurement'))
+                            or original.get('length_additions', []) != first.get('length_additions', [])
                             or item_result(original, after)['issues']):
                         raise ValidationError('Steel groups must have identical complete fields, source geometry and length basis. Resolve differences explicitly before merging.')
                     members.extend(original['member_ids'])
@@ -849,6 +899,8 @@ class TakeoffService:
             return response
 
     def _validate_topology_change(self, whole, parts, snapshot):
+        if any(item.get('length_additions') for item in (whole, *parts)):
+            raise ValidationError('Explicitly reassign riser/drop additions before splitting or merging duct runs; the operation cannot duplicate or discard vertical lengths.')
         if whole['mode'] != 'duct' or whole['quantity'] != 1 or not whole['measurement'] or whole['measurement']['method'] != 'calibrated':
             raise ValidationError('Merge/split requires one calibrated duct run per physical item.')
         chain = []

@@ -11,10 +11,10 @@ Locks are not part of this increment.
 1. Upload the original PDF and open its page. Use Fit page, zoom and Pan to
    inspect the source. Search reports the pages inspected, empty text pages and
    failures. It does not perform OCR.
-2. Calibrate a known distance on that page, in metres, and explicitly confirm
-   that the scale is uniform. Name separate scales on the same page. A
-   calibration never carries over to another page. A distorted scan or
-   perspective photograph cannot support this measurement method.
+2. Choose a printed scale from the calibration dropdown for an original-size
+   PDF, or Calibrate a known distance in metres. A calibration never carries
+   over to another page. Use a named Viewport for a separately scaled detail.
+   A distorted scan or perspective photograph cannot support uniform calibration.
 3. Trace a steel member or duct centreline, or mark a source region and enter
    the dimension actually stated there. A column/riser height needs its own
    cited dimension; a plan line does not establish height.
@@ -25,19 +25,73 @@ Locks are not part of this increment.
 5. Select register rows to inspect their source. Filtering, sorting and grouping
    retain item IDs. Bulk changes show the affected count and form one undoable
    edit. Split and merge create successors with predecessor IDs and invalidate
-   review. Delete is recoverable through Undo and retained history.
+   confirmation. Delete is recoverable through Undo and retained history.
    For Steel, split partitions an explicit repeated-member quantity while keeping
    the original member identities and per-member length. Merge reunites compatible
    records with identical properties and measurement basis. For Duct, split/merge
    operates on adjoining measured segments of an individual run. Neither operation
    infers physical steel cuts or resolves conflicting properties.
-6. Review the exact revision, then explicitly confirm it. Missing evidence,
+6. Inspect the exact revision, then explicitly Confirm it. There is no separate
+   Review button: register items are Confirmed or Unconfirmed, with blocking
+   issues shown separately. Missing evidence,
    invalid dimensions/quantities and unsuccessful rendering prevent confirmation.
    An edit invalidates the current approval; historical receipts remain readable.
 
-Unknown properties remain blank. Review and confirmation record a local
+Unknown properties remain blank. Confirmation records a local
 user/session action, not an authenticated person's identity or a manufacturer
 approval of technical suitability.
+
+## Scale presets, viewports and drawing controls
+
+The calibration dropdown includes 1:2, 1:5, 1:10, 1:15, 1:20, 1:25, 1:30,
+1:40, 1:50, 1:75, 1:100, 1:125, 1:150, 1:200, 1:250 and 1:300. A printed
+ratio uses the original PDF's physical dimensions: metres per source coordinate
+unit = UserUnit × 0.0254 / 72 × scale denominator. It cannot detect a drawing
+that was resized before being placed in the PDF. Check its stated dimension;
+use a manually calibrated baseline when the original sheet scale is uncertain.
+Manual calibration already converts source coordinates to metres and therefore
+must not apply UserUnit a second time.
+
+Click **Viewport**, mark two opposite corners, name the detail, and select its
+printed scale or **Calibrate a known dimension**. For a manual viewport, click
+the baseline endpoints inside it and enter the known distance. A trace starting
+inside a viewport selects that viewport's calibration. Active viewports cannot
+overlap, and one measured object cannot cross between scales. Split the actual
+object at the boundary with separately supported geometry instead. A new viewport
+can invalidate an existing page-scaled object in that region; reassign its basis
+and confirm it again. Calibration revisions and Undo retain the previous evidence.
+Shared page scales and viewport outlines are available in Penetrations too; they
+do not infer physical service quantities or approve the physical draft.
+
+Zoom buttons retain the drawing point at the viewport centre. Ctrl/Cmd-wheel
+retains the point under the cursor. Double left-click finishes a length/surface
+trace without duplicating its final vertex; right-click cancels an unfinished
+trace. Enter, Backspace and Escape remain available. The pointer, hand, length,
+PDF upload, fit-page, cancel, search, stop-search, page-navigation and schedule
+buttons use icons with accessible names and the original labels on hover.
+
+The steel creation dialog captures Member mark, Level, Member type, Steel section,
+Fire period, Exposure description, Exposed sides, Product and Qty (with critical
+temperature where required). New Duct records are rectangular and have no Shape
+or Diameter input. Older circular records keep their original values and remain
+ineligible for rectangular calculator transfer; opening them never converts them.
+
+## Riser/Drop additions
+
+Select a Steel or Duct item and use **Riser/Drop** to enter each additional length
+in millimetres, its source page and a citation. Both risers and drops add positive
+travel length; a drop is not a negative deduction. The effective per-member length
+is the traced/cited base length plus the sum of these additions divided by 1,000.
+The user's explicit repeated-steel rule is to add the amount to **each member**:
+10 m + 500 mm at Qty 2 yields 10.5 m per member and 21 m total.
+
+Additions keep persistent IDs and evidence, can be edited/removed, are undoable,
+and invalidate confirmation and linked-transfer eligibility when changed. They
+remain in saved projects and confirmed exports. Duct runs with additions cannot
+be split/merged until the additions are explicitly reassigned, preventing an
+unmeasured riser from being duplicated across successor runs. Compatible Steel
+group operations retain the same per-member additions. Surface and physical-draft
+records have no length additions.
 
 ## Walls and Slabs
 
@@ -57,8 +111,8 @@ rotation, CropBox offsets, UserUnit, zoom and screen density do not change area.
 
 The inspector can re-trace the boundary, edit original PDF vertices and edit or
 remove individual exclusions. Each exclusion has a persistent ID. These edits
-invalidate review and confirmation and can be undone. Bulk edits, row/source
-selection, filtering, grouping, review, confirmation and project persistence use
+invalidate confirmation and can be undone. Bulk edits, row/source
+selection, filtering, grouping, confirmation and project persistence use
 the shared workspace. Surface split/merge is explicitly unavailable; grouping
 separate surfaces preserves their individual identities.
 

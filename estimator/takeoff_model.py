@@ -242,7 +242,7 @@ def polyline_length(value):
 
 def validate_calibration(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'document_id', 'page', 'name', 'points', 'distance_m', 'uniform_scale',
-                          'region', 'scale_denominator', 'supersedes_id'}, 'Calibration',
+                          'region', 'scale_denominator', 'supersedes_id', 'deleted'}, 'Calibration',
                   {'id', 'document_id', 'page', 'points', 'distance_m', 'uniform_scale'})
     identity(value['id'], 'Calibration ID')
     _, page = page_metadata(snapshot, value['document_id'], value['page'])
@@ -267,6 +267,8 @@ def validate_calibration(value, snapshot, *, copy_result=True):
         identity(value['supersedes_id'], 'Previous calibration ID')
         if value['supersedes_id'] == value['id']:
             raise ValidationError('A calibration cannot supersede itself.')
+    if 'deleted' in value and (value['deleted'] is not True or 'region' not in value or 'supersedes_id' not in value):
+        raise ValidationError('A deleted viewport must retain its region and the previous calibration revision.')
     if value['uniform_scale'] is not True:
         raise ValidationError('Confirm that this region has a uniform, undistorted scale before calibration.')
     text(value.get('name', ''), 'Calibration name', 200)
@@ -284,7 +286,7 @@ def preset_distance(calibration, snapshot):
 
 def active_calibrations(snapshot):
     superseded = {entry['supersedes_id'] for entry in snapshot['calibrations'] if 'supersedes_id' in entry}
-    return [entry for entry in snapshot['calibrations'] if entry['id'] not in superseded]
+    return [entry for entry in snapshot['calibrations'] if entry['id'] not in superseded and not entry.get('deleted')]
 
 
 def validate_calibration_revisions(snapshot):
@@ -295,9 +297,13 @@ def validate_calibration_revisions(snapshot):
         if previous_id is None:
             continue
         previous = by_id.get(previous_id)
-        if (previous is None or previous_id in superseded
+        if (previous is None or previous_id in superseded or previous.get('deleted')
                 or (previous['document_id'], previous['page']) != (entry['document_id'], entry['page'])):
             raise ValidationError('Calibration revisions must form one immutable chain on the same source page.')
+        if entry.get('deleted'):
+            retained = lambda value: {key: child for key, child in value.items() if key not in ('id', 'supersedes_id', 'deleted')}
+            if retained(entry) != retained(previous):
+                raise ValidationError('Deleting a viewport must preserve its exact last scale, region and source.')
         superseded.add(previous_id)
         seen = {entry['id']}
         while previous_id is not None:
@@ -327,7 +333,7 @@ def validate_measurement_scope(item, snapshot):
         raise ValidationError('The measurement calibration is missing.')
     active = active_calibrations(snapshot)
     if calibration['id'] not in {entry['id'] for entry in active}:
-        raise ValidationError('This measurement uses a superseded calibration. Select its current revision.')
+        raise ValidationError('This measurement uses a superseded or deleted calibration. Explicitly select an active scale before confirming.')
     vertices = geometry['points']
     selected_region = calibration.get('region')
     if selected_region:

@@ -38,7 +38,7 @@ async function draw(points) {
   for (const [x, y] of points) await page.mouse.click(box.x + x * box.width, box.y + y * box.height);
 }
 async function fillInspector(values) {
-  const inspector = page.locator('.takeoff-inspector');
+  const inspector = page.locator('.takeoff-register-editor');
   for (const [label, value] of Object.entries(values)) {
     const field = inspector.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -91,7 +91,7 @@ async function boardJourney(info) {
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': 'Synthetic board baseline', 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Enter');
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-MEASURED', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const measuredId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-MEASURED').id;
   // The exact profile is selected using the same catalog dialog available to operators.
@@ -110,7 +110,7 @@ async function boardJourney(info) {
   await page.route(optionsUrl, holdOptions);
   try {
     state = await fillInspector(supported);
-    const temperature = page.locator('.takeoff-inspector').getByLabel('Critical temperature (°C)', { exact: true });
+    const temperature = page.locator('.takeoff-register-editor').getByLabel('Critical temperature (°C)', { exact: true });
     await expect.poll(() => temperature.evaluate(control => control.list === null)).toBe(true);
     await expect.poll(async () => {
       const choices = await temperature.evaluate(control => Array.from(control.list?.options || [], option => option.value));
@@ -124,7 +124,7 @@ async function boardJourney(info) {
   const measured = state.item_results.find(item => item.id === measuredId);
   assert.ok(Math.abs(measured.length_m - 10) < 0.02); assert.equal(measured.total_length_m, measured.length_m * 2);
   assert.equal(state.snapshot.items.find(item => item.id === measuredId).member_ids.length, 2);
-  await reviewConfirm(); let transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 2', `Per-member length: ${measured.length_m} m`, `Total length: ${measured.total_length_m} m`, `Lineal metres: ${measured.total_length_m}`]);
+  await reviewConfirm(); let transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 2', `Per-member length: ${measured.length_m.toFixed(2)} m`, `Total length: ${measured.total_length_m.toFixed(2)} m`, `Lineal metres: ${measured.total_length_m.toFixed(2)}`]);
   const measuredBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === measuredId);
   assert.equal(measuredBinding.calculator_id, 'steel_board');
   assert.equal(transferred.preview.inputs[measuredBinding.sheet]['F' + measuredBinding.row], measured.total_length_m);
@@ -132,10 +132,12 @@ async function boardJourney(info) {
   transferred = await transfer(); assert.equal(transferred.preview.changes[0].action, 'unchanged');
   assert.equal(transferred.state.snapshot.transfers.find(binding => binding.item_id === measuredId).id, measuredBinding.id);
   await fitCurrentDrawing('synthetic-board.pdf');
-  await page.getByRole('button', { name: 'Cite length', exact: true }).click();
+  await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 300 / 595], [730 / 842, 1 - 270 / 595]]);
-  await dialog('Record a cited length', { 'Source-stated length (metres)': 7.25, 'Exact source reference / dimension': 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH' }, 'Use cited length');
+  await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-CITED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
+  await page.getByRole('button', { name: 'Change length basis', exact: true }).click();
+  state = await command(() => dialog('Change length basis', { 'Length basis': 'cited', 'Cited length (metres)': 7.25, 'Source citation': 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH' }, 'Apply'), 'update_item');
   const citedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-CITED').id;
   state = await fillInspector({ ...supported, 'Steel section': '100UC15' });
   assert.equal(state.item_results.find(item => item.id === citedId).total_length_m, 21.75);
@@ -165,17 +167,19 @@ async function boardJourney(info) {
   await expect(page.locator(`[data-calculator-sheet="CALCULATOR"][data-calculator-cell="F${citedBinding.row}"]`)).toHaveValue('21.75');
   await screenshot('confirmed-board-schedule.png');
   await source.click();
-  await expect(page.locator('.takeoff-inspector .takeoff-identity').first()).toHaveText(citedId);
+  await expect(page.locator('.takeoff-register-editor .takeoff-identity').first()).toHaveText(citedId);
   await expect(page.locator('.takeoff-shape.selected')).toHaveCount(1);
   await expect(page.locator('.takeoff-calibration-summary')).toContainText('7.25');
   await expect(page.locator('.takeoff-calibration-summary')).toContainText('Synthetic board drawing');
   await screenshot('board-source-return.png');
   // A separately drawn unsupported combination must fail without changing requirements or schedules.
   await fitCurrentDrawing('synthetic-board.pdf');
-  await page.getByRole('button', { name: 'Cite length', exact: true }).click();
+  await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 193 / 595], [790 / 842, 1 - 148 / 595]]);
-  await dialog('Record a cited length', { 'Source-stated length (metres)': 10, 'Exact source reference / dimension': 'Synthetic board drawing p1, BOARD-UNSUPPORTED: explicitly 120 min beam at 550 C; do not substitute a design' }, 'Use cited length');
+  await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-UNSUPPORTED', 'Physical quantity': 1 }, 'Add item'), 'create_item');
+  await page.getByRole('button', { name: 'Change length basis', exact: true }).click();
+  state = await command(() => dialog('Change length basis', { 'Length basis': 'cited', 'Cited length (metres)': 10, 'Source citation': 'Synthetic board drawing p1, BOARD-UNSUPPORTED: explicitly 120 min beam at 550 C; do not substitute a design' }, 'Apply'), 'update_item');
   const unsupportedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-UNSUPPORTED').id;
   await fillInspector({ ...supported, 'Steel section': '100UC15', 'Critical temperature (°C)': 550 }); await reviewConfirm();
   const beforeRejection = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
@@ -213,7 +217,7 @@ async function boardJourney(info) {
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': 'Ten metre baseline', 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Enter');
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'B17', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const steelId = state.snapshot.items[0].id;
   assert.ok(Math.abs(state.item_results[0].length_m - 10) < 0.02);
@@ -247,10 +251,12 @@ async function boardJourney(info) {
   transferred = await transfer(true); assert.equal(transferred.preview.inputs.SCHEDULE.I10, 3);
   await screenshot('confirmed-steel.png');
   await page.locator('[data-mode="duct"]').click();
-  await page.getByRole('button', { name: 'Cite length', exact: true }).click();
+  await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 245 / 595], [600 / 842, 1 - 220 / 595]]);
-  await dialog('Record a cited length', { 'Source-stated length (metres)': 10, 'Exact source reference / dimension': 'Synthetic duct schedule D-001, page 1: 10.0 m' }, 'Use cited length');
+  await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add duct object', { 'Run ID': 'D-001', 'Physical quantity': 1 }, 'Add item'), 'create_item');
+  await page.getByRole('button', { name: 'Change length basis', exact: true }).click();
+  state = await command(() => dialog('Change length basis', { 'Length basis': 'cited', 'Cited length (metres)': 10, 'Source citation': 'Synthetic duct schedule D-001, page 1: 10.0 m' }, 'Apply'), 'update_item');
   const ductId = state.snapshot.items.find(i => i.mode === 'duct').id;
   await fillInspector({ 'Level': 'L02', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); transferred = await transfer();
@@ -259,7 +265,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Fit page', exact: true }).click();
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Enter');
   let extra = await command(() => dialog('Add duct object', { 'Run ID': 'QA-SPLIT', 'Physical quantity': 1 }, 'Add item'), 'create_item');
   const originalRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT').id;
   await page.getByRole('button', { name: 'Split', exact: true }).click();
@@ -325,7 +331,7 @@ async function boardJourney(info) {
   await screenshot('failed-content-blocked.png');
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, stage: 'save-reopen-export', project: info.project, steelId, ductId, board, errors, requests, violations: await page.evaluate(() => window.qaCsp) }, null, 2));
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  console.log(`PASS: rendered upload, calibration, trace/cite, inspector, bulk/undo, confirmation, three calculator destinations, Board native-design rejection, source links, transfer/repeat/update, save/reopen and CSV/XLSX export. Evidence: ${output}`);
+  console.log(`PASS: rendered upload, calibration, trace/cite, register editor, bulk/undo, confirmation, three calculator destinations, Board native-design rejection, source links, transfer/repeat/update, save/reopen and CSV/XLSX export. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(serverErrors.slice(-6000)); console.error(JSON.stringify(requests.slice(-10)));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

@@ -15,8 +15,8 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderInspector,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
-  source=source.replace('setApi(fn){api=fn;}', 'renderPage,drawingPointer,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('setApi(fn){api=fn;}', 'renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -34,7 +34,7 @@ function attachMinimalDom(h) {
     return el;
   }
   h.context.document.createElement=element;h.context.document.createElementNS=(_,tag)=>element(tag);
-  const ui={};for(const key of ['inspector','split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message'])ui[key]=element();ui.statusFilter={value:''};h.audit.state.ui=ui;
+  const ui={};for(const key of ['split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message'])ui[key]=element();ui.statusFilter={value:''};h.audit.state.ui=ui;
   return {ui,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 let passed=0;
@@ -104,8 +104,8 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       const h=harness(),value=blank(),item={id:'diagnostic-surface',mode,version:1,state:'draft',quantity:1,fields:{mark:'Missing source'},geometry:null,measurement:null,evidence:[],member_ids:[]};value.items=[item];
       h.audit.accept({...response(value),item_results:[{id:item.id,issues:[{code:'MISSING_GEOMETRY',message:'Source geometry required.'}]}]});h.audit.state.mode=mode;
       const dom=attachMinimalDom(h);await h.audit.selectItem(item.id);
-      assert.ok(h.audit.state.selected.has(item.id));assert.ok(dom.ui.tableWrap.textContent.includes('Source markup missing'));assert.ok(dom.ui.inspector.textContent.includes('Source markup is missing'));
-      const buttons=dom.all(dom.ui.inspector).filter(node=>node.tagName==='BUTTON');
+      assert.ok(h.audit.state.selected.has(item.id));assert.ok(dom.ui.tableWrap.textContent.includes('Source markup missing'));assert.ok(h.audit.state.registerEditor.panel.textContent.includes('Source markup is missing'));
+      const buttons=dom.all(h.audit.state.registerEditor.panel).filter(node=>node.tagName==='BUTTON');
       for(const label of ['Change surface calibration','Re-trace geometry','Edit surface vertices','Add excluded opening']){const control=buttons.find(button=>button.textContent===label);assert.equal(control.disabled,true,label);assert.match(control.title,/Attach source geometry/);}
       for(const label of ['Apply item edits','Attach source on current page','Add evidence reference'])assert.ok(!buttons.find(button=>button.textContent===label).disabled,label);
       await assert.rejects(h.audit.startExclusion(),/no source boundary/);await assert.rejects(h.audit.editAreaBoundary(item),/Attach source geometry/);await assert.rejects(h.audit.changeAreaCalibration(item),/Attach source geometry/);
@@ -133,6 +133,22 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const h=harness();h.audit.state.mode='wall';h.audit.state.viewport={};h.audit.state.ui={root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{}};
     h.audit.setTool('exclusion',{exclusionItemId:'old-surface'});assert.equal(h.audit.state.exclusionItemId,'old-surface');h.audit.setTool('pan');assert.equal(h.audit.state.exclusionItemId,null);assert.throws(()=>h.audit.setTool('exclusion'),/Select one surface/);
   });
+  await check('Dirty register edits block every geometry-writing tool and zero-point manual calibration is cancellable',async()=>{
+    const h=harness();h.audit.state.calibration='scale';h.audit.state.viewport={};h.audit.state.ui={root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{},overlay:{replaceChildren(){}}};
+    h.audit.state.formDirty=true;
+    for(const tool of ['trace','calibrate','viewport','polygon','exclusion']){h.audit.state.mode=['polygon','exclusion'].includes(tool)?'wall':'steel';assert.throws(()=>h.audit.setTool(tool),/unfinished/);assert.equal(h.audit.state.formDirty,true);}
+    h.audit.state.formDirty=false;h.audit.state.viewport=null;h.audit.state.calibrationTarget='stale-viewport';h.audit.state.tool='calibrate';await h.audit.discardEditor();assert.equal(h.audit.state.calibrationTarget,null);assert.equal(h.audit.state.tool,'select');
+    h.audit.state.calibrationTarget='stale-viewport';h.audit.state.tool='calibrate';h.audit.requireFinishedEdits();assert.equal(h.audit.state.calibrationTarget,null);assert.equal(h.audit.state.tool,'select');
+    h.audit.state.calibrationTarget='active-viewport';h.audit.state.points=[[10,10]];assert.throws(()=>h.audit.requireFinishedEdits(),/unfinished/);assert.equal(h.audit.state.calibrationTarget,'active-viewport');assert.equal(h.audit.state.points.length,1);
+  });
+  await check('Active drawing tools recheck later register edits before recording or finishing geometry',async()=>{
+    for(const tool of ['trace','polygon','exclusion','calibrate','viewport']){
+      const h=harness();const dom=attachMinimalDom(h);h.audit.state.viewport={};h.audit.state.tool=tool;h.audit.state.points=[[1,1],[2,2]];h.audit.state.formDirty=true;
+      h.audit.drawingPointer({button:0,detail:1,preventDefault(){throw new Error('Dirty drawing must stop before pointer transforms');}});
+      assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);assert.match(dom.ui.message.textContent,/unfinished item edits/);
+      await assert.rejects(h.audit.finishTrace(),/unfinished item edits/);assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);
+    }
+  });
   await check('Selecting an item uses final grouped pagination and expands its collapsed group',async()=>{
     const h=harness(),value=blank();value.items=Array.from({length:101},(_,i)=>({id:`surface-${i}`,mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:String(i),group:i===100?'A':'Z'},geometry:null,measurement:null,evidence:[],member_ids:[]}));
     h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.group='group';h.audit.state.sort='mark';h.audit.state.collapsed.add('A');const {ui}=attachMinimalDom(h);
@@ -140,6 +156,18 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(h.audit.state.offset,0);assert.ok(!h.audit.state.collapsed.has('A'));assert.ok(ui.tableWrap.querySelectorAll('[data-item-id]').some(row=>row.dataset.itemId==='surface-100'&&row.classList.contains('selected')));
     h.audit.state.collapsed.add('Z');await h.audit.selectItem('surface-99',false,false);
     assert.equal(h.audit.state.offset,100);assert.ok(!h.audit.state.collapsed.has('Z'));assert.deepEqual(ui.tableWrap.querySelectorAll('[data-item-id]').map(row=>row.dataset.itemId),['surface-99']);
+  });
+  await check('Register keeps the exact unfinished editor while filtering, grouping and paging hide its source row',async()=>{
+    const h=harness(),value=blank(),item={id:'surface',mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:'W1',level:'L01',group:'West'},geometry:null,measurement:null,evidence:[],member_ids:[]};
+    value.items=[item];h.audit.accept(response(value));h.audit.state.mode='wall';const dom=attachMinimalDom(h);await h.audit.selectItem(item.id,false,false);
+    const editor=h.audit.state.registerEditor,level=editor.controls.find(field=>field.control.name==='level').control;
+    assert.equal(editor.panel.dataset.editorItemId,item.id);assert.ok(dom.all(dom.ui.tableWrap).includes(editor.panel));assert.equal(dom.ui.inspector,undefined);
+    level.value='L02';level.events.input();const before=copy(h.audit.state.session.snapshot);
+    h.audit.state.filter='No matching item';h.audit.renderRegister();assert.equal(h.audit.state.registerEditor,editor);assert.equal(level.value,'L02');assert.ok(dom.ui.tableWrap.textContent.includes('unfinished edits are kept here'));
+    h.audit.state.filter='';h.audit.state.group='group';h.audit.state.collapsed.add('West');h.audit.renderRegister();assert.equal(h.audit.state.registerEditor,editor);assert.ok(dom.all(dom.ui.tableWrap).includes(editor.panel));
+    assert.throws(()=>h.api.projectSnapshot(),/unfinished/);assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+    const discard=dom.all(editor.panel).find(node=>node.tagName==='BUTTON'&&node.textContent==='Discard edits');discard.events.click();await flush();
+    assert.equal(h.audit.state.formDirty,false);assert.notEqual(h.audit.state.registerEditor,editor);assert.equal(h.audit.state.registerEditor.controls.find(field=>field.control.name==='level').control.value,'L01');assert.deepEqual(copy(h.api.projectSnapshot()),before);
   });
   await check('Opening an empty workspace does not create a project snapshot or mark the project dirty',async()=>{
     const h=harness();h.audit.setApi(async()=>response(blank()));await h.audit.ensureSession();
@@ -266,10 +294,19 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.deepEqual(definitions.map(field=>field[0]),['mark','level','member_type','section','fire_period_min','exposure','sides','product','critical_temperature','quantity']);
     assert.equal(definitions.find(field=>field[0]==='product')[1],'Product');
     const legacy={fields:{mark:'Old circular',shape:'circular',diameter_mm:355,unexposed_sides:2}},changes=h.audit.itemEditChanges(legacy,[{control:{name:'mark'},read:()=> 'Updated mark'}],{read:()=>1});
-    assert.equal(changes.fields.shape,'circular');assert.equal(changes.fields.diameter_mm,355);assert.equal(changes.fields.unexposed_sides,2);assert.equal(changes.fields.mark,'Updated mark');
+    assert.deepEqual(copy(changes),{fields:{mark:'Updated mark'},quantity:1});assert.equal(legacy.fields.shape,'circular');assert.equal(legacy.fields.diameter_mm,355);assert.equal(legacy.fields.unexposed_sides,2);
     const dom=attachMinimalDom(h);dom.ui.target={value:'ductwork'};dom.ui.viewport={dataset:{}};h.audit.state.mode='duct';let created;
     h.audit.setAsk(async()=>({mark:'D1',quantity:1}));h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});
     await h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]);assert.equal(created.fields.shape,'rectangular');assert.equal(created.quantity,1);assert.equal(created.fields.diameter_mm,undefined);
+  });
+  await check('Register patches only changed fields, leaves unknown blanks absent and retains full numeric precision',()=>{
+    const h=harness(),item={quantity:2,fields:{mark:'B1',length_note:null,precise:1.123456789,shape:'circular',diameter_mm:355}},control=(name,value)=>({control:{name},read:()=>value});
+    assert.deepEqual(copy(h.audit.itemEditChanges(item,[control('mark','B1'),control('notes',''),control('length_note',''),control('precise',1.123456789)],{read:()=>2})),{});
+    assert.deepEqual(copy(h.audit.itemEditChanges(item,[control('mark','B2'),control('notes',''),control('precise',1.123456788)],{read:()=>3})),{fields:{mark:'B2',precise:1.123456788},quantity:3});
+    assert.deepEqual(copy(h.audit.itemEditChanges(item,[control('mark','')],null)),{fields:{mark:''}});
+    const current={...item,fields:{...item.fields,mark:'B2'}};assert.deepEqual(copy(h.audit.itemEditChanges(current,[control('mark','B1')],{read:()=>2})),{fields:{mark:'B1'}});
+    assert.equal(item.fields.precise,1.123456789);assert.equal(item.fields.diameter_mm,355);
+    assert.deepEqual(copy(h.audit.itemEditChanges({fields:{mark:'  retained legacy text  '}},[{control:{name:'mark',value:'  retained legacy text  '},read:()=> 'retained legacy text'}],null)),{});
   });
   await check('Steel creation reloads exact calculator options for chosen product/member and never rewrites entered profile',async()=>{
     const h=harness();h.audit.accept(response(blank()));const controls=['product','member_type','section'].map(name=>({control:{name,value:name==='member_type'?'Beam':name==='section'?'Explicit profile':'',isConnected:false,events:{},addEventListener(event,fn){this.events[event]=fn;}}})),calls=[];
@@ -288,15 +325,15 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     let calls=[],addition={kind:'riser',length_mm:2500,note:'Elevation dimension',document_id:'doc',page:2};h.audit.setAsk(async(title,definitions,detail)=>{assert.match(detail,/each member/);return {...addition};});h.audit.setCommand(async(op,payload,guard)=>{guard?.();calls.push(copy(payload));});
     await h.audit.editLengthAddition(item);const first=calls[0].changes.length_additions[0];assert.match(first.id,/^[a-f0-9-]{36}$/);assert.equal(first.length_mm,2500);assert.equal(first.page,2);
     h.audit.state.session.snapshot.items[0].length_additions=[first];item.length_additions=[first];addition.length_mm=3000;await h.audit.editLengthAddition(item,first);assert.equal(calls[1].changes.length_additions[0].id,first.id);assert.equal(calls[1].changes.length_additions[0].length_mm,3000);
-    assert.match(h.audit.lengthSummary(item,{base_length_m:2,additions_length_m:3,length_m:5,total_length_m:15}),/Base: 2 m \+ riser\/drop: 3 m = 5 m per member · Quantity 3 · Total: 15 m/);
+    assert.match(h.audit.lengthSummary(item,{base_length_m:2,additions_length_m:3,length_m:5,total_length_m:15}),/Base: 2\.00 m \+ riser\/drop: 3\.00 m = 5\.00 m per member · Quantity 3 · Total: 15\.00 m/);
     for(const malformed of [{length_mm:0},{length_mm:Infinity},{note:''},{page:3},{page:1.5},{kind:'height'}])assert.throws(()=>h.audit.parsedLengthAddition({...addition,...malformed},first.id));
     h.audit.setAsk(async()=>{h.audit.state.session.snapshot.items[0].version++;return {...addition};});await assert.rejects(h.audit.editLengthAddition(item,first),/item changed/);assert.equal(calls.length,2);
   });
   await check('Calibration changes offer only current scales on the item source page, not the displayed page or retained predecessor',async()=>{
     const h=harness(),value=blank(),item={id:'item',mode:'steel',geometry:{document_id:'source',page:2},measurement:{method:'calibrated',calibration_id:'old'}};
-    value.calibrations=[{id:'old',document_id:'source',page:2,name:'Old'},{id:'current',supersedes_id:'old',document_id:'source',page:2,name:'Current'},{id:'different-page',document_id:'source',page:1,name:'Other'},{id:'different-document',document_id:'displayed',page:2,name:'Other document'}];h.audit.accept(response(value));h.audit.state.document='displayed';h.audit.state.page=1;
+    value.calibrations=[{id:'old',document_id:'source',page:2,name:'Old'},{id:'current',supersedes_id:'old',document_id:'source',page:2,name:'Current'},{id:'different-page',document_id:'source',page:1,name:'Other'},{id:'different-document',document_id:'displayed',page:2,name:'Other document'},{id:'deleted-original',document_id:'source',page:2,name:'Deleted viewport'},{id:'tombstone',supersedes_id:'deleted-original',deleted:true,document_id:'source',page:2,name:'Deleted viewport'}];h.audit.accept(response(value));h.audit.state.document='displayed';h.audit.state.page=1;
     h.audit.setAsk(async(title,definitions)=>{const definition=definitions.find(field=>field[0]==='calibration_id');assert.deepEqual(copy(definition[2]),[['current','Current']]);assert.equal(definition[3],'');return null;});
-    await h.audit.changeLength(item);await h.audit.changeAreaCalibration({...item,mode:'wall'});assert.equal(h.audit.state.session.snapshot.calibrations.length,4);
+    await h.audit.changeLength(item);await h.audit.changeAreaCalibration({...item,mode:'wall'});assert.equal(h.audit.state.session.snapshot.calibrations.length,6);
     h.audit.setAsk(async()=>({method:'calibrated',calibration_id:'old'}));await assert.rejects(h.audit.changeLength(item),/current calibration/);await assert.rejects(h.audit.changeAreaCalibration({...item,mode:'wall'}),/current calibration/);
   });
   await check('Legacy unspecified duct shape can be explicitly repaired without converting circular ducts or replacing dimensions',async()=>{
@@ -343,12 +380,14 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     product.value='PROMATECT 250';product.change();await flush();query=new URL(paths.at(-1),'http://localhost').searchParams;
     assert.equal(query.get('product'),'PROMATECT 250');assert.equal(query.get('member_type'),'Column');
   });
-  await check('Transfer review shows exact mapped values, physical quantities and native notes in readable labels',()=>{
+  await check('Transfer review rounds displayed lengths to two decimals without changing mapped precision or native notes',()=>{
     const h=harness(),item={id:'member',mode:'steel',quantity:3,fields:{mark:'B17'}},binding={item_id:'member',sheet:'CALCULATOR',row:9,values:{A9:'B17',F9:.370370367,L9:0,X9:null}};
     const columns=[{column:'A',label:'Member mark'},{column:'F',label:'Lineal metres'},{column:'L',label:'Waste'},{column:'X',label:'Design reference'}];
     const preview={calculator_id:'steel_board',changes:[{item_id:'member',action:'append'}],bindings:[binding],warnings:[{item_id:'member',status:'CLADDING ESTIMATE',message:'Add supports separately.'}]};
+    const before=copy({preview,item});
     const summary=h.audit.transferSummary(preview,[item],[{id:'member',length_m:.123456789,total_length_m:.370370367}],columns);
-    for(const text of ['Add: B17','Source ID: member','Steel Board · CALCULATOR row 9','Physical quantity: 3','Per-member length: 0.123456789 m','Total length: 0.370370367 m','Lineal metres: 0.370370367','Waste: 0','CLADDING ESTIMATE','Add supports separately.'])assert.ok(summary.includes(text),text);
+    assert.deepEqual(copy({preview,item}),before);assert.equal(preview.bindings[0].values.F9,.370370367);
+    for(const text of ['Add: B17','Source ID: member','Steel Board · CALCULATOR row 9','Physical quantity: 3','Per-member length: 0.12 m','Total length: 0.37 m','Lineal metres: 0.37','Waste: 0','CLADDING ESTIMATE','Add supports separately.'])assert.ok(summary.includes(text),text);
     assert.ok(!summary.includes('Design reference:'));assert.ok(!summary.includes('"changes"'));
   });
   console.log(`${passed} takeoff UI and geometry checks passed.`);

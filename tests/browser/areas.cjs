@@ -39,7 +39,7 @@ async function draw(points, rotated = false, doubleFinish = false) {
   }
 }
 async function edit(values) {
-  const panel = page.locator('.takeoff-inspector');
+  const panel = page.locator('.takeoff-register-editor');
   for (const [label, value] of Object.entries(values)) {
     const field = panel.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -130,7 +130,7 @@ async function surface(mode, rotated = false) {
   await fit();
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
   await draw([[300, 300], [400, 300], [400, 400]]);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Enter');
   await dialog('Add wall surface', {}, 'Cancel');
   await page.getByRole('button', { name: 'Cancel trace', exact: true }).click();
   assert.deepEqual(await page.evaluate(id => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === id).geometry, wall.id), wall.geometry);

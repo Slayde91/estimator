@@ -38,7 +38,7 @@ async function draw(points) {
   for (const [x, y] of points) await page.mouse.click(box.x + x * box.width, box.y + y * box.height);
 }
 async function fillInspector(values) {
-  const inspector = page.locator('.takeoff-inspector');
+  const inspector = page.locator('.takeoff-register-editor');
   for (const [label, value] of Object.entries(values)) {
     const field = inspector.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -95,7 +95,7 @@ async function fitCurrentDrawing(name) {
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': 'Ten metre baseline', 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Enter');
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
   await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
   state = await reviewConfirm(); const steel = state.snapshot.items.find(item => item.mode === 'steel');
@@ -127,7 +127,7 @@ async function fitCurrentDrawing(name) {
   await fitCurrentDrawing('synthetic-drawings.pdf');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add duct object', { 'Run ID': 'LINEAGE-DUCT', 'Physical quantity': 1 }, 'Add item'), 'create_item');
   const originalRun = state.snapshot.items.find(item => item.mode === 'duct').id;
   await fillInspector({ 'Level': 'SYNTHETIC', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });

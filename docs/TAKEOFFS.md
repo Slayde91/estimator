@@ -15,14 +15,19 @@ Locks are not part of this increment.
    PDF, or Calibrate a known distance in metres. A calibration never carries
    over to another page. Use a named Viewport for a separately scaled detail.
    A distorted scan or perspective photograph cannot support uniform calibration.
-3. Trace a steel member or duct centreline, or mark a source region and enter
-   the dimension actually stated there. A column/riser height needs its own
-   cited dimension; a plan line does not establish height.
+3. Trace a steel member or duct centreline. Complete it with a double-click or
+   Enter; there is no separate Finish trace button. For a source-stated dimension,
+   select the item in the register and use Change length basis with its exact
+   citation and evidence. A column/riser height needs its own cited dimension;
+   a plan line does not establish height.
 4. Enter the physical quantity and required properties. Each repeated physical
    member has its own persistent identity. Extra supporting references do not
    add quantity. Split ducts at branches or changes of size, orientation,
    protection or mechanical system.
-5. Select register rows to inspect their source. Filtering, sorting and grouping
+5. Select register rows to inspect their source. **Edit item** expands all fields,
+   calculator-specific choices and evidence actions inside that row. **Apply item
+   edits** keeps the changes; **Discard edits** restores the stored values. There
+   is no separate Item Inspector. Filtering, sorting and grouping
    retain item IDs. Bulk changes show the affected count and form one undoable
    edit. Split and merge create successors with predecessor IDs and invalidate
    confirmation. Delete is recoverable through Undo and retained history.
@@ -43,7 +48,8 @@ approval of technical suitability.
 
 ## Scale presets, viewports and drawing controls
 
-The calibration dropdown includes 1:2, 1:5, 1:10, 1:15, 1:20, 1:25, 1:30,
+The calibration dropdown initially shows **No Scale Selected**. It includes
+1:2, 1:5, 1:10, 1:15, 1:20, 1:25, 1:30,
 1:40, 1:50, 1:75, 1:100, 1:125, 1:150, 1:200, 1:250 and 1:300. A printed
 ratio uses the original PDF's physical dimensions: metres per source coordinate
 unit = UserUnit × 0.0254 / 72 × scale denominator. It cannot detect a drawing
@@ -52,14 +58,22 @@ use a manually calibrated baseline when the original sheet scale is uncertain.
 Manual calibration already converts source coordinates to metres and therefore
 must not apply UserUnit a second time.
 
-Click **Viewport**, mark two opposite corners, name the detail, and select its
-printed scale or **Calibrate a known dimension**. For a manual viewport, click
+Click **Viewport** to open the Viewports panel beside the drawing. Its rows show
+the viewports on the current page, with a separate scale dropdown in each row.
+Use **Add viewport** (+), mark two opposite corners, name the detail, and select
+its printed scale or **Calibrate a known dimension**. For a manual viewport, click
 the baseline endpoints inside it and enter the known distance. A trace starting
 inside a viewport selects that viewport's calibration. Active viewports cannot
 overlap, and one measured object cannot cross between scales. Split the actual
 object at the boundary with separately supported geometry instead. A new viewport
 can invalidate an existing page-scaled object in that region; reassign its basis
 and confirm it again. Calibration revisions and Undo retain the previous evidence.
+Select a viewport row, then use **Delete viewport** (trash) to remove it. Deletion
+retains the original revision and invalidates affected confirmations and links;
+it never silently gives those items another scale. Reassign an applicable scale
+and confirm them again. Existing calculator values remain unchanged. Undo restores
+the viewport, with fresh confirmation still required. The row's more button edits
+its name, and the panel heading closes the panel.
 Shared page scales and viewport outlines are available in Penetrations too; they
 do not infer physical service quantities or approve the physical draft.
 
@@ -67,8 +81,14 @@ Zoom buttons retain the drawing point at the viewport centre. Ctrl/Cmd-wheel
 retains the point under the cursor. Double left-click finishes a length/surface
 trace without duplicating its final vertex; right-click cancels an unfinished
 trace. Enter, Backspace and Escape remain available. The pointer, hand, length,
-PDF upload, fit-page, cancel, search, stop-search, page-navigation and schedule
+calibration, viewport, PDF upload, fit-page, cancel, search, stop-search,
+page-navigation, linked-row update/detach, register export and schedule
 buttons use icons with accessible names and the original labels on hover.
+
+Displayed lengths in the register, item summaries and transfer previews use two
+decimal places. Stored measurements, calculator inputs, confirmation digests and
+exported numeric values retain their full precision; display rounding never changes
+quantities or calculation outputs.
 
 The steel creation dialog captures Member mark, Level, Member type, Steel section,
 Fire period, Exposure description, Exposed sides, Product and Qty (with critical
@@ -109,7 +129,7 @@ or the outer boundary. The register reports gross, excluded and net square metre
 The backend squares the calibration scale and keeps unrounded results; page
 rotation, CropBox offsets, UserUnit, zoom and screen density do not change area.
 
-The inspector can re-trace the boundary, edit original PDF vertices and edit or
+The expanded register row can re-trace the boundary, edit original PDF vertices and edit or
 remove individual exclusions. Each exclusion has a persistent ID. These edits
 invalidate confirmation and can be undone. Bulk edits, row/source
 selection, filtering, grouping, confirmation and project persistence use

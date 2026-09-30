@@ -16,7 +16,7 @@ function harness() {
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
   source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
-  source=source.replace('setApi(fn){api=fn;}', 'downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'renderControlPoints,pointReference,pointTarget,pointRemovalReason,removeControlPoint,planKeydown,handoffPlanWheel,downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -40,6 +40,43 @@ function attachMinimalDom(h) {
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Every point of one maximum-size trace is inspectable and larger selections disclose bounded handle coverage',()=>{
+    const h=harness(),value=blank(),make=(id,n)=>({id,mode:'steel',fields:{mark:id},geometry:{document_id:'doc',page:3,points:Array.from({length:n},(_,i)=>[20+i*.001,30+i*.002])},measurement:{method:'calibrated',calibration_id:'scale'}});value.items=[make('long',10000),make('extra',3)];h.audit.accept(response(value));Object.assign(h.audit.state,{document:'doc',page:3,mode:'steel',tool:'select',selected:new Set(['long']),viewport:{transform:[0,2,2,0,-60,-40],width:200,height:200}});const dom=attachMinimalDom(h);dom.ui.controlStatus=dom.element();h.audit.renderControlPoints(dom.ui.overlay);let points=dom.all(dom.ui.overlay).filter(el=>el.className.includes('takeoff-control-point'));assert.equal(points.length,10000);assert.equal(points.at(-1).dataset.pointIndex,'9999');assert.ok(!dom.ui.controlStatus.textContent.includes('Showing'));
+    h.audit.state.selected.add('extra');dom.ui.overlay.replaceChildren();h.audit.renderControlPoints(dom.ui.overlay);points=dom.all(dom.ui.overlay).filter(el=>el.className.includes('takeoff-control-point'));assert.equal(points.length,10000);assert.match(dom.ui.controlStatus.textContent,/Showing 10000 of 10003/);
+  });
+  await check('Control-point deletion binds the exact visible source revision and sends only its copied geometry',async()=>{
+    const h=harness(),value=blank(),item={id:'a',mode:'steel',quantity:1,fields:{mark:'A'},geometry:{document_id:'doc',page:3,points:[[20.123456789,30],[40,50],[60,90],[80,100]]},measurement:{method:'calibrated',calibration_id:'scale'}};value.items=[item];h.audit.accept(response(value));Object.assign(h.audit.state,{document:'doc',page:3,mode:'steel',selected:new Set(['a'])});
+    const reference=h.audit.pointReference(item,1),before=copy(item);let sent;h.audit.setCommand(async(op,body,guard)=>{assert.equal(guard(),true);sent={op,...copy(body)};});await h.audit.removeControlPoint(reference);
+    assert.deepEqual(sent,{op:'update_item',item_id:'a',changes:{geometry:{...item.geometry,points:[item.geometry.points[0],item.geometry.points[2],item.geometry.points[3]]}}});assert.deepEqual(item,before);assert.equal(sent.changes.geometry.points[0][0],20.123456789);
+    h.audit.state.session.revision++;await assert.rejects(h.audit.removeControlPoint(reference),/selection changed/);h.audit.state.session.revision--;h.audit.state.hidden.add('a');await assert.rejects(h.audit.removeControlPoint(reference),/selection changed/);h.audit.state.hidden.clear();h.audit.state.filter='absent';await assert.rejects(h.audit.removeControlPoint(reference),/visible selection/);h.audit.state.filter='';h.audit.state.formDirty=true;await assert.rejects(h.audit.removeControlPoint(reference),/unfinished/);
+  });
+  await check('Control-point removal keeps line/polygon minima and exclusion identities and never removes cited dimension markers',async()=>{
+    const h=harness(),value=blank(),item={id:'a',mode:'wall',fields:{mark:'W'},geometry:{kind:'polygon',document_id:'doc',page:3,points:[[0,0],[100,0],[100,100],[0,100]],exclusions:[{id:'hole',note:'source opening',points:[[20,20],[40,20],[40,40],[20,40]]}]},measurement:{method:'calibrated',calibration_id:'scale'}};value.items=[item];h.audit.accept(response(value));Object.assign(h.audit.state,{document:'doc',page:3,mode:'wall',selected:new Set(['a'])});let sent;h.audit.setCommand(async(op,body)=>{sent=copy(body);});
+    await h.audit.removeControlPoint(h.audit.pointReference(item,1,'hole'));assert.equal(sent.changes.geometry.exclusions[0].id,'hole');assert.equal(sent.changes.geometry.exclusions[0].note,'source opening');assert.equal(sent.changes.geometry.exclusions[0].points.length,3);assert.deepEqual(sent.changes.geometry.points,item.geometry.points);
+    const current=h.audit.state.session.snapshot.items[0];current.geometry.exclusions[0].points.pop();assert.match(h.audit.pointRemovalReason(h.audit.pointReference(current,0,'hole')),/at least 3/);current.geometry.points.pop();assert.match(h.audit.pointRemovalReason(h.audit.pointReference(current,0)),/at least 3/);
+    current.mode='steel';h.audit.state.mode='steel';delete current.geometry.kind;delete current.geometry.exclusions;current.geometry.points.pop();assert.match(h.audit.pointRemovalReason(h.audit.pointReference(current,0)),/at least 2/);current.measurement.method='cited';assert.match(h.audit.pointRemovalReason(h.audit.pointReference(current,0)),/cited source region/);
+  });
+  await check('Control-Z removes one pending vertex but leaves native field undo, dirty traces and shifted shortcuts untouched',()=>{
+    const h=harness();h.audit.state.tool='trace';h.audit.state.points=[[1,2],[3,4],[5,6]];let prevented=0;const event={key:'z',ctrlKey:true,preventDefault(){prevented++;},target:{closest(){return null;}}};h.audit.planKeydown(event);assert.deepEqual(copy(h.audit.state.points),[[1,2],[3,4]]);assert.equal(prevented,1);
+    h.audit.planKeydown({...event,target:{closest(){return {};}}});assert.equal(h.audit.state.points.length,2);h.audit.planKeydown({...event,shiftKey:true});assert.equal(h.audit.state.points.length,2);h.audit.state.settingsDirty=true;h.audit.planKeydown(event);assert.equal(h.audit.state.points.length,2);
+  });
+  await check('Plan control-Z consumes unsupported selection undo without undoing earlier page or form inputs',()=>{
+    const h=harness(),value=blank();value.items=[{id:'a',mode:'steel',fields:{}},{id:'b',mode:'steel',fields:{}}];h.audit.accept(response(value));const dom=attachMinimalDom(h);Object.assign(h.audit.state,{tool:'select',mode:'steel',selected:new Set(['a','b'])});let prevented=0;
+    const event={key:'z',ctrlKey:true,preventDefault(){prevented++;},target:{closest(){return null;}}};h.audit.planKeydown(event);assert.equal(prevented,1);assert.match(dom.ui.message.textContent,/Choose one control point/);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
+    h.audit.state.selected.clear();h.audit.planKeydown(event);assert.equal(prevented,2);for(const tool of ['pan','trace']){h.audit.state.tool=tool;h.audit.planKeydown(event);}h.audit.state.mode='physical';h.audit.planKeydown(event);assert.equal(prevented,5);h.audit.planKeydown({...event,target:{closest(){return {};}}});assert.equal(prevented,5);
+  });
+  await check('Focused plan wheel hands off at both edges with explicit delta units and clamped outer bounds',()=>{
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollTop:200,scrollHeight:300,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;let prevented=0;
+    const event={cancelable:true,deltaY:220,deltaX:0,deltaMode:0,preventDefault(){prevented++;}};assert.equal(h.audit.handoffPlanWheel(event),true);assert.equal(outer.scrollTop,320);assert.equal(viewport.scrollTop,200);
+    viewport.scrollTop=0;assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-3,deltaMode:1}),true);assert.equal(outer.scrollTop,272);assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-1,deltaMode:2}),true);assert.equal(outer.scrollTop,172);
+    assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-500}),true);assert.equal(outer.scrollTop,0);viewport.scrollTop=200;assert.equal(h.audit.handoffPlanWheel({...event,deltaY:2000}),true);assert.equal(outer.scrollTop,1000);assert.equal(prevented,5);
+  });
+  await check('Plan wheel leaves ordinary internal scrolling, native fields, modifiers and exhausted outer space untouched',()=>{
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollTop:100,scrollHeight:300,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;
+    const event={cancelable:true,deltaY:20,deltaX:0,preventDefault(){throw new Error('Native wheel was intercepted');}};assert.equal(h.audit.handoffPlanWheel(event),false);viewport.scrollTop=200;
+    for(const change of [{cancelable:false},{defaultPrevented:true},{ctrlKey:true},{metaKey:true},{shiftKey:true},{deltaX:40},{deltaY:0},{deltaY:NaN},{deltaX:Infinity},{target:{isContentEditable:true}},{target:{closest(){return {};}}}])assert.equal(h.audit.handoffPlanWheel({...event,...change}),false);
+    h.audit.state.planActive=false;assert.equal(h.audit.handoffPlanWheel(event),false);h.audit.state.planActive=true;outer.scrollTop=1000;assert.equal(h.audit.handoffPlanWheel(event),false);outer.scrollTop=0;viewport.scrollTop=0;assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-20}),false);assert.equal(viewport.scrollTop,0);assert.equal(outer.scrollTop,0);
+  });
   await check('A changed calculator draft during export cannot publish the captured linked result',async()=>{
     const h=harness(),value=blank(),body=deferred();value.items=[{id:'a',mode:'steel',fields:{mark:'A'}}];h.audit.accept(response(value));
     let fingerprint='before',downloads=0,fetches=0;
@@ -133,13 +170,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Changing tools or selection clears abandoned retrace targets before a new linear or surface trace',async()=>{
     for(const [mode,tool] of [['steel','trace'],['duct','trace'],['wall','polygon'],['slab','polygon']]){
       const h=harness();h.audit.state.mode=mode;h.audit.state.calibration='calibration';h.audit.state.viewport={};
-      h.audit.state.ui={root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{},overlay:{replaceChildren(){}}};
+      attachMinimalDom(h);Object.assign(h.audit.state.ui,{root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{}});
       h.audit.setTool(tool,{retraceId:'old-item'});assert.equal(h.audit.state.retraceId,'old-item');
       h.audit.setTool('select');assert.equal(h.audit.state.retraceId,null);h.audit.setTool(tool);assert.equal(h.audit.state.retraceId,null);
       h.audit.setTool(tool,{retraceId:'old-item'});h.audit.setTool(tool);assert.equal(h.audit.state.retraceId,null);
       h.audit.setTool(tool,{retraceId:'old-item'});h.audit.state.viewport=null;await h.audit.discardEditor();assert.equal(h.audit.state.retraceId,null);
     }
-    const h=harness();h.audit.state.mode='wall';h.audit.state.viewport={};h.audit.state.ui={root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{}};
+    const h=harness();h.audit.state.mode='wall';h.audit.state.viewport={};attachMinimalDom(h);Object.assign(h.audit.state.ui,{root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{}});
     h.audit.setTool('exclusion',{exclusionItemId:'old-surface'});assert.equal(h.audit.state.exclusionItemId,'old-surface');h.audit.setTool('pan');assert.equal(h.audit.state.exclusionItemId,null);assert.throws(()=>h.audit.setTool('exclusion'),/Select one surface/);
   });
   await check('Dirty register edits block every geometry-writing tool and zero-point manual calibration is cancellable',async()=>{

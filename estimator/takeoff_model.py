@@ -49,6 +49,30 @@ for _mode in AREA_MODES:
         'system', 'classification', 'quantity', 'frl', 'substrate', 'treatment',
         'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
+APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'stroke_width', 'opacity'))
+
+
+def validate_appearance(value):
+    """Bound presentation-only settings; never accept CSS or executable values."""
+    object_fields(value, APPEARANCE_FIELDS, 'Markup appearance')
+    for key in ('stroke_color', 'fill_color'):
+        if key in value and (not isinstance(value[key], str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value[key])):
+            raise ValidationError('Markup colours must be six-digit hexadecimal colours.')
+    if 'fill_enabled' in value and type(value['fill_enabled']) is not bool:
+        raise ValidationError('Markup fill must be true or false.')
+    for key, low, high in (('stroke_width', 0.25, 20), ('opacity', 0, 1)):
+        if key in value:
+            number(value[key], 'Markup ' + key)
+            if not low <= value[key] <= high:
+                raise ValidationError(f'Markup {key} must be between {low} and {high}.')
+    return value
+
+
+def markup_appearance(item):
+    """Shared physical-PDF-point defaults for browser and drawing exports."""
+    return {'stroke_color': '#16699B', 'fill_enabled': item['mode'] in AREA_MODES,
+            'fill_color': '#16699B', 'stroke_width': 2, 'opacity': 1,
+            **validate_appearance(item.get('appearance', {}))}
 
 
 def digest(value):
@@ -409,7 +433,7 @@ def item_references(item):
 
 def validate_item(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields',
-                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions'}, 'Takeoff item',
+                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance'}, 'Takeoff item',
                   {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'review', 'confirmation', 'member_ids'})
     identity(value['id'], 'Item ID')
     number(value['version'], 'Item version', positive=True, integer=True)
@@ -427,6 +451,8 @@ def validate_item(value, snapshot, *, copy_result=True):
     for member in members:
         identity(member, 'Physical member ID')
     length_additions(value, snapshot)
+    if 'appearance' in value:
+        validate_appearance(value['appearance'])
     object_fields(value['fields'], FIELDS, 'Takeoff fields')
     for key, field in value['fields'].items():
         if field is None:
@@ -542,7 +568,10 @@ def validate_item(value, snapshot, *, copy_result=True):
 
 
 def item_digest(item, snapshot):
-    body = {k: v for k, v in item.items() if k not in ('state', 'review', 'confirmation')}
+    # Appearance is retained in the immutable audit, but changing a colour or
+    # line weight does not change measured evidence or calculator authority.
+    # Omitting it also preserves every pre-appearance saved confirmation digest.
+    body = {k: v for k, v in item.items() if k not in ('state', 'review', 'confirmation', 'appearance')}
     references = item_references(item)
     documents = {r['document_id'] for r in references}
     body['source_documents'] = [{k: d[k] for k in ('id', 'sha256', 'size', 'pages')}

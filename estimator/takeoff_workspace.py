@@ -16,7 +16,7 @@ from .catalog import ValidationError
 from .takeoff_area import AREA_MODES
 from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
-from .takeoff_model import (active_calibrations, item_references, preset_distance,
+from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
                            validate_calibration_revisions, validate_measurement_scope)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
 from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
@@ -594,7 +594,7 @@ class TakeoffService:
                     self._invalidate(after, item)
 
     def _create_item(self, snapshot, proposed, predecessors=None):
-        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions'}, 'New takeoff item', {'mode'})
+        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance'}, 'New takeoff item', {'mode'})
         item = {'id': proposed.get('id', str(uuid4())), 'version': 1, 'mode': proposed['mode'], 'state': 'draft',
                 'geometry': deepcopy(proposed.get('geometry')), 'measurement': deepcopy(proposed.get('measurement')),
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
@@ -603,6 +603,8 @@ class TakeoffService:
         item['member_ids'] = deepcopy(proposed.get('member_ids', []))
         if 'length_additions' in proposed:
             item['length_additions'] = deepcopy(proposed['length_additions'])
+        if 'appearance' in proposed:
+            item['appearance'] = deepcopy(proposed['appearance'])
         if 'member_ids' not in proposed:
             self._resize_members(item)
         if any(i['id'] == item['id'] for i in snapshot['items']):
@@ -639,7 +641,7 @@ class TakeoffService:
             raise ValidationError('Steel groups must retain one distinct identity for every physical member.')
 
     def _group_proposal(self, original):
-        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions') if key in original}
+        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions', 'appearance') if key in original}
 
     def _assert_eligible(self, snapshot, items, *, confirmed=False, session_id=None, require_review=True):
         self.documents.assert_documents(snapshot['documents'], owner=session_id)
@@ -662,6 +664,7 @@ class TakeoffService:
             op = request.get('op')
             specs = {'create_item': {'item'}, 'update_item': {'item_id', 'changes'},
                      'bulk_update': {'item_ids', 'changes'}, 'delete_items': {'item_ids'},
+                     'move_items': {'item_ids', 'delta_pdf'},
                      'review_items': {'item_ids'}, 'confirm_items': {'item_ids'},
                      'unconfirm_items': {'item_ids'}, 'add_calibration': {'calibration'},
                      'update_calibration': {'calibration_id', 'changes'},
@@ -679,20 +682,59 @@ class TakeoffService:
                 self._create_item(after, request['item'])
             elif op in ('update_item', 'bulk_update'):
                 selected = self._items(after, [request['item_id']] if op == 'update_item' else request['item_ids'])
-                allowed = {'fields', 'quantity'} if op == 'bulk_update' else {'fields', 'quantity', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions'}
+                allowed = {'fields', 'quantity', 'appearance'} if op == 'bulk_update' else {'fields', 'quantity', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions', 'appearance'}
                 changes = object_fields(request['changes'], allowed, 'Takeoff edit')
                 if not changes:
                     raise ValidationError('Choose at least one field to edit.')
+                if 'appearance' in changes:
+                    validate_appearance(changes['appearance'])
+                    if not changes['appearance']:
+                        raise ValidationError('Choose at least one markup appearance setting to edit.')
                 for item in selected:
+                    # These commands cannot change source documents or scales.
+                    # Compare the item body before following its edited source
+                    # references, so malformed edits reach typed validation.
+                    original_digest = digest({key: value for key, value in item.items() if key != 'appearance'})
                     for key, value in changes.items():
                         if key == 'fields':
                             if not isinstance(value, dict):
                                 raise ValidationError('Field edits must be an object.')
                             item['fields'].update(deepcopy(value))
+                        elif key == 'appearance':
+                            item['appearance'] = {**item.get('appearance', {}), **deepcopy(value)}
                         else:
                             item[key] = deepcopy(value)
                     if 'quantity' in changes and 'member_ids' not in changes:
                         self._resize_members(item)
+                    technical_change = digest({key: value for key, value in item.items() if key != 'appearance'}) != original_digest
+                    if technical_change:
+                        self._invalidate(after, item)
+                    validate_item(item, after, copy_result=False)
+                    if technical_change:
+                        validate_measurement_scope(item, after)
+            elif op == 'move_items':
+                selected = self._items(after, request['item_ids'])
+                delta = request['delta_pdf']
+                if not isinstance(delta, list) or len(delta) != 2:
+                    raise ValidationError('A markup move requires a PDF x/y offset.')
+                dx, dy = (number(value, 'Markup offset') for value in delta)
+                if dx == 0 and dy == 0:
+                    raise ValidationError('Drag the markup to a different position.')
+                source = None
+                for item in selected:
+                    geometry = item['geometry']
+                    if not geometry:
+                        raise ValidationError('Only items with source geometry can be moved.')
+                    key = (item['mode'], geometry['document_id'], geometry['page'])
+                    if source is None:
+                        source = key
+                    if key != source:
+                        raise ValidationError('Move markups from one takeoff type and source page at a time.')
+                    geometry['points'] = [[x + dx, y + dy] for x, y in geometry['points']]
+                    for exclusion in geometry.get('exclusions', []):
+                        exclusion['points'] = [[x + dx, y + dy] for x, y in exclusion['points']]
+                    # Supporting citations and riser/drop references stay pinned
+                    # to their actual source evidence; they are not drawing ink.
                     self._invalidate(after, item)
                     validate_item(item, after, copy_result=False)
                     validate_measurement_scope(item, after)
@@ -873,7 +915,11 @@ class TakeoffService:
                     raise ValidationError('Split requires two to 100 explicit replacement runs.')
                 if original['mode'] != 'duct' or original['quantity'] != 1 or not original['measurement'] or original['measurement']['method'] != 'calibrated':
                     raise ValidationError('Split supports individual calibrated duct runs; edit distinct steel members individually.')
-                created = [self._create_item(after, part, self._predecessors([original])) for part in parts]
+                proposals = deepcopy(parts)
+                if 'appearance' in original:
+                    for part in proposals:
+                        part.setdefault('appearance', deepcopy(original['appearance']))
+                created = [self._create_item(after, part, self._predecessors([original])) for part in proposals]
                 self._validate_topology_change(original, created, after)
                 self._remove(after, [original])
             elif op == 'merge_items':
@@ -882,7 +928,10 @@ class TakeoffService:
                     raise ValidationError('Surface merge is unavailable until exact coverage and exclusion preservation can be verified. Group separate surfaces without changing their identities.')
                 if len(originals) < 2:
                     raise ValidationError('Merge requires at least two adjoining runs.')
-                replacement = self._create_item(after, request['item'], self._predecessors(originals))
+                proposed = deepcopy(request['item'])
+                if 'appearance' in originals[0]:
+                    proposed.setdefault('appearance', deepcopy(originals[0]['appearance']))
+                replacement = self._create_item(after, proposed, self._predecessors(originals))
                 self._validate_topology_change(replacement, originals, after)
                 self._remove(after, originals)
             elif op == 'split_steel_group':
@@ -911,8 +960,9 @@ class TakeoffService:
                     self._steel_group(original)
                     if (any(original[key] != first[key] for key in ('fields', 'geometry', 'measurement'))
                             or original.get('length_additions', []) != first.get('length_additions', [])
+                            or markup_appearance(original) != markup_appearance(first)
                             or item_result(original, after)['issues']):
-                        raise ValidationError('Steel groups must have identical complete fields, source geometry and length basis. Resolve differences explicitly before merging.')
+                        raise ValidationError('Steel groups must have identical complete fields, source geometry, length basis and markup appearance. Resolve differences explicitly before merging.')
                     members.extend(original['member_ids'])
                 if len(members) != len(set(members)):
                     raise ValidationError('Merged steel groups cannot count the same physical member twice.')
@@ -937,6 +987,7 @@ class TakeoffService:
         for part in parts:
             if (part['mode'] != 'duct' or part['quantity'] != 1 or part['fields'] != whole['fields']
                     or part['measurement'] != whole['measurement'] or not part['geometry']
+                    or markup_appearance(part) != markup_appearance(whole)
                     or (part['geometry']['document_id'], part['geometry']['page']) != (whole['geometry']['document_id'], whole['geometry']['page'])):
                 raise ValidationError('Merge/split must preserve size, system, orientation, treatment, scale and source page.')
             pts = part['geometry']['points']
@@ -1056,3 +1107,16 @@ class TakeoffService:
             self._session_evidence(session_id)
             self._assert_eligible(snapshot, selected, confirmed=True, session_id=session_id)
             return export_register(snapshot, selected, format)
+
+    def export_workspace(self, session_id, format, request):
+        """Export a current drawing/register copy without creating authority."""
+        from .takeoff_exports import export_workspace
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            if (not isinstance(request, dict) or type(request.get('expected_revision')) is not int
+                    or request['expected_revision'] != snapshot['revision']):
+                raise ValidationError('The takeoff draft changed. Download its current revision again.')
+            self._session_evidence(session_id)
+            self.documents.assert_documents(snapshot['documents'], owner=session_id)
+            self._verify_audit_head(snapshot, owner=session_id)
+            return export_workspace(snapshot, request, format, documents=self.documents, store=self.store)

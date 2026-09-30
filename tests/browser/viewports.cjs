@@ -32,6 +32,14 @@ async function dialog(title, values, button) {
 }
 async function snapshot() { await idle(); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
 async function fit() { return command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render'); }
+async function assertAutoHeight(layout) {
+  const sizes = {};
+  for (const selector of ['.takeoff-register', '.takeoff-register-table', '.takeoff-register-editor']) {
+    const size = await page.locator(selector).evaluate(el => ({clientHeight:el.clientHeight,scrollHeight:el.scrollHeight,overflowY:getComputedStyle(el).overflowY}));
+    assert.ok(size.scrollHeight <= size.clientHeight + 1,`${layout} ${selector} has nested vertical scrolling: ${JSON.stringify(size)}`);sizes[selector]=size;
+  }
+  (evidence.autoHeight ||= {})[layout]=sizes;
+}
 // Fixture page 3: original CropBox [20,30,800,570], rotation90, UserUnit2.
 async function screenPoint([x, y]) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
@@ -55,7 +63,7 @@ async function viewport(name, points, denominator) {
   await panel.getByRole('button', { name: 'Add viewport', exact: true }).click(); await draw(points);
   return command(() => dialog('Create viewport', { 'Viewport name': name, 'Scale': denominator }, 'Create viewport'), 'add_calibration');
 }
-const steelFields = { 'Member mark': 'SCALE-100', 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 };
+const steelFields = { 'Member mark': 'SCALE-100', 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 };
 async function steel(mark, points) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await draw(points, true);
   return command(() => dialog('Add steel object', { ...steelFields, 'Member mark': mark }, 'Add item'), 'create_item');
@@ -332,14 +340,12 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.locator('.takeoff-register-table').evaluate(el => {el.scrollTop=0;el.scrollLeft=0;});
   await page.locator('.takeoff-drawing-layout').screenshot({path:path.join(output,'viewports-panel-open-desktop.png')});
   await page.setViewportSize({width:1440,height:1800});
-  await page.locator('.takeoff-register').evaluate(el => el.scrollIntoView({block:'start'}));
-  const registerBox = await page.locator('.takeoff-register').boundingBox();
-  await page.mouse.move(registerBox.x + registerBox.width - 4, registerBox.y + registerBox.height - 4); await page.mouse.down();
-  await page.mouse.move(registerBox.x + registerBox.width - 4, registerBox.y + registerBox.height + 496, {steps:12}); await page.mouse.up();
-  assert.ok((await page.locator('.takeoff-register').boundingBox()).height > 850, 'The native resize handle expands the register without changing source data');
-  await page.locator('.takeoff-register-table').evaluate(el => {el.scrollTop=0;el.scrollLeft=0;});
+  assert.equal(await page.locator('.takeoff-register').evaluate(el=>getComputedStyle(el).resize),'none','The register follows its content rather than manual sizing');
+  await assertAutoHeight('below-desktop');
+  await page.locator('.takeoff-register-table').evaluate(el=>{el.scrollTop=0;el.scrollLeft=0;});
   await page.locator('.takeoff-register').screenshot({path:path.join(output,'register-expanded-desktop.png')});
-  await page.setViewportSize({width:750,height:1000}); await page.getByLabel('Register position',{exact:true}).selectOption('beside');
+  await page.getByLabel('Register position',{exact:true}).selectOption('beside');await assertAutoHeight('beside-desktop');
+  await page.setViewportSize({width:750,height:1000});await assertAutoHeight('beside-tablet');
   await page.locator('.takeoff-register-table').evaluate(el => {el.scrollTop=0;el.scrollLeft=0;});
   await page.screenshot({path:path.join(output,'register-viewports-tablet.png'),fullPage:true});
   await page.getByLabel('Register position',{exact:true}).selectOption('below'); await page.setViewportSize({width:1440,height:1000});

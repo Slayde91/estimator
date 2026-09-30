@@ -7,7 +7,7 @@
     zoom: 1, tool: "select", points: [], selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
-    formDirty: false, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
+    formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
     physicalUI: null, physicalSelected: new Set(), physicalVisible: new Set(), physicalHovered: null, physicalPreviews: new Map() };
   const units = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 3 });
   const lengthUnits = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -16,7 +16,7 @@
   const labels = { steel: "Steel", duct: "Duct", wall: "Walls", slab: "Slabs", physical: "Penetrations" };
   const physicalUnfinished = () => !!state.physicalUI?.hasUnfinishedChanges();
   const isArea = (mode = state.mode) => mode === "wall" || mode === "slab";
-  const areaFields = [["level", "Level"], ["substrate", "Substrate"], ["treatment", "Treatment"], ["system", "Protection system"], ["product", "Protection product"], ["frl", "FRL / fire rating"], ["surface_citation", "True-surface source citation", "textarea"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]];
+  const areaFields = [["level", "Level"], ["substrate", "Substrate"], ["treatment", "Treatment"], ["system", "Protection system"], ["product", "Protection product"], ["frl", "FRL / fire rating"], ["surface_citation", "True-surface source citation", "textarea"]];
   const surfaceHelp = "Trace one actual treatment surface in true projection. A wall plan footprint is not its wall-face surface. No height, second face or multiplier is inferred. Use elevations for wall faces and a stated soffit/top view for slabs. Distorted or perspective views cannot establish calibrated surface areas.";
   const fields = {
     steel: [["mark", "Member mark"], ["level", "Level"], ["member_type", "Member type", ["Beam", "Column"]], ["section", "Steel section"], ["product", "Protection product"], ["fire_period_min", "Fire period (min)", "number"], ["sides", "Exposed sides", "number"], ["critical_temperature", "Critical temperature (°C)", "number"], ["exposure", "Exposure description"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
@@ -31,6 +31,9 @@
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && item.mode === state.mode);
+  const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
+  const settingsSelectedItems = () => [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean);
+  const appearanceOf = item => ({ stroke_color: "#16699B", fill_enabled: item.geometry?.kind === "polygon", fill_color: "#16699B", stroke_width: 2, opacity: 1, ...item.appearance });
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -39,6 +42,10 @@
     "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7",
     "Select": "M5 3l14 10-7 1-3 7z",
     "Pan": "M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v7c0 4-3 6-7 6-3 0-4-2-6-4l-3-4a1.5 1.5 0 0 1 2-2l2 1z",
+    "Settings": "M10 2h4l1 3 3 1 3-1 2 4-2 2v3l2 2-2 4-3-1-3 1-1 3h-4l-1-3-3-1-3 1-2-4 2-2v-3L1 9l2-4 3 1 3-1zM15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
+    "Close settings": "M6 9l6 6 6-6",
+    "Apply item edits": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
+    "Apply settings": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
     "Calibrate": "M3 3v18h18L3 3zM7 12v5h5l-5-5zM6 6l-2 2M9 9l-2 2M12 12l-2 2M15 15l-2 2M18 18l-2 2",
     "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
@@ -56,10 +63,14 @@
     "Stop search": "M15.5 15.5L21 21M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0M7 7l6 6M13 7l-6 6",
   };
   function button(label, fn, cls = "button secondary") {
-    const icon = buttonIcons[label], schedule = label === "Preview transfer", el = node("button", cls);
+    const icon = buttonIcons[label], schedule = label === "Preview transfer", download = /^(?:Export (?:CSV|XLSX)|Download (?:XLSX|PDF))$/.test(label), el = node("button", cls);
     el.type = "button";
-    if (icon || schedule) {
+    if (download) {
+      const format = label.split(" ").at(-1), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format));
+      el.className = `button icon-only schedule-download-button takeoff-download-button ${format === "PDF" ? "calculator-export-pdf" : "calculator-export-excel"}`; el.title = label; el.setAttribute("aria-label", label); el.append(symbol, node("span", "sr-only", label));
+    } else if (icon || schedule) {
       el.classList.add("icon-only", "takeoff-icon-button"); el.title = label; el.setAttribute("aria-label", label);
+      if (label === "Apply item edits" || label === "Apply settings") el.classList.add("save-button");
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
       if (schedule) {
         // Match the existing Add to Schedule control's exact plus glyph.
@@ -68,7 +79,6 @@
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(key, value);
         path.setAttribute("d", icon); svg.append(path);
-        if (label === "Export CSV" || label === "Export XLSX") { const text = document.createElementNS("http://www.w3.org/2000/svg", "text"); text.setAttribute("x", "12"); text.setAttribute("y", "20"); text.setAttribute("text-anchor", "middle"); text.setAttribute("font-size", "4.5"); text.setAttribute("font-weight", "700"); text.setAttribute("stroke", "none"); text.setAttribute("fill", "currentColor"); text.textContent = label.slice(7); svg.append(text); }
         symbol.append(svg);
       }
       el.append(symbol, node("span", "sr-only", label));
@@ -122,11 +132,11 @@
   function formField(definition, initial = "") {
     const [key, title, kind] = definition, wrapper = node("label", "field"); wrapper.append(node("span", "", title));
     const control = Array.isArray(kind) ? select([["", "Choose…"], ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
-    if (!Array.isArray(kind) && kind !== "textarea") control.type = kind === "number" ? "number" : "text";
+    if (!Array.isArray(kind) && kind !== "textarea") control.type = ["number", "color", "checkbox"].includes(kind) ? kind : "text";
     if (kind === "number") control.step = "any";
     if (Array.isArray(kind) && initial !== "" && initial != null && !kind.some(value => (Array.isArray(value) ? value[0] : value) === initial)) control.append(option(initial, `${initial} (retained)`));
-    control.name = key; control.value = initial ?? ""; control.dataset.field = key; control.setAttribute("aria-label", title); wrapper.append(control);
-    return { wrapper, control, read: () => { if (kind !== "number") return control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") return null; const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); return value; } };
+    control.name = key; control.value = initial ?? ""; if (kind === "checkbox") control.checked = !!initial; control.dataset.field = key; control.setAttribute("aria-label", title); wrapper.append(control);
+    return { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (kind !== "number") return control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") return null; const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); return value; } };
   }
   async function ask(title, definitions, detail = "", action = "Apply", setup) {
     if (state.modal) throw new Error("Finish the current review first.");
@@ -160,8 +170,9 @@
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (tool !== "viewport") el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     toolbar.append(ui.cancelTrace = button("Cancel trace", cancelTrace));
+    ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))]; toolbar.append(...ui.drawingDownloads);
     ui.calibration = select([["", "No Scale Selected"]], value => chooseCalibration(value)); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, ui.editCalibration = button("Edit calibration", editCalibration));
     const navigation = node("div", "takeoff-toolbar"); navigation.setAttribute("aria-label", "Drawing navigation");
     navigation.append(button("‹ Page", () => navigatePage(state.page - 1)));
@@ -176,7 +187,8 @@
     ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.setAttribute("aria-label", "Drawing. Choose a drawing tool, then click to mark source positions.");
     ui.pageWrap = node("div", "takeoff-page"); ui.pageWrap.hidden = true; ui.canvas = node("canvas"); ui.canvas.setAttribute("aria-label", "Original PDF page"); ui.overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ui.overlay.classList.add("takeoff-overlay"); ui.overlay.setAttribute("aria-label", "Takeoff markups");
     ui.pageWrap.append(ui.canvas, ui.overlay); ui.empty = node("div", "takeoff-empty"); ui.empty.append(node("strong", "", "Your drawing workspace"), node("p", "", "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.")); ui.viewport.append(ui.pageWrap, ui.empty);
-    ui.viewportPanel = node("aside", "takeoff-viewports"); ui.viewportPanel.id = "takeoff-viewports"; ui.viewportPanel.hidden = true; ui.viewportPanel.setAttribute("aria-label", "Viewports"); layout.append(ui.rail, ui.viewport, ui.viewportPanel);
+    ui.viewportPanel = node("aside", "takeoff-viewports"); ui.viewportPanel.id = "takeoff-viewports"; ui.viewportPanel.hidden = true; ui.viewportPanel.setAttribute("aria-label", "Viewports");
+    ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings"); layout.append(ui.rail, ui.viewport, ui.viewportPanel, ui.settingsPanel);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
@@ -192,7 +204,7 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     workspace.append(layout, register); root.append(modes, ui.message, toolbar, navigation, ui.progress, ui.searchResults, ui.physicalOverlayStatus, workspace, ui.physicalContainer);
-    ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan);
+    ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
     ui.viewport.addEventListener("contextmenu", event => { if (state.points.length || !["select", "pan"].includes(state.tool)) { event.preventDefault(); cancelTrace(); } });
     ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); void safely(() => zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15, [event.clientX, event.clientY])); } }, { passive: false });
@@ -200,12 +212,14 @@
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); if (state.document) await renderPage(); }
   async function changeMode(mode) { if (!labels[mode] || state.busy) return; if (!await discardEditor()) return; state.mode = mode; state.offset = 0; state.selected.clear(); cancelTrace(); renderData(); }
-  function requireFinishedEdits() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.points.length || state.pendingViewport) throw new Error("Apply or discard the unfinished item edits and finish or cancel the current trace or viewport first."); if (state.calibrationTarget) cancelTrace(); }
-  async function discardEditor() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.points.length && !state.pendingViewport) { if (state.retraceId || state.exclusionItemId || state.calibrationTarget) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; cancelTrace(); return true; }
+  function requireFinishedEdits() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport) throw new Error("Apply or discard the unfinished item/settings edits and finish or cancel the current drawing operation first."); if (state.calibrationTarget) cancelTrace(); }
+  async function discardEditor() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.settingsDirty && !state.gesture && !state.points.length && !state.pendingViewport) { if (state.retraceId || state.exclusionItemId || state.calibrationTarget) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form, settings or current drawing has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; state.settingsDirty = false; state.settingsEditor = null; cancelTrace(); return true; }
   function renderData() {
     if (!state.ui) return;
     for (const el of state.ui.root.querySelectorAll("[data-mode]")) el.setAttribute("aria-selected", String(el.dataset.mode === state.mode));
     const physical = state.mode === "physical";
+    if (state.ui.tools.settings) state.ui.tools.settings.hidden = physical; for (const control of state.ui.drawingDownloads || []) control.hidden = physical;
+    if (physical) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = !physical; state.ui.register.hidden = physical;
     state.ui.workspace.classList.toggle("beside", !physical && state.ui.registerLayout.value === "beside");
     state.ui.registerLayout.disabled = physical;
@@ -226,12 +240,16 @@
     state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => option(key, label))); state.ui.sort.value = state.sort;
     const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
     const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => option(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
-    const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(...(area ? [] : [option("quantity", "Quantity")]), ...fields[state.mode].map(([key, label]) => option(key, label))); if ((!area && oldBulk === "quantity") || fields[state.mode].some(([key]) => key === oldBulk)) state.ui.bulkField.value = oldBulk;
-    renderRail(); renderCalibrations(); renderRegister(); renderOverlay(); working(state.busy);
+    const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(...(area ? [] : [option("quantity", "Quantity")]), ...editableFields(state.mode).map(([key, label]) => option(key, label))); if ((!area && oldBulk === "quantity") || editableFields(state.mode).some(([key]) => key === oldBulk)) state.ui.bulkField.value = oldBulk;
+    renderRail(); renderCalibrations(); renderRegister(); renderSettingsPanel(); renderOverlay(); working(state.busy);
   }
   async function refreshRegisterOptions() {
+    renderSettingsPanel();
     if (!state.formDirty) { renderRegister(); return; }
     const editor = state.registerEditor, item = items().find(value => value.id === editor?.itemId);
+    let sides = editor?.controls.find(field => field.control.name === "sides");
+    if (!sides && item?.mode === "steel" && state.ui.target.value === "steel_board") { sides = formField(fields.steel.find(field => field[0] === "sides"), item.fields.sides); sides.control.addEventListener("input", markFormEdited); editor.controls.push(sides); editor.panel.append(sides.wrapper); }
+    if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board";
     if (item && editor.sessionId === state.session?.session_id && editor.panel.isConnected) await enrichInspectorOptions(item, editor.controls, editor.controls.find(field => field.control.name === "product")?.control.value);
   }
   function physicalRequest(path, values, { mutate = false, expected, sessionId = state.session?.session_id } = {}) {
@@ -340,8 +358,71 @@
     if (calibrations.some(value => value.id === state.calibration && value.region)) state.viewportSelection = state.calibration;
     renderViewportPanel();
   }
-  function toggleViewportPanel() {
+  async function toggleViewportPanel() {
+    if (state.settingsOpen) { if (!await discardEditor()) return; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); renderRegister(); }
     state.viewportsOpen = !state.viewportsOpen; renderViewportPanel();
+  }
+  async function toggleSettings() {
+    if (!await discardEditor()) return;
+    state.settingsOpen = !state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false;
+    renderViewportPanel(); renderRegister(); renderSettingsPanel();
+  }
+  function markSettingsEdited(editor, key) {
+    if (state.settingsEditor !== editor) return;
+    state.settingsRevision = (state.settingsRevision || 0) + 1; editor.touched.set(key, state.settingsRevision); state.settingsDirty = true;
+    window.CeasefireProject?.changed?.();
+  }
+  async function loadSettingsOptions(editor) {
+    const item = settingsSelectedItems()[0]; if (!item || isArea(item.mode)) return;
+    const calculator = state.ui.target.value, request = editor.optionRequest = (editor.optionRequest || 0) + 1;
+    const product = editor.fields.find(field => field.control.name === "product")?.control.value || "", member = editor.fields.find(field => field.control.name === "member_type")?.control.value || "";
+    const choices = await api(`/options?calculator=${encodeURIComponent(calculator)}&product=${encodeURIComponent(product)}&member_type=${encodeURIComponent(member)}`);
+    if (state.settingsEditor !== editor || request !== editor.optionRequest || calculator !== state.ui.target.value) return;
+    populateCalculatorOptions(editor.fields, choices, calculator);
+  }
+  function renderSettingsPanel() {
+    const panel = state.ui?.settingsPanel; if (!panel) return;
+    panel.hidden = !state.settingsOpen; state.ui.layout.classList.toggle("with-settings", !!state.settingsOpen);
+    state.ui.tools.settings.setAttribute("aria-expanded", String(!!state.settingsOpen)); state.ui.tools.settings.classList.toggle("takeoff-tool-active", !!state.settingsOpen);
+    if (!state.settingsOpen) return;
+    const selected = settingsSelectedItems(), key = JSON.stringify([state.session?.session_id, selected.map(item => item.id)]);
+    const existing = state.settingsEditor;
+    if (state.settingsDirty && existing?.key === key) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; void safely(() => loadSettingsOptions(existing)); return; }
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Settings")); panel.replaceChildren(heading);
+    if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); return; }
+    const first = selected[0], editor = { key, ids: selected.map(item => item.id), touched: new Map(), fields: [], appearance: [], quantity: null }; state.settingsEditor = editor;
+    const content = node("div", "takeoff-settings-fields"); panel.append(content);
+    content.append(node("p", "helper", `${selected.length} selected · First: ${first.fields.mark || first.id}. Only edited controls apply to all selected items. Stored fields that are hidden remain unchanged.`), node("h4", "", "Markup appearance"));
+    const appearance = appearanceOf(first);
+    for (const def of [["stroke_color", "Stroke colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["fill_color", "Fill colour", "color"], ["stroke_width", "Stroke width (PDF points)", "number"], ["opacity", "Opacity", "number"]]) {
+      const field = formField(def, appearance[def[0]]); if (def[0] === "stroke_width") { field.control.min = "0.25"; field.control.max = "20"; } if (def[0] === "opacity") { field.control.min = "0"; field.control.max = "1"; field.control.step = "0.05"; }
+      field.control.addEventListener("input", () => markSettingsEdited(editor, `appearance:${def[0]}`)); editor.appearance.push(field); content.append(field.wrapper);
+    }
+    content.append(node("p", "helper", "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
+    editor.fields = editableFields(first.mode, "steel_board").map(def => { const field = formField(def, first.fields[def[0]]); field.control.addEventListener("input", () => markSettingsEdited(editor, `fields:${def[0]}`)); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
+    if (!isArea(first.mode)) { editor.quantity = formField(["quantity", "Physical quantity", "number"], first.quantity); editor.quantity.control.addEventListener("input", () => markSettingsEdited(editor, "quantity")); content.append(editor.quantity.wrapper); }
+    const actions = node("div", "actions"); actions.append(button("Apply settings", () => applySettings(editor)), button("Discard settings", () => { state.settingsDirty = false; state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.(); })); content.append(actions);
+    void safely(() => loadSettingsOptions(editor));
+  }
+  async function applySettings(editor) {
+    if (state.busy || state.modal || state.gesture || state.points.length || state.pendingViewport || state.formDirty) throw new Error("Finish the current drawing operation or item edit before applying settings. Your settings are retained.");
+    if (state.settingsEditor !== editor || JSON.stringify(settingsSelectedItems().map(item => item.id)) !== JSON.stringify(editor.ids)) throw new Error("The selection changed. Review the settings again.");
+    const captured = new Map(editor.touched), changes = {}, selected = settingsSelectedItems();
+    for (const [group, controls] of [["fields", editor.fields], ["appearance", editor.appearance]]) for (const field of controls) if (captured.has(`${group}:${field.control.name}`)) {
+      let value = field.read(); if (group === "appearance" && field.control.name.endsWith("color")) value = value.toUpperCase();
+      if (selected.some(item => (group === "appearance" ? appearanceOf(item)[field.control.name] : item.fields[field.control.name] ?? "") !== (value ?? ""))) (changes[group] ||= {})[field.control.name] = value;
+    }
+    if (captured.has("quantity")) { const value = editor.quantity.read(); if (selected.some(item => item.quantity !== value)) changes.quantity = value; }
+    if (Object.keys(changes).length) {
+      if (selected.length > 1 && !await confirm(`Apply settings to ${selected.length} items?`, `Change only: ${[...Object.keys(changes.fields || {}), ...Object.keys(changes.appearance || {}), ...(Object.hasOwn(changes, "quantity") ? ["quantity"] : [])].join(", ")}. Other properties remain unchanged. Detail changes invalidate confirmation; appearance changes do not. This is one undoable operation.`, "Apply settings")) return;
+      await command("bulk_update", { item_ids: editor.ids, changes });
+    }
+    // Discard/reopen can replace the controls while the captured request runs.
+    // Its response must never clear later edits in that replacement editor.
+    if (state.settingsEditor !== editor) return;
+    for (const [key, revision] of captured) if (editor.touched.get(key) === revision) editor.touched.delete(key);
+    state.settingsDirty = editor.touched.size > 0; if (!state.settingsDirty) state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.();
+    message(state.settingsDirty ? "Captured settings applied. Later edits remain unfinished." : "Settings applied. Unchanged item properties were preserved.");
   }
   function renderViewportPanel() {
     const panel = state.ui?.viewportPanel; if (!panel) return;
@@ -632,6 +713,7 @@
     }
   }
   async function fitPage() {
+    if (state.gesture) throw new Error("Finish or cancel the current selection or move before fitting the page.");
     if (!state.document) return; const docId = state.document, pageNumber = state.page, sessionId = state.session?.session_id, renderId = state.renderId, fitId = state.fitId = (state.fitId || 0) + 1;
     const current = () => fitId === state.fitId && renderId === state.renderId;
     try {
@@ -641,6 +723,7 @@
     } catch (error) { await recordPdfFailure(docId, pageNumber, error, sessionId, true, current); }
   }
   async function zoomBy(factor, cursor) {
+    if (state.gesture) return;
     if (!state.document) return;
     let anchor = state.zoomAnchor;
     if (state.viewport) {
@@ -653,11 +736,12 @@
   }
   function setTool(tool, target = {}) {
     if (state.busy) return;
+    if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
     if (state.mode === "physical" && !["select", "pan", "calibrate", "viewport"].includes(tool)) throw new Error("Physical drafts use retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
-    if (!["select", "pan"].includes(tool) && state.formDirty) throw new Error("Apply or discard the unfinished item edits before using a drawing tool.");
+    if (!["select", "pan"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
     if (["trace", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
     if (state.pendingViewport && tool !== "calibrate") throw new Error("Calibrate or cancel the unfinished viewport first.");
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
@@ -667,12 +751,12 @@
     state.ui.viewport.focus();
     state.ui.progress.textContent = ({ viewport: "Click two opposite corners of the detail viewport, then choose its independent scale.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool];
   }
-  function cancelTrace() { state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { cancelSelectionGesture(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function drawingPointer(event) {
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
     if (state.busy || state.modal || !state.viewport || !["calibrate", "trace", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
-    if (state.formDirty) { message("Apply or discard the unfinished item edits before continuing the drawing tool.", true); return; }
+    if (state.formDirty || state.settingsDirty) { message("Apply or discard the unfinished item edits or settings before continuing the drawing tool.", true); return; }
     if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
     const view = pageMetadata()?.view; if (view && (p[0] < view[0] || p[1] < view[1] || p[0] > view[2] || p[1] > view[3])) return;
@@ -714,6 +798,64 @@
     const done = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", done); element.removeEventListener("pointercancel", done); };
     element.addEventListener("pointermove", move); element.addEventListener("pointerup", done); element.addEventListener("pointercancel", done);
   }
+  function drawableItems() {
+    return visibleItems().filter(item => item.geometry && item.measurement && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
+  }
+  function drawingPoint(event) {
+    const rect = state.ui.overlay.getBoundingClientRect();
+    return G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
+  }
+  function cancelSelectionGesture() {
+    const gesture = state.gesture; if (!gesture) return;
+    state.gesture = null; gesture.cleanup();
+    if (gesture.moved) state.suppressSelectionClickUntil = Date.now() + 500;
+    renderOverlay(); window.CeasefireProject?.changed?.();
+  }
+  function beginSelectionGesture(event) {
+    if (state.tool !== "select" || state.mode === "physical" || event.button !== 0 || state.busy || state.modal || !state.viewport || state.gesture) return;
+    const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
+    // An unselected markup retains ordinary click-to-select behavior.
+    if (id && !state.selected.has(id)) return;
+    if (state.formDirty || state.settingsDirty || state.points.length || state.pendingViewport) {
+      event.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
+      throw new Error("Apply or discard unfinished item/settings edits before selecting or moving markups.");
+    }
+    const visible = drawableItems(), selected = settingsSelectedItems(), visibleIds = new Set(visible.map(item => item.id));
+    if (id && selected.some(item => !visibleIds.has(item.id))) throw new Error("Move only markups visible on this drawing page. Deselect hidden items or items on other pages first.");
+    if (id && selected.length > 100) throw new Error("Move at most 100 selected markups in one operation.");
+    const initial = drawingPoint(event), element = state.ui.viewport;
+    const gesture = { kind: id ? "move" : "marquee", ids: id ? selected.map(item => item.id) : [], initial, current: initial, delta: [0, 0], startClient: [event.clientX, event.clientY], moved: false,
+      additive: event.ctrlKey || event.metaKey || event.shiftKey, sessionId: state.session.session_id, revision: state.session.revision, documentId: state.document, page: state.page, mode: state.mode, pointerId: event.pointerId };
+    const current = () => state.gesture === gesture && state.session?.session_id === gesture.sessionId && state.session.revision === gesture.revision && state.document === gesture.documentId && state.page === gesture.page && state.mode === gesture.mode;
+    const move = next => {
+      if (next.pointerId !== gesture.pointerId || !current()) return;
+      const distance = Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]);
+      if (!gesture.moved && distance < 4) return;
+      gesture.moved = true; gesture.current = drawingPoint(next); gesture.delta = [gesture.current[0] - gesture.initial[0], gesture.current[1] - gesture.initial[1]];
+      next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
+    };
+    const finish = next => {
+      if (next.pointerId !== gesture.pointerId) return;
+      const valid = current(); move(next); state.gesture = null; gesture.cleanup();
+      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (id && valid) { state.suppressSelectionClickUntil = Date.now() + 500; void safely(() => selectItem(id, gesture.additive, false)); } return; }
+      state.suppressSelectionClickUntil = Date.now() + 500; next.preventDefault();
+      void safely(async () => {
+        if (!valid || state.busy || state.formDirty || state.settingsDirty) throw new Error("The drawing or item state changed during the gesture. Repeat the selection or move.");
+        if (gesture.kind === "marquee") {
+          const box = G.bounds([gesture.initial, gesture.current]), enclosed = drawableItems().filter(item => G.enclosed(item.geometry.points, box));
+          if (!gesture.additive) state.selected.clear(); for (const item of enclosed) state.selected.add(item.id);
+          renderSelection(); message(`${enclosed.length} enclosed visible markups selected${gesture.additive ? " in addition to the existing selection" : ""}.`);
+        } else {
+          await command("move_items", { item_ids: gesture.ids, delta_pdf: gesture.delta }, () => { if (state.session?.session_id !== gesture.sessionId || state.session.revision !== gesture.revision) throw new Error("The takeoff changed before the move could apply. Repeat the move."); return true; });
+          message(`Moved ${gesture.ids.length} markup${gesture.ids.length === 1 ? "" : "s"}. Source evidence references remain pinned; confirm the revised geometry before transfer.`);
+        }
+      }).finally(() => { renderOverlay(); window.CeasefireProject?.changed?.(); });
+    };
+    const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
+    gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
+    state.gesture = gesture; element.addEventListener("pointermove", move); element.addEventListener("pointerup", finish); element.addEventListener("pointercancel", cancel); element.addEventListener("lostpointercapture", cancel); element.setPointerCapture(event.pointerId);
+    event.preventDefault(); window.CeasefireProject?.changed?.();
+  }
   async function addCalibration() {
     const points = clone(state.points), docId = state.document, page = state.page;
     if (!G.length(points)) throw new Error("Choose two distinct calibration points.");
@@ -747,7 +889,7 @@
   }
   function creationFields(mode) {
     if (mode !== "steel") return [["mark", "Run ID", "text", "", true], ["quantity", "Physical quantity", "number", "", true]];
-    return [...["mark", "level", "member_type", "section", "fire_period_min", "exposure", "sides", "product", "critical_temperature"].map(key => {
+    return [...["mark", "level", "member_type", "section", "fire_period_min", "exposure", "sides", "product", "critical_temperature"].filter(key => key !== "sides" || state.ui?.target?.value === "steel_board").map(key => {
       const [name, label, type] = fields.steel.find(field => field[0] === key);
       return [name, key === "product" ? "Product" : label, type || "text", "", key === "mark"];
     }), ["quantity", "Physical quantity", "number", "", true]];
@@ -774,7 +916,7 @@
     await refresh();
   }
   async function finishTrace() {
-    if (state.formDirty) throw new Error("Apply or discard the unfinished item edits before completing the trace.");
+    if (state.formDirty || state.settingsDirty) throw new Error("Apply or discard the unfinished item edits or settings before completing the trace.");
     if (["polygon", "exclusion"].includes(state.tool)) return finishAreaTrace();
     if (state.tool !== "trace" || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
     if (!state.calibration) throw new Error("Choose the correct calibration.");
@@ -846,19 +988,24 @@
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
     renderViewportRegions(overlay);
     if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderPendingTrace(overlay); return; }
-    for (const item of visibleItems().filter(item => item.geometry && item.measurement && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page)) {
-      const points = item.geometry.points.map(convert), className = `takeoff-shape ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`;
-      let shape, hit; if (item.geometry.kind === "polygon") { const attrs = { d: G.polygonPath(item.geometry, state.viewport.transform), "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, class: `${className} takeoff-area-shape` }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
-      else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, class: className }); hit = svg("rect", { ...attrs, class: "takeoff-hit" }); }
-      else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, class: className }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
+    for (const item of drawableItems()) {
+      const geometry = state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
+      const points = geometry.points.map(convert), className = `takeoff-markup ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, appearance = appearanceOf(item);
+      // PDF.js' transform includes UserUnit. Stored widths are physical PDF points.
+      const pixelWidth = appearance.stroke_width * Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
+      const attributes = { class: className, stroke: appearance.stroke_color, "stroke-width": pixelWidth, opacity: appearance.opacity, fill: appearance.fill_enabled && (geometry.kind === "polygon" || item.measurement?.method === "cited") ? appearance.fill_color : "none", "fill-opacity": 0.12 };
+      let shape, hit; if (geometry.kind === "polygon") { const attrs = { d: G.polygonPath(geometry, state.viewport.transform), "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, ...attributes }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
+      else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, ...attributes }); hit = svg("rect", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
+      else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, ...attributes }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
       hit.dataset.itemId = item.id; hit.setAttribute("aria-label", `${item.fields.mark || item.id} · ${reviewStatus(item).label}`); hit.setAttribute("tabindex", "0"); hit.setAttribute("role", "button");
-      hit.addEventListener("click", event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
+      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
       hit.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey, false)); } });
       hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
       const label = svg("text", { x: points[0][0] + 6, y: points[0][1] - 7, class: "takeoff-label" }); label.textContent = item.fields.mark || item.id.slice(0, 8); overlay.append(shape, hit, label);
     }
     for (const hit of state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page)) if (hit.points?.length) { const box = G.bounds(hit.points.map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: Math.max(4, box[2] - box[0]), height: Math.max(4, box[3] - box[1]), class: "takeoff-search-hit" })); }
     renderPendingTrace(overlay);
+    if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
   }
   function renderViewportRegions(overlay) {
     const regions = activePageCalibrations().filter(value => value.region);
@@ -933,9 +1080,10 @@
     viewport.scrollTo({ left: (box[0] + box[2]) / 2 - viewport.clientWidth / 2 + 24, top: (box[1] + box[3]) / 2 - viewport.clientHeight / 2 + 24, behavior: "smooth" });
   }
   function hover(id) { state.hovered = id; for (const row of state.ui?.tableWrap.querySelectorAll("[data-item-id]") || []) row.classList.toggle("hovered", row.dataset.itemId === id); for (const hit of state.ui?.overlay.querySelectorAll("[data-item-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.itemId === id); }
-  function renderSelection() { renderRegister(); renderOverlay(); }
+  function renderSelection() { renderRegister(); renderSettingsPanel(); renderOverlay(); }
   async function openRegisterEditor(item, focus = false) {
     if (!await discardEditor()) return;
+    state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel();
     state.closedRegisterEditorId = null;
     await selectItem(item.id, false, focus);
   }
@@ -966,15 +1114,23 @@
     state.ui.split.title = isArea() ? "Surface splitting is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
     state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
-    const editingItem = selected.length === 1 && state.closedRegisterEditorId !== selected[0].id ? selected[0] : null;
+    const editingItem = !state.settingsOpen && selected.length === 1 && state.closedRegisterEditorId !== selected[0].id ? selected[0] : null;
     const editor = editingItem ? registerEditorFor(editingItem) : null;
     if (!editor && !state.formDirty) state.registerEditor = null;
     const focused = editor?.panel.contains?.(document.activeElement) ? document.activeElement : null;
     const caret = focused && typeof focused.selectionStart === "number" ? [focused.selectionStart, focused.selectionEnd] : null;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
-    const area = isArea(), columns = area ? ["mark", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", "sides"] : ["mark", "level", "width_mm", "height_mm", "frl", "system", "orientation"];
-    const headings = ["Select", "Show", "Source / ID", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), "Evidence / issues"];
-    for (const title of headings) header.append(node("th", "", title)); head.append(header); table.append(head, body);
+    const area = isArea(), columns = area ? ["mark", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "width_mm", "height_mm", "frl", "system", "orientation"];
+    const headings = ["Select", "Hide", "Source / ID", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), "Evidence / issues"];
+    for (const title of headings) {
+      const cell = node("th", "", title);
+      if (title === "Select" || title === "Hide") {
+        const input = node("input"), set = title === "Select" ? state.selected : state.hidden, count = list.filter(item => set.has(item.id)).length; input.type = "checkbox"; input.checked = !!list.length && count === list.length; input.indeterminate = count > 0 && count < list.length; input.disabled = !list.length || state.busy; input.setAttribute("aria-label", title === "Select" ? "Select all matching items" : "Hide all matching items"); input.title = `${title} all ${list.length} matching items across register pages`;
+        input.addEventListener("change", () => void safely(async () => { const checked = input.checked; if (title === "Select" && !await discardEditor()) { renderRegister(); return; } for (const item of list) checked ? set.add(item.id) : set.delete(item.id); renderSelection(); })); cell.append(input);
+      }
+      header.append(cell);
+    }
+    head.append(header); table.append(head, body);
     let lastGroup = null, editorPlaced = false;
     const grouped = groupedItems(list);
     state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((grouped.length - 1) / 100) * 100)));
@@ -984,7 +1140,7 @@
       if (group && state.collapsed.has(group)) continue;
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.addEventListener("pointerenter", () => hover(item.id)); row.addEventListener("pointerleave", () => hover(null));
       const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); check.setAttribute("aria-label", `Select ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
-      const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = !state.hidden.has(item.id); show.setAttribute("aria-label", `Show ${item.fields.mark || item.id} on drawing`); show.addEventListener("change", () => { show.checked ? state.hidden.delete(item.id) : state.hidden.add(item.id); renderOverlay(); }); showCell.append(show);
+      const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = state.hidden.has(item.id); show.setAttribute("aria-label", `Hide ${item.fields.mark || item.id} on drawing`); show.addEventListener("change", () => { show.checked ? state.hidden.add(item.id) : state.hidden.delete(item.id); renderRegister(); renderOverlay(); }); showCell.append(show);
       const linkCell = node("td"), expanded = editor?.itemId === item.id;
       const edit = button(expanded ? "Close item editor" : "Edit item", () => expanded ? closeRegisterEditor(item) : openRegisterEditor(item), "text-button"); edit.setAttribute("aria-expanded", String(expanded));
       linkCell.append(button(item.id.slice(0, 8), () => openRegisterEditor(item, true), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
@@ -1005,7 +1161,7 @@
     const geometryAction = (label, action) => { const control = button(label, action); if (!item.geometry) { control.disabled = true; control.title = "Attach source geometry before using this tool."; } return control; };
     if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked. Open a rendered source page, select its calibration and use Attach source on current page."));
     if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
-    const controls = fields[item.mode].map(def => { const control = formField(def, item.fields[def[0]]); control.control.addEventListener("input", markFormEdited); panel.append(control.wrapper); return control; });
+    const controls = editableFields(item.mode).map(def => { const control = formField(def, item.fields[def[0]]); control.control.addEventListener("input", markFormEdited); panel.append(control.wrapper); return control; });
     const quantity = area ? null : formField(["quantity", "Physical quantity", "number"], item.quantity); if (quantity) { quantity.control.addEventListener("input", markFormEdited); panel.append(quantity.wrapper); }
     editor.controls = controls; editor.quantity = quantity;
     if (!area) void enrichInspectorOptions(item, controls);
@@ -1287,6 +1443,33 @@
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Register export failed."); }
     const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${labels[state.mode]}-Takeoff.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); message(`Exported ${ids.length} selected confirmed items with their source identities.`);
   }
+  async function downloadTakeoff(format) {
+    requireFinishedEdits();
+    if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
+    const mode = state.mode, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
+    if (mode === "physical") throw new Error("Use the physical draft export controls for penetration records.");
+    const pdf = format === "marked-pdf", list = pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
+    if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
+    working(true);
+    try {
+      const calculatorDrafts = {}, calculatorFingerprints = [], destinations = mode === "steel" ? ["steel_vermiculite", "steel_board"] : mode === "duct" ? ["ductwork"] : [];
+      for (const id of destinations) {
+        try { const draft = await window.CeasefireCalculators?.captureTakeoffTarget?.(id); if (draft) { calculatorDrafts[id] = { inputs: draft.inputs, schedule_rows: draft.schedule_rows }; calculatorFingerprints.push(draft.fingerprint); } }
+        catch { /* An unavailable/invalid calculator cannot supply coating or layer values. */ }
+      }
+      const assertCalculatorDrafts = () => { if (calculatorFingerprints.length && calculatorFingerprints.some(fingerprint => typeof fingerprint !== "string" || fingerprint !== window.CeasefireCalculators?.projectFingerprint?.())) throw new Error("The calculator draft changed during export. Download again from the current draft."); };
+      assertCalculatorDrafts();
+      if (state.session?.session_id !== sessionId || state.session.revision !== revision) throw new Error("The project changed while preparing the download. Export the current draft again.");
+      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode, item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId } : {}), calculator_drafts: calculatorDrafts }) });
+      if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
+      const blob = await response.blob();
+      if (state.session?.session_id !== sessionId || state.session.revision !== revision) throw new Error("The project changed during the download. Export the current draft again.");
+      assertCalculatorDrafts();
+      const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${labels[mode]}-${pdf ? "Marked-drawing.pdf" : "Takeoff-schedule.xlsx"}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+      message(pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} markups across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded all ${list.length} ${labels[mode].toLowerCase()} items, including hidden and unconfirmed records, with confirmation status.`);
+    } finally { working(false); }
+  }
   async function showAudit() {
     const sessionId = state.session.session_id; let offset = 0;
     while (sessionId === state.session?.session_id) {
@@ -1306,13 +1489,14 @@
     const result = await command("update_calibration", { calibration_id: calibration.id, changes: { ...data, scale_denominator: null, uniform_scale: true } });
     state.calibration = result.revised_calibration_id || ""; renderCalibrations();
   }
-  function projectSnapshot() { if (state.busy || state.modal) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.points.length || state.pendingViewport || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
-  function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, formRevision: state.formRevision || 0, physicalUnfinished: physicalUnfinished(), physicalEditRevision: state.physicalUI?.editRevision?.() || 0, points: state.points, pendingViewport: state.pendingViewport, modal: state.modal }); }
-  function hasUnsavedChanges() { return state.busy || state.formDirty || !!state.pendingViewport || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
+  function projectSnapshot() { if (state.busy || state.modal) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff settings, drawing or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
+  function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, formRevision: state.formRevision || 0, settingsDirty: state.settingsDirty, settingsRevision: state.settingsRevision || 0, gesture: state.gesture ? { kind: state.gesture.kind, initial: state.gesture.initial, current: state.gesture.current } : null, physicalUnfinished: physicalUnfinished(), physicalEditRevision: state.physicalUI?.editRevision?.() || 0, points: state.points, pendingViewport: state.pendingViewport, modal: state.modal }); }
+  function hasUnsavedChanges() { return state.busy || state.formDirty || state.settingsDirty || !!state.gesture || !!state.pendingViewport || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
   async function prepareDefaults() { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
   async function prepareProject(value, sessionId) { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
     const prior = state.session?.session_id;
+    cancelSelectionGesture(); state.settingsOpen = false; state.settingsDirty = false; state.settingsEditor = null;
     state.registerEditor = null; state.closedRegisterEditorId = null;
     const physical = state.physicalUI; state.physicalUI = null; physical?.destroy(); state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear();
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();

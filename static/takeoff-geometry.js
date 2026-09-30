@@ -41,6 +41,15 @@
     throw new Error("The trace cannot be split here.");
   }
   function region(a, b) { const box = bounds([a, b]); return [box[0], box[1], box[2] - box[0], box[3] - box[1]]; }
+  function enclosed(points, rectangle) {
+    const box = bounds(points);
+    return box[0] >= rectangle[0] && box[1] >= rectangle[1] && box[2] <= rectangle[2] && box[3] <= rectangle[3];
+  }
+  function translateGeometry(geometry, delta) {
+    if (!point(delta) || !geometry?.points?.every(point)) throw new Error("Invalid markup movement.");
+    const move = points => points.map(p => [p[0] + delta[0], p[1] + delta[1]]);
+    return { ...geometry, points: move(geometry.points), ...(geometry.exclusions ? { exclusions: geometry.exclusions.map(value => ({ ...value, points: move(value.points) })) } : {}) };
+  }
   function ring(points) {
     if (!Array.isArray(points) || points.length < 3 || points.length > 1000 || !points.every(point)) throw new Error("An area boundary needs 3–1,000 finite source-coordinate vertices.");
     const seen = new Set(points.map(p => JSON.stringify(p)));
@@ -60,7 +69,7 @@
     });
     return ring(points);
   }
-  const api = { transform, inverse, length, bounds, split, region, ring, polygonPath, parseVertices };
+  const api = { transform, inverse, length, bounds, split, region, enclosed, translateGeometry, ring, polygonPath, parseVertices };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.CeasefireTakeoffGeometry = api;
 })(globalThis);

@@ -12,7 +12,7 @@
 .takeoff-toolbar [hidden],.takeoff-register-controls [hidden]{display:none}.takeoff-viewport[data-tool=polygon],.takeoff-viewport[data-tool=exclusion]{cursor:crosshair}.takeoff-overlay .takeoff-area-shape{fill:#16699b24;fill-rule:evenodd}.takeoff-overlay .takeoff-area-shape.confirmed{fill:#19713c24}.takeoff-overlay .takeoff-area-shape.selected,.takeoff-overlay .takeoff-area-shape.hovered{fill:#de192c24}.takeoff-overlay .takeoff-area-hit{fill:transparent;fill-rule:evenodd;pointer-events:visiblePainted}.takeoff-area-notice{flex-basis:100%;margin:4px 0}.takeoff-surface-help{border-left:3px solid #a96b09;padding-left:8px}.takeoff-exclusions{min-width:0;grid-column:1/-1}.takeoff-exclusion{border-top:1px solid var(--line);padding:8px 0}.takeoff-exclusion .text-button{margin-right:12px}.takeoff-dialog textarea[name=points]{min-height:180px;font-family:monospace}
 .takeoff-physical-container[hidden],.takeoff-register[hidden],.takeoff-register-editor[hidden]{display:none}.takeoff-drawing-layout.takeoff-physical-drawing{grid-template-columns:145px minmax(300px,1fr)}.takeoff-physical-register .takeoff-register-table{max-height:560px}.takeoff-physical-register table{min-width:2200px}.takeoff-physical-register td{vertical-align:top}.takeoff-physical-register td:nth-child(2){min-width:230px}.takeoff-physical-register .takeoff-identity{white-space:pre-wrap;overflow-wrap:anywhere}.takeoff-physical-inspector{max-height:none;display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-top:16px}.takeoff-physical-inspector>h3,.takeoff-physical-inspector>.helper,.takeoff-physical-inspector>.takeoff-identity,.takeoff-physical-inspector>.takeoff-warning,.takeoff-physical-inspector>.takeoff-exclusion{grid-column:1/-1}.takeoff-physical-inspector .field{margin:0}.takeoff-physical-gallery{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}.takeoff-physical-gallery img{display:block;max-width:100%;height:auto;margin:12px 0;border:1px solid var(--line)}.takeoff-physical-gallery details{padding:12px}.takeoff-physical-gallery summary{cursor:pointer;font-size:12px;font-weight:600}.takeoff-overlay .takeoff-physical-shape{fill:#74529b18;stroke:#74529b;stroke-dasharray:6 3}.takeoff-overlay .takeoff-physical-shape.selected,.takeoff-overlay .takeoff-physical-shape.hovered{fill:#de192c24;stroke:#de192c}@media(max-width:800px){.takeoff-physical-inspector{grid-template-columns:1fr 1fr}.takeoff-drawing-layout.takeoff-physical-drawing{grid-template-columns:90px minmax(180px,1fr)}}
 
-/* Item editing belongs to the register; the drawing's optional side panel lists scales. */
+/* Register details and the optional drawing panels share stable item identities. */
 .takeoff-drawing-layout.with-viewports{grid-template-columns:145px minmax(250px,1fr) 285px}
 .takeoff-viewports{align-self:start;min-width:0;border:1px solid #777;border-radius:8px;background:#2d2d2d;color:#fff;overflow:hidden}
 .takeoff-viewports[hidden]{display:none}
@@ -48,3 +48,34 @@
 @media(min-width:1700px){.takeoff-drawing-layout.with-viewports{grid-template-columns:170px minmax(450px,1fr) 300px}}
 @media(max-width:1050px){.takeoff-drawing-layout.with-viewports{grid-template-columns:110px minmax(210px,1fr) 260px}}
 @media(max-width:750px){.takeoff-drawing-layout.with-viewports,.takeoff-workspace-split.beside>.takeoff-drawing-layout.with-viewports{grid-template-columns:90px minmax(180px,1fr)}.takeoff-viewports{grid-column:1/-1}.takeoff-viewport-list{max-height:220px}}
+
+/* The register grows with its rows and details; only the drawing pans vertically. */
+.takeoff-workspace-split .takeoff-register,.takeoff-workspace-split.beside>.takeoff-register{height:auto;max-height:none;min-height:0;resize:none;overflow:visible;align-self:flex-start}
+.takeoff-workspace-split:not(.beside)>.takeoff-register{width:100%}
+.takeoff-register-table,.takeoff-workspace-split .takeoff-register-table,.takeoff-physical-register .takeoff-register-table{height:auto;max-height:none;overflow-x:auto;overflow-y:visible;flex:none}
+.takeoff-register .takeoff-register-editor,.takeoff-workspace-split.beside .takeoff-register-editor{height:auto;max-height:none;overflow:visible}
+.takeoff-register th input[type=checkbox]{display:block;width:16px;height:16px;margin:5px auto 0}
+.takeoff-add-schedule .takeoff-button-symbol{display:flex;align-items:center;justify-content:center;line-height:22px;transform:translateY(-1px)}
+.takeoff-toolbar .takeoff-download-button,.takeoff-register-controls .takeoff-download-button{display:inline-flex;align-items:center;justify-content:center;width:58px;min-width:58px;height:48px;padding:5px;flex-shrink:0;background:var(--navy);border:1px solid #171217;color:white}
+.takeoff-toolbar .takeoff-download-button.calculator-export-pdf{background:#c5221f;border-color:#a11b18}
+.takeoff-register-editor .button.save-button,.takeoff-markup-settings .button.save-button{display:inline-flex;align-items:center;justify-content:center;background:#ffdb66;border-color:#d0a72c;color:#332600;width:40px;height:40px;padding:8px}
+.takeoff-drawing-layout.with-settings{grid-template-columns:145px minmax(250px,1fr) 300px}
+.takeoff-markup-settings{align-self:start;min-width:0;border:1px solid #777;border-radius:8px;background:#2d2d2d;color:#fff;padding:0 12px 14px}
+.takeoff-markup-settings[hidden]{display:none}.takeoff-markup-settings .takeoff-viewports-heading{padding:10px 0}
+.takeoff-markup-settings .field{margin:12px 0;display:flex;flex-direction:column;gap:5px;min-width:0}.takeoff-markup-settings .field>span{font-size:11px;color:#fff}
+.takeoff-markup-settings input,.takeoff-markup-settings select,.takeoff-markup-settings textarea{background:white;color:#222;min-width:0;width:100%;padding:7px;font-size:12px}
+.takeoff-markup-settings input[type=checkbox]{width:20px;height:20px;align-self:flex-start}.takeoff-markup-settings input[type=color]{height:34px;padding:2px}
+.takeoff-markup-settings .helper{color:#dedede;font-size:11px;line-height:1.5;overflow-wrap:anywhere}.takeoff-markup-settings h4{font-size:12px;margin:16px 0 10px;border-top:1px solid #666;padding-top:12px}
+.takeoff-markup-settings .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.takeoff-markup-settings .actions .button{font-size:11px}
+.takeoff-markup-settings .takeoff-viewports-heading .button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:6px;background:transparent;border:0;color:white}
+.takeoff-markup-settings button:focus-visible,.takeoff-markup-settings input:focus-visible,.takeoff-markup-settings select:focus-visible{outline:2px solid #71c9ff;outline-offset:2px}
+.takeoff-markup-settings [hidden]{display:none}
+.takeoff-overlay .takeoff-markup{pointer-events:none;stroke-linejoin:round;stroke-linecap:round}
+.takeoff-overlay .takeoff-markup.selected,.takeoff-overlay .takeoff-markup.hovered{filter:drop-shadow(0 0 3px #e34545)}
+.takeoff-overlay .takeoff-marquee{fill:#74c5ff35;stroke:#318ec9;stroke-width:1.5;vector-effect:non-scaling-stroke;pointer-events:none}
+.takeoff-viewport[data-tool=select] .takeoff-hit{cursor:move}
+.takeoff-workspace-split.beside>.takeoff-drawing-layout.with-settings{grid-template-columns:90px minmax(200px,1fr) 270px}
+@media(min-width:1700px){.takeoff-drawing-layout.with-settings{grid-template-columns:170px minmax(450px,1fr) 310px}}
+@media(max-width:1050px){.takeoff-drawing-layout.with-settings{grid-template-columns:110px minmax(210px,1fr) 270px}.takeoff-workspace-split.beside>.takeoff-register{height:auto;resize:none}}
+@media(max-width:750px){.takeoff-drawing-layout.with-settings,.takeoff-workspace-split.beside>.takeoff-drawing-layout.with-settings{grid-template-columns:90px minmax(180px,1fr)}.takeoff-markup-settings{grid-column:1/-1}}
+.takeoff-toolbar .button[hidden],.takeoff-register-controls .button[hidden],.takeoff-toolbar select[hidden],.takeoff-register-controls select[hidden]{display:none}

@@ -97,7 +97,7 @@ async function fitCurrentDrawing(name) {
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
-  await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
+  await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
   state = await reviewConfirm(); const steel = state.snapshot.items.find(item => item.mode === 'steel');
   await page.getByRole('button', { name: 'Split', exact: true }).click();
   state = await command(() => dialog('Partition repeated steel members', { 'Physical members in the first group': 1 }, 'Partition members'), 'split_steel_group');

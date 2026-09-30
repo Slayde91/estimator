@@ -147,10 +147,10 @@ async function surface(mode, rotated = false) {
   await page.getByLabel('Sort register', { exact: true }).selectOption('area');
   await page.getByLabel('Group register', { exact: true }).selectOption('level');
   await page.locator(`tr[data-item-id="${wall.id}"]`).hover();
-  await expect(page.locator('.takeoff-shape.hovered')).toHaveCount(1);
-  await page.getByLabel('Show WALL-01 on drawing', { exact: true }).uncheck();
+  await expect(page.locator('.takeoff-markup.hovered')).toHaveCount(1);
+  await page.getByLabel('Hide WALL-01 on drawing', { exact: true }).check();
   await expect(page.locator(`.takeoff-hit[data-item-id="${wall.id}"]`)).toHaveCount(0);
-  await page.getByLabel('Show WALL-01 on drawing', { exact: true }).check();
+  await page.getByLabel('Hide WALL-01 on drawing', { exact: true }).uncheck();
   // SVG focus/hover uses the same persistent row identity after filters/grouping.
   await page.locator(`.takeoff-hit[data-item-id="${wall.id}"]`).hover({ position: { x: 25, y: 25 } });
   await expect(page.locator(`tr[data-item-id="${wall.id}"]`)).toHaveClass(/hovered/);

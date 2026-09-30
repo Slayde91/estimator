@@ -15,8 +15,8 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
-  source=source.replace('setApi(fn){api=fn;}', 'renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('setApi(fn){api=fn;}', 'downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -35,11 +35,20 @@ function attachMinimalDom(h) {
   }
   h.context.document.createElement=element;h.context.document.createElementNS=(_,tag)=>element(tag);
   const ui={};for(const key of ['split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message'])ui[key]=element();ui.statusFilter={value:''};h.audit.state.ui=ui;
-  return {ui,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
+  return {ui,element,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('A changed calculator draft during export cannot publish the captured linked result',async()=>{
+    const h=harness(),value=blank(),body=deferred();value.items=[{id:'a',mode:'steel',fields:{mark:'A'}}];h.audit.accept(response(value));
+    let fingerprint='before',downloads=0,fetches=0;
+    h.context.window.CeasefireCalculators={captureTakeoffTarget:async()=>({inputs:{},schedule_rows:1,fingerprint}),projectFingerprint:()=>fingerprint};
+    h.context.fetch=async()=>{fetches++;return{ok:true,blob:()=>body.promise};};
+    h.context.URL={createObjectURL(){downloads++;return'blob:unused';}};
+    const pending=h.audit.downloadTakeoff('schedule-xlsx');await flush();assert.equal(fetches,1);fingerprint='manual-edit';body.resolve({});
+    await assert.rejects(pending,/calculator draft changed during export/);assert.equal(downloads,0);assert.equal(h.audit.state.busy,false);
+  });
   await check('PDF-space round trips preserve original coordinates at rotations, crop offsets and UserUnit scales',()=>{
     for(const matrix of [[2,0,0,-2,-30,200],[0,3,3,0,-120,-60],[-4,0,0,4,900,-24],[0,-.25,-.25,0,200,100]])
       for(const point of [[0,0],[17.125,32.875],[489,792]]){
@@ -145,8 +154,8 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     for(const tool of ['trace','polygon','exclusion','calibrate','viewport']){
       const h=harness();const dom=attachMinimalDom(h);h.audit.state.viewport={};h.audit.state.tool=tool;h.audit.state.points=[[1,1],[2,2]];h.audit.state.formDirty=true;
       h.audit.drawingPointer({button:0,detail:1,preventDefault(){throw new Error('Dirty drawing must stop before pointer transforms');}});
-      assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);assert.match(dom.ui.message.textContent,/unfinished item edits/);
-      await assert.rejects(h.audit.finishTrace(),/unfinished item edits/);assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);
+      assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);assert.match(dom.ui.message.textContent,/unfinished item(?:\/settings)? edits/);
+      await assert.rejects(h.audit.finishTrace(),/unfinished item(?:\/settings)? edits/);assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);
     }
   });
   await check('Selecting an item uses final grouped pagination and expands its collapsed group',async()=>{
@@ -168,6 +177,32 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.throws(()=>h.api.projectSnapshot(),/unfinished/);assert.deepEqual(copy(h.audit.state.session.snapshot),before);
     const discard=dom.all(editor.panel).find(node=>node.tagName==='BUTTON'&&node.textContent==='Discard edits');discard.events.click();await flush();
     assert.equal(h.audit.state.formDirty,false);assert.notEqual(h.audit.state.registerEditor,editor);assert.equal(h.audit.state.registerEditor.controls.find(field=>field.control.name==='level').control.value,'L01');assert.deepEqual(copy(h.api.projectSnapshot()),before);
+  });
+  await check('Header select and hide actions cover every filtered match beyond pagination and preserve other modes',async()=>{
+    const h=harness(),value=blank();value.items=Array.from({length:101},(_,n)=>({id:`wall-${n}`,mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:`W${n}`,level:n%2?'ODD':'EVEN'},geometry:null,measurement:null,evidence:[],member_ids:[]}));value.items.push({id:'other-mode',mode:'slab',fields:{mark:'Other'}});h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.selected.add('other-mode');h.audit.state.selected.add('wall-0');const dom=attachMinimalDom(h);
+    const control=label=>dom.all(dom.ui.tableWrap).find(node=>node.attributes['aria-label']===label),toggle=async(label,checked)=>{const node=control(label);node.checked=checked;node.events.change();await flush();};
+    h.audit.renderRegister();assert.equal(dom.ui.tableWrap.querySelectorAll('[data-item-id]').length,100);assert.equal(control('Select all matching items').indeterminate,true);
+    await toggle('Select all matching items',true);assert.equal(h.audit.state.selected.size,102);assert.ok(h.audit.state.selected.has('wall-100'));assert.equal(control('Select all matching items').checked,true);
+    await toggle('Hide all matching items',true);assert.equal(h.audit.state.hidden.size,101);assert.ok(h.audit.state.hidden.has('wall-100'));assert.ok(!h.audit.state.hidden.has('other-mode'));
+    h.audit.state.filter='ODD'.toLowerCase();h.audit.renderRegister();await toggle('Select all matching items',false);await toggle('Hide all matching items',false);assert.equal(h.audit.state.selected.size,52);assert.equal(h.audit.state.hidden.size,51);assert.ok(h.audit.state.selected.has('other-mode'));assert.ok(h.audit.state.hidden.has('wall-100'));assert.ok(!h.audit.state.hidden.has('wall-99'));
+    h.audit.state.filter='';h.audit.renderRegister();assert.equal(control('Hide all matching items').indeterminate,true);assert.equal(control('Select all matching items').indeterminate,true);
+    h.audit.state.filter='no matches';h.audit.renderRegister();assert.equal(control('Select all matching items').disabled,true);assert.equal(control('Hide all matching items').disabled,true);
+  });
+  await check('Settings show the first selected record and apply only explicitly edited fields across heterogeneous items',async()=>{
+    const h=harness(),value=blank();value.items=[{id:'a',mode:'steel',quantity:1,fields:{mark:'A',level:'L1',fire_period_min:120,zone:'keptA',notes:'originalA'}},{id:'b',mode:'steel',quantity:2,fields:{mark:'B',level:'L2',fire_period_min:90,zone:'keptB',notes:'originalB'}}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.settingsPanel=dom.element();dom.ui.layout=dom.element();dom.ui.tools={settings:dom.element()};dom.ui.target={value:'steel_vermiculite'};h.audit.state.settingsOpen=true;h.audit.state.selected=new Set(['b','a']);h.audit.setApi(async()=>({columns:[]}));h.audit.renderSettingsPanel();
+    const editor=h.audit.state.settingsEditor;assert.deepEqual(copy(editor.ids),['b','a']);assert.equal(editor.quantity.control.value,2);assert.equal(editor.fields.find(field=>field.control.name==='fire_period_min').control.value,90);assert.ok(editor.fields.every(field=>!['notes','zone','group'].includes(field.control.name)));
+    const level=editor.fields.find(field=>field.control.name==='level').control;level.value='SHARED';level.events.input();assert.equal(h.audit.state.settingsDirty,true);assert.throws(()=>h.api.projectSnapshot(),/unfinished/);
+    let sent;h.audit.setAsk(async()=>({}));h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};});await h.audit.applySettings(editor);assert.deepEqual(sent,{op:'bulk_update',item_ids:['b','a'],changes:{fields:{level:'SHARED'}}});assert.equal(h.audit.state.settingsDirty,false);assert.equal(value.items[0].fields.notes,'originalA');assert.equal(value.items[1].quantity,2);
+    sent=null;await h.audit.applySettings(h.audit.state.settingsEditor);assert.equal(sent,null);
+    const oldEditor=h.audit.state.settingsEditor,oldLevel=oldEditor.fields.find(field=>field.control.name==='level').control,held=deferred();oldLevel.value='CAPTURED';oldLevel.events.input();h.audit.setCommand(()=>held.promise);const applying=h.audit.applySettings(oldEditor);await flush();
+    h.audit.state.settingsDirty=false;h.audit.state.settingsEditor=null;h.audit.renderSettingsPanel();const newer=h.audit.state.settingsEditor,newLevel=newer.fields.find(field=>field.control.name==='level').control;newLevel.value='LATER';newLevel.events.input();held.resolve({});await applying;
+    assert.equal(h.audit.state.settingsEditor,newer);assert.equal(h.audit.state.settingsDirty,true);assert.equal(newLevel.value,'LATER');assert.throws(()=>h.api.projectSnapshot(),/unfinished/);
+  });
+  await check('Marquee bounds and geometry translation preserve source precision, exclusion identities and original evidence objects',()=>{
+    const shape={kind:'polygon',document_id:'d',page:3,points:[[10.125,20.375],[30.625,20.375],[30.625,40.875],[10.125,40.875]],exclusions:[{id:'hole',note:'retained',points:[[12,23],[15,23],[15,26],[12,26]]}]},before=copy(shape),delta=[.123456789,5.987654321];
+    assert.equal(geometry.enclosed(shape.points,[10,20,31,41]),true);assert.equal(geometry.enclosed(shape.points,[11,20,31,41]),false);
+    const moved=geometry.translateGeometry(shape,delta);assert.deepEqual(shape,before);assert.equal(moved.exclusions[0].id,'hole');assert.equal(moved.exclusions[0].note,'retained');for(let n=0;n<shape.points.length;n++)for(let axis=0;axis<2;axis++)assert.equal(moved.points[n][axis],shape.points[n][axis]+delta[axis]);assert.deepEqual(moved.exclusions[0].points[0],[12+delta[0],23+delta[1]]);
+    assert.throws(()=>geometry.translateGeometry(shape,[NaN,1]),/Invalid/);
   });
   await check('Opening an empty workspace does not create a project snapshot or mark the project dirty',async()=>{
     const h=harness();h.audit.setApi(async()=>response(blank()));await h.audit.ensureSession();
@@ -291,8 +326,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   });
   await check('Steel creation includes destination fields and new ducts default rectangular without replacing legacy shape data',async()=>{
     const h=harness(),value=blank();h.audit.accept(response(value));const definitions=copy(h.audit.creationFields('steel'));
-    assert.deepEqual(definitions.map(field=>field[0]),['mark','level','member_type','section','fire_period_min','exposure','sides','product','critical_temperature','quantity']);
+    assert.deepEqual(definitions.map(field=>field[0]),['mark','level','member_type','section','fire_period_min','exposure','product','critical_temperature','quantity']);
     assert.equal(definitions.find(field=>field[0]==='product')[1],'Product');
+    h.audit.state.ui={target:{value:'steel_board'}};assert.ok(h.audit.creationFields('steel').some(field=>field[0]==='sides'));
+    for(const mode of ['steel','duct','wall','slab'])assert.ok(h.audit.editableFields(mode,'steel_board').every(field=>!['zone','group','notes'].includes(field[0])));
+    assert.ok(!h.audit.editableFields('steel','steel_vermiculite').some(field=>field[0]==='sides'));assert.ok(h.audit.editableFields('steel','steel_board').some(field=>field[0]==='sides'));
     const legacy={fields:{mark:'Old circular',shape:'circular',diameter_mm:355,unexposed_sides:2}},changes=h.audit.itemEditChanges(legacy,[{control:{name:'mark'},read:()=> 'Updated mark'}],{read:()=>1});
     assert.deepEqual(copy(changes),{fields:{mark:'Updated mark'},quantity:1});assert.equal(legacy.fields.shape,'circular');assert.equal(legacy.fields.diameter_mm,355);assert.equal(legacy.fields.unexposed_sides,2);
     const dom=attachMinimalDom(h);dom.ui.target={value:'ductwork'};dom.ui.viewport={dataset:{}};h.audit.state.mode='duct';let created;

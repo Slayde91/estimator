@@ -259,6 +259,56 @@ human review, even when its portable evidence is intact.
 
 ## Implementation and bounds
 
+### Register, markup controls and drawing downloads
+
+The register's Select and Hide header checkboxes apply to every row matching the
+current filters, including rows on later register pages. A checked Hide box hides
+the corresponding markup. Expanding Item Details grows the page vertically.
+Zone, Group and Notes are retained in saved data and provenance but are no longer
+editable in the shared item forms. Existing Zone values still contribute to the
+steel calculator Location. Spray exposure descriptions already identify exposed
+sides; the separate numeric Exposed sides input is shown for Steel Board, where
+the existing calculator requires it.
+
+In Select mode, drag on blank drawing space to select markups fully contained by
+the blue selection rectangle. Drag a selected markup to move the selected marks
+on that page. A move preserves quantities and lengths, but invalidates review,
+confirmation and calculator-link freshness because the source position changed.
+It cannot move geometry outside its source page or calibration viewport. Source
+citations and riser/drop references stay pinned to their original evidence.
+
+The Settings gear opens a panel for the selected items. Multiple selection shows
+the first item's values and applies only fields explicitly edited by the user.
+The same pending-edit guard protects both Settings and Item Details. Markup
+colour, fill, opacity and line width are presentation settings; changing them is
+audited but does not change measurement confirmation or calculator inputs. Line
+width is in physical PDF points (0.25–20); opacity ranges from zero to one.
+
+Download XLSX copies the entire current Takeoffs type, including hidden and
+unconfirmed items. It retains numeric precision with two-decimal length display,
+labels drafts explicitly and leaves unknown values blank. Existing confirmed
+CSV/XLSX register exports remain available separately.
+
+Download PDF creates a static, compressed copy of the current source PDF with
+visible markups of the active Takeoffs type. Each source page has a CEASEFIRE
+legend identifying the marks, steel sections or duct dimensions and total
+lengths; overflow legends continue on additional labelled pages. Drawing content
+uses lossless compression; the app logo is rendered at print resolution. Adding
+marks and legends does not guarantee a smaller file than the source.
+Original drawings and calculator rows are not modified. Linked steel thickness
+or board selections appear only when the locally registered confirmation and
+transfer receipt match the exact current calculator row and source version.
+Missing or stale calculator results are labelled Unavailable. Export does not
+confirm an item or approve technical suitability.
+
+The PDF derivative retains optional drawing layers and their default visibility,
+but excludes source actions and attachments. Borderless links without a visible
+appearance can be omitted. Visible source annotations or form widgets currently
+require a flattened source PDF; the export reports this limitation instead of
+silently dropping drawing content. Its bounded worker also rejects unsupported
+page sizes, excessive output or a legend row that cannot fit on a continuation
+page. These failures leave the original and the Takeoffs project unchanged.
+
 - `takeoff_documents.py` manages exact-byte originals, upload ownership, verified
   snapshots, companion files and immutable history. Uploads use retry-checked
   binary chunks of at most 8 MiB. Limits are 100 PDFs, 250 MiB each and 2,000
@@ -322,6 +372,9 @@ synthetic drawings, a disposable database and controlled save dialogs.
 scans, crop/rotation/UserUnit coordinates and JPEG2000 rendering.
 `npm run test:takeoffs-lineage` checks Steel member partition/reunion and prevents
 split successors from duplicating quantities in a retained predecessor row.
+`npm run test:takeoffs-markups` exercises register header controls, sparse bulk
+Settings edits, selection and movement on rotated/cropped drawings, save/reopen
+and current drawing/schedule downloads using only disposable fixtures.
 `npm run test:takeoffs-capacity` exercises 100 separate PDFs and 2,000 pages
 through the rendered upload/search workflow, including complete search coverage
 and bounded document workers and thumbnails.

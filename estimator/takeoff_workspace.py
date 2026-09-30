@@ -665,6 +665,7 @@ class TakeoffService:
                      'review_items': {'item_ids'}, 'confirm_items': {'item_ids'},
                      'unconfirm_items': {'item_ids'}, 'add_calibration': {'calibration'},
                      'update_calibration': {'calibration_id', 'changes'},
+                     'delete_viewport': {'calibration_id'},
                      'delete_document': {'document_id'}, 'record_render': {'document_id', 'page', 'success', 'warnings'},
                      'undo': set(), 'split_item': {'item_id', 'parts'}, 'merge_items': {'item_ids', 'item'},
                      'split_steel_group': {'item_id', 'quantities'}, 'merge_steel_groups': {'item_ids'},
@@ -742,7 +743,7 @@ class TakeoffService:
                 if not isinstance(proposed, dict):
                     raise ValidationError('Calibration must be an object.')
                 proposed.setdefault('id', str(uuid4()))
-                if 'supersedes_id' in proposed:
+                if 'supersedes_id' in proposed or 'deleted' in proposed:
                     raise ValidationError('Use calibration revision to replace an existing scale.')
                 if any(c['id'] == proposed['id'] for c in after['calibrations']):
                     raise ValidationError('Calibration revisions are immutable. Add a new calibration ID.')
@@ -783,6 +784,35 @@ class TakeoffService:
                         self._invalidate(after, item)
                         validate_measurement_scope(item, after)
                 self._invalidate_changed_scopes(before, after)
+            elif op == 'delete_viewport':
+                calibration_id = identity(request['calibration_id'], 'Viewport calibration ID')
+                original = next((entry for entry in active_calibrations(after) if entry['id'] == calibration_id), None)
+                if original is None or 'region' not in original:
+                    raise ValidationError('Choose an active viewport to delete; page scales and retired revisions cannot be deleted here.')
+                after['calibrations'].append({**deepcopy(original), 'id': str(uuid4()),
+                                              'supersedes_id': calibration_id, 'deleted': True})
+                validate_calibration_revisions(after)
+                for item in after['items']:
+                    measurement = item['measurement']
+                    if not measurement or measurement.get('method') != 'calibrated':
+                        continue
+                    if measurement['calibration_id'] == calibration_id:
+                        # Keep its exact former basis visible in saved evidence,
+                        # but its retired scale can no longer authorize quantity.
+                        self._invalidate(after, item)
+                        continue
+                    try:
+                        validate_measurement_scope(item, before)
+                    except ValidationError:
+                        try:
+                            validate_measurement_scope(item, after)
+                        except ValidationError:
+                            continue
+                        # A page-scale record previously blocked by this inset
+                        # must not silently regain a different scale. Its prior
+                        # measurement remains in the immutable deletion event.
+                        item['measurement'] = None
+                        self._invalidate(after, item)
             elif op == 'delete_document':
                 document_id = identity(request['document_id'], 'Document ID')
                 if not any(d['id'] == document_id for d in after['documents']):

@@ -10,6 +10,9 @@
     formDirty: false, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
     physicalUI: null, physicalSelected: new Set(), physicalVisible: new Set(), physicalHovered: null, physicalPreviews: new Map() };
   const units = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 3 });
+  const lengthUnits = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Presentation only: snapshots, evidence digests and calculator inputs retain full precision.
+  const formatLength = value => Number.isFinite(value) ? lengthUnits.format(value) : "—";
   const labels = { steel: "Steel", duct: "Duct", wall: "Walls", slab: "Slabs", physical: "Penetrations" };
   const physicalUnfinished = () => !!state.physicalUI?.hasUnfinishedChanges();
   const isArea = (mode = state.mode) => mode === "wall" || mode === "slab";
@@ -36,7 +39,16 @@
     "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7",
     "Select": "M5 3l14 10-7 1-3 7z",
     "Pan": "M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v7c0 4-3 6-7 6-3 0-4-2-6-4l-3-4a1.5 1.5 0 0 1 2-2l2 1z",
-    "Trace length": "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4M8 3v3M12 3v3M16 3v3M8 18v3M12 18v3M16 18v3",
+    "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
+    "Calibrate": "M3 3v18h18L3 3zM7 12v5h5l-5-5zM6 6l-2 2M9 9l-2 2M12 12l-2 2M15 15l-2 2M18 18l-2 2",
+    "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
+    "Add viewport": "M12 4v16M4 12h16",
+    "Delete viewport": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
+    "Close viewports": "M6 9l6 6 6-6",
+    "Update linked rows": "M3 11a9 9 0 1 1 3 8M3 17l3 2-3 2M12 6v6h5",
+    "Detach links": "M9 8H7a4 4 0 0 0 0 8h3M15 8h2a4 4 0 0 1 0 8h-3M8 12h8",
+    "Export CSV": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
+    "Export XLSX": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
     "Fit page": "M9 9L3 3m0 5V3h5M15 9l6-6m-5 0h5v5M9 15l-6 6m0-5v5h5M15 15l6 6m-5 0h5v-5",
     "Cancel trace": "M5 5l14 14M19 5L5 19",
     "Upload PDFs": "M14 3H5v18h14V8l-5-5zm0 0v5h5M12 18v-7m-3 3 3-3 3 3",
@@ -55,7 +67,9 @@
       } else {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(key, value);
-        path.setAttribute("d", icon); svg.append(path); symbol.append(svg);
+        path.setAttribute("d", icon); svg.append(path);
+        if (label === "Export CSV" || label === "Export XLSX") { const text = document.createElementNS("http://www.w3.org/2000/svg", "text"); text.setAttribute("x", "12"); text.setAttribute("y", "20"); text.setAttribute("text-anchor", "middle"); text.setAttribute("font-size", "4.5"); text.setAttribute("font-weight", "700"); text.setAttribute("stroke", "none"); text.setAttribute("fill", "currentColor"); text.textContent = label.slice(7); svg.append(text); }
+        symbol.append(svg);
       }
       el.append(symbol, node("span", "sr-only", label));
     } else el.textContent = label;
@@ -80,7 +94,7 @@
     window.CeasefireProject?.changed?.();
   }
   function markFormEdited() { state.formDirty = true; state.formRevision = (state.formRevision || 0) + 1; window.CeasefireProject?.changed?.(); }
-  function working(value) { state.busy = value; if (state.ui) { state.ui.root.setAttribute("aria-busy", String(value)); for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) control.disabled = value; state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`; } window.CeasefireProject?.changed?.(); }
+  function working(value) { state.busy = value; if (state.ui) { state.ui.root.setAttribute("aria-busy", String(value)); for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value; state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`; renderViewportPanel(); } window.CeasefireProject?.changed?.(); }
   function command(op, values = {}, guard) {
     const sessionId = state.session?.session_id;
     const task = state.queue.then(async () => {
@@ -146,9 +160,9 @@
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["cite", "Cite length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : setTool(tool)); el.dataset.tool = tool; ui.tools[tool] = el; toolbar.append(el); }
-    toolbar.append(ui.finishTrace = button("Finish trace", finishTrace), ui.cancelTrace = button("Cancel trace", cancelTrace));
-    ui.calibration = select([["", "Select calibration"]], value => chooseCalibration(value)); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, ui.editCalibration = button("Edit calibration", editCalibration));
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (tool !== "viewport") el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    toolbar.append(ui.cancelTrace = button("Cancel trace", cancelTrace));
+    ui.calibration = select([["", "No Scale Selected"]], value => chooseCalibration(value)); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, ui.editCalibration = button("Edit calibration", editCalibration));
     const navigation = node("div", "takeoff-toolbar"); navigation.setAttribute("aria-label", "Drawing navigation");
     navigation.append(button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
@@ -161,8 +175,8 @@
     const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; ui.rail = node("aside", "takeoff-rail"); ui.rail.setAttribute("aria-label", "Documents and page thumbnails");
     ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.setAttribute("aria-label", "Drawing. Choose a drawing tool, then click to mark source positions.");
     ui.pageWrap = node("div", "takeoff-page"); ui.pageWrap.hidden = true; ui.canvas = node("canvas"); ui.canvas.setAttribute("aria-label", "Original PDF page"); ui.overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ui.overlay.classList.add("takeoff-overlay"); ui.overlay.setAttribute("aria-label", "Takeoff markups");
-    ui.pageWrap.append(ui.canvas, ui.overlay); ui.empty = node("div", "takeoff-empty"); ui.empty.append(node("strong", "", "Your drawing workspace"), node("p", "", "Upload the original PDFs, calibrate a known distance, then trace or cite each physical object. Review and confirm before transferring quantities.")); ui.viewport.append(ui.pageWrap, ui.empty);
-    ui.inspector = node("aside", "takeoff-inspector"); ui.inspector.setAttribute("aria-label", "Selected takeoff item"); layout.append(ui.rail, ui.viewport, ui.inspector);
+    ui.pageWrap.append(ui.canvas, ui.overlay); ui.empty = node("div", "takeoff-empty"); ui.empty.append(node("strong", "", "Your drawing workspace"), node("p", "", "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.")); ui.viewport.append(ui.pageWrap, ui.empty);
+    ui.viewportPanel = node("aside", "takeoff-viewports"); ui.viewportPanel.id = "takeoff-viewports"; ui.viewportPanel.hidden = true; ui.viewportPanel.setAttribute("aria-label", "Viewports"); layout.append(ui.rail, ui.viewport, ui.viewportPanel);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
@@ -171,7 +185,7 @@
     controls.append(ui.filter, ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => state.selected.add(item.id)); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); renderSelection(); }), button("Undo last edit", () => { requireFinishedEdits(); return command("undo"); }));
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
-    const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], () => { if (!state.formDirty) renderInspector(); }); ui.target.setAttribute("aria-label", "Destination schedule");
+    const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Linked calculator rows", () => manageLinkedRows())];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit), ui.areaNotice);
@@ -186,27 +200,26 @@
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); if (state.document) await renderPage(); }
   async function changeMode(mode) { if (!labels[mode] || state.busy) return; if (!await discardEditor()) return; state.mode = mode; state.offset = 0; state.selected.clear(); cancelTrace(); renderData(); }
-  function requireFinishedEdits() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.points.length || state.pendingViewport) throw new Error("Apply or discard the unfinished item edits and finish or cancel the current trace or viewport first."); }
-  async function discardEditor() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.points.length && !state.pendingViewport) { if (state.retraceId || state.exclusionItemId) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; cancelTrace(); return true; }
+  function requireFinishedEdits() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.points.length || state.pendingViewport) throw new Error("Apply or discard the unfinished item edits and finish or cancel the current trace or viewport first."); if (state.calibrationTarget) cancelTrace(); }
+  async function discardEditor() { if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.points.length && !state.pendingViewport) { if (state.retraceId || state.exclusionItemId || state.calibrationTarget) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form or current trace has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; cancelTrace(); return true; }
   function renderData() {
     if (!state.ui) return;
     for (const el of state.ui.root.querySelectorAll("[data-mode]")) el.setAttribute("aria-selected", String(el.dataset.mode === state.mode));
     const physical = state.mode === "physical";
-    state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = !physical; state.ui.register.hidden = physical; state.ui.inspector.hidden = physical; state.ui.layout.classList.toggle("takeoff-physical-drawing", physical);
+    state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = !physical; state.ui.register.hidden = physical;
     state.ui.workspace.classList.toggle("beside", !physical && state.ui.registerLayout.value === "beside");
     state.ui.registerLayout.disabled = physical;
     // Page/view scales are shared source metadata, even in the physical draft.
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
-    state.ui.finishTrace.hidden = physical;
     if (physical) {
-      for (const tool of ["trace", "cite", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
+      for (const tool of ["trace", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
       ensurePhysicalUI(); state.physicalUI.render(snapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
-    for (const tool of ["trace", "cite"]) state.ui.tools[tool].hidden = area;
+    state.ui.tools.trace.hidden = area;
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
@@ -214,7 +227,12 @@
     const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
     const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => option(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
     const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(...(area ? [] : [option("quantity", "Quantity")]), ...fields[state.mode].map(([key, label]) => option(key, label))); if ((!area && oldBulk === "quantity") || fields[state.mode].some(([key]) => key === oldBulk)) state.ui.bulkField.value = oldBulk;
-    renderRail(); renderCalibrations(); renderRegister(); if (!state.formDirty) renderInspector(); renderOverlay(); working(state.busy);
+    renderRail(); renderCalibrations(); renderRegister(); renderOverlay(); working(state.busy);
+  }
+  async function refreshRegisterOptions() {
+    if (!state.formDirty) { renderRegister(); return; }
+    const editor = state.registerEditor, item = items().find(value => value.id === editor?.itemId);
+    if (item && editor.sessionId === state.session?.session_id && editor.panel.isConnected) await enrichInspectorOptions(item, editor.controls, editor.controls.find(field => field.control.name === "product")?.control.value);
   }
   function physicalRequest(path, values, { mutate = false, expected, sessionId = state.session?.session_id } = {}) {
     const task = state.queue.then(async () => {
@@ -311,21 +329,88 @@
   const scaleDenominators = [2, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300];
   function activePageCalibrations() {
     const all = snapshot()?.calibrations || [], superseded = new Set(all.map(value => value.supersedes_id).filter(Boolean));
-    return all.filter(value => value.document_id === state.document && value.page === state.page && !superseded.has(value.id));
+    return all.filter(value => value.document_id === state.document && value.page === state.page && !value.deleted && !superseded.has(value.id));
   }
   function inViewport(point, region) { return point[0] >= region[0] && point[1] >= region[1] && point[0] <= region[0] + region[2] && point[1] <= region[1] + region[3]; }
   function renderCalibrations() {
     const calibrations = activePageCalibrations();
-    state.ui.calibration.replaceChildren(option("", "Select calibration / page scale"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
+    state.ui.calibration.replaceChildren(option("", "No Scale Selected"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
     if (!calibrations.some(calibration => calibration.id === state.calibration)) state.calibration = "";
     state.ui.calibration.value = state.calibration;
+    if (calibrations.some(value => value.id === state.calibration && value.region)) state.viewportSelection = state.calibration;
+    renderViewportPanel();
   }
-  async function chooseCalibration(value) {
+  function toggleViewportPanel() {
+    state.viewportsOpen = !state.viewportsOpen; renderViewportPanel();
+  }
+  function renderViewportPanel() {
+    const panel = state.ui?.viewportPanel; if (!panel) return;
+    panel.hidden = !state.viewportsOpen; state.ui.layout.classList.toggle("with-viewports", !!state.viewportsOpen);
+    state.ui.tools.viewport.setAttribute("aria-expanded", String(!!state.viewportsOpen));
+    state.ui.tools.viewport.classList.toggle("takeoff-tool-active", !!state.viewportsOpen);
+    if (!state.viewportsOpen) return;
+    const viewports = activePageCalibrations().filter(value => value.region);
+    if (!viewports.some(value => value.id === state.viewportSelection)) state.viewportSelection = "";
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close viewports", toggleViewportPanel), node("h3", "", "Viewports"));
+    const list = node("div", "takeoff-viewport-list"); list.setAttribute("aria-label", "Viewports on this page");
+    for (const viewport of viewports) {
+      const row = node("div", `takeoff-viewport-row${viewport.id === state.viewportSelection ? " selected" : ""}`); row.dataset.calibrationId = viewport.id;
+      const name = button(viewport.name, () => selectViewport(viewport.id), "takeoff-viewport-name"); name.title = viewport.name; name.setAttribute("aria-label", `Select viewport ${viewport.name}`); name.setAttribute("aria-pressed", String(viewport.id === state.viewportSelection));
+      const scale = select([["manual", viewport.scale_denominator ? "Calibrate a known dimension" : "Custom scale"], ...scaleDenominators.map(value => [String(value), `1:${value}`])], value => changeViewportScale(viewport.id, value), viewport.scale_denominator ? String(viewport.scale_denominator) : "manual"); scale.setAttribute("aria-label", `Scale for viewport ${viewport.name}`);
+      const more = button("⋯", () => editViewport(viewport.id), "takeoff-viewport-more"); more.setAttribute("aria-label", `Edit viewport ${viewport.name}`); more.title = `Edit viewport ${viewport.name}`;
+      for (const control of [name, scale, more]) control.disabled = state.busy;
+      row.append(name, scale, more); list.append(row);
+    }
+    if (!viewports.length) list.append(node("p", "helper", "No viewports on this page. Add a viewport around a detail with its own scale."));
+    const actions = node("div", "takeoff-viewport-actions"), add = button("Add viewport", () => { requireFinishedEdits(); setTool("viewport"); }), remove = button("Delete viewport", deleteViewport);
+    add.disabled = state.busy || !state.viewport; remove.disabled = state.busy || !state.viewportSelection;
+    actions.append(add, remove); panel.replaceChildren(heading, list, actions);
+  }
+  function currentViewport(id) {
+    const value = activePageCalibrations().find(value => value.id === id && value.region);
+    if (!value) throw new Error("This viewport changed or belongs to another page. Select its current row.");
+    return value;
+  }
+  function selectViewport(id) {
+    requireFinishedEdits(); const value = currentViewport(id);
+    state.viewportSelection = value.id; state.calibration = value.id; renderCalibrations(); renderOverlay();
+  }
+  async function changeViewportScale(id, value) {
+    try {
+      requireFinishedEdits(); const viewport = currentViewport(id);
+      if (value === "manual") {
+        state.calibration = viewport.id; state.viewportSelection = viewport.id;
+        setTool("calibrate", { viewportId: viewport.id });
+        message(`Click both ends of a known dimension inside ${viewport.name}.`); return;
+      }
+      if (Number(value) === viewport.scale_denominator) return;
+      await chooseCalibration(`scale:${value}`, viewport.id);
+    } finally { renderCalibrations(); }
+  }
+  async function editViewport(id) {
+    requireFinishedEdits(); const viewport = currentViewport(id);
+    const value = await ask("Edit viewport", [["name", "Viewport name", "text", viewport.name, true]], "Rename this page detail. Its original revision is retained, and dependent items become unconfirmed. To change its scale, use the dropdown in its row.", "Apply viewport edits");
+    if (!value || value.name === viewport.name) return;
+    currentViewport(id);
+    const reply = await command("update_calibration", { calibration_id: id, changes: { name: value.name } });
+    state.calibration = reply.revised_calibration_id; state.viewportSelection = state.calibration; renderCalibrations(); renderOverlay();
+  }
+  async function deleteViewport() {
+    requireFinishedEdits(); const viewport = currentViewport(state.viewportSelection);
+    const count = items().filter(item => item.measurement?.calibration_id === viewport.id).length;
+    if (!await confirm(`Delete viewport ${viewport.name}?`, `${count} directly linked items will lose their usable scale. Affected items must be assigned an applicable calibration and confirmed again. Existing calculator row values are preserved, but their source links become stale. The original viewport and audit history are retained; Undo can restore the operation.`, "Delete viewport")) return;
+    currentViewport(viewport.id);
+    await command("delete_viewport", { calibration_id: viewport.id });
+    if (state.calibration === viewport.id) state.calibration = "";
+    state.viewportSelection = ""; renderCalibrations(); renderOverlay();
+  }
+  async function chooseCalibration(value, targetId = state.calibration) {
     try {
       requireFinishedEdits();
-      if (!value.startsWith("scale:")) { state.calibration = value; renderOverlay(); return; }
+      if (!value.startsWith("scale:")) { if (value && !activePageCalibrations().some(entry => entry.id === value)) throw new Error("Choose a current calibration for this page."); state.calibration = value; renderOverlay(); return; }
       if (!state.viewport) throw new Error("Open a successfully rendered page before applying a scale.");
-      const denominator = Number(value.slice(6)), existing = activePageCalibrations().find(entry => entry.id === state.calibration);
+      const denominator = Number(value.slice(6)), existing = activePageCalibrations().find(entry => entry.id === targetId);
+      if (targetId && !existing) throw new Error("The selected calibration changed. Select its current revision.");
       const scope = existing?.region ? `viewport ${existing.name}` : "this page";
       if (!await confirm(`Apply drawing scale 1:${denominator}?`, `Apply 1:${denominator} to ${scope}. This uses the PDF's original physical sheet dimensions, including its UserUnit. Use only an original-size, uniformly scaled drawing. If the PDF was resized or scanned, calibrate a known dimension instead. Existing dependent confirmations will be invalidated.`, "Apply scale")) return;
       if (existing) {
@@ -351,7 +436,7 @@
     }
     const id = uuid(), [x, y, width] = region;
     await command("add_calibration", { calibration: { id, document_id: docId, page, name: details.name, points: [[x, y], [x + width, y]], region, scale_denominator: Number(details.scale), uniform_scale: true } });
-    state.calibration = id; cancelTrace(); renderCalibrations();
+    state.calibration = id; state.viewportSelection = id; cancelTrace(); renderCalibrations();
   }
   function renderRail() {
     const key = JSON.stringify([state.session?.session_id, documents().map(doc => [doc.id, doc.name, doc.pages.length]), state.document, state.page]);
@@ -572,25 +657,27 @@
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
     if (state.mode === "physical" && !["select", "pan", "calibrate", "viewport"].includes(tool)) throw new Error("Physical drafts use retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
-    if (["polygon", "exclusion"].includes(tool) && state.formDirty) throw new Error("Apply or discard the unfinished item edits before tracing a surface.");
+    if (!["select", "pan"].includes(tool) && state.formDirty) throw new Error("Apply or discard the unfinished item edits before using a drawing tool.");
     if (["trace", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
     if (state.pendingViewport && tool !== "calibrate") throw new Error("Calibrate or cancel the unfinished viewport first.");
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
-    state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null;
+    state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
     state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     state.ui.viewport.focus();
-    state.ui.progress.textContent = ({ viewport: "Click two opposite corners of the detail viewport, then choose its independent scale.", calibrate: state.pendingViewport ? "Click both endpoints of a known dimension inside the new viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click, Finish trace or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click, Finish trace or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click, Finish trace or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to inspect its source and fields." })[tool];
+    state.ui.progress.textContent = ({ viewport: "Click two opposite corners of the detail viewport, then choose its independent scale.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool];
   }
-  function cancelTrace() { state.pendingViewport = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function drawingPointer(event) {
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
     if (state.busy || state.modal || !state.viewport || !["calibrate", "trace", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
+    if (state.formDirty) { message("Apply or discard the unfinished item edits before continuing the drawing tool.", true); return; }
     if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
     const view = pageMetadata()?.view; if (view && (p[0] < view[0] || p[1] < view[1] || p[0] > view[2] || p[1] > view[3])) return;
     if (state.pendingViewport && !inViewport(p, state.pendingViewport.region)) { message("Both calibration points must be inside the viewport.", true); return; }
+    if (state.calibrationTarget) { const target = activePageCalibrations().find(value => value.id === state.calibrationTarget); if (!target?.region || !inViewport(p, target.region)) { message("Both calibration points must be inside the selected viewport.", true); return; } }
     if (["trace", "polygon"].includes(state.tool) && !state.points.length && !state.retraceId) {
       const calibrations = activePageCalibrations(), scoped = calibrations.filter(value => value.region && inViewport(p, value.region));
       if (scoped.length > 1) { message("This point is on more than one viewport boundary. Start clearly inside one viewport.", true); return; }
@@ -631,7 +718,7 @@
     const points = clone(state.points), docId = state.document, page = state.page;
     if (!G.length(points)) throw new Error("Choose two distinct calibration points.");
     const scoped = activePageCalibrations().filter(value => value.region && points.every(point => inViewport(point, value.region)));
-    const existing = !state.pendingViewport && scoped.length === 1 ? scoped[0] : null;
+    const existing = state.calibrationTarget ? currentViewport(state.calibrationTarget) : !state.pendingViewport && scoped.length === 1 ? scoped[0] : null;
     const scope = state.pendingViewport || existing;
     const result = await ask("Calibrate this drawing", [["name", "Calibration name", "text", scope?.name || `Page ${page} scale`, true], ["distance_m", "Known real distance (metres)", "number", "", true], ["uniform", "Uniform scale confirmed", ["Yes — the drawing has the same horizontal and vertical scale"], "", true]], "Use a stated dimension. This calibration belongs only to this page and this drawing scale. Distorted photographs and stretched scans cannot be calibrated with two points. Calibrating inside an existing viewport revises that viewport and invalidates its dependent confirmations.", "Create calibration");
     if (!result) return cancelTrace(); if (!(result.distance_m > 0)) throw new Error("Enter a known positive distance in metres.");
@@ -687,6 +774,7 @@
     await refresh();
   }
   async function finishTrace() {
+    if (state.formDirty) throw new Error("Apply or discard the unfinished item edits before completing the trace.");
     if (["polygon", "exclusion"].includes(state.tool)) return finishAreaTrace();
     if (state.tool !== "trace" || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
     if (!state.calibration) throw new Error("Choose the correct calibration.");
@@ -845,7 +933,29 @@
     viewport.scrollTo({ left: (box[0] + box[2]) / 2 - viewport.clientWidth / 2 + 24, top: (box[1] + box[3]) / 2 - viewport.clientHeight / 2 + 24, behavior: "smooth" });
   }
   function hover(id) { state.hovered = id; for (const row of state.ui?.tableWrap.querySelectorAll("[data-item-id]") || []) row.classList.toggle("hovered", row.dataset.itemId === id); for (const hit of state.ui?.overlay.querySelectorAll("[data-item-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.itemId === id); }
-  function renderSelection() { renderRegister(); renderInspector(); renderOverlay(); }
+  function renderSelection() { renderRegister(); renderOverlay(); }
+  async function openRegisterEditor(item, focus = false) {
+    if (!await discardEditor()) return;
+    state.closedRegisterEditorId = null;
+    await selectItem(item.id, false, focus);
+  }
+  async function closeRegisterEditor(item) {
+    if (!await discardEditor()) return;
+    state.closedRegisterEditorId = item.id;
+    renderRegister();
+  }
+  function registerEditorFor(item) {
+    const existing = state.registerEditor;
+    if (state.formDirty && existing?.sessionId === state.session?.session_id && existing.itemId === item.id) return existing;
+    const panel = node("section", "takeoff-register-editor"); panel.dataset.editorItemId = item.id; panel.setAttribute("aria-label", `Item details for ${item.fields.mark || item.id}`);
+    const editor = { itemId: item.id, sessionId: state.session?.session_id, panel, controls: [], quantity: null };
+    state.registerEditor = editor; renderRegisterEditor(item, editor); return editor;
+  }
+  function appendRegisterEditor(body, editor, columnCount, outsideView = false) {
+    const row = node("tr", "takeoff-register-detail"), cell = node("td"); row.dataset.editorFor = editor.itemId; cell.colSpan = columnCount;
+    if (outsideView) cell.append(node("p", "helper takeoff-editor-pending-notice", state.formDirty ? "This item's unfinished edits are kept here while its register row is outside the current filter, page or expanded group. Apply or discard the edits before changing selection." : "The selected item's row is outside the current filter, page or expanded group. Its details remain available here."));
+    cell.append(editor.panel); row.append(cell); body.append(row);
+  }
   function renderRegister() {
     if (!state.ui) return;
     const list = visibleItems(), selected = selectedItems();
@@ -856,37 +966,48 @@
     state.ui.split.title = isArea() ? "Surface splitting is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
     state.ui.merge.title = isArea() ? "Surface merging is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Combine compatible repeated-member groups while retaining every physical member identity." : "Merge adjoining measured segments of one individual duct run.";
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
+    const editingItem = selected.length === 1 && state.closedRegisterEditorId !== selected[0].id ? selected[0] : null;
+    const editor = editingItem ? registerEditorFor(editingItem) : null;
+    if (!editor && !state.formDirty) state.registerEditor = null;
+    const focused = editor?.panel.contains?.(document.activeElement) ? document.activeElement : null;
+    const caret = focused && typeof focused.selectionStart === "number" ? [focused.selectionStart, focused.selectionEnd] : null;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
     const area = isArea(), columns = area ? ["mark", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", "sides"] : ["mark", "level", "width_mm", "height_mm", "frl", "system", "orientation"];
-    for (const title of ["Select", "Show", "Source / ID", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), "Evidence / issues"]) header.append(node("th", "", title)); head.append(header); table.append(head, body);
-    let lastGroup = null;
+    const headings = ["Select", "Show", "Source / ID", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), "Evidence / issues"];
+    for (const title of headings) header.append(node("th", "", title)); head.append(header); table.append(head, body);
+    let lastGroup = null, editorPlaced = false;
     const grouped = groupedItems(list);
     state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((grouped.length - 1) / 100) * 100)));
     for (const item of grouped.slice(state.offset, state.offset + 100)) {
       const group = itemGroup(item);
-      if (state.group && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = columns.length + 8; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
+      if (state.group && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = headings.length; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
       if (group && state.collapsed.has(group)) continue;
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.addEventListener("pointerenter", () => hover(item.id)); row.addEventListener("pointerleave", () => hover(null));
       const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); check.setAttribute("aria-label", `Select ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
       const showCell = node("td"), show = node("input"); show.type = "checkbox"; show.checked = !state.hidden.has(item.id); show.setAttribute("aria-label", `Show ${item.fields.mark || item.id} on drawing`); show.addEventListener("change", () => { show.checked ? state.hidden.delete(item.id) : state.hidden.add(item.id); renderOverlay(); }); showCell.append(show);
-      const linkCell = node("td"); linkCell.append(button(item.id.slice(0, 8), () => selectItem(item.id), "takeoff-row-link")); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
-      for (const key of [...columns, ...(area ? [] : ["quantity"])]) { const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key); const field = formField(def, key === "quantity" ? item.quantity : item.fields[key]); field.control.addEventListener("change", () => void safely(async () => { if (state.formDirty || state.points.length) { field.control.value = key === "quantity" ? item.quantity ?? "" : item.fields[key] ?? ""; requireFinishedEdits(); } const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
+      const linkCell = node("td"), expanded = editor?.itemId === item.id;
+      const edit = button(expanded ? "Close item editor" : "Edit item", () => expanded ? closeRegisterEditor(item) : openRegisterEditor(item), "text-button"); edit.setAttribute("aria-expanded", String(expanded));
+      linkCell.append(button(item.id.slice(0, 8), () => openRegisterEditor(item, true), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
+      for (const key of [...columns, ...(area ? [] : ["quantity"])]) { const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key); const field = formField(def, key === "quantity" ? item.quantity : item.fields[key]); field.control.addEventListener("change", () => void safely(async () => { try { requireFinishedEdits(); } catch (error) { field.control.value = key === "quantity" ? item.quantity ?? "" : item.fields[key] ?? ""; throw error; } const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
       const result = itemResult(item);
-      for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", Number.isFinite(result[key]) ? units.format(result[key]) : "—"));
+      for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
       const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
+      if (expanded) { appendRegisterEditor(body, editor, headings.length); editorPlaced = true; }
     }
+    if (editor && !editorPlaced) appendRegisterEditor(body, editor, headings.length, true);
     state.ui.pagination.replaceChildren(button("Previous 100", () => { state.offset = Math.max(0, state.offset - 100); renderRegister(); }), node("span", "helper", `${list.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, list.length)} of ${list.length} matching items`), button("Next 100", () => { if (state.offset + 100 < list.length) state.offset += 100; renderRegister(); }));
     state.ui.tableWrap.replaceChildren(table); if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", area ? `No matching surfaces. Calibrate the applicable drawing scale, then Trace surface. ${surfaceHelp}` : "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
+    if (focused?.isConnected) { focused.focus({ preventScroll: true }); if (caret) focused.setSelectionRange(...caret); }
   }
-  function renderInspector() {
-    if (!state.ui || state.formDirty) return; const panel = state.ui.inspector, selected = selectedItems(); panel.replaceChildren(node("h3", "", "ITEM INSPECTOR"));
-    if (selected.length !== 1) { panel.append(node("p", "helper", selected.length ? `${selected.length} items selected. Use bulk editing below to make one explicit, reversible change.` : "Select a drawing markup or register row to edit its fields and inspect its source.")); return; }
-    const item = selected[0], result = itemResult(item), area = isArea(item.mode); panel.append(node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} ${area ? "surface area" : "length"}`));
+  function renderRegisterEditor(item, editor) {
+    const panel = editor.panel, result = itemResult(item), area = isArea(item.mode);
+    panel.replaceChildren(node("h3", "", `ITEM DETAILS · ${item.fields.mark || item.id.slice(0, 8)}`), node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} ${area ? "surface area" : "length"}`));
     const geometryAction = (label, action) => { const control = button(label, action); if (!item.geometry) { control.disabled = true; control.title = "Attach source geometry before using this tool."; } return control; };
     if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked. Open a rendered source page, select its calibration and use Attach source on current page."));
     if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
     const controls = fields[item.mode].map(def => { const control = formField(def, item.fields[def[0]]); control.control.addEventListener("input", markFormEdited); panel.append(control.wrapper); return control; });
     const quantity = area ? null : formField(["quantity", "Physical quantity", "number"], item.quantity); if (quantity) { quantity.control.addEventListener("input", markFormEdited); panel.append(quantity.wrapper); }
+    editor.controls = controls; editor.quantity = quantity;
     if (!area) void enrichInspectorOptions(item, controls);
     if (item.mode === "steel") panel.append(button("Find steel section", () => findProfile(item), "text-button"));
     if (item.mode === "duct") {
@@ -897,7 +1018,15 @@
     if (item.member_ids?.length) { const members = node("details"); members.append(node("summary", "helper", `${item.member_ids.length} persistent physical member identities`)); for (const id of item.member_ids) members.append(node("p", "takeoff-identity", id)); panel.append(members); }
     const formatArea = key => Number.isFinite(result[key]) ? `${units.format(result[key])} m²` : "Unresolved";
     panel.append(node("p", "takeoff-calibration-summary", `${area ? `Gross: ${formatArea("gross_area_m2")} · Excluded: ${formatArea("excluded_area_m2")} · Net: ${formatArea("net_area_m2")}` : lengthSummary(item, result)}${item.measurement?.method === "cited" ? ` · ${item.measurement?.citation}` : ` · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`}`));
-    const actions = node("div", "actions"); actions.append(button("Apply item edits", async () => { const formRevision = state.formRevision || 0; const changes = itemEditChanges(item, controls, quantity); await command("update_item", { item_id: item.id, changes }); if ((state.formRevision || 0) === formRevision) { state.formDirty = false; renderInspector(); } else message("The captured item edits were applied. Later form edits remain unfinished; apply or discard them separately."); }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderInspector(); window.CeasefireProject?.changed?.(); }), geometryAction(area ? "Change surface calibration" : "Change length basis", () => area ? changeAreaCalibration(item) : changeLength(item)), geometryAction("Re-trace geometry", () => retrace(item)), button(item.geometry ? "Replace source on current page" : "Attach source on current page", () => replaceSource(item)), button("Add evidence reference", () => addEvidence(item)));
+    const actions = node("div", "actions"); actions.append(button("Apply item edits", async () => {
+      if (state.busy) throw new Error("Wait for the current takeoff operation to finish before applying these edits. Your field values are retained.");
+      const current = items().find(value => value.id === item.id);
+      if (!current) throw new Error("This item is no longer available. Your unfinished field values are retained.");
+      const formRevision = state.formRevision || 0, changes = itemEditChanges(current, controls, quantity), changed = Object.keys(changes).length > 0;
+      if (changed) await command("update_item", { item_id: item.id, changes });
+      if ((state.formRevision || 0) === formRevision) { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); if (!changed) message("No item values changed. Confirmation status is unchanged."); }
+      else message("The captured item edits were applied. Later form edits remain unfinished; apply or discard them separately.");
+    }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); }), geometryAction(area ? "Change surface calibration" : "Change length basis", () => area ? changeAreaCalibration(item) : changeLength(item)), geometryAction("Re-trace geometry", () => retrace(item)), button(item.geometry ? "Replace source on current page" : "Attach source on current page", () => replaceSource(item)), button("Add evidence reference", () => addEvidence(item)));
     if (!area) actions.append(button("Riser/Drop", () => editLengthAddition(item)));
     if (area) actions.append(geometryAction("Edit surface vertices", () => editAreaBoundary(item)), geometryAction("Add excluded opening", startExclusion));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
@@ -910,7 +1039,12 @@
     for (const evidence of item.evidence || []) panel.append(button(`${documentById(evidence.document_id)?.name || "Missing source"} · p${evidence.page}${evidence.fields?.length ? " · " + evidence.fields.join(", ") : ""}: ${evidence.note}`, () => navigateDocument(evidence.document_id, evidence.page), "text-button"));
   }
   function itemEditChanges(item, controls, quantity) {
-    return { fields: { ...item.fields, ...Object.fromEntries(controls.map(field => [field.control.name, field.read()])) }, ...(quantity ? { quantity: quantity.read() } : {}) };
+    const equivalent = (left, right) => left === right || (left == null || left === "") && (right == null || right === "");
+    const changedFields = {}, changes = {};
+    for (const field of controls) { const key = field.control.name, value = field.read(); if (field.control.value === String(item.fields[key] ?? "")) continue; if (!equivalent(item.fields[key], value)) changedFields[key] = value; }
+    if (Object.keys(changedFields).length) changes.fields = changedFields;
+    if (quantity) { const value = quantity.read(); if (!equivalent(item.quantity, value)) changes.quantity = value; }
+    return changes;
   }
   async function useRectangularDuct(item) {
     requireFinishedEdits(); const current = currentLengthItem(item);
@@ -918,7 +1052,7 @@
     await command("update_item", { item_id: current.id, changes: { fields: { shape: "rectangular" } } }, () => !!currentLengthItem(item));
   }
   function lengthSummary(item, result) {
-    const format = value => Number.isFinite(value) ? `${units.format(value)} m` : "Unresolved";
+    const format = value => Number.isFinite(value) ? `${formatLength(value)} m` : "—";
     const additions = item.length_additions || [], base = result.base_length_m ?? (additions.length ? null : result.length_m), added = result.additions_length_m ?? (additions.length ? null : 0);
     return `Base: ${format(base)} + riser/drop: ${format(added)} = ${format(result.length_m)} per ${item.mode === "steel" ? "member" : "run"} · Quantity ${item.quantity} · Total: ${format(result.total_length_m)}`;
   }
@@ -927,7 +1061,7 @@
     section.append(node("h3", "", "RISERS / DROPS"), node("p", "helper", `Each addition applies to each ${item.mode === "steel" ? "member" : "run"}. The total includes quantity × (base length + all additions). Use a cited source dimension; no height is inferred.`));
     for (const addition of additions) {
       const card = node("div", "takeoff-exclusion");
-      card.append(node("strong", "", `${addition.kind === "riser" ? "Riser" : "Drop"} · ${units.format(addition.length_mm)} mm each`), node("p", "helper", addition.note), button(`${documentById(addition.document_id)?.name || "Missing source"} · p${addition.page}`, () => navigateDocument(addition.document_id, addition.page), "text-button"), button("Edit addition", () => editLengthAddition(item, addition), "text-button"), button("Remove addition", () => removeLengthAddition(item, addition), "text-button"));
+      card.append(node("strong", "", `${addition.kind === "riser" ? "Riser" : "Drop"} · ${formatLength(addition.length_mm)} mm each`), node("p", "helper", addition.note), button(`${documentById(addition.document_id)?.name || "Missing source"} · p${addition.page}`, () => navigateDocument(addition.document_id, addition.page), "text-button"), button("Edit addition", () => editLengthAddition(item, addition), "text-button"), button("Remove addition", () => removeLengthAddition(item, addition), "text-button"));
       section.append(card);
     }
     if (!additions.length) section.append(node("p", "helper", "No riser or drop lengths added."));
@@ -975,11 +1109,19 @@
       if (memberField && !memberField.control.dataset.optionsListener) { memberField.control.dataset.optionsListener = "true"; memberField.control.addEventListener("change", () => void enrichInspectorOptions(item, controls, productField?.control.value)); }
     } catch (error) { message(`Calculator choices could not be loaded. ${error.message}`, true); }
   }
-  async function findProfile(item) { const data = await ask("Find steel section", [["search", "Section designation", "text", item.fields.section || "", true]], "Select an exact section from the existing calculator database.", "Search"); if (!data) return; const result = await api(`/profiles?calculator=${encodeURIComponent(state.ui.target.value)}&search=${encodeURIComponent(data.search)}`); if (!result.items?.length) throw new Error("No exact database candidates. Refine the section search."); const choice = await ask("Choose a database section", [["section", "Steel section", result.items.map(row => row.id), "", true]], `${result.total} matches. ${result.items.length} shown.`, "Use section"); if (choice) { const control = state.ui.inspector.querySelector('[name="section"]'); if (!control) throw new Error("Select the item again before changing its section."); control.value = choice.section; markFormEdited(); message("Database section selected. Apply item edits to keep this and your other changes."); } }
+  async function findProfile(item) {
+    const editor = state.registerEditor, calculator = state.ui.target.value;
+    if (editor?.itemId !== item.id || editor.sessionId !== state.session?.session_id) throw new Error("Open this item's register editor before changing its section.");
+    const control = editor.controls.find(field => field.control.name === "section")?.control;
+    const data = await ask("Find steel section", [["search", "Section designation", "text", control?.value || item.fields.section || "", true]], "Select an exact section from the existing calculator database.", "Search"); if (!data) return;
+    const result = await api(`/profiles?calculator=${encodeURIComponent(calculator)}&search=${encodeURIComponent(data.search)}`); if (!result.items?.length) throw new Error("No exact database candidates. Refine the section search.");
+    const choice = await ask("Choose a database section", [["section", "Steel section", result.items.map(row => row.id), "", true]], `${result.total} matches. ${result.items.length} shown.`, "Use section");
+    if (choice) { if (state.registerEditor !== editor || !control?.isConnected || state.ui.target.value !== calculator) throw new Error("The register editor or calculator destination changed. Repeat the section search."); control.value = choice.section; markFormEdited(); message("Database section selected. Apply item edits to keep this and your other changes."); }
+  }
   function itemCalibrations(item) {
     if (!item.geometry) throw new Error("Attach source geometry before selecting its calibration.");
     const all = snapshot().calibrations, superseded = new Set(all.map(value => value.supersedes_id).filter(Boolean));
-    return all.filter(value => value.document_id === item.geometry.document_id && value.page === item.geometry.page && !superseded.has(value.id));
+    return all.filter(value => value.document_id === item.geometry.document_id && value.page === item.geometry.page && !value.deleted && !superseded.has(value.id));
   }
   async function changeLength(item) {
     requireFinishedEdits(); const calibrations = itemCalibrations(item), current = calibrations.some(value => value.id === item.measurement?.calibration_id) ? item.measurement.calibration_id : "";
@@ -997,7 +1139,7 @@
     if (!calibrations.some(value => value.id === changed.calibration_id)) throw new Error("Choose a current calibration on this item's source page.");
     await command("update_item", { item_id: item.id, changes: { measurement: { method: "calibrated", calibration_id: changed.calibration_id } } });
   }
-  async function retrace(item) { if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isArea(item.mode) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then Finish trace. The same item ID is retained and its confirmation is invalidated.${isArea(item.mode) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
+  async function retrace(item) { if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isArea(item.mode) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then double-click the final point or press Enter. The same item ID is retained and its confirmation is invalidated.${isArea(item.mode) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
   async function replaceSource(item) {
     requireFinishedEdits(); if (!state.viewport) throw new Error("Open the revised source document page first.");
     if (isArea(item.mode) && item.geometry?.exclusions.length && (item.geometry.document_id !== state.document || item.geometry.page !== state.page)) throw new Error("Remove the existing exclusions before moving this surface to a revised source page. Exclusion coordinates cannot be mapped between drawings automatically; the old boundaries remain in audit history.");
@@ -1096,14 +1238,14 @@
   function calculatorName(id) { return { steel_vermiculite: "Steel Spray", steel_board: "Steel Board", ductwork: "Ductwork" }[id] || id; }
   function boundInputDetails(binding, columns) {
     const labels = new Map(columns.map(column => [column.column, column.label]));
-    return Object.entries(binding.values || {}).filter(([, value]) => value !== null && value !== undefined && value !== "").map(([address, value]) => `${labels.get(address.replace(/\d+$/, "")) || address}: ${String(value)}`).join("\n");
+    return Object.entries(binding.values || {}).filter(([, value]) => value !== null && value !== undefined && value !== "").map(([address, value]) => { const label = labels.get(address.replace(/\d+$/, "")) || address; return `${label}: ${typeof value === "number" && /\b(length|lineal|girth)\b/i.test(label) ? formatLength(value) : String(value)}`; }).join("\n");
   }
   function transferSummary(preview, selected, results, columns) {
     const objects = new Map(selected.map(item => [item.id, item])), quantities = new Map(results.map(result => [result.id, result]));
     const sections = preview.changes.map(change => {
       const item = objects.get(change.item_id), result = quantities.get(change.item_id), binding = preview.bindings.find(value => value.item_id === change.item_id);
       const action = { append: "Add", update: "Update", unchanged: "Keep unchanged" }[change.action] || change.action;
-      return `${action}: ${item.fields.mark || item.id}\nSource ID: ${item.id}\nDestination: ${calculatorName(preview.calculator_id)} · ${binding.sheet} row ${binding.row}\nPhysical quantity: ${item.quantity}\n${item.mode === "steel" ? "Per-member" : "Per-run"} length: ${result.length_m} m\nTotal length: ${result.total_length_m} m\n\nDestination inputs:\n${boundInputDetails(binding, columns)}`;
+      return `${action}: ${item.fields.mark || item.id}\nSource ID: ${item.id}\nDestination: ${calculatorName(preview.calculator_id)} · ${binding.sheet} row ${binding.row}\nPhysical quantity: ${item.quantity}\n${item.mode === "steel" ? "Per-member" : "Per-run"} length: ${formatLength(result.length_m)} m\nTotal length: ${formatLength(result.total_length_m)} m\n\nDestination inputs:\n${boundInputDetails(binding, columns)}`;
     });
     for (const change of preview.normalizations || []) {
       const item = objects.get(change.item_id), label = fields[item?.mode]?.find(field => field[0] === change.field)?.[1] || change.field;
@@ -1171,9 +1313,10 @@
   async function prepareProject(value, sessionId) { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
     const prior = state.session?.session_id;
+    state.registerEditor = null; state.closedRegisterEditorId = null;
     const physical = state.physicalUI; state.physicalUI = null; physical?.destroy(); state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear();
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();
-    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.selected.clear(); state.hidden.clear(); state.points = []; state.pendingViewport = null; state.zoomAnchor = null; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
+    state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.calibration = ""; state.viewportSelection = ""; state.calibrationTarget = null; state.viewportsOpen = false; state.selected.clear(); state.hidden.clear(); state.points = []; state.pendingViewport = null; state.zoomAnchor = null; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
     if (prepared.session) accept(prepared.session);
     if (prior && prior !== state.session?.session_id) void discardPreparedSession(prior);
     if (state.ui) { renderData(); state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.searchResults.replaceChildren(); }

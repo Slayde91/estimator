@@ -172,6 +172,12 @@ class TakeoffHTTP:
             payload, kind, filename = self.service.export(session_id, action.rsplit('/', 1)[1], body.get('selected_ids'))
             handler.send_download(payload, kind, filename)
             return True
+        elif action in {'export/schedule-xlsx', 'export/marked-pdf'}:
+            if query:
+                raise ValidationError('Current Takeoffs exports accept a structured request only.')
+            payload, kind, filename = self.service.export_workspace(session_id, action.rsplit('/', 1)[1], body)
+            handler.send_download(payload, kind, filename)
+            return True
         else:
             handler.send_payload(404, {'error': 'Unknown takeoff operation.'})
             return True

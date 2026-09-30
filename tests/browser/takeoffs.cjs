@@ -168,7 +168,7 @@ async function boardJourney(info) {
   await screenshot('confirmed-board-schedule.png');
   await source.click();
   await expect(page.locator('.takeoff-register-editor .takeoff-identity').first()).toHaveText(citedId);
-  await expect(page.locator('.takeoff-shape.selected')).toHaveCount(1);
+  await expect(page.locator('.takeoff-markup.selected')).toHaveCount(1);
   await expect(page.locator('.takeoff-calibration-summary')).toContainText('7.25');
   await expect(page.locator('.takeoff-calibration-summary')).toContainText('Synthetic board drawing');
   await screenshot('board-source-return.png');
@@ -221,7 +221,7 @@ async function boardJourney(info) {
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'B17', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const steelId = state.snapshot.items[0].id;
   assert.ok(Math.abs(state.item_results[0].length_m - 10) < 0.02);
-  state = await fillInspector({ 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
+  state = await fillInspector({ 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
   // Bulk editing is one atomic operation, and undo restores the same identities.
   await page.getByLabel('Bulk edit field', { exact: true }).selectOption('level');
   await page.getByLabel('Bulk edit value', { exact: true }).fill('L03');
@@ -234,10 +234,10 @@ async function boardJourney(info) {
   await page.getByLabel('Group register', { exact: true }).selectOption('level');
   await expect(page.locator(`tr[data-item-id="${steelId}"]`)).toHaveCount(1);
   await page.locator(`tr[data-item-id="${steelId}"]`).hover();
-  await expect(page.locator('.takeoff-shape.hovered')).toHaveCount(1);
-  await page.getByLabel('Show B17 on drawing', { exact: true }).uncheck();
+  await expect(page.locator('.takeoff-markup.hovered')).toHaveCount(1);
+  await page.getByLabel('Hide B17 on drawing', { exact: true }).check();
   await expect(page.locator(`.takeoff-hit[data-item-id="${steelId}"]`)).toHaveCount(0);
-  await page.getByLabel('Show B17 on drawing', { exact: true }).check();
+  await page.getByLabel('Hide B17 on drawing', { exact: true }).uncheck();
   await page.getByLabel('Filter register', { exact: true }).fill('');
   await page.getByLabel('Group register', { exact: true }).selectOption('');
   await reviewConfirm();

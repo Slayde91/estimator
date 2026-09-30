@@ -85,14 +85,40 @@ calibration, viewport, PDF upload, fit-page, cancel, search, stop-search,
 page-navigation, linked-row update/detach, register export and schedule
 buttons use icons with accessible names and the original labels on hover.
 
+In Select mode, selected measured markups show control points at their original PDF vertices.
+Click a point to choose it, then use Ctrl/Cmd+Z while the drawing has focus, or
+right-click that point and choose **Delete control point**. With one selected
+markup and no chosen point, Ctrl/Cmd+Z removes its final outer vertex; with
+multiple selected markups, choose a point explicitly. During an unfinished
+trace, the shortcut removes only the last pending vertex. Text fields retain
+their normal text-undo shortcut, and unapplied item or Settings edits must be
+finished before changing stored geometry. A line keeps at least two vertices;
+surface and exclusion boundaries keep at least three. Deleting a point never
+silently deletes the entire item. The server validates the new geometry and
+recalculates quantities, invalidates confirmation and marks linked rows stale.
+Calculator inputs stay unchanged. **Undo last edit** restores the prior geometry;
+review and confirm the restored item again before using its quantities.
+Cited dimensions retain their source-region markers; use Re-trace geometry to
+replace that evidence region. A single trace supports all 10,000 permitted
+vertices. Larger combined selections disclose the 10,000-handle display limit;
+select fewer markups to inspect the remaining points.
+
+Ordinary mouse-wheel scrolling over the drawing scrolls the application page
+until you click or keyboard-focus the drawing. The focus outline indicates when
+the wheel scrolls inside a zoomed plan. Clicking or focusing outside the plan,
+or pressing Escape, returns wheel control to the page. At a plan scroll boundary,
+remaining wheel movement can continue onto the page. Ctrl/Cmd-wheel still zooms
+around the cursor, and Pan continues to move the drawing.
+
 Displayed lengths in the register, item summaries and transfer previews use two
 decimal places. Stored measurements, calculator inputs, confirmation digests and
 exported numeric values retain their full precision; display rounding never changes
 quantities or calculation outputs.
 
 The steel creation dialog captures Member mark, Level, Member type, Steel section,
-Fire period, Exposure description, Exposed sides, Product and Qty (with critical
-temperature where required). New Duct records are rectangular and have no Shape
+Fire period, Exposure description, Product and Qty, plus Exposed sides for the
+Board destination (with critical temperature where required). New Duct records
+are rectangular and have no Shape
 or Diameter input. Older circular records keep their original values and remain
 ineligible for rectangular calculator transfer; opening them never converts them.
 
@@ -375,6 +401,9 @@ split successors from duplicating quantities in a retained predecessor row.
 `npm run test:takeoffs-markups` exercises register header controls, sparse bulk
 Settings edits, selection and movement on rotated/cropped drawings, save/reopen
 and current drawing/schedule downloads using only disposable fixtures.
+`npm run test:takeoffs-control-points` exercises selected PDF-coordinate handles,
+targeted point deletion, minimum vertices, keyboard/text-edit guards, undo and
+save/reopen, and actual browser-wheel focus and boundary behaviour.
 `npm run test:takeoffs-capacity` exercises 100 separate PDFs and 2,000 pages
 through the rendered upload/search workflow, including complete search coverage
 and bounded document workers and thumbnails.

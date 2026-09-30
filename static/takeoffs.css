@@ -79,3 +79,12 @@
 @media(max-width:1050px){.takeoff-drawing-layout.with-settings{grid-template-columns:110px minmax(210px,1fr) 270px}.takeoff-workspace-split.beside>.takeoff-register{height:auto;resize:none}}
 @media(max-width:750px){.takeoff-drawing-layout.with-settings,.takeoff-workspace-split.beside>.takeoff-drawing-layout.with-settings{grid-template-columns:90px minmax(180px,1fr)}.takeoff-markup-settings{grid-column:1/-1}}
 .takeoff-toolbar .button[hidden],.takeoff-register-controls .button[hidden],.takeoff-toolbar select[hidden],.takeoff-register-controls select[hidden]{display:none}
+.takeoff-viewport{overscroll-behavior:auto}
+.takeoff-viewport:not([data-scroll-active=true]){overflow:hidden}
+.takeoff-viewport[data-scroll-active=true]{overflow:auto;outline:2px solid #6abbe7;outline-offset:1px}
+.takeoff-overlay .takeoff-control-point{fill:#f8fcff;stroke:#1687b5;stroke-width:1.6;vector-effect:non-scaling-stroke;pointer-events:all;cursor:pointer}
+.takeoff-overlay .takeoff-control-point:hover,.takeoff-overlay .takeoff-control-point:focus{fill:#d4efff;stroke:#004e7c;stroke-width:2.4;outline:none}
+.takeoff-overlay .takeoff-control-point.active{fill:#52bcea;stroke:#003d63;stroke-width:2.5}
+.takeoff-control-menu{font:12px/1.4 Arial,sans-serif;line-height:1.4;background:#fff;border:1px solid #65869a;border-radius:6px;padding:8px;box-shadow:0 3px 10px #0003}
+.takeoff-control-menu .button{width:100%;padding:8px;font-size:12px}.takeoff-control-menu .helper{font-size:10px;line-height:1.3;margin:6px 0 0;color:#4f5358}
+.takeoff-control-status{padding:5px 0}.takeoff-control-status[hidden]{display:none}

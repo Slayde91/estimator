@@ -17,7 +17,7 @@ from .takeoff_area import AREA_MODES
 from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
-                           validate_calibration_revisions, validate_measurement_scope)
+                           validate_calibration_revisions, validate_measurement_scope, polyline_length)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
 from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
@@ -695,6 +695,7 @@ class TakeoffService:
                     # Compare the item body before following its edited source
                     # references, so malformed edits reach typed validation.
                     original_digest = digest({key: value for key, value in item.items() if key != 'appearance'})
+                    original_geometry = deepcopy(item['geometry']) if 'geometry' in changes else None
                     for key, value in changes.items():
                         if key == 'fields':
                             if not isinstance(value, dict):
@@ -710,6 +711,16 @@ class TakeoffService:
                     if technical_change:
                         self._invalidate(after, item)
                     validate_item(item, after, copy_result=False)
+                    if ('geometry' in changes and item['geometry'] is not None
+                            and item['geometry'] != original_geometry and item['mode'] not in AREA_MODES):
+                        # Editing control points must keep a usable line/region.
+                        # Keep legacy draft loading and unrelated field/style
+                        # edits compatible with their existing stored geometry.
+                        vertices = item['geometry']['points']
+                        if len(vertices) < 2:
+                            raise ValidationError('Edited markup geometry must retain at least two control points.')
+                        if item['measurement'] and item['measurement']['method'] == 'calibrated':
+                            polyline_length(vertices)
                     if technical_change:
                         validate_measurement_scope(item, after)
             elif op == 'move_items':

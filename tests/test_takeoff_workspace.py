@@ -120,11 +120,10 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'outside'):
             self.command('update_item', item_id=identity, changes={'geometry': {'document_id': self.doc['id'], 'page': 1, 'points': [[0, 0]]}})
 
-    def test_review_confirmation_are_separate_local_hash_bound_authorities(self):
+    def test_direct_confirmation_records_local_hash_bound_review_and_confirmation(self):
         identity = self.create()
-        with self.assertRaisesRegex(ValidationError, 'Review'):
-            self.command('confirm_items', item_ids=[identity])
-        self.confirm(identity)
+        self.command('confirm_items', item_ids=[identity])
+        self.assertIsNotNone(self.state['snapshot']['items'][0]['review'])
         original = deepcopy(self.state['snapshot'])
         self.assertEqual(self.service.open(original, source_path='verified-project.json')['snapshot']['items'][0]['state'], 'confirmed')
         self.assertEqual(self.service.open(original)['snapshot']['items'][0]['state'], 'draft')

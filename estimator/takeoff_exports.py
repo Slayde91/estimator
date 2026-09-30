@@ -9,7 +9,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 from .catalog import ValidationError
 from .takeoff_area import AREA_MODES, measured_area
-from .takeoff_model import item_digest, measured_length
+from .takeoff_model import (base_length, item_digest, length_additions, measured_length,
+                           validate_measurement_scope)
 from .pricing_workbook import _serialize_exact
 
 
@@ -21,7 +22,8 @@ HEADERS = ('Item ID', 'Item version', 'Mode', 'Mark / run', 'Level', 'Zone', 'Gr
            'Measurement basis', 'Evidence references', 'Confirmation ID',
            'Confirmation digest', 'Confirmed at', 'Transfer references', 'Notes', 'Physical member IDs',
            'Confirmation checks', 'Confirmed by', 'Gross area m2', 'Excluded area m2', 'Net area m2',
-           'Treatment', 'Substrate', 'Surface basis', 'Surface citation', 'Area exclusions')
+           'Treatment', 'Substrate', 'Surface basis', 'Surface citation', 'Area exclusions',
+           'Base length per item m', 'Riser/drop additions per item m', 'Riser/drop source dimensions')
 
 
 def register_rows(snapshot, items):
@@ -34,6 +36,7 @@ def register_rows(snapshot, items):
         if not geometry or type(item['quantity']) is not int or item['quantity'] <= 0:
             raise ValidationError('Export requires source geometry and explicit physical quantities.')
         doc = documents[geometry['document_id']]
+        validate_measurement_scope(item, snapshot)
         area = measured_area(item, snapshot) if item['mode'] in AREA_MODES else None
         length = None if area is not None else measured_length(item, snapshot)
         basis = dict(item['measurement'])
@@ -58,6 +61,12 @@ def register_rows(snapshot, items):
         row.extend([*(area[key] if area else None for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')),
                     *(fields.get(key) if area else None for key in ('treatment', 'substrate', 'surface_basis', 'surface_citation')),
                     json.dumps(geometry['exclusions'], ensure_ascii=False, sort_keys=True) if area else None])
+        additions = [{**addition, 'document_sha256': documents[addition['document_id']]['sha256'],
+                      'document_name': documents[addition['document_id']]['name']}
+                     for addition in item.get('length_additions', [])]
+        row.extend([base_length(item, snapshot) if area is None else None,
+                    length_additions(item, snapshot) if area is None else None,
+                    json.dumps(additions, ensure_ascii=False, sort_keys=True) if area is None else None])
         rows.append(row)
     return rows
 
@@ -114,8 +123,8 @@ def export_register(snapshot, items, format):
                 ('Audit head SHA-256', snapshot['audit_head']),
                 ('Scope', 'Confirmed measured takeoffs. Technical suitability requires separate assessment.'),
                 ('Coordinates', 'Unrotated source PDF coordinates; measurements use the retained calibration or cited dimension.'),
-                ('Quantity', 'Explicit physical quantity; never photo count. Linear total length is quantity times per-item length. A wall/slab polygon is one distinct treatment surface; net area is gross area less its explicit exclusions, with no inferred face multiplier.'),
-                ('Surface basis', 'Wall polygons represent true wall faces, not plan footprints. Slab polygons identify top or soffit surfaces. Calibration scale is squared for area; rendering rotation and UserUnit do not change quantities.'),
+                ('Quantity', 'Explicit physical quantity; never photo count. Linear total length is quantity times the sum of base length and each cited riser/drop addition per member. A wall/slab polygon is one distinct treatment surface; net area is gross area less its explicit exclusions, with no inferred face multiplier.'),
+                ('Surface basis', 'Wall polygons represent true wall faces, not plan footprints. Slab polygons identify top or soffit surfaces. Calibration scale is squared for area. Printed presets include PDF UserUnit once; manual known-distance calibration is direct. Rendering zoom and rotation do not change quantities.'),
                 ('Calculator links', 'Transfer statuses describe retained receipts. This register export does not recheck the current calculator draft; stale/conflicting links do not become current by exporting.'),
                 ('Source links', 'Document IDs, page numbers and hashes identify the retained source originals.')]:
         info.append(row)

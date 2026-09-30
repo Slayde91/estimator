@@ -1,8 +1,8 @@
 """Bounded, values-only takeoff records and deterministic measurement rules.
 
-PDF points are unrotated PDF user-space coordinates. Calibration converts these
-stored units directly to metres; PDF UserUnit is a rendering concern, not an
-additional multiplier. Source/calculator formulas remain outside this model.
+PDF points are unrotated PDF user-space coordinates. Manual calibration converts
+these units directly to metres. Printed presets use physical PDF UserUnit once
+when deriving their baseline distance. Source/calculator formulas stay separate.
 """
 
 from copy import deepcopy
@@ -17,6 +17,8 @@ from .takeoff_area import AREA_MODES, measured_area, validate_polygon
 
 MAX_ITEMS = 10000
 MAX_POINTS = 10000
+SCALE_DENOMINATORS = (2, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300)
+MAX_LENGTH_ADDITIONS = 100
 MODES = ('steel', 'duct', *AREA_MODES)
 FIELDS = frozenset(('mark', 'level', 'zone', 'group', 'member_type', 'section',
     'product', 'critical_temperature', 'fire_period_min', 'exposure', 'sides',
@@ -239,22 +241,169 @@ def polyline_length(value):
 
 
 def validate_calibration(value, snapshot, *, copy_result=True):
-    object_fields(value, {'id', 'document_id', 'page', 'name', 'points', 'distance_m', 'uniform_scale'}, 'Calibration',
+    object_fields(value, {'id', 'document_id', 'page', 'name', 'points', 'distance_m', 'uniform_scale',
+                          'region', 'scale_denominator', 'supersedes_id'}, 'Calibration',
                   {'id', 'document_id', 'page', 'points', 'distance_m', 'uniform_scale'})
     identity(value['id'], 'Calibration ID')
     _, page = page_metadata(snapshot, value['document_id'], value['page'])
     points(value['points'], 'Calibration', page, 2, 2)
     polyline_length(value['points'])
     number(value['distance_m'], 'Known distance in metres', positive=True)
+    if 'region' in value:
+        region = value['region']
+        if not isinstance(region, list) or len(region) != 4:
+            raise ValidationError('A viewport requires x, y, width and height in original PDF coordinates.')
+        x, y, width, height = [number(coordinate, 'Viewport bound') for coordinate in region]
+        if width <= 0 or height <= 0:
+            raise ValidationError('A viewport must have positive width and height.')
+        points([[x, y], [x+width, y+height]], 'Viewport', page, 2, 2)
+        if not all(x <= px <= x+width and y <= py <= y+height for px, py in value['points']):
+            raise ValidationError('A viewport calibration baseline must lie inside its own region.')
+    if 'scale_denominator' in value:
+        expected = preset_distance(value, snapshot)
+        if not math.isclose(value['distance_m'], expected, rel_tol=1e-12, abs_tol=0):
+            raise ValidationError('The preset distance must match the PDF page UserUnit and selected printed scale.')
+    if 'supersedes_id' in value:
+        identity(value['supersedes_id'], 'Previous calibration ID')
+        if value['supersedes_id'] == value['id']:
+            raise ValidationError('A calibration cannot supersede itself.')
     if value['uniform_scale'] is not True:
         raise ValidationError('Confirm that this region has a uniform, undistorted scale before calibration.')
     text(value.get('name', ''), 'Calibration name', 200)
     return deepcopy(value) if copy_result else value
 
 
+def preset_distance(calibration, snapshot):
+    denominator = calibration.get('scale_denominator')
+    if type(denominator) is not int or denominator not in SCALE_DENOMINATORS:
+        raise ValidationError('Choose one of the supported printed scale presets.')
+    _, page = page_metadata(snapshot, calibration.get('document_id'), calibration.get('page'))
+    points(calibration.get('points'), 'Calibration', page, 2, 2)
+    return polyline_length(calibration['points']) * page['user_unit'] * (0.0254 / 72) * denominator
+
+
+def active_calibrations(snapshot):
+    superseded = {entry['supersedes_id'] for entry in snapshot['calibrations'] if 'supersedes_id' in entry}
+    return [entry for entry in snapshot['calibrations'] if entry['id'] not in superseded]
+
+
+def validate_calibration_revisions(snapshot):
+    by_id = {entry['id']: entry for entry in snapshot['calibrations']}
+    superseded = set()
+    for entry in snapshot['calibrations']:
+        previous_id = entry.get('supersedes_id')
+        if previous_id is None:
+            continue
+        previous = by_id.get(previous_id)
+        if (previous is None or previous_id in superseded
+                or (previous['document_id'], previous['page']) != (entry['document_id'], entry['page'])):
+            raise ValidationError('Calibration revisions must form one immutable chain on the same source page.')
+        superseded.add(previous_id)
+        seen = {entry['id']}
+        while previous_id is not None:
+            if previous_id in seen:
+                raise ValidationError('Calibration revision history cannot be cyclic.')
+            seen.add(previous_id)
+            previous_id = by_id[previous_id].get('supersedes_id')
+            if previous_id is not None and previous_id not in by_id:
+                raise ValidationError('A previous calibration revision is missing.')
+    regions = [entry for entry in active_calibrations(snapshot) if 'region' in entry]
+    for index, left in enumerate(regions):
+        x, y, width, height = left['region']
+        for right in regions[index+1:]:
+            if (left['document_id'], left['page']) != (right['document_id'], right['page']):
+                continue
+            rx, ry, rw, rh = right['region']
+            if max(x, rx) < min(x+width, rx+rw) and max(y, ry) < min(y+height, ry+rh):
+                raise ValidationError('Active viewports cannot overlap. Revise the existing viewport or use separate regions.')
+
+
+def validate_measurement_scope(item, snapshot):
+    measurement, geometry = item['measurement'], item['geometry']
+    if not measurement or measurement.get('method') != 'calibrated' or not geometry:
+        return
+    calibration = next((entry for entry in snapshot['calibrations'] if entry['id'] == measurement['calibration_id']), None)
+    if calibration is None:
+        raise ValidationError('The measurement calibration is missing.')
+    active = active_calibrations(snapshot)
+    if calibration['id'] not in {entry['id'] for entry in active}:
+        raise ValidationError('This measurement uses a superseded calibration. Select its current revision.')
+    vertices = geometry['points']
+    selected_region = calibration.get('region')
+    if selected_region:
+        x, y, width, height = selected_region
+        if not all(x <= px <= x+width and y <= py <= y+height for px, py in vertices):
+            raise ValidationError('Measurement geometry crosses its viewport boundary. Split or retrace it within one scale region.')
+    def intersects_region(region):
+        x, y, width, height = region
+        inside = lambda point: x <= point[0] <= x+width and y <= point[1] <= y+height
+        if any(inside(point) for point in vertices):
+            return True
+        edges = list(zip(vertices, vertices[1:]))
+        if item['mode'] in AREA_MODES:
+            edges.append((vertices[-1], vertices[0]))
+        # Slab clipping against a convex axis-aligned rectangle detects a
+        # crossing even when both endpoints lie outside. A bounding box alone
+        # would falsely block a bent route that goes around a viewport.
+        for start, end in edges:
+            lower, upper = 0.0, 1.0
+            for axis, low, high in ((0, x, x+width), (1, y, y+height)):
+                delta = end[axis] - start[axis]
+                if delta == 0:
+                    if not low <= start[axis] <= high:
+                        upper = -1
+                        break
+                else:
+                    entry, leave = sorted(((low-start[axis])/delta, (high-start[axis])/delta))
+                    lower, upper = max(lower, entry), min(upper, leave)
+            if lower <= upper:
+                return True
+        if item['mode'] in AREA_MODES:
+            from .takeoff_area import _inside
+            return any(_inside(point, vertices) for point in ((x, y), (x+width, y), (x+width, y+height), (x, y+height)))
+        return False
+    for viewport in active:
+        if 'region' not in viewport or (viewport['document_id'], viewport['page']) != (geometry['document_id'], geometry['page']):
+            continue
+        # Distinct active scoped regions have nonoverlapping interiors. Once
+        # fully contained by the selected viewport, shared edges are harmless.
+        if selected_region:
+            continue
+        if intersects_region(viewport['region']):
+            raise ValidationError('Measurement geometry intersects another viewport. Select its explicit scale and keep geometry inside one viewport.')
+
+
+def length_additions(item, snapshot):
+    additions = item.get('length_additions', [])
+    if not isinstance(additions, list) or len(additions) > MAX_LENGTH_ADDITIONS:
+        raise ValidationError(f'An item supports at most {MAX_LENGTH_ADDITIONS} cited riser/drop additions.')
+    if additions and item['mode'] in AREA_MODES:
+        raise ValidationError('Riser/drop lengths apply only to linear Steel or Duct items.')
+    identifiers = set()
+    for addition in additions:
+        keys = {'id', 'kind', 'length_mm', 'note', 'document_id', 'page'}
+        object_fields(addition, keys, 'Riser/drop addition', keys)
+        identifier = identity(addition['id'], 'Riser/drop ID')
+        if identifier in identifiers:
+            raise ValidationError('Riser/drop IDs must be unique within an item.')
+        identifiers.add(identifier)
+        if addition['kind'] not in ('riser', 'drop'):
+            raise ValidationError('Choose riser or drop for each length addition.')
+        number(addition['length_mm'], 'Riser/drop millimetres', positive=True)
+        text(addition['note'], 'Riser/drop dimension citation')
+        if not addition['note'].strip():
+            raise ValidationError('Each riser/drop requires an explicit source dimension citation.')
+        page_metadata(snapshot, addition['document_id'], addition['page'])
+    return math.fsum(addition['length_mm'] / 1000 for addition in additions)
+
+
+def item_references(item):
+    return item['evidence'] + ([item['geometry']] if item['geometry'] else []) + item.get('length_additions', [])
+
+
 def validate_item(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields',
-                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids'}, 'Takeoff item',
+                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions'}, 'Takeoff item',
                   {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'review', 'confirmation', 'member_ids'})
     identity(value['id'], 'Item ID')
     number(value['version'], 'Item version', positive=True, integer=True)
@@ -271,6 +420,7 @@ def validate_item(value, snapshot, *, copy_result=True):
         raise ValidationError('Each explicit physical member must retain a distinct persistent member ID.')
     for member in members:
         identity(member, 'Physical member ID')
+    length_additions(value, snapshot)
     object_fields(value['fields'], FIELDS, 'Takeoff fields')
     for key, field in value['fields'].items():
         if field is None:
@@ -387,7 +537,7 @@ def validate_item(value, snapshot, *, copy_result=True):
 
 def item_digest(item, snapshot):
     body = {k: v for k, v in item.items() if k not in ('state', 'review', 'confirmation')}
-    references = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
+    references = item_references(item)
     documents = {r['document_id'] for r in references}
     body['source_documents'] = [{k: d[k] for k in ('id', 'sha256', 'size', 'pages')}
                                 for d in snapshot['documents'] if d['id'] in documents]
@@ -397,7 +547,7 @@ def item_digest(item, snapshot):
     return digest(body)
 
 
-def measured_length(item, snapshot):
+def base_length(item, snapshot):
     if item['mode'] in AREA_MODES:
         raise ValidationError('Wall and slab surfaces have area measurements, not transferable linear lengths.')
     measurement = item['measurement']
@@ -407,8 +557,13 @@ def measured_length(item, snapshot):
         if not measurement['citation'].strip():
             raise ValidationError('Cited length requires a source dimension reference.')
         return measurement['length_m']
+    validate_measurement_scope(item, snapshot)
     calibration = next(c for c in snapshot['calibrations'] if c['id'] == measurement['calibration_id'])
     return polyline_length(item['geometry']['points']) * calibration['distance_m'] / polyline_length(calibration['points'])
+
+
+def measured_length(item, snapshot):
+    return base_length(item, snapshot) + length_additions(item, snapshot)
 
 
 def item_result(item, snapshot):
@@ -416,12 +571,16 @@ def item_result(item, snapshot):
     def add(code, message):
         issues.append({'item_id': item['id'], 'code': code, 'message': message})
     length = None
+    base = added = None
     area = {key: None for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
     try:
         if item['mode'] in AREA_MODES:
+            validate_measurement_scope(item, snapshot)
             area = measured_area(item, snapshot)
         else:
-            length = measured_length(item, snapshot)
+            base = base_length(item, snapshot)
+            added = length_additions(item, snapshot)
+            length = base + added
             number(length, 'Measured length', positive=True)
     except (ValidationError, StopIteration, TypeError) as error:
         add('MISSING_MEASUREMENT', str(error) or 'The measurement is incomplete.')
@@ -429,7 +588,7 @@ def item_result(item, snapshot):
         add('MISSING_QUANTITY', 'Enter an explicit positive physical quantity.')
     if not item['geometry']:
         add('MISSING_GEOMETRY', 'Mark the item on its source page.')
-    refs = item['evidence'] + ([item['geometry']] if item['geometry'] else [])
+    refs = item_references(item)
     if not refs:
         add('MISSING_EVIDENCE', 'Link retained source evidence.')
     for ref in refs:
@@ -465,7 +624,9 @@ def item_result(item, snapshot):
             add('INVALID_FRL', 'FRL must retain its three explicit fire-rating components.')
     if item['mode'] in AREA_MODES:
         return {'id': item['id'], **area, 'issues': issues}
-    return {'id': item['id'], 'length_m': length,
+    return {'id': item['id'],
+            **({'base_length_m': base, 'additions_length_m': added} if 'length_additions' in item else {}),
+            'length_m': length,
             'total_length_m': length * item['quantity'] if length is not None and item['quantity'] is not None else None,
             'issues': issues}
 
@@ -531,6 +692,8 @@ def validate_snapshot(value, *, copy_result=True):
     validate_physical_extension(value)
     physical_ids = set()
     for key, validator in (('calibrations', validate_calibration), ('items', validate_item)):
+        if key == 'items':
+            validate_calibration_revisions(value)
         ids = set()
         for entry in value[key]:
             validator(entry, value, copy_result=False)

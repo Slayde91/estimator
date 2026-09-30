@@ -59,6 +59,7 @@ jobs:
       - run: npm run test:takeoffs-lineage
       - run: npm run test:takeoffs-capacity
       - run: npm run test:takeoffs-timeouts
+      - run: npm run test:takeoffs-viewports
       - run: npm run test:takeoffs-areas
       - run: npm run test:takeoffs-penetrations
       - run: npm run test:standard-browser

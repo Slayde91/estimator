@@ -29,12 +29,13 @@ async function dialog(title, values, submit) {
   await modal.getByRole('button', { name: submit, exact: true }).click();
 }
 async function fit() { await idle(); await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render'); }
-async function draw(points, rotated = false) {
+async function draw(points, rotated = false, doubleFinish = false) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
   const box = await overlay.boundingBox(); assert.ok(box && box.width > 0);
-  for (const [x, y] of points) {
+  for (const [index, [x, y]] of points.entries()) {
     const [u, v] = rotated ? [(y - 30) / 540, (x - 20) / 780] : [x / 842, 1 - y / 595];
-    await page.mouse.click(box.x + u * box.width, box.y + v * box.height);
+    if (doubleFinish && index === points.length - 1) await page.mouse.dblclick(box.x + u * box.width, box.y + v * box.height);
+    else await page.mouse.click(box.x + u * box.width, box.y + v * box.height);
   }
 }
 async function edit(values) {
@@ -46,10 +47,8 @@ async function edit(values) {
   return command(() => panel.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
 }
 async function confirm() {
-  await page.getByRole('button', { name: 'Review', exact: true }).click();
-  await command(() => dialog('Review 1 items?', {}, 'Mark reviewed'), 'review_items');
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
-  return command(() => dialog('Confirm 1 items?', {}, 'Confirm reviewed items'), 'confirm_items');
+  return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items');
 }
 function checkArea(state, id, expected = 56) {
   const value = state.item_results.find(item => item.id === id);
@@ -67,20 +66,20 @@ async function surface(mode, rotated = false) {
   await draw([[100, 75], [500, 75]], rotated);
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': `${mode} baseline`, 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
-  await draw([[100, 200], [500, 200], [500, 440], [100, 440]], rotated);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await draw([[100, 200], [500, 200], [500, 440], [100, 440]], rotated, true);
   let state = await command(() => dialog(`Add ${mode} surface`, {
     [mode === 'wall' ? 'Wall ID' : 'Slab / zone ID']: `${mode.toUpperCase()}-01`,
     'Explicit physical quantity': '1', 'Surface basis': mode === 'wall' ? 'wall-face' : 'slab-soffit',
     'True-surface source citation': `Synthetic ${mode} true-plane view, one surface, 10 x 6 m`,
-  }, 'Add draft surface'), 'create_item');
+  }, 'Add surface'), 'create_item');
   const id = state.snapshot.items.find(item => item.mode === mode).id;
+  assert.equal(state.snapshot.items.find(item => item.id === id).geometry.points.length, 4, 'Polygon double-click preserves exactly four distinct vertices');
   // Adding a hole focuses the object; fit only after entering the exclusion tool.
   await page.getByRole('button', { name: 'Add exclusion', exact: true }).click();
   await fit();
-  await draw([[180, 260], [260, 260], [260, 340], [180, 340]], rotated);
-  await page.getByRole('button', { name: 'Finish trace', exact: true }).click();
+  await draw([[180, 260], [260, 260], [260, 340], [180, 340]], rotated, true);
   state = await command(() => dialog('Add excluded opening', { 'Exclusion source / reason': 'Synthetic 2 x 2 m opening' }, 'Add exclusion'), 'update_item');
+  assert.equal(state.snapshot.items.find(item => item.id === id).geometry.exclusions[0].points.length, 4, 'Exclusion double-click preserves exactly four distinct vertices');
   checkArea(state, id);
   state = await edit({ 'Level': 'L02', 'Substrate': 'Concrete', 'Treatment': 'Nominated board treatment', 'FRL / fire rating': '120/120/120' });
   assert.equal(state.snapshot.items.find(item => item.id === id).quantity, 1);

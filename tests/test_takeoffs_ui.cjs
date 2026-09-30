@@ -15,7 +15,8 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderInspector,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,normalizePhysicalImages,setApi(fn){api=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderInspector,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('setApi(fn){api=fn;}', 'renderPage,drawingPointer,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -29,7 +30,7 @@ function attachMinimalDom(h) {
       querySelectorAll(selector){return this.children.flatMap(child=>[...((selector==='[data-item-id]'&&child.dataset.itemId)?[child]:[]),...child.querySelectorAll(selector)]);},
     };
     Object.defineProperty(el,'textContent',{get(){return this._text+this.children.map(child=>child.textContent).join('');},set(value){this._text=String(value);this.children=[];}});
-    el.classList={toggle(key,on){const values=new Set(el.className.split(/\s+/).filter(Boolean));on?values.add(key):values.delete(key);el.className=[...values].join(' ');},contains(key){return el.className.split(/\s+/).includes(key);}};
+    el.classList={add(...keys){const values=new Set(el.className.split(/\s+/).filter(Boolean));keys.forEach(key=>values.add(key));el.className=[...values].join(' ');},toggle(key,on){const values=new Set(el.className.split(/\s+/).filter(Boolean));on?values.add(key):values.delete(key);el.className=[...values].join(' ');},contains(key){return el.className.split(/\s+/).includes(key);}};
     return el;
   }
   h.context.document.createElement=element;h.context.document.createElementNS=(_,tag)=>element(tag);
@@ -242,14 +243,92 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.installPdfDiagnostics();assert.equal(typeof h.audit.state.consoleRestore,'function');await h.audit.releaseDocuments();
     assert.equal(destroyed,1);assert.equal(cancelled,1);assert.equal(h.audit.state.pdfs.size,0);assert.equal(h.audit.state.pdfWarnings.size,0);assert.equal(h.audit.state.consoleRestore,null);
   });
-  await check('Review labels expose blocked and incomplete evidence ahead of a claimed confirmation',()=>{
+  await check('Confirmation labels collapse historic states without hiding evidence issues or trusting stale confirmations',()=>{
     const h=harness(),value=blank();h.audit.accept(response(value));const item={id:'item',state:'confirmed'};
-    h.audit.state.resultMap.set('item',{issues:[{code:'PAGE_REVIEW_BLOCKED'}]});assert.equal(h.audit.reviewStatus(item).label,'Blocked');
-    h.audit.state.resultMap.set('item',{issues:[{code:'MISSING_MEASUREMENT'}]});assert.equal(h.audit.reviewStatus(item).label,'Insufficient evidence');
+    h.audit.state.resultMap.set('item',{issues:[{code:'PAGE_REVIEW_BLOCKED'}]});assert.equal(h.audit.reviewStatus(item).label,'Unconfirmed');assert.equal(h.audit.state.resultMap.get('item').issues[0].code,'PAGE_REVIEW_BLOCKED');
+    h.audit.state.resultMap.set('item',{issues:[{code:'MISSING_MEASUREMENT'}]});assert.equal(h.audit.reviewStatus(item).label,'Unconfirmed');
     h.audit.state.resultMap.set('item',{issues:[]});assert.equal(h.audit.reviewStatus(item).label,'Confirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Draft');
-    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Needs review');
-    assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Reviewed');
+    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Unconfirmed');
+    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Unconfirmed');
+    assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Unconfirmed');
+    assert.equal(item.state,'confirmed');
+  });
+  await check('Icon actions keep original accessible names/tooltips and the Add to Schedule plus glyph',()=>{
+    const h=harness(),dom=attachMinimalDom(h);
+    for(const label of ['‹ Page','Page ›','Select','Pan','Trace length','Fit page','Cancel trace','Upload PDFs','Search','Stop search','Preview transfer']){
+      const control=h.audit.button(label,()=>{});assert.equal(control.attributes['aria-label'],label);assert.equal(control.title,label);assert.ok(control.classList.contains('icon-only'));assert.equal(control.children.at(-1).textContent,label);assert.ok(control.children.at(-1).classList.contains('sr-only'));
+      if(label==='Preview transfer')assert.equal(control.children[0].textContent,'+');else assert.equal(dom.all(control).filter(node=>node.tagName==='SVG').length,1);
+    }
+    const ordinary=h.audit.button('Confirm',()=>{});assert.equal(ordinary.textContent,'Confirm');assert.ok(!ordinary.classList.contains('icon-only'));
+  });
+  await check('Steel creation includes destination fields and new ducts default rectangular without replacing legacy shape data',async()=>{
+    const h=harness(),value=blank();h.audit.accept(response(value));const definitions=copy(h.audit.creationFields('steel'));
+    assert.deepEqual(definitions.map(field=>field[0]),['mark','level','member_type','section','fire_period_min','exposure','sides','product','critical_temperature','quantity']);
+    assert.equal(definitions.find(field=>field[0]==='product')[1],'Product');
+    const legacy={fields:{mark:'Old circular',shape:'circular',diameter_mm:355,unexposed_sides:2}},changes=h.audit.itemEditChanges(legacy,[{control:{name:'mark'},read:()=> 'Updated mark'}],{read:()=>1});
+    assert.equal(changes.fields.shape,'circular');assert.equal(changes.fields.diameter_mm,355);assert.equal(changes.fields.unexposed_sides,2);assert.equal(changes.fields.mark,'Updated mark');
+    const dom=attachMinimalDom(h);dom.ui.target={value:'ductwork'};dom.ui.viewport={dataset:{}};h.audit.state.mode='duct';let created;
+    h.audit.setAsk(async()=>({mark:'D1',quantity:1}));h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});
+    await h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]);assert.equal(created.fields.shape,'rectangular');assert.equal(created.quantity,1);assert.equal(created.fields.diameter_mm,undefined);
+  });
+  await check('Steel creation reloads exact calculator options for chosen product/member and never rewrites entered profile',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const controls=['product','member_type','section'].map(name=>({control:{name,value:name==='member_type'?'Beam':name==='section'?'Explicit profile':'',isConnected:false,events:{},addEventListener(event,fn){this.events[event]=fn;}}})),calls=[];
+    h.audit.setApi(async path=>{calls.push(new URL(path,'http://localhost'));return {columns:[]};});await h.audit.configureSteelCreation(controls,'steel_board');
+    assert.equal(calls[0].searchParams.get('calculator'),'steel_board');assert.equal(calls[0].searchParams.get('member_type'),'Beam');
+    controls[0].control.value='PROMATECT 250';controls[0].control.events.change();await flush();assert.equal(calls.at(-1).searchParams.get('product'),'PROMATECT 250');
+    controls[1].control.value='Column';controls[1].control.events.change();await flush();assert.equal(calls.at(-1).searchParams.get('member_type'),'Column');assert.equal(controls[2].control.value,'Explicit profile');
+  });
+  await check('Direct Confirm sends one authoritative confirmation command and filters historical review states as Unconfirmed',async()=>{
+    const h=harness(),value=blank();value.items=[{id:'old',mode:'steel',state:'reviewed',fields:{mark:'A'}},{id:'new',mode:'steel',state:'draft',fields:{mark:'B'}},{id:'confirmed',mode:'steel',state:'confirmed',fields:{mark:'C'}}];h.audit.accept(response(value));h.audit.state.selected.add('new');
+    let action;h.audit.setAsk(async(title,definitions,detail,submit)=>{assert.equal(title,'Confirm 1 items?');assert.equal(submit,'Confirm items');assert.match(detail,/every riser\/drop/);return {};});h.audit.setCommand(async(op,payload)=>{action={op,...copy(payload)};});await h.audit.confirmSelected();assert.equal(action.op,'confirm_items');assert.deepEqual(action.item_ids,['new']);
+    h.audit.state.ui={statusFilter:{value:'unconfirmed'}};assert.deepEqual(copy(h.audit.visibleItems()).map(item=>item.id),['old','new']);h.audit.state.group='state';assert.equal(h.audit.itemGroup(value.items[0]),'Unconfirmed');assert.equal(value.items[0].state,'reviewed');
+  });
+  await check('Riser/drop edits preserve IDs, explicit mm/citation and per-member meaning, and reject malformed or stale edits',async()=>{
+    const h=harness(),value=blank(),item={id:'steel',mode:'steel',version:1,quantity:3,fields:{mark:'B1'},geometry:{document_id:'doc',page:1},length_additions:[]};value.documents=[{id:'doc',name:'Elevations.pdf',pages:[{page:1},{page:2}]}];value.items=[item];h.audit.accept(response(value));
+    let calls=[],addition={kind:'riser',length_mm:2500,note:'Elevation dimension',document_id:'doc',page:2};h.audit.setAsk(async(title,definitions,detail)=>{assert.match(detail,/each member/);return {...addition};});h.audit.setCommand(async(op,payload,guard)=>{guard?.();calls.push(copy(payload));});
+    await h.audit.editLengthAddition(item);const first=calls[0].changes.length_additions[0];assert.match(first.id,/^[a-f0-9-]{36}$/);assert.equal(first.length_mm,2500);assert.equal(first.page,2);
+    h.audit.state.session.snapshot.items[0].length_additions=[first];item.length_additions=[first];addition.length_mm=3000;await h.audit.editLengthAddition(item,first);assert.equal(calls[1].changes.length_additions[0].id,first.id);assert.equal(calls[1].changes.length_additions[0].length_mm,3000);
+    assert.match(h.audit.lengthSummary(item,{base_length_m:2,additions_length_m:3,length_m:5,total_length_m:15}),/Base: 2 m \+ riser\/drop: 3 m = 5 m per member · Quantity 3 · Total: 15 m/);
+    for(const malformed of [{length_mm:0},{length_mm:Infinity},{note:''},{page:3},{page:1.5},{kind:'height'}])assert.throws(()=>h.audit.parsedLengthAddition({...addition,...malformed},first.id));
+    h.audit.setAsk(async()=>{h.audit.state.session.snapshot.items[0].version++;return {...addition};});await assert.rejects(h.audit.editLengthAddition(item,first),/item changed/);assert.equal(calls.length,2);
+  });
+  await check('Calibration changes offer only current scales on the item source page, not the displayed page or retained predecessor',async()=>{
+    const h=harness(),value=blank(),item={id:'item',mode:'steel',geometry:{document_id:'source',page:2},measurement:{method:'calibrated',calibration_id:'old'}};
+    value.calibrations=[{id:'old',document_id:'source',page:2,name:'Old'},{id:'current',supersedes_id:'old',document_id:'source',page:2,name:'Current'},{id:'different-page',document_id:'source',page:1,name:'Other'},{id:'different-document',document_id:'displayed',page:2,name:'Other document'}];h.audit.accept(response(value));h.audit.state.document='displayed';h.audit.state.page=1;
+    h.audit.setAsk(async(title,definitions)=>{const definition=definitions.find(field=>field[0]==='calibration_id');assert.deepEqual(copy(definition[2]),[['current','Current']]);assert.equal(definition[3],'');return null;});
+    await h.audit.changeLength(item);await h.audit.changeAreaCalibration({...item,mode:'wall'});assert.equal(h.audit.state.session.snapshot.calibrations.length,4);
+    h.audit.setAsk(async()=>({method:'calibrated',calibration_id:'old'}));await assert.rejects(h.audit.changeLength(item),/current calibration/);await assert.rejects(h.audit.changeAreaCalibration({...item,mode:'wall'}),/current calibration/);
+  });
+  await check('Legacy unspecified duct shape can be explicitly repaired without converting circular ducts or replacing dimensions',async()=>{
+    const h=harness(),value=blank(),item={id:'duct',mode:'duct',version:1,fields:{width_mm:500,height_mm:300}};value.items=[item];h.audit.accept(response(value));let saved;
+    h.audit.setCommand(async(op,payload,guard)=>{guard?.();saved=copy(payload);});await h.audit.useRectangularDuct(item);assert.deepEqual(saved.changes,{fields:{shape:'rectangular'}});assert.equal(item.fields.width_mm,500);assert.equal(item.fields.height_mm,300);
+    h.audit.state.session.snapshot.items[0].fields.shape='circular';await assert.rejects(h.audit.useRectangularDuct(item),/Existing shapes are preserved/);
+  });
+  await check('Loading or resetting a project clears an unfinished manual viewport and stale zoom anchor',()=>{
+    const h=harness();h.audit.accept(response(blank()));h.audit.state.pendingViewport={region:[10,20,30,40],name:'Old detail',document_id:'old',page:2};h.audit.state.zoomAnchor={point:[30,40],offset:[50,60]};
+    assert.equal(h.api.hasUnsavedChanges(),true);assert.throws(()=>h.api.projectSnapshot(),/unfinished/);h.api.applyProject({session:null,saved:null});assert.equal(h.audit.state.pendingViewport,null);assert.equal(h.audit.state.zoomAnchor,null);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.api.projectSnapshot(),undefined);
+  });
+  await check('Anchored PDF zoom keeps the new transform unavailable until its matching canvas has finished rendering',async()=>{
+    const h=harness(),value=blank(),pending=deferred();value.documents=[{id:'doc',name:'Drawing.pdf',pages:[{page:1}]}];h.audit.accept(response(value));const dom=attachMinimalDom(h),create=h.context.document.createElement;
+    h.context.document.createElement=tag=>{const element=create(tag);element.style={};element.getContext=()=>({});return element;};
+    const viewport={width:400,height:400,transform:[2,0,0,-2,0,400]},page={getViewport(){return viewport;},render(){return {promise:pending.promise,cancel(){}};}};
+    for(const key of ['page','pageCount','progress','zoom','pageWrap','empty'])dom.ui[key]={};let replacement;
+    dom.ui.canvas={replaceWith(value){replacement=value;}};dom.ui.overlay.getBoundingClientRect=()=>({left:30,top:40});dom.ui.viewport={getBoundingClientRect:()=>({left:0,top:0}),scrollLeft:0,scrollTop:0};
+    h.audit.setPdfTools(async()=>({}),async()=>page);h.audit.setCommand(async()=>{});h.audit.state.tool='trace';h.audit.state.points=[[10,10]];h.audit.state.viewport={width:200,height:200,transform:[1,0,0,-1,0,200]};
+    const rendering=h.audit.renderPage({point:[10,10],offset:[50,60]});await flush();assert.equal(h.audit.state.viewport,null);assert.equal(replacement,undefined);
+    h.audit.drawingPointer({button:0,detail:1,clientX:100,clientY:100,preventDefault(){throw new Error('Trace click must be ignored while display transform is unavailable');}});assert.deepEqual(copy(h.audit.state.points),[[10,10]]);
+    pending.resolve();await rendering;assert.equal(h.audit.state.viewport,viewport);assert.equal(h.audit.state.ui.canvas,replacement);assert.ok(replacement);assert.equal(h.audit.state.zoomAnchor,null);
+  });
+  await check('A rejected double-click endpoint cannot finish earlier trace, polygon or exclusion geometry',async()=>{
+    for(const tool of ['trace','polygon','exclusion']){
+      const h=harness(),value=blank();value.documents=[{id:'doc',name:'Detail.pdf',pages:[{page:1,view:[0,0,200,200]}]}];value.calibrations=[{id:'detail',document_id:'doc',page:1,region:[0,0,100,100]}];h.audit.accept(response(value));const dom=attachMinimalDom(h);
+      dom.ui.overlay.getBoundingClientRect=()=>({left:0,top:0,width:200,height:200});h.audit.state.viewport={width:200,height:200,transform:[1,0,0,1,0,0]};h.audit.state.calibration='detail';h.audit.state.tool=tool;h.audit.state.points=[[10,10],[20,20],[30,10]];
+      let finished=0;h.audit.setFinishTrace(async()=>{finished++;});const click=(x,y,detail=1)=>({clientX:x,clientY:y,button:0,detail,preventDefault(){}}),doubleClick={preventDefault(){}};
+      h.audit.state.doubleClickEndpointValid=true;h.audit.drawingPointer(click(150,50));h.audit.drawingPointer(click(150,50,2));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,0);assert.equal(h.audit.state.points.length,3);
+      h.audit.drawingPointer(click(250,50));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,0);
+      h.audit.drawingPointer(click(40,40));h.audit.drawingPointer(click(40,40,2));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,1);assert.equal(h.audit.state.points.length,4);
+      h.audit.drawingPointer(click(40,40));h.audit.drawingPointer(click(40,40,2));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,2);assert.equal(h.audit.state.points.length,4);
+    }
   });
   await check('Board choices follow the current unsaved member type and product instead of stale saved requirements',async()=>{
     const h=harness(),value=blank(),item={id:'member',mode:'steel',fields:{member_type:'Column',product:'Old product'}};

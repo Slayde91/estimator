@@ -190,13 +190,13 @@
     const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls");
     ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
     ui.removeDocument = button("Remove document", removeDocument); documentControls.append(ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
-    const pageControls = node("div", "takeoff-navigation-group takeoff-page-controls");
+    const pageControls = node("div", "takeoff-toolbar takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
     pageControls.append(button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
     ui.pageCount = node("span", "helper", "/ 0"); pageControls.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
-    ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom); navigation.append(pageControls);
+    ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
-    const searchControls = node("div", "takeoff-navigation-group takeoff-search-controls"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; })); navigation.append(searchControls);
+    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
     const scaleControls = node("div", "takeoff-navigation-group takeoff-scale-controls"); scaleControls.append(ui.calibration, ui.editCalibration, ...ui.drawingDownloads); navigation.append(scaleControls);
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
@@ -221,7 +221,8 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    drawingPane.append(ui.viewport, navigation, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
+    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, pageControls);
+    drawingPane.append(searchControls, viewer, navigation, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(modes, ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));

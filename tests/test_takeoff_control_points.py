@@ -53,7 +53,8 @@ class TakeoffControlPointTests(unittest.TestCase):
                       'document_id': self.case.doc['id'], 'page': 1, 'note': 'Section A explicit rise'}]
         identifier = self.case.create(geometry=self.geometry(points), quantity=3, length_additions=additions,
                                       appearance={'stroke_color': '#AB1245', 'stroke_width': 3.75})
-        self.case.confirm(identifier); self.case.apply(self.case.preview(identifier))
+        self.case.confirm(identifier)
+        transferred = self.case.preview(identifier); self.case.apply(transferred)
         before = deepcopy(self.case.state['snapshot']); old = deepcopy(self.item(identifier))
         receipt = old['confirmation']; original_length = item_result(old, before)['total_length_m']
         self.remove_point(identifier, 1)
@@ -85,7 +86,19 @@ class TakeoffControlPointTests(unittest.TestCase):
         self.assertGreater(restored['version'], current['version'])
         self.assertIsNone(restored['confirmation']); self.assertEqual(restored['state'], 'draft')
         self.assertTrue(all(binding['status'] == 'stale' for binding in self.case.state['snapshot']['transfers']))
-        with self.assertRaises(ValidationError): self.case.preview(identifier)
+        before_add = deepcopy(self.case.state['snapshot'])
+        unchanged = self.case.preview(identifier, inputs=transferred['inputs'], rows=transferred['schedule_rows'])
+        self.assertIsNone(unchanged['preview_id'])
+        self.assertEqual(unchanged['changes'], []); self.assertEqual(unchanged['bindings'], [])
+        binding = before_add['transfers'][0]
+        self.assertEqual(unchanged['skipped'], [{'item_id': identifier, 'calculator_id': binding['calculator_id'],
+            'row': binding['row'], 'binding_id': binding['id'], 'status': 'stale', 'reason': 'already_linked'}])
+        self.assertEqual(unchanged['inputs'], transferred['inputs'])
+        self.assertEqual(unchanged['schedule_rows'], transferred['schedule_rows'])
+        self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before_add)
+        # Add retains this linked row; explicitly updating it still requires a fresh confirmation.
+        with self.assertRaises(ValidationError):
+            self.case.preview(identifier, inputs=transferred['inputs'], rows=transferred['schedule_rows'], update=True)
         self.case.command('confirm_items', item_ids=[identifier])
         self.assertNotEqual(self.item(identifier)['confirmation']['id'], receipt['id'])
 

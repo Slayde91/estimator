@@ -110,6 +110,33 @@ async function markerMetrics(memberId) {
     return { source: { width: box.width, height: box.height }, visible: { width: visible.width, height: visible.height }, hit: { width: hit.width, height: hit.height }, overlay: el.ownerSVGElement.getBoundingClientRect().width };
   });
 }
+async function dragMarker(memberId, delta) {
+  const marker = page.locator(`[data-count-member-id="${memberId}"]`);
+  await marker.scrollIntoViewIfNeeded();
+  // Settings inputs can leave the plan behind the sticky app header even when
+  // the marker intersects the viewport. Put the viewer in the clear first.
+  await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
+  const box = await marker.boundingBox(), overlay = await page.locator('.takeoff-overlay').boundingBox();
+  assert.ok(box?.width && box?.height && overlay?.width && overlay?.height);
+  const start = [Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2)], end = start.map((value, axis) => value + delta[axis]);
+  assert.equal(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-count-member-id]')?.dataset.countMemberId, start), memberId, 'The real pointer must hit this Count marker, clear of sticky controls');
+  await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(...end, { steps: 8 }); await page.mouse.up();
+  return { start, end, sourceDelta: [delta[1] / overlay.height * 780, delta[0] / overlay.width * 540] };
+}
+function assertIndependentMove(before, after, itemId, index, drag) {
+  assert.deepEqual(members(after), members(before)); assert.equal(markerTotal(after), markerTotal(before));
+  for (const original of countItems(before)) {
+    const current = after.items.find(item => item.id === original.id);
+    assert.deepEqual(current.member_ids, original.member_ids); assert.deepEqual(current.measurement, original.measurement);
+    assert.equal(current.quantity, original.quantity); assert.equal(current.count_id, original.count_id);
+    assert.deepEqual(current.fields, original.fields); assert.deepEqual(current.appearance, original.appearance);
+    for (let pointIndex = 0; pointIndex < original.geometry.points.length; pointIndex++) {
+      if (original.id === itemId && pointIndex === index) {
+        original.geometry.points[pointIndex].forEach((value, axis) => assert.ok(Math.abs(current.geometry.points[pointIndex][axis] - value - drag.sourceDelta[axis]) < 1e-7, JSON.stringify({ original: original.geometry.points[pointIndex], moved: current.geometry.points[pointIndex], drag })));
+      } else assert.deepEqual(current.geometry.points[pointIndex], original.geometry.points[pointIndex], 'Dragging one Count marker cannot translate another marker');
+    }
+  }
+}
 async function download(label, name) {
   const pending = page.waitForEvent('download'); pending.catch(() => {});
   const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/schedule-xlsx')); response.catch(() => {});
@@ -174,6 +201,35 @@ function pythonJson(script, ...args) {
   assert.ok(state.items.filter(item => item.count_id === countId).every(item => item.fields.mark === 'COUNT-A'));
   assert.equal(markerTotal(state), 4);
   console.log('Count placement, explicit lengths, shared details and separate Count passed.');
+
+  // Count markers move independently, including first-drag selection and the
+  // rotated CropBox/UserUnit transform. Entered lengths are never remeasured.
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  const dragBaseline = state, dragGroup = state.items.find(item => item.count_id === countId && item.quantity === 2);
+  let movement;
+  reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[0], [32, 24]); }, 'update_item');
+  assertIndependentMove(dragBaseline, reply.snapshot, dragGroup.id, 0, movement);
+  assert.equal(requests.at(-1).item_id, dragGroup.id, 'The clicked marker selects its own item before moving');
+  reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
+  assert.deepEqual(stable(reply.snapshot), stable(dragBaseline), 'Undo restores exactly the dragged point and retained physical IDs');
+  reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[1], [26, -22]); }, 'update_item'); state = reply.snapshot;
+  assertIndependentMove(dragBaseline, state, dragGroup.id, 1, movement);
+  const movedStable = stable(state), calculatorBeforeDrag = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  panel = await selectedCount([dragGroup.id]); await fill(panel, 'Opacity', .42);
+  const blockedBefore = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).snapshot), requestCountBefore = requests.length;
+  await dragMarker(secondCount[0].member_ids[0], [-30, 20]);
+  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText(/Apply or discard.*(?:edits|settings)/);
+  assert.equal(requests.length, requestCountBefore, 'Dirty settings prevent marker mutations');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).snapshot), blockedBefore);
+  await expect(panel.getByLabel('Opacity', { exact: true })).toHaveValue('0.42');
+  await panel.getByRole('button', { name: 'Discard settings', exact: true }).click();
+  const movedRoundtrip = await saveAndLoad(info); state = movedRoundtrip.reopened;
+  assert.deepEqual(stable(state), movedStable); assert.deepEqual(stable(movedRoundtrip.saved.takeoffs), movedStable);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBeforeDrag);
+  assert.equal(state.calibrations.length, 0);
+  evidence.independentMarkerDrag = { itemId: dragGroup.id, memberId: dragGroup.member_ids[1], movement, undoExact: true, dirtySettingsBlocked: true, savedReopened: true };
+  await page.screenshot({ path: path.join(output, 'independent-count-marker-drag.png') });
+  console.log('Independent Count marker drag, rotated source coordinates, manual lengths, dirty guard, Undo and save/reopen passed.');
 
   // Every supported symbol persists independently of source geometry and manual lengths.
   const originalStable = stable(state), firstIds = firstCount.map(item => item.id);

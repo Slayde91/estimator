@@ -41,7 +41,8 @@
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
   function option(value, label = value) { const el = node("option", "", label); el.value = value; return el; }
   const buttonIcons = {
-    "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7",
+    "First page": "M4 5v14M17 5l-7 7 7 7", "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7", "Last page": "M20 5v14M7 5l7 7-7 7",
+    "Discard item edits": "M20 7a8 8 0 0 0-13-2L3 9m0-6v6h6M4 17a8 8 0 0 0 13 2l4-4m0 6v-6h-6",
     "Select": "M5 3l14 10-7 1-3 7z",
     "Pan": "M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v7c0 4-3 6-7 6-3 0-4-2-6-4l-3-4a1.5 1.5 0 0 1 2-2l2 1z",
     "Settings": "M10 2h4l1 3 3 1 3-1 2 4-2 2v3l2 2-2 4-3-1-3 1-1 3h-4l-1-3-3-1-3 1-2-4 2-2v-3L1 9l2-4 3 1 3-1zM15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
@@ -54,7 +55,6 @@
     "Count": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
     "Trace surface": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Add exclusion": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
-    "Calibrate": "M3 3v18h18L3 3zM7 12v5h5l-5-5zM6 6l-2 2M9 9l-2 2M12 12l-2 2M15 15l-2 2M18 18l-2 2",
     "Scale": "M3 14H1v8h22v-8h-2M6 22v-4M12 22v-5M18 22v-4M5 7h14M9 3L5 7l4 4M15 3l4 4-4 4",
     "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
     "Add viewport": "M12 4v16M4 12h16",
@@ -71,8 +71,8 @@
     "Search": "M15.5 15.5L21 21M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
     "Stop search": "M15.5 15.5L21 21M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0M7 7l6 6M13 7l-6 6",
   };
-  function button(label, fn, cls = "button secondary") {
-    const icon = buttonIcons[label], schedule = label === "Preview transfer", download = /^(?:Export (?:CSV|XLSX)|Download (?:XLSX|PDF))$/.test(label), el = node("button", cls);
+  function button(label, fn, cls = "button secondary", iconName = label) {
+    const icon = buttonIcons[iconName], schedule = label === "Preview transfer", download = /^(?:Export (?:CSV|XLSX)|Download (?:XLSX|PDF))$/.test(label), el = node("button", cls);
     el.type = "button";
     if (download) {
       const format = label.split(" ").at(-1), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format));
@@ -104,7 +104,15 @@
     el.addEventListener("click", () => void safely(fn)); return el;
   }
   function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
-  function message(text = "", error = false) { if (!state.ui) return; state.ui.message.textContent = text; state.ui.message.hidden = !text; state.ui.message.className = `message${error ? " error" : ""}`; state.ui.message.setAttribute("role", error ? "alert" : "status"); if (state.linkedRecovery) state.ui.message.append(button("Retry linked change", recoverLinkedOperation)); }
+  function message(text = "", error = false) {
+    if (!state.ui) return;
+    const notice = state.ui.message; notice.textContent = text; notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
+    if (state.linkedRecovery) notice.append(button("Retry linked change", recoverLinkedOperation));
+    if (error && text && notice.getClientRects?.().length) {
+      const header = document.querySelector(".app-header"), top = Math.max(0, header?.getBoundingClientRect().bottom || 0) + 12, bounds = notice.getBoundingClientRect();
+      if (bounds.top < top || bounds.bottom > window.innerHeight) window.scrollBy({ top: bounds.top - top, behavior: "auto" });
+    }
+  }
   async function safely(fn) { try { return await fn(); } catch (error) { message(error.message || String(error), true); } }
   async function api(path, data, method = data === undefined ? "GET" : "POST") {
     const response = await fetch(`/api/takeoffs${path}`, { method, ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }) });
@@ -190,7 +198,7 @@
     ui.tools = {};
     for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
-    ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.tools.calibrate.after(scaleAnchor);
+    ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.tools.viewport.after(scaleAnchor);
     toolbar.append(ui.cancelTrace = button("Cancel trace", cancelTrace));
     ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
     const headingControls = node("div", "takeoff-heading-controls"), drawingDownloads = node("div", "takeoff-toolbar takeoff-drawing-downloads"); drawingDownloads.setAttribute("role", "group"); drawingDownloads.setAttribute("aria-label", "Drawing downloads"); drawingDownloads.append(...ui.drawingDownloads); headingControls.append(modes, drawingDownloads);
@@ -200,15 +208,17 @@
     ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
     ui.removeDocument = button("Remove document", removeDocument); documentControls.append(ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
     const pageControls = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
-    pageControls.append(button("‹ Page", () => navigatePage(state.page - 1)));
+    const pageNavigation = node("div", "takeoff-page-navigation"); pageNavigation.setAttribute("role", "group"); pageNavigation.setAttribute("aria-label", "Page navigation");
+    pageNavigation.append(button("First page", () => navigatePage(1)), button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
-    ui.pageCount = node("span", "helper", "/ 0"); pageControls.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), ui.tools.select, ui.tools.pan, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
+    ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
+    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
     const viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(searchControls, navigation);
     ui.sourceDocuments = node("section", "takeoff-source-documents"); ui.sourceDocuments.setAttribute("aria-labelledby", "takeoff-source-documents-heading"); const sourceHeading = node("h3", "", "Source documents"); sourceHeading.id = "takeoff-source-documents-heading"; ui.sourceDocumentList = node("div", "takeoff-source-document-list"); ui.sourceDocuments.append(sourceHeading, ui.sourceDocumentList);
-    const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.editCalibration); scaleAnchor.append(scaleControls);
+    const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
@@ -806,6 +816,7 @@
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null; state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
     state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
+    if (tool === "calibrate" && state.ui.scaleControls) toggleScaleControls(false);
     if (tool === "count") { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     // Select-only handles must not intercept the first pan or trace pointer.
@@ -1017,7 +1028,7 @@
     if (ring.points[reference.index].every((value, axis) => value === point[axis])) return;
     await command("update_item", { item_id: item.id, changes: { geometry } }, () => { requireFinishedEdits(); pointTarget(reference); return true; });
     state.controlPoint = null; state.controlMenu = false;
-    message(item.measurement.method === "cited" ? "Source region updated. Its source-stated length is unchanged; confirm the revised source before transfer." : "Control point moved and measurements recalculated. Confirm the revised quantity before transfer. Undo last edit restores the previous geometry.");
+    message(isCount(item) ? "Count marker moved. Its manually entered length and quantity are unchanged. Confirm the revised source before transfer. Undo last edit restores its position." : item.measurement.method === "cited" ? "Source region updated. Its source-stated length is unchanged; confirm the revised source before transfer." : "Control point moved and measurements recalculated. Confirm the revised quantity before transfer. Undo last edit restores the previous geometry.");
   }
   function beginControlPointDrag(event, reference) {
     event.stopPropagation();
@@ -1037,11 +1048,17 @@
       const valid = current();
       try { if (valid) move(next); } finally { state.gesture = null; gesture.cleanup(); }
       next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
-      if (!gesture.moved) { if (valid) selectControlPoint(reference); else renderOverlay(); window.CeasefireProject?.changed?.(); return; }
+      if (!gesture.moved) {
+        if (gesture.countSelectionBefore) {
+          state.selected = gesture.countSelectionBefore;
+          if (valid) void safely(() => selectItem(reference.itemId, event.ctrlKey || event.metaKey || event.shiftKey, false)); else renderOverlay();
+        } else if (valid) selectControlPoint(reference); else renderOverlay();
+        window.CeasefireProject?.changed?.(); return;
+      }
       void safely(async () => {
         if (!valid) throw new Error("The drawing or item changed during the point drag. Select its current control point again.");
         await moveControlPoint(reference, gesture.point);
-      }).finally(() => { renderOverlay(); window.CeasefireProject?.changed?.(); });
+      }).finally(() => { if (gesture.countSelectionBefore) renderSelection(); else renderOverlay(); window.CeasefireProject?.changed?.(); });
     };
     const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
     gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
@@ -1112,12 +1129,13 @@
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;
     state.gesture = null; gesture.cleanup();
+    if (gesture.countSelectionBefore) state.selected = gesture.countSelectionBefore;
     if (gesture.moved) state.suppressSelectionClickUntil = Date.now() + 500;
     renderOverlay(); window.CeasefireProject?.changed?.();
   }
   function beginSelectionGesture(event) {
     if (state.tool !== "select" || state.mode === "physical" || event.button !== 0 || state.busy || state.modal || !state.viewport || state.gesture) return;
-    if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu")) return;
+    if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu,.takeoff-count-hit")) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
     // An unselected markup retains ordinary click-to-select behavior.
@@ -1300,6 +1318,18 @@
     }
     return svg("circle", { cx: x, cy: y, r: radius, ...attributes });
   }
+  function beginCountMarkerDrag(event, item, index, memberId) {
+    if (event.button !== 0 || state.tool !== "select") return;
+    event.stopPropagation();
+    if (state.busy || state.modal || !state.viewport || state.gesture) return;
+    requireFinishedEdits(); const reference = pointReference(item, index), current = markupTarget(reference);
+    if (!isCount(current) || current.member_ids[index] !== memberId) throw new Error("This marker changed. Select its current position again.");
+    const previous = new Set(state.selected); state.selected = new Set([item.id]);
+    try {
+      beginControlPointDrag(event, reference);
+      if (state.gesture?.reference === reference) state.gesture.countSelectionBefore = previous;
+    } catch (error) { state.selected = previous; throw error; }
+  }
   function renderCountMarkers(overlay, item, geometry) {
     const appearance = appearanceOf(item), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
     geometry.points.forEach((source, index) => {
@@ -1307,6 +1337,7 @@
       const shape = countSymbol(point, appearance, { class: `takeoff-markup takeoff-count-marker${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale, fill: appearance.fill_enabled ? appearance.fill_color : "none", opacity: appearance.opacity });
       const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id} · ${formatLength(item.measurement.length_m)} m` });
       hit.dataset.itemId = item.id; hit.dataset.countItemId = item.id; hit.dataset.countMemberId = memberId;
+      hit.addEventListener("pointerdown", event => void safely(() => beginCountMarkerDrag(event, item, index, memberId)));
       hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
       const menu = event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = pointReference(item, index); markupTarget(reference); state.selected = new Set([item.id]); state.controlPoint = null; state.controlMenu = false; state.markupMenu = { reference, memberId, point }; renderSelection(); state.ui.overlay.querySelector('.takeoff-markup-menu button')?.focus({ preventScroll: true }); }); };
       hit.addEventListener("contextmenu", menu);
@@ -1646,7 +1677,7 @@
       if (changed) await command("update_item", { item_id: item.id, changes });
       if ((state.formRevision || 0) === formRevision) { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); if (!changed) message("No item values changed. Confirmation status is unchanged."); }
       else message("The captured item edits were applied. Later form edits remain unfinished; apply or discard them separately.");
-    }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); }), geometryAction("Re-trace geometry", () => retrace(item)), button("Delete item", () => deleteItems([item.id])));
+    }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); }, "button secondary", "Discard item edits"), geometryAction("Re-trace geometry", () => retrace(item)), button("Delete item", () => deleteItems([item.id])));
     if (!item.geometry) actions.append(button("Attach source on current page", () => replaceSource(item)));
     if (area) actions.append(geometryAction("Change surface calibration", () => changeAreaCalibration(item)), geometryAction("Edit surface vertices", () => editAreaBoundary(item)), geometryAction("Add excluded opening", startExclusion));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
@@ -1963,15 +1994,20 @@
   }
   async function transfer(updateLinked) {
     if (isArea()) throw new Error("Area records export as m² and cannot transfer to the existing steel or duct calculators.");
-    const selected = selectedItems(); if (!selected.length) throw new Error("Select confirmed items to transfer."); if (state.formDirty || state.points.length) throw new Error("Apply or discard unfinished edits before transfer.");
-    const calculatorId = state.ui.target.value, target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId), sessionId = state.session.session_id;
-    const sourceResults = selected.map(item => clone(itemResult(item)));
-    const preview = await api(`/sessions/${sessionId}/transfer-preview`, { expected_revision: state.session.revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id), update_linked: updateLinked });
+    requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select confirmed items to transfer.");
+    const calculatorId = state.ui.target.value, sessionId = state.session.session_id, revision = state.session.revision;
+    const current = () => { requireFinishedEdits(); if (sessionId !== state.session?.session_id || revision !== state.session.revision || calculatorId !== state.ui.target.value) throw new Error("Takeoffs or the destination changed during transfer review. Preview again."); };
+    const target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId); current();
+    const preview = await api(`/sessions/${sessionId}/transfer-preview`, { expected_revision: revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id), update_linked: updateLinked }); current();
+    const skipped = preview.skipped?.length || 0, actionable = new Set(preview.changes.map(change => change.item_id)), transferring = selected.filter(item => actionable.has(item.id));
+    if (!transferring.length) { message(`All ${skipped} selected item${skipped === 1 ? " is" : "s are"} already linked to ${calculatorName(calculatorId)}. No rows were added or changed.`); return; }
+    const sourceResults = transferring.map(item => clone(itemResult(item)));
     const choices = await api(`/options?calculator=${encodeURIComponent(calculatorId)}`);
-    const accepted = await confirm(`${updateLinked ? "Update" : "Transfer"} ${selected.length} confirmed items?`, transferSummary(preview, selected, sourceResults, choices.columns), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
+    current(); const accepted = await confirm(`${updateLinked ? "Update" : "Transfer"} ${transferring.length} confirmed items?`, transferSummary(preview, selected, sourceResults, choices.columns), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
+    current();
     if (sessionId !== state.session?.session_id || preview.revision !== state.session.revision) throw new Error("Takeoffs changed during transfer review. Preview again.");
     const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);
-    try { const result = await api(`/sessions/${sessionId}/transfer-apply`, { expected_revision: state.session.revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows }); window.CeasefireCalculators.applyTakeoffTarget(calculatorId, result.transfer, reservation); accept(result); renderData(); message("Confirmed quantities applied to the calculator draft. Save the project to retain both the schedule and its source links."); }
+    try { const result = await api(`/sessions/${sessionId}/transfer-apply`, { expected_revision: state.session.revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows }); window.CeasefireCalculators.applyTakeoffTarget(calculatorId, result.transfer, reservation); accept(result); renderData(); message(`Confirmed quantities applied to the calculator draft.${skipped ? ` Skipped ${skipped} already-linked item${skipped === 1 ? "" : "s"}; their rows were unchanged.` : ""} Save the project to retain both the schedule and its source links.`); }
     finally { window.CeasefireCalculators.releaseTakeoffTarget(reservation); working(false); }
   }
   function calculatorName(id) { return { steel_vermiculite: "Steel Spray", steel_board: "Steel Board", ductwork: "Ductwork" }[id] || id; }
@@ -1986,6 +2022,7 @@
       const action = { append: "Add", update: "Update", unchanged: "Keep unchanged" }[change.action] || change.action;
       return `${action}: ${item.fields.mark || item.id}\nSource ID: ${item.id}\nDestination: ${calculatorName(preview.calculator_id)} · ${binding.sheet} row ${binding.row}\nPhysical quantity: ${item.quantity}\n${item.mode === "steel" ? "Per-member" : "Per-run"} length: ${formatLength(result.length_m)} m\nTotal length: ${formatLength(result.total_length_m)} m\n\nDestination inputs:\n${boundInputDetails(binding, columns)}`;
     });
+    if (preview.skipped?.length) sections.unshift(`Skipped ${preview.skipped.length} already-linked item${preview.skipped.length === 1 ? "" : "s"} in ${calculatorName(preview.calculator_id)}: ${preview.skipped.map(entry => objects.get(entry.item_id)?.fields.mark || entry.item_id).join(", ")}. Their existing rows will remain unchanged.`);
     for (const change of preview.normalizations || []) {
       const item = objects.get(change.item_id), label = fields[item?.mode]?.find(field => field[0] === change.field)?.[1] || change.field;
       sections.push(`Existing calculator adjustment for ${item?.fields.mark || change.item_id}: ${label}\n${change.before} → ${change.after}\nReason: ${change.reason}`);

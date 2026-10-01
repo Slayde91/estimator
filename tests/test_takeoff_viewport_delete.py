@@ -28,14 +28,29 @@ class TakeoffViewportDeleteTests(unittest.TestCase):
     def item(self, identifier):
         return next(item for item in self.case.state['snapshot']['items'] if item['id'] == identifier)
 
-    def assert_blocked(self, identifier):
+    def assert_blocked(self, identifier, transferred=None):
         result = item_result(self.item(identifier), self.case.state['snapshot'])
         self.assertIsNone(result['length_m'])
         self.assertTrue(result['issues'])
         with self.assertRaises(ValidationError):
             self.case.command('confirm_items', item_ids=[identifier])
         with self.assertRaises(ValidationError):
-            self.case.preview(identifier)
+            self.case.preview(identifier, update=True)
+        if transferred is None:
+            with self.assertRaises(ValidationError):
+                self.case.preview(identifier)
+        else:
+            # Add skips an existing destination even when its viewport evidence is retired.
+            before_add = deepcopy(self.case.state['snapshot'])
+            unchanged = self.case.preview(identifier, inputs=transferred['inputs'], rows=transferred['schedule_rows'])
+            self.assertIsNone(unchanged['preview_id'])
+            self.assertEqual(unchanged['changes'], []); self.assertEqual(unchanged['bindings'], [])
+            binding = next(entry for entry in before_add['transfers'] if entry['item_id'] == identifier)
+            self.assertEqual(unchanged['skipped'], [{'item_id': identifier, 'calculator_id': binding['calculator_id'],
+                'row': binding['row'], 'binding_id': binding['id'], 'status': 'stale', 'reason': 'already_linked'}])
+            self.assertEqual(unchanged['inputs'], transferred['inputs'])
+            self.assertEqual(unchanged['schedule_rows'], transferred['schedule_rows'])
+            self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before_add)
         with self.assertRaises(ValidationError):
             self.case.service.export(self.case.sid, 'csv', [identifier])
 
@@ -43,7 +58,7 @@ class TakeoffViewportDeleteTests(unittest.TestCase):
         viewport = self.viewport()
         identifier = self.case.create(measurement={'method': 'calibrated', 'calibration_id': viewport['id']})
         self.case.command('confirm_items', item_ids=[identifier])
-        self.case.apply(self.case.preview(identifier))
+        transferred = self.case.preview(identifier); self.case.apply(transferred)
         original = deepcopy(self.item(identifier))
         bindings = deepcopy(self.case.state['snapshot']['transfers'])
         request = {'op': 'delete_viewport', 'calibration_id': viewport['id'],
@@ -67,12 +82,12 @@ class TakeoffViewportDeleteTests(unittest.TestCase):
         self.assertEqual(event['op'], 'delete_viewport')
         self.assertIn(identifier, event['affected_ids']['items'])
         self.assertEqual(event['before']['items'][0], original)
-        self.assert_blocked(identifier)
+        self.assert_blocked(identifier, transferred)
         # A new viewport in the same region is a different authority. It cannot
         # reactivate a retired reference or manufacture a fresh confirmation.
         replacement = self.viewport()
         self.assertNotEqual(replacement['id'], viewport['id'])
-        self.assert_blocked(identifier)
+        self.assert_blocked(identifier, transferred)
 
     def test_undo_restores_viewport_identity_without_restoring_confirmation(self):
         viewport = self.viewport()

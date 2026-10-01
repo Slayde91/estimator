@@ -15,7 +15,9 @@
     "test:takeoffs-control-points": "node tests/browser/control_points_scroll.cjs",
     "test:takeoffs-plan-tools": "node tests/browser/plan_tools_surface_edit.cjs",
     "test:takeoffs-counts": "node tests/browser/counts.cjs",
-    "test:takeoffs-item-actions": "node tests/browser/item_actions.cjs"
+    "test:takeoffs-item-actions": "node tests/browser/item_actions.cjs",
+    "test:takeoffs-viewer-controls": "node tests/browser/viewer_controls.cjs",
+    "test:takeoffs-transfer-skip": "node tests/browser/transfer_skip.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

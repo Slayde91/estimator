@@ -61,6 +61,24 @@ async function transfer(update = false, expectedNote = null, count = 1) {
   const result = await applied; const state = await result.json(); assert.equal(result.status(), 200, JSON.stringify(state)); await workspaceIdle();
   return { preview, state };
 }
+async function skippedTransfer(bindingIds) {
+  const before = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.completeProjectSnapshot() }));
+  let applyRequests = 0; const watchApply = request => { if (request.url().endsWith('/transfer-apply')) applyRequests++; };
+  page.on('request', watchApply);
+  try {
+    const pending = page.waitForResponse(response => response.url().endsWith('/transfer-preview'));
+    await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
+    const response = await pending, preview = await response.json(); assert.equal(response.status(), 200, JSON.stringify(preview));
+    assert.deepEqual(preview.changes, []); assert.deepEqual(preview.skipped.map(item => item.binding_id).sort(), [...bindingIds].sort());
+    assert.ok(preview.skipped.every(item => item.reason === 'already_linked'));
+    await expect(page.locator('#takeoffs-workspace [role="status"]').filter({ hasText: 'already linked to' })).toContainText('No rows were added or changed');
+    await expect(page.getByRole('dialog')).toHaveCount(0); assert.equal(applyRequests, 0);
+    const after = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.completeProjectSnapshot() }));
+    assert.deepEqual(after, before, 'Repeated Add skips linked items without changing either source or calculator state');
+    fs.writeFileSync(path.join(output, `skipped-transfer-${Date.now()}.json`), JSON.stringify({ preview, applyRequests, unchanged: true }, null, 2));
+    return { preview, state: { snapshot: after.takeoffs } };
+  } finally { page.off('request', watchApply); }
+}
 async function screenshot(name) {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: path.join(output, name), fullPage: true });
@@ -90,6 +108,7 @@ async function fitCurrentDrawing(name) {
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await fitCurrentDrawing('synthetic-drawings.pdf');
+  if (!await page.getByRole('button', { name: 'Calibrate', exact: true }).isVisible()) await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
   await draw([[100 / 842, 1 - 75 / 595], [500 / 842, 1 - 75 / 595]]);
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': 'Ten metre baseline', 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
@@ -175,7 +194,7 @@ async function fitCurrentDrawing(name) {
   const lengths = transferred.state.snapshot.transfers.map(binding => transferred.preview.inputs.CALCULATOR['D' + binding.row]);
   assert.ok(lengths.every(length => Math.abs(length - 5) < .02)); assert.ok(Math.abs(lengths.reduce((sum, length) => sum + length, 0) - 10) < .02);
   const bindingIds = transferred.state.snapshot.transfers.map(binding => binding.id).sort();
-  transferred = await transfer(false, null, 2); assert.ok(transferred.preview.changes.every(change => change.action === 'unchanged'));
+  transferred = await skippedTransfer(bindingIds);
   assert.deepEqual(transferred.state.snapshot.transfers.map(binding => binding.id).sort(), bindingIds);
   await screenshot('successors-transferred-once.png');
   const csp = await page.evaluate(() => window.qaCsp); assert.deepEqual(errors, []); assert.deepEqual(csp, []);

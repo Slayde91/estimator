@@ -76,6 +76,24 @@ async function transfer(update = false, expectedNote = null, expectedDetails = [
   const result = await applied; const state = await result.json(); assert.equal(result.status(), 200, JSON.stringify(state)); await workspaceIdle();
   return { preview, state };
 }
+async function skippedTransfer(bindingIds) {
+  const before = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.completeProjectSnapshot() }));
+  let applyRequests = 0; const watchApply = request => { if (request.url().endsWith('/transfer-apply')) applyRequests++; };
+  page.on('request', watchApply);
+  try {
+    const pending = page.waitForResponse(response => response.url().endsWith('/transfer-preview'));
+    await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
+    const response = await pending, preview = await response.json(); assert.equal(response.status(), 200, JSON.stringify(preview));
+    assert.deepEqual(preview.changes, []); assert.deepEqual(preview.skipped.map(item => item.binding_id).sort(), [...bindingIds].sort());
+    assert.ok(preview.skipped.every(item => item.reason === 'already_linked'));
+    await expect(page.locator('#takeoffs-workspace [role="status"]').filter({ hasText: 'already linked to' })).toContainText('No rows were added or changed');
+    await expect(page.getByRole('dialog')).toHaveCount(0); assert.equal(applyRequests, 0);
+    const after = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.completeProjectSnapshot() }));
+    assert.deepEqual(after, before, 'Repeated Add skips linked items without changing either source or calculator state');
+    fs.writeFileSync(path.join(output, `skipped-transfer-${Date.now()}.json`), JSON.stringify({ preview, applyRequests, unchanged: true }, null, 2));
+    return { preview, state: { snapshot: after.takeoffs } };
+  } finally { page.off('request', watchApply); }
+}
 async function screenshot(name) {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: path.join(output, name), fullPage: true });
@@ -100,6 +118,7 @@ async function boardJourney(info) {
   await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'synthetic-board.pdf' }).getAttribute('value'));
   await fitCurrentDrawing('synthetic-board.pdf');
   await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_board');
+  if (!await page.getByRole('button', { name: 'Calibrate', exact: true }).isVisible()) await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
   await draw([[100 / 842, 1 - 75 / 595], [500 / 842, 1 - 75 / 595]]);
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': 'Synthetic board baseline', 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
@@ -143,7 +162,9 @@ async function boardJourney(info) {
   assert.equal(measuredBinding.calculator_id, 'steel_board');
   assert.equal(transferred.preview.inputs[measuredBinding.sheet]['F' + measuredBinding.row], measured.total_length_m);
   assert.equal(transferred.preview.inputs[measuredBinding.sheet]['D' + measuredBinding.row], '100UC15');
-  transferred = await transfer(); assert.equal(transferred.preview.changes[0].action, 'unchanged');
+  transferred = await skippedTransfer([measuredBinding.id]);
+  assert.equal(transferred.state.snapshot.transfers.find(binding => binding.item_id === measuredId).id, measuredBinding.id);
+  transferred = await transfer(true); assert.equal(transferred.preview.changes[0].action, 'unchanged');
   assert.equal(transferred.state.snapshot.transfers.find(binding => binding.item_id === measuredId).id, measuredBinding.id);
   await fitCurrentDrawing('synthetic-board.pdf');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
@@ -158,7 +179,7 @@ async function boardJourney(info) {
   await reviewConfirm(); transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 3', 'Per-member length: 7.25 m', 'Total length: 21.75 m', 'Lineal metres: 21.75']);
   const citedBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === citedId);
   assert.equal(transferred.preview.inputs[citedBinding.sheet]['F' + citedBinding.row], 21.75);
-  transferred = await transfer(); assert.equal(transferred.preview.changes[0].action, 'unchanged');
+  transferred = await skippedTransfer([citedBinding.id]);
   assert.equal(transferred.state.snapshot.transfers.filter(binding => binding.calculator_id === 'steel_board').length, 2);
   assert.equal(transferred.state.snapshot.transfers.find(binding => binding.item_id === citedId).id, citedBinding.id);
   const after = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
@@ -224,6 +245,7 @@ async function boardJourney(info) {
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Fit page', exact: true }).click();
   await workspaceIdle();
+  if (!await page.getByRole('button', { name: 'Calibrate', exact: true }).isVisible()) await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
   await draw([[100 / 842, 1 - 75 / 595], [500 / 842, 1 - 75 / 595]]);
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': 'Ten metre baseline', 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');
@@ -256,7 +278,7 @@ async function boardJourney(info) {
   let transferred = await transfer();
   assert.equal(transferred.preview.inputs.SCHEDULE.I10, 2); assert.ok(Math.abs(transferred.preview.inputs.SCHEDULE.J10 - 10) < 0.02);
   const firstBinding = transferred.state.snapshot.transfers[0];
-  transferred = await transfer();
+  transferred = await skippedTransfer([firstBinding.id]);
   assert.equal(transferred.state.snapshot.transfers.length, 1); assert.equal(transferred.state.snapshot.transfers[0].id, firstBinding.id);
   // Reconfirming an explicit source edit allows a reviewed linked-row update.
   await fillInspector({ 'Physical quantity': 3 }); await reviewConfirm();

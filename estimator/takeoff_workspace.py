@@ -18,7 +18,7 @@ from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, diges
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
-from .takeoff_transfer import calculator_options, profiles, transfer_preview
+from .takeoff_transfer import calculator_options, profiles, transfer_preview, transfer_selection
 from .takeoff_linked_delete import prepare_delete as prepare_linked_delete, prepare_undo as prepare_linked_undo
 from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
@@ -1356,13 +1356,18 @@ class TakeoffService:
             if type(request.get('expected_revision')) is not int or request['expected_revision'] != snapshot['revision']:
                 raise ValidationError('The takeoff draft changed before transfer preview.')
             selected = self._items(snapshot, request.get('item_ids'))
-            self._session_evidence(session_id)
-            self._assert_eligible(snapshot, selected, confirmed=True, session_id=session_id)
+            _, candidates, _ = transfer_selection(snapshot, request)
+            if candidates:
+                self._session_evidence(session_id)
+                candidate_ids = set(candidates)
+                self._assert_eligible(snapshot, [item for item in selected if item['id'] in candidate_ids],
+                                      confirmed=True, session_id=session_id)
             result = transfer_preview(snapshot, request)
-            preview_id = str(uuid4())
+            preview_id = str(uuid4()) if candidates else None
             result.update(preview_id=preview_id, revision=snapshot['revision'])
-            self._cache_payload(session_id, 'previews', preview_id,
-                                {'item_ids': request['item_ids'], 'result': result})
+            if candidates:
+                self._cache_payload(session_id, 'previews', preview_id,
+                                    {'item_ids': candidates, 'result': result})
             if len(session['previews']) > 20:
                 session['previews'].pop(next(iter(session['previews'])))
             return {k: deepcopy(v) for k, v in result.items() if k != 'all_bindings'}
@@ -1383,6 +1388,8 @@ class TakeoffService:
             if preview.get('kind') == 'physical':
                 raise ValidationError('Choose a calculator transfer preview, not a physical edit preview.')
             before = session['snapshot']; result = preview['result']
+            if not result['bindings'] or not result['changes']:
+                raise ValidationError('There are no new or explicitly updated rows to apply. Already-linked items were skipped.')
             if digest({'inputs': request['inputs'], 'schedule_rows': request['schedule_rows']}) != result['base_fingerprint']:
                 raise ValidationError('The calculator draft changed during transfer review. Your edits were preserved; preview again.')
             self._session_evidence(session_id)

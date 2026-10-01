@@ -115,7 +115,8 @@ class TakeoffReceiptIntegrationTests(unittest.TestCase):
             current_calculator = {key: reopened['calculators']['steel_vermiculite'][key] for key in ('inputs', 'schedule_rows')}
             repeated = service.preview_transfer(session_id, {'expected_revision': snapshot['revision'], 'calculator_id': 'steel_vermiculite',
                 **current_calculator, 'item_ids': [item_id], 'update_linked': False})
-            self.assertEqual(repeated['changes'][0]['action'], 'unchanged')
+            self.assertEqual(repeated['changes'], [])
+            self.assertEqual(repeated['skipped'][0]['item_id'], item_id)
             source_path = root / saved['takeoffs']['companion_folder'] / 'documents' / (document['sha256'] + '.pdf')
             source_path.write_bytes(payload + b' changed-original')
             self.assertTrue(service.get(session_id)['issues'])
@@ -125,7 +126,7 @@ class TakeoffReceiptIntegrationTests(unittest.TestCase):
                 service.capture(session_id, snapshot)
             with self.assertRaises(ValidationError):
                 service.preview_transfer(session_id, {'expected_revision': snapshot['revision'], 'calculator_id': 'steel_vermiculite',
-                    **current_calculator, 'item_ids': [item_id], 'update_linked': False})
+                    **current_calculator, 'item_ids': [item_id], 'update_linked': True})
             # The current immutable staging copy cannot hide altered originals.
             self.assertEqual((root / 'staging' / 'documents' / (document['sha256'] + '.pdf')).read_bytes(), payload)
             source_path.write_bytes(payload)

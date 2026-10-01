@@ -62,6 +62,7 @@ jobs:
       - run: npm run test:takeoffs-viewports
       - run: npm run test:takeoffs-markups
       - run: npm run test:takeoffs-control-points
+      - run: npm run test:takeoffs-plan-tools
       - run: npm run test:takeoffs-areas
       - run: npm run test:takeoffs-penetrations
       - run: npm run test:standard-browser

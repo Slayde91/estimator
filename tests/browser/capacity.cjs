@@ -106,7 +106,8 @@ async function run() {
   assert.equal(new Set(snapshot.hashes).size, 100);
   assert.deepEqual(snapshot.hashes, inputs.files.map(file => createHash('sha256').update(fs.readFileSync(file)).digest('hex')));
   assert.equal(readDocuments.size, 1, 'Uploading 100 PDFs should render only the selected document');
-  assert.ok(await page.locator('.takeoff-thumbnail[data-page]').count() <= 8);
+  await expect(page.getByLabel('Drawing document', { exact: true }).locator('option.takeoff-document')).toHaveCount(100);
+  assert.equal(await page.locator('.takeoff-thumbnail[data-page]').count(), 0, 'Compact source navigation does not create thumbnail canvases');
   timings.upload_ms = Date.now() - uploadStarted;
   console.log(`Uploaded and verified 100 documents / 2,000 pages in ${timings.upload_ms} ms.`);
   await page.screenshot({ path: path.join(output, 'all-documents-uploaded.png'), fullPage: true });
@@ -146,13 +147,13 @@ async function run() {
   assert.ok(markedPixels > 100, 'The last document/page must contain visibly rendered vector/text content');
   await expect.poll(() => page.evaluate(() => window.capacityQa.activeWorkers), { timeout: 10000 }).toBeLessThanOrEqual(2);
   const metrics = await page.evaluate(() => window.capacityQa);
-  assert.ok(metrics.maxThumbnails <= 8, 'Thumbnail DOM must remain bounded throughout upload and search');
+  assert.equal(metrics.maxThumbnails, 0, 'Removed source thumbnails must not render eagerly during upload or search');
   assert.ok(metrics.maxWorkers <= 3, 'At most two cached PDF workers plus one replacement during asynchronous cleanup');
   assert.deepEqual(errors, []); assert.deepEqual(warnings, []); assert.deepEqual(failedRequests, []); assert.deepEqual(metrics.violations, []);
   timings.total_ms = Date.now() - started;
   await page.screenshot({ path: path.join(output, 'last-document-last-page.png'), fullPage: true });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, documents: snapshot.documents, pages: snapshot.pages, uniqueHashes: new Set(snapshot.hashes).size, inputBytes: inputs.bytes, coverage, markedPixels, metrics, timings, errors, warnings, failedRequests }, null, 2));
-  console.log(`PASS: 100 distinct PDFs / 2,000 pages uploaded through UI; complete text search, bounded thumbnails/workers, final page rendered. Evidence: ${output}`);
+  console.log(`PASS: 100 distinct PDFs / 2,000 pages uploaded through UI; complete text search, no thumbnail rendering, bounded workers, final page rendered. Evidence: ${output}`);
   console.log(JSON.stringify(timings));
 }
 let deadline;

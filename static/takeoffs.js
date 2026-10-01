@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const G = window.CeasefireTakeoffGeometry;
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
-    zoom: 1, tool: "select", points: [], selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
+    zoom: 1, tool: "select", points: [], traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
@@ -47,10 +47,13 @@
     "Apply item edits": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Apply settings": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
+    "Trace surface": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
+    "Add exclusion": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Calibrate": "M3 3v18h18L3 3zM7 12v5h5l-5-5zM6 6l-2 2M9 9l-2 2M12 12l-2 2M15 15l-2 2M18 18l-2 2",
     "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
     "Add viewport": "M12 4v16M4 12h16",
     "Delete viewport": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
+    "Remove document": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
     "Close viewports": "M6 9l6 6 6-6",
     "Update linked rows": "M3 11a9 9 0 1 1 3 8M3 17l3 2-3 2M12 6v6h5",
     "Detach links": "M9 8H7a4 4 0 0 0 0 8h3M15 8h2a4 4 0 0 1 0 8h-3M8 12h8",
@@ -79,6 +82,15 @@
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", focusable: "false" })) svg.setAttribute(key, value);
         path.setAttribute("d", icon); svg.append(path);
+        if (label === "Trace surface" || label === "Add exclusion") {
+          const area = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          for (const [key, value] of Object.entries({ x: "14", y: "11", "text-anchor": "middle", "font-family": "Arial, sans-serif", "font-size": "7", "font-weight": "600", fill: "currentColor", stroke: "none" })) area.setAttribute(key, value);
+          area.textContent = "m²"; svg.append(area);
+          if (label === "Add exclusion") for (const [stroke, width] of [["white", "4"], ["currentColor", "1.8"]]) {
+            const cross = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            cross.setAttribute("d", "M15 12l8 8M23 12l-8 8"); cross.setAttribute("stroke", stroke); cross.setAttribute("stroke-width", width); svg.append(cross);
+          }
+        }
         symbol.append(svg);
       }
       el.append(symbol, node("span", "sr-only", label));
@@ -165,30 +177,35 @@
       modes.append(el);
     }
     ui.message = node("div", "message"); ui.message.hidden = true;
-    const toolbar = node("div", "takeoff-toolbar"); toolbar.setAttribute("aria-label", "Drawing tools");
+    const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
     for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     toolbar.append(ui.cancelTrace = button("Cancel trace", cancelTrace));
-    ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))]; toolbar.append(...ui.drawingDownloads);
-    ui.calibration = select([["", "No Scale Selected"]], value => chooseCalibration(value)); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); toolbar.append(ui.calibration, ui.editCalibration = button("Edit calibration", editCalibration));
-    const navigation = node("div", "takeoff-toolbar"); navigation.setAttribute("aria-label", "Drawing navigation");
-    navigation.append(button("‹ Page", () => navigatePage(state.page - 1)));
+    ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
+    ui.calibration = select([["", "No Scale Selected"]], value => chooseCalibration(value)); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
+    const navigation = node("div", "takeoff-toolbar takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
+    const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls");
+    ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
+    ui.removeDocument = button("Remove document", removeDocument); documentControls.append(ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
+    const pageControls = node("div", "takeoff-navigation-group takeoff-page-controls");
+    pageControls.append(button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
-    ui.pageCount = node("span", "helper", "/ 0"); navigation.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
-    ui.zoom = node("span", "helper", "100%"); navigation.append(ui.zoom);
+    ui.pageCount = node("span", "helper", "/ 0"); pageControls.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
+    ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom); navigation.append(pageControls);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
-    ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); navigation.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
+    const searchControls = node("div", "takeoff-navigation-group takeoff-search-controls"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; })); navigation.append(searchControls);
+    const scaleControls = node("div", "takeoff-navigation-group takeoff-scale-controls"); scaleControls.append(ui.calibration, ui.editCalibration, ...ui.drawingDownloads); navigation.append(scaleControls);
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
-    const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; ui.rail = node("aside", "takeoff-rail"); ui.rail.setAttribute("aria-label", "Documents and page thumbnails");
-    ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.dataset.scrollActive = "false"; ui.viewport.setAttribute("aria-label", "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Select a control point to remove it with Control+Z.");
+    const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; const drawingPane = node("div", "takeoff-drawing-pane"); ui.drawingPane = drawingPane;
+    ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.dataset.scrollActive = "false"; ui.viewport.setAttribute("aria-label", "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Drag a selected control point to recalculate, or remove it with Control+Z. Right-click a markup to delete it.");
     ui.pageWrap = node("div", "takeoff-page"); ui.pageWrap.hidden = true; ui.canvas = node("canvas"); ui.canvas.setAttribute("aria-label", "Original PDF page"); ui.overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ui.overlay.classList.add("takeoff-overlay"); ui.overlay.setAttribute("aria-label", "Takeoff markups");
     ui.pageWrap.append(ui.canvas, ui.overlay); ui.empty = node("div", "takeoff-empty"); ui.empty.append(node("strong", "", "Your drawing workspace"), node("p", "", "Upload the original PDFs, choose a scale or calibrate a known distance, then trace each physical object. Edit and confirm items in the register before adding them to a schedule.")); ui.viewport.append(ui.pageWrap, ui.empty);
     ui.viewportPanel = node("aside", "takeoff-viewports"); ui.viewportPanel.id = "takeoff-viewports"; ui.viewportPanel.hidden = true; ui.viewportPanel.setAttribute("aria-label", "Viewports");
-    ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings"); layout.append(ui.rail, ui.viewport, ui.viewportPanel, ui.settingsPanel);
+    ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings"); layout.append(toolbar, drawingPane, ui.viewportPanel, ui.settingsPanel);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
@@ -204,11 +221,14 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    workspace.append(layout, register); root.append(modes, ui.message, toolbar, navigation, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus, workspace, ui.physicalContainer);
+    drawingPane.append(ui.viewport, navigation, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
+    workspace.append(layout, register); root.append(modes, ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
     ui.viewport.addEventListener("contextmenu", event => { if (state.points.length || !["select", "pan"].includes(state.tool)) { event.preventDefault(); cancelTrace(); } });
+    ui.overlay.addEventListener("pointermove", tracePointerMove);
+    ui.overlay.addEventListener("pointerleave", () => { if (state.traceCursor && !state.gesture) { state.traceCursor = null; renderOverlay(); } });
     ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); void safely(() => zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15, [event.clientX, event.clientY])); } else handoffPlanWheel(event); }, { passive: false });
     ui.viewport.addEventListener("keydown", planKeydown);
   }
@@ -523,21 +543,14 @@
   }
   function renderRail() {
     const key = JSON.stringify([state.session?.session_id, documents().map(doc => [doc.id, doc.name, doc.pages.length]), state.document, state.page]);
-    if (state.railKey === key) return;
-    state.railKey = key;
-    const rail = state.ui.rail; rail.replaceChildren(node("h3", "", "SOURCE DOCUMENTS"));
-    for (const doc of documents()) {
-      const el = button(doc.name, () => navigateDocument(doc.id), "takeoff-document"); el.setAttribute("aria-selected", String(doc.id === state.document)); el.append(node("small", "", `${doc.pages.length} pages · ${units.format(doc.size / 1048576)} MiB`)); rail.append(el);
+    if (state.railKey !== key) {
+      state.railKey = key;
+      const choices = documents().map(doc => { const el = option(doc.id, `${doc.name} · ${doc.pages.length} pages`); el.className = "takeoff-document"; el.setAttribute("aria-selected", String(doc.id === state.document)); return el; });
+      state.ui.documentSelect.replaceChildren(...(choices.length ? choices : [option("", "No PDFs uploaded")]));
     }
-    const current = currentDocument(); if (!current) return;
-    rail.append(button("Remove document", removeDocument, "text-button"), node("h3", "", "PAGES"));
-    const thumbnails = node("div", "takeoff-thumbnails"); state.ui.thumbnails = thumbnails; rail.append(thumbnails);
-    const first = Math.max(1, state.page - 3), last = Math.min(current.pages.length, first + 7);
-    if (first > 1) thumbnails.append(button("Earlier pages", () => navigatePage(Math.max(1, first - 8)), "text-button"));
-    for (let page = first; page <= last; page++) {
-      const el = button(`Page ${page}`, () => navigatePage(page), "takeoff-thumbnail"); el.dataset.page = page; if (page === state.page) el.setAttribute("aria-current", "page"); const canvas = node("canvas"); canvas.width = 110; canvas.height = 145; el.prepend(canvas); thumbnails.append(el);
-    }
-    if (last < current.pages.length) thumbnails.append(button("Later pages", () => navigatePage(last + 1), "text-button"));
+    state.ui.documentSelect.value = state.document || ""; state.ui.documentSelect.disabled = !documents().length;
+    state.ui.documentSelect.title = currentDocument() ? `${currentDocument().name} · ${currentDocument().pages.length} pages · ${units.format(currentDocument().size / 1048576)} MiB` : "Upload a PDF to choose a drawing document";
+    state.ui.removeDocument.disabled = !currentDocument();
   }
   async function navigateDocument(id, page = 1) { if (state.busy || !await discardEditor()) return; resetPlanInteraction(); state.document = id; state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); }
   async function navigatePage(page) { const doc = currentDocument(); if (!doc || !Number.isInteger(page) || page < 1 || page > doc.pages.length) throw new Error("Choose a page within this document."); if (!await discardEditor()) return; resetPlanInteraction(); state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); }
@@ -749,7 +762,7 @@
     if (["trace", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
     if (state.pendingViewport && tool !== "calibrate") throw new Error("Calibrate or cancel the unfinished viewport first.");
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
-    state.controlPoint = null; state.controlMenu = false; state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
+    state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null; state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
     state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     // Select-only handles must not intercept the first pan or trace pointer.
@@ -757,7 +770,7 @@
     state.ui.viewport.focus();
     state.ui.progress.textContent = ({ viewport: "Click two opposite corners of the detail viewport, then choose its independent scale.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool];
   }
-  function cancelTrace() { cancelSelectionGesture(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { cancelSelectionGesture(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function drawingPointer(event) {
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
@@ -785,7 +798,7 @@
       state.doubleClickEndpointValid = true;
       if (state.points.length && Math.hypot(p[0] - state.points.at(-1)[0], p[1] - state.points.at(-1)[1]) < 1e-8) return;
     }
-    state.points.push(p); renderOverlay(); window.CeasefireProject?.changed?.();
+    state.points.push(p); state.traceCursor = null; renderOverlay(); window.CeasefireProject?.changed?.();
     if (state.points.length === 2 && state.tool === "calibrate") void safely(addCalibration);
     else if (state.points.length === 2 && state.tool === "cite") void safely(finishCitation);
     else if (state.points.length === 2 && state.tool === "viewport") void safely(createViewport);
@@ -810,6 +823,14 @@
   function drawingPoint(event) {
     const rect = state.ui.overlay.getBoundingClientRect();
     return G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
+  }
+  function tracePointerMove(event) {
+    if (!state.viewport || state.busy || state.modal || state.gesture || !state.points.length || !["polygon", "exclusion", "trace"].includes(state.tool)) return;
+    const point = drawingPoint(event), view = pageMetadata()?.view;
+    if (view && (point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3])) return;
+    const calibration = (snapshot()?.calibrations || []).find(value => value.id === state.calibration);
+    if (calibration?.region && !inViewport(point, calibration.region)) { state.traceCursor = null; renderOverlay(); return; }
+    state.traceCursor = point; renderOverlay();
   }
   function handoffPlanWheel(event) {
     if (!state.planActive || !event.cancelable || event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return false;
@@ -836,12 +857,12 @@
     if (event?.type === "pointerdown" && !event.target?.closest?.("button,a")) state.ui.viewport.focus({ preventScroll: true });
     if (state.planController) return;
     const controller = state.planController = new AbortController();
-    const outside = next => { if (!state.ui?.viewport.contains(next.target)) { deactivatePlan(); if (state.controlMenu) { state.controlMenu = false; renderOverlay(); } } };
+    const outside = next => { if (!state.ui?.viewport.contains(next.target)) { deactivatePlan(); if (state.controlMenu || state.markupMenu) { state.controlMenu = false; state.markupMenu = null; renderOverlay(); } } };
     document.addEventListener("pointerdown", outside, { capture: true, signal: controller.signal });
     document.addEventListener("focusin", outside, { signal: controller.signal });
   }
   function resetPlanInteraction() {
-    deactivatePlan(); state.controlPoint = null; state.controlMenu = false;
+    deactivatePlan(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null;
     state.planContextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode]);
     if (state.ui?.controlStatus) { state.ui.controlStatus.hidden = true; state.ui.controlStatus.textContent = ""; }
   }
@@ -876,10 +897,92 @@
     message("Control point deleted. The revised quantity requires confirmation. Undo last edit restores the previous geometry.");
   }
   function selectControlPoint(reference, menu = false) {
-    pointTarget(reference); state.controlPoint = reference; state.controlMenu = menu; renderOverlay();
+    pointTarget(reference); state.markupMenu = null; state.controlPoint = reference; state.controlMenu = menu; renderOverlay();
     const selector = `[data-control-item-id="${reference.itemId}"][data-point-index="${reference.index}"][data-exclusion-id="${reference.exclusionId || ""}"]`;
     const menuItem = menu && state.ui.overlay.querySelector(".takeoff-control-menu button:not(:disabled)");
     (menuItem || state.ui.overlay.querySelector(selector))?.focus({ preventScroll: true });
+  }
+  function pointGeometry(reference, point) {
+    const { item } = pointTarget(reference), geometry = clone(item.geometry);
+    if (!Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite)) throw new Error("Choose a finite point on the drawing.");
+    const ring = reference.exclusionId ? geometry.exclusions.find(value => value.id === reference.exclusionId) : geometry;
+    ring.points[reference.index] = [...point]; return geometry;
+  }
+  async function moveControlPoint(reference, point) {
+    if (state.busy || state.modal) throw new Error("Finish the current operation before moving a control point.");
+    requireFinishedEdits(); const { item, ring } = pointTarget(reference), geometry = pointGeometry(reference, point);
+    if (ring.points[reference.index].every((value, axis) => value === point[axis])) return;
+    await command("update_item", { item_id: item.id, changes: { geometry } }, () => { requireFinishedEdits(); pointTarget(reference); return true; });
+    state.controlPoint = null; state.controlMenu = false;
+    message(item.measurement.method === "cited" ? "Source region updated. Its source-stated length is unchanged; confirm the revised source before transfer." : "Control point moved and measurements recalculated. Confirm the revised quantity before transfer. Undo last edit restores the previous geometry.");
+  }
+  function beginControlPointDrag(event, reference) {
+    event.stopPropagation();
+    if (event.button !== 0 || state.tool !== "select" || state.busy || state.modal || !state.viewport || state.gesture) return;
+    requireFinishedEdits(); const { ring } = pointTarget(reference), initial = drawingPoint(event), origin = [...ring.points[reference.index]], element = state.ui.viewport;
+    const gesture = { kind: "point", reference, initial, current: initial, origin, point: origin, geometry: pointGeometry(reference, origin), pointerId: event.pointerId, startClient: [event.clientX, event.clientY], moved: false };
+    const current = () => { if (state.gesture !== gesture || state.tool !== "select") return false; try { pointTarget(reference); return true; } catch { return false; } };
+    const move = next => {
+      if (next.pointerId !== gesture.pointerId || !current()) return;
+      if (!gesture.moved && Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]) < 4) return;
+      const position = drawingPoint(next);
+      gesture.current = position; gesture.point = origin.map((value, axis) => value + position[axis] - initial[axis]);
+      gesture.geometry = pointGeometry(reference, gesture.point); gesture.moved = true; next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
+    };
+    const finish = next => {
+      if (next.pointerId !== gesture.pointerId) return;
+      const valid = current();
+      try { if (valid) move(next); } finally { state.gesture = null; gesture.cleanup(); }
+      next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
+      if (!gesture.moved) { if (valid) selectControlPoint(reference); else renderOverlay(); window.CeasefireProject?.changed?.(); return; }
+      void safely(async () => {
+        if (!valid) throw new Error("The drawing or item changed during the point drag. Select its current control point again.");
+        await moveControlPoint(reference, gesture.point);
+      }).finally(() => { renderOverlay(); window.CeasefireProject?.changed?.(); });
+    };
+    const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
+    gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
+    state.controlPoint = reference; state.controlMenu = false; state.markupMenu = null; state.gesture = gesture;
+    activatePlan(event); element.addEventListener("pointermove", move); element.addEventListener("pointerup", finish); element.addEventListener("pointercancel", cancel); element.addEventListener("lostpointercapture", cancel); element.setPointerCapture(event.pointerId);
+    event.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
+  }
+  function markupTarget(reference) {
+    const item = items().find(value => value.id === reference?.itemId);
+    if (!item || reference.sessionId !== state.session?.session_id || reference.revision !== state.session?.revision || reference.mode !== state.mode || reference.documentId !== state.document || reference.page !== state.page || !drawableItems().some(value => value.id === item.id) || reference.geometry !== JSON.stringify(item.geometry)) throw new Error("The markup or drawing changed. Open its menu again.");
+    return item;
+  }
+  function openMarkupMenu(item, event) {
+    if (state.tool !== "select") return;
+    event.preventDefault(); event.stopPropagation();
+    if (state.busy || state.modal) return;
+    requireFinishedEdits(); const reference = pointReference(item, 0);
+    markupTarget(reference); state.controlPoint = null; state.controlMenu = false;
+    state.selected = new Set([item.id]);
+    state.markupMenu = { reference, point: event.type === "contextmenu" ? G.transform(drawingPoint(event), state.viewport.transform) : G.transform(item.geometry.points[0], state.viewport.transform) };
+    activatePlan(event); renderSelection(); state.ui.overlay.querySelector('.takeoff-markup-menu button')?.focus({ preventScroll: true });
+  }
+  async function deleteMarkup(reference) {
+    if (state.busy || state.modal) throw new Error("Finish the current operation before deleting a markup.");
+    requireFinishedEdits(); const item = markupTarget(reference);
+    if (!await confirm("Delete markup?", `Delete ${item.fields.mark || item.id}? Its source documents are retained. Linked schedule rows are not removed automatically. Undo last edit restores the markup.`, "Delete markup")) return;
+    requireFinishedEdits(); markupTarget(reference);
+    await command("delete_items", { item_ids: [item.id] }, () => { requireFinishedEdits(); markupTarget(reference); return true; });
+    state.markupMenu = null; state.controlPoint = null; state.controlMenu = false; renderSelection();
+    message("Markup deleted. Undo last edit restores it. Linked calculator rows remain available for explicit review.");
+  }
+  function appendPlanMenu(overlay, point, menu, requestedHeight = 58) {
+    const bounds = overlay.getBoundingClientRect(), frame = state.ui.viewport.getBoundingClientRect(), scaleX = state.viewport.width / bounds.width, scaleY = state.viewport.height / bounds.height;
+    const left = Math.max(0, (frame.left - bounds.left) * scaleX), top = Math.max(0, (frame.top - bounds.top) * scaleY), right = Math.min(state.viewport.width, (frame.left + state.ui.viewport.clientWidth - bounds.left) * scaleX), bottom = Math.min(state.viewport.height, (frame.top + state.ui.viewport.clientHeight - bounds.top) * scaleY);
+    const width = Math.min(245, Math.max(1, right - left)), height = Math.min(requestedHeight, Math.max(1, bottom - top));
+    const container = svg("foreignObject", { x: Math.max(left, Math.min(point[0] + 9, right - width)), y: Math.max(top, Math.min(point[1] + 9, bottom - height)), width, height });
+    menu.addEventListener("pointerdown", event => event.stopPropagation()); menu.addEventListener("click", event => event.stopPropagation()); container.append(menu); overlay.append(container);
+  }
+  function renderMarkupMenu(overlay) {
+    if (!state.markupMenu || state.gesture) return;
+    const { reference, point } = state.markupMenu;
+    try { markupTarget(reference); } catch { state.markupMenu = null; return; }
+    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Markup actions");
+    const remove = button("Delete markup", () => deleteMarkup(reference)); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
@@ -891,7 +994,7 @@
       event.preventDefault();
       if (state.points.length) {
         if (state.busy || state.modal || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
-        state.points.pop(); state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); return;
+        state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); return;
       }
       if (state.tool !== "select" || state.mode === "physical") return;
       const selected = selectedItems(), item = selected.length === 1 && drawableItems().find(value => value.id === selected[0].id);
@@ -900,7 +1003,7 @@
       void safely(() => removeControlPoint(reference)); return;
     }
     if (event.key === "Enter" && ["trace", "polygon", "exclusion"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
-    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.formDirty || state.settingsDirty) return; state.points.pop(); state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
+    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.formDirty || state.settingsDirty) return; state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
   }
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;
@@ -911,7 +1014,7 @@
   function beginSelectionGesture(event) {
     if (state.tool !== "select" || state.mode === "physical" || event.button !== 0 || state.busy || state.modal || !state.viewport || state.gesture) return;
     if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu")) return;
-    state.controlPoint = null; state.controlMenu = false;
+    state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
     // An unselected markup retains ordinary click-to-select behavior.
     if (id && !state.selected.has(id)) return;
@@ -1082,6 +1185,28 @@
     else await createDrawnItem(measurement, geometry, [evidence]);
   }
   function svg(tag, attributes) { const el = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [key, value] of Object.entries(attributes)) el.setAttribute(key, String(value)); return el; }
+  function surfaceScale(calibrationId, geometry) {
+    const calibration = activePageCalibrations().find(value => value.id === calibrationId);
+    if (!calibration || calibration.uniform_scale !== true || calibration.document_id !== geometry.document_id || calibration.page !== geometry.page) return null;
+    const length = G.length(calibration.points), scale = calibration.distance_m / length;
+    return scale > 0 && Number.isFinite(scale) ? scale : null;
+  }
+  function surfacePreview(geometry, calibrationId) {
+    const metrics = G.surfaceMetrics(geometry), scale = surfaceScale(calibrationId, geometry);
+    const area = scale == null ? null : metrics.area * scale * scale;
+    return { ...metrics, area_m2: Number.isFinite(area) && area > 0 && area <= 1e16 ? area : null };
+  }
+  function renderSurfaceLabel(overlay, geometry, calibrationId, options = {}) {
+    if (geometry.points.length < 3) return;
+    let preview;
+    try { preview = surfacePreview(geometry, calibrationId); } catch { return; }
+    const area = options.preview ? preview.area_m2 : options.area;
+    if (!Number.isFinite(area) || !preview.label) return;
+    const point = G.transform(preview.label, state.viewport.transform), label = svg("text", { x: point[0], y: point[1], class: options.preview ? "takeoff-area-preview" : "takeoff-area-label" });
+    if (options.itemId) label.dataset.areaItemId = options.itemId;
+    label.textContent = `${units.format(area)} m²${options.excluded ? " excluded" : ""}${options.preview ? " · Preview" : ""}`;
+    overlay.append(label);
+  }
   function renderOverlay() {
     if (!state.ui || !state.viewport) return;
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
@@ -1091,40 +1216,45 @@
     if (state.ui.controlStatus && !state.gesture) state.ui.controlStatus.hidden = true;
     if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderPendingTrace(overlay); return; }
     for (const item of drawableItems()) {
-      const geometry = state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
+      const pointDrag = state.gesture?.kind === "point" && state.gesture.moved && state.gesture.reference.itemId === item.id;
+      const geometry = pointDrag ? state.gesture.geometry : state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
       const points = geometry.points.map(convert), className = `takeoff-markup ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, appearance = appearanceOf(item);
       // PDF.js' transform includes UserUnit. Stored widths are physical PDF points.
       const pixelWidth = appearance.stroke_width * Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
       const attributes = { class: className, stroke: appearance.stroke_color, "stroke-width": pixelWidth, opacity: appearance.opacity, fill: appearance.fill_enabled && (geometry.kind === "polygon" || item.measurement?.method === "cited") ? appearance.fill_color : "none", "fill-opacity": 0.12 };
-      let shape, hit; if (geometry.kind === "polygon") { const attrs = { d: G.polygonPath(geometry, state.viewport.transform), "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, ...attributes }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
+      let shape, hit; if (geometry.kind === "polygon") { const path = pointDrag ? [geometry.points, ...geometry.exclusions.map(value => value.points)].map(ring => ring.map(convert).map((p, index) => `${index ? "L" : "M"}${p[0]},${p[1]}`).join(" ") + " Z").join(" ") : G.polygonPath(geometry, state.viewport.transform); const attrs = { d: path, "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, ...attributes }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, ...attributes }); hit = svg("rect", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, ...attributes }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
       hit.dataset.itemId = item.id; hit.setAttribute("aria-label", `${item.fields.mark || item.id} · ${reviewStatus(item).label}`); hit.setAttribute("tabindex", "0"); hit.setAttribute("role", "button");
       hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
-      hit.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey, false)); } });
+      hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } else if (event.key === "Enter") { event.preventDefault(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey, false)); } });
+      hit.addEventListener("contextmenu", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } });
       hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
       const label = svg("text", { x: points[0][0] + 6, y: points[0][1] - 7, class: "takeoff-label" }); label.textContent = item.fields.mark || item.id.slice(0, 8); overlay.append(shape, hit, label);
+      if (geometry.kind === "polygon") renderSurfaceLabel(overlay, geometry, item.measurement?.calibration_id, { area: itemResult(item).net_area_m2, itemId: item.id, preview: pointDrag });
     }
     for (const hit of state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page)) if (hit.points?.length) { const box = G.bounds(hit.points.map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: Math.max(4, box[2] - box[0]), height: Math.max(4, box[3] - box[1]), class: "takeoff-search-hit" })); }
     renderPendingTrace(overlay);
     if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
     renderControlPoints(overlay);
+    renderMarkupMenu(overlay);
   }
   function renderControlPoints(overlay) {
-    if (state.tool !== "select" || state.gesture || !state.viewport) return;
+    if (state.tool !== "select" || state.gesture && state.gesture.kind !== "point" || !state.viewport) return;
     if (state.controlPoint) { try { pointTarget(state.controlPoint); } catch { state.controlPoint = null; state.controlMenu = false; } }
     const selected = drawableItems().filter(item => state.selected.has(item.id)), maximum = 10000;
     const total = selected.reduce((count, item) => count + item.geometry.points.length + (item.geometry.exclusions || []).reduce((sum, exclusion) => sum + exclusion.points.length, 0), 0);
     let shown = 0, menuPoint = null;
     for (const item of selected) {
-      const base = pointReference(item, 0), rings = [{ points: item.geometry.points, id: null, note: null }, ...(item.geometry.exclusions || [])];
+      const geometry = state.gesture?.kind === "point" && state.gesture.reference.itemId === item.id ? state.gesture.geometry : item.geometry;
+      const base = pointReference(item, 0), rings = [{ points: geometry.points, id: null, note: null }, ...(geometry.exclusions || [])];
       for (const ring of rings) for (const [index, point] of ring.points.entries()) {
         if (shown >= maximum) break;
         const reference = { ...base, index, exclusionId: ring.id }, position = G.transform(point, state.viewport.transform), active = state.controlPoint?.itemId === item.id && state.controlPoint.index === index && state.controlPoint.exclusionId === ring.id;
         const label = `Control point ${index + 1} for ${item.fields.mark || item.id}${ring.id ? `, excluded opening ${ring.note}` : ""}`;
         const handle = svg("circle", { cx: position[0], cy: position[1], r: 5, class: `takeoff-control-point${active ? " active" : ""}`, role: "button", tabindex: 0, "aria-label": label, "aria-pressed": String(active) });
         handle.dataset.controlItemId = item.id; handle.dataset.pointIndex = String(index); handle.dataset.exclusionId = ring.id || "";
-        const title = svg("title", {}); title.textContent = `${label}. Select, then Ctrl+Z deletes this point. Right-click for its menu.`; handle.append(title);
+        const title = svg("title", {}); title.textContent = `${label}. Drag to move and recalculate. Select, then Ctrl+Z deletes this point. Right-click for its menu.`; handle.append(title);
         handle.addEventListener("focus", () => {
           try { pointTarget(reference); } catch { return; }
           const prior = state.controlPoint;
@@ -1132,15 +1262,15 @@
           state.controlPoint = reference;
           for (const point of overlay.querySelectorAll(".takeoff-control-point")) { const chosen = point === handle; point.classList.toggle("active", chosen); point.setAttribute("aria-pressed", String(chosen)); }
         });
-        handle.addEventListener("pointerdown", event => { event.stopPropagation(); });
-        handle.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); void safely(() => selectControlPoint(reference)); });
+        handle.addEventListener("pointerdown", event => { event.stopPropagation(); void safely(() => beginControlPointDrag(event, reference)); });
+        handle.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); if (Date.now() >= (state.suppressSelectionClickUntil || 0)) void safely(() => selectControlPoint(reference)); });
         handle.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); void safely(() => selectControlPoint(reference, true)); } else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); void safely(() => selectControlPoint(reference)); } });
         handle.addEventListener("contextmenu", event => { event.preventDefault(); event.stopPropagation(); void safely(() => selectControlPoint(reference, true)); });
         overlay.append(handle); shown++; if (active) menuPoint = position;
       }
       if (shown >= maximum) break;
     }
-    if (state.ui.controlStatus && total) { state.ui.controlStatus.hidden = false; state.ui.controlStatus.textContent = total > maximum ? `Showing ${maximum} of ${total} control points. Select fewer markups to inspect every point. A chosen point can be removed with Ctrl+Z or its right-click menu.` : `${total} control points. Choose a point, then Ctrl+Z or right-click to delete it. Without a chosen point, Ctrl+Z removes the last point of one selected trace. Undo last edit restores committed changes.`; }
+    if (state.ui.controlStatus && total && !state.gesture) { state.ui.controlStatus.hidden = false; state.ui.controlStatus.textContent = total > maximum ? `Showing ${maximum} of ${total} control points. Select fewer markups to inspect every point. Drag a point to move it, or remove it with Ctrl+Z or its right-click menu.` : `${total} control points. Drag a point to update its measurement; Ctrl+Z or right-click deletes that point. Right-click the markup to delete the whole item. Undo last edit restores committed changes.`; }
     if (state.controlMenu && state.controlPoint && menuPoint) {
       const reference = state.controlPoint, reason = pointRemovalReason(reference), bounds = state.ui.overlay.getBoundingClientRect(), frame = state.ui.viewport.getBoundingClientRect();
       const scaleX = state.viewport.width / bounds.width, scaleY = state.viewport.height / bounds.height;
@@ -1165,11 +1295,17 @@
   }
   function renderPendingTrace(overlay) {
     if (!state.points.length) return;
-    const points = state.points.map(point => G.transform(point, state.viewport.transform));
+    const sourcePoints = [...state.points];
+    if (state.traceCursor && ["trace", "polygon", "exclusion"].includes(state.tool) && sourcePoints.length < (state.tool === "trace" ? 10000 : areaTraceLimit()) && Math.hypot(state.traceCursor[0] - sourcePoints.at(-1)[0], state.traceCursor[1] - sourcePoints.at(-1)[1]) > 1e-8) sourcePoints.push(state.traceCursor);
+    const points = sourcePoints.map(point => G.transform(point, state.viewport.transform));
     if (["cite", "viewport"].includes(state.tool) && points.length === 2) {
       const box = G.region(...points); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2], height: box[3], class: "takeoff-pending" }));
     } else overlay.append(svg(["polygon", "exclusion"].includes(state.tool) && points.length >= 3 ? "polygon" : "polyline", { points: points.map(point => point.join(",")).join(" "), class: "takeoff-pending" }));
-    for (const point of points) overlay.append(svg("circle", { cx: point[0], cy: point[1], r: 4, class: "takeoff-pending" }));
+    for (const point of state.points.map(point => G.transform(point, state.viewport.transform))) overlay.append(svg("circle", { cx: point[0], cy: point[1], r: 4, class: "takeoff-pending" }));
+    if (["polygon", "exclusion"].includes(state.tool) && points.length >= 3) {
+      const exclusions = state.tool === "polygon" && state.retraceId ? items().find(item => item.id === state.retraceId)?.geometry.exclusions || [] : [];
+      renderSurfaceLabel(overlay, { points: sourcePoints, document_id: state.document, page: state.page, exclusions }, state.calibration, { preview: true, excluded: state.tool === "exclusion" });
+    }
   }
   function renderPhysicalOverlay(overlay) {
     const seen = new Set(), regions = [];
@@ -1207,7 +1343,7 @@
   function groupedItems(list = visibleItems()) { return state.group ? [...list].sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : list; }
   async function selectItem(id, multiple = false, focus = true) {
     if (!await discardEditor()) return;
-    state.controlPoint = null; state.controlMenu = false;
+    state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
     const modeChanged = state.mode !== item.mode;
     state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);

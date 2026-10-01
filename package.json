@@ -12,7 +12,8 @@
     "test:standard-browser": "node tests/browser/standard.cjs",
     "test:monokote-browser": "node tests/browser/monokote.cjs",
     "test:takeoffs-markups": "node tests/browser/markups.cjs",
-    "test:takeoffs-control-points": "node tests/browser/control_points_scroll.cjs"
+    "test:takeoffs-control-points": "node tests/browser/control_points_scroll.cjs",
+    "test:takeoffs-plan-tools": "node tests/browser/plan_tools_surface_edit.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

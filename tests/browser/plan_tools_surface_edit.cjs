@@ -73,7 +73,7 @@ async function layout(width) {
   if (await page.getByLabel('Drawing document', { exact: true }).inputValue() !== secondary.id) await command(() => page.getByLabel('Drawing document', { exact: true }).selectOption(secondary.id), 'record_render');
   await command(() => page.getByLabel('Drawing document', { exact: true }).selectOption(primary.id), 'record_render');
   await command(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render'); await fit();
-  await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100'); await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');
+  await page.getByRole('button', { name: 'Scale', exact: true }).click(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100'); await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await points([[100, 100], [200, 100], [250, 180]]); await finish();
   let state = await command(() => dialog('Add steel object', { 'Member mark': 'DRAG-STEEL', 'Level': 'L1', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const steel = state.snapshot.items.find(value => value.mode === 'steel'); await select(steel.id); await confirm();

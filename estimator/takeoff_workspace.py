@@ -14,10 +14,10 @@ from uuid import uuid4
 
 from .catalog import ValidationError
 from .takeoff_area import AREA_MODES
-from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, item_digest, item_result,
+from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, is_count_item, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
-                           validate_calibration_revisions, validate_measurement_scope, polyline_length)
+                           validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
 from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
@@ -593,8 +593,10 @@ class TakeoffService:
                         continue
                     self._invalidate(after, item)
 
-    def _create_item(self, snapshot, proposed, predecessors=None):
-        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance'}, 'New takeoff item', {'mode'})
+    def _create_item(self, snapshot, proposed, predecessors=None, *, allow_count=False):
+        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance', 'count_id'}, 'New takeoff item', {'mode'})
+        if is_count_item(proposed) and not allow_count:
+            raise ValidationError('Create Steel count markers with the controlled count operation.')
         item = {'id': proposed.get('id', str(uuid4())), 'version': 1, 'mode': proposed['mode'], 'state': 'draft',
                 'geometry': deepcopy(proposed.get('geometry')), 'measurement': deepcopy(proposed.get('measurement')),
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
@@ -605,6 +607,8 @@ class TakeoffService:
             item['length_additions'] = deepcopy(proposed['length_additions'])
         if 'appearance' in proposed:
             item['appearance'] = deepcopy(proposed['appearance'])
+        if 'count_id' in proposed:
+            item['count_id'] = proposed['count_id']
         if 'member_ids' not in proposed:
             self._resize_members(item)
         if any(i['id'] == item['id'] for i in snapshot['items']):
@@ -631,10 +635,39 @@ class TakeoffService:
             if binding['item_id'] in ids:
                 binding['status'] = 'deleted'
 
+    def _regroup_counts(self, snapshot, count_ids):
+        """Merge equal-length rows within their existing count, preserving members."""
+        groups = {}
+        for item in list(snapshot['items']):
+            if not is_count_item(item) or item['count_id'] not in count_ids:
+                continue
+            key = (item['count_id'], item['measurement']['length_m'])
+            if key not in groups:
+                groups[key] = item
+                continue
+            survivor = groups[key]
+            # Details are separately validated before regrouping; never erase
+            # a conflicting detail while making equal-length rows canonical.
+            if (item['fields'] != survivor['fields'] or markup_appearance(item) != markup_appearance(survivor)
+                    or item.get('length_additions', []) != survivor.get('length_additions', [])
+                    or any(item['geometry'][name] != survivor['geometry'][name] for name in ('document_id', 'page'))):
+                raise ValidationError('Rows in one count must retain identical details before grouping equal lengths.')
+            survivor['geometry']['points'].extend(deepcopy(item['geometry']['points']))
+            survivor['member_ids'].extend(item['member_ids'])
+            survivor['quantity'] = len(survivor['member_ids'])
+            survivor['predecessor_ids'] = sorted(set(self._predecessors([survivor, item])) - {survivor['id']})
+            survivor['evidence'] = list({digest(ref): deepcopy(ref)
+                                        for ref in survivor['evidence'] + item['evidence']}.values())
+            self._invalidate(snapshot, survivor)
+            self._remove(snapshot, [item])
+        return [item['id'] for item in snapshot['items'] if is_count_item(item) and item['count_id'] in count_ids]
+
     def _predecessors(self, originals):
         return sorted({identifier for item in originals for identifier in (item['id'], *item.get('predecessor_ids', []))})
 
     def _steel_group(self, item):
+        if is_count_item(item):
+            raise ValidationError('Count groups retain marker identities. Edit or delete their individual markers instead of splitting or merging quantities.')
         if item['mode'] != 'steel' or type(item['quantity']) is not int or item['quantity'] <= 0:
             raise ValidationError('Choose steel groups with explicit positive physical quantities.')
         if len(item['member_ids']) != item['quantity'] or len(set(item['member_ids'])) != item['quantity']:
@@ -663,6 +696,8 @@ class TakeoffService:
             before = session['snapshot']; after = deepcopy(before); approvals = []
             op = request.get('op')
             specs = {'create_item': {'item'}, 'update_item': {'item_id', 'changes'},
+                     'add_count_items': {'document_id', 'page', 'markers', 'fields', 'appearance'},
+                     'delete_count_marker': {'item_id', 'member_id'},
                      'bulk_update': {'item_ids', 'changes'}, 'delete_items': {'item_ids'},
                      'move_items': {'item_ids', 'delta_pdf'},
                      'review_items': {'item_ids'}, 'confirm_items': {'item_ids'},
@@ -678,11 +713,58 @@ class TakeoffService:
             object_fields(request, {'expected_revision', 'request_id', 'op'} | specs[op], 'Takeoff operation',
                           {'expected_revision', 'request_id', 'op'} | specs[op])
             revised_calibration_id = None
+            created_item_ids = None
+            regrouped_item_ids = None
             if op == 'create_item':
                 self._create_item(after, request['item'])
+            elif op == 'add_count_items':
+                _, page = page_metadata(after, request['document_id'], request['page'])
+                markers = request['markers']
+                if not isinstance(markers, list) or not 1 <= len(markers) <= MAX_ITEMS:
+                    raise ValidationError(f'Count placement requires one to {MAX_ITEMS} explicit markers.')
+                if sum(len(item['member_ids']) for item in after['items']) + len(markers) > MAX_ITEMS:
+                    raise ValidationError(f'A takeoff project may retain at most {MAX_ITEMS} physical member identities.')
+                # One batch has common fields, appearance and source. Partition
+                # only by exact entered length, preserving first-seen order.
+                # No fuzzy grouping or cross-batch identity replacement occurs.
+                validate_appearance(request['appearance'])
+                grouped = {}
+                for marker in markers:
+                    object_fields(marker, {'point', 'length_m'}, 'Count marker', {'point', 'length_m'})
+                    points([marker['point']], 'Count marker', page, maximum=1)
+                    length = number(marker['length_m'], 'Manual length per member', positive=True)
+                    grouped.setdefault(length, []).append(deepcopy(marker['point']))
+                created_item_ids = []
+                count_id = str(uuid4())
+                for length, locations in grouped.items():
+                    item = self._create_item(after, {
+                        'mode': 'steel', 'count_id': count_id, 'fields': request['fields'], 'appearance': request['appearance'],
+                        'geometry': {'kind': 'count', 'document_id': request['document_id'],
+                                     'page': request['page'], 'points': locations},
+                        'measurement': {'method': 'manual', 'length_m': length},
+                        'quantity': len(locations)}, allow_count=True)
+                    created_item_ids.append(item['id'])
+            elif op == 'delete_count_marker':
+                item = self._items(after, [request['item_id']])[0]
+                if not is_count_item(item):
+                    raise ValidationError('Choose a Steel count marker to delete.')
+                member_id = identity(request['member_id'], 'Count member ID')
+                if member_id not in item['member_ids']:
+                    raise ValidationError('The selected count marker no longer exists in this group.')
+                index = item['member_ids'].index(member_id)
+                if item['quantity'] == 1:
+                    self._remove(after, [item])
+                else:
+                    del item['geometry']['points'][index]
+                    del item['member_ids'][index]
+                    item['quantity'] = len(item['geometry']['points'])
+                    self._invalidate(after, item)
+                    validate_item(item, after, copy_result=False)
             elif op in ('update_item', 'bulk_update'):
                 selected = self._items(after, [request['item_id']] if op == 'update_item' else request['item_ids'])
                 allowed = {'fields', 'quantity', 'appearance'} if op == 'bulk_update' else {'fields', 'quantity', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions', 'appearance'}
+                if op == 'bulk_update' and all(is_count_item(item) for item in selected):
+                    allowed.add('measurement')
                 changes = object_fields(request['changes'], allowed, 'Takeoff edit')
                 if not changes:
                     raise ValidationError('Choose at least one field to edit.')
@@ -690,7 +772,36 @@ class TakeoffService:
                     validate_appearance(changes['appearance'])
                     if not changes['appearance']:
                         raise ValidationError('Choose at least one markup appearance setting to edit.')
+                selected_ids = {item['id'] for item in selected}
+                affected_counts = {item['count_id'] for item in selected if is_count_item(item)}
                 for item in selected:
+                    if not is_count_item(item):
+                        continue
+                    details_changed = ('length_additions' in changes
+                                       and changes['length_additions'] != item.get('length_additions', []))
+                    for key in ('fields', 'appearance'):
+                        if key in changes:
+                            if not isinstance(changes[key], dict):
+                                raise ValidationError('Count detail edits must be objects.')
+                            details_changed |= {**item.get(key, {}), **changes[key]} != item.get(key, {})
+                    if details_changed and any(other.get('count_id') == item['count_id'] and other['id'] not in selected_ids
+                                               for other in after['items']):
+                        raise ValidationError('Select every row of this count to change its shared details or appearance. Start a different count for different details.')
+                for item in selected:
+                    count_item = is_count_item(item)
+                    if count_item:
+                        for key in ('quantity', 'member_ids'):
+                            if key in changes and changes[key] != item[key]:
+                                raise ValidationError('Count quantity and member identities are derived from its markers. Delete the selected marker instead.')
+                    if 'geometry' in changes:
+                        proposed_geometry = changes['geometry']
+                        proposed_count = isinstance(proposed_geometry, dict) and proposed_geometry.get('kind') == 'count'
+                        if count_item != proposed_count:
+                            raise ValidationError('Count markers cannot be converted to or from traced geometry.')
+                        if count_item and (not isinstance(proposed_geometry.get('points'), list)
+                                or len(proposed_geometry['points']) != item['quantity']
+                                or any(proposed_geometry.get(key) != item['geometry'][key] for key in ('document_id', 'page'))):
+                            raise ValidationError('Moving count markers must retain their source page, count and ordered member identities.')
                     # These commands cannot change source documents or scales.
                     # Compare the item body before following its edited source
                     # references, so malformed edits reach typed validation.
@@ -705,14 +816,14 @@ class TakeoffService:
                             item['appearance'] = {**item.get('appearance', {}), **deepcopy(value)}
                         else:
                             item[key] = deepcopy(value)
-                    if 'quantity' in changes and 'member_ids' not in changes:
+                    if 'quantity' in changes and 'member_ids' not in changes and not count_item:
                         self._resize_members(item)
                     technical_change = digest({key: value for key, value in item.items() if key != 'appearance'}) != original_digest
                     if technical_change:
                         self._invalidate(after, item)
                     validate_item(item, after, copy_result=False)
                     if ('geometry' in changes and item['geometry'] is not None
-                            and item['geometry'] != original_geometry and item['mode'] not in AREA_MODES):
+                            and item['geometry'] != original_geometry and item['mode'] not in AREA_MODES and not count_item):
                         # Editing control points must keep a usable line/region.
                         # Keep legacy draft loading and unrelated field/style
                         # edits compatible with their existing stored geometry.
@@ -723,6 +834,8 @@ class TakeoffService:
                             polyline_length(vertices)
                     if technical_change:
                         validate_measurement_scope(item, after)
+                if affected_counts:
+                    regrouped_item_ids = self._regroup_counts(after, affected_counts)
             elif op == 'move_items':
                 selected = self._items(after, request['item_ids'])
                 delta = request['delta_pdf']
@@ -935,6 +1048,8 @@ class TakeoffService:
                 self._remove(after, [original])
             elif op == 'merge_items':
                 originals = self._items(after, request['item_ids'])
+                if any(is_count_item(item) for item in originals):
+                    raise ValidationError('Count groups retain marker identities and cannot use traced-run merge.')
                 if any(item['mode'] in AREA_MODES for item in originals):
                     raise ValidationError('Surface merge is unavailable until exact coverage and exclusion preservation can be verified. Group separate surfaces without changing their identities.')
                 if len(originals) < 2:
@@ -987,6 +1102,12 @@ class TakeoffService:
             if revised_calibration_id:
                 response['revised_calibration_id'] = revised_calibration_id
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}
+            if created_item_ids is not None:
+                response['created_item_ids'] = created_item_ids
+                session['requests'][request['request_id']]['metadata'] = {'created_item_ids': created_item_ids}
+            if regrouped_item_ids is not None:
+                response['regrouped_item_ids'] = regrouped_item_ids
+                session['requests'][request['request_id']]['metadata'] = {'regrouped_item_ids': regrouped_item_ids}
             return response
 
     def _validate_topology_change(self, whole, parts, snapshot):

@@ -20,7 +20,14 @@ async function command(action,op,status=200){const pending=page.waitForResponse(
 async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible();for(const[label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
 const snapshot=async()=>{await idle();let value;await expect.poll(async()=>{try{value=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());return true;}catch{return false;}}).toBe(true);return value;};
 const fit=()=>command(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),'record_render');
-async function screen([x,y]){const overlay=page.locator('.takeoff-overlay');await overlay.scrollIntoViewIfNeeded();const box=await overlay.boundingBox();return[box.x+(y-30)/540*box.width,box.y+(x-20)/780*box.height];}
+async function screen([x,y]){
+  const overlay=page.locator('.takeoff-overlay');await overlay.scrollIntoViewIfNeeded();
+  // Native scrollIntoView does not account for the sticky app header. Keep the
+  // fitted plan below it so a source vertex cannot click Home/status instead.
+  await page.locator('.takeoff-viewport').evaluate(el=>{const header=document.querySelector('header').getBoundingClientRect();window.scrollBy(0,el.getBoundingClientRect().top-Math.max(0,header.bottom)-12);});
+  const box=await overlay.boundingBox(),point=[box.x+(y-30)/540*box.width,box.y+(x-20)/780*box.height];
+  assert.equal(await page.evaluate(([cx,cy])=>!!document.elementFromPoint(cx,cy)?.closest('.takeoff-viewport'),point),true,`Source vertex ${x},${y} is outside the visible plan: ${point}`);return point;
+}
 async function draw(points){for(const point of points)await page.mouse.click(...await screen(point));await page.locator('.takeoff-viewport').press('Enter');}
 async function select(ids){const all=page.getByRole('checkbox',{name:'Select all matching items',exact:true});await all.check();await all.uncheck();for(const id of ids)await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox',{name:/^Select /}).check();}
 const handles=id=>page.locator(`.takeoff-control-point[data-control-item-id="${id}"]`);
@@ -36,9 +43,12 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/commands'))requests.push(request.postDataJSON());});
   await page.addInitScript(()=>{window.qaClicks=[];document.addEventListener('pointerdown',e=>{window.qaClicks.push({tag:e.target.tagName,id:e.target.id,label:e.target.getAttribute('aria-label'),text:e.target.textContent?.slice(0,60),x:e.clientX,y:e.clientY});},true);window.qaCsp=[];document.addEventListener('securitypolicyviolation',e=>window.qaCsp.push({directive:e.effectiveDirective,blocked:e.blockedURI}));});
   const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  // Bootstrap finishes its default quote and Home navigation before publishing
+  // project controls. Do not race that navigation with this drawing journey.
+  await expect(page.locator('#project-tools')).toBeVisible();
   await page.getByRole('button',{name:'TAKEOFFS',exact:true}).click();await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
   await command(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},'record_render');await fit();
-  await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
+  await page.getByRole('button',{name:'Scale',exact:true}).click();await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
   const shapes=[['CP-PRIMARY',[[100,120],[200,120],[200,220],[300,220]]],['CP-SECONDARY',[[400,350],[500,350],[550,450]]]];
   let state;
   for(const[mark,points]of shapes){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':'L1','Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':120,'Critical temperature (°C)':550,'Exposure description':'Re-entrant - 3 sides','Physical quantity':1},'Add item'),'create_item');}

@@ -55,6 +55,13 @@ def _legend_rows(items, width, style):
         else: detail = item['mode'].title() + ' treatment surface'
         value = item.get('total_length_m')
         quantity = f'{value:.2f} m total' if isinstance(value, (int, float)) and math.isfinite(value) else 'Total length unavailable'
+        if item['geometry'].get('kind') == 'count':
+            length = item.get('manual_length_m')
+            entered = f'{length:.2f} m manual length each' if isinstance(length, (int, float)) else 'Manual length unavailable'
+            additions = item.get('additions_length_m', 0)
+            if isinstance(additions, (int, float)) and additions > 0 and isinstance(length, (int, float)):
+                entered = f'{length:.2f} m manual base + {additions:.2f} m cited additions each'
+            quantity = f"{item['quantity']} markers x {entered}; {quantity}"
         if item['mode'] in ('wall', 'slab'):
             value = item.get('net_area_m2'); quantity = f'{value:.2f} m2 net' if isinstance(value, (int, float)) and math.isfinite(value) else 'Net area unavailable'
         text = (f"<b>{item['legend_number']}. {_text(item['mark'])}</b> | {_text(detail)} | {quantity} | "
@@ -110,6 +117,26 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     pdf.drawString(18, 14, 'Derived marked drawing. Original PDF retained unchanged. Unconfirmed marks are drafts; technical suitability requires separate assessment.')
 
 
+def _paint_count_marker(pdf, center, style):
+    """Independent physical-point symbols; no line can connect two members."""
+    x, y = center
+    radius = style['marker_size'] / 2
+    fill = int(style['fill_enabled'])
+    shape = style['marker_shape']
+    if shape == 'circle':
+        pdf.circle(x, y, radius, stroke=1, fill=fill)
+    elif shape == 'square':
+        pdf.rect(x-radius, y-radius, 2*radius, 2*radius, stroke=1, fill=fill)
+    else:
+        vertices = ([(x, y+radius), (x+radius, y-radius), (x-radius, y-radius)] if shape == 'triangle'
+                    else [(x, y+radius), (x+radius, y), (x, y-radius), (x-radius, y)])
+        path = pdf.beginPath()
+        for index, vertex in enumerate(vertices):
+            path.moveTo(*vertex) if index == 0 else path.lineTo(*vertex)
+        path.close()
+        pdf.drawPath(path, stroke=1, fill=fill)
+
+
 def _paint_markups(pdf, items, matrix):
     from reportlab.lib.colors import HexColor
     for item in items:
@@ -122,6 +149,16 @@ def _paint_markups(pdf, items, matrix):
         pdf.saveState(); pdf.setStrokeColor(HexColor(style['stroke_color'])); pdf.setFillColor(HexColor(style['fill_color']))
         pdf.setLineWidth(style['stroke_width']); pdf.setLineCap(1); pdf.setLineJoin(1)
         pdf.setStrokeAlpha(style['opacity']); pdf.setFillAlpha(style['opacity']*.12)
+        if geometry.get('kind') == 'count':
+            pdf.setFillAlpha(style['opacity'])
+            for point in points:
+                center = transform(point, matrix)
+                _paint_count_marker(pdf, center, style)
+                pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
+                pdf.drawString(center[0]+style['marker_size']/2+3, center[1]+3, str(item['legend_number']))
+                pdf.setFillColor(HexColor(style['fill_color']))
+            pdf.restoreState()
+            continue
         path = pdf.beginPath()
         for index, point in enumerate(points):
             xy = transform(point, matrix); path.moveTo(*xy) if index == 0 else path.lineTo(*xy)

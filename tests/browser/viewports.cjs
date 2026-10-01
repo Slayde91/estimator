@@ -54,13 +54,23 @@ async function draw(points, doubleFinish = false) {
 }
 async function cancelAt(point) { const [x, y] = await screenPoint(point); await page.mouse.click(x, y, { button: 'right' }); await expect(page.getByRole('dialog')).toHaveCount(0); }
 async function scale(denominator) {
+  if (!await page.getByLabel('Drawing calibration', { exact: true }).isVisible()) await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByLabel('Drawing calibration', { exact: true }).selectOption(`scale:${denominator}`);
   return command(() => dialog(`Apply drawing scale 1:${denominator}?`, {}, 'Apply scale'), 'add_calibration');
 }
 async function viewport(name, points, denominator) {
   const panel = page.getByRole('complementary', { name: 'Viewports', exact: true });
   if (!await panel.isVisible()) await page.getByRole('button', { name: 'Viewport', exact: true }).click();
-  await panel.getByRole('button', { name: 'Add viewport', exact: true }).click(); await draw(points);
+  await panel.getByRole('button', { name: 'Add viewport', exact: true }).click();
+  const before = operations.filter(op => op === 'add_calibration').length;
+  await draw([points[0]]); await page.mouse.move(...await screenPoint(points[1]));
+  const preview = page.locator('.takeoff-viewport-preview'); await expect(preview).toBeVisible();
+  assert.equal((await preview.getAttribute('points')).trim().split(/\s+/).length, 4, 'The live viewport boundary is a rectangle, never an arbitrary polygon');
+  assert.notEqual(await preview.evaluate(el => getComputedStyle(el).fill), 'none', 'Viewport tracing has a filled preview like surface tracing');
+  await draw([points[1]]); await expect(page.getByRole('dialog')).toHaveCount(0);
+  assert.equal(operations.filter(op => op === 'add_calibration').length, before, 'Two single clicks do not create a viewport or open its scale dialog');
+  if (!fs.existsSync(path.join(output, 'viewport-pending-rectangle.png'))) await page.screenshot({ path: path.join(output, 'viewport-pending-rectangle.png') });
+  await page.mouse.dblclick(...await screenPoint(points[1]));
   return command(() => dialog('Create viewport', { 'Viewport name': name, 'Scale': denominator }, 'Create viewport'), 'add_calibration');
 }
 const steelFields = { 'Member mark': 'SCALE-100', 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 };
@@ -131,12 +141,22 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await expect(page.getByRole('button', { name: 'Cite length', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-inspector')).toHaveCount(0);
   await expect(page.getByLabel('Drawing calibration', { exact: true }).locator('option:checked')).toHaveText('No Scale Selected');
+  const scaleToggle = page.getByRole('button', { name: 'Scale', exact: true });
+  await expect(scaleToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeHidden();
+  assert.equal(await scaleToggle.evaluate(el => el.parentElement.previousElementSibling.getAttribute('aria-label')), 'Calibrate');
+  assert.equal(await page.getByRole('group', { name: 'Drawing downloads', exact: true }).evaluate(el => el.previousElementSibling.getAttribute('aria-label')), 'Takeoff modes');
+  await scaleToggle.click(); await expect(scaleToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeFocused();
+  await page.getByLabel('Drawing calibration', { exact: true }).press('Escape');
+  await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeHidden(); await expect(scaleToggle).toBeFocused();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   await command(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
   await fit();
   let state = await scale(100), doc = state.snapshot.documents[0], global = state.snapshot.calibrations[0];
+  await expect(scaleToggle).toHaveAttribute('title', /1:100/); await expect(scaleToggle).toHaveAttribute('aria-expanded', 'false');
   assert.equal(doc.pages[2].user_unit, 2); assert.equal(doc.pages[2].rotation, 90); assert.deepEqual(doc.pages[2].view, [20, 30, 800, 570]);
   assert.equal(global.scale_denominator, 100); assert.ok(Math.abs(global.distance_m - 780 * 2 * .0254 / 72 * 100) < 1e-12);
   state = await steel('SCALE-100', [[350, 500], [750, 500]]);
@@ -236,6 +256,13 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   transferred = await transfer(); assert.equal(transferred.preview.changes[0].action, 'unchanged');
   assert.equal(transferred.state.snapshot.transfers.filter(binding => binding.item_id === mainId).length, 1);
   // Independent detail scale plus boundary rejection. Changing scale never changes the source coordinates.
+  const beforeViewportCancel = await snapshot(), beforeCancelOperations = operations.length;
+  await page.getByRole('button', { name: 'Viewport', exact: true }).click();
+  await page.getByRole('complementary', { name: 'Viewports', exact: true }).getByRole('button', { name: 'Add viewport', exact: true }).click();
+  await draw([[100, 100], [300, 400]]); await expect(page.getByRole('dialog')).toHaveCount(0);
+  await cancelAt([250, 350]); await expect(page.locator('.takeoff-viewport-preview')).toHaveCount(0);
+  assert.deepEqual((await snapshot()).calibrations, beforeViewportCancel.calibrations); assert.deepEqual((await snapshot()).items, beforeViewportCancel.items);
+  assert.ok(!operations.slice(beforeCancelOperations).includes('add_calibration'), 'Right-click cancellation creates no scale or viewport');
   await fit(); state = await viewport('DETAIL-50', [[100, 100], [300, 400]], 50);
   const detailId = state.snapshot.calibrations.find(calibration => calibration.name === 'DETAIL-50').id;
   const boundaryOperations = operations.length;

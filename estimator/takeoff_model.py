@@ -49,7 +49,13 @@ for _mode in AREA_MODES:
         'system', 'classification', 'quantity', 'frl', 'substrate', 'treatment',
         'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
-APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'stroke_width', 'opacity'))
+APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'stroke_width', 'opacity',
+                             'marker_shape', 'marker_size'))
+
+
+def is_count_item(item):
+    """Count markers retain one ordered source point per physical member ID."""
+    return isinstance(item.get('geometry'), dict) and item['geometry'].get('kind') == 'count'
 
 
 def validate_appearance(value):
@@ -60,7 +66,9 @@ def validate_appearance(value):
             raise ValidationError('Markup colours must be six-digit hexadecimal colours.')
     if 'fill_enabled' in value and type(value['fill_enabled']) is not bool:
         raise ValidationError('Markup fill must be true or false.')
-    for key, low, high in (('stroke_width', 0.25, 20), ('opacity', 0, 1)):
+    if 'marker_shape' in value and value['marker_shape'] not in ('circle', 'square', 'triangle', 'diamond'):
+        raise ValidationError('Count marker shape must be circle, square, triangle or diamond.')
+    for key, low, high in (('stroke_width', 0.25, 20), ('opacity', 0, 1), ('marker_size', 2, 72)):
         if key in value:
             number(value[key], 'Markup ' + key)
             if not low <= value[key] <= high:
@@ -70,8 +78,9 @@ def validate_appearance(value):
 
 def markup_appearance(item):
     """Shared physical-PDF-point defaults for browser and drawing exports."""
-    return {'stroke_color': '#16699B', 'fill_enabled': item['mode'] in AREA_MODES,
+    return {'stroke_color': '#16699B', 'fill_enabled': item['mode'] in AREA_MODES or is_count_item(item),
             'fill_color': '#16699B', 'stroke_width': 2, 'opacity': 1,
+            **({'marker_shape': 'circle', 'marker_size': 12} if is_count_item(item) else {}),
             **validate_appearance(item.get('appearance', {}))}
 
 
@@ -433,9 +442,13 @@ def item_references(item):
 
 def validate_item(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields',
-                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance'}, 'Takeoff item',
+                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance', 'count_id'}, 'Takeoff item',
                   {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'review', 'confirmation', 'member_ids'})
     identity(value['id'], 'Item ID')
+    if is_count_item(value):
+        identity(value.get('count_id'), 'Count ID')
+    elif 'count_id' in value:
+        raise ValidationError('Only Steel count markers may retain a Count ID.')
     number(value['version'], 'Item version', positive=True, integer=True)
     if value['mode'] not in MODES or value['state'] not in ('draft', 'reviewed', 'confirmed'):
         raise ValidationError('Choose a supported takeoff mode and review state.')
@@ -469,7 +482,15 @@ def validate_item(value, snapshot, *, copy_result=True):
         if not isinstance(geometry, dict) or not {'document_id', 'page'} <= geometry.keys():
             raise ValidationError('Markup geometry requires its source document and page.')
         _, page = page_metadata(snapshot, geometry['document_id'], geometry['page'])
-        if value['mode'] in AREA_MODES:
+        if is_count_item(value):
+            object_fields(geometry, {'kind', 'document_id', 'page', 'points'}, 'Count geometry',
+                          {'kind', 'document_id', 'page', 'points'})
+            if value['mode'] != 'steel':
+                raise ValidationError('Count markers are supported only for Steel.')
+            points(geometry['points'], 'Count markers', page, maximum=MAX_ITEMS)
+            if value['quantity'] != len(geometry['points']):
+                raise ValidationError('Count quantity must equal its physical marker count.')
+        elif value['mode'] in AREA_MODES:
             validate_polygon(geometry, page)
         else:
             object_fields(geometry, {'document_id', 'page', 'points'}, 'Markup geometry', {'document_id', 'page', 'points'})
@@ -484,6 +505,11 @@ def validate_item(value, snapshot, *, copy_result=True):
             calibration = next((c for c in snapshot['calibrations'] if c['id'] == measurement['calibration_id']), None)
             if calibration is None or geometry is None or (calibration['document_id'], calibration['page']) != (geometry['document_id'], geometry['page']):
                 raise ValidationError('A calibrated measurement must use a calibration on its own source page.')
+        elif measurement.get('method') == 'manual':
+            if not is_count_item(value) or value['mode'] != 'steel':
+                raise ValidationError('Manual length is supported only for Steel count markers.')
+            object_fields(measurement, {'method', 'length_m'}, 'Manual count length', {'method', 'length_m'})
+            number(measurement['length_m'], 'Manual length per member', positive=True)
         elif measurement.get('method') == 'cited':
             if value['mode'] in AREA_MODES:
                 raise ValidationError('Surface polygons require calibrated area; a cited length cannot determine surface area.')
@@ -492,6 +518,8 @@ def validate_item(value, snapshot, *, copy_result=True):
             text(measurement['citation'], 'Dimension citation')
         else:
             raise ValidationError('Choose calibrated or source-cited measurement.')
+    if is_count_item(value) and (not measurement or measurement.get('method') != 'manual'):
+        raise ValidationError('Every Steel count marker requires an explicit manual length per member.')
     if not isinstance(value['evidence'], list) or len(value['evidence']) > 100:
         raise ValidationError('An item may retain up to 100 evidence references.')
     for reference in value['evidence']:
@@ -588,6 +616,10 @@ def base_length(item, snapshot):
     measurement = item['measurement']
     if not measurement:
         raise ValidationError('Choose a calibrated or source-cited length.')
+    if measurement['method'] == 'manual':
+        if not is_count_item(item) or item['mode'] != 'steel':
+            raise ValidationError('Manual length is supported only for Steel count markers.')
+        return number(measurement['length_m'], 'Manual length per member', positive=True)
     if measurement['method'] == 'cited':
         if not measurement['citation'].strip():
             raise ValidationError('Cited length requires a source dimension reference.')
@@ -726,6 +758,7 @@ def validate_snapshot(value, *, copy_result=True):
         raise ValidationError('A takeoff project may contain at most 2,000 pages.')
     validate_physical_extension(value)
     physical_ids = set()
+    counts = {}
     for key, validator in (('calibrations', validate_calibration), ('items', validate_item)):
         if key == 'items':
             validate_calibration_revisions(value)
@@ -736,6 +769,17 @@ def validate_snapshot(value, *, copy_result=True):
                 raise ValidationError(f'{key} IDs must be unique.')
             ids.add(entry['id'])
             if key == 'items':
+                if is_count_item(entry):
+                    count = counts.setdefault(entry['count_id'], {'item': entry, 'lengths': set()})
+                    first = count['item']
+                    if (entry['fields'] != first['fields'] or markup_appearance(entry) != markup_appearance(first)
+                            or any(entry['geometry'][name] != first['geometry'][name] for name in ('document_id', 'page'))
+                            or entry.get('length_additions', []) != first.get('length_additions', [])):
+                        raise ValidationError('Every row in one count must keep the same source, details and appearance. Start a different count for different details.')
+                    length = entry['measurement']['length_m']
+                    if length in count['lengths']:
+                        raise ValidationError('One count must group markers with the same manual length into one row.')
+                    count['lengths'].add(length)
                 if physical_ids.intersection(entry['member_ids']):
                     raise ValidationError('One physical member ID cannot be counted in multiple takeoff items.')
                 physical_ids.update(entry['member_ids'])

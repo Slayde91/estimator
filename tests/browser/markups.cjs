@@ -54,7 +54,7 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await page.getByRole('button',{name:'TAKEOFFS',exact:true}).click();await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
   await command(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},'record_render');
   await command(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),'record_render');
-  await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
+  await page.getByRole('button',{name:'Scale',exact:true}).click();await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
   // Test-only retained metadata represents imported legacy fields that no longer have editing controls.
   await page.route('**/commands',route=>{const body=route.request().postDataJSON();if(body.op==='create_item'){Object.assign(body.item.fields,{zone:`Retained zone ${body.item.fields.mark}`,group:'Retained group',notes:`=Retained notes ${body.item.fields.mark}`});return route.continue({postData:JSON.stringify(body)});}return route.continue();});
   let state;const definitions=[['QA-MATCH-FIRST','L01',120,1,[[100,150],[200,150]]],['QA-MATCH-SECOND','L02',90,2,[[100,250],[250,250]]],['QA-OTHER-THIRD','L03',60,3,[[400,500],[600,500]]]];

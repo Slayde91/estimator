@@ -107,7 +107,18 @@
 .takeoff-search-controls{margin:0;gap:6px;min-width:0}
 .takeoff-search-controls input{flex:1;min-width:130px;max-width:none}
 .takeoff-search-controls select{max-width:130px}
-.takeoff-scale-controls{flex:1 1 380px}
-.takeoff-navigation .takeoff-scale-controls select{flex:1;min-width:130px;max-width:280px}
+.takeoff-heading-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.takeoff-heading-controls>.takeoff-modes{margin:0}
+.takeoff-drawing-downloads{padding:0;margin:0;border:0;background:transparent;gap:6px}
+.takeoff-scale-anchor{position:relative;display:flex}
+.takeoff-scale-controls{position:absolute;left:calc(100% + 18px);top:0;z-index:12;width:min(310px,calc(100vw - 120px));margin:0;box-shadow:0 4px 18px #0003;align-items:stretch}
+.takeoff-scale-controls[hidden]{display:none}
+.takeoff-scale-controls select{flex:1 1 100%;min-width:0;max-width:none;width:100%}
+.takeoff-scale-controls .button{flex:1}
 .takeoff-drawing-pane>.takeoff-progress,.takeoff-drawing-pane>.takeoff-control-status{margin:0}
 @media(max-width:650px){.takeoff-tool-rail{padding:8px;gap:8px}.takeoff-navigation{padding:8px;gap:8px}.takeoff-navigation-group{flex-basis:100%}.takeoff-scale-controls{gap:6px}}
+
+.takeoff-viewport[data-tool=count]{cursor:crosshair}
+.takeoff-overlay .takeoff-count-hit{fill:transparent;pointer-events:all}
+.takeoff-overlay .takeoff-count-pending{pointer-events:none}
+.takeoff-count-lengths{display:grid;gap:8px}

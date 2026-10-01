@@ -229,7 +229,7 @@
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Linked calculator rows", () => manageLinkedRows())];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
-    exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), button("Audit history", showAudit), ui.areaNotice);
+    exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");

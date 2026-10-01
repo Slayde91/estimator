@@ -69,7 +69,89 @@
     });
     return ring(points);
   }
-  const api = { transform, inverse, length, bounds, split, region, enclosed, translateGeometry, ring, polygonPath, parseVertices };
+  // Display-only preview in source coordinates. Committed quantities and topology
+  // are always supplied by the server. Shift the origin to avoid cancellation.
+  function stableSum(values) {
+    let sum = 0, correction = 0;
+    for (const value of values) {
+      const next = sum + value;
+      correction += Math.abs(sum) >= Math.abs(value) ? (sum - next) + value : (value - next) + sum;
+      sum = next;
+    }
+    return sum + correction;
+  }
+  function ringMetrics(points) {
+    ring(points);
+    const [ox, oy] = points[0], crosses = [], xs = [], ys = [];
+    for (let i = 0; i < points.length; i++) {
+      const next = points[(i + 1) % points.length], ax = points[i][0] - ox, ay = points[i][1] - oy, bx = next[0] - ox, by = next[1] - oy;
+      const cross = ax * by - bx * ay; crosses.push(cross); xs.push((ax + bx) * cross); ys.push((ay + by) * cross);
+    }
+    const twiceArea = stableSum(crosses);
+    if (!Number.isFinite(twiceArea) || !twiceArea) throw new Error("Complete a boundary with a positive area.");
+    const centre = [ox + stableSum(xs) / (3 * twiceArea), oy + stableSum(ys) / (3 * twiceArea)];
+    if (!point(centre)) throw new Error("The surface centre cannot be represented safely.");
+    return { area: Math.abs(twiceArea) / 2, centre };
+  }
+  function ringLocation(position, points) {
+    let inside = false;
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      const left = (b[0] - a[0]) * (position[1] - a[1]), right = (b[1] - a[1]) * (position[0] - a[0]);
+      // Conservatively reject a numerically ambiguous boundary position rather
+      // than placing a label in an opening or outside a very narrow surface.
+      if (position[0] >= Math.min(a[0], b[0]) && position[0] <= Math.max(a[0], b[0]) &&
+          position[1] >= Math.min(a[1], b[1]) && position[1] <= Math.max(a[1], b[1]) &&
+          Math.abs(left - right) <= 8 * Number.EPSILON * (Math.abs(left) + Math.abs(right))) return 0;
+      if ((a[1] > position[1]) !== (b[1] > position[1]) &&
+          position[0] < a[0] + (position[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1])) inside = !inside;
+    }
+    return inside ? 1 : -1;
+  }
+  function surfaceMetrics(geometry) {
+    const rings = [geometry.points, ...(geometry.exclusions || []).map(hole => hole.points)], outer = ringMetrics(rings[0]), holes = rings.slice(1).map(ringMetrics);
+    const area = outer.area - stableSum(holes.map(hole => hole.area));
+    if (!(area > 0) || !Number.isFinite(area)) throw new Error("Exclusions must leave a positive surface area.");
+    const centre = [0, 1].map(axis => outer.centre[axis] + stableSum(holes.map(hole => (outer.centre[axis] - hole.centre[axis]) * hole.area)) / area);
+    if (!point(centre)) throw new Error("The surface centre cannot be represented safely.");
+    // Find a central interior span, so a concavity or excluded opening does not
+    // swallow the label. Even/odd spans work for either boundary winding.
+    const box = bounds(rings[0]); let label = null, best = Infinity;
+    const scan = y => {
+      const crossings = [];
+      for (const points of rings) for (let i = 0; i < points.length; i++) {
+        const a = points[i], b = points[(i + 1) % points.length];
+        if ((a[1] > y) !== (b[1] > y)) crossings.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+      }
+      crossings.sort((a, b) => a - b);
+      const candidates = [];
+      for (let i = 0; i + 1 < crossings.length; i += 2) {
+        const left = crossings[i], right = crossings[i + 1]; if (!(right > left)) continue;
+        const candidate = [centre[0] > left && centre[0] < right ? centre[0] : left + (right - left) / 2, y];
+        if (candidate[0] > left && candidate[0] < right) candidates.push({ point: candidate, distance: Math.hypot(candidate[0] - centre[0], candidate[1] - centre[1]) });
+      }
+      candidates.sort((a, b) => a.distance - b.distance);
+      // Bound strict interior probes on complex 1,000-vertex previews. The
+      // fallback scanlines never coincide with a horizontal boundary.
+      for (const candidate of candidates.slice(0, 8)) {
+        if (candidate.distance >= best) break;
+        if (ringLocation(candidate.point, rings[0]) !== 1 || rings.slice(1).some(hole => ringLocation(candidate.point, hole) !== -1)) continue;
+        label = candidate.point; best = candidate.distance; break;
+      }
+    };
+    for (const y of new Set([centre[1], box[1] + (box[3] - box[1]) / 2, outer.centre[1]])) scan(y);
+    if (!label) {
+      const levels = [...new Set(rings.flatMap(points => points.map(p => p[1])))].sort((a, b) => a - b), fallback = [];
+      for (let i = 1; i < levels.length; i++) {
+        const y = levels[i - 1] + (levels[i] - levels[i - 1]) / 2;
+        if (y > levels[i - 1] && y < levels[i]) fallback.push(y);
+      }
+      fallback.sort((a, b) => Math.abs(a - centre[1]) - Math.abs(b - centre[1]));
+      for (const y of fallback.slice(0, 16)) { scan(y); if (label) break; }
+    }
+    return { area, centre, label };
+  }
+  const api = { transform, inverse, length, bounds, split, region, enclosed, translateGeometry, ring, polygonPath, parseVertices, ringMetrics, surfaceMetrics };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.CeasefireTakeoffGeometry = api;
 })(globalThis);

@@ -85,6 +85,11 @@ calibration, viewport, PDF upload, fit-page, cancel, search, stop-search,
 page-navigation, linked-row update/detach, register export and schedule
 buttons use icons with accessible names and the original labels on hover.
 
+Drawing tools occupy the narrow vertical rail to the left of the plan. The
+compact **Drawing document** selector, page controls, zoom and text search sit
+below the plan and above the register. Source PDFs remain in the project; the
+old document list and page thumbnails no longer occupy the tool rail.
+
 In Select mode, selected measured markups show control points at their original PDF vertices.
 Click a point to choose it, then use Ctrl/Cmd+Z while the drawing has focus, or
 right-click that point and choose **Delete control point**. With one selected
@@ -102,6 +107,22 @@ Cited dimensions retain their source-region markers; use Re-trace geometry to
 replace that evidence region. A single trace supports all 10,000 permitted
 vertices. Larger combined selections disclose the 10,000-handle display limit;
 select fewer markups to inspect the remaining points.
+
+Drag a selected control point to reshape a measured line, surface or excluded
+opening. The preview follows the pointer in original PDF coordinates; releasing
+it submits one geometry edit for server validation. Invalid edits restore the
+last saved geometry. Valid edits recalculate the measurement and invalidate its
+confirmation and linked approval while preserving calculator values and source
+evidence. Right-click the markup itself and choose **Delete markup** to remove
+that object after confirmation. Other selected objects are retained, and
+**Undo last edit** restores the removed draft.
+Moving a cited dimension's source-region point changes its evidence marker;
+the explicitly entered source length remains unchanged and needs fresh confirmation.
+
+Surface tracing displays a closed boundary with a central square-metre preview.
+Moving a surface control point also displays a provisional area. After an edit
+is committed, the central label shows the server-calculated net area, including
+excluded openings. Preview labels do not confirm an item or authorise transfer.
 
 Ordinary mouse-wheel scrolling over the drawing scrolls the application page
 until you click or keyboard-focus the drawing. The focus outline indicates when
@@ -371,7 +392,7 @@ page. These failures leave the original and the Takeoffs project unchanged.
   PDF range reads use a bounded verified snapshot cache instead of rehashing
   250 MiB for each range. Sensitive approval/export gates reverify originals.
 - `takeoffs.js`, `takeoff-geometry.js`, `takeoff-physical.js` and `takeoffs.css` provide the manual
-  workspace. Rendering, page thumbnails, search results and register pages are
+  workspace. Rendering, search results and register pages are
   bounded and loaded on demand.
 
 Project JSON is limited to 16 MiB. Retained audit history is limited to 10,000
@@ -404,9 +425,12 @@ and current drawing/schedule downloads using only disposable fixtures.
 `npm run test:takeoffs-control-points` exercises selected PDF-coordinate handles,
 targeted point deletion, minimum vertices, keyboard/text-edit guards, undo and
 save/reopen, and actual browser-wheel focus and boundary behaviour.
+`npm run test:takeoffs-plan-tools` checks the left tool rail and compact drawing
+navigation, measured-line/surface/exclusion point dragging, live and committed
+area labels, invalid-edit rollback, markup deletion/undo, save/reopen and downloads.
 `npm run test:takeoffs-capacity` exercises 100 separate PDFs and 2,000 pages
 through the rendered upload/search workflow, including complete search coverage
-and bounded document workers and thumbnails.
+and bounded document workers without eager page thumbnails.
 `npm run test:takeoffs-timeouts` verifies that a stalled PDF request becomes a
 visible failure, blocks its evidence and permits a healthy retry. PDF opening,
 page loading, rendering and text extraction each have a 30-second deadline.

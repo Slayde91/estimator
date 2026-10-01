@@ -83,7 +83,7 @@ async function boardJourney(info) {
   await page.locator('[data-mode="steel"]').click();
   await page.locator('#takeoff-upload').setInputFiles(info.board_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(2, { timeout: 60000 });
-  await page.locator('.takeoff-document').filter({ hasText: 'synthetic-board.pdf' }).click();
+  await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'synthetic-board.pdf' }).getAttribute('value'));
   await fitCurrentDrawing('synthetic-board.pdf');
   await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_board');
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
@@ -312,7 +312,7 @@ async function boardJourney(info) {
     const file = await download; const target = path.join(output, file.suggestedFilename()); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
   }
   // PDF search discloses complete coverage and identifies pages with no text.
-  await page.locator('.takeoff-document').filter({ hasText: 'synthetic-drawings.pdf' }).click();
+  await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'synthetic-drawings.pdf' }).getAttribute('value'));
   await page.getByPlaceholder('Search PDF text…').fill('SYNTHETIC');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.locator('.takeoff-progress')).toContainText('4/4 pages inspected', { timeout: 30000 });
@@ -320,7 +320,7 @@ async function boardJourney(info) {
   // A malformed embedded image is not allowed to become an approved blank page.
   await page.locator('#takeoff-upload').setInputFiles(info.failed_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(3, { timeout: 60000 });
-  await page.locator('.takeoff-document').filter({ hasText: 'failed-image.pdf' }).click();
+  await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'failed-image.pdf' }).getAttribute('value'));
   await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('blocked', { timeout: 30000 });
   await page.waitForFunction(() => {
     try { const snapshot = window.CeasefireTakeoffs.projectSnapshot(), document = snapshot.documents.find(doc => doc.name === 'failed-image.pdf');

@@ -147,7 +147,8 @@ def _board_review(inputs, bindings, items):
     return warnings
 
 
-def transfer_preview(snapshot, request):
+def transfer_selection(snapshot, request):
+    """Separate append candidates before inspecting any already-linked item."""
     object_fields(request, {'expected_revision', 'calculator_id', 'inputs', 'schedule_rows', 'item_ids', 'update_linked'},
                   'Transfer preview', {'expected_revision', 'calculator_id', 'inputs', 'schedule_rows', 'item_ids'})
     calculator_id = request['calculator_id']
@@ -155,18 +156,48 @@ def transfer_preview(snapshot, request):
         raise ValidationError('Choose an available calculator.')
     if type(request.get('update_linked', False)) is not bool:
         raise ValidationError('Update linked rows must be explicitly true or false.')
-    model = source_model(calculator_id); schedule = model['schedule']; sheet = schedule['sheet']
-    original = deepcopy(request['inputs'])
-    inputs = blank_schedule_defaults(calculator_id, original)
-    validate_calculator_edits(calculator_id, inputs, inputs)
-    rows = normalize_schedule_rows(calculator_id, inputs, request['schedule_rows'])
     item_ids = request['item_ids']
     if not isinstance(item_ids, list) or not item_ids or any(not isinstance(i, str) for i in item_ids) or len(set(item_ids)) != len(item_ids):
         raise ValidationError('Select distinct confirmed takeoff items.')
     items = {i['id']: i for i in snapshot['items']}
     if set(item_ids) - items.keys():
         raise ValidationError('A selected takeoff item no longer exists.')
+    by_item = {binding['item_id']: binding for binding in snapshot['transfers']
+               if binding['calculator_id'] == calculator_id}
+    candidates, skipped = [], []
+    for item_id in item_ids:
+        binding = by_item.get(item_id)
+        if binding and not request.get('update_linked', False):
+            skipped.append({'item_id': item_id, 'calculator_id': calculator_id, 'row': binding['row'],
+                            'binding_id': binding['id'], 'status': binding['status'], 'reason': 'already_linked'})
+        else:
+            candidates.append(item_id)
+    return items, candidates, skipped
+
+
+def transfer_preview(snapshot, request):
+    items, item_ids, skipped = transfer_selection(snapshot, request)
+    calculator_id = request['calculator_id']
+    original = deepcopy(request['inputs'])
     bindings = deepcopy(snapshot['transfers'])
+    base = {'calculator_id': calculator_id,
+            'base_fingerprint': digest({'inputs': original, 'schedule_rows': request['schedule_rows']}),
+            'skipped': skipped}
+    if not item_ids:
+        return {**base, 'inputs': original, 'schedule_rows': deepcopy(request['schedule_rows']),
+                'bindings': [], 'all_bindings': bindings, 'changes': [], 'normalizations': [], 'warnings': []}
+    model = source_model(calculator_id); schedule = model['schedule']; sheet = schedule['sheet']
+    inputs = blank_schedule_defaults(calculator_id, original)
+    validate_calculator_edits(calculator_id, inputs, inputs)
+    # Legacy default blanking may add omitted example cells. An existing link
+    # is outside append authority, including its exact absent/blank literals.
+    for entry in skipped:
+        for address in row_values(inputs, schedule, entry['row']):
+            if address in original.get(sheet, {}):
+                inputs[sheet][address] = deepcopy(original[sheet][address])
+            else:
+                inputs[sheet].pop(address, None)
+    rows = normalize_schedule_rows(calculator_id, inputs, request['schedule_rows'])
     # Replacements retain predecessor closure. An old linked schedule row is
     # deliberately preserved when its source record is split/merged; copying
     # successors while that row remains populated would count the same work
@@ -232,6 +263,6 @@ def transfer_preview(snapshot, request):
         changes.append({'item_id': item_id, 'row': row, 'action': action})
     validate_calculator_edits(calculator_id, inputs, original)
     warnings = _board_review(inputs, selected, items) if calculator_id == 'steel_board' else []
-    return {'calculator_id': calculator_id, 'base_fingerprint': digest({'inputs': original, 'schedule_rows': request['schedule_rows']}),
+    return {**base,
             'inputs': inputs, 'schedule_rows': rows, 'bindings': selected, 'all_bindings': bindings,
             'changes': changes, 'normalizations': normalizations, 'warnings': warnings}

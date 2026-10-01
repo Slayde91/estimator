@@ -72,6 +72,7 @@ async function surface(mode, rotated = false) {
   await fit();
   await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Cite length', exact: true })).toBeHidden();
+  if (!await page.getByRole('button', { name: 'Calibrate', exact: true }).isVisible()) await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
   await draw([[100, 75], [500, 75]], rotated);
   await command(() => dialog('Calibrate this drawing', { 'Calibration name': `${mode} baseline`, 'Known real distance (metres)': 10, 'Uniform scale confirmed': 'Yes — the drawing has the same horizontal and vertical scale' }, 'Create calibration'), 'add_calibration');

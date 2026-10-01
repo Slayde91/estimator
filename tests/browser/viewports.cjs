@@ -155,7 +155,11 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const scaleToggle = page.getByRole('button', { name: 'Scale', exact: true });
   await expect(scaleToggle).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeHidden();
-  assert.equal(await scaleToggle.evaluate(el => el.parentElement.previousElementSibling.getAttribute('aria-label')), 'Calibrate');
+  assert.equal(await scaleToggle.evaluate(el => el.parentElement.previousElementSibling.getAttribute('aria-label')), 'Viewport');
+  await expect(page.locator('.takeoff-tool-rail > [data-tool="calibrate"]')).toHaveCount(0);
+  const calibrate = page.locator('#takeoff-scale-controls [data-tool="calibrate"]');
+  await expect(calibrate.locator('svg')).toHaveCount(0);
+  assert.deepEqual(await calibrate.evaluate(el => [el.previousElementSibling.id, el.nextElementSibling.textContent]), ['takeoff-calibration', 'Edit calibration']);
   assert.equal(await page.getByRole('group', { name: 'Drawing downloads', exact: true }).evaluate(el => el.previousElementSibling.getAttribute('aria-label')), 'Takeoff modes');
   await scaleToggle.click(); await expect(scaleToggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeFocused();
@@ -264,8 +268,20 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   assert.ok(transferred.shownReview.includes(`Per-member length: ${(baseline + .5).toFixed(2)} m`));
   assert.ok(transferred.shownReview.includes(`Total length: ${((baseline + .5) * 2).toFixed(2)} m`));
   assert.equal(transferred.preview.inputs.SCHEDULE['I' + mainBinding.row], 2); assert.equal(transferred.preview.inputs.SCHEDULE['J' + mainBinding.row], baseline + .5);
-  transferred = await transfer(); assert.equal(transferred.preview.changes[0].action, 'unchanged');
-  assert.equal(transferred.state.snapshot.transfers.filter(binding => binding.item_id === mainId).length, 1);
+  const beforeDuplicate = await snapshot(), calculatorBeforeDuplicate = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  let duplicateApplyRequests = 0; const watchDuplicateApply = request => { if (request.url().endsWith('/transfer-apply')) duplicateApplyRequests++; };
+  page.on('request', watchDuplicateApply);
+  try {
+    const pending = page.waitForResponse(response => response.url().endsWith('/transfer-preview'));
+    await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
+    const response = await pending, duplicate = await response.json(); assert.equal(response.status(), 200, JSON.stringify(duplicate));
+    assert.deepEqual(duplicate.changes, []); assert.equal(duplicate.skipped.length, 1);
+    assert.equal(duplicate.skipped[0].item_id, mainId); assert.equal(duplicate.skipped[0].binding_id, mainBinding.id); assert.equal(duplicate.skipped[0].reason, 'already_linked');
+    await expect(page.locator('#takeoffs-workspace [role="status"]').filter({ hasText: 'already linked to Steel Spray' })).toContainText('No rows were added or changed');
+    await expect(page.getByRole('dialog')).toHaveCount(0); assert.equal(duplicateApplyRequests, 0);
+    assert.deepEqual(await snapshot(), beforeDuplicate); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBeforeDuplicate);
+    evidence.duplicateTransferSkippedWithoutMutation = true;
+  } finally { page.off('request', watchDuplicateApply); }
   // Independent detail scale plus boundary rejection. Changing scale never changes the source coordinates.
   const beforeViewportCancel = await snapshot(), beforeCancelOperations = operations.length;
   await page.getByRole('button', { name: 'Viewport', exact: true }).click();

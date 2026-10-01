@@ -262,7 +262,7 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         self.assertEqual(self.service.apply_transfer(self.sid, apply_request), self.state)
         # JavaScript JSON.stringify serializes integral floats as integers.
         browser_inputs = deepcopy(preview['inputs']); browser_inputs['SCHEDULE']['J11'] = 10
-        repeated = self.preview(identity, inputs=browser_inputs, rows=preview['schedule_rows'])
+        repeated = self.preview(identity, inputs=browser_inputs, rows=preview['schedule_rows'], update=True)
         self.assertEqual(repeated['changes'][0]['action'], 'unchanged')
         self.assertEqual(repeated['bindings'][0]['id'], preview['bindings'][0]['id'])
         with self.store.connect() as db:
@@ -289,8 +289,9 @@ class TakeoffWorkspaceTests(unittest.TestCase):
         identity = self.create(); self.confirm(identity)
         preview = self.preview(identity); self.apply(preview)
         self.command('update_item', item_id=identity, changes={'quantity': 3}); self.confirm(identity)
-        with self.assertRaisesRegex(ValidationError, 'explicit update'):
-            self.preview(identity, inputs=preview['inputs'], rows=preview['schedule_rows'])
+        skipped = self.preview(identity, inputs=preview['inputs'], rows=preview['schedule_rows'])
+        self.assertEqual(skipped['changes'], [])
+        self.assertEqual(skipped['skipped'][0]['item_id'], identity)
         updated = self.preview(identity, inputs=preview['inputs'], rows=preview['schedule_rows'], update=True)
         self.assertEqual(updated['changes'][0]['action'], 'update')
         self.assertEqual(updated['inputs']['SCHEDULE']['I10'], 3)

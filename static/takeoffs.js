@@ -856,7 +856,7 @@
   function drawingPointer(event) {
     // Re-rendering a hit shape after the first click can suppress the browser's
     // dblclick event. Its second click still carries detail=2 on the overlay.
-    if (state.tool === "count" && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
+    if (["count", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
     if (state.busy || state.modal || state.countFinishing || !state.viewport || !["calibrate", "trace", "count", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;

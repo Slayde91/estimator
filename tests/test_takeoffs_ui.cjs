@@ -85,11 +85,12 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(calls,1);assert.deepEqual(sent,{op:'add_count_items',document_id:'doc',page:1,markers:[{point:[10,10],length_m:6.123456789}],fields:{},appearance:{}});assert.equal(h.audit.state.tool,'select');assert.equal(h.audit.state.countEntries.length,0);assert.equal(h.timers.size,0);assert.equal(h.audit.state.settingsOpen,true);
   });
   await check('Count settings expand every same-batch length row, keep Qty read-only and preserve unrelated selections after regrouping',async()=>{
-    const h=countHarness(),a=countItem('a','batch',5,[[10,10]]),b=countItem('b','batch',8,[[20,20],[30,30]]),other=countItem('other','different',5,[[40,40]]),trace={id:'trace',mode:'steel',quantity:2,fields:{mark:'trace'}};
+    const h=countHarness(),a=countItem('a','batch',5,[[10,10]]),b=countItem('b','batch',3.5,[[20,20],[30,30]]),other=countItem('other','different',5,[[40,40]]),trace={id:'trace',mode:'steel',quantity:2,fields:{mark:'trace'}};
+    a.length_additions=b.length_additions=[{id:'rise',kind:'riser',length_mm:500,document_id:'doc',page:1,note:'Explicit 500 mm riser per member'}];h.audit.state.resultMap.set('b',{id:'b',base_length_m:3.5,additions_length_m:.5,length_m:4,total_length_m:8,issues:[]});
     h.audit.state.session.snapshot.items=[a,b,other,trace];h.audit.state.tool='select';h.audit.state.selected=new Set(['b']);
     assert.deepEqual(new Set(h.audit.settingsSelectedItems().map(item=>item.id)),new Set(['a','b']));
     const {ui,element,all}=h.dom;ui.settingsPanel=element();ui.layout=element();ui.tools={settings:element()};ui.target={value:'steel_vermiculite'};h.audit.state.settingsOpen=true;h.audit.setApi(async()=>({columns:[]}));h.audit.renderSettingsPanel();
-    const editor=h.audit.state.settingsEditor,quantity=all.call(h.dom,ui.settingsPanel).find(el=>el.attributes['aria-label']==='Count quantity');assert.equal(quantity.value,3);assert.equal(quantity.readOnly,true);assert.equal(editor.quantity,null);assert.equal(editor.appearance.find(field=>field.control.name==='marker_shape').control.value,'circle');
+    const editor=h.audit.state.settingsEditor,quantity=all.call(h.dom,ui.settingsPanel).find(el=>el.attributes['aria-label']==='Count quantity');assert.equal(quantity.value,3);assert.equal(quantity.readOnly,true);assert.equal(editor.quantity,null);assert.equal(editor.appearance.find(field=>field.control.name==='marker_shape').control.value,'circle');assert.ok(ui.settingsPanel.textContent.includes('2 markers · Manual base: 3.50 m each + cited additions: 0.50 m each · Total: 8.00 m'));
     const level=editor.fields.find(field=>field.control.name==='level').control;level.value='L2';level.events.input();h.audit.setAsk(async()=>({}));let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};});await h.audit.applySettings(editor);assert.equal(sent.op,'bulk_update');assert.deepEqual(new Set(sent.item_ids),new Set(['a','b']));assert.deepEqual(sent.changes,{fields:{level:'L2'}});assert.equal(h.audit.state.settingsDirty,false);
     h.audit.state.selected=new Set(['b','trace']);const regrouped=copy(h.audit.state.session.snapshot);regrouped.items=regrouped.items.filter(item=>item.id!=='b');h.audit.accept({...response(regrouped),regrouped_item_ids:['a']});assert.deepEqual(new Set(h.audit.state.selected),new Set(['a','trace']));
   });
@@ -529,6 +530,14 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const rendering=h.audit.renderPage({point:[10,10],offset:[50,60]});await flush();assert.equal(h.audit.state.viewport,null);assert.equal(replacement,undefined);
     h.audit.drawingPointer({button:0,detail:1,clientX:100,clientY:100,preventDefault(){throw new Error('Trace click must be ignored while display transform is unavailable');}});assert.deepEqual(copy(h.audit.state.points),[[10,10]]);
     pending.resolve();await rendering;assert.equal(h.audit.state.viewport,viewport);assert.equal(h.audit.state.ui.canvas,replacement);assert.ok(replacement);assert.equal(h.audit.state.zoomAnchor,null);
+  });
+  await check('Viewport second-click completion survives SVG replacement and finishes once even if dblclick also arrives',async()=>{
+    const h=harness(),value=blank();value.documents=[{id:'doc',name:'Detail.pdf',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));const dom=attachMinimalDom(h);
+    dom.ui.viewport=dom.element();dom.ui.overlay.getBoundingClientRect=()=>({left:0,top:0,width:200,height:200});Object.assign(h.audit.state,{document:'doc',page:1,viewport:{width:200,height:200,transform:[1,0,0,1,0,0]},tool:'viewport'});
+    const held=deferred();let calls=0,finished;h.audit.setFinishTrace(async()=>{calls++;finished=copy(h.audit.state.points);await held.promise;});const click=(x,y,detail=1)=>({clientX:x,clientY:y,button:0,detail,preventDefault(){}});
+    h.audit.drawingPointer(click(20,30));const priorShape=dom.ui.overlay.children[0];h.audit.drawingPointer(click(120,140));assert.notEqual(dom.ui.overlay.children[0],priorShape,'The first click replaces SVG children');assert.equal(calls,0);
+    h.audit.drawingPointer(click(120,140,2));await flush();assert.equal(calls,1,'The detail-two click completes without requiring a native dblclick');assert.deepEqual(finished,[[20,30],[120,140]]);
+    await h.audit.finishTraceFromDoubleClick(click(120,140,2));assert.equal(calls,1,'A later native dblclick does not complete the same viewport again');held.resolve();await flush();assert.equal(calls,1);
   });
   await check('Viewport corners remain rectangular and require a valid explicit finish without inheriting another scale boundary',async()=>{
     const h=harness(),value=blank();value.documents=[{id:'doc',name:'Detail.pdf',pages:[{page:1,view:[0,0,200,200]}]}];value.calibrations=[{id:'detail',document_id:'doc',page:1,region:[0,0,30,30]}];h.audit.accept(response(value));const dom=attachMinimalDom(h);

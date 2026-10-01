@@ -263,6 +263,19 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await cancelAt([250, 350]); await expect(page.locator('.takeoff-viewport-preview')).toHaveCount(0);
   assert.deepEqual((await snapshot()).calibrations, beforeViewportCancel.calibrations); assert.deepEqual((await snapshot()).items, beforeViewportCancel.items);
   assert.ok(!operations.slice(beforeCancelOperations).includes('add_calibration'), 'Right-click cancellation creates no scale or viewport');
+  // Existing hit shapes are replaced by the first click's preview render. The
+  // second click must still finish even when the browser suppresses dblclick.
+  await page.getByRole('complementary', { name: 'Viewports', exact: true }).getByRole('button', { name: 'Add viewport', exact: true }).click();
+  await draw([[100, 100]]);
+  const markupFinish = await screenPoint([550, 500]);
+  assert.equal(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-item-id]')?.dataset.itemId, markupFinish), mainId, 'The opposite corner lands on an existing saved markup');
+  await page.mouse.dblclick(...markupFinish);
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create viewport', exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.locator('.takeoff-viewport-preview')).toHaveCount(0);
+  assert.deepEqual((await snapshot()).calibrations, beforeViewportCancel.calibrations); assert.deepEqual((await snapshot()).items, beforeViewportCancel.items);
+  assert.ok(!operations.slice(beforeCancelOperations).includes('add_calibration'), 'Cancelling viewport details preserves calibrations and saved markups');
+  evidence.viewportFinishOverSavedMarkup = true;
   await fit(); state = await viewport('DETAIL-50', [[100, 100], [300, 400]], 50);
   const detailId = state.snapshot.calibrations.find(calibration => calibration.name === 'DETAIL-50').id;
   const boundaryOperations = operations.length;

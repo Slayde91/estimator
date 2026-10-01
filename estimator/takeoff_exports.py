@@ -25,7 +25,7 @@ HEADERS = ('Item ID', 'Item version', 'Mode', 'Mark / run', 'Level', 'Zone', 'Gr
            'Confirmation digest', 'Confirmed at', 'Transfer references', 'Notes', 'Physical member IDs',
            'Confirmation checks', 'Confirmed by', 'Gross area m2', 'Excluded area m2', 'Net area m2',
            'Treatment', 'Substrate', 'Surface basis', 'Surface citation', 'Area exclusions',
-           'Base length per item m', 'Riser/drop additions per item m', 'Riser/drop source dimensions')
+           'Base length per item m', 'Riser/drop additions per item m', 'Riser/drop source dimensions', 'Count ID')
 
 
 def register_rows(snapshot, items):
@@ -68,7 +68,8 @@ def register_rows(snapshot, items):
                      for addition in item.get('length_additions', [])]
         row.extend([base_length(item, snapshot) if area is None else None,
                     length_additions(item, snapshot) if area is None else None,
-                    json.dumps(additions, ensure_ascii=False, sort_keys=True) if area is None else None])
+                    json.dumps(additions, ensure_ascii=False, sort_keys=True) if area is None else None,
+                    item.get('count_id')])
         rows.append(row)
     return rows
 
@@ -123,9 +124,9 @@ def export_register(snapshot, items, format):
     info = workbook.create_sheet('Provenance')
     for row in [('Project ID', snapshot['project_id']), ('Takeoff revision', snapshot['revision']),
                 ('Audit head SHA-256', snapshot['audit_head']),
-                ('Scope', 'Confirmed measured takeoffs. Technical suitability requires separate assessment.'),
-                ('Coordinates', 'Unrotated source PDF coordinates; measurements use the retained calibration or cited dimension.'),
-                ('Quantity', 'Explicit physical quantity; never photo count. Linear total length is quantity times the sum of base length and each cited riser/drop addition per member. A wall/slab polygon is one distinct treatment surface; net area is gross area less its explicit exclusions, with no inferred face multiplier.'),
+                ('Scope', 'Confirmed takeoff records. Technical suitability requires separate assessment.'),
+                ('Coordinates', 'Unrotated source PDF coordinates. Traces use the retained calibration or cited dimension; Steel counts retain independent member markers and an explicitly entered manual length, without requiring a scale.'),
+                ('Quantity', 'Explicit physical quantity; never inferred from photographs. Steel count quantity is derived from its retained member markers, with ordered point/member-ID correspondence. Linear total length is quantity times the sum of base length and each cited riser/drop addition per member. A wall/slab polygon is one distinct treatment surface; net area is gross area less its explicit exclusions, with no inferred face multiplier.'),
                 ('Surface basis', 'Wall polygons represent true wall faces, not plan footprints. Slab polygons identify top or soffit surfaces. Calibration scale is squared for area. Printed presets include PDF UserUnit once; manual known-distance calibration is direct. Rendering zoom and rotation do not change quantities.'),
                 ('Calculator links', 'Transfer statuses describe retained receipts. This register export does not recheck the current calculator draft; stale/conflicting links do not become current by exporting.'),
                 ('Source links', 'Document IDs, page numbers and hashes identify the retained source originals.')]:
@@ -273,7 +274,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
                'Exposure', 'Orientation', 'Level', 'Zone', 'Group', 'Notes', 'Source document', 'Source page',
                'Source SHA-256', 'Linked calculator result', 'Issues', 'Confirmation ID', 'Confirmation digest',
                'Geometry', 'Measurement basis', 'All item properties', 'Supporting evidence', 'Riser/drop additions',
-               'Calculator result provenance', 'Appearance', 'Physical member IDs', 'Source page metadata', 'Confirmation receipt']
+               'Calculator result provenance', 'Appearance', 'Physical member IDs', 'Source page metadata', 'Confirmation receipt', 'Count ID']
     workbook = Workbook(); sheet = workbook.active; sheet.title = 'Current Takeoffs'
     sheet.append(headers); details = []
     for item in selected:
@@ -301,6 +302,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
                    for value in (geometry, basis, field, evidence, additions,
                                  linked[item['id']], item.get('appearance'), item['member_ids'],
                                  doc['pages'][geometry['page']-1] if doc else None, confirmation))
+        row.append(item.get('count_id'))
         for index, value in enumerate(row):
             if isinstance(value, str) and len(value.encode('utf-16-le')) > 60000:
                 parts = [value[start:start+15000] for start in range(0, len(value), 15000)]

@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const G = window.CeasefireTakeoffGeometry;
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
-    zoom: 1, tool: "select", points: [], traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
+    zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
@@ -32,8 +32,10 @@
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && item.mode === state.mode);
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
-  const settingsSelectedItems = () => [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean);
-  const appearanceOf = item => ({ stroke_color: "#16699B", fill_enabled: item.geometry?.kind === "polygon", fill_color: "#16699B", stroke_width: 2, opacity: 1, ...item.appearance });
+  const isCount = item => item?.geometry?.kind === "count";
+  const countBatchItems = item => items().filter(value => isCount(value) && value.count_id === item.count_id);
+  const settingsSelectedItems = () => { const selected = [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean); const batches = new Set(selected.filter(isCount).map(item => item.count_id)); return selected.concat(items().filter(item => !selected.includes(item) && isCount(item) && batches.has(item.count_id))); };
+  const appearanceOf = item => ({ stroke_color: "#16699B", fill_enabled: item.geometry?.kind === "polygon" || isCount(item), fill_color: "#16699B", stroke_width: 2, opacity: 1, marker_shape: "circle", marker_size: 12, ...item.appearance });
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -47,9 +49,11 @@
     "Apply item edits": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Apply settings": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
+    "Count": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
     "Trace surface": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Add exclusion": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Calibrate": "M3 3v18h18L3 3zM7 12v5h5l-5-5zM6 6l-2 2M9 9l-2 2M12 12l-2 2M15 15l-2 2M18 18l-2 2",
+    "Scale": "M3 14H1v8h22v-8h-2M6 22v-4M12 22v-5M18 22v-4M5 7h14M9 3L5 7l4 4M15 3l4 4-4 4",
     "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
     "Add viewport": "M12 4v16M4 12h16",
     "Delete viewport": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
@@ -109,14 +113,14 @@
   function accept(reply) {
     if (!reply?.session_id || !reply.snapshot || !Number.isInteger(reply.revision)) throw new Error("The takeoff response is incomplete.");
     state.session = reply; state.resultMap = new Map((reply.item_results || []).map(item => [item.id, item])); state.issues = reply.issues || [];
-    state.selected = new Set([...state.selected].filter(id => items().some(item => item.id === id)));
+    state.selected = new Set([...state.selected].filter(id => items().some(item => item.id === id)).concat(reply.regrouped_item_ids || []));
     if (!currentDocument()) { state.document = documents()[0]?.id || null; state.page = 1; }
     state.bindings = snapshot().transfers || [];
     state.physicalUI?.render(snapshot());
     window.CeasefireProject?.changed?.();
   }
   function markFormEdited() { state.formDirty = true; state.formRevision = (state.formRevision || 0) + 1; window.CeasefireProject?.changed?.(); }
-  function working(value) { state.busy = value; if (state.ui) { state.ui.root.setAttribute("aria-busy", String(value)); for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value; state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`; renderViewportPanel(); } window.CeasefireProject?.changed?.(); }
+  function working(value) { state.busy = value; if (state.ui) { state.ui.root.setAttribute("aria-busy", String(value)); for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value || control.dataset.countReadOnly === "true"; state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`; renderViewportPanel(); } window.CeasefireProject?.changed?.(); }
   function command(op, values = {}, guard) {
     const sessionId = state.session?.session_id;
     const task = state.queue.then(async () => {
@@ -182,10 +186,13 @@
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
+    ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.tools.calibrate.after(scaleAnchor);
     toolbar.append(ui.cancelTrace = button("Cancel trace", cancelTrace));
     ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
-    ui.calibration = select([["", "No Scale Selected"]], value => chooseCalibration(value)); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
+    const headingControls = node("div", "takeoff-heading-controls"), drawingDownloads = node("div", "takeoff-toolbar takeoff-drawing-downloads"); drawingDownloads.setAttribute("role", "group"); drawingDownloads.setAttribute("aria-label", "Drawing downloads"); drawingDownloads.append(...ui.drawingDownloads); headingControls.append(modes, drawingDownloads);
+    ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
     const navigation = node("div", "takeoff-toolbar takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
     const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls");
     ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
@@ -197,7 +204,8 @@
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
-    const scaleControls = node("div", "takeoff-navigation-group takeoff-scale-controls"); scaleControls.append(ui.calibration, ui.editCalibration, ...ui.drawingDownloads); navigation.append(scaleControls);
+    const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.editCalibration); scaleAnchor.append(scaleControls);
+    scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
     const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; const drawingPane = node("div", "takeoff-drawing-pane"); ui.drawingPane = drawingPane;
@@ -223,7 +231,7 @@
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, pageControls);
     drawingPane.append(searchControls, viewer, navigation, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(modes, ui.message, workspace, ui.physicalContainer);
+    workspace.append(layout, register); root.append(headingControls, ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
@@ -249,7 +257,7 @@
     // Page/view scales are shared source metadata, even in the physical draft.
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
-      for (const tool of ["trace", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
+      for (const tool of ["trace", "count", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
       ensurePhysicalUI(); state.physicalUI.render(snapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
@@ -257,6 +265,7 @@
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
     state.ui.tools.trace.hidden = area;
+    state.ui.tools.count.hidden = state.mode !== "steel";
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
@@ -373,11 +382,16 @@
     return all.filter(value => value.document_id === state.document && value.page === state.page && !value.deleted && !superseded.has(value.id));
   }
   function inViewport(point, region) { return point[0] >= region[0] && point[1] >= region[1] && point[0] <= region[0] + region[2] && point[1] <= region[1] + region[3]; }
+  function toggleScaleControls(open = state.ui.scaleControls.hidden) {
+    state.ui.scaleControls.hidden = !open; state.ui.scaleToggle.setAttribute("aria-expanded", String(open)); state.ui.scaleToggle.classList.toggle("takeoff-tool-active", open);
+    if (open) state.ui.calibration.focus();
+  }
   function renderCalibrations() {
     const calibrations = activePageCalibrations();
     state.ui.calibration.replaceChildren(option("", "No Scale Selected"), ...calibrations.map(calibration => option(calibration.id, `${calibration.region ? "Viewport: " : ""}${calibration.name}${calibration.scale_denominator ? ` · 1:${calibration.scale_denominator}` : ""}`)), ...scaleDenominators.map(value => option(`scale:${value}`, `1:${value}`)));
     if (!calibrations.some(calibration => calibration.id === state.calibration)) state.calibration = "";
     state.ui.calibration.value = state.calibration;
+    if (state.ui.scaleToggle) { const active = state.ui.calibration.selectedOptions[0]?.textContent || "No Scale Selected"; state.ui.scaleToggle.title = `Scale · ${active}`; state.ui.scaleStatus.textContent = active; }
     if (calibrations.some(value => value.id === state.calibration && value.region)) state.viewportSelection = state.calibration;
     renderViewportPanel();
   }
@@ -411,19 +425,26 @@
     const selected = settingsSelectedItems(), key = JSON.stringify([state.session?.session_id, selected.map(item => item.id)]);
     const existing = state.settingsEditor;
     if (state.settingsDirty && existing?.key === key) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; void safely(() => loadSettingsOptions(existing)); return; }
-    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Settings")); panel.replaceChildren(heading);
+    const countsOnly = selected.length > 0 && selected.every(isCount);
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", countsOnly ? "Count details" : "Settings")); panel.replaceChildren(heading);
     if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); return; }
     const first = selected[0], editor = { key, ids: selected.map(item => item.id), touched: new Map(), fields: [], appearance: [], quantity: null }; state.settingsEditor = editor;
     const content = node("div", "takeoff-settings-fields"); panel.append(content);
+    if (countsOnly) content.append(node("p", "helper", "All length groups in a Count share these steel and fire-protection details. Start a new Count for different details. Quantity comes only from its markers."));
     content.append(node("p", "helper", `${selected.length} selected · First: ${first.fields.mark || first.id}. Only edited controls apply to all selected items. Stored fields that are hidden remain unchanged.`), node("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
-    for (const def of [["stroke_color", "Stroke colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["fill_color", "Fill colour", "color"], ["stroke_width", "Stroke width (PDF points)", "number"], ["opacity", "Opacity", "number"]]) {
+    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker size (PDF points)", "number"]] : []), ["stroke_color", "Stroke colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["fill_color", "Fill colour", "color"], ["stroke_width", "Stroke width (PDF points)", "number"], ["opacity", "Opacity", "number"]]) {
       const field = formField(def, appearance[def[0]]); if (def[0] === "stroke_width") { field.control.min = "0.25"; field.control.max = "20"; } if (def[0] === "opacity") { field.control.min = "0"; field.control.max = "1"; field.control.step = "0.05"; }
       field.control.addEventListener("input", () => markSettingsEdited(editor, `appearance:${def[0]}`)); editor.appearance.push(field); content.append(field.wrapper);
+      if (def[0] === "marker_size") { field.control.min = "2"; field.control.max = "72"; }
     }
-    content.append(node("p", "helper", "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
+    content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
     editor.fields = editableFields(first.mode, "steel_board").map(def => { const field = formField(def, first.fields[def[0]]); field.control.addEventListener("input", () => markSettingsEdited(editor, `fields:${def[0]}`)); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
-    if (!isArea(first.mode)) { editor.quantity = formField(["quantity", "Physical quantity", "number"], first.quantity); editor.quantity.control.addEventListener("input", () => markSettingsEdited(editor, "quantity")); content.append(editor.quantity.wrapper); }
+    if (selected.some(isCount)) {
+      const quantity = formField(["count_quantity", "Count quantity", "number"], selected.filter(isCount).reduce((sum, item) => sum + item.quantity, 0)); quantity.control.readOnly = true; content.append(quantity.wrapper);
+      content.append(node("h4", "", "Manually entered lengths"));
+      selected.filter(isCount).forEach((item, index) => { const row = node("div", "takeoff-count-length"), result = itemResult(item); row.append(node("p", "helper", `${item.quantity} markers · Manual base: ${formatLength(item.measurement.length_m)} m each${result.additions_length_m ? ` + cited additions: ${formatLength(result.additions_length_m)} m each` : ""} · Total: ${formatLength(result.total_length_m)} m`), button(`Change length for group ${index + 1}`, () => changeCountLength(item))); content.append(row); });
+    } else if (!isArea(first.mode)) { editor.quantity = formField(["quantity", "Physical quantity", "number"], first.quantity); editor.quantity.control.addEventListener("input", () => markSettingsEdited(editor, "quantity")); content.append(editor.quantity.wrapper); }
     const actions = node("div", "actions"); actions.append(button("Apply settings", () => applySettings(editor)), button("Discard settings", () => { state.settingsDirty = false; state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.(); })); content.append(actions);
     void safely(() => loadSettingsOptions(editor));
   }
@@ -446,6 +467,17 @@
     for (const [key, revision] of captured) if (editor.touched.get(key) === revision) editor.touched.delete(key);
     state.settingsDirty = editor.touched.size > 0; if (!state.settingsDirty) state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.();
     message(state.settingsDirty ? "Captured settings applied. Later edits remain unfinished." : "Settings applied. Unchanged item properties were preserved.");
+  }
+  async function changeCountLength(item) {
+    requireFinishedEdits(); const current = items().find(value => value.id === item.id);
+    if (!isCount(current)) throw new Error("This count group changed. Select its current row.");
+    const revision = state.session.revision;
+    const data = await ask("Change counted member length", [["length_m", "Length per member (m)", "number", current.measurement.length_m, true]], "This changes every marker in this length group. Equal lengths in this Count combine into one row. Review and existing calculator links become stale; calculator inputs are preserved until an explicit update.", "Apply length", controls => { controls[0].control.min = "0.000000001"; controls[0].control.max = "1000000000000"; });
+    if (!data) return;
+    if (state.session.revision !== revision || !items().some(value => value.id === item.id)) throw new Error("The count changed during length review. Repeat the change.");
+    if (!(data.length_m > 0) || data.length_m > 1e12) throw new Error("Enter a positive finite manual length.");
+    await command("update_item", { item_id: item.id, changes: { measurement: { method: "manual", length_m: data.length_m } } });
+    state.settingsEditor = null; renderSelection();
   }
   function renderViewportPanel() {
     const panel = state.ui?.viewportPanel; if (!panel) return;
@@ -529,6 +561,7 @@
     } finally { renderCalibrations(); }
   }
   async function createViewport() {
+    if (state.points.length !== 2) throw new Error("Choose two opposite corners of the rectangular viewport before finishing.");
     const region = G.region(...state.points);
     if (!(region[2] > 0 && region[3] > 0)) throw new Error("Select two opposite corners of a nonzero viewport.");
     const details = await ask("Create viewport", [["name", "Viewport name", "text", "", true], ["scale", "Scale", [["manual", "Calibrate a known dimension"], ...scaleDenominators.map(value => [String(value), `1:${value}`])], "", true]], "This rectangular detail has its own scale. Viewports cannot overlap. Preset scales assume an original-size, uniformly scaled PDF; use a known dimension for resized sheets or scans.", "Create viewport");
@@ -754,6 +787,8 @@
   }
   function setTool(tool, target = {}) {
     if (state.busy) return;
+    if (state.modal || state.countFinishing) throw new Error("Finish the current count or dialog first.");
+    if (tool === "count" && state.mode !== "steel") throw new Error("Count is a steel member tool. Each marker requires an explicit manual length.");
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
@@ -765,23 +800,78 @@
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null; state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
     state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
+    if (tool === "count") { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     // Select-only handles must not intercept the first pan or trace pointer.
     renderOverlay();
     state.ui.viewport.focus();
-    state.ui.progress.textContent = ({ viewport: "Click two opposite corners of the detail viewport, then choose its independent scale.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool];
+    state.ui.progress.textContent = ({ count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool];
   }
-  function cancelTrace() { cancelSelectionGesture(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function resetCountDraft() {
+    for (const entry of state.countEntries) clearTimeout(entry.timer);
+    state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve();
+  }
+  function refreshCountDraft() { state.points = state.countEntries.map(entry => entry.point); renderOverlay(); window.CeasefireProject?.changed?.(); }
+  function removePendingCount(entry) { clearTimeout(entry?.timer); state.countEntries = state.countEntries.filter(value => value !== entry); refreshCountDraft(); }
+  function currentCountEntry(entry) { return entry.generation === state.countGeneration && state.tool === "count" && entry.sessionId === state.session?.session_id && entry.documentId === state.document && entry.page === state.page && state.countEntries.includes(entry); }
+  function queueCountLength(entry) {
+    clearTimeout(entry.timer);
+    const task = state.countQueue.then(async () => {
+      if (!currentCountEntry(entry) || entry.length_m != null) return;
+      if (state.countDefaultLength != null) { entry.length_m = state.countDefaultLength; refreshCountDraft(); return; }
+      const revision = state.session?.revision;
+      const data = await ask("Counted member length", [["length_m", "Length per member (m)", "number", "", true], ["reuse", "Use this length for additional counts", "checkbox", false]], "Enter the real member length. Marker positions and drawing scale never calculate this length.", "Place marker", controls => { controls[0].control.min = "0.000000001"; controls[0].control.max = "1000000000000"; });
+      if (!currentCountEntry(entry)) return;
+      if (revision !== state.session?.revision) throw new Error("The count changed during length entry. Cancel and restart this count.");
+      if (!data) { removePendingCount(entry); return; }
+      if (!(data.length_m > 0) || data.length_m > 1e12) throw new Error("Enter a positive finite length no greater than 1,000,000,000,000 metres.");
+      entry.length_m = data.length_m; state.countDefaultLength = data.reuse ? data.length_m : null; refreshCountDraft();
+    });
+    state.countQueue = task.catch(error => { message(error.message, true); }); return task;
+  }
+  function stageCountMarker(point, event) {
+    if (state.countFinishing) return;
+    if (state.countEntries.length >= 10000) throw new Error("A count supports at most 10,000 markers.");
+    const entry = { point: [...point], length_m: state.countDefaultLength, generation: state.countGeneration, sessionId: state.session?.session_id, documentId: state.document, page: state.page, timeStamp: event.timeStamp, client: [event.clientX, event.clientY] };
+    state.countEntries.push(entry); state.countLastClick = entry; refreshCountDraft();
+    // A double-click finishes the count. Defer its first click's length dialog
+    // so it can be removed without an extra marker or a modal stealing focus.
+    entry.timer = setTimeout(() => { if (currentCountEntry(entry)) void safely(() => queueCountLength(entry)); }, 500);
+  }
+  async function finishCount() {
+    if (state.countFinishing || state.busy || state.modal || state.tool !== "count") return;
+    const generation = state.countGeneration; state.countFinishing = true;
+    try {
+      for (const entry of [...state.countEntries]) await queueCountLength(entry);
+      if (generation !== state.countGeneration || state.tool !== "count") return;
+      if (!state.countEntries.length) { cancelTrace(); return; }
+      const markers = state.countEntries.map(entry => ({ point: [...entry.point], length_m: entry.length_m }));
+      if (markers.some(entry => !(entry.length_m > 0) || !Number.isFinite(entry.length_m))) throw new Error("Every count marker requires a positive manual length.");
+      const reply = await command("add_count_items", { document_id: state.document, page: state.page, markers, fields: {}, appearance: {} });
+      cancelTrace(); state.selected = new Set(reply.created_item_ids); state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+      message("Count recorded. Set the shared steel and fire-protection details in the panel. Different lengths have separate rows; marker quantity cannot be typed.");
+    } finally { if (generation === state.countGeneration) state.countFinishing = false; }
+  }
   function drawingPointer(event) {
+    // Re-rendering a hit shape after the first click can suppress the browser's
+    // dblclick event. Its second click still carries detail=2 on the overlay.
+    if (["count", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
-    if (state.busy || state.modal || !state.viewport || !["calibrate", "trace", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
+    if (state.busy || state.modal || state.countFinishing || !state.viewport || !["calibrate", "trace", "count", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
     if (state.formDirty || state.settingsDirty) { message("Apply or discard the unfinished item edits or settings before continuing the drawing tool.", true); return; }
     if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
     const view = pageMetadata()?.view; if (view && (p[0] < view[0] || p[1] < view[1] || p[0] > view[2] || p[1] > view[3])) return;
+    if (state.tool === "count") { void safely(() => stageCountMarker(p, event)); return; }
     if (state.pendingViewport && !inViewport(p, state.pendingViewport.region)) { message("Both calibration points must be inside the viewport.", true); return; }
     if (state.calibrationTarget) { const target = activePageCalibrations().find(value => value.id === state.calibrationTarget); if (!target?.region || !inViewport(p, target.region)) { message("Both calibration points must be inside the selected viewport.", true); return; } }
+    if (state.tool === "viewport") {
+      state.points = state.points.length ? [state.points[0], p] : [p];
+      state.doubleClickEndpointValid = true; state.traceCursor = null;
+      renderOverlay(); window.CeasefireProject?.changed?.(); return;
+    }
     if (["trace", "polygon"].includes(state.tool) && !state.points.length && !state.retraceId) {
       const calibrations = activePageCalibrations(), scoped = calibrations.filter(value => value.region && inViewport(p, value.region));
       if (scoped.length > 1) { message("This point is on more than one viewport boundary. Start clearly inside one viewport.", true); return; }
@@ -802,10 +892,15 @@
     state.points.push(p); state.traceCursor = null; renderOverlay(); window.CeasefireProject?.changed?.();
     if (state.points.length === 2 && state.tool === "calibrate") void safely(addCalibration);
     else if (state.points.length === 2 && state.tool === "cite") void safely(finishCitation);
-    else if (state.points.length === 2 && state.tool === "viewport") void safely(createViewport);
   }
   async function finishTraceFromDoubleClick(event) {
-    if (!["trace", "polygon", "exclusion"].includes(state.tool)) return;
+    if (state.tool === "count") {
+      event.preventDefault(); if (state.busy || state.modal || state.countFinishing) return;
+      const entry = state.countLastClick;
+      if (entry && currentCountEntry(entry) && event.timeStamp - entry.timeStamp <= 700 && Math.hypot(event.clientX - entry.client[0], event.clientY - entry.client[1]) < 5) removePendingCount(entry);
+      state.countLastClick = null; await finishCount(); return;
+    }
+    if (!["trace", "polygon", "exclusion", "viewport"].includes(state.tool)) return;
     event.preventDefault();
     if (!state.doubleClickEndpointValid || state.busy || state.modal || !state.viewport) return;
     state.doubleClickEndpointValid = false;
@@ -826,11 +921,11 @@
     return G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
   }
   function tracePointerMove(event) {
-    if (!state.viewport || state.busy || state.modal || state.gesture || !state.points.length || !["polygon", "exclusion", "trace"].includes(state.tool)) return;
+    if (!state.viewport || state.busy || state.modal || state.gesture || !state.points.length || !["polygon", "exclusion", "trace", "viewport"].includes(state.tool)) return;
     const point = drawingPoint(event), view = pageMetadata()?.view;
-    if (view && (point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3])) return;
+    if (view && (point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3])) { if (state.tool === "viewport") { state.traceCursor = null; renderOverlay(); } return; }
     const calibration = (snapshot()?.calibrations || []).find(value => value.id === state.calibration);
-    if (calibration?.region && !inViewport(point, calibration.region)) { state.traceCursor = null; renderOverlay(); return; }
+    if (state.tool !== "viewport" && calibration?.region && !inViewport(point, calibration.region)) { state.traceCursor = null; renderOverlay(); return; }
     state.traceCursor = point; renderOverlay();
   }
   function handoffPlanWheel(event) {
@@ -983,7 +1078,8 @@
     const { reference, point } = state.markupMenu;
     try { markupTarget(reference); } catch { state.markupMenu = null; return; }
     const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Markup actions");
-    const remove = button("Delete markup", () => deleteMarkup(reference)); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
+    const memberId = state.markupMenu.memberId;
+    const remove = button(memberId ? "Delete count marker" : "Delete markup", () => memberId ? deleteCountMarker(reference, memberId) : deleteMarkup(reference)); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
@@ -994,17 +1090,19 @@
       // drawing has focus. Drawing undo never delegates to that input history.
       event.preventDefault();
       if (state.points.length) {
-        if (state.busy || state.modal || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
+        if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
+        if (state.tool === "count") { removePendingCount(state.countEntries.at(-1)); return; }
         state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); return;
       }
       if (state.tool !== "select" || state.mode === "physical") return;
       const selected = selectedItems(), item = selected.length === 1 && drawableItems().find(value => value.id === selected[0].id);
+      if (isCount(item)) { void safely(() => { requireFinishedEdits(); return command("undo"); }); return; }
       const reference = state.controlPoint || (item ? pointReference(item, item.geometry.points.length - 1) : null);
       if (!reference) { if (selected.length > 1) message("Choose one control point before deleting from multiple selected markups."); return; }
       void safely(() => removeControlPoint(reference)); return;
     }
-    if (event.key === "Enter" && ["trace", "polygon", "exclusion"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
-    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.formDirty || state.settingsDirty) return; state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
+    if (event.key === "Enter" && ["trace", "count", "polygon", "exclusion", "viewport"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
+    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (state.tool === "count") { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
   }
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;
@@ -1120,6 +1218,8 @@
   }
   async function finishTrace() {
     if (state.formDirty || state.settingsDirty) throw new Error("Apply or discard the unfinished item edits or settings before completing the trace.");
+    if (state.tool === "count") return finishCount();
+    if (state.tool === "viewport") return createViewport();
     if (["polygon", "exclusion"].includes(state.tool)) return finishAreaTrace();
     if (state.tool !== "trace" || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
     if (!state.calibration) throw new Error("Choose the correct calibration.");
@@ -1186,6 +1286,38 @@
     else await createDrawnItem(measurement, geometry, [evidence]);
   }
   function svg(tag, attributes) { const el = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [key, value] of Object.entries(attributes)) el.setAttribute(key, String(value)); return el; }
+  function countSymbol(point, appearance, attributes = {}) {
+    const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1), radius = appearance.marker_size * scale / 2, [x, y] = point;
+    if (appearance.marker_shape === "square") return svg("rect", { x: x - radius, y: y - radius, width: radius * 2, height: radius * 2, ...attributes });
+    if (["triangle", "diamond"].includes(appearance.marker_shape)) {
+      const points = appearance.marker_shape === "triangle" ? [[x, y - radius], [x + radius, y + radius], [x - radius, y + radius]] : [[x, y - radius], [x + radius, y], [x, y + radius], [x - radius, y]];
+      return svg("polygon", { points: points.map(value => value.join(",")).join(" "), ...attributes });
+    }
+    return svg("circle", { cx: x, cy: y, r: radius, ...attributes });
+  }
+  function renderCountMarkers(overlay, item, geometry) {
+    const appearance = appearanceOf(item), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
+    geometry.points.forEach((source, index) => {
+      const point = G.transform(source, state.viewport.transform), memberId = item.member_ids[index];
+      const shape = countSymbol(point, appearance, { class: `takeoff-markup takeoff-count-marker${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale, fill: appearance.fill_enabled ? appearance.fill_color : "none", opacity: appearance.opacity });
+      const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id} · ${formatLength(item.measurement.length_m)} m` });
+      hit.dataset.itemId = item.id; hit.dataset.countItemId = item.id; hit.dataset.countMemberId = memberId;
+      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
+      const menu = event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = pointReference(item, index); markupTarget(reference); state.selected = new Set([item.id]); state.controlPoint = null; state.controlMenu = false; state.markupMenu = { reference, memberId, point }; renderSelection(); state.ui.overlay.querySelector('.takeoff-markup-menu button')?.focus({ preventScroll: true }); }); };
+      hit.addEventListener("contextmenu", menu);
+      hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") menu(event); else if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); void safely(() => selectItem(item.id, false, false)); } });
+      hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
+      overlay.append(shape, hit);
+    });
+  }
+  async function deleteCountMarker(reference, memberId) {
+    requireFinishedEdits(); const item = markupTarget(reference);
+    if (!isCount(item) || item.member_ids[reference.index] !== memberId) throw new Error("This marker changed. Open its menu again.");
+    await command("delete_count_marker", { item_id: item.id, member_id: memberId }, () => { requireFinishedEdits(); markupTarget(reference); return true; });
+    state.selected = new Set(countBatchItems(item).map(value => value.id));
+    state.markupMenu = null; state.settingsEditor = null; renderSelection();
+    message("Marker removed and quantity recalculated. Undo last edit restores it. Existing calculator values are preserved until an explicit update.");
+  }
   function surfaceScale(calibrationId, geometry) {
     const calibration = activePageCalibrations().find(value => value.id === calibrationId);
     if (!calibration || calibration.uniform_scale !== true || calibration.document_id !== geometry.document_id || calibration.page !== geometry.page) return null;
@@ -1219,6 +1351,7 @@
     for (const item of drawableItems()) {
       const pointDrag = state.gesture?.kind === "point" && state.gesture.moved && state.gesture.reference.itemId === item.id;
       const geometry = pointDrag ? state.gesture.geometry : state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
+      if (isCount(item)) { renderCountMarkers(overlay, item, geometry); continue; }
       const points = geometry.points.map(convert), className = `takeoff-markup ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, appearance = appearanceOf(item);
       // PDF.js' transform includes UserUnit. Stored widths are physical PDF points.
       const pixelWidth = appearance.stroke_width * Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
@@ -1243,7 +1376,7 @@
   function renderControlPoints(overlay) {
     if (state.tool !== "select" || state.gesture && state.gesture.kind !== "point" || !state.viewport) return;
     if (state.controlPoint) { try { pointTarget(state.controlPoint); } catch { state.controlPoint = null; state.controlMenu = false; } }
-    const selected = drawableItems().filter(item => state.selected.has(item.id)), maximum = 10000;
+    const selected = drawableItems().filter(item => state.selected.has(item.id) && !isCount(item)), maximum = 10000;
     const total = selected.reduce((count, item) => count + item.geometry.points.length + (item.geometry.exclusions || []).reduce((sum, exclusion) => sum + exclusion.points.length, 0), 0);
     let shown = 0, menuPoint = null;
     for (const item of selected) {
@@ -1296,10 +1429,25 @@
   }
   function renderPendingTrace(overlay) {
     if (!state.points.length) return;
+    if (state.tool === "count") {
+      const appearance = appearanceOf({ geometry: { kind: "count" } });
+      for (const entry of state.countEntries) overlay.append(countSymbol(G.transform(entry.point, state.viewport.transform), appearance, { class: "takeoff-count-pending", stroke: entry.length_m == null ? "#b46812" : appearance.stroke_color, "stroke-width": 2, fill: entry.length_m == null ? "#fff" : appearance.fill_color, opacity: 0.65 }));
+      return;
+    }
+    if (state.tool === "viewport") {
+      const sourceCorners = [state.points[0], state.traceCursor || state.points[1]].filter(Boolean);
+      if (sourceCorners.length === 2) {
+        const [x, y, width, height] = G.region(...sourceCorners);
+        const boundary = [[x, y], [x + width, y], [x + width, y + height], [x, y + height]].map(point => G.transform(point, state.viewport.transform));
+        overlay.append(svg("polygon", { points: boundary.map(point => point.join(",")).join(" "), class: "takeoff-pending takeoff-viewport-preview" }));
+      }
+      for (const point of sourceCorners.map(point => G.transform(point, state.viewport.transform))) overlay.append(svg("circle", { cx: point[0], cy: point[1], r: 4, class: "takeoff-pending" }));
+      return;
+    }
     const sourcePoints = [...state.points];
     if (state.traceCursor && ["trace", "polygon", "exclusion"].includes(state.tool) && sourcePoints.length < (state.tool === "trace" ? 10000 : areaTraceLimit()) && Math.hypot(state.traceCursor[0] - sourcePoints.at(-1)[0], state.traceCursor[1] - sourcePoints.at(-1)[1]) > 1e-8) sourcePoints.push(state.traceCursor);
     const points = sourcePoints.map(point => G.transform(point, state.viewport.transform));
-    if (["cite", "viewport"].includes(state.tool) && points.length === 2) {
+    if (state.tool === "cite" && points.length === 2) {
       const box = G.region(...points); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2], height: box[3], class: "takeoff-pending" }));
     } else overlay.append(svg(["polygon", "exclusion"].includes(state.tool) && points.length >= 3 ? "polygon" : "polyline", { points: points.map(point => point.join(",")).join(" "), class: "takeoff-pending" }));
     for (const point of state.points.map(point => G.transform(point, state.viewport.transform))) overlay.append(svg("circle", { cx: point[0], cy: point[1], r: 4, class: "takeoff-pending" }));
@@ -1346,6 +1494,7 @@
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
+    if (isCount(item)) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
     const modeChanged = state.mode !== item.mode;
     state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
     if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));
@@ -1376,6 +1525,7 @@
     renderRegister();
   }
   function registerEditorFor(item) {
+    if (isCount(item)) return null;
     const existing = state.registerEditor;
     if (state.formDirty && existing?.sessionId === state.session?.session_id && existing.itemId === item.id) return existing;
     const panel = node("section", "takeoff-register-editor"); panel.dataset.editorItemId = item.id; panel.setAttribute("aria-label", `Item details for ${item.fields.mark || item.id}`);
@@ -1391,7 +1541,9 @@
     if (!state.ui) return;
     const list = visibleItems(), selected = selectedItems();
     const individualMeasuredDuct = selected.length && selected.every(item => item.mode === "duct" && item.quantity === 1 && item.measurement?.method === "calibrated" && !item.length_additions?.length);
-    const steelGroups = selected.length && selected.every(item => item.mode === "steel" && Number.isInteger(item.quantity) && item.quantity > 0);
+    const steelGroups = selected.length && selected.every(item => item.mode === "steel" && !isCount(item) && Number.isInteger(item.quantity) && item.quantity > 0);
+    const quantityOption = state.ui.bulkField.querySelector('option[value="quantity"]');
+    if (quantityOption) { quantityOption.disabled = selected.some(isCount); if (quantityOption.disabled && state.ui.bulkField.value === "quantity") state.ui.bulkField.value = "mark"; }
     state.ui.split.disabled = !(selected.length === 1 && (individualMeasuredDuct || steelGroups && selected[0].quantity > 1));
     state.ui.merge.disabled = !(individualMeasuredDuct && selected.length === 2 || steelGroups && selected.length >= 2);
     state.ui.split.title = isArea() ? "Surface splitting is unavailable. Group separate physical surfaces without changing their identities." : state.mode === "steel" ? "Partition an explicit repeated-member quantity without changing individual member lengths." : "Split measured segments of one individual duct run.";
@@ -1427,7 +1579,12 @@
       const linkCell = node("td"), expanded = editor?.itemId === item.id;
       const edit = button(expanded ? "Close item editor" : "Edit item", () => expanded ? closeRegisterEditor(item) : openRegisterEditor(item), "text-button"); edit.setAttribute("aria-expanded", String(expanded));
       linkCell.append(button(item.id.slice(0, 8), () => openRegisterEditor(item, true), "takeoff-row-link"), edit); const reviewCell = node("td"); reviewCell.append(node("span", `takeoff-state ${reviewStatus(item).key}`, reviewStatus(item).label)); row.append(checkCell, showCell, linkCell, reviewCell);
-      for (const key of [...columns, ...(area ? [] : ["quantity"])]) { const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key); const field = formField(def, key === "quantity" ? item.quantity : item.fields[key]); field.control.addEventListener("change", () => void safely(async () => { try { requireFinishedEdits(); } catch (error) { field.control.value = key === "quantity" ? item.quantity ?? "" : item.fields[key] ?? ""; throw error; } const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
+      for (const key of [...columns, ...(area ? [] : ["quantity"])]) {
+        const def = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(field => field[0] === key), field = formField(def, key === "quantity" ? item.quantity : item.fields[key]);
+        if (isCount(item)) { field.control.readOnly = true; field.control.disabled = true; field.control.dataset.countReadOnly = "true"; field.control.title = key === "quantity" ? "Quantity is derived from count markers." : "Edit shared Count details using Edit item."; }
+        else field.control.addEventListener("change", () => void safely(async () => { try { requireFinishedEdits(); } catch (error) { field.control.value = key === "quantity" ? item.quantity ?? "" : item.fields[key] ?? ""; throw error; } const value = field.read(); if (def[2] === "number" && value !== null && !Number.isFinite(value)) throw new Error("Enter a finite number."); await command("update_item", { item_id: item.id, changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); }));
+        const cell = node("td"); cell.append(field.control); row.append(cell);
+      }
       const result = itemResult(item);
       for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
       const evidence = node("td"); evidence.append(node("span", "", item.geometry ? `${documentById(item.geometry.document_id)?.name || "Missing document"} · p${item.geometry.page}` : "Source markup missing")); if (item.mode === "duct" && item.fields.shape !== "rectangular") evidence.append(node("span", "takeoff-row-issue", "Retained non-rectangular duct; calculator transfer unavailable.")); for (const issue of result.issues || []) evidence.append(node("span", "takeoff-row-issue", issueText(issue))); row.append(evidence); body.append(row);
@@ -1563,6 +1720,7 @@
     return all.filter(value => value.document_id === item.geometry.document_id && value.page === item.geometry.page && !value.deleted && !superseded.has(value.id));
   }
   async function changeLength(item) {
+    if (isCount(item)) return changeCountLength(item);
     requireFinishedEdits(); const calibrations = itemCalibrations(item), current = calibrations.some(value => value.id === item.measurement?.calibration_id) ? item.measurement.calibration_id : "";
     const data = await ask("Change length basis", [["method", "Length basis", ["calibrated", "cited"], item.measurement?.method, true], ["calibration_id", "Page calibration (for measured geometry)", calibrations.map(value => [value.id, value.name]), current], ["length_m", "Cited length (metres)", "number", item.measurement?.length_m || ""], ["citation", "Source citation", "textarea", item.measurement?.citation || ""]], "This makes the item unconfirmed. Only current calibrations on this item's source page are available. A cited region cannot become a measured run: re-trace its geometry first.");
     if (!data) return;
@@ -1578,8 +1736,9 @@
     if (!calibrations.some(value => value.id === changed.calibration_id)) throw new Error("Choose a current calibration on this item's source page.");
     await command("update_item", { item_id: item.id, changes: { measurement: { method: "calibrated", calibration_id: changed.calibration_id } } });
   }
-  async function retrace(item) { if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isArea(item.mode) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then double-click the final point or press Enter. The same item ID is retained and its confirmation is invalidated.${isArea(item.mode) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
+  async function retrace(item) { if (isCount(item)) throw new Error("Count markers retain manually entered lengths. Start a new count for different source evidence."); if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isArea(item.mode) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then double-click the final point or press Enter. The same item ID is retained and its confirmation is invalidated.${isArea(item.mode) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
   async function replaceSource(item) {
+    if (isCount(item)) throw new Error("Start a new count on the replacement source page.");
     requireFinishedEdits(); if (!state.viewport) throw new Error("Open the revised source document page first.");
     if (isArea(item.mode) && item.geometry?.exclusions.length && (item.geometry.document_id !== state.document || item.geometry.page !== state.page)) throw new Error("Remove the existing exclusions before moving this surface to a revised source page. Exclusion coordinates cannot be mapped between drawings automatically; the old boundaries remain in audit history.");
     const choice = await ask("Replace this object's primary source", [["method", isArea(item.mode) ? "Replacement surface basis" : "Replacement length basis", isArea(item.mode) ? ["calibrated"] : ["calibrated", "cited"], "", true]], `The current page is ${currentDocument().name}, page ${state.page}. The same physical item ID is retained; its old references remain in evidence and history. The new geometry and measurement will invalidate review, confirmation and linked transfers. Upload revised drawings as new documents first.`, "Mark replacement source");
@@ -1587,7 +1746,7 @@
     setTool(isArea(item.mode) ? "polygon" : choice.method === "calibrated" ? "trace" : "cite", { retraceId: item.id });
   }
   async function addEvidence(item) { requireFinishedEdits(); const data = await ask("Link supporting source evidence", [["document_id", "Source document", documents().map(value => [value.id, value.name]), state.document, true], ["page", "Page", "number", state.page, true], ["field", "Source field (blank applies to the whole object)", [["quantity", "Physical quantity"], ...(isArea(item.mode) ? [["net_area_m2", "Surface area basis"]] : [["length_m", "Length basis"]]), ...fields[item.mode].map(value => [value[0], value[1]])], ""], ["note", "Evidence note / exact reference", "textarea", "", true]], "Supporting evidence does not create another physical object or add quantities. Use the cited page to corroborate this object's fields."); if (data) await command("update_item", { item_id: item.id, changes: { evidence: [...item.evidence, { document_id: data.document_id, page: data.page, note: data.note, ...(data.field ? { fields: [data.field] } : {}) }] } }); }
-  async function bulkEdit() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value; if (isArea() && key === "quantity") throw new Error("Each surface is one physical object. Create separate evidenced items for other surfaces."); const definition = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(value => value[0] === key); if (!definition) throw new Error("Choose a bulk edit field."); const raw = state.ui.bulkValue.value.trim(), value = definition[2] === "number" ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); }
+  async function bulkEdit() { requireFinishedEdits(); const selected = settingsSelectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value; if (key === "quantity" && selected.some(isCount)) throw new Error("Count quantities come from markers and cannot be edited manually."); if (isArea() && key === "quantity") throw new Error("Each surface is one physical object. Create separate evidenced items for other surfaces."); const definition = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(value => value[0] === key); if (!definition) throw new Error("Choose a bulk edit field."); const raw = state.ui.bulkValue.value.trim(), value = definition[2] === "number" ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); }
   async function selectedCommand(op) { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select at least one item."); await command(op, { item_ids: selected.map(item => item.id) }); }
   async function confirmSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select items to confirm."); const areaDetail = "Inspect the original true-surface view, every boundary and excluded opening, calibration, gross/excluded/net m², substrate, treatment and fire rating. A wall footprint never establishes wall-face area; no second face or height is inferred. Confirmation permits register export only and does not certify technical suitability."; if (!await confirm(`Confirm ${selected.length} items?`, isArea() ? areaDetail : "Confirm only after inspecting the original drawings, physical quantities, base length, every riser/drop addition, dimensions, fire requirements and source references. Additions apply to each member/run. Deterministic checks must pass. Confirmation does not certify technical suitability.", "Confirm items")) return; await selectedCommand("confirm_items"); }
   async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; if (await confirm(`Delete ${selected.length} objects?`, "Their source documents are retained. Linked schedule rows require explicit handling. Undo restores the previous draft.", "Delete objects")) await selectedCommand("delete_items"); }
@@ -1772,13 +1931,14 @@
     const result = await command("update_calibration", { calibration_id: calibration.id, changes: { ...data, scale_denominator: null, uniform_scale: true } });
     state.calibration = result.revised_calibration_id || ""; renderCalibrations();
   }
-  function projectSnapshot() { if (state.busy || state.modal) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff settings, drawing or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
-  function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, formRevision: state.formRevision || 0, settingsDirty: state.settingsDirty, settingsRevision: state.settingsRevision || 0, gesture: state.gesture ? { kind: state.gesture.kind, initial: state.gesture.initial, current: state.gesture.current } : null, physicalUnfinished: physicalUnfinished(), physicalEditRevision: state.physicalUI?.editRevision?.() || 0, points: state.points, pendingViewport: state.pendingViewport, modal: state.modal }); }
-  function hasUnsavedChanges() { return state.busy || state.formDirty || state.settingsDirty || !!state.gesture || !!state.pendingViewport || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
+  function projectSnapshot() { if (state.busy || state.modal || state.countFinishing) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff settings, drawing or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
+  function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, formRevision: state.formRevision || 0, settingsDirty: state.settingsDirty, settingsRevision: state.settingsRevision || 0, gesture: state.gesture ? { kind: state.gesture.kind, initial: state.gesture.initial, current: state.gesture.current } : null, physicalUnfinished: physicalUnfinished(), physicalEditRevision: state.physicalUI?.editRevision?.() || 0, points: state.points, countEntries: state.countEntries.map(({ point, length_m }) => ({ point, length_m })), countDefaultLength: state.countDefaultLength, countFinishing: state.countFinishing, pendingViewport: state.pendingViewport, modal: state.modal }); }
+  function hasUnsavedChanges() { return state.busy || state.countFinishing || state.formDirty || state.settingsDirty || !!state.gesture || !!state.pendingViewport || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
   async function prepareDefaults() { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
   async function prepareProject(value, sessionId) { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
     const prior = state.session?.session_id;
+    resetCountDraft();
     resetPlanInteraction();
     cancelSelectionGesture(); state.settingsOpen = false; state.settingsDirty = false; state.settingsEditor = null;
     state.registerEditor = null; state.closedRegisterEditorId = null;

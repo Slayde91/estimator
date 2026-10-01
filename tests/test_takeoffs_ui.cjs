@@ -18,6 +18,7 @@ function harness() {
   source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
   source=source.replace('setApi(fn){api=fn;}', 'renderControlPoints,pointReference,pointTarget,pointRemovalReason,removeControlPoint,planKeydown,handoffPlanWheel,downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'pointGeometry,moveControlPoint,beginControlPointDrag,cancelSelectionGesture,markupTarget,deleteMarkup,surfacePreview,renderSurfaceLabel,renderPendingTrace,tracePointerMove,setSelectionRenderer(fn){renderSelection=fn;},setPointSelector(fn){selectControlPoint=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,changeCountLength,countBatchItems,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -35,12 +36,70 @@ function attachMinimalDom(h) {
     return el;
   }
   h.context.document.createElement=element;h.context.document.createElementNS=(_,tag)=>element(tag);
-  const ui={};for(const key of ['split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message'])ui[key]=element();ui.statusFilter={value:''};h.audit.state.ui=ui;
+  const ui={};for(const key of ['split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message'])ui[key]=element();ui.bulkField={value:'mark',querySelector(){return null;}};ui.statusFilter={value:''};h.audit.state.ui=ui;
   return {ui,element,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
+function countHarness() {
+  const h=harness(),value=blank();value.documents=[{id:'doc',name:'Count.pdf',pages:[{page:1,view:[0,0,200,200],user_unit:1}]}];h.audit.accept(response(value));
+  const dom=attachMinimalDom(h);dom.ui.root=dom.element();dom.ui.viewport=dom.element();dom.ui.overlay.getBoundingClientRect=()=>({left:0,top:0,width:200,height:200});
+  Object.assign(h.audit.state,{document:'doc',page:1,tool:'count',viewport:{width:200,height:200,transform:[1,0,0,1,0,0]}});h.audit.setOverlayRenderer(()=>{});h.audit.setSelectionRenderer(()=>{});
+  const timers=new Map();let timerId=0;h.context.setTimeout=fn=>{timers.set(++timerId,fn);return timerId;};h.context.clearTimeout=id=>timers.delete(id);
+  return {...h,dom,timers,stage(point,timeStamp=10){h.audit.stageCountMarker(point,{timeStamp,clientX:point[0],clientY:point[1]});return h.audit.state.countEntries.at(-1);}};
+}
+const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,state:'unconfirmed',mode:'steel',quantity:points.length,fields:{mark:countId},member_ids:points.map((_,index)=>`${id}-member-${index}`),geometry:{kind:'count',document_id:'doc',page:1,points},measurement:{method:'manual',length_m:length},evidence:[]});
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Count placement requires explicit manual length and reuses it only after the checked first dialog',async()=>{
+    const h=countHarness(),first=h.stage([10.123456789,20.987654321]),calls=[];const fingerprint=h.api.projectFingerprint();
+    assert.throws(()=>h.api.projectSnapshot(),/unfinished/);assert.equal(h.api.hasUnsavedChanges(),true);
+    h.audit.setAsk(async(title,definitions)=>{calls.push(title);assert.equal(title,'Counted member length');assert.deepEqual(copy(definitions.map(def=>def[0])),['length_m','reuse']);assert.equal(definitions[1][3],false);return {length_m:7.123456789,reuse:true};});
+    await h.audit.queueCountLength(first);assert.equal(first.length_m,7.123456789);assert.notEqual(h.api.projectFingerprint(),fingerprint);
+    const second=h.stage([80,90]);await h.audit.queueCountLength(second);assert.equal(second.length_m,7.123456789);assert.equal(calls.length,1);assert.deepEqual(copy(h.audit.state.points),[[10.123456789,20.987654321],[80,90]]);
+    h.audit.cancelTrace();assert.equal(h.timers.size,0);assert.equal(h.audit.state.countDefaultLength,null);assert.equal(h.audit.state.countEntries.length,0);
+  });
+  await check('Unchecked Count lengths prompt per marker and cancellation removes only that provisional marker',async()=>{
+    const h=countHarness(),answers=[{length_m:5,reuse:false},null,{length_m:8,reuse:false}],first=h.stage([10,10]);let calls=0;h.audit.setAsk(async()=>{calls++;return answers.shift();});
+    await h.audit.queueCountLength(first);const cancelled=h.stage([20,20]);await h.audit.queueCountLength(cancelled);const third=h.stage([30,30]);await h.audit.queueCountLength(third);
+    assert.equal(calls,3);assert.deepEqual(copy(h.audit.state.countEntries.map(entry=>({point:entry.point,length_m:entry.length_m}))),[{point:[10,10],length_m:5},{point:[30,30],length_m:8}]);assert.equal(h.audit.state.countDefaultLength,null);h.audit.cancelTrace();
+  });
+  await check('Count dialogs cannot revive cancelled drafts or mutate replacement projects and reject stale revisions',async()=>{
+    for(const reason of ['cancel','project','revision']){
+      const h=countHarness(),entry=h.stage([10,10]),answer=deferred();h.audit.setAsk(()=>answer.promise);const awaiting=h.audit.queueCountLength(entry);await flush();
+      if(reason==='cancel')h.audit.cancelTrace();
+      else if(reason==='project'){h.audit.state.ui=null;h.audit.setApi(async()=>({}));h.api.applyProject({session:response(blank(),'replacement'),saved:null});}
+      else h.audit.state.session.revision++;
+      answer.resolve({length_m:9,reuse:true});
+      if(reason==='revision')await assert.rejects(awaiting,/changed during length entry/);else await awaiting;
+      assert.equal(entry.length_m,null);assert.equal(h.audit.state.countDefaultLength,null);
+      if(reason==='project'){assert.equal(h.audit.state.session.session_id,'replacement');assert.equal(h.audit.state.countEntries.length,0);assert.equal(h.timers.size,0);}
+      if(reason==='cancel')assert.equal(h.audit.state.countEntries.length,0);
+      h.audit.resetCountDraft();
+    }
+  });
+  await check('Count double-click finish consumes detail-two clicks without relying on a replaced SVG target dblclick',async()=>{
+    const h=countHarness();h.audit.state.countDefaultLength=6.123456789;const retained=h.stage([10,10],1);await h.audit.queueCountLength(retained);let sent,calls=0;h.audit.setAsk(async()=>{throw new Error('Finishing must not ask for an extra marker length');});
+    h.audit.setCommand(async(op,body)=>{calls++;sent={op,...copy(body)};return {created_item_ids:['created']};});
+    const click=detail=>({detail,button:0,clientX:100,clientY:120,timeStamp:100+detail,preventDefault(){}});
+    h.audit.drawingPointer(click(1));assert.equal(h.audit.state.countEntries.length,2);h.audit.drawingPointer(click(2));await flush();await flush();
+    assert.equal(calls,1);assert.deepEqual(sent,{op:'add_count_items',document_id:'doc',page:1,markers:[{point:[10,10],length_m:6.123456789}],fields:{},appearance:{}});assert.equal(h.audit.state.tool,'select');assert.equal(h.audit.state.countEntries.length,0);assert.equal(h.timers.size,0);assert.equal(h.audit.state.settingsOpen,true);
+  });
+  await check('Count settings expand every same-batch length row, keep Qty read-only and preserve unrelated selections after regrouping',async()=>{
+    const h=countHarness(),a=countItem('a','batch',5,[[10,10]]),b=countItem('b','batch',3.5,[[20,20],[30,30]]),other=countItem('other','different',5,[[40,40]]),trace={id:'trace',mode:'steel',quantity:2,fields:{mark:'trace'}};
+    a.length_additions=b.length_additions=[{id:'rise',kind:'riser',length_mm:500,document_id:'doc',page:1,note:'Explicit 500 mm riser per member'}];h.audit.state.resultMap.set('b',{id:'b',base_length_m:3.5,additions_length_m:.5,length_m:4,total_length_m:8,issues:[]});
+    h.audit.state.session.snapshot.items=[a,b,other,trace];h.audit.state.tool='select';h.audit.state.selected=new Set(['b']);
+    assert.deepEqual(new Set(h.audit.settingsSelectedItems().map(item=>item.id)),new Set(['a','b']));
+    const {ui,element,all}=h.dom;ui.settingsPanel=element();ui.layout=element();ui.tools={settings:element()};ui.target={value:'steel_vermiculite'};h.audit.state.settingsOpen=true;h.audit.setApi(async()=>({columns:[]}));h.audit.renderSettingsPanel();
+    const editor=h.audit.state.settingsEditor,quantity=all.call(h.dom,ui.settingsPanel).find(el=>el.attributes['aria-label']==='Count quantity');assert.equal(quantity.value,3);assert.equal(quantity.readOnly,true);assert.equal(editor.quantity,null);assert.equal(editor.appearance.find(field=>field.control.name==='marker_shape').control.value,'circle');assert.ok(ui.settingsPanel.textContent.includes('2 markers · Manual base: 3.50 m each + cited additions: 0.50 m each · Total: 8.00 m'));
+    const level=editor.fields.find(field=>field.control.name==='level').control;level.value='L2';level.events.input();h.audit.setAsk(async()=>({}));let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};});await h.audit.applySettings(editor);assert.equal(sent.op,'bulk_update');assert.deepEqual(new Set(sent.item_ids),new Set(['a','b']));assert.deepEqual(sent.changes,{fields:{level:'L2'}});assert.equal(h.audit.state.settingsDirty,false);
+    h.audit.state.selected=new Set(['b','trace']);const regrouped=copy(h.audit.state.session.snapshot);regrouped.items=regrouped.items.filter(item=>item.id!=='b');h.audit.accept({...response(regrouped),regrouped_item_ids:['a']});assert.deepEqual(new Set(h.audit.state.selected),new Set(['a','trace']));
+  });
+  await check('Count register Qty remains disabled after operations, and marker deletion retains the remaining batch selection',async()=>{
+    const h=countHarness(),a=countItem('a','batch',5,[[10,10]]),b=countItem('b','batch',8,[[20,20]]);h.audit.state.session.snapshot.items=[a,b];h.audit.state.tool='select';h.audit.state.selected=new Set(['a']);h.audit.state.settingsOpen=true;
+    const option={disabled:false};h.dom.ui.bulkField={value:'quantity',querySelector(){return option;}};h.audit.renderRegister();const controls=h.dom.all(h.dom.ui.tableWrap).filter(el=>el.tagName==='INPUT'||el.tagName==='SELECT');const quantity=controls.filter(el=>el.attributes['aria-label']==='Quantity');assert.equal(quantity.length,2);quantity.forEach(el=>{assert.equal(el.readOnly,true);assert.equal(el.disabled,true);assert.equal(el.events.change,undefined);el.closest=()=>null;});assert.equal(option.disabled,true);assert.equal(h.dom.ui.bulkField.value,'mark');assert.equal(h.dom.ui.split.disabled,true);assert.equal(h.dom.ui.merge.disabled,true);
+    h.dom.ui.tableWrap.querySelectorAll=()=>quantity;h.dom.ui.status=h.dom.element();h.audit.working(true);h.audit.working(false);quantity.forEach(el=>assert.equal(el.disabled,true));
+    const reference=h.audit.pointReference(a,0);let sent;h.audit.setCommand(async(op,body,guard)=>{assert.equal(guard(),true);sent={op,...copy(body)};const snapshot=copy(h.audit.state.session.snapshot);snapshot.items=snapshot.items.filter(item=>item.id!=='a');snapshot.revision++;h.audit.accept(response(snapshot));return response(snapshot);});await h.audit.deleteCountMarker(reference,a.member_ids[0]);assert.deepEqual(sent,{op:'delete_count_marker',item_id:'a',member_id:'a-member-0'});assert.deepEqual([...h.audit.state.selected],['b']);await assert.rejects(h.audit.deleteCountMarker(reference,a.member_ids[0]),/changed/);
+  });
   await check('Surface previews preserve area and interior labels across winding, translation, concavity and exclusions',()=>{
     const square=[[0,0],[10,0],[10,10],[0,10]],hole=[[2,2],[8,2],[8,8],[2,8]],original=copy(square);
     for(const points of [square,[...square].reverse()]){
@@ -471,6 +530,31 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const rendering=h.audit.renderPage({point:[10,10],offset:[50,60]});await flush();assert.equal(h.audit.state.viewport,null);assert.equal(replacement,undefined);
     h.audit.drawingPointer({button:0,detail:1,clientX:100,clientY:100,preventDefault(){throw new Error('Trace click must be ignored while display transform is unavailable');}});assert.deepEqual(copy(h.audit.state.points),[[10,10]]);
     pending.resolve();await rendering;assert.equal(h.audit.state.viewport,viewport);assert.equal(h.audit.state.ui.canvas,replacement);assert.ok(replacement);assert.equal(h.audit.state.zoomAnchor,null);
+  });
+  await check('Viewport second-click completion survives SVG replacement and finishes once even if dblclick also arrives',async()=>{
+    const h=harness(),value=blank();value.documents=[{id:'doc',name:'Detail.pdf',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));const dom=attachMinimalDom(h);
+    dom.ui.viewport=dom.element();dom.ui.overlay.getBoundingClientRect=()=>({left:0,top:0,width:200,height:200});Object.assign(h.audit.state,{document:'doc',page:1,viewport:{width:200,height:200,transform:[1,0,0,1,0,0]},tool:'viewport'});
+    const held=deferred();let calls=0,finished;h.audit.setFinishTrace(async()=>{calls++;finished=copy(h.audit.state.points);await held.promise;});const click=(x,y,detail=1)=>({clientX:x,clientY:y,button:0,detail,preventDefault(){}});
+    h.audit.drawingPointer(click(20,30));const priorShape=dom.ui.overlay.children[0];h.audit.drawingPointer(click(120,140));assert.notEqual(dom.ui.overlay.children[0],priorShape,'The first click replaces SVG children');assert.equal(calls,0);
+    h.audit.drawingPointer(click(120,140,2));await flush();assert.equal(calls,1,'The detail-two click completes without requiring a native dblclick');assert.deepEqual(finished,[[20,30],[120,140]]);
+    await h.audit.finishTraceFromDoubleClick(click(120,140,2));assert.equal(calls,1,'A later native dblclick does not complete the same viewport again');held.resolve();await flush();assert.equal(calls,1);
+  });
+  await check('Viewport corners remain rectangular and require a valid explicit finish without inheriting another scale boundary',async()=>{
+    const h=harness(),value=blank();value.documents=[{id:'doc',name:'Detail.pdf',pages:[{page:1,view:[0,0,200,200]}]}];value.calibrations=[{id:'detail',document_id:'doc',page:1,region:[0,0,30,30]}];h.audit.accept(response(value));const dom=attachMinimalDom(h);
+    dom.ui.viewport=dom.element();dom.ui.overlay.getBoundingClientRect=()=>({left:0,top:0,width:200,height:200});Object.assign(h.audit.state,{document:'doc',page:1,viewport:{width:200,height:200,transform:[1,0,0,1,0,0]},calibration:'detail',tool:'viewport'});
+    let finished=0;h.audit.setFinishTrace(async()=>{finished++;});const click=(x,y,detail=1)=>({clientX:x,clientY:y,button:0,detail,preventDefault(){}}),doubleClick={preventDefault(){}};
+    h.audit.drawingPointer(click(50,50));h.audit.tracePointerMove(click(120,140));assert.deepEqual(copy(h.audit.state.points),[[50,50]]);assert.deepEqual(copy(h.audit.state.traceCursor),[120,140]);
+    const preview=dom.ui.overlay.children.find(el=>el.className.includes('takeoff-viewport-preview'));assert.equal(preview.tagName,'POLYGON');assert.equal(preview.attributes.points,'50,50 120,50 120,140 50,140');assert.equal(dom.ui.overlay.children.filter(el=>el.tagName==='CIRCLE').length,2);
+    h.audit.drawingPointer(click(120,140));assert.equal(finished,0);assert.deepEqual(copy(h.audit.state.points),[[50,50],[120,140]]);
+    h.audit.drawingPointer(click(130,150));assert.deepEqual(copy(h.audit.state.points),[[50,50],[130,150]],'Further clicks adjust the opposite corner instead of introducing polygon vertices');
+    h.audit.drawingPointer(click(250,150));h.audit.drawingPointer(click(250,150,2));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,0,'An outside-page endpoint cannot finish the earlier rectangle');
+    h.audit.drawingPointer(click(130,150));h.audit.drawingPointer(click(130,150,2));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,1);assert.equal(h.audit.state.points.length,2);
+    h.audit.planKeydown({key:'Backspace',preventDefault(){},target:{closest(){return null;}}});assert.deepEqual(copy(h.audit.state.points),[[50,50]]);assert.equal(h.audit.state.traceCursor,null);
+  });
+  await check('Viewport preview transforms original corners without rounding or fabricating surface quantities',async()=>{
+    const h=harness(),value=blank();h.audit.accept(response(value));const dom=attachMinimalDom(h);Object.assign(h.audit.state,{tool:'viewport',points:[[20.125,30.25],[80.75,90.5]],viewport:{transform:[0,2,2,0,-60,-40]}});
+    h.audit.renderPendingTrace(dom.ui.overlay);const preview=dom.ui.overlay.children.find(el=>el.className.includes('takeoff-viewport-preview'));assert.equal(preview.attributes.points,'0.5,0.25 0.5,121.5 121,121.5 121,0.25');assert.deepEqual(copy(h.audit.state.points),[[20.125,30.25],[80.75,90.5]]);assert.ok(dom.ui.overlay.children.every(el=>el.tagName!=='TEXT'),'A scale viewport has no inferred m² quantity');
+    h.audit.state.points=[[20,30]];await assert.rejects(h.audit.finishTrace(),/two opposite corners/);h.audit.state.points=[[20,30],[20,90]];await assert.rejects(h.audit.finishTrace(),/nonzero viewport/);
   });
   await check('A rejected double-click endpoint cannot finish earlier trace, polygon or exclusion geometry',async()=>{
     for(const tool of ['trace','polygon','exclusion']){

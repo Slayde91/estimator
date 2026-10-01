@@ -48,6 +48,10 @@ approval of technical suitability.
 
 ## Scale presets, viewports and drawing controls
 
+The **Scale** ruler button below **Calibrate** opens or hides the scale dropdown
+and **Edit calibration** control. Escape closes this panel and returns focus to
+the button. The button's tooltip reports the current page scale.
+
 The calibration dropdown initially shows **No Scale Selected**. It includes
 1:2, 1:5, 1:10, 1:15, 1:20, 1:25, 1:30,
 1:40, 1:50, 1:75, 1:100, 1:125, 1:150, 1:200, 1:250 and 1:300. A printed
@@ -60,8 +64,11 @@ must not apply UserUnit a second time.
 
 Click **Viewport** to open the Viewports panel beside the drawing. Its rows show
 the viewports on the current page, with a separate scale dropdown in each row.
-Use **Add viewport** (+), mark two opposite corners, name the detail, and select
-its printed scale or **Calibrate a known dimension**. For a manual viewport, click
+Use **Add viewport** (+), click the first corner, then double-click the opposite
+corner to finish the filled rectangular preview and open the name/scale dialog.
+A single click adjusts the opposite corner; Enter finishes two chosen corners.
+Right-click or Escape cancels without creating a scale. Choose a printed scale
+or **Calibrate a known dimension**. For a manual viewport, click
 the baseline endpoints inside it and enter the known distance. A trace starting
 inside a viewport selects that viewport's calibration. Active viewports cannot
 overlap, and one measured object cannot cross between scales. Split the actual
@@ -86,9 +93,42 @@ page-navigation, linked-row update/detach, register export and schedule
 buttons use icons with accessible names and the original labels on hover.
 
 Drawing tools occupy the narrow vertical rail to the left of the plan. The
-compact **Drawing document** selector, page controls, zoom and text search sit
-below the plan and above the register. Source PDFs remain in the project; the
+text search sits immediately above the viewer, with page/zoom controls centred
+in its bottom edge. The compact **Drawing document** selector sits below it.
+Drawing XLSX/PDF downloads sit beside the Steel/Duct/Penetrations/Walls/Slabs tabs.
+Source PDFs remain in the project; the
 old document list and page thumbnails no longer occupy the tool rail.
+
+## Count steel members
+
+Choose **Count** below **Trace length**, then click once for each physical member.
+Each marker requires a manually entered length in metres; no drawing calibration
+is required or used to infer that length. **Use this length for additional counts**
+reuses the entered value for the rest of this Count. Otherwise, each marker opens
+the length dialog. Double-click or Enter finishes without adding an extra marker.
+Right-click or Escape cancels the unfinished count.
+
+Finishing opens **Count details** beside the drawing. All markers in that Count
+share the steel section, fire requirements, product and other details. Start a
+new Count for different details. Different manual lengths form separate register
+rows within the Count; equal lengths form one row. **Change length for group**
+updates that group's manual length and combines matching lengths in the same
+Count while retaining every member identity. Separate Counts stay separate.
+
+Qty is read-only and comes from the number of markers. Right-click a marker and
+choose **Delete count marker** to remove that exact member and reduce Qty. The
+last marker removes its row. **Undo last edit** restores the marker identities;
+quantity or length changes require fresh confirmation and leave linked calculator
+values unchanged until an explicit update. Generic quantity split/merge and
+trace-vertex deletion do not apply to Count markers.
+
+The panel also controls circle, square, triangle or diamond symbols, size in
+physical PDF points, stroke/fill colours, opacity and fill. Appearance changes
+apply to the whole Count and do not change quantities or confirm technical
+suitability. Saved projects and exports retain Count/member identities, original
+PDF coordinates and the full manual length precision. Marked PDFs draw independent
+symbols without connecting lines. Existing Steel calculator transfer mappings
+remain unchanged: each row supplies its per-member length and marker-derived Qty.
 
 In Select mode, selected measured markups show control points at their original PDF vertices.
 Click a point to choose it, then use Ctrl/Cmd+Z while the drawing has focus, or

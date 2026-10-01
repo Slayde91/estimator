@@ -19,6 +19,7 @@ from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, diges
 from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview
+from .takeoff_linked_delete import prepare_delete as prepare_linked_delete, prepare_undo as prepare_linked_undo
 from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
 
@@ -28,6 +29,60 @@ PROCESS_CACHE_BYTES = 16 * 1_048_576
 
 def timestamp():
     return datetime.now(timezone.utc).isoformat()
+
+
+def reconcile_length_anchors(item, previous_geometry, snapshot):
+    """Follow identifiable control-point edits without guessing retrace identity."""
+    additions = item.get('length_additions', [])
+    if not isinstance(additions, list):
+        raise ValidationError('Riser/drop additions must be a list.')
+    anchored = [entry for entry in additions if isinstance(entry, dict) and 'anchor' in entry]
+    geometry = item['geometry']
+    if not anchored or geometry == previous_geometry:
+        return
+    if (not isinstance(previous_geometry, dict) or not isinstance(geometry, dict)
+            or any(geometry.get(key) != previous_geometry.get(key) for key in ('document_id', 'page'))):
+        raise ValidationError('Remove or reassign point-anchored riser/drop additions before changing the line source.')
+    _, page = page_metadata(snapshot, geometry.get('document_id'), geometry.get('page'))
+    old = points(previous_geometry.get('points'), 'Previous line', page, minimum=2)
+    new = points(geometry.get('points'), 'Edited line', page, minimum=2)
+    for entry in anchored:
+        anchor = object_fields(entry['anchor'], {'point_index', 'point'}, 'Riser/drop point anchor',
+                               {'point_index', 'point'})
+        index = number(anchor['point_index'], 'Riser/drop point index', integer=True)
+        points([anchor['point']], 'Riser/drop point anchor', page, maximum=1)
+        if not 0 <= index < len(old) or anchor['point'] != old[index]:
+            raise ValidationError('Edit the riser/drop point anchor separately from its line geometry.')
+    mapping = None
+    if len(old) == len(new):
+        changed = sum(first != second for first, second in zip(old, new))
+        offset = [new[0][axis] - old[0][axis] for axis in (0, 1)]
+        translated = all(math.isclose(second[axis] - first[axis], offset[axis], rel_tol=0, abs_tol=1e-9)
+                         for first, second in zip(old, new) for axis in (0, 1))
+        if changed <= 1 or translated:
+            mapping = list(range(len(old)))
+    elif abs(len(old) - len(new)) == 1:
+        shorter, longer = (old, new) if len(old) < len(new) else (new, old)
+        prefix = 0
+        while prefix < len(shorter) and shorter[prefix] == longer[prefix]:
+            prefix += 1
+        suffix = 0
+        while suffix < len(shorter) and shorter[-suffix-1] == longer[-suffix-1]:
+            suffix += 1
+        # Multiple possible insert/delete indices (for repeated coordinates)
+        # cannot establish which physical control point survived.
+        if len(shorter) - suffix == prefix:
+            if len(old) < len(new):
+                mapping = [index + (index >= prefix) for index in range(len(old))]
+            else:
+                if any(entry['anchor']['point_index'] == prefix for entry in anchored):
+                    raise ValidationError('Remove or reassign the riser/drop addition before deleting its anchored control point.')
+                mapping = [index - (index > prefix) for index in range(len(old))]
+    if mapping is None:
+        raise ValidationError('Remove or reassign point-anchored riser/drop additions before retracing or ambiguously editing the line.')
+    for entry in anchored:
+        index = mapping[entry['anchor']['point_index']]
+        entry['anchor'] = {'point_index': index, 'point': deepcopy(new[index])}
 
 
 def image_annotation_region(quad, view):
@@ -82,6 +137,9 @@ class TakeoffService:
             db.execute('''CREATE TABLE IF NOT EXISTS takeoff_transfer_receipts (
                 project_id TEXT NOT NULL, binding_id TEXT NOT NULL, digest TEXT NOT NULL,
                 PRIMARY KEY(project_id,binding_id,digest))''')
+            db.execute('''CREATE TABLE IF NOT EXISTS takeoff_linked_deletions (
+                project_id TEXT NOT NULL, audit_head TEXT NOT NULL, receipt TEXT NOT NULL,
+                PRIMARY KEY(project_id,audit_head))''')
 
     def _session(self, session_id):
         identity(session_id, 'Takeoff session ID')
@@ -119,9 +177,37 @@ class TakeoffService:
     def _response(self, session_id, *, evidence=False):
         session = self._session(session_id)
         state = session['snapshot']
+        undo, _ = self._linked_delete_context(state)
         return {'session_id': session_id, 'revision': state['revision'], 'snapshot': deepcopy(state),
                 'issues': deepcopy(session.get('evidence_issues', [])) + (self.documents.validate_project_documents(state['documents'], owner=session_id) if evidence else []),
+                'linked_undo': ({'calculator_ids': sorted(undo), 'revision': state['revision'],
+                    'cleared_rows': [{'calculator_id': calculator_id, 'row': row['row'], 'input_hash': row['cleared_hash']}
+                                     for calculator_id in sorted(undo) for row in undo[calculator_id]['rows']]}
+                                if undo else None),
                 'item_results': [item_result(item, state) for item in state['items']]}
+
+    def _linked_delete_context(self, snapshot):
+        # Page rendering is an observation, not an intervening item edit. Its
+        # current render checks must survive a later coupled Undo.
+        head, revision = snapshot['audit_head'], snapshot['revision']
+        with self.store.connect() as db:
+            if not db.execute('SELECT 1 FROM takeoff_linked_deletions WHERE project_id=? LIMIT 1',
+                              (snapshot['project_id'],)).fetchone():
+                return None, None
+            while head:
+                row = db.execute('SELECT receipt FROM takeoff_linked_deletions WHERE project_id=? AND audit_head=?',
+                                 (snapshot['project_id'], head)).fetchone()
+                if row:
+                    return json.loads(row[0]), head
+                try:
+                    event = self.documents.get_blob(head, kind='audit')
+                except (ValidationError, OSError):
+                    break
+                if (event.get('op') != 'record_render' or event.get('project_id') != snapshot['project_id']
+                        or event.get('revision') != revision):
+                    break
+                head, revision = event['previous'], revision - 1
+        return None, None
 
     def open(self, snapshot=None, source_path=None, evidence_issues=None):
         with self._lock:
@@ -500,6 +586,10 @@ class TakeoffService:
 
     def _request_response(self, session_id, prior):
         response = self._response(session_id)
+        if prior.get('applied_linked_edit'):
+            if 'payload' not in prior or prior['applied_revision'] != response['revision']:
+                raise ValidationError('This linked schedule edit was already applied. Its response expired or the workspace changed; inspect the current draft before continuing. It will not be applied twice.')
+            response['calculators'] = deepcopy(prior['payload'])
         if prior.get('applied_transfer'):
             if 'payload' not in prior or prior['applied_revision'] != response['revision']:
                 raise ValidationError('This transfer was already applied. Its response expired or the workspace changed; inspect the current calculator and review a new preview. It will not be applied twice.')
@@ -535,7 +625,7 @@ class TakeoffService:
             raise ValidationError('The takeoff draft changed. Reload its current state before applying this operation.')
         return session, None
 
-    def _commit(self, session_id, request, before, after, approvals=(), transfers=()):
+    def _commit(self, session_id, request, before, after, approvals=(), transfers=(), linked_deletion=None):
         after['revision'] = before['revision'] + 1
         after['audit_head'] = before['audit_head']
         validate_snapshot(after, copy_result=False)
@@ -554,6 +644,9 @@ class TakeoffService:
         self.documents.validate_audit(after, owner=session_id)
         self._remember(after, approvals)
         with self.store.connect() as db:
+            if linked_deletion is not None:
+                db.execute('INSERT INTO takeoff_linked_deletions VALUES(?,?,?)',
+                           (after['project_id'], after['audit_head'], json.dumps(linked_deletion, sort_keys=True)))
             for binding in transfers:
                 db.execute('INSERT OR IGNORE INTO takeoff_transfer_receipts VALUES(?,?,?)',
                     (after['project_id'], binding['id'], self._binding_digest(binding)))
@@ -818,6 +911,8 @@ class TakeoffService:
                             item[key] = deepcopy(value)
                     if 'quantity' in changes and 'member_ids' not in changes and not count_item:
                         self._resize_members(item)
+                    if 'geometry' in changes:
+                        reconcile_length_anchors(item, original_geometry, after)
                     technical_change = digest({key: value for key, value in item.items() if key != 'appearance'}) != original_digest
                     if technical_change:
                         self._invalidate(after, item)
@@ -854,11 +949,13 @@ class TakeoffService:
                         source = key
                     if key != source:
                         raise ValidationError('Move markups from one takeoff type and source page at a time.')
+                    original_geometry = deepcopy(geometry)
                     geometry['points'] = [[x + dx, y + dy] for x, y in geometry['points']]
                     for exclusion in geometry.get('exclusions', []):
                         exclusion['points'] = [[x + dx, y + dy] for x, y in exclusion['points']]
-                    # Supporting citations and riser/drop references stay pinned
-                    # to their actual source evidence; they are not drawing ink.
+                    reconcile_length_anchors(item, original_geometry, after)
+                    # Supporting citations remain pinned to their source;
+                    # point anchors follow their own line without changing length.
                     self._invalidate(after, item)
                     validate_item(item, after, copy_result=False)
                     validate_measurement_scope(item, after)
@@ -1018,7 +1115,7 @@ class TakeoffService:
                 event = self.documents.get_blob(before['audit_head'], kind='audit')
                 if event['project_id'] != before['project_id'] or event['revision'] != before['revision']:
                     raise ValidationError('Audit history does not match this takeoff revision.')
-                if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images'):
+                if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images', 'linked_delete', 'linked_undo'):
                     raise ValidationError('Schedule transfers, source-render observations and undo receipts cannot be reversed by takeoff-only undo.')
                 after = deepcopy(event['before']); after['audit_head'] = before['audit_head']
                 if before['version'] == 2:
@@ -1181,6 +1278,75 @@ class TakeoffService:
 
     def options(self, calculator_id, fields=None):
         return calculator_options(calculator_id, fields)
+
+    def _linked_result(self, session_id, request, before, after, calculators, *, deletion=None):
+        # Check the response limit before committing either side of the edit.
+        size = len(json.dumps(calculators, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode())
+        if size > SESSION_CACHE_BYTES:
+            raise ValidationError('This linked edit exceeds the supported memory limit. Reduce the selected records and try again.')
+        response = self._commit(session_id, request, before, after, linked_deletion=deletion)
+        response['calculators'] = deepcopy(calculators)
+        session = self._session(session_id)
+        session['requests'][request['request_id']].update(applied_linked_edit=True, applied_revision=response['revision'])
+        self._cache_payload(session_id, 'requests', request['request_id'], calculators)
+        return response
+
+    def delete_linked_items(self, session_id, request):
+        """Remove items and every verified linked input row as one draft edit."""
+        with self._lock:
+            fields = {'expected_revision', 'request_id', 'item_ids', 'calculators'}
+            object_fields(request, fields, 'Linked item deletion', fields)
+            actual = {**request, 'op': 'linked_delete'}
+            session, replay = self._start(session_id, actual)
+            if replay is not None:
+                return replay
+            before = session['snapshot']
+            selected = self._items(before, request['item_ids'])
+            ids = {item['id'] for item in selected}
+            bindings = [binding for binding in before['transfers'] if binding['item_id'] in ids]
+            if not bindings:
+                raise ValidationError('These items have no linked schedules. Use the ordinary takeoff deletion.')
+            self._verify_audit_head(before, owner=session_id)
+            with self.store.connect() as db:
+                for binding in bindings:
+                    registered = db.execute('SELECT 1 FROM takeoff_transfer_receipts WHERE project_id=? AND binding_id=? AND digest=?',
+                        (before['project_id'], binding['id'], self._binding_digest(binding))).fetchone()
+                    if not registered:
+                        raise ValidationError('A linked schedule row has no local transfer receipt. Its inputs were preserved.')
+            calculators, receipt = prepare_linked_delete(bindings, request['calculators'])
+            after = deepcopy(before)
+            self._remove(after, self._items(after, request['item_ids']))
+            after['transfers'] = [binding for binding in after['transfers'] if binding['item_id'] not in ids]
+            return self._linked_result(session_id, actual, before, after, calculators, deletion=receipt)
+
+    def undo_linked_delete(self, session_id, request):
+        """Restore exact item identities and cleared schedule literals together."""
+        with self._lock:
+            fields = {'expected_revision', 'request_id', 'calculators'}
+            object_fields(request, fields, 'Undo linked deletion', fields)
+            actual = {**request, 'op': 'linked_undo'}
+            session, replay = self._start(session_id, actual)
+            if replay is not None:
+                return replay
+            before = session['snapshot']
+            receipt, deletion_head = self._linked_delete_context(before)
+            if not receipt:
+                raise ValidationError('There is no current linked deletion to undo. Reopen the complete original project if its local receipt is unavailable.')
+            self._verify_audit_head(before, owner=session_id)
+            event = self.documents.get_blob(deletion_head, kind='audit')
+            if event['op'] != 'linked_delete':
+                raise ValidationError('The retained linked deletion does not match the current audit event.')
+            calculators = prepare_linked_undo(receipt, request['calculators'])
+            after = deepcopy(before)
+            current_items = {item['id']: item for item in after['items']}
+            after['items'] = [current_items.get(item['id'], deepcopy(item)) for item in event['before']['items']]
+            current_bindings = {binding['id']: binding for binding in after['transfers']}
+            after['transfers'] = [current_bindings.get(binding['id'], deepcopy(binding)) for binding in event['before']['transfers']]
+            current_ids = set(current_items)
+            for item in after['items']:
+                if item['id'] not in current_ids:
+                    self._invalidate(after, item)
+            return self._linked_result(session_id, actual, before, after, calculators)
 
     def preview_transfer(self, session_id, request):
         with self._lock:

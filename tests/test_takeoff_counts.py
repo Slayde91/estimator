@@ -297,7 +297,7 @@ class TakeoffCountEvidenceTests(unittest.TestCase):
             'expected_revision': case.session['revision'], 'mode': 'steel', 'document_id': self.document['id'],
             'item_ids': [identifier]})[0]
         text = ' '.join(PdfReader(BytesIO(payload)).pages[0].extract_text().split())
-        self.assertIn('2 markers x 3.50 m manual base + 0.50 m cited additions each; 8.00 m total', text)
+        self.assertIn('2 markers x 3.50 m manual base + 0.50 m explicit additions each; 8.00 m total', text)
         self.assertNotIn('4.00 m manual length', text)
         payload = case.service.export(case.session['session_id'], 'xlsx', [identifier])[0]
         book = load_workbook(BytesIO(payload)); self.addCleanup(book.close)

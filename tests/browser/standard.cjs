@@ -46,7 +46,7 @@ async function worksheetReady(title, label) {
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible();
-  await expect(page.getByRole('button', {name:'TAKEOFFS', exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button', {name:'Takeoffs', exact:true})).toHaveCount(0);
   assert.equal(await page.evaluate(() => typeof window.CeasefireTakeoffs), 'undefined');
   const bootstrap = await page.request.get(`http://127.0.0.1:${info.port}/api/bootstrap`);
   assert.equal((await bootstrap.json()).features.takeoffs, false);
@@ -80,7 +80,7 @@ async function worksheetReady(title, label) {
   assert.deepEqual(fs.readFileSync(path.join(output,'protected-v2.json')),protectedBefore);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output,'standard-project.json'))),saved);
   await page.getByRole('button',{name:'Calculators',exact:true}).click();
-  await expect(page.getByRole('button',{name:'TAKEOFFS',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Takeoffs',exact:true})).toHaveCount(0);
   await page.screenshot({path:path.join(output,'standard-calculators.png'),fullPage:true});
   assert.ok(!requests.some(p => p.startsWith('/api/takeoffs/') || /takeoff|pdfjs/.test(p)));
   assert.deepEqual(errors,[]); assert.deepEqual(await page.evaluate(() => window.qaCsp),[]);

@@ -16,16 +16,15 @@ Locks are not part of this increment.
    over to another page. Use a named Viewport for a separately scaled detail.
    A distorted scan or perspective photograph cannot support uniform calibration.
 3. Trace a steel member or duct centreline. Complete it with a double-click or
-   Enter; there is no separate Finish trace button. For a source-stated dimension,
-   select the item in the register and use Change length basis with its exact
-   citation and evidence. A column/riser height needs its own cited dimension;
-   a plan line does not establish height.
+   Enter; there is no separate Finish trace button. A rise or drop needs an
+   explicitly entered length at a control point; a plan line does not establish
+   height. Previously saved source-cited lengths retain their original basis.
 4. Enter the physical quantity and required properties. Each repeated physical
    member has its own persistent identity. Extra supporting references do not
    add quantity. Split ducts at branches or changes of size, orientation,
    protection or mechanical system.
 5. Select register rows to inspect their source. **Edit item** expands all fields,
-   calculator-specific choices and evidence actions inside that row. **Apply item
+   calculator-specific choices inside that row. **Apply item
    edits** keeps the changes; **Discard edits** restores the stored values. There
    is no separate Item Inspector. Filtering, sorting and grouping
    retain item IDs. Bulk changes show the affected count and form one undoable
@@ -183,10 +182,12 @@ are rectangular and have no Shape
 or Diameter input. Older circular records keep their original values and remain
 ineligible for rectangular calculator transfer; opening them never converts them.
 
-## Riser/Drop additions
+## Rise/Drop additions
 
-Select a Steel or Duct item and use **Riser/Drop** to enter each additional length
-in millimetres, its source page and a citation. Both risers and drops add positive
+Select a traced Steel or Duct item, right-click a control point and choose
+**Insert Rise / Drop**. Enter Type and Additional length in millimetres. The
+source document, page and precise control point are retained automatically;
+no citation is required. Both rises and drops add positive
 travel length; a drop is not a negative deduction. The effective per-member length
 is the traced/cited base length plus the sum of these additions divided by 1,000.
 The user's explicit repeated-steel rule is to add the amount to **each member**:
@@ -194,7 +195,11 @@ The user's explicit repeated-steel rule is to add the amount to **each member**:
 
 Additions keep persistent IDs and evidence, can be edited/removed, are undoable,
 and invalidate confirmation and linked-transfer eligibility when changed. They
-remain in saved projects and confirmed exports. Duct runs with additions cannot
+remain in saved projects and confirmed exports. Anchored additions are labelled
+on the drawing and its marked PDF download. Moving a control point carries its
+addition with it; deleting that point requires removing its addition first.
+Ambiguous re-tracing is rejected rather than guessing a new anchor. Existing
+unanchored additions and their citations remain valid. Duct runs with additions cannot
 be split/merged until the additions are explicitly reassigned, preventing an
 unmeasured riser from being duplicated across successor runs. Compatible Steel
 group operations retain the same per-member additions. Surface and physical-draft
@@ -362,7 +367,23 @@ the blue selection rectangle. Drag a selected markup to move the selected marks
 on that page. A move preserves quantities and lengths, but invalidates review,
 confirmation and calculator-link freshness because the source position changed.
 It cannot move geometry outside its source page or calibration viewport. Source
-citations and riser/drop references stay pinned to their original evidence.
+citations retain their original evidence. Anchored rises and drops move with
+their traced control points while keeping their explicit additional lengths.
+
+Search and the document selector sit in the viewer's top-centre overlay. Page
+navigation, Select, Pan and zoom controls sit in its bottom-centre overlay.
+The Source documents list below the viewer opens each retained original PDF.
+
+The item editor offers Apply, Discard, the **Re-trace geometry** icon and a
+**Delete item** trash icon. Deleting a linked item also clears its linked
+schedule rows. A manually changed linked row blocks the entire deletion.
+**Undo last edit** restores the items and cleared rows together, including after
+saving and reopening the project; unrelated calculator edits are preserved.
+Calculator formulas and shared pricing are unchanged. Removed editor actions
+do not remove historic source references or cited lengths from saved data.
+If a connection interruption leaves a linked change awaiting a response, keep
+the page open and use **Retry linked change**. Both drafts stay protected from
+further edits until the result is recovered.
 
 The Settings gear opens a panel for the selected items. Multiple selection shows
 the first item's values and applies only fields explicitly edited by the user.

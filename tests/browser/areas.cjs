@@ -113,7 +113,7 @@ async function surface(mode, rotated = false) {
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('#takeoff-upload').setInputFiles(info.area_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
@@ -190,7 +190,7 @@ async function surface(mode, rotated = false) {
   await page.getByRole('button', { name: 'Load', exact: true }).click(); assert.equal((await load).status(), 200);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   for (const record of [wall, slab]) {
     const mode = record === wall ? 'wall' : 'slab';
     await page.locator(`[data-mode="${mode}"]`).click();

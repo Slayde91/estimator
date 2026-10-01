@@ -49,6 +49,8 @@
     "Apply item edits": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Apply settings": "M5 3h12l3 3v15H4V3zM8 3v6h8V3M8 21v-7h8v7M10 17h4",
     "Trace length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
+    "Re-trace geometry": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
+    "Delete item": "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
     "Count": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
     "Trace surface": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Add exclusion": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
@@ -102,11 +104,11 @@
     el.addEventListener("click", () => void safely(fn)); return el;
   }
   function select(options, change, value) { const el = node("select"); options.forEach(([v, text]) => el.append(option(v, text))); if (value !== undefined) el.value = value; if (change) el.addEventListener("change", () => void safely(() => change(el.value))); return el; }
-  function message(text = "", error = false) { if (!state.ui) return; state.ui.message.textContent = text; state.ui.message.hidden = !text; state.ui.message.className = `message${error ? " error" : ""}`; state.ui.message.setAttribute("role", error ? "alert" : "status"); }
+  function message(text = "", error = false) { if (!state.ui) return; state.ui.message.textContent = text; state.ui.message.hidden = !text; state.ui.message.className = `message${error ? " error" : ""}`; state.ui.message.setAttribute("role", error ? "alert" : "status"); if (state.linkedRecovery) state.ui.message.append(button("Retry linked change", recoverLinkedOperation)); }
   async function safely(fn) { try { return await fn(); } catch (error) { message(error.message || String(error), true); } }
   async function api(path, data, method = data === undefined ? "GET" : "POST") {
     const response = await fetch(`/api/takeoffs${path}`, { method, ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }) });
-    let result; try { result = await response.json(); } catch { throw new Error(`The takeoff server returned an unreadable response (${response.status}).`); }
+    let result; try { result = await response.json(); } catch { const error = new Error(`The takeoff server returned an unreadable response (${response.status}).`); error.uncertainOutcome = true; throw error; }
     if (!response.ok) throw new Error(result.error || `Takeoff request failed (${response.status}).`);
     return result;
   }
@@ -193,17 +195,19 @@
     ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
     const headingControls = node("div", "takeoff-heading-controls"), drawingDownloads = node("div", "takeoff-toolbar takeoff-drawing-downloads"); drawingDownloads.setAttribute("role", "group"); drawingDownloads.setAttribute("aria-label", "Drawing downloads"); drawingDownloads.append(...ui.drawingDownloads); headingControls.append(modes, drawingDownloads);
     ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
-    const navigation = node("div", "takeoff-toolbar takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
+    const navigation = node("div", "takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
     const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls");
     ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
     ui.removeDocument = button("Remove document", removeDocument); documentControls.append(ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
-    const pageControls = node("div", "takeoff-toolbar takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
+    const pageControls = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
     pageControls.append(button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
-    ui.pageCount = node("span", "helper", "/ 0"); pageControls.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
+    ui.pageCount = node("span", "helper", "/ 0"); pageControls.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), ui.tools.select, ui.tools.pan, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
+    const viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(searchControls, navigation);
+    ui.sourceDocuments = node("section", "takeoff-source-documents"); ui.sourceDocuments.setAttribute("aria-labelledby", "takeoff-source-documents-heading"); const sourceHeading = node("h3", "", "Source documents"); sourceHeading.id = "takeoff-source-documents-heading"; ui.sourceDocumentList = node("div", "takeoff-source-document-list"); ui.sourceDocuments.append(sourceHeading, ui.sourceDocumentList);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
@@ -219,7 +223,7 @@
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
     ui.sort = select([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); ui.sort.setAttribute("aria-label", "Sort register");
     ui.group = select([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); ui.group.setAttribute("aria-label", "Group register");
-    controls.append(ui.filter, ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => state.selected.add(item.id)); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); renderSelection(); }), button("Undo last edit", () => { requireFinishedEdits(); return command("undo"); }));
+    controls.append(ui.filter, ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => state.selected.add(item.id)); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); renderSelection(); }), button("Undo last edit", () => undoLastEdit()));
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
@@ -229,8 +233,8 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, pageControls);
-    drawingPane.append(searchControls, viewer, navigation, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
+    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls);
+    drawingPane.append(viewer, ui.sourceDocuments, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(headingControls, ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
@@ -443,7 +447,7 @@
     if (selected.some(isCount)) {
       const quantity = formField(["count_quantity", "Count quantity", "number"], selected.filter(isCount).reduce((sum, item) => sum + item.quantity, 0)); quantity.control.readOnly = true; content.append(quantity.wrapper);
       content.append(node("h4", "", "Manually entered lengths"));
-      selected.filter(isCount).forEach((item, index) => { const row = node("div", "takeoff-count-length"), result = itemResult(item); row.append(node("p", "helper", `${item.quantity} markers · Manual base: ${formatLength(item.measurement.length_m)} m each${result.additions_length_m ? ` + cited additions: ${formatLength(result.additions_length_m)} m each` : ""} · Total: ${formatLength(result.total_length_m)} m`), button(`Change length for group ${index + 1}`, () => changeCountLength(item))); content.append(row); });
+      selected.filter(isCount).forEach((item, index) => { const row = node("div", "takeoff-count-length"), result = itemResult(item); row.dataset.itemId = item.id; row.append(node("p", "helper", `${item.quantity} markers · Manual base: ${formatLength(item.measurement.length_m)} m each${result.additions_length_m ? ` + additions: ${formatLength(result.additions_length_m)} m each` : ""} · Total: ${formatLength(result.total_length_m)} m`), button(`Change length for group ${index + 1}`, () => changeCountLength(item)), button("Delete item", () => deleteItems([item.id]))); content.append(row); });
     } else if (!isArea(first.mode)) { editor.quantity = formField(["quantity", "Physical quantity", "number"], first.quantity); editor.quantity.control.addEventListener("input", () => markSettingsEdited(editor, "quantity")); content.append(editor.quantity.wrapper); }
     const actions = node("div", "actions"); actions.append(button("Apply settings", () => applySettings(editor)), button("Discard settings", () => { state.settingsDirty = false; state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.(); })); content.append(actions);
     void safely(() => loadSettingsOptions(editor));
@@ -576,11 +580,13 @@
     state.calibration = id; state.viewportSelection = id; cancelTrace(); renderCalibrations();
   }
   function renderRail() {
-    const key = JSON.stringify([state.session?.session_id, documents().map(doc => [doc.id, doc.name, doc.pages.length]), state.document, state.page]);
+    const key = JSON.stringify([state.session?.session_id, documents().map(doc => [doc.id, doc.name, doc.pages.length, doc.size]), state.document, state.page]);
     if (state.railKey !== key) {
       state.railKey = key;
       const choices = documents().map(doc => { const el = option(doc.id, `${doc.name} · ${doc.pages.length} pages`); el.className = "takeoff-document"; el.setAttribute("aria-selected", String(doc.id === state.document)); return el; });
       state.ui.documentSelect.replaceChildren(...(choices.length ? choices : [option("", "No PDFs uploaded")]));
+      const sources = documents().map(doc => { const el = button(doc.name, () => navigateDocument(doc.id), "takeoff-source-document"); el.dataset.documentId = doc.id; if (doc.id === state.document) el.setAttribute("aria-current", "true"); el.append(node("small", "", `${doc.pages.length} pages · ${units.format(doc.size / 1048576)} MiB`)); return el; });
+      state.ui.sourceDocumentList.replaceChildren(...(sources.length ? sources : [node("p", "helper", "No PDFs uploaded")]));
     }
     state.ui.documentSelect.value = state.document || ""; state.ui.documentSelect.disabled = !documents().length;
     state.ui.documentSelect.title = currentDocument() ? `${currentDocument().name} · ${currentDocument().pages.length} pages · ${units.format(currentDocument().size / 1048576)} MiB` : "Upload a PDF to choose a drawing document";
@@ -977,6 +983,7 @@
   function pointRemovalReason(reference) {
     try {
       const { item, ring, minimum } = pointTarget(reference);
+      if (!reference.exclusionId && item.length_additions?.some(addition => addition.anchor?.point_index === reference.index)) return "Remove the Rise/Drop at this point before deleting the control point. Its additional length must not be lost.";
       if (item.measurement.method === "cited") return "A cited source region retains its dimension markers. Use Re-trace geometry to replace its source region; its cited length is not inferred from control points.";
       if (ring.points.length <= minimum) return `This ${minimum === 3 ? "closed boundary" : "length trace"} needs at least ${minimum} control points. The markup will not be deleted.`;
       return "";
@@ -1060,15 +1067,13 @@
   async function deleteMarkup(reference) {
     if (state.busy || state.modal) throw new Error("Finish the current operation before deleting a markup.");
     requireFinishedEdits(); const item = markupTarget(reference);
-    if (!await confirm("Delete markup?", `Delete ${item.fields.mark || item.id}? Its source documents are retained. Linked schedule rows are not removed automatically. Undo last edit restores the markup.`, "Delete markup")) return;
-    requireFinishedEdits(); markupTarget(reference);
-    await command("delete_items", { item_ids: [item.id] }, () => { requireFinishedEdits(); markupTarget(reference); return true; });
-    state.markupMenu = null; state.controlPoint = null; state.controlMenu = false; renderSelection();
-    message("Markup deleted. Undo last edit restores it. Linked calculator rows remain available for explicit review.");
+    return deleteItems([item.id], { title: "Delete markup?", action: "Delete markup", guard: () => !!markupTarget(reference) });
   }
   function appendPlanMenu(overlay, point, menu, requestedHeight = 58) {
     const bounds = overlay.getBoundingClientRect(), frame = state.ui.viewport.getBoundingClientRect(), scaleX = state.viewport.width / bounds.width, scaleY = state.viewport.height / bounds.height;
-    const left = Math.max(0, (frame.left - bounds.left) * scaleX), top = Math.max(0, (frame.top - bounds.top) * scaleY), right = Math.min(state.viewport.width, (frame.left + state.ui.viewport.clientWidth - bounds.left) * scaleX), bottom = Math.min(state.viewport.height, (frame.top + state.ui.viewport.clientHeight - bounds.top) * scaleY);
+    const viewer = state.ui.viewport.parentElement, upper = viewer?.querySelector?.(".takeoff-viewer-top")?.getBoundingClientRect(), lower = viewer?.querySelector?.(".takeoff-page-controls")?.getBoundingClientRect();
+    const visibleTop = Math.max(frame.top, upper?.height ? upper.bottom + 6 : frame.top), visibleBottom = Math.min(frame.top + state.ui.viewport.clientHeight, lower?.height ? lower.top - 6 : frame.top + state.ui.viewport.clientHeight);
+    const left = Math.max(0, (frame.left - bounds.left) * scaleX), top = Math.max(0, (visibleTop - bounds.top) * scaleY), right = Math.min(state.viewport.width, (frame.left + state.ui.viewport.clientWidth - bounds.left) * scaleX), bottom = Math.min(state.viewport.height, (visibleBottom - bounds.top) * scaleY);
     const width = Math.min(245, Math.max(1, right - left)), height = Math.min(requestedHeight, Math.max(1, bottom - top));
     const container = svg("foreignObject", { x: Math.max(left, Math.min(point[0] + 9, right - width)), y: Math.max(top, Math.min(point[1] + 9, bottom - height)), width, height });
     menu.addEventListener("pointerdown", event => event.stopPropagation()); menu.addEventListener("click", event => event.stopPropagation()); container.append(menu); overlay.append(container);
@@ -1096,7 +1101,7 @@
       }
       if (state.tool !== "select" || state.mode === "physical") return;
       const selected = selectedItems(), item = selected.length === 1 && drawableItems().find(value => value.id === selected[0].id);
-      if (isCount(item)) { void safely(() => { requireFinishedEdits(); return command("undo"); }); return; }
+      if (isCount(item)) { void safely(undoLastEdit); return; }
       const reference = state.controlPoint || (item ? pointReference(item, item.geometry.points.length - 1) : null);
       if (!reference) { if (selected.length > 1) message("Choose one control point before deleting from multiple selected markups."); return; }
       void safely(() => removeControlPoint(reference)); return;
@@ -1313,6 +1318,13 @@
   async function deleteCountMarker(reference, memberId) {
     requireFinishedEdits(); const item = markupTarget(reference);
     if (!isCount(item) || item.member_ids[reference.index] !== memberId) throw new Error("This marker changed. Open its menu again.");
+    if (item.quantity === 1 && (snapshot().transfers || []).some(binding => binding.item_id === item.id)) {
+      return deleteItems([item.id], { title: "Delete last count marker?", action: "Delete marker and linked rows", guard: () => {
+        const current = markupTarget(reference);
+        if (!isCount(current) || current.quantity !== 1 || current.member_ids[reference.index] !== memberId) throw new Error("This marker changed. Open its menu again.");
+        return true;
+      } });
+    }
     await command("delete_count_marker", { item_id: item.id, member_id: memberId }, () => { requireFinishedEdits(); markupTarget(reference); return true; });
     state.selected = new Set(countBatchItems(item).map(value => value.id));
     state.markupMenu = null; state.settingsEditor = null; renderSelection();
@@ -1365,6 +1377,7 @@
       hit.addEventListener("contextmenu", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } });
       hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
       const label = svg("text", { x: points[0][0] + 6, y: points[0][1] - 7, class: "takeoff-label" }); label.textContent = item.fields.mark || item.id.slice(0, 8); overlay.append(shape, hit, label);
+      renderLengthAdditionMarkers(overlay, item, geometry);
       if (geometry.kind === "polygon") renderSurfaceLabel(overlay, geometry, item.measurement?.calibration_id, { area: itemResult(item).net_area_m2, itemId: item.id, preview: pointDrag });
     }
     for (const hit of state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page)) if (hit.points?.length) { const box = G.bounds(hit.points.map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: Math.max(4, box[2] - box[0]), height: Math.max(4, box[3] - box[1]), class: "takeoff-search-hit" })); }
@@ -1372,6 +1385,19 @@
     if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
     renderControlPoints(overlay);
     renderMarkupMenu(overlay);
+  }
+  function renderLengthAdditionMarkers(overlay, item, geometry) {
+    const stacks = new Map();
+    for (const addition of item.length_additions || []) {
+      const index = addition.anchor?.point_index, canonical = Number.isInteger(index) && geometry.points[index];
+      if (!canonical) continue;
+      const point = G.transform(canonical, state.viewport.transform), offset = stacks.get(index) || 0;
+      stacks.set(index, offset + 1);
+      const label = svg("text", { x: point[0] + 10, y: point[1] + 17 + offset * 16, class: "takeoff-label takeoff-rise-drop", "pointer-events": "none", "data-addition-id": addition.id });
+      label.textContent = `${addition.kind === "riser" ? "↑ Rise" : "↓ Drop"} ${units.format(addition.length_mm)} mm`;
+      const title = svg("title", {}); title.textContent = `${addition.kind === "riser" ? "Rise" : "Drop"} at control point ${index + 1}: ${addition.length_mm} mm per ${item.mode === "steel" ? "member" : "run"}`;
+      label.append(title); overlay.append(label);
+    }
   }
   function renderControlPoints(overlay) {
     if (state.tool !== "select" || state.gesture && state.gesture.kind !== "point" || !state.viewport) return;
@@ -1406,14 +1432,12 @@
     }
     if (state.ui.controlStatus && total && !state.gesture) { state.ui.controlStatus.hidden = false; state.ui.controlStatus.textContent = total > maximum ? `Showing ${maximum} of ${total} control points. Select fewer markups to inspect every point. Drag a point to move it, or remove it with Ctrl+Z or its right-click menu.` : `${total} control points. Drag a point to update its measurement; Ctrl+Z or right-click deletes that point. Right-click the markup to delete the whole item. Undo last edit restores committed changes.`; }
     if (state.controlMenu && state.controlPoint && menuPoint) {
-      const reference = state.controlPoint, reason = pointRemovalReason(reference), bounds = state.ui.overlay.getBoundingClientRect(), frame = state.ui.viewport.getBoundingClientRect();
-      const scaleX = state.viewport.width / bounds.width, scaleY = state.viewport.height / bounds.height;
-      const left = Math.max(0, (frame.left - bounds.left) * scaleX), top = Math.max(0, (frame.top - bounds.top) * scaleY), right = Math.min(state.viewport.width, (frame.left + state.ui.viewport.clientWidth - bounds.left) * scaleX), bottom = Math.min(state.viewport.height, (frame.top + state.ui.viewport.clientHeight - bounds.top) * scaleY);
-      const width = Math.min(245, Math.max(1, right - left)), height = Math.min(reason ? 150 : 58, Math.max(1, bottom - top));
-      const container = svg("foreignObject", { x: Math.max(left, Math.min(menuPoint[0] + 9, right - width)), y: Math.max(top, Math.min(menuPoint[1] + 9, bottom - height)), width, height });
+      const reference = state.controlPoint, reason = pointRemovalReason(reference), { item } = pointTarget(reference);
+      const canAddLength = !reference.exclusionId && ["steel", "duct"].includes(item.mode) && (item.geometry.kind || "polyline") === "polyline" && item.measurement?.method === "calibrated";
       const menu = node("div", "takeoff-control-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Control point actions");
+      if (canAddLength) { const insert = button("Insert Rise / Drop", () => editLengthAddition(item, null, reference)); insert.setAttribute("role", "menuitem"); menu.append(insert); }
       const remove = button("Delete control point", () => removeControlPoint(reference)); remove.setAttribute("role", "menuitem"); remove.disabled = !!reason; if (reason) remove.title = reason; menu.append(remove); if (reason) menu.append(node("p", "helper", reason));
-      menu.addEventListener("pointerdown", event => event.stopPropagation()); menu.addEventListener("click", event => event.stopPropagation()); container.append(menu); overlay.append(container);
+      appendPlanMenu(overlay, menuPoint, menu, (reason ? 178 : 58) + (canAddLength ? 48 : 0));
     }
   }
   function renderViewportRegions(overlay) {
@@ -1622,9 +1646,9 @@
       if (changed) await command("update_item", { item_id: item.id, changes });
       if ((state.formRevision || 0) === formRevision) { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); if (!changed) message("No item values changed. Confirmation status is unchanged."); }
       else message("The captured item edits were applied. Later form edits remain unfinished; apply or discard them separately.");
-    }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); }), geometryAction(area ? "Change surface calibration" : "Change length basis", () => area ? changeAreaCalibration(item) : changeLength(item)), geometryAction("Re-trace geometry", () => retrace(item)), button(item.geometry ? "Replace source on current page" : "Attach source on current page", () => replaceSource(item)), button("Add evidence reference", () => addEvidence(item)));
-    if (!area) actions.append(button("Riser/Drop", () => editLengthAddition(item)));
-    if (area) actions.append(geometryAction("Edit surface vertices", () => editAreaBoundary(item)), geometryAction("Add excluded opening", startExclusion));
+    }, "button primary"), button("Discard edits", () => { state.formDirty = false; renderRegister(); window.CeasefireProject?.changed?.(); }), geometryAction("Re-trace geometry", () => retrace(item)), button("Delete item", () => deleteItems([item.id])));
+    if (!item.geometry) actions.append(button("Attach source on current page", () => replaceSource(item)));
+    if (area) actions.append(geometryAction("Change surface calibration", () => changeAreaCalibration(item)), geometryAction("Edit surface vertices", () => editAreaBoundary(item)), geometryAction("Add excluded opening", startExclusion));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
     if (!area) renderLengthAdditions(panel, item);
     if (area) {
@@ -1654,10 +1678,13 @@
   }
   function renderLengthAdditions(panel, item) {
     const additions = item.length_additions || [], section = node("section", "takeoff-length-additions");
-    section.append(node("h3", "", "RISERS / DROPS"), node("p", "helper", `Each addition applies to each ${item.mode === "steel" ? "member" : "run"}. The total includes quantity × (base length + all additions). Use a cited source dimension; no height is inferred.`));
+    section.append(node("h3", "", "RISES / DROPS"), node("p", "helper", `Each addition applies to each ${item.mode === "steel" ? "member" : "run"}. The total includes quantity × (base length + all additions). Right-click a control point to insert a manually entered Rise or Drop.`));
     for (const addition of additions) {
       const card = node("div", "takeoff-exclusion");
-      card.append(node("strong", "", `${addition.kind === "riser" ? "Riser" : "Drop"} · ${formatLength(addition.length_mm)} mm each`), node("p", "helper", addition.note), button(`${documentById(addition.document_id)?.name || "Missing source"} · p${addition.page}`, () => navigateDocument(addition.document_id, addition.page), "text-button"), button("Edit addition", () => editLengthAddition(item, addition), "text-button"), button("Remove addition", () => removeLengthAddition(item, addition), "text-button"));
+      card.append(node("strong", "", `${addition.kind === "riser" ? "Rise" : "Drop"} · ${formatLength(addition.length_mm)} mm each`));
+      if (addition.note) card.append(node("p", "helper", addition.note));
+      if (addition.anchor) card.append(node("p", "helper", `Control point ${addition.anchor.point_index + 1}`));
+      card.append(button("Edit addition", () => editLengthAddition(item, addition), "text-button"), button("Remove addition", () => removeLengthAddition(item, addition), "text-button"));
       section.append(card);
     }
     if (!additions.length) section.append(node("p", "helper", "No riser or drop lengths added."));
@@ -1670,21 +1697,27 @@
     return current;
   }
   function parsedLengthAddition(values, id) {
-    if (!["riser", "drop"].includes(values.kind)) throw new Error("Choose Riser or Drop.");
+    if (!["riser", "drop"].includes(values.kind)) throw new Error("Choose Rise or Drop.");
     if (!Number.isFinite(values.length_mm) || values.length_mm <= 0) throw new Error("Enter a positive finite additional length in millimetres.");
-    if (!values.note?.trim()) throw new Error("Record the source dimension or exact citation.");
     const doc = documentById(values.document_id);
     if (!doc || !Number.isInteger(values.page) || values.page < 1 || values.page > doc.pages.length) throw new Error("Choose an existing source document and page.");
-    return { id, kind: values.kind, length_mm: values.length_mm, note: values.note.trim(), document_id: doc.id, page: values.page };
+    return { id, kind: values.kind, length_mm: values.length_mm, ...(values.note !== undefined ? { note: values.note } : {}), document_id: doc.id, page: values.page, ...(values.anchor ? { anchor: clone(values.anchor) } : {}) };
   }
-  async function editLengthAddition(item, addition) {
+  async function editLengthAddition(item, addition, reference) {
     requireFinishedEdits(); const current = currentLengthItem(item), entries = current.length_additions || [];
     if (!addition && entries.length >= 100) throw new Error("An item supports at most 100 riser/drop additions.");
-    if (!documents().length) throw new Error("Upload the source PDF before adding a riser or drop.");
-    const values = await ask(addition ? "Edit riser / drop" : "Add riser / drop", [["kind", "Type", [["riser", "Riser"], ["drop", "Drop"]], addition?.kind || "", true], ["length_mm", "Additional length (mm)", "number", addition?.length_mm ?? "", true], ["document_id", "Source document", documents().map(doc => [doc.id, doc.name]), addition?.document_id || item.geometry?.document_id || state.document, true], ["page", "Source page", "number", addition?.page || item.geometry?.page || state.page, true], ["note", "Source dimension / citation", "textarea", addition?.note || "", true]], `This length is added to each ${item.mode === "steel" ? "member" : "run"}, including every member of a repeated group (quantity ${item.quantity}). The source dimension must be explicit. Changing it makes the item unconfirmed; Undo restores the previous edit.`, addition ? "Apply length" : "Add length");
+    let anchor = addition?.anchor;
+    if (!addition) {
+      const target = pointTarget(reference);
+      if (target.item.id !== current.id || reference.exclusionId || (current.geometry.kind || "polyline") !== "polyline" || current.measurement.method !== "calibrated") throw new Error("Choose a control point on a traced steel member or duct run.");
+      anchor = { point_index: reference.index, point: [...target.ring.points[reference.index]] };
+    }
+    const values = await ask(addition ? "Edit rise / drop" : "Insert Rise / Drop", [["kind", "Type", [["riser", "Rise"], ["drop", "Drop"]], addition?.kind || "", true], ["length_mm", "Additional length (mm)", "number", addition?.length_mm ?? "", true]], `Enter the additional length for each ${item.mode === "steel" ? "member" : "run"} (quantity ${item.quantity}). The drawing reference is retained automatically. This makes the item unconfirmed; Undo restores the previous edit.`, addition ? "Apply length" : "Add length");
     if (!values) return; currentLengthItem(item);
-    const next = parsedLengthAddition(values, addition?.id || uuid());
-    await command("update_item", { item_id: item.id, changes: { length_additions: addition ? entries.map(value => value.id === addition.id ? next : value) : [...entries, next] } }, () => !!currentLengthItem(item));
+    if (reference) pointTarget(reference);
+    const next = parsedLengthAddition({ ...values, document_id: addition?.document_id || current.geometry.document_id, page: addition?.page || current.geometry.page, ...(addition?.note !== undefined ? { note: addition.note } : {}), anchor }, addition?.id || uuid());
+    await command("update_item", { item_id: item.id, changes: { length_additions: addition ? entries.map(value => value.id === addition.id ? next : value) : [...entries, next] } }, () => { currentLengthItem(item); if (reference) pointTarget(reference); return true; });
+    state.controlPoint = null; state.controlMenu = false; renderOverlay();
   }
   async function removeLengthAddition(item, addition) {
     requireFinishedEdits(); const current = currentLengthItem(item);
@@ -1749,7 +1782,115 @@
   async function bulkEdit() { requireFinishedEdits(); const selected = settingsSelectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value; if (key === "quantity" && selected.some(isCount)) throw new Error("Count quantities come from markers and cannot be edited manually."); if (isArea() && key === "quantity") throw new Error("Each surface is one physical object. Create separate evidenced items for other surfaces."); const definition = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(value => value[0] === key); if (!definition) throw new Error("Choose a bulk edit field."); const raw = state.ui.bulkValue.value.trim(), value = definition[2] === "number" ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: { [key]: value } } }); }
   async function selectedCommand(op) { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select at least one item."); await command(op, { item_ids: selected.map(item => item.id) }); }
   async function confirmSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select items to confirm."); const areaDetail = "Inspect the original true-surface view, every boundary and excluded opening, calibration, gross/excluded/net m², substrate, treatment and fire rating. A wall footprint never establishes wall-face area; no second face or height is inferred. Confirmation permits register export only and does not certify technical suitability."; if (!await confirm(`Confirm ${selected.length} items?`, isArea() ? areaDetail : "Confirm only after inspecting the original drawings, physical quantities, base length, every riser/drop addition, dimensions, fire requirements and source references. Additions apply to each member/run. Deterministic checks must pass. Confirmation does not certify technical suitability.", "Confirm items")) return; await selectedCommand("confirm_items"); }
-  async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; if (await confirm(`Delete ${selected.length} objects?`, "Their source documents are retained. Linked schedule rows require explicit handling. Undo restores the previous draft.", "Delete objects")) await selectedCommand("delete_items"); }
+  async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; return deleteItems(selected.map(item => item.id), { title: `Delete ${selected.length} objects?`, action: "Delete objects" }); }
+  function uncertainLinkedOutcome(error) { return error instanceof TypeError || error.uncertainOutcome === true; }
+  function finishLinkedOperation(pending, reply) {
+    if (pending.sessionId !== state.session?.session_id) throw new Error("The project changed while applying the linked operation.");
+    const restored = reply?.snapshot;
+    if (!restored || reply.session_id !== pending.sessionId || reply.revision !== pending.payload.expected_revision + 1 ||
+        restored.revision !== reply.revision || restored.project_id !== snapshot().project_id || restored.version !== snapshot().version ||
+        ![1, 2].includes(restored.version) || typeof restored.audit_head !== "string" ||
+        !["items", "documents", "calibrations", "transfers"].every(key => Array.isArray(restored[key])) ||
+        !Array.isArray(reply.item_results) || !Array.isArray(reply.issues) ||
+        restored.items.some(item => !item?.id || !item.fields || !Array.isArray(item.evidence)) ||
+        restored.documents.some(doc => !doc?.id || !Array.isArray(doc.pages)) ||
+        reply.item_results.some(result => !result?.id)) throw new Error("The linked edit response is incomplete.");
+    if (!pending.calculatorsApplied) {
+      window.CeasefireCalculators.applyTakeoffTargets(reply.calculators, pending.reservation);
+      pending.calculatorsApplied = true;
+    }
+    accept(reply); renderData();
+  }
+  function releaseLinkedOperation(pending) {
+    if (pending.reservation) window.CeasefireCalculators.releaseTakeoffTarget(pending.reservation);
+    for (const [control, disabled] of pending.lockedControls) if (control.isConnected !== false) control.disabled = disabled;
+    working(false);
+  }
+  async function recoverLinkedOperation() {
+    const pending = state.linkedRecovery;
+    if (!pending || pending.retrying) return;
+    pending.retrying = true;
+    try {
+      const reply = await api(`/sessions/${pending.sessionId}/${pending.endpoint}`, pending.payload);
+      finishLinkedOperation(pending, reply); state.linkedRecovery = null; releaseLinkedOperation(pending);
+      message("The linked change is complete. The takeoff and its schedule rows are in sync.");
+    } catch (error) {
+      message(`The linked change still needs a response. Keep this page open and retry when the connection is available. ${error.message}`, true);
+    } finally { pending.retrying = false; }
+  }
+  function linkedCalculatorOperation(endpoint, calculatorIds, values = {}, guard) {
+    const sessionId = state.session?.session_id, revision = state.session?.revision;
+    const task = state.queue.then(async () => {
+      requireFinishedEdits();
+      if (sessionId !== state.session?.session_id || revision !== state.session?.revision) throw new Error("The takeoff changed. Review the current item and repeat this action.");
+      if (guard && !guard()) return null;
+      working(true); let reservation;
+      const lockedControls = [...(state.ui.root.querySelectorAll?.("input,select,textarea,button") || [])].map(control => [control, control.disabled]);
+      for (const [control] of lockedControls) control.disabled = true;
+      let pending;
+      try {
+        const bridge = window.CeasefireCalculators, captured = await bridge.captureTakeoffTargets(calculatorIds);
+        if (sessionId !== state.session?.session_id || revision !== state.session?.revision) throw new Error("The project changed before linked deletion. No calculator rows were changed.");
+        requireFinishedEdits();
+        if (guard && !guard()) return null;
+        reservation = bridge.reserveTakeoffTargets(calculatorIds, captured.fingerprint);
+        const payload = { expected_revision: revision, request_id: uuid(), calculators: captured.calculators, ...values };
+        pending = { sessionId, endpoint, payload, reservation, lockedControls };
+        let reply;
+        try { reply = await api(`/sessions/${sessionId}/${endpoint}`, payload); }
+        catch (error) {
+          // The same request identity recovers a committed response after a
+          // connection failure. It cannot perform the deletion twice.
+          if (!uncertainLinkedOutcome(error)) throw error;
+          try { reply = await api(`/sessions/${sessionId}/${endpoint}`, payload); }
+          catch (retryError) {
+            // Keep the exact request and calculator lease until its outcome is
+            // recovered. Neither side may be edited or saved independently.
+            state.linkedRecovery = pending;
+            throw new Error("The linked change needs a response. Keep this page open and choose Retry linked change when the connection is available.");
+          }
+        }
+        try { finishLinkedOperation(pending, reply); }
+        catch (error) {
+          state.linkedRecovery = pending;
+          throw new Error(`The linked response could not be applied. Keep this page open and choose Retry linked change. ${error.message}`);
+        }
+        return reply;
+      } finally {
+        if (!state.linkedRecovery) releaseLinkedOperation({ reservation, lockedControls });
+      }
+    });
+    state.queue = task.catch(() => {}); return task;
+  }
+  async function deleteItems(ids, options = {}) {
+    requireFinishedEdits();
+    if (state.busy || state.modal) throw new Error("Finish the current operation before deleting an item.");
+    const selected = ids.map(id => items().find(item => item.id === id));
+    if (!selected.length || selected.some(item => !item)) throw new Error("Choose existing takeoff items to delete.");
+    const sessionId = state.session.session_id, revision = state.session.revision;
+    const bindings = (snapshot().transfers || []).filter(binding => ids.includes(binding.item_id));
+    const calculators = [...new Set(bindings.map(binding => binding.calculator_id))];
+    const detail = `Delete ${selected.map(item => item.fields.mark || item.id).join(", ")}? ${bindings.length ? `This also removes ${bindings.length} linked schedule row${bindings.length === 1 ? "" : "s"}. A manually changed linked row blocks deletion so it can be reviewed first.` : "There are no linked schedule rows."} Source documents are retained. Undo last edit restores the item${bindings.length ? " and linked rows" : ""}.`;
+    if (!await confirm(options.title || (selected.length === 1 ? "Delete item?" : `Delete ${selected.length} items?`), detail, options.action || "Delete item")) return;
+    const guard = () => {
+      requireFinishedEdits();
+      if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The takeoff changed during deletion review. Review it again.");
+      return options.guard ? options.guard() : true;
+    };
+    guard();
+    if (calculators.length) await linkedCalculatorOperation("linked-delete", calculators, { item_ids: ids }, guard);
+    else await command("delete_items", { item_ids: ids }, guard);
+    state.markupMenu = null; state.controlPoint = null; state.controlMenu = false; renderSelection();
+    message(`Item${selected.length === 1 ? "" : "s"} deleted${bindings.length ? " with the linked schedule rows" : ""}. Undo last edit restores ${bindings.length ? "both" : "the takeoff"}.`);
+  }
+  async function undoLastEdit() {
+    requireFinishedEdits();
+    if (state.busy || state.modal) throw new Error("Finish the current operation before undoing an edit.");
+    const linked = state.session?.linked_undo;
+    if (!linked) return command("undo");
+    const reply = await linkedCalculatorOperation("linked-undo", linked.calculator_ids);
+    message("Deleted takeoff items and their linked schedule rows restored. Unrelated calculator edits were preserved."); return reply;
+  }
   async function splitSelected() {
     if (isArea()) throw new Error("Surface splitting is unavailable. Group separate physical surfaces without changing their identities.");
     requireFinishedEdits(); const selected = selectedItems(); if (selected.length !== 1) throw new Error("Select one repeated steel group or calibrated duct run to split.");

@@ -415,13 +415,13 @@ def validate_measurement_scope(item, snapshot):
 def length_additions(item, snapshot):
     additions = item.get('length_additions', [])
     if not isinstance(additions, list) or len(additions) > MAX_LENGTH_ADDITIONS:
-        raise ValidationError(f'An item supports at most {MAX_LENGTH_ADDITIONS} cited riser/drop additions.')
+        raise ValidationError(f'An item supports at most {MAX_LENGTH_ADDITIONS} explicit riser/drop additions.')
     if additions and item['mode'] in AREA_MODES:
         raise ValidationError('Riser/drop lengths apply only to linear Steel or Duct items.')
     identifiers = set()
     for addition in additions:
-        keys = {'id', 'kind', 'length_mm', 'note', 'document_id', 'page'}
-        object_fields(addition, keys, 'Riser/drop addition', keys)
+        required = {'id', 'kind', 'length_mm', 'document_id', 'page'}
+        object_fields(addition, required | {'note', 'anchor'}, 'Riser/drop addition', required)
         identifier = identity(addition['id'], 'Riser/drop ID')
         if identifier in identifiers:
             raise ValidationError('Riser/drop IDs must be unique within an item.')
@@ -429,10 +429,23 @@ def length_additions(item, snapshot):
         if addition['kind'] not in ('riser', 'drop'):
             raise ValidationError('Choose riser or drop for each length addition.')
         number(addition['length_mm'], 'Riser/drop millimetres', positive=True)
-        text(addition['note'], 'Riser/drop dimension citation')
-        if not addition['note'].strip():
-            raise ValidationError('Each riser/drop requires an explicit source dimension citation.')
-        page_metadata(snapshot, addition['document_id'], addition['page'])
+        if 'note' in addition:
+            text(addition['note'], 'Riser/drop dimension citation')
+        _, page = page_metadata(snapshot, addition['document_id'], addition['page'])
+        if 'anchor' in addition:
+            anchor = object_fields(addition['anchor'], {'point_index', 'point'}, 'Riser/drop point anchor',
+                                   {'point_index', 'point'})
+            index = number(anchor['point_index'], 'Riser/drop point index', integer=True)
+            points([anchor['point']], 'Riser/drop point anchor', page, maximum=1)
+            geometry = item.get('geometry')
+            if (item['mode'] not in ('steel', 'duct') or not isinstance(geometry, dict)
+                    or geometry.get('kind') is not None or not isinstance(geometry.get('points'), list)
+                    or len(geometry['points']) < 2):
+                raise ValidationError('A riser/drop point anchor requires a Steel or Duct line with control points.')
+            if (addition['document_id'], addition['page']) != (geometry.get('document_id'), geometry.get('page')):
+                raise ValidationError('A riser/drop point anchor must retain its line source document and page.')
+            if not 0 <= index < len(geometry['points']) or anchor['point'] != geometry['points'][index]:
+                raise ValidationError('A riser/drop point anchor must match its selected control point.')
     return math.fsum(addition['length_mm'] / 1000 for addition in additions)
 
 

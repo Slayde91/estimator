@@ -45,6 +45,20 @@ async function fillInspector(values) {
   }
   return command(() => inspector.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
 }
+// Historical cited measurements remain supported when an existing project is
+// opened. The removed conversion button is not a route for creating new ones.
+// Seed this compatibility fixture through the validated API, then exercise the
+// real editor, confirmation and transfer UI on the resulting retained record.
+async function retainedCitedFixture(itemId, length, citation) {
+  await expect(page.getByRole('button',{name:'Change length basis',exact:true})).toHaveCount(0);
+  const result = await page.evaluate(async ({itemId,length,citation})=>{
+    const takeoffs=window.CeasefireTakeoffs, session=takeoffs.sessionId(), snapshot=takeoffs.projectSnapshot();
+    const response=await fetch(`/api/takeoffs/sessions/${session}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:snapshot.revision,request_id:crypto.randomUUID(),op:'update_item',item_id:itemId,changes:{measurement:{method:'cited',length_m:length,citation}}})});
+    const result=await response.json(); if(!response.ok)throw new Error(JSON.stringify(result));
+    const prepared=await takeoffs.prepareProject(result.snapshot,session); takeoffs.applyProject(prepared); await takeoffs.showSource(itemId); return result;
+  },{itemId,length,citation});
+  await workspaceIdle(); return result;
+}
 async function reviewConfirm() {
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items');
@@ -136,8 +150,7 @@ async function boardJourney(info) {
   await draw([[100 / 842, 1 - 300 / 595], [730 / 842, 1 - 270 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-CITED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
-  await page.getByRole('button', { name: 'Change length basis', exact: true }).click();
-  state = await command(() => dialog('Change length basis', { 'Length basis': 'cited', 'Cited length (metres)': 7.25, 'Source citation': 'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH' }, 'Apply'), 'update_item');
+  state = await retainedCitedFixture(state.snapshot.items.find(item=>item.fields.mark==='BOARD-CITED').id,7.25,'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH');
   const citedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-CITED').id;
   state = await fillInspector({ ...supported, 'Steel section': '100UC15' });
   assert.equal(state.item_results.find(item => item.id === citedId).total_length_m, 21.75);
@@ -178,8 +191,7 @@ async function boardJourney(info) {
   await draw([[100 / 842, 1 - 193 / 595], [790 / 842, 1 - 148 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-UNSUPPORTED', 'Physical quantity': 1 }, 'Add item'), 'create_item');
-  await page.getByRole('button', { name: 'Change length basis', exact: true }).click();
-  state = await command(() => dialog('Change length basis', { 'Length basis': 'cited', 'Cited length (metres)': 10, 'Source citation': 'Synthetic board drawing p1, BOARD-UNSUPPORTED: explicitly 120 min beam at 550 C; do not substitute a design' }, 'Apply'), 'update_item');
+  state = await retainedCitedFixture(state.snapshot.items.find(item=>item.fields.mark==='BOARD-UNSUPPORTED').id,10,'Synthetic board drawing p1, BOARD-UNSUPPORTED: explicitly 120 min beam at 550 C; do not substitute a design');
   const unsupportedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-UNSUPPORTED').id;
   await fillInspector({ ...supported, 'Steel section': '100UC15', 'Critical temperature (°C)': 550 }); await reviewConfirm();
   const beforeRejection = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
@@ -205,7 +217,7 @@ async function boardJourney(info) {
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Upload PDFs', exact: true })).toBeVisible();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
@@ -255,8 +267,7 @@ async function boardJourney(info) {
   await draw([[100 / 842, 1 - 245 / 595], [600 / 842, 1 - 220 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
   state = await command(() => dialog('Add duct object', { 'Run ID': 'D-001', 'Physical quantity': 1 }, 'Add item'), 'create_item');
-  await page.getByRole('button', { name: 'Change length basis', exact: true }).click();
-  state = await command(() => dialog('Change length basis', { 'Length basis': 'cited', 'Cited length (metres)': 10, 'Source citation': 'Synthetic duct schedule D-001, page 1: 10.0 m' }, 'Apply'), 'update_item');
+  state = await retainedCitedFixture(state.snapshot.items.find(item=>item.fields.mark==='D-001').id,10,'Synthetic duct schedule D-001, page 1: 10.0 m');
   const ductId = state.snapshot.items.find(i => i.mode === 'duct').id;
   await fillInspector({ 'Level': 'L02', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); transferred = await transfer();
@@ -304,7 +315,7 @@ async function boardJourney(info) {
   const loaded = await loadedResponse; assert.equal(loaded.status(), 200, await loaded.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('[data-mode="duct"]').click();
   await page.locator('.takeoff-row-link').filter({ hasText: ductId.slice(0, 8) }).click();
   for (const format of ['CSV', 'XLSX']) {

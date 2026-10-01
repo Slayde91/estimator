@@ -100,10 +100,9 @@
 .takeoff-navigation-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .takeoff-document-controls{flex:1 1 240px}
 .takeoff-navigation .takeoff-document-controls select{flex:1;min-width:0;max-width:none;width:100%;text-overflow:ellipsis}
-.takeoff-viewer{min-width:0;border:1px solid #c7c1bd;border-radius:9px;overflow:hidden}
-.takeoff-viewer>.takeoff-viewport{border:0;border-radius:0}
-.takeoff-viewer>.takeoff-viewport[data-scroll-active=true]{outline-offset:-2px}
-.takeoff-page-controls{justify-content:center;margin:0;gap:6px;border:0;border-top:1px solid #c7c1bd;border-radius:0}
+.takeoff-viewer{min-width:0}
+.takeoff-viewer>.takeoff-viewport{border-radius:9px 9px 0 0}
+.takeoff-page-controls{justify-content:center;margin:0;gap:6px;border:1px solid #c7c1bd;border-top:0;border-radius:0 0 9px 9px}
 .takeoff-page-controls .helper{white-space:nowrap}
 .takeoff-search-controls{margin:0;gap:6px;min-width:0}
 .takeoff-search-controls input{flex:1;min-width:130px;max-width:none}

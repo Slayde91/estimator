@@ -92,7 +92,7 @@ async function saveAndLoad(info) {
   await page.getByRole('button', { name: 'Load', exact: true }).click(); assert.equal((await open).status(), 200);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   // Opening a project starts on its first page; return to the counted source page.
   await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
@@ -126,7 +126,7 @@ function pythonJson(script, ...args) {
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
   await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
   await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');

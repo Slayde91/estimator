@@ -44,6 +44,12 @@ def _text(value):
     return escape(text)
 
 
+def _addition_label(addition):
+    value = addition['length_mm']
+    length = str(int(value)) if value == int(value) else repr(value)
+    return f'{"Rise" if addition["kind"] == "riser" else "Drop"} {length} mm'
+
+
 def _legend_rows(items, width, style):
     from reportlab.platypus import Paragraph
     rows = []
@@ -60,7 +66,7 @@ def _legend_rows(items, width, style):
             entered = f'{length:.2f} m manual length each' if isinstance(length, (int, float)) else 'Manual length unavailable'
             additions = item.get('additions_length_m', 0)
             if isinstance(additions, (int, float)) and additions > 0 and isinstance(length, (int, float)):
-                entered = f'{length:.2f} m manual base + {additions:.2f} m cited additions each'
+                entered = f'{length:.2f} m manual base + {additions:.2f} m explicit additions each'
             quantity = f"{item['quantity']} markers x {entered}; {quantity}"
         if item['mode'] in ('wall', 'slab'):
             value = item.get('net_area_m2'); quantity = f'{value:.2f} m2 net' if isinstance(value, (int, float)) and math.isfinite(value) else 'Net area unavailable'
@@ -69,6 +75,20 @@ def _legend_rows(items, width, style):
                 + f"<br/>{_text(item['linked_result'])}<br/><font size='6'>{item['id']}</font>")
         paragraph = Paragraph(text, style); _, height = paragraph.wrap(width-48, 1000)
         rows.append((item, paragraph, height+12))
+        additions = item.get('length_additions', [])
+        # Separate bounded paragraphs let the ordinary continuation-page flow
+        # retain every explicit addition without creating one oversized row.
+        for start in range(0, len(additions), 4):
+            details = []
+            for index, addition in enumerate(additions[start:start+4], start+1):
+                anchor = addition.get('anchor')
+                source = (f'control point {anchor["point_index"]+1}, PDF {anchor["point"]}' if anchor
+                          else f'source {addition["document_id"]}, page {addition["page"]}, unanchored')
+                details.append(f'{index}. {_addition_label(addition)}; {source}')
+            text = (f'<b>{item["legend_number"]}. Rise/Drop additions per member</b><br/>'
+                    + '<br/>'.join(_text(value) for value in details))
+            paragraph = Paragraph(text, style); _, height = paragraph.wrap(width-48, 1000)
+            rows.append((item, paragraph, height+12))
     return rows
 
 
@@ -137,7 +157,33 @@ def _paint_count_marker(pdf, center, style):
         pdf.drawPath(path, stroke=1, fill=fill)
 
 
-def _paint_markups(pdf, items, matrix):
+def _paint_length_additions(pdf, item, matrix, drawing_bounds):
+    """Label entered vertical lengths at transformed source anchors, never infer them."""
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    grouped = {}
+    for addition in item.get('length_additions', []):
+        if 'anchor' not in addition:
+            continue
+        grouped.setdefault(tuple(addition['anchor']['point']), []).append(_addition_label(addition))
+    pdf.setLineWidth(.7); pdf.setFont('ExportVera', 7)
+    for point, labels in grouped.items():
+        x, y = transform(point, matrix)
+        label_x, label_y = x+10, y-14
+        if len(labels) > 4 or drawing_bounds and 11*len(labels)+18 > drawing_bounds[3]-drawing_bounds[1]:
+            labels = [f'{len(labels)} Rise/Drop additions (see legend)']
+        if drawing_bounds:
+            left, bottom, right, top = drawing_bounds
+            width = max(stringWidth(label, 'ExportVera', 7) for label in labels)
+            label_x = max(left+4, min(label_x, right-width-4))
+            if label_y-11*(len(labels)-1) < bottom+4:
+                label_y = min(top-9, y+12+11*(len(labels)-1))
+        pdf.circle(x, y, 2, stroke=1, fill=1)
+        pdf.line(x, y, label_x-3, label_y+2)
+        for index, label in enumerate(labels):
+            pdf.drawString(label_x, label_y-11*index, label)
+
+
+def _paint_markups(pdf, items, matrix, drawing_bounds=None):
     from reportlab.lib.colors import HexColor
     for item in items:
         geometry, style = item['geometry'], item['appearance']; points = geometry['points']
@@ -174,6 +220,7 @@ def _paint_markups(pdf, items, matrix):
         # The complete human identifier remains in the wrapped legend. A compact
         # ordinal on the drawing avoids obscuring geometry with long identifiers.
         pdf.drawString(x+4, y+4, str(item['legend_number']))
+        _paint_length_additions(pdf, item, matrix, drawing_bounds)
         pdf.restoreState()
 
 
@@ -241,7 +288,10 @@ def render_document(source, spec, output):
             drawing.pop(NameObject(key), None)
         page.merge_transformed_page(drawing, matrix, over=True, expand=False)
         overlay = BytesIO(); pdf = canvas.Canvas(overlay, pagesize=(width, height), pageCompression=1, invariant=True)
-        _paint_markups(pdf, page_items, matrix); _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
+        drawing_left = (width-drawing_width)/2
+        _paint_markups(pdf, page_items, matrix,
+                       (drawing_left, legend_height, drawing_left+drawing_width, height))
+        _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
         pdf.save(); overlay.seek(0); page.merge_page(PdfReader(overlay).pages[0])
         page.compress_content_streams(level=9)
         while remaining:

@@ -316,6 +316,100 @@ class TakeoffMarkedPDFTests(unittest.TestCase):
             self.assertEqual(transform([10, 20], matrix), expected[0]); self.assertEqual(transform([210, 120], matrix), expected[1])
             self.assertEqual((width, height), (200, 400) if rotation in (90, 270) else (400, 200))
 
+    def test_point_anchored_rise_drop_labels_use_source_transform_and_exact_entered_lengths(self):
+        ids = self.create_marks()
+        for page_number, identifier in enumerate(ids, 1):
+            source = {'document_id': self.document['id'], 'page': page_number}
+            self.command('update_item', item_id=identifier, changes={'length_additions': [
+                {'id': str(uuid4()), 'kind': 'riser', 'length_mm': 1234.567890123,
+                 **source, 'anchor': {'point_index': 1, 'point': [100, 40]}},
+                {'id': str(uuid4()), 'kind': 'drop', 'length_mm': 750.5,
+                 **source, 'anchor': {'point_index': 0, 'point': [20, 40]}},
+                {'id': str(uuid4()), 'kind': 'riser', 'length_mm': 999.9,
+                 **source, 'note': 'Legacy source citation without a point anchor'}]})
+        before = deepcopy(self.case.session['snapshot'])
+        source = self.case.documents.document_path(self.document); original_hash = sha256(source.read_bytes()).hexdigest()
+        reader = PdfReader(BytesIO(self.export(ids)[0]))
+        for index, page in enumerate(reader.pages):
+            positions = {}
+            def visit(text, cm, tm, font, size):
+                for label in ('Rise 1234.567890123 mm', 'Drop 750.5 mm'):
+                    if text.strip() == label:
+                        positions[label] = (tm[4], tm[5], size)
+            text = page.extract_text(visitor_text=visit)
+            self.assertEqual(set(positions), {'Rise 1234.567890123 mm', 'Drop 750.5 mm'})
+            self.assertIn('Rise 999.9 mm', text, 'Legacy additions retain explicit lengths in the legend.')
+            self.assertIn('unanchored', text)
+            self.assertIn(f'{2*(8+(1234.567890123+750.5+999.9)/1000):.2f} m total', text)
+            metadata = self.document['pages'][index]
+            _, drawing_width, drawing_height = page_transform(metadata)
+            bottom = float(page.mediabox.height)-drawing_height
+            left = (float(page.mediabox.width)-drawing_width)/2
+            matrix, _, _ = page_transform(metadata, bottom, left)
+            operations = page.get_contents().operations
+            for point, label in (([100, 40], 'Rise 1234.567890123 mm'), ([20, 40], 'Drop 750.5 mm')):
+                x, y = transform(point, matrix)
+                # The actual vector dot begins at its 2-physical-point radius,
+                # proving that crop, rotation and UserUnit were applied once.
+                self.assertTrue(any(op == b'm' and len(values) == 2
+                                    and abs(float(values[0])-(x+2)) < 1e-5
+                                    and abs(float(values[1])-y) < 1e-5 for values, op in operations))
+                label_x, label_y, size = positions[label]
+                self.assertGreaterEqual(label_x, left+4); self.assertLess(label_x, left+drawing_width)
+                self.assertGreaterEqual(label_y, bottom+4); self.assertLess(label_y, bottom+drawing_height)
+                self.assertEqual(size, 7)
+        self.assertEqual(sha256(source.read_bytes()).hexdigest(), original_hash)
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+
+    def test_multiple_additions_at_one_point_have_separate_labels(self):
+        ids = self.create_marks()
+        self.command('update_item', item_id=ids[0], changes={'length_additions': [
+            {'id': str(uuid4()), 'kind': kind, 'length_mm': length,
+             'document_id': self.document['id'], 'page': 1,
+             'anchor': {'point_index': 1, 'point': [100, 40]}}
+            for kind, length in (('riser', 1000), ('drop', 2000))]})
+        page = PdfReader(BytesIO(self.export([ids[0]])[0])).pages[0]
+        positions = {}
+        def visit(text, cm, tm, font, size):
+            for label in ('Rise 1000 mm', 'Drop 2000 mm'):
+                if text.strip() == label: positions[label] = (tm[4], tm[5])
+        page.extract_text(visitor_text=visit)
+        self.assertEqual(set(positions), {'Rise 1000 mm', 'Drop 2000 mm'})
+        self.assertEqual(positions['Rise 1000 mm'][0], positions['Drop 2000 mm'][0])
+        self.assertEqual(positions['Rise 1000 mm'][1]-positions['Drop 2000 mm'][1], 11)
+
+    def test_maximum_same_point_additions_use_summary_and_complete_paginated_legend(self):
+        ids = self.create_marks()
+        additions = [{'id': str(uuid4()), 'kind': 'riser', 'length_mm': 1000+index,
+                      'document_id': self.document['id'], 'page': 1,
+                      'anchor': {'point_index': 1, 'point': [100, 40]}} for index in range(1, 101)]
+        self.command('update_item', item_id=ids[0], changes={'length_additions': additions})
+        before = deepcopy(self.case.session['snapshot'])
+        source = self.case.documents.document_path(self.document); source_hash = sha256(source.read_bytes()).hexdigest()
+        reader = PdfReader(BytesIO(self.export([ids[0]])[0]))
+        self.assertGreater(len(reader.pages), 4)
+        text = '\n'.join(page.extract_text() for page in reader.pages)
+        self.assertIn('100 Rise/Drop additions (see legend)', reader.pages[0].extract_text())
+        self.assertIn('TAKEOFF LEGEND - CONTINUED', text)
+        for index in range(1, 101):
+            self.assertIn(f'{index}. Rise {1000+index} mm; control point 2', text)
+        self.assertIn(f'{2*(8+sum(value["length_mm"] for value in additions)/1000):.2f} m total', text)
+        # Only a compact summary is painted in the drawing band. Exact entries
+        # are numbered legend text, not an unbounded stack of drawing labels.
+        summaries = []
+        for page in reader.pages:
+            height = float(page.mediabox.height)
+            def visit(value, cm, tm, font, size):
+                self.assertNotIn(value.strip(), {f'Rise {1000+index} mm' for index in range(1, 101)})
+                if value.strip() == '100 Rise/Drop additions (see legend)':
+                    y = tm[5]*cm[3]+tm[4]*cm[1]+cm[5]
+                    self.assertGreaterEqual(y, 0); self.assertLessEqual(y, height)
+                    summaries.append(value.strip())
+            page.extract_text(visitor_text=visit)
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(sha256(source.read_bytes()).hexdigest(), source_hash)
+        self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
+
     def test_annotation_fidelity_tamper_timeout_and_disk_limit_fail_explicitly(self):
         ids = self.create_marks()
         from estimator import takeoff_markup_pdf as module

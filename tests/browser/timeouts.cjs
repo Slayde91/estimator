@@ -41,7 +41,7 @@ async function run() {
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Upload PDFs', exact: true })).toBeVisible();
   const failureResponse = page.waitForResponse(response => response.url().endsWith('/commands') && response.request().postDataJSON()?.op === 'record_render' && response.request().postDataJSON()?.success === false, { timeout: 60000 });
   const start = Date.now();

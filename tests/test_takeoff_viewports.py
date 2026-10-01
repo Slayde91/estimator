@@ -169,11 +169,11 @@ class TakeoffViewportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'Circular'):
             self.case.preview(duct, 'ductwork')
 
-    def test_additions_require_explicit_positive_finite_dimensions_and_cited_evidence(self):
+    def test_additions_require_explicit_positive_finite_dimensions_and_retained_source(self):
         for value in (0, -1, True, '1000', math.nan, math.inf):
             with self.subTest(value=value), self.assertRaises(ValidationError):
                 self.case.create(length_additions=[self.addition(length_mm=value)])
-        for changes in ({'note': ' '}, {'kind': 'guess'}, {'page': 2}, {'document_id': str(uuid4())}):
+        for changes in ({'note': None}, {'kind': 'guess'}, {'page': 2}, {'document_id': str(uuid4())}):
             with self.subTest(changes=changes), self.assertRaises(ValidationError):
                 self.case.create(length_additions=[self.addition(**changes)])
         addition = self.addition()

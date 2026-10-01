@@ -1658,8 +1658,52 @@
     updateStatus();
   }
 
+  async function captureTakeoffTargets(ids) {
+    document.activeElement?.blur?.();
+    await completeProjectSnapshot();
+    if (state.action) throw new Error("Finish the current calculator action first.");
+    if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw new Error("Choose distinct linked calculator schedules.");
+    const calculators = {};
+    for (const id of ids) {
+      const entry = state.entries.get(id);
+      if (!entry?.definition.schedule || entry.invalid.size) throw new Error("A linked calculator is unavailable or has invalid inputs.");
+      calculators[id] = { inputs: clone(entry.inputs), ...scheduleState(entry) };
+    }
+    return { calculators, fingerprint: projectFingerprint() };
+  }
+  function reserveTakeoffTargets(ids, fingerprint) {
+    document.activeElement?.blur?.();
+    if (state.action || projectFingerprint() !== fingerprint) throw new Error("The calculator changed during linked deletion review. Review the current draft again.");
+    if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw new Error("Choose distinct linked calculator schedules.");
+    const targets = ids.map(id => {
+      const entry = state.entries.get(id);
+      if (!entry?.definition.schedule || entry.invalid.size) throw new Error("A linked calculator is unavailable or has invalid inputs.");
+      return { id, entry, inputs: JSON.stringify(entry.inputs), rows: JSON.stringify(entry.scheduleRows), revision: entry.revision };
+    });
+    const reservation = { targets, entries: state.entries };
+    state.takeoffReservation = reservation; state.action = true; clearTimeout(state.timer); ++state.requestRevision;
+    for (const control of $("calculator-grid").querySelectorAll("input,select,textarea,button")) control.disabled = true;
+    updateStatus(); return reservation;
+  }
+  function applyTakeoffTargets(calculators, reservation) {
+    if (!reservation?.targets || state.takeoffReservation !== reservation || state.entries !== reservation.entries) throw new Error("The calculators changed while applying the linked edit.");
+    if (!calculators || Object.keys(calculators).length !== reservation.targets.length) throw new Error("The linked edit response does not contain every destination schedule.");
+    // Validate and clone the complete batch before changing any calculator.
+    const prepared = reservation.targets.map(target => {
+      const { id, entry } = target, changed = calculators[id];
+      if (state.entries.get(id) !== entry || entry.revision !== target.revision || JSON.stringify(entry.inputs) !== target.inputs || JSON.stringify(entry.scheduleRows) !== target.rows) throw new Error("The calculators changed while applying the linked edit.");
+      if (!changed?.inputs || !Array.isArray(changed.schedule_rows)) throw new Error("The linked edit response does not contain every destination schedule.");
+      return { entry, inputs: clone(changed.inputs), rows: [...changed.schedule_rows] };
+    });
+    for (const { entry, inputs, rows } of prepared) {
+      entry.inputs = inputs; entry.scheduleRows = rows; entry.invalid.clear(); entry.scheduleViewport = null; entry.removedRows = [];
+      scheduleChanged(entry); entry.result = null;
+    }
+  }
+
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
   Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });
   Object.assign(window.CeasefireCalculators, { captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });
+  Object.assign(window.CeasefireCalculators, { captureTakeoffTargets, reserveTakeoffTargets, applyTakeoffTargets });
 })();

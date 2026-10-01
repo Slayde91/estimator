@@ -162,6 +162,10 @@ class TakeoffHTTP:
             result = self.service.preview_transfer(session_id, body)
         elif action == 'transfer-apply':
             result = self.service.apply_transfer(session_id, body)
+        elif action == 'linked-delete':
+            result = self.service.delete_linked_items(session_id, body)
+        elif action == 'linked-undo':
+            result = self.service.undo_linked_delete(session_id, body)
         elif action == 'history':
             if set(body) - {'offset', 'limit'}:
                 raise ValidationError('History accepts a page offset and limit only.')

@@ -86,7 +86,7 @@ async function fitCurrentDrawing(name) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   await page.goto(`http://127.0.0.1:${info.port}/`);
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await fitCurrentDrawing('synthetic-drawings.pdf');
@@ -169,7 +169,7 @@ async function fitCurrentDrawing(name) {
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true');
   const cleared = await page.evaluate(() => window.CeasefireCalculators.projectSnapshot());
   for (const address of Object.keys(ancestorBinding.values)) assert.ok(cleared.ductwork.inputs.CALCULATOR[address] == null || cleared.ductwork.inputs.CALCULATOR[address] === '', `${address} must be explicitly cleared`);
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.getByRole('button', { name: 'Select filtered items', exact: true }).click();
   transferred = await transfer(false, null, 2); assert.equal(transferred.state.snapshot.transfers.length, 2);
   const lengths = transferred.state.snapshot.transfers.map(binding => transferred.preview.inputs.CALCULATOR['D' + binding.row]);

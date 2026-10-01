@@ -86,9 +86,20 @@ async function confirm() {
   assert.ok(!operations.slice(start).includes('review_items'), 'Confirmation does not require a separate review command');
   return reply;
 }
-async function addition(docId, kind, mm, note) {
-  await page.getByRole('button', { name: 'Riser/Drop', exact: true }).click();
-  return command(() => dialog('Add riser / drop', { 'Type': kind, 'Additional length (mm)': mm, 'Source document': docId, 'Source page': 3, 'Source dimension / citation': note }, 'Add length'), 'update_item');
+async function addition(docId, kind, mm) {
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  const handle = page.locator('.takeoff-control-point[data-exclusion-id=""]').first();
+  const itemId = await handle.getAttribute('data-control-item-id'), pointIndex = Number(await handle.getAttribute('data-point-index'));
+  await handle.click({button:'right'});
+  await page.getByRole('menuitem', {name:'Insert Rise / Drop',exact:true}).click();
+  const modal = page.getByRole('dialog');
+  for (const label of ['Source document','Source page','Source dimension / citation']) await expect(modal.getByLabel(label,{exact:true})).toHaveCount(0);
+  const result = await command(() => dialog('Insert Rise / Drop', { 'Type': kind, 'Additional length (mm)': mm }, 'Add length'), 'update_item');
+  const item = result.snapshot.items.find(value=>value.id===itemId), retained = item.length_additions.at(-1);
+  assert.equal(retained.document_id,docId); assert.equal(retained.page,3);
+  assert.equal(retained.note,undefined); assert.deepEqual(retained.anchor,{point_index:pointIndex,point:item.geometry.points[pointIndex]});
+  await expect(page.locator(`[data-addition-id="${retained.id}"]`)).toContainText(String(mm));
+  return result;
 }
 async function inspector(values) {
   const panel = page.locator('.takeoff-register-editor');
@@ -115,7 +126,7 @@ async function load() {
   const response = await pending; assert.equal(response.status(), 200, await response.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click(); await idle();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
 }
 async function sourceAt(position) {
   return page.evaluate(position => {
@@ -136,7 +147,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible();
-  await page.getByRole('button', { name: 'TAKEOFFS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Finish trace', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Cite length', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-inspector')).toHaveCount(0);
@@ -402,7 +413,10 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
       const row = JSON.parse(parsed.stdout);
       assert.ok(Math.abs(Number(row['Base length per item m']) - base) < 1e-11); assert.equal(Number(row['Riser/drop additions per item m']), additionLength);
       assert.ok(Math.abs(Number(row['Length per item m']) - base - additionLength) < 1e-11); assert.ok(Math.abs(Number(row['Total length m']) - total) < 1e-11);
-      assert.match(row['Riser/drop source dimensions'], /Synthetic/); assert.ok(row['Riser/drop source dimensions'].includes(doc.sha256));
+      const dimensions = JSON.parse(row['Riser/drop source dimensions']);
+      assert.equal(dimensions[0].document_sha256, doc.sha256); assert.equal(dimensions[0].document_id, doc.id);
+      assert.equal(dimensions[0].page, 3); assert.ok(Number.isInteger(dimensions[0].anchor.point_index));
+      assert.equal(dimensions[0].length_mm, additionLength * 1000);
     }
   }
   // Untrusted project text cannot turn a changed source dimension into a valid confirmation.

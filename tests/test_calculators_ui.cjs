@@ -2028,6 +2028,30 @@ let passed = 0;
   assert.equal(entry.inputs.CALCULATOR.B9,5);assert.equal(entry.inputs.SETTINGS.B6,0.123456789);assert.equal(audit.dirty(entry),true);
   audit.state.current=null;takeoffBridge.releaseTakeoffTarget(lease);assert.equal(audit.state.action,false);passed++;
 
+  // Coupled deletion validates every linked destination before mutating any
+  // entry, and the lease prevents independent schedule edits during the request.
+  entry=dynamicSetup([9],{CALCULATOR:{B9:5},SETTINGS:{B6:0.123456789012345}});
+  const second={...entry,definition:{...entry.definition,id:'steel_vermiculite'},inputs:{CALCULATOR:{B10:7}},scheduleRows:[10],revision:0,invalid:new Map()};
+  audit.state.entries.set('steel_vermiculite',second);
+  const linkedIds=['steel_board','steel_vermiculite'],linkedCapture=await takeoffBridge.captureTakeoffTargets(linkedIds);
+  const linkedLease=takeoffBridge.reserveTakeoffTargets(linkedIds,linkedCapture.fingerprint);
+  assert.equal(audit.state.action,true);
+  audit.setInput(entry,'CALCULATOR','B9',99);assert.equal(entry.inputs.CALCULATOR.B9,5);
+  const coupled={steel_board:{inputs:{CALCULATOR:{B9:null},SETTINGS:{B6:0.123456789012345}},schedule_rows:[9]},steel_vermiculite:{inputs:{CALCULATOR:{B10:null}},schedule_rows:[10]}};
+  assert.throws(()=>takeoffBridge.applyTakeoffTargets({...coupled,steel_vermiculite:{inputs:{}}},linkedLease),/every destination/);
+  assert.equal(entry.inputs.CALCULATOR.B9,5);assert.equal(second.inputs.CALCULATOR.B10,7);passed++;
+  second.revision++;
+  assert.throws(()=>takeoffBridge.applyTakeoffTargets(coupled,linkedLease),/changed while applying/);
+  assert.equal(entry.inputs.CALCULATOR.B9,5);assert.equal(second.inputs.CALCULATOR.B10,7);
+  audit.state.current=null;takeoffBridge.releaseTakeoffTarget(linkedLease);passed++;
+  const freshLinked=await takeoffBridge.captureTakeoffTargets(linkedIds),freshLease=takeoffBridge.reserveTakeoffTargets(linkedIds,freshLinked.fingerprint);
+  takeoffBridge.applyTakeoffTargets(coupled,freshLease);
+  assert.equal(entry.inputs.CALCULATOR.B9,null);assert.equal(second.inputs.CALCULATOR.B10,null);
+  assert.equal(entry.inputs.SETTINGS.B6,0.123456789012345);assert.equal(audit.dirty(entry),true);
+  takeoffBridge.releaseTakeoffTarget(freshLease);assert.equal(audit.state.action,false);passed++;
+  const staleLinked=await takeoffBridge.captureTakeoffTargets(linkedIds);second.inputs.CALCULATOR.B10=8;
+  assert.throws(()=>takeoffBridge.reserveTakeoffTargets(linkedIds,staleLinked.fingerprint),/changed during linked deletion review/);passed++;
+
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators".*CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

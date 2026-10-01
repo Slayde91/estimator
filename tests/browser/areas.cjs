@@ -34,8 +34,11 @@ async function draw(points, rotated = false, doubleFinish = false) {
   const box = await overlay.boundingBox(); assert.ok(box && box.width > 0);
   for (const [index, [x, y]] of points.entries()) {
     const [u, v] = rotated ? [(y - 30) / 540, (x - 20) / 780] : [x / 842, 1 - y / 595];
-    if (doubleFinish && index === points.length - 1) await page.mouse.dblclick(box.x + u * box.width, box.y + v * box.height);
-    else await page.mouse.click(box.x + u * box.width, box.y + v * box.height);
+    // Chromium click coordinates are integers. Choose the nearest CSS pixel
+    // explicitly rather than letting fractional targets truncate in one direction.
+    const client = [Math.round(box.x + u * box.width), Math.round(box.y + v * box.height)];
+    if (doubleFinish && index === points.length - 1) await page.mouse.dblclick(...client);
+    else await page.mouse.click(...client);
   }
 }
 async function edit(values) {
@@ -52,6 +55,13 @@ async function confirm() {
 }
 function checkArea(state, id, expected = 56) {
   const value = state.item_results.find(item => item.id === id);
+  const item = state.snapshot.items.find(item => item.id === id), calibration = state.snapshot.calibrations.find(value => value.id === item.measurement.calibration_id);
+  const area = points => Math.abs(points.reduce((sum, point, index) => { const next = points[(index + 1) % points.length]; return sum + point[0] * next[1] - next[0] * point[1]; }, 0)) / 2;
+  const scale = calibration.distance_m / Math.hypot(calibration.points[1][0] - calibration.points[0][0], calibration.points[1][1] - calibration.points[0][1]);
+  const gross = area(item.geometry.points) * scale ** 2, excluded = item.geometry.exclusions.reduce((sum, hole) => sum + area(hole.points) * scale ** 2, 0);
+  assert.ok(Math.abs(value.gross_area_m2 - gross) < 1e-8, 'Gross area retains the full precision of the source vertices and calibration');
+  assert.ok(Math.abs(value.excluded_area_m2 - excluded) < 1e-8, 'Excluded area retains the full precision of its source vertices');
+  assert.ok(Math.abs(value.net_area_m2 - (gross - excluded)) < 1e-8, 'Net area subtracts the retained source exclusions');
   assert.ok(Math.abs(value.net_area_m2 - expected) < .2, JSON.stringify(value));
   assert.ok(Math.abs(value.gross_area_m2 - 60) < .2, JSON.stringify(value));
   assert.equal(Object.hasOwn(value, 'length_m'), false);

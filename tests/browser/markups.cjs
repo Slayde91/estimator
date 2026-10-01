@@ -20,7 +20,30 @@ async function selectIds(ids){await page.getByRole('checkbox',{name:'Select all 
 async function settings(){await page.getByRole('button',{name:'Settings',exact:true}).click();const panel=page.locator('.takeoff-markup-settings');await expect(panel).toBeVisible();return panel;}
 async function applySettings(panel,count=2,status=200){return command(async()=>{await panel.getByRole('button',{name:'Apply settings',exact:true}).click();if(count>1)await dialog(`Apply settings to ${count} items?`,{},'Apply settings');},'bulk_update',status);}
 async function confirm(count){await page.getByRole('button',{name:'Confirm',exact:true}).click();return command(()=>dialog(`Confirm ${count} items?`,{},'Confirm items'),'confirm_items');}
-async function download(label){const pending=page.waitForEvent('download');pending.catch(()=>{});const responseWait=page.waitForResponse(r=>r.url().includes('/export/'));await page.getByRole('button',{name:label,exact:true}).click();const response=await responseWait;if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return target;}
+async function download(label){
+  // Attach rejection handlers immediately: a missing request must reach the outer
+  // failure capture, rather than terminate Node through an unhandled waiter.
+  const pending=page.waitForEvent('download');pending.catch(()=>{});
+  const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/schedule-xlsx'));responseWait.catch(()=>{});
+  const [response]=await Promise.all([responseWait,page.getByRole('button',{name:label,exact:true}).click()]);
+  if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}
+  const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return {path:target,request:response.request().postDataJSON()};
+}
+async function focusRow(item,document){
+  const previous=await page.$('.takeoff-register-editor');
+  try{
+    await page.locator(`tr[data-item-id="${item.id}"] .takeoff-row-link`).click();
+    // A row click can render its source page and then render again to fit the
+    // geometry. API idle alone is true during PDF.js work between those commands.
+    await page.waitForFunction(({id,previous,progress})=>{
+      const editor=document.querySelector('.takeoff-register-editor');
+      return editor&&editor!==previous&&editor.dataset.editorItemId===id&&
+        document.querySelector('.takeoff-progress').textContent===progress&&
+        document.querySelector('#takeoffs-workspace').getAttribute('aria-busy')!=='true'&&
+        !document.querySelector('.takeoff-page').hidden;
+    },{id:item.id,previous,progress:`${document.name} \u00b7 Page ${item.geometry.page} \u00b7 Original source`});
+  }finally{await previous?.dispose();}
+}
 async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await page.getByRole('button',{name:'Save As',exact:true}).click();assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
 async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await page.getByRole('button',{name:'Load',exact:true}).click();assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'TAKEOFFS',exact:true}).click(),'record_render');}
 (async()=>{
@@ -77,11 +100,27 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await save();const saved=JSON.parse(fs.readFileSync(info.project));await load();const reopened=await snapshot();for(const item of[a,b])assert.deepEqual(reopened.items.find(value=>value.id===item.id).appearance,saved.takeoffs.items.find(value=>value.id===item.id).appearance);
   await page.getByLabel('Filter register',{exact:true}).fill('QA-MATCH-');
   await page.locator(`tr[data-item-id="${b.id}"]`).getByRole('checkbox',{name:/^Hide /}).check();
-  const xlsx=await download('Download XLSX');evidence.xlsx=xlsx;
+  const {path:xlsx}=await download('Download XLSX');evidence.xlsx=xlsx;
   const check=spawnSync(python,['-c',"import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\nprint(json.dumps({**{s.title:list(s.values) for s in w},'__formulas__':[c.coordinate for s in w for row in s for c in row if c.data_type=='f']}))",xlsx],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(check.status,0,check.stderr);const workbook=JSON.parse(check.stdout),text=JSON.stringify(workbook);assert.deepEqual(workbook.__formulas__,[]);for(const item of[a,b,c]){assert.ok(text.includes(item.id));assert.ok(text.includes(item.fields.notes));assert.ok(text.includes(item.fields.zone));}assert.ok(text.toLowerCase().includes('unconfirmed'));evidence.xlsxSheets=Object.keys(workbook);
-  await page.locator(`tr[data-item-id="${a.id}"] .takeoff-row-link`).click();await idle();
-  const exportRequest=page.waitForRequest(r=>r.url().endsWith('/export/marked-pdf'));
-  const pdf=await download('Download PDF'),pdfBody=(await exportRequest).postDataJSON();assert.equal(pdfBody.mode,'steel');assert.equal(pdfBody.document_id,reopened.documents[0].id);assert.deepEqual(pdfBody.item_ids,[a.id]);evidence.pdf=pdf;
+  let releaseRender;
+  const renderHeld=new Promise(resolve=>{releaseRender=resolve;});
+  let renderCaptured=false,renderHeldReady=false,focusComplete=false;
+  await page.route('**/commands',async route=>{
+    if(route.request().postDataJSON()?.op==='record_render'&&!renderCaptured){renderCaptured=true;const response=await route.fetch();renderHeldReady=true;await renderHeld;await route.fulfill({response});}
+    else await route.continue();
+  });
+  try{
+    const focusing=focusRow(a,reopened.documents[0]).then(()=>{focusComplete=true;});focusing.catch(()=>{});
+    await expect.poll(()=>renderHeldReady,{timeout:30000}).toBe(true);assert.equal(focusComplete,false,'Row focus must wait for source rendering, not just its first idle instant');
+    const pdfRequests=[];const observe=request=>{if(request.url().endsWith('/export/marked-pdf'))pdfRequests.push(request);};page.on('request',observe);
+    try{
+      await page.getByRole('button',{name:'Download PDF',exact:true}).click();
+      await expect(page.locator('#takeoffs-workspace .message')).toContainText('Finish the current takeoff operation before downloading.');
+      assert.equal(pdfRequests.length,0,'A still-rendering row must not submit a premature export');
+    }finally{page.off('request',observe);releaseRender();}
+    await focusing;evidence.exportReadiness={heldRenderRejectedPrematureExport:true,completedFocusedRowBeforeExport:true};
+  }finally{releaseRender();await page.unroute('**/commands');}
+  const {path:pdf,request:pdfBody}=await download('Download PDF');assert.equal(pdfBody.mode,'steel');assert.equal(pdfBody.document_id,reopened.documents[0].id);assert.deepEqual(pdfBody.item_ids,[a.id]);evidence.pdf=pdf;
   const inspected=spawnSync(python,['-c',"import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1])\nprint(json.dumps({'pages':[{'width':float(p.mediabox.width),'height':float(p.mediabox.height),'rotation':p.rotation,'user_unit':p.user_unit,'text':p.extract_text()} for p in r.pages]}))",pdf],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(inspected.status,0,inspected.stderr);
   const document=JSON.parse(inspected.stdout),pdfText=document.pages.map(value=>value.text).join('\n');assert.ok(document.pages.length>=4);assert.equal(document.pages[2].width,1080);assert.ok(document.pages[2].height>=1685);assert.equal(document.pages[2].rotation,0);assert.equal(document.pages[2].user_unit,1);assert.ok(pdfText.includes('QA-MATCH-FIRST'));assert.ok(!pdfText.includes('QA-MATCH-SECOND'));assert.ok(!pdfText.includes('QA-OTHER-THIRD'));assert.ok(/unconfirmed|draft/i.test(pdfText));assert.ok(pdfText.includes('SYNTHETIC TAKEOFF DRAWING'));assert.ok(pdfText.includes('Rotated crop with UserUnit 2'));evidence.pdfPages=document.pages.map(({text,...metadata})=>metadata);
   assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(info.fixture)).digest('hex'),reopened.documents[0].sha256);

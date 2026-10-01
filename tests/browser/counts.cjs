@@ -113,9 +113,13 @@ async function markerMetrics(memberId) {
 async function dragMarker(memberId, delta) {
   const marker = page.locator(`[data-count-member-id="${memberId}"]`);
   await marker.scrollIntoViewIfNeeded();
+  // Settings inputs can leave the plan behind the sticky app header even when
+  // the marker intersects the viewport. Put the viewer in the clear first.
+  await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
   const box = await marker.boundingBox(), overlay = await page.locator('.takeoff-overlay').boundingBox();
   assert.ok(box?.width && box?.height && overlay?.width && overlay?.height);
   const start = [Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2)], end = start.map((value, axis) => value + delta[axis]);
+  assert.equal(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-count-member-id]')?.dataset.countMemberId, start), memberId, 'The real pointer must hit this Count marker, clear of sticky controls');
   await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(...end, { steps: 8 }); await page.mouse.up();
   return { start, end, sourceDelta: [delta[1] / overlay.height * 780, delta[0] / overlay.width * 540] };
 }

@@ -69,6 +69,7 @@ jobs:
       - run: npm run test:takeoffs-item-actions
       - run: npm run test:takeoffs-viewer-controls
       - run: npm run test:takeoffs-transfer-skip
+      - run: npm run test:takeoffs-auto-scale
       - run: npm run test:standard-browser
       - run: npm run test:monokote-browser
       - uses: actions/upload-artifact@v4

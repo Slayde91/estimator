@@ -820,6 +820,7 @@ class TakeoffService:
             specs = {'create_item': {'item'}, 'update_item': {'item_id', 'changes'},
                      'add_count_items': {'document_id', 'page', 'markers', 'fields', 'appearance'},
                      'continue_count': {'item_id', 'markers'},
+                     'update_count_lengths': {'groups'},
                      'move_count_markers': {'markers', 'delta_pdf'},
                      'delete_count_marker': {'item_id', 'member_id'},
                      'bulk_update': {'item_ids', 'changes'}, 'delete_items': {'item_ids'},
@@ -886,6 +887,57 @@ class TakeoffService:
                         created_item_ids.append(item['id'])
                 regrouped_item_ids = [item['id'] for item in after['items']
                                       if item.get('count_id') == original['count_id']]
+            elif op == 'update_count_lengths':
+                # The editor pins physical members, not transient length-row
+                # IDs. A preceding edit may have merged their original row.
+                groups = request['groups']
+                if not isinstance(groups, list) or not 1 <= len(groups) <= MAX_ITEMS:
+                    raise ValidationError('Choose a bounded nonempty list of count lengths.')
+                lengths = {}
+                for group in groups:
+                    object_fields(group, {'member_ids', 'length_m'}, 'Count length group', {'member_ids', 'length_m'})
+                    members = group['member_ids']
+                    if not isinstance(members, list) or not 1 <= len(members) <= MAX_ITEMS:
+                        raise ValidationError('Choose the physical members for each count length.')
+                    length = number(group['length_m'], 'Manual length per member', positive=True)
+                    for member in members:
+                        member = identity(member, 'Count member ID')
+                        if member in lengths:
+                            raise ValidationError('Change each count member length only once.')
+                        lengths[member] = length
+                    if len(lengths) > MAX_ITEMS:
+                        raise ValidationError('Too many count members in one length edit.')
+                known = {member for item in after['items'] if is_count_item(item) for member in item['member_ids']}
+                if not lengths.keys() <= known:
+                    raise ValidationError('A selected count member no longer exists.')
+                affected_counts = set()
+                for item in list(after['items']):
+                    if not is_count_item(item):
+                        continue
+                    original_length = item['measurement']['length_m']
+                    if not any(member in lengths and lengths[member] != original_length for member in item['member_ids']):
+                        continue
+                    original = deepcopy(item)
+                    partition = {}
+                    for member, point in zip(original['member_ids'], original['geometry']['points']):
+                        partition.setdefault(lengths.get(member, original_length), []).append((member, point))
+                    # Keep the existing row for unchanged members when possible.
+                    # New rows retain predecessors and exact evidence/geometry.
+                    retained = original_length if original_length in partition else next(iter(partition))
+                    for length, members in partition.items():
+                        proposed = self._group_proposal(original)
+                        proposed.update(count_id=original['count_id'], quantity=len(members),
+                                        member_ids=[member for member, _ in members],
+                                        measurement={'method': 'manual', 'length_m': length})
+                        proposed['geometry']['points'] = [deepcopy(point) for _, point in members]
+                        if length == retained:
+                            item.update(proposed)
+                            self._invalidate(after, item)
+                            validate_item(item, after, copy_result=False)
+                        else:
+                            self._create_item(after, proposed, self._predecessors([original]), allow_count=True)
+                    affected_counts.add(original['count_id'])
+                regrouped_item_ids = self._regroup_counts(after, affected_counts)
             elif op == 'move_count_markers':
                 markers = request['markers']
                 if not isinstance(markers, list) or not 1 <= len(markers) <= MAX_ITEMS:
@@ -1091,6 +1143,8 @@ class TakeoffService:
                         self._invalidate(after, item)
             elif op == 'add_calibration':
                 proposed = deepcopy(request['calibration'])
+                if isinstance(proposed, dict) and 'printed_scale_evidence' in proposed:
+                    raise ValidationError('Printed scale evidence is created only by inspecting the retained PDF.')
                 if not isinstance(proposed, dict):
                     raise ValidationError('Calibration must be an object.')
                 proposed.setdefault('id', str(uuid4()))
@@ -1117,6 +1171,9 @@ class TakeoffService:
                 if not changes:
                     raise ValidationError('Choose a calibration property to revise.')
                 revised = {**deepcopy(original), **deepcopy(changes), 'id': str(uuid4()), 'supersedes_id': calibration_id}
+                # The original text remains on its immutable revision. A user
+                # adjustment is a manual choice, no longer an extracted scale.
+                revised.pop('printed_scale_evidence', None)
                 for key in ('region', 'scale_denominator'):
                     if revised.get(key, False) is None:
                         revised.pop(key)
@@ -1323,6 +1380,54 @@ class TakeoffService:
         whole['evidence'] = list(refs.values())
         for part in parts:
             part['evidence'] = list(refs.values())
+
+    def auto_calibrate(self, session_id, request):
+        object_fields(request, {'expected_revision', 'request_id', 'document_id', 'page'}, 'Automatic page calibration',
+                      {'expected_revision', 'request_id', 'document_id', 'page'})
+        actual = {**request, 'op': 'auto_calibrate'}
+        with self._lock:
+            session, prior = self._start(session_id, actual)
+            document, metadata = page_metadata(session['snapshot'], request['document_id'], request['page'])
+            self._session_evidence(session_id)
+            self.documents.assert_documents([document], owner=session_id)
+            if prior:
+                return prior
+            before = session['snapshot']
+            if any((entry['document_id'], entry['page']) == (document['id'], metadata['page']) for entry in before['calibrations']):
+                result = {'status': 'existing'}
+                self._remember_request(session, actual, metadata={'auto_calibration': result})
+                return {**self._response(session_id), 'auto_calibration': result}
+            source, page = deepcopy(document), deepcopy(metadata)
+        # Parsing a hostile or slow PDF cannot hold the global workspace lock.
+        # The worker is bounded by the same process, memory and CPU limits as
+        # import. No browser-provided text or scale ratio is trusted here.
+        scale = self.documents.printed_scale(source, page['page'], owner=session_id)
+        with self._lock:
+            session, prior = self._start(session_id, actual)
+            if prior:
+                return prior
+            current, _ = page_metadata(session['snapshot'], source['id'], page['page'])
+            if current != source:
+                raise ValidationError('The source PDF changed during automatic scale detection.')
+            self._session_evidence(session_id)
+            self.documents.assert_documents([source], owner=session_id)
+            if scale is None:
+                result = {'status': 'not_detected'}
+                self._remember_request(session, actual, metadata={'auto_calibration': result})
+                return {**self._response(session_id), 'auto_calibration': result}
+            before = session['snapshot']; after = deepcopy(before)
+            x0, y0, x1, _ = page['view']
+            calibration = {'id': str(uuid4()), 'document_id': source['id'], 'page': page['page'],
+                'name': ('PDF footer: ' + scale['text'])[:200], 'points': [[x0, y0], [x0+min(72, (x1-x0)/2), y0]],
+                'scale_denominator': scale['scale_denominator'], 'uniform_scale': True,
+                'printed_scale_evidence': {'source_sha256': source['sha256'], 'text': scale['text'],
+                                           'points': scale['points'], 'detector': 'pdf-footer-v1'}}
+            calibration['distance_m'] = preset_distance(calibration, after)
+            after['calibrations'].append(validate_calibration(calibration, after))
+            response = self._commit(session_id, actual, before, after)
+            result = {'status': 'applied', 'calibration_id': calibration['id']}
+            session['requests'][actual['request_id']]['metadata'] = {'auto_calibration': result}
+            return {**response, 'auto_calibration': result}
 
     def add_document(self, session_id, document, expected_revision):
         with self._lock:

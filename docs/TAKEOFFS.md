@@ -47,11 +47,17 @@ approval of technical suitability.
 
 ## Scale presets, viewports and drawing controls
 
-The **Scale** ruler button below **Calibrate** opens or hides the scale dropdown
-and **Edit calibration** control. Escape closes this panel and returns focus to
+The **Scale** ruler button opens or hides the scale dropdown, **Calibrate**
+and **Edit calibration** controls. Escape closes this panel and returns focus to
 the button. The button's tooltip reports the current page scale.
 
-The calibration dropdown initially shows **No Scale Selected**. It includes
+After a page renders successfully, a clear supported scale in its PDF footer/title
+block is applied automatically and retained with its source text, location and
+document hash. Existing page or viewport calibrations are never replaced.
+Ambiguous scales, NTS/AS SHOWN, scans without extractable text and mismatched
+explicit paper sizes remain manual. This detects printed text, not distortion
+within a drawing. Review the Scale control or calibrate a known dimension when
+needed. Without a detected scale the dropdown shows **No Scale Selected**. It includes
 1:2, 1:5, 1:10, 1:15, 1:20, 1:25, 1:30,
 1:40, 1:50, 1:75, 1:100, 1:125, 1:150, 1:200, 1:250 and 1:300. A printed
 ratio uses the original PDF's physical dimensions: metres per source coordinate
@@ -87,7 +93,7 @@ Zoom buttons retain the drawing point at the viewport centre. Ctrl/Cmd-wheel
 retains the point under the cursor. Double left-click finishes a length/surface
 trace without duplicating its final vertex; right-click cancels an unfinished
 trace. Enter, Backspace and Escape remain available. The pointer, hand, length,
-calibration, viewport, PDF upload, fit-page, cancel, search, stop-search,
+viewport, PDF upload, fit-page, search, stop-search,
 page-navigation, linked-row update/detach, register export and schedule
 buttons use icons with accessible names and the original labels on hover.
 
@@ -107,11 +113,11 @@ reuses the entered value for the rest of this Count. Otherwise, each marker open
 the length dialog. Double-click or Enter finishes without adding an extra marker.
 Right-click or Escape cancels the unfinished count.
 
-Finishing opens **Count details** beside the drawing. All markers in that Count
+Finishing opens **Count details** on the left of the drawing. All markers in that Count
 share the steel section, fire requirements, product and other details. Start a
 new Count for different details. Different manual lengths form separate register
-rows within the Count; equal lengths form one row. **Change length for group**
-updates that group's manual length and combines matching lengths in the same
+rows within the Count; equal lengths form one row. **Length per member (m)**
+automatically updates that group's manual length and combines matching lengths in the same
 Count while retaining every member identity. Separate Counts stay separate.
 
 Qty is read-only and comes from the number of markers. Right-click a marker and
@@ -407,12 +413,26 @@ If a connection interruption leaves a linked change awaiting a response, keep
 the page open and use **Retry linked change**. Both drafts stay protected from
 further edits until the result is recovered.
 
-The Settings gear opens a panel for the selected items. Multiple selection shows
-the first item's values and applies only fields explicitly edited by the user.
-The same pending-edit guard protects both Settings and Item Details. Markup
+The Settings gear opens a panel on the left, bounded to the drawing viewer height
+with its own scrollbar. Multiple selection shows the first item's values and
+automatically applies only fields explicitly edited by the user. Typing is
+debounced; changes are serialized and validated before selection or project save
+can proceed. Each Count length group has **Length per member (m)** beside its
+read-only **Count quantity**. Equal lengths regroup without losing member identities;
+late edits stay pinned to the members originally shown in that field. There are
+no separate Apply/Discard settings controls; committed changes use **Undo last edit**.
+New markup stroke and fill colours default to red; explicit saved colours are
+retained. Markup
 colour, fill, opacity and line width are presentation settings; changing them is
 audited but does not change measurement confirmation or calculator inputs. Line
 width is in physical PDF points (0.25–20); opacity ranges from zero to one.
+
+**Pan** drags the paper freely beyond every viewer edge, including at small zoom
+levels and from the grey background. **Fit page** restores a visible centred page
+with room for the floating controls. Pan and zoom never change source geometry,
+calibration or quantities. Length traces have no filled interior or red glow.
+Use Escape or right-click to cancel an unfinished trace; there is no Cancel trace
+toolbar button.
 
 Download XLSX copies the entire current Takeoffs type, including hidden and
 unconfirmed items. It retains numeric precision with two-decimal length display,

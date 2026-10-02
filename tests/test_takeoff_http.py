@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from uuid import uuid4
 from urllib.parse import urlencode
 from reportlab.pdfgen import canvas
 from estimator.server import create_server
@@ -65,6 +66,28 @@ class TakeoffHTTPTests(unittest.TestCase):
             field = next(field for field in json.loads(payload)['columns'] if field['column'] == 'J')
             self.assertIn(temperature, field['options'])
             self.assertNotIn(550 if temperature == 620 else 620, field['options'])
+
+    def test_auto_calibration_reads_retained_source_and_returns_audited_preset(self):
+        stream = BytesIO(); pdf = canvas.Canvas(stream, pagesize=(600, 800))
+        pdf.drawString(400, 35, 'SCALE 1:100'); pdf.save(); source = stream.getvalue()
+        _, _, payload = self.request('POST', '/api/takeoffs/sessions', {})
+        session = json.loads(payload); base = '/api/takeoffs/sessions/' + session['session_id']
+        status, _, payload = self.request('POST', base+'/uploads', {'filename': 'scale.pdf', 'size': len(source)})
+        self.assertEqual(status, 200)
+        upload = base+'/uploads/'+json.loads(payload)['upload_id']
+        self.assertEqual(self.request('PUT', upload+'?offset=0', source, {'Content-Type': 'application/octet-stream'})[0], 200)
+        status, _, payload = self.request('POST', upload+'/complete', {'expected_revision': 0})
+        self.assertEqual(status, 200)
+        session = json.loads(payload)
+        request = {'expected_revision': session['revision'], 'request_id': str(uuid4()),
+                   'document_id': session['snapshot']['documents'][0]['id'], 'page': 1}
+        status, _, payload = self.request('POST', base+'/auto-calibrate', request)
+        self.assertEqual(status, 200, payload)
+        result = json.loads(payload)
+        self.assertEqual(result['auto_calibration']['status'], 'applied')
+        self.assertEqual(result['snapshot']['calibrations'][0]['scale_denominator'], 100)
+        self.assertEqual(self.request('POST', base+'/auto-calibrate', request)[2], payload)
+        self.assertEqual(self.request('POST', base+'/auto-calibrate', {**request, 'scale_denominator': 50})[0], 400)
 
     def test_vendor_manifest_and_same_origin_guards(self):
         for name in ('build/pdf.mjs','build/pdf.worker.mjs','wasm/openjpeg_nowasm_fallback.js'):

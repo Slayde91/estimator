@@ -43,6 +43,36 @@ async function assertErrorVisible() {
   assert.ok(bounds.y + bounds.height <= viewport.height, 'Error is visible in the browser window');
   return bounds;
 }
+async function inspectLeftPanel(width, registerPosition = 'below') {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.getByLabel('Register position', { exact: true }).selectOption(registerPosition);
+  const panel = page.locator('.takeoff-markup-settings'), viewer = page.locator('.takeoff-viewport');
+  await viewer.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
+  const metrics = await panel.evaluate(el => {
+    const viewer = document.querySelector('.takeoff-viewport'), rail = document.querySelector('.takeoff-tool-rail');
+    const bounds = node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, height: box.height }; };
+    return { panel: bounds(el), viewer: bounds(viewer), rail: bounds(rail), overlay: getComputedStyle(el).position === 'absolute', overflowY: getComputedStyle(el).overflowY,
+      clientHeight: el.clientHeight, scrollHeight: el.scrollHeight,
+      fields: [...el.querySelectorAll('.field')].filter(node => node.getClientRects().length).map(bounds),
+      controls: [...el.querySelectorAll('.field input,.field select')].filter(node => node.getClientRects().length).map(bounds) };
+  });
+  assert.ok(Math.abs(metrics.panel.top - metrics.viewer.top) <= 1, `${width}/${registerPosition}: panel starts with PDF viewer`);
+  assert.ok(metrics.panel.bottom <= metrics.viewer.bottom + 1, `${width}/${registerPosition}: panel ends within PDF viewer`);
+  assert.ok(metrics.panel.left >= metrics.rail.right, `${width}/${registerPosition}: panel follows tool rail`);
+  if (metrics.overlay) assert.ok(Math.abs(metrics.panel.left - metrics.viewer.left) <= 1, `${width}/${registerPosition}: narrow panel overlays left edge`);
+  else assert.ok(metrics.panel.right <= metrics.viewer.left, `${width}/${registerPosition}: panel is left of drawing`);
+  assert.equal(metrics.overflowY, 'auto'); assert.ok(metrics.scrollHeight > metrics.clientHeight, 'Long settings have their own vertical scrollbar');
+  assert.ok(metrics.fields.length >= 4);
+  assert.ok(Math.abs(metrics.fields[0].top - metrics.fields[1].top) <= 1 && metrics.fields[0].right <= metrics.fields[1].left, 'At least two controls fit each row');
+  for (const bounds of metrics.controls) assert.ok(bounds.left >= metrics.panel.left && bounds.right <= metrics.panel.right, `${width}/${registerPosition}: fields stay inside settings pane`);
+  const before = await page.evaluate(() => ({ y: window.scrollY, drawing: document.querySelector('.takeoff-viewport').scrollTop }));
+  const box = await panel.boundingBox(); await page.mouse.move(box.x + box.width / 2, Math.min(box.y + box.height / 2, 800)); await page.mouse.wheel(0, 450);
+  await expect.poll(() => panel.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  const after = await page.evaluate(() => ({ y: window.scrollY, drawing: document.querySelector('.takeoff-viewport').scrollTop }));
+  assert.deepEqual(after, before, 'Scrolling settings does not scroll the drawing or page');
+  await page.screenshot({ path: path.join(output, `left-settings-${width}-${registerPosition}.png`) });
+  evidence[`settings${width}-${registerPosition}`] = metrics;
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 }, deviceScaleFactor: 1 }); page.setDefaultTimeout(30000);
@@ -84,9 +114,22 @@ async function assertErrorVisible() {
   await expect(popup).toBeHidden(); await expect(scale).toHaveAttribute('title', /1:100/); evidence.calibrationPopup = true;
 
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
-  await page.mouse.click(...await sourcePoint([300, 400])); await page.mouse.dblclick(...await sourcePoint([550, 400]));
+  await page.mouse.click(...await sourcePoint([300, 400]));
+  await page.mouse.move(...await sourcePoint([450, 500]));
+  const pendingLength = page.locator('polyline.takeoff-pending'); await expect(pendingLength).toBeVisible();
+  assert.equal(await pendingLength.evaluate(el => getComputedStyle(el).fill), 'none', 'Open length tracing never fills an area');
+  assert.equal(await pendingLength.evaluate(el => getComputedStyle(el).filter), 'none', 'Length preview has no shadow');
+  await page.mouse.dblclick(...await sourcePoint([550, 400]));
   let reply = await command(() => dialog('Add steel object', { 'Member mark': 'TOOLBAR-STEEL', 'Physical quantity': 2 }, 'Add item'), 'create_item');
   const item = reply.snapshot.items[0], beforeDirty = await snapshot(), beforeDirtyCommands = [...operations], editor = page.locator(`.takeoff-register-editor[data-editor-item-id="${item.id}"]`);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  for (const width of [1800, 1146, 764, 500]) await inspectLeftPanel(width);
+  await inspectLeftPanel(1146, 'beside');
+  await page.getByLabel('Register position', { exact: true }).selectOption('below');
+  await page.setViewportSize({ width: 1146, height: 900 });
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  const selectedLength = page.locator('polyline.takeoff-markup.selected');
+  await expect(selectedLength).toHaveCount(1); assert.equal(await selectedLength.evaluate(el => getComputedStyle(el).filter), 'none', 'Selected length uses control points instead of a red glow');
   const discard = editor.getByRole('button', { name: 'Discard edits', exact: true });
   await expect(discard).toHaveAttribute('title', 'Discard edits'); await expect(discard.locator('svg')).toHaveCount(1);
   await editor.getByLabel('Level', { exact: true }).fill('UNAPPLIED-LEVEL');

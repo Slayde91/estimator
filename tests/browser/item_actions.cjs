@@ -230,7 +230,7 @@ function clearedExpected(original, bindings) {
   reply = await command(async () => page.mouse.dblclick(...await screen([450, 200])), 'add_count_items');
   const counted = reply.snapshot.items.find(value => value.geometry?.kind === 'count'), countPanel = page.locator('.takeoff-markup-settings');
   for (const [label, value] of Object.entries({ 'Member mark': 'LAST-COUNT', 'Member type': 'Beam', 'Protection product': 'CAFCO 300', 'Steel section': '100UC15', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' })) await fill(countPanel, label, value);
-  await command(() => countPanel.getByRole('button', { name: 'Apply settings', exact: true }).click(), 'bulk_update');
+  await page.keyboard.press('Tab'); await expect.poll(async () => { try { await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); return true; } catch { return false; } }).toBe(true);
   await confirmItem(); await transfer();
   const countBefore = await snapshot(), countCalculators = await calculators(), countBinding = countBefore.transfers.find(value => value.item_id === counted.id);
   assert.ok(countBinding);

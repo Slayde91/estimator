@@ -17,7 +17,8 @@
     "test:takeoffs-counts": "node tests/browser/counts.cjs",
     "test:takeoffs-item-actions": "node tests/browser/item_actions.cjs",
     "test:takeoffs-viewer-controls": "node tests/browser/viewer_controls.cjs",
-    "test:takeoffs-transfer-skip": "node tests/browser/transfer_skip.cjs"
+    "test:takeoffs-transfer-skip": "node tests/browser/transfer_skip.cjs",
+    "test:takeoffs-auto-scale": "node tests/browser/auto_scale.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

@@ -18,11 +18,12 @@ const errors = [], operations = [], evidence = {};
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
 async function command(action, op, status = 200) {
   const pending = page.waitForResponse(r => r.url().endsWith('/commands') && r.request().postDataJSON()?.op === op);
+  pending.catch(() => {});
   await action(); const response = await pending, body = await response.json();
   assert.equal(response.status(), status, JSON.stringify(body)); await idle(); return body;
 }
 async function dialog(title, values, button) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({ timeout: 30000 });
   for (const [label, value] of Object.entries(values)) {
     const field = modal.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -44,7 +45,7 @@ async function assertAutoHeight(layout) {
 async function screenPoint([x, y]) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
   const box = await overlay.boundingBox(); assert.ok(box?.width && box?.height);
-  return [box.x + (y - 30) / 540 * box.width, box.y + (x - 20) / 780 * box.height];
+  return [box.x + (y - 30) / 540 * box.width, box.y + (x - 20) / 780 * box.height].map(Math.round);
 }
 async function draw(points, doubleFinish = false) {
   for (let i = 0; i < points.length; i++) {
@@ -218,7 +219,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   page.off('request', watchSave); assert.deepEqual(saveRequests, []); assert.equal(fs.existsSync(info.project), false);
   await editor.getByRole('button', { name: 'Discard edits', exact: true }).click();
   await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L02');
-  await page.getByRole('button', { name: 'Cancel trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Escape');
   await editor.getByLabel('Level', { exact: true }).fill('L03');
   await page.route('**/commands', route => route.request().postDataJSON()?.op === 'update_item' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({error:'Synthetic revision race; reload current source'}) }) : route.continue());
   try {

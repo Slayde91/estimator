@@ -73,11 +73,9 @@ async function selectedCount(ids) {
   if (!await panel.isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(panel.getByRole('heading', { name: 'Count details', exact: true })).toBeVisible(); return panel;
 }
-async function applySettings(panel, rows) {
-  return command(async () => {
-    await panel.getByRole('button', { name: 'Apply settings', exact: true }).click();
-    if (rows > 1) await dialog(`Apply settings to ${rows} items?`, {}, 'Apply settings');
-  }, 'bulk_update');
+async function applySettings(panel) {
+  await page.keyboard.press('Tab'); await snapshot();
+  return page.evaluate(async () => (await fetch('/api/takeoffs/sessions/' + window.CeasefireTakeoffs.sessionId())).json());
 }
 async function technicalDetails(mark, rows) {
   const panel = page.locator('.takeoff-markup-settings');
@@ -215,9 +213,9 @@ function pythonJson(script, ...args) {
   assert.equal(new Set(members(state)).size, 3);
   for (const item of firstCount) { assert.equal(item.measurement.method, 'manual'); assert.equal(item.geometry.page, 3); assert.equal(item.geometry.document_id, source.id); }
   const pointPairs = firstCount.flatMap(item => item.geometry.points); [[150, 140], [250, 140], [350, 140]].forEach((expected, index) => expected.forEach((value, axis) => assert.ok(Math.abs(pointPairs[index][axis] - value) < 1.5, JSON.stringify(pointPairs[index]))));
-  let panel = page.locator('.takeoff-markup-settings'); await expect(panel.getByLabel('Count quantity', { exact: true })).toHaveValue('3');
-  assert.equal(await panel.getByLabel('Count quantity', { exact: true }).evaluate(el => el.readOnly || el.disabled), true);
-  await expect(panel.getByRole('button', { name: 'Change length for group 1', exact: true })).toBeVisible(); await expect(panel.getByRole('button', { name: 'Change length for group 2', exact: true })).toBeVisible();
+  let panel = page.locator('.takeoff-markup-settings'); await expect(panel.getByLabel('Count quantity', { exact: true })).toHaveCount(2); assert.deepEqual(await panel.getByLabel('Count quantity', { exact: true }).evaluateAll(fields => fields.map(field => field.value)), ['1', '2']);
+  assert.equal(await panel.getByLabel('Count quantity', { exact: true }).first().evaluate(el => el.readOnly || el.disabled), true);
+  await expect(panel.getByLabel('Length per member (m)', { exact: true })).toHaveCount(2); await expect(panel.getByRole('button', { name: /Change length for group|Apply settings|Discard settings/ })).toHaveCount(0);
   reply = await technicalDetails('COUNT-A', 2); state = reply.snapshot;
   for (const item of countItems(state)) { assert.equal(item.fields.mark, 'COUNT-A'); assert.equal(item.fields.section, '100UC15'); assert.equal(item.fields.product, 'CAFCO 300'); }
   for (const item of countItems(state)) await expect(page.locator(`tr[data-item-id="${item.id}"] input[name="quantity"]`)).toBeDisabled();
@@ -237,8 +235,7 @@ function pythonJson(script, ...args) {
   await page.screenshot({ path: path.join(output, 'compact-count-settings.png') });
   await page.setViewportSize({ width: 1600, height: 1100 }); await idle();
   const beforeLength = stable(state);
-  await panel.getByRole('button', { name: 'Change length for group 1', exact: true }).click();
-  reply = await command(() => dialog('Change counted member length', { 'Length per member (m)': 3.375 }, 'Apply length'), 'update_item'); state = reply.snapshot;
+  reply = await command(async () => { await panel.getByLabel('Length per member (m)', { exact: true }).first().fill('3.375'); await panel.getByLabel('Length per member (m)', { exact: true }).first().press('Tab'); }, 'update_count_lengths'); state = reply.snapshot;
   const changedLength = state.items.find(item => item.id === firstCount[0].id);
   assert.equal(changedLength.measurement.length_m, 3.375); assert.deepEqual(changedLength.member_ids, firstCount[0].member_ids); assert.equal(changedLength.quantity, 1);
   assert.deepEqual(stable(state).find(item => item.id === firstCount[1].id), beforeLength.find(item => item.id === firstCount[1].id));
@@ -297,20 +294,16 @@ function pythonJson(script, ...args) {
   assertIndependentMove(dragBaseline, state, dragGroup.id, 1, movement);
   const movedStable = stable(state), calculatorBeforeDrag = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   panel = await selectedCount([dragGroup.id]); await fill(panel, 'Opacity', .42);
-  const blockedBefore = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).snapshot), requestCountBefore = requests.length;
-  await dragMarker(secondCount[0].member_ids[0], [-30, 20]);
-  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText(/Apply or discard.*(?:edits|settings)/);
-  assert.equal(requests.length, requestCountBefore, 'Dirty settings prevent marker mutations');
-  assert.deepEqual(await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).snapshot), blockedBefore);
-  await expect(panel.getByLabel('Opacity', { exact: true })).toHaveValue('0.42');
-  await panel.getByRole('button', { name: 'Discard settings', exact: true }).click();
+  state = (await applySettings(panel)).snapshot;
+  assert.equal(state.items.find(item => item.id === dragGroup.id).appearance.opacity, .42);
+  await expect(panel.getByRole('button', { name: /Apply settings|Discard settings/ })).toHaveCount(0);
   const movedRoundtrip = await saveAndLoad(info); state = movedRoundtrip.reopened;
   assert.deepEqual(stable(state), movedStable); assert.deepEqual(stable(movedRoundtrip.saved.takeoffs), movedStable);
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBeforeDrag);
   assert.equal(state.calibrations.length, 0);
-  evidence.independentMarkerDrag = { itemId: dragGroup.id, memberId: dragGroup.member_ids[1], movement, undoExact: true, dirtySettingsBlocked: true, savedReopened: true };
+  evidence.independentMarkerDrag = { itemId: dragGroup.id, memberId: dragGroup.member_ids[1], movement, undoExact: true, automaticSettingsApplied: true, savedReopened: true };
   await page.screenshot({ path: path.join(output, 'independent-count-marker-drag.png') });
-  console.log('Independent Count marker drag, rotated source coordinates, manual lengths, dirty guard, Undo and save/reopen passed.');
+  console.log('Independent Count marker drag, rotated source coordinates, manual lengths, automatic settings, Undo and save/reopen passed.');
 
   // The Select tool operates on individual members, including a strict subset
   // of a length row and a selection spanning separate length rows and Counts.
@@ -438,7 +431,7 @@ function pythonJson(script, ...args) {
   assert.deepEqual(stable(state), stable(linkedBaseline)); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter);
   evidence.continueCount.savedReopenedIdsExact = true; evidence.continueCount.appendedEqualAndNewRowsRemovable = true;
   panel = await selectedCount([firstIds[0]]);
-  await panel.getByLabel('Count quantity', { exact: true }).scrollIntoViewIfNeeded();
+  await panel.getByLabel('Count quantity', { exact: true }).first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'count-details-fields-and-quantity.png'), fullPage: true });
 
   const xlsx = await download('Download XLSX', 'counts.xlsx'), pdf = await download('Download PDF', 'counts.pdf');

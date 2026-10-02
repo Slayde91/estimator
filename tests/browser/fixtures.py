@@ -178,6 +178,32 @@ def make_area_pdf(path):
         writer.write(stream)
 
 
+def make_scale_pdf(path):
+    """One clear main scale, one competing footer, and one AS SHOWN page."""
+    from reportlab.pdfgen import canvas
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject, NumberObject
+    source = BytesIO()
+    drawing = canvas.Canvas(source, pagesize=(600, 800), invariant=1)
+    for footer in ('SCALE 1:100', 'SCALE 1:100 / 1:50', 'SCALE AS SHOWN'):
+        drawing.setFont('Helvetica', 14)
+        drawing.drawString(40, 740, 'SYNTHETIC PRINTED-SCALE ACCEPTANCE')
+        drawing.setFont('Helvetica', 10)
+        drawing.drawString(100, 620, 'DETAIL SCALE 1:20 - NOT THE PAGE TITLE BLOCK')
+        drawing.drawString(100, 420, '144 PDF units; first page UserUnit 2 = 10.16 m at 1:100')
+        drawing.line(100, 400, 244, 400)
+        drawing.rect(380, 20, 200, 60)
+        drawing.drawString(400, 35, footer)
+        drawing.showPage()
+    drawing.save()
+    writer = PdfWriter()
+    for page in PdfReader(source).pages:
+        writer.add_page(page)
+    writer.pages[0][NameObject('/UserUnit')] = NumberObject(2)
+    with Path(path).open('wb') as output:
+        writer.write(output)
+
+
 def make_legacy_physical_project(folder, pdf):
     """Publish an original v1 hierarchy with a real source and untouched audit chain."""
     from copy import deepcopy
@@ -249,6 +275,7 @@ if __name__ == '__main__':
         failed_fixture = folder / 'failed-image.pdf'; make_failed_image_pdf(failed_fixture)
         board_fixture = folder / 'synthetic-board.pdf'; make_board_pdf(board_fixture)
         area_fixture = folder / 'synthetic-surfaces.pdf'; make_area_pdf(area_fixture)
+        scale_fixture = folder / 'synthetic-scales.pdf'; make_scale_pdf(scale_fixture)
         physical_fixture = folder / 'synthetic-physical-report.pdf'; make_physical_pdf(physical_fixture)
         physical_v2_fixture = folder / 'synthetic-physical-v2-report.pdf'; make_physical_pdf(physical_v2_fixture, version=2)
         legacy_project = make_legacy_physical_project(folder, physical_fixture) if args.physical_legacy else None
@@ -261,7 +288,7 @@ if __name__ == '__main__':
             def choose_folder(self, initial_directory):
                 return str(folder)
         server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
-        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'area_fixture': str(area_fixture), 'physical_fixture': str(physical_fixture), 'physical_v2_fixture': str(physical_v2_fixture), 'legacy_project': str(legacy_project) if legacy_project else None, 'project': str(project), 'directory': str(folder)}), flush=True)
+        print(json.dumps({'port': server.server_port, 'fixture': str(fixture), 'failed_fixture': str(failed_fixture), 'board_fixture': str(board_fixture), 'area_fixture': str(area_fixture), 'scale_fixture': str(scale_fixture), 'physical_fixture': str(physical_fixture), 'physical_v2_fixture': str(physical_v2_fixture), 'legacy_project': str(legacy_project) if legacy_project else None, 'project': str(project), 'directory': str(folder)}), flush=True)
         try:
             server.serve_forever()
         finally:

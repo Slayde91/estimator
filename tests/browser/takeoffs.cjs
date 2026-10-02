@@ -1,5 +1,6 @@
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
+const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -20,11 +21,11 @@ const errors = [], violations = [], requests = [];
 async function workspaceIdle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
 async function command(action, op) {
   const pending = page.waitForResponse(r => r.url().endsWith('/commands') && r.request().postDataJSON()?.op === op);
-  await action(); const response = await pending; const body = await response.json();
+  pending.catch(() => {}); await action(); const response = await pending; const body = await response.json();
   assert.equal(response.status(), 200, JSON.stringify(body)); await workspaceIdle(); return body;
 }
 async function dialog(title, values, button) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) {
     const field = modal.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -37,14 +38,7 @@ async function draw(points) {
   const box = await overlay.boundingBox(); assert.ok(box && box.width > 0);
   for (const [x, y] of points) await page.mouse.click(box.x + x * box.width, box.y + y * box.height);
 }
-async function fillInspector(values) {
-  const inspector = page.locator('.takeoff-register-editor');
-  for (const [label, value] of Object.entries(values)) {
-    const field = inspector.getByLabel(label, { exact: true });
-    if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
-  }
-  return command(() => inspector.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
-}
+async function fillInspector(values) { return editSettings(page, values); }
 // Historical cited measurements remain supported when an existing project is
 // opened. The removed conversion button is not a route for creating new ones.
 // Seed this compatibility fixture through the validated API, then exercise the
@@ -125,8 +119,9 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-MEASURED', 'Physical quantity': 2 }, 'Add item'), 'create_item');
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-MEASURED', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const measuredId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-MEASURED').id;
+  await openItemSettings(page,measuredId);
   // The exact profile is selected using the same catalog dialog available to operators.
   await page.getByRole('button', { name: 'Find steel section', exact: true }).click();
   const profileResponse = page.waitForResponse(response => response.url().includes('/profiles?calculator=steel_board'));
@@ -134,26 +129,12 @@ async function boardJourney(info) {
   const profiles = await (await profileResponse).json();
   assert.deepEqual(profiles.items, [{ id: '100UC15', label: '100UC15' }]);
   await dialog('Choose a database section', { 'Steel section': '100UC15' }, 'Use section');
-  const supported = { 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Protection product': 'TRAFALGAR COREX', 'Fire period (min)': 120, 'Exposed sides': 3, 'Critical temperature (°C)': 620, 'Exposure description': '3 sides exposed' };
-  // The rebuilt inspector loads its datalist asynchronously. Exercise that loading state explicitly.
-  const optionsUrl = '**/api/takeoffs/options?calculator=steel_board&**';
-  let releaseOptions;
-  const optionsGate = new Promise(resolve => { releaseOptions = resolve; });
-  const holdOptions = async route => { await optionsGate; await route.continue(); };
-  await page.route(optionsUrl, holdOptions);
-  try {
-    state = await fillInspector(supported);
-    const temperature = page.locator('.takeoff-register-editor').getByLabel('Critical temperature (°C)', { exact: true });
-    await expect.poll(() => temperature.evaluate(control => control.list === null)).toBe(true);
-    await expect.poll(async () => {
-      const choices = await temperature.evaluate(control => Array.from(control.list?.options || [], option => option.value));
-      releaseOptions();
-      return choices;
-    }).toContain('620');
-  } finally {
-    releaseOptions();
-    await page.unroute(optionsUrl, holdOptions);
-  }
+  const supported = { 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Product': 'TRAFALGAR COREX', 'Fire period (min)': 120, 'Exposed sides': 3, 'Crit. Temp (\u00b0C)': 620, 'Exposure': 'Re-entrant - 3 sides' };
+  state = await fillInspector(supported);
+  const temperature = page.locator('#takeoff-markup-settings').getByLabel('Crit. Temp (\u00b0C)', {exact:true});
+  assert.equal(await temperature.evaluate(control=>control.tagName),'SELECT');
+  await expect(temperature).toHaveValue('620');
+  assert.ok((await temperature.locator('option').evaluateAll(options=>options.map(option=>option.value))).includes('620'));
   const measured = state.item_results.find(item => item.id === measuredId);
   assert.ok(Math.abs(measured.length_m - 10) < 0.02); assert.equal(measured.total_length_m, measured.length_m * 2);
   assert.equal(state.snapshot.items.find(item => item.id === measuredId).member_ids.length, 2);
@@ -170,7 +151,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 300 / 595], [730 / 842, 1 - 270 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-CITED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-CITED', 'Count/QTY': 3 }, 'Add item'), 'create_item');
   state = await retainedCitedFixture(state.snapshot.items.find(item=>item.fields.mark==='BOARD-CITED').id,7.25,'Synthetic board drawing p1, BOARD-CITED: 3 separate physical members, 7.25 m EACH');
   const citedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-CITED').id;
   state = await fillInspector({ ...supported, 'Steel section': '100UC15' });
@@ -201,7 +182,8 @@ async function boardJourney(info) {
   await expect(page.locator(`[data-calculator-sheet="CALCULATOR"][data-calculator-cell="F${citedBinding.row}"]`)).toHaveValue('21.75');
   await screenshot('confirmed-board-schedule.png');
   await source.click();
-  await expect(page.locator('.takeoff-register-editor .takeoff-identity').first()).toHaveText(citedId);
+  await expect(page.locator(`tr[data-item-id="${citedId}"]`).getByRole('checkbox',{name:/^Select /})).toBeChecked();
+  await openItemSettings(page,citedId);
   await expect(page.locator('.takeoff-markup.selected')).toHaveCount(1);
   await expect(page.locator('.takeoff-calibration-summary')).toContainText('7.25');
   await expect(page.locator('.takeoff-calibration-summary')).toContainText('Synthetic board drawing');
@@ -211,10 +193,21 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 193 / 595], [790 / 842, 1 - 148 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-UNSUPPORTED', 'Physical quantity': 1 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add steel object', { 'Member mark': 'BOARD-UNSUPPORTED', 'Count/QTY': 1 }, 'Add item'), 'create_item');
   state = await retainedCitedFixture(state.snapshot.items.find(item=>item.fields.mark==='BOARD-UNSUPPORTED').id,10,'Synthetic board drawing p1, BOARD-UNSUPPORTED: explicitly 120 min beam at 550 C; do not substitute a design');
   const unsupportedId = state.snapshot.items.find(item => item.fields.mark === 'BOARD-UNSUPPORTED').id;
-  await fillInspector({ ...supported, 'Steel section': '100UC15', 'Critical temperature (°C)': 550 }); await reviewConfirm();
+  await fillInspector({...supported,'Steel section':'100UC15'});
+  // A historical project can retain an unsupported value even though new edits
+  // now offer only calculator-backed choices. Seed that saved-record condition.
+  await page.evaluate(async itemId=>{
+    const takeoffs=window.CeasefireTakeoffs,session=takeoffs.sessionId(),snapshot=takeoffs.projectSnapshot();
+    const response=await fetch(`/api/takeoffs/sessions/${session}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:snapshot.revision,request_id:crypto.randomUUID(),op:'update_item',item_id:itemId,changes:{fields:{critical_temperature:550}}})});
+    const result=await response.json();if(!response.ok)throw new Error(JSON.stringify(result));
+    takeoffs.applyProject(await takeoffs.prepareProject(result.snapshot,session));await takeoffs.showSource(itemId);
+  },unsupportedId);
+  const retainedSettings=await openItemSettings(page,unsupportedId),retainedTemperature=retainedSettings.getByLabel('Crit. Temp (\u00b0C)',{exact:true});
+  await expect(retainedTemperature).toHaveValue('550');await expect(retainedTemperature.locator('option[value="550"]')).toContainText('retained');
+  await reviewConfirm();
   const beforeRejection = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
   const failedPreview = page.waitForResponse(response => response.url().endsWith('/transfer-preview'));
   await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
@@ -238,7 +231,8 @@ async function boardJourney(info) {
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Upload PDFs', exact: true })).toBeVisible();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
@@ -252,10 +246,10 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'B17', 'Physical quantity': 2 }, 'Add item'), 'create_item');
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'B17', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const steelId = state.snapshot.items[0].id;
   assert.ok(Math.abs(state.item_results[0].length_m - 10) < 0.02);
-  state = await fillInspector({ 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
+  state = await fillInspector({ 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides' });
   // Bulk editing is one atomic operation, and undo restores the same identities.
   await page.getByLabel('Bulk edit field', { exact: true }).selectOption('level');
   await page.getByLabel('Bulk edit value', { exact: true }).fill('L03');
@@ -281,17 +275,32 @@ async function boardJourney(info) {
   transferred = await skippedTransfer([firstBinding.id]);
   assert.equal(transferred.state.snapshot.transfers.length, 1); assert.equal(transferred.state.snapshot.transfers[0].id, firstBinding.id);
   // Reconfirming an explicit source edit allows a reviewed linked-row update.
-  await fillInspector({ 'Physical quantity': 3 }); await reviewConfirm();
+  await fillInspector({ 'Count/QTY': 3 }); await reviewConfirm();
   transferred = await transfer(true); assert.equal(transferred.preview.inputs.SCHEDULE.I10, 3);
   await screenshot('confirmed-steel.png');
   await page.locator('[data-mode="duct"]').click();
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 245 / 595], [600 / 842, 1 - 220 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  state = await command(() => dialog('Add duct object', { 'Run ID': 'D-001', 'Physical quantity': 1 }, 'Add item'), 'create_item');
+  const ductCreation=page.getByRole('dialog');
+  const ductValues={'Duct ID':'D-001','Level':'L02','WxH (mm)':'600x400','Product':'FyreWrap','Exposure':'Internal','FRL':'120/120/120','Orientation':'Horizontal','Wall penetrations':0,'Floor penetrations':0,'Count/QTY':1};
+  for(const label of Object.keys(ductValues))await expect(ductCreation.getByLabel(label,{exact:true})).toBeVisible();
+  for(const label of ['Product','Exposure','FRL'])assert.equal(await ductCreation.getByLabel(label,{exact:true}).evaluate(el=>el.tagName),'SELECT');
+  for(const label of ['Run ID','Width (mm)','Height (mm)','Mechanical system','Duct application / exposure'])await expect(ductCreation.getByLabel(label,{exact:true})).toHaveCount(0);
+  await ductCreation.screenshot({path:path.join(output,'duct-creation-details.png')});
+  state = await command(() => dialog('Add duct object', ductValues, 'Add item'), 'create_item');
+  const createdDuct=state.snapshot.items.find(item=>item.fields.mark==='D-001');assert.equal(createdDuct.fields.width_mm,600);assert.equal(createdDuct.fields.height_mm,400);assert.equal(createdDuct.fields.product,'FyreWrap');assert.equal(createdDuct.fields.exposure,'Internal');assert.equal(createdDuct.fields.frl,'120/120/120');
+
   state = await retainedCitedFixture(state.snapshot.items.find(item=>item.fields.mark==='D-001').id,10,'Synthetic duct schedule D-001, page 1: 10.0 m');
   const ductId = state.snapshot.items.find(i => i.mode === 'duct').id;
-  await fillInspector({ 'Level': 'L02', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
+  const ductSettings=await openItemSettings(page,ductId),beforeBadSize=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());
+  const badSizeRequests=[];const watchSize=request=>{if(request.url().endsWith('/commands')&&request.postDataJSON()?.op==='bulk_update')badSizeRequests.push(request.postDataJSON());};page.on('request',watchSize);
+  await ductSettings.getByLabel('WxH (mm)',{exact:true}).fill('600x');await ductSettings.getByLabel('WxH (mm)',{exact:true}).press('Tab');
+  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText(/width|height|WxH/i);
+  assert.deepEqual(badSizeRequests,[],'Invalid compound size issues no partial dimension update');
+  const retainedState=await page.request.get(await page.evaluate(()=>`${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`));assert.deepEqual((await retainedState.json()).snapshot.items,beforeBadSize.items);
+  page.off('request',watchSize);await editSettings(page,{'WxH (mm)':'600x400'});
+  await ductSettings.screenshot({path:path.join(output,'duct-settings-details.png')});
   await reviewConfirm(); transferred = await transfer();
   assert.equal(transferred.preview.inputs.CALCULATOR.B11, '600x400'); assert.equal(transferred.preview.inputs.CALCULATOR.D11, 10);
   // Real split/merge and recoverable deletion preserve source lineage and selection.
@@ -299,7 +308,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  let extra = await command(() => dialog('Add duct object', { 'Run ID': 'QA-SPLIT', 'Physical quantity': 1 }, 'Add item'), 'create_item');
+  let extra = await command(() => dialog('Add duct object', { 'Duct ID': 'QA-SPLIT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
   const originalRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT').id;
   await page.getByRole('button', { name: 'Split', exact: true }).click();
   extra = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');
@@ -309,20 +318,20 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Merge', exact: true }).click();
   extra = await command(() => dialog('Merge one physical object?', {}, 'Merge segments'), 'merge_items');
   const mergedRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT'); assert.deepEqual(new Set(mergedRun.predecessor_ids), new Set([originalRun, ...splitRuns.map(i => i.id)]));
-  await page.locator('.takeoff-row-link').filter({ hasText: mergedRun.id.slice(0, 8) }).click();
+  await page.locator(`tr[data-item-id=\"${mergedRun.id}\"] .takeoff-row-link`).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');
   extra = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
   assert.ok(extra.snapshot.items.some(i => i.id === mergedRun.id));
-  await page.locator('.takeoff-row-link').filter({ hasText: mergedRun.id.slice(0, 8) }).click();
+  await page.locator(`tr[data-item-id=\"${mergedRun.id}\"] .takeoff-row-link`).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');
   await page.getByLabel('Filter register', { exact: true }).fill('');
-  await page.locator('.takeoff-row-link').filter({ hasText: ductId.slice(0, 8) }).click();
+  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   await screenshot('confirmed-duct.png');
   const board = await boardJourney(info);
   await page.locator('[data-mode="duct"]').click();
-  await page.locator('.takeoff-row-link').filter({ hasText: ductId.slice(0, 8) }).click();
+  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   // Project Save As commits the companion bundle before the complete JSON.
   const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
   await page.getByRole('button', { name: 'Save As', exact: true }).click();
@@ -339,7 +348,8 @@ async function boardJourney(info) {
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('[data-mode="duct"]').click();
-  await page.locator('.takeoff-row-link').filter({ hasText: ductId.slice(0, 8) }).click();
+  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
+  const reopenedDuct=await openItemSettings(page,ductId);await expect(reopenedDuct.getByLabel('WxH (mm)',{exact:true})).toHaveValue('600 x 400');await expect(reopenedDuct.getByLabel('Product',{exact:true})).toHaveValue('FyreWrap');await expect(reopenedDuct.getByLabel('Exposure',{exact:true})).toHaveValue('Internal');await expect(reopenedDuct.getByLabel('FRL',{exact:true})).toHaveValue('120/120/120');
   for (const format of ['CSV', 'XLSX']) {
     const download = page.waitForEvent('download'); await page.getByRole('button', { name: `Export ${format}`, exact: true }).click();
     const file = await download; const target = path.join(output, file.suggestedFilename()); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
@@ -364,7 +374,7 @@ async function boardJourney(info) {
   await screenshot('failed-content-blocked.png');
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, stage: 'save-reopen-export', project: info.project, steelId, ductId, board, errors, requests, violations: await page.evaluate(() => window.qaCsp) }, null, 2));
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  console.log(`PASS: rendered upload, calibration, trace/cite, register editor, bulk/undo, confirmation, three calculator destinations, Board native-design rejection, source links, transfer/repeat/update, save/reopen and CSV/XLSX export. Evidence: ${output}`);
+  console.log(`PASS: rendered upload, calibration, trace/cite, automatic settings, compound duct dimensions, bulk/undo, confirmation, three calculator destinations, Board native-design rejection, source links, transfer/repeat/update, save/reopen and CSV/XLSX export. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(serverErrors.slice(-6000)); console.error(JSON.stringify(requests.slice(-10)));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

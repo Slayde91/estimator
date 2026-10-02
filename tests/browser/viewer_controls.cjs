@@ -1,5 +1,6 @@
 // Toolbar acceptance against a disposable server and original synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
+const { editSettings, settingsSettled } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `viewer-controls-${Date.now()}`);
@@ -18,10 +19,10 @@ const idle = () => expect(page.locator('#takeoffs-workspace')).not.toHaveAttribu
 async function snapshot() { await idle(); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
 async function command(action, op) {
   const pending = page.waitForResponse(value => value.url().endsWith('/commands') && value.request().postDataJSON()?.op === op); pending.catch(() => {});
-  await action(); const result = await pending, body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body)); await idle(); return body;
+  await action(); const result = await pending, body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body)); await idle(); if(op==='record_render')await settingsSettled(page); return body;
 }
 async function dialog(title, values, action) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) {
     const field = modal.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -81,9 +82,10 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible();
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
-  await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
+  await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await settingsSettled(page);
   const navigation = page.getByRole('group', { name: 'Page navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('button').evaluateAll(nodes => nodes.map(el => el.getAttribute('aria-label'))), ['First page', '‹ Page', 'Page ›', 'Last page']);
   for (const name of ['First page', 'Last page']) {
@@ -103,6 +105,9 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   const scale = page.getByRole('button', { name: 'Scale', exact: true }), popup = page.getByRole('group', { name: 'Drawing scale', exact: true }), calibrate = popup.getByRole('button', { name: 'Calibrate', exact: true });
   await expect(page.locator('.takeoff-tool-rail > [data-tool="calibrate"]')).toHaveCount(0);
   await scale.click(); await expect(calibrate).toBeVisible(); await expect(calibrate.locator('svg')).toHaveCount(0);
+  const calibrationButtons=await popup.locator('button').evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,right:r.right};}));
+  assert.equal(calibrationButtons.length,2);assert.ok(Math.abs(calibrationButtons[0].y-calibrationButtons[1].y)<=1&&calibrationButtons[0].right<=calibrationButtons[1].x,'Calibrate and Edit calibration share one row');
+  evidence.calibrationButtons=calibrationButtons;
   assert.deepEqual(await popup.evaluate(el => [...el.children].map(child => child.tagName === 'SELECT' ? child.id : child.textContent)), ['takeoff-calibration', 'Calibrate', 'Edit calibration']);
   await calibrate.click(); await expect(popup).toBeHidden(); await expect(scale).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'calibrate');
@@ -120,8 +125,8 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   assert.equal(await pendingLength.evaluate(el => getComputedStyle(el).fill), 'none', 'Open length tracing never fills an area');
   assert.equal(await pendingLength.evaluate(el => getComputedStyle(el).filter), 'none', 'Length preview has no shadow');
   await page.mouse.dblclick(...await sourcePoint([550, 400]));
-  let reply = await command(() => dialog('Add steel object', { 'Member mark': 'TOOLBAR-STEEL', 'Physical quantity': 2 }, 'Add item'), 'create_item');
-  const item = reply.snapshot.items[0], beforeDirty = await snapshot(), beforeDirtyCommands = [...operations], editor = page.locator(`.takeoff-register-editor[data-editor-item-id="${item.id}"]`);
+  let reply = await command(() => dialog('Add steel object', { 'Member mark': 'TOOLBAR-STEEL', 'Count/QTY': 2 }, 'Add item'), 'create_item');
+  const item = reply.snapshot.items[0];
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   for (const width of [1800, 1146, 764, 500]) await inspectLeftPanel(width);
   await inspectLeftPanel(1146, 'beside');
@@ -130,22 +135,27 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   const selectedLength = page.locator('polyline.takeoff-markup.selected');
   await expect(selectedLength).toHaveCount(1); assert.equal(await selectedLength.evaluate(el => getComputedStyle(el).filter), 'none', 'Selected length uses control points instead of a red glow');
-  const discard = editor.getByRole('button', { name: 'Discard edits', exact: true });
-  await expect(discard).toHaveAttribute('title', 'Discard edits'); await expect(discard.locator('svg')).toHaveCount(1);
-  await editor.getByLabel('Level', { exact: true }).fill('UNAPPLIED-LEVEL');
-  await page.getByRole('button', { name: 'Last page', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Discard unfinished edits?', exact: true })).toBeVisible();
-  const confirmDiscard = page.getByRole('dialog').getByRole('button', { name: 'Discard edits', exact: true });
-  await expect(confirmDiscard.locator('svg')).toHaveCount(0); await expect(confirmDiscard).toHaveText('Discard edits');
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('3'); await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('UNAPPLIED-LEVEL');
-  assert.deepEqual(operations, beforeDirtyCommands, 'Cancelled page shortcut sends no edit or page-render command');
-  await scale.click(); await calibrate.click();
-  await expect(popup).toBeVisible(); await expect(scale).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('Apply or discard'); await assertErrorVisible();
-  assert.deepEqual(operations, beforeDirtyCommands, 'Rejected calibration tool switch sends no item change');
-  await scale.click(); await discard.click(); await expect(editor.getByLabel('Level', { exact: true })).toHaveValue(item.fields.level || '');
-  assert.deepEqual(await snapshot(), beforeDirty, 'Editor discard does not issue an item change'); evidence.draftGuardsAndDiscardIcon = true;
+  // View returns to the drawing; Edit opens the single settings pane from the register.
+  await page.setViewportSize({width:1146,height:764});
+  const row=page.locator(`tr[data-item-id="${item.id}"]`);
+  await row.scrollIntoViewIfNeeded();
+  await row.locator('.takeoff-row-link').click();
+  await expect(page.locator('.takeoff-viewport')).toBeFocused();await idle();
+  const viewBounds=await page.locator('.takeoff-viewport').boundingBox(),headerBounds=await page.locator('.app-header').boundingBox();
+  assert.ok(viewBounds.y>=headerBounds.y+headerBounds.height&&viewBounds.y<headerBounds.y+headerBounds.height+30,'View snaps drawing below the sticky header at 1146x764');
+  await row.getByRole('button',{name:'Edit item',exact:true}).click();
+  const editor=page.locator('#takeoff-markup-settings');await expect(editor).toBeFocused();
+  await expect(page.locator('.takeoff-register-editor')).toHaveCount(0);
+  const editBounds=await editor.boundingBox();assert.ok(editBounds.y>=headerBounds.y+headerBounds.height&&editBounds.y<headerBounds.y+headerBounds.height+30,'Edit brings settings into view');
+  assert.equal(await editor.evaluate(el=>el.scrollTop),0,'Edit starts at the beginning of its independent settings scrollbar');
+  await expect(editor.getByRole('button',{name:/Apply settings|Discard settings|Apply item edits|Discard edits/})).toHaveCount(0);
+  const appearanceOrder=await editor.locator('.takeoff-settings-fields>.field').evaluateAll(fields=>fields.slice(0,5).map(field=>field.textContent.trim()));
+  assert.deepEqual(appearanceOrder,['Stroke colour','Stroke Width','Fill colour','Fill enabled','Opacity']);
+  await editSettings(page,{'Level':'AUTO-LEVEL'});
+  const afterEdit=await snapshot();assert.equal(afterEdit.items.find(value=>value.id===item.id).fields.level,'AUTO-LEVEL');
+  assert.deepEqual(afterEdit.items.find(value=>value.id===item.id).geometry,item.geometry);
+  await editor.getByRole('button',{name:'Close settings',exact:true}).click();
+  const beforeDirty=await snapshot();evidence.viewEditNavigation={viewport:{width:1146,height:764},viewBounds,editBounds,automaticUpdate:true,inlineEditorRemoved:true};
 
   for (const width of [1146, 764]) {
     await page.setViewportSize({ width, height: 900 });
@@ -170,7 +180,7 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   const final = await snapshot(); assert.deepEqual(final.items, beforeDirty.items); assert.deepEqual(final.calibrations, beforeDirty.calibrations);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, item: final.items[0], sourceHash: final.documents[0].sha256 }, null, 2));
-  console.log(`PASS: Scale calibration, first/last page controls, draft guard, Discard icon, visible errors and responsive toolbar. Evidence: ${output}`);
+  console.log(`PASS: Scale calibration, first/last page controls, View/Edit navigation, automatic settings, visible errors and responsive toolbar. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

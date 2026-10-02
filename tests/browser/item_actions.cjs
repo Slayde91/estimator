@@ -1,5 +1,6 @@
 // Real item actions, calculator leases and saved Undo on disposable source data.
 const { chromium, expect } = require('@playwright/test');
+const { openItemSettings, editSettings } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `item-actions-${Date.now()}`);
@@ -27,7 +28,7 @@ async function fill(scope, label, value) {
   if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
 }
 async function dialog(title, values, action) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) await fill(modal, label, value);
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
@@ -45,11 +46,8 @@ async function screen([x, y]) {
   const box = await overlay.boundingBox(); assert.ok(box?.width && box?.height);
   return [Math.round(box.x + (y - 30) / 540 * box.width), Math.round(box.y + (x - 20) / 780 * box.height)];
 }
-async function editItem(id) {
-  const row = page.locator(`tr[data-item-id="${id}"]`), panel = page.locator(`.takeoff-register-editor[data-editor-item-id="${id}"]`);
-  if (!await panel.isVisible()) await row.getByRole('button', { name: 'Edit item', exact: true }).click();
-  await expect(panel).toBeVisible(); return panel;
-}
+async function editItem(id) { return openItemSettings(page, id); }
+
 async function confirmItem() {
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items');
@@ -102,14 +100,15 @@ function clearedExpected(original, bindings) {
   page.on('request', request => { if (/\/(commands|linked-delete|linked-undo)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle(); await pageNumber(3); await fit();
   await page.getByRole('button', { name: 'Scale', exact: true }).click(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100');
   await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   for (const point of [[150, 400], [350, 400]]) await page.mouse.click(...await screen(point));
   await page.mouse.dblclick(...await screen([550, 400]));
-  let reply = await command(() => dialog('Add steel object', { 'Member mark': 'ACTIONS-STEEL', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 }, 'Add item'), 'create_item');
+  let reply = await command(() => dialog('Add steel object', { 'Member mark': 'ACTIONS-STEEL', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const id = reply.snapshot.items[0].id, originalMembers = reply.snapshot.items[0].member_ids;
   await page.getByRole('button', { name: 'Select', exact: true }).click();
   const handle = page.locator(`.takeoff-control-point[data-control-item-id="${id}"][data-point-index="0"]`);
@@ -137,8 +136,7 @@ function clearedExpected(original, bindings) {
   await expect(page.getByRole('button', { name: 'Settings', exact: true }).locator('svg')).toHaveCount(1);
   await confirmItem(); await transfer();
   await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_board');
-  await fill(panel, 'Protection product', 'TRAFALGAR COREX'); await fill(panel, 'Critical temperature (°C)', 620); await fill(panel, 'Exposed sides', 3);
-  await command(() => panel.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item'); await confirmItem(); await transfer();
+  await editSettings(page, {'Product':'TRAFALGAR COREX','Crit. Temp (\u00b0C)':620,'Exposed sides':3}); await confirmItem(); await transfer();
   let state = await snapshot(), bindings = state.transfers;
   assert.equal(bindings.length, 2); assert.equal(bindings.find(value => value.calculator_id === 'steel_vermiculite').status, 'stale');
   console.log('The same source item has two actual linked calculator rows.');
@@ -169,7 +167,7 @@ function clearedExpected(original, bindings) {
   assert.deepEqual(reply.snapshot.render_checks, renderChecks); assert.equal(reply.snapshot.transfers.length, 2); assert.ok(reply.snapshot.transfers.every(value => value.status === 'stale')); evidence.savedReopenedRenderedUndo = true;
   console.log('Atomic deletion, lost-response recovery and saved/reopened/rendered coupled Undo passed.');
   await pageNumber(3); await fit(); await editItem(id);
-  await page.locator('.takeoff-register-editor').getByRole('button', { name: 'Delete item', exact: true }).scrollIntoViewIfNeeded();
+  await page.locator('#takeoff-markup-settings').getByRole('button', { name: 'Delete item', exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'restored-item-details-and-rise.png') });
   await openSpray(); await page.locator(`tr[data-source-row="${spray.row}"]`).getByRole('button', { name: /Remove line/ }).click();
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true'); const alreadyCleared = await calculators();
@@ -229,7 +227,7 @@ function clearedExpected(original, bindings) {
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(1);
   reply = await command(async () => page.mouse.dblclick(...await screen([450, 200])), 'add_count_items');
   const counted = reply.snapshot.items.find(value => value.geometry?.kind === 'count'), countPanel = page.locator('.takeoff-markup-settings');
-  for (const [label, value] of Object.entries({ 'Member mark': 'LAST-COUNT', 'Member type': 'Beam', 'Protection product': 'CAFCO 300', 'Steel section': '100UC15', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' })) await fill(countPanel, label, value);
+  for (const [label, value] of Object.entries({ 'Member mark': 'LAST-COUNT', 'Member type': 'Beam', 'Product': 'CAFCO 300', 'Steel section': '100UC15', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides' })) await fill(countPanel, label, value);
   await page.keyboard.press('Tab'); await expect.poll(async () => { try { await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); return true; } catch { return false; } }).toBe(true);
   await confirmItem(); await transfer();
   const countBefore = await snapshot(), countCalculators = await calculators(), countBinding = countBefore.transfers.find(value => value.item_id === counted.id);

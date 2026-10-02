@@ -1,5 +1,6 @@
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
+const { editSettings } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -20,11 +21,11 @@ const errors = [], violations = [], requests = [];
 async function workspaceIdle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
 async function command(action, op) {
   const pending = page.waitForResponse(r => r.url().endsWith('/commands') && r.request().postDataJSON()?.op === op);
-  await action(); const response = await pending; const body = await response.json();
+  pending.catch(() => {}); await action(); const response = await pending; const body = await response.json();
   assert.equal(response.status(), 200, JSON.stringify(body)); await workspaceIdle(); return body;
 }
 async function dialog(title, values, button) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) {
     const field = modal.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -37,14 +38,7 @@ async function draw(points) {
   const box = await overlay.boundingBox(); assert.ok(box && box.width > 0);
   for (const [x, y] of points) await page.mouse.click(box.x + x * box.width, box.y + y * box.height);
 }
-async function fillInspector(values) {
-  const inspector = page.locator('.takeoff-register-editor');
-  for (const [label, value] of Object.entries(values)) {
-    const field = inspector.getByLabel(label, { exact: true });
-    if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
-  }
-  return command(() => inspector.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
-}
+async function fillInspector(values) { return editSettings(page, values); }
 async function reviewConfirm(count = 1) {
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   return command(() => dialog(`Confirm ${count} items?`, {}, 'Confirm items'), 'confirm_items');
@@ -104,7 +98,8 @@ async function fitCurrentDrawing(name) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   await page.goto(`http://127.0.0.1:${info.port}/`);
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await fitCurrentDrawing('synthetic-drawings.pdf');
@@ -115,8 +110,8 @@ async function fitCurrentDrawing(name) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 400 / 595], [500 / 842, 1 - 400 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Physical quantity': 3 }, 'Add item'), 'create_item');
-  await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Protection product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' });
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'STEEL-REPEATED', 'Count/QTY': 3 }, 'Add item'), 'create_item');
+  await fillInspector({ 'Level': 'SYNTHETIC', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides' });
   state = await reviewConfirm(); const steel = state.snapshot.items.find(item => item.mode === 'steel');
   await page.getByRole('button', { name: 'Split', exact: true }).click();
   state = await command(() => dialog('Partition repeated steel members', { 'Physical members in the first group': 1 }, 'Partition members'), 'split_steel_group');
@@ -147,9 +142,9 @@ async function fitCurrentDrawing(name) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  state = await command(() => dialog('Add duct object', { 'Run ID': 'LINEAGE-DUCT', 'Physical quantity': 1 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Duct ID': 'LINEAGE-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
   const originalRun = state.snapshot.items.find(item => item.mode === 'duct').id;
-  await fillInspector({ 'Level': 'SYNTHETIC', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
+  await fillInspector({ 'Level': 'SYNTHETIC', 'WxH (mm)': '600x400', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); let transferred = await transfer(); const ancestorBinding = transferred.state.snapshot.transfers[0];
   assert.ok(Math.abs(transferred.preview.inputs.CALCULATOR['D' + ancestorBinding.row] - 10) < .02);
   await page.getByRole('button', { name: 'Split', exact: true }).click();

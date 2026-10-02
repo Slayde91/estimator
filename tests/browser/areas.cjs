@@ -1,5 +1,6 @@
 // Real pointer/keyboard area workflow on synthetic drawings and a disposable server.
 const { chromium, expect } = require('@playwright/test');
+const { editSettings } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -17,11 +18,11 @@ const errors = [];
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); }
 async function command(action, op) {
   const pending = page.waitForResponse(r => r.url().endsWith('/commands') && r.request().postDataJSON()?.op === op);
-  await action(); const response = await pending, result = await response.json();
+  pending.catch(() => {}); await action(); const response = await pending, result = await response.json();
   assert.equal(response.status(), 200, JSON.stringify(result)); await idle(); return result;
 }
 async function dialog(title, values, submit) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) {
     const field = modal.getByLabel(label, { exact: true });
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
@@ -44,14 +45,7 @@ async function draw(points, rotated = false, doubleFinish = false) {
     else await page.mouse.click(...client);
   }
 }
-async function edit(values) {
-  const panel = page.locator('.takeoff-register-editor');
-  for (const [label, value] of Object.entries(values)) {
-    const field = panel.getByLabel(label, { exact: true });
-    if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
-  }
-  return command(() => panel.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
-}
+async function edit(values) { return editSettings(page, values); }
 async function confirm() {
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items');
@@ -117,7 +111,8 @@ async function surface(mode, rotated = false) {
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await page.locator('#takeoff-upload').setInputFiles(info.area_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();

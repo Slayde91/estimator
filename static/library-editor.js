@@ -3,8 +3,9 @@
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const state = { record: null, draft: null, definition: null, result: null, group: null, baseline: null,
     invalid: new Map(), session: 0, version: 0, busy: false, pendingFields: false, open: false, requestRevision: 0, opening: 0, timer: null,
-    diagramChange: undefined, diagramRead: 0, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false };
+    diagramChange: undefined, diagramRead: 0, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false };
   let actions = {};
+  const project = { value: undefined, records: new Map(), saved: undefined, generation: 0, prepared: null };
   let controlSequence = 0;
   const number = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -36,6 +37,89 @@
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `The library item request failed (${response.status}).`);
     return data;
+  }
+  async function projectRequest(value) {
+    const response = await fetch("/api/project/library-drafts/prepare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ library_drafts: value }) });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || "Project library drafts could not be prepared."); return data;
+  }
+  function portableCurrent() {
+    if (!state.open || !state.record?.project_local) return null;
+    return { ...clone(state.record.portable), draft: clone(state.draft), ...(state.diagramChange !== undefined ? { diagram: clone(state.diagramChange) } : {}) };
+  }
+  function projectSnapshot() {
+    const value = project.value && clone(project.value), active = portableCurrent();
+    if (value && active) value.records = value.records.map(record => record.id === active.id ? active : record);
+    return value;
+  }
+  function projectFingerprint() { return JSON.stringify({ generation: project.generation, value: projectSnapshot(), active: state.open && { id: state.record?.id, session: state.session, draft: state.draft, diagram: state.diagramChange, invalid: [...state.invalid], diagramRead: state.diagramRead } }); }
+  function hasProjectChanges() { return JSON.stringify(projectSnapshot()) !== project.saved || !!(state.open && (state.invalid.size || state.diagramReading || !state.record?.project_local && hasUnsavedChanges())); }
+  function projectChanged() { window.CeasefireProject?.changed?.(); window.CeasefireLibraries?.projectChanged?.(); }
+  async function prepareProject(value) {
+    if (!value) return { library_drafts: undefined, records: [] };
+    return projectRequest(value);
+  }
+  function readyRecords(prepared) {
+    return new Map(prepared.records.map(record => [record.id, { ...clone(record), project_local: true, portable: clone(prepared.library_drafts.records.find(value => value.id === record.id)) }]));
+  }
+  function applyProject(prepared) {
+    close(); project.generation++; project.prepared = null;
+    project.value = prepared.library_drafts && clone(prepared.library_drafts); project.records = readyRecords(prepared); project.saved = JSON.stringify(project.value); projectChanged();
+  }
+  async function completeProjectSnapshot() {
+    document.activeElement?.blur?.();
+    clearTimeout(state.timer);
+    if (state.diagramReading) throw new Error("Wait for the library diagram to finish loading before saving the project.");
+    const calculation = state.calculation;
+    if (state.busy && calculation?.session === state.session && calculation.id === state.record?.id) {
+      await calculation.promise;
+      if (!state.open || state.session !== calculation.session || state.record?.id !== calculation.id) throw new Error("The library editor changed while preparing the project. Save again when ready.");
+      clearTimeout(state.timer);
+    }
+    if (state.busy) throw new Error("Finish the current library item operation before saving the project.");
+    if (inputProblem()) throw new Error(inputProblem());
+    const captured = projectFingerprint(); let value = projectSnapshot();
+    if (state.open && !state.record.project_local && hasUnsavedChanges()) {
+      const active = snapshot(true), packed = await request(active.id, "project-draft", active.payload);
+      if (captured !== projectFingerprint()) throw new Error("The library draft changed while preparing the project. Save again when ready.");
+      if (value && value.source_sha256 !== packed.source_sha256) throw new Error("The library drafts use different calculator sources.");
+      value = { version: 1, source_sha256: packed.source_sha256, records: [...(value?.records || []).filter(record => record.id !== packed.record.id), packed.record] };
+    }
+    const prepared = await prepareProject(value);
+    if (captured !== projectFingerprint()) throw new Error("The library draft changed while preparing the project. Save again when ready.");
+    project.prepared = { ...prepared, fingerprint: captured };
+    return prepared.library_drafts && clone(prepared.library_drafts);
+  }
+  function markProjectSaved(saved, captured) {
+    if (!saved) return;
+    const prepared = project.prepared, unchanged = prepared?.fingerprint === projectFingerprint() && JSON.stringify(prepared.library_drafts) === JSON.stringify(captured);
+    project.saved = JSON.stringify(saved);
+    if (unchanged) {
+      project.value = clone(saved);
+      if (prepared) project.records = readyRecords({ ...prepared, library_drafts: saved });
+    } else {
+      // A receipt acknowledges only its captured file. Keep edits retained while
+      // the write was in flight, including an editor that has since closed.
+      const current = project.value?.records || [], ids = new Set(current.map(record => record.id));
+      project.value = { ...clone(saved), records: [...clone(current), ...clone(saved.records.filter(record => !ids.has(record.id)))] };
+      if (prepared) for (const [id, record] of readyRecords({ ...prepared, library_drafts: saved })) if (!project.records.has(id)) project.records.set(id, record);
+    }
+    if (unchanged && state.open && project.records.has(state.record.id)) present(project.records.get(state.record.id));
+    project.prepared = null; projectChanged();
+  }
+  async function calculateProjectDraft(keep = false) {
+    document.activeElement?.blur?.(); clearTimeout(state.timer);
+    if (!state.open || state.busy || state.diagramReading || inputProblem()) return;
+    const fingerprint = projectFingerprint(), id = state.record.id, session = state.session, version = state.version, value = projectSnapshot();
+    state.busy = true; status(keep ? "Keeping project library draft…" : "Calculating…");
+    try {
+      const prepared = await prepareProject(value);
+      if (fingerprint !== projectFingerprint()) throw new Error("The project library draft changed while calculating. Your latest edits were kept.");
+      const record = readyRecords(prepared).get(id);
+      if (keep) {
+        project.value = clone(prepared.library_drafts); project.records = readyRecords(prepared); close(); projectChanged(); window.CeasefireLibraryEditorNavigation?.returnToLibrary(id);
+      } else { state.result = clone(record.result); renderOutputs(); message(); }
+    } catch (error) { if (state.open && state.session === session && state.record?.id === id) message(error.message, true); }
+    finally { if (state.open && state.session === session && state.record?.id === id) { state.busy = false; status(); if (state.version !== version) scheduleCalculation(); } }
   }
   function node(tag, className = "", text) { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = String(text); return element; }
   function display(value, format = "number") {
@@ -71,7 +155,7 @@
   function queueDiagram(filename, content) {
     if (!state.open || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP source diagram.");
     if (typeof content !== "string" || !content || content.length > 20 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
-    state.diagramChange = { filename, content_base64: content }; state.version++; renderDiagram(); status();
+    state.diagramChange = { filename, content_base64: content }; state.version++; renderDiagram(); status(); projectChanged();
   }
   function fileBase64(file) {
     return new Promise((resolve, reject) => {
@@ -84,20 +168,26 @@
   async function chooseDiagram(file) {
     if (!file) return;
     if (file.size > 15 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
-    const session = state.session, read = ++state.diagramRead, content = await fileBase64(file);
+    const session = state.session, read = ++state.diagramRead, reading = { session, read }; let content;
+    state.diagramReading = reading; status(); projectChanged();
+    try { content = await fileBase64(file); }
+    finally { if (state.diagramReading === reading) { state.diagramReading = null; status(); projectChanged(); } }
     if (!state.open || session !== state.session || read !== state.diagramRead) return;
-    queueDiagram(file.name, content); message("The source diagram is ready. Save Library Item to retain the compressed image and thumbnail.");
+    queueDiagram(file.name, content); message(state.record.project_local ? "The source diagram is ready. Save the project to retain this image." : "The source diagram is ready. Save the project to retain it here, or Save Library Item to update the shared library.");
   }
   function status(text) {
-    $("library-editor-status").textContent = text || (state.busy ? "Working…" : state.invalid.size ? "Check input" : state.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved library changes" : "Saved library item");
-    for (const id of ["library-editor-save", "library-editor-recalculate", "library-editor-refresh-pricing"]) $(id).disabled = !state.record || state.busy || state.invalid.size > 0;
-    $("library-editor-cancel").disabled = state.busy;
+    $("library-editor-status").textContent = text || (state.busy ? "Working…" : state.invalid.size ? "Check input" : state.result?.errors?.length ? "Review calculation" : state.record?.project_local ? hasProjectChanges() ? "Unsaved project library draft" : "Saved in this project" : hasUnsavedChanges() ? "Unsaved library changes" : "Saved library item");
+    $("library-editor-save").textContent = state.record?.project_local ? "Keep in project draft" : "Save Library Item";
+    $("library-editor-save").title = state.record?.project_local ? "Keep this project draft; Save the project to store it in its file" : "Save Library Item";
+    $("library-editor-refresh-pricing").hidden = !!state.record?.project_local;
+    for (const id of ["library-editor-save", "library-editor-recalculate", "library-editor-refresh-pricing"]) $(id).disabled = !state.record || state.busy || !!state.diagramReading || state.invalid.size > 0;
+    $("library-editor-cancel").disabled = state.busy || !!state.diagramReading;
     $("library-editor-diagram-file").disabled = state.busy;
-    $("library-editor-diagram-remove").disabled = state.busy;
+    $("library-editor-diagram-remove").disabled = state.busy || !!state.diagramReading;
     $("library-editor-settings").disabled = !state.record || state.busy;
   }
   function changed() {
-    state.version++; state.result = null; renderOutputs(); status(); actions.changed?.();
+    state.version++; state.result = null; renderOutputs(); status(); actions.changed?.(); projectChanged();
     for (const control of $("library-editor-fields").querySelectorAll("[data-library-editor-field]")) { control.refreshAutomatic?.(); control.refreshDimension?.(); }
   }
   function displayedInput(field, global) {
@@ -398,17 +488,21 @@
   function present(record, handlers = {}) {
     if (!record?.draft || !record.definition || record.draft.rows?.length !== 1) throw new Error("The library item does not contain one editable source row.");
     state.session++; Object.assign(state, { record: clone(record), draft: clone(record.draft), definition: clone(record.definition), result: clone(record.result || null),
-      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true, diagramChange: undefined, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
+      group: record.definition.groups?.[0], baseline: stamp(record.draft, record.pricing_token), invalid: new Map(), version: 0, busy: false, pendingFields: false, open: true, diagramChange: undefined, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     clearTimeout(state.timer); state.requestRevision++;
     actions = { changed: scheduleCalculation, calculate, refreshPricing, save, cancel, ...handlers };
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
+    const scope = $("firestopping-library-editor").querySelectorAll(".library-editor-scope")[0];
+    if (scope) scope.textContent = record.project_local ? "These library edits stay within the current project. Use Save or Save As to store them in its file." : "Save or Save As keeps these edits within the current project. Save Library Item updates the shared library.";
+    $("library-editor-pricing-heading").textContent = record.project_local ? "Project library price" : "Library price";
     $("firestopping-project-workspace").hidden = true; $("firestopping-library-editor").hidden = false;
     renderFields(); renderOutputs(); renderDiagram(); status(); message();
   }
   function close() {
     state.session++; state.requestRevision++; state.opening++; clearTimeout(state.timer);
-    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map(), diagramChange: undefined, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
+    Object.assign(state, { open: false, record: null, draft: null, result: null, baseline: null, busy: false, invalid: new Map(), diagramChange: undefined, diagramReading: null, calculation: null, openSettingsBand: null, tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false });
     $("firestopping-library-editor").hidden = true; $("firestopping-project-workspace").hidden = false;
+    projectChanged();
   }
   function inputProblem() { return state.invalid.size ? "Correct the library item input marked invalid before continuing." : ""; }
   function snapshot(includeDiagram = false) {
@@ -437,6 +531,7 @@
       if (state.record.id !== id) message(`Finish editing ${state.record.library_id || state.record.title} or cancel it before opening another library item.`, true);
       window.CeasefireLibraryEditorNavigation?.show(); return;
     }
+    if (project.records.has(id)) { present(project.records.get(id)); window.CeasefireLibraryEditorNavigation?.show(); return; }
     const opening = ++state.opening, record = await request(id, "edit");
     if (opening !== state.opening) return;
     present(record); window.CeasefireLibraryEditorNavigation?.show();
@@ -446,6 +541,16 @@
     if (!state.busy && !state.invalid.size) state.timer = setTimeout(calculate, 350);
   }
   async function calculate() {
+    clearTimeout(state.timer);
+    if (!state.open || state.busy || state.invalid.size || state.diagramReading) return;
+    const operation = { session: state.session, id: state.record.id, promise: null };
+    state.calculation = operation;
+    operation.promise = calculateItem();
+    try { await operation.promise; }
+    finally { if (state.calculation === operation) state.calculation = null; }
+  }
+  async function calculateItem() {
+    if (state.record?.project_local) return calculateProjectDraft();
     clearTimeout(state.timer);
     if (!state.open || state.busy || state.invalid.size) return;
     const captured = snapshot(), revision = ++state.requestRevision;
@@ -460,6 +565,7 @@
     }
   }
   async function refreshPricing() {
+    if (state.record?.project_local) return;
     document.activeElement?.blur?.(); clearTimeout(state.timer);
     if (!state.open || state.busy || state.invalid.size) return;
     const captured = snapshot(), revision = ++state.requestRevision;
@@ -474,8 +580,9 @@
     finally { if (current(captured) && revision === state.requestRevision) { state.busy = false; status(); if (reschedule) scheduleCalculation(); } }
   }
   async function save() {
+    if (state.record?.project_local) return calculateProjectDraft(true);
     document.activeElement?.blur?.(); clearTimeout(state.timer);
-    if (!state.open || state.busy || state.invalid.size) return;
+    if (!state.open || state.busy || state.diagramReading || state.invalid.size) return;
     const captured = snapshot(true), revision = ++state.requestRevision;
     let reschedule = false; state.busy = true; status("Saving library item…");
     try {
@@ -492,7 +599,7 @@
     finally { if (current(captured) && revision === state.requestRevision) { state.busy = false; status(); if (reschedule) scheduleCalculation(); } }
   }
   function cancel() {
-    if (!state.open || state.busy) return;
+    if (!state.open || state.busy || state.diagramReading) return;
     const id = state.record.id; close(); window.CeasefireLibraryEditorNavigation?.returnToLibrary(id);
   }
   $("library-editor-recalculate").addEventListener("click", () => actions.calculate?.());
@@ -506,10 +613,12 @@
     finally { event.target.value = ""; }
   });
   $("library-editor-diagram-remove").addEventListener("click", () => {
-    if (!state.open || state.busy) return;
+    if (!state.open || state.busy || state.diagramReading) return;
     state.diagramChange = state.diagramChange !== undefined ? undefined : null;
-    state.version++; renderDiagram(); status(); message(state.diagramChange === null ? "The saved image will be removed when you save this library item." : "The current saved image is retained.");
+    state.version++; renderDiagram(); status(); projectChanged(); message(state.diagramChange === null ? "The saved image will be removed when you save this library item." : "The current saved image is retained.");
   });
   window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem };
-  Object.assign(window.CeasefireLibraryEditor, { hasPendingOperation: () => !!state.busy });
+  Object.assign(window.CeasefireLibraryEditor, { projectSnapshot, projectFingerprint, hasProjectChanges, prepareProject, applyProject, completeProjectSnapshot, markProjectSaved,
+    projectRecords: () => (projectSnapshot()?.records || []).map(({ id, title, library_id }) => ({ id, title, library_id })) });
+  Object.assign(window.CeasefireLibraryEditor, { hasPendingOperation: () => !!(state.busy || state.diagramReading) });
 })();

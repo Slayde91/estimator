@@ -190,7 +190,7 @@ def _portable_penetration(value, *, saved=False):
 def export_project(store, request, *, edition='full'):
     """Return a self-contained snapshot of the active estimate and calculators."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -228,6 +228,9 @@ def export_project(store, request, *, edition='full'):
     }
     if penetration is not None:
         snapshot["penetration"] = penetration
+    if "library_drafts" in request:
+        from .project_library_drafts import normalize_library_drafts
+        snapshot["library_drafts"] = normalize_library_drafts(request["library_drafts"])
     if "takeoffs" in request:
         from .takeoff_model import validate_snapshot
         snapshot["takeoffs"] = validate_snapshot(request["takeoffs"])
@@ -266,7 +269,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -305,6 +308,9 @@ def load_project_bytes(store, payload, *, edition='full'):
               "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
     if penetration is not None:
         result["penetration"] = penetration
+    if "library_drafts" in snapshot:
+        from .project_library_drafts import normalize_library_drafts
+        result["library_drafts"] = normalize_library_drafts(snapshot["library_drafts"])
     if "takeoffs" in snapshot:
         from .takeoff_model import validate_snapshot
         result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])

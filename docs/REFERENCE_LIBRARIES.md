@@ -241,7 +241,14 @@ thumbnail appears in each matching Firestopping Schedule row. Reopening uses
 those saved values; future shared pricing changes have no automatic effect.
 Successful saving refreshes its displayed price, searchable fields,
 related-link title and diagram. **Cancel** returns to the library and discards
-only this item session. Project **Save / Save As** remains separate.
+only this item session. Project **Save / Save As** instead stores pending edits as
+project-local copies, including their captured pricing and source diagrams. It
+does not call **Save Library Item** or update shared-library records. The
+**Project library drafts** list can reopen these copies even if the shared entry
+has since been removed. Their editor uses **Keep in project draft**, followed by
+project Save to persist the file; recalculation uses each copy's captured prices.
+Portable copies contain validated input values, not shared revision or pricing
+tokens. Calculated results and editor definitions are rebuilt when reopening.
 If another window saves the item first, saving reports a conflict and retains
 the current draft instead of overwriting the newer revision.
 

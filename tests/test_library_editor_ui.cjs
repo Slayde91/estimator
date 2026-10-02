@@ -11,7 +11,7 @@ function harness(){
   const h=projectHarness(),calls=[],returns=[];let shows=0,invalidations=0;
   h.context.window.CeasefireLibraryEditorNavigation={show(){shows++;},returnToLibrary(id){returns.push(id);}};
   h.context.window.CeasefireLibraries={invalidate(){invalidations++;}};
-  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,renderDiagram,queueDiagram,present,setRequest(fn){request=fn;}};})();`),h.context);
+  vm.runInContext(fs.readFileSync('static/library-editor.js','utf8').replace(/\}\)\(\);\s*$/,`globalThis.libraryAudit={state,calculate,refreshPricing,save,cancel,makeControl,renderFields,renderDiagram,queueDiagram,chooseDiagram,present,setRequest(fn){request=fn;},setProjectRequest(fn){projectRequest=fn;}};})();`),h.context);
   const audit=h.context.libraryAudit,api=h.context.window.CeasefireLibraryEditor;
   audit.setRequest(async(id,action,payload)=>{calls.push({id,action,payload:payload&&copy(payload)});return fixture(payload?.draft,{revision:action==='save'?payload.revision+1:payload?.revision||0,pricing_token:payload?.pricing_token||'workbook-token'});});
   const control=(column,global=false)=>walk(h.byId('library-editor-fields')).find(el=>el.dataset.libraryEditorField===column&&el.dataset.libraryEditorGlobal===String(global));
@@ -20,6 +20,111 @@ function harness(){
 let passed=0;
 async function check(name,fn){const h=harness();h.projectApi.applyProject(await h.projectApi.prepareDefaults());await fn(h);passed++;console.log('ok - '+name);}
 (async()=>{
+  const portable = (draft = definition().defaults, diagram = null) => ({id:'orphan-item',library_id:'FL-PROJECT',title:'Project copy',source_sha256:'library-source',draft:copy(draft),configuration:{inventory:{},rates:{}},diagram});
+  const bundle = record => ({version:1,source_sha256:'calculator-source',records:[record]});
+  const prepared = value => ({library_drafts:copy(value),records:value.records.map(record=>fixture(record.draft,{id:record.id,title:record.title,library_id:record.library_id,project_local:true,configuration:record.configuration,diagram:{available:!!record.diagram,url:record.diagram ? `data:image/png;base64,${record.diagram.content_base64}` : undefined}}))});
+  await check('An empty project library bridge does not make initial application bootstrap dirty', async h => {
+    assert.equal(h.api.projectSnapshot(),undefined); assert.equal(h.api.hasProjectChanges(),false);
+    h.api.applyProject(await h.api.prepareProject()); assert.equal(h.api.hasProjectChanges(),false); assert.deepEqual(copy(h.api.projectRecords()),[]);
+  });
+  await check('Project Save packages pending library fields and diagram without a global write', async h => {
+    h.api.present(fixture());h.control('O').value='7.123456789';await h.control('O').emit('input');h.audit.queueDiagram('diagram.png','Ynl0ZXM=');
+    const requests=[];h.audit.setRequest(async(id,action,payload)=>{requests.push({id,action,payload:copy(payload)});return{source_sha256:'calculator-source',record:{...portable(payload.draft,payload.diagram),id}};});
+    h.audit.setProjectRequest(async value=>prepared(value));const captured=await h.api.completeProjectSnapshot();
+    assert.equal(requests.length,1);assert.equal(requests[0].action,'project-draft');assert.equal(captured.records[0].draft.rows[0].inputs.O,7.123456789);assert.equal(captured.records[0].diagram.filename,'diagram.png');
+    assert.equal(h.api.projectSnapshot(),undefined);assert.equal(h.api.hasUnsavedChanges(),true);
+    h.api.markProjectSaved(captured,captured);assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.audit.state.record.project_local,true);assert.equal(h.byId('library-editor-save').textContent,'Keep in project draft');assert.equal(h.byId('library-editor-refresh-pricing').hidden,true);
+    assert.deepEqual(copy(h.api.projectSnapshot()),captured);assert.equal(requests.some(call=>call.action==='save'),false);
+  });
+  await check('Immediate project Save cancels the scheduled library calculation and captures the edit', async h => {
+    h.api.present(fixture());h.control('O').value='7';await h.control('O').emit('input');const timer=h.audit.state.timer;assert.equal(h.timers.has(timer),true);
+    h.audit.setRequest(async(id,action,payload)=>{assert.equal(action,'project-draft');return{source_sha256:'calculator-source',record:{...portable(payload.draft),id}};});h.audit.setProjectRequest(async value=>prepared(value));
+    const captured=await h.api.completeProjectSnapshot();assert.equal(h.timers.has(timer),false);assert.equal(captured.records[0].draft.rows[0].inputs.O,7);
+  });
+  await check('Project Save awaits an active automatic calculation and retains edits made while it ran', async h => {
+    const pending=deferred();h.api.present(fixture());h.control('O').value='3';await h.control('O').emit('input');let packed=0;
+    h.audit.setRequest(async(id,action,payload)=>{if(action==='calculate')return pending.promise;packed++;return{source_sha256:'calculator-source',record:{...portable(payload.draft),id}};});h.audit.setProjectRequest(async value=>prepared(value));
+    const calculated=copy(h.audit.state.draft),calculation=h.audit.calculate();await flush();const saving=h.api.completeProjectSnapshot();await flush();assert.equal(packed,0);
+    h.control('O').value='9';await h.control('O').emit('input');pending.resolve(fixture(calculated));await calculation;const captured=await saving;
+    assert.equal(captured.records[0].draft.rows[0].inputs.O,9);assert.equal(h.audit.state.draft.rows[0].inputs.O,9);assert.equal(h.timers.has(h.audit.state.timer),false);
+  });
+  await check('Project Save cannot follow a replaced editor while waiting for its calculation', async h => {
+    const pending=deferred();h.api.present(fixture());h.audit.setRequest(()=>pending.promise);const calculation=h.audit.calculate();await flush();
+    const saving=h.api.completeProjectSnapshot();h.api.close();h.api.present(fixture(undefined,{id:'replacement'}));pending.resolve(fixture());await calculation;
+    await assert.rejects(saving,/editor changed/);assert.equal(h.audit.state.record.id,'replacement');
+  });
+  await check('Project Save awaits local draft calculation without treating newer values as already saved', async h => {
+    const original=prepared(bundle(portable())),pending=deferred();h.api.applyProject(original);await h.api.open('orphan-item');let calls=0;
+    h.audit.setProjectRequest(async value=>++calls===1?pending.promise:prepared(value));h.control('O').value='3';await h.control('O').emit('input');
+    const calculation=h.audit.calculate();await flush();const saving=h.api.completeProjectSnapshot();await flush();assert.equal(calls,1);
+    h.control('O').value='9';await h.control('O').emit('input');pending.resolve(original);await calculation;const captured=await saving;
+    assert.equal(calls,2);assert.equal(captured.records[0].draft.rows[0].inputs.O,9);assert.equal(h.api.hasProjectChanges(),true);
+  });
+  await check('Project Save refuses a shared save operation rather than waiting for its mutation', async h => {
+    const pending=deferred();h.api.present(fixture());h.audit.setRequest(()=>pending.promise);const saving=h.audit.save();await flush();
+    await assert.rejects(h.api.completeProjectSnapshot(),/current library item operation/);pending.resolve(fixture());await saving;
+  });
+  await check('A portable orphan project item reopens and edits without the shared library record', async h => {
+    const value=bundle(portable());let preparations=0;h.audit.setProjectRequest(async input=>{preparations++;return prepared(input);});
+    h.api.applyProject(await h.api.prepareProject(value));await h.api.open('orphan-item');assert.equal(h.calls.length,0);assert.equal(h.api.hasProjectChanges(),false);
+    h.control('O').value='4.87654321';await h.control('O').emit('input');await h.audit.calculate();assert.equal(h.api.hasProjectChanges(),true);await h.audit.save();
+    assert.equal(h.calls.length,0);assert.equal(h.api.isOpen(),false);assert.equal(h.api.projectSnapshot().records[0].draft.rows[0].inputs.O,4.87654321);assert.ok(preparations>=3);
+    await h.api.open('orphan-item');assert.equal(h.control('O').value,'4.88');assert.equal(h.api.projectRecords()[0].title,'Project copy');
+  });
+  await check('Cancelled file save retains a prepared library draft without marking or globally saving it', async h => {
+    h.api.present(fixture());h.control('O').value='8';await h.control('O').emit('input');
+    h.audit.setRequest(async(id,action,payload)=>({source_sha256:'calculator-source',record:{...portable(payload.draft),id}}));h.audit.setProjectRequest(async value=>prepared(value));
+    await h.api.completeProjectSnapshot();assert.equal(h.api.projectSnapshot(),undefined);assert.equal(h.audit.state.record.project_local,undefined);assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.audit.state.draft.rows[0].inputs.O,8);
+  });
+  await check('A project save receipt preserves later library edits and retains the captured portable item', async h => {
+    h.api.present(fixture());h.control('O').value='6';await h.control('O').emit('input');
+    h.audit.setRequest(async(id,action,payload)=>({source_sha256:'calculator-source',record:{...portable(payload.draft),id}}));h.audit.setProjectRequest(async value=>prepared(value));const captured=await h.api.completeProjectSnapshot();
+    h.control('O').value='9';await h.control('O').emit('input');h.api.markProjectSaved(captured,captured);
+    assert.equal(h.audit.state.draft.rows[0].inputs.O,9);assert.equal(h.api.hasProjectChanges(),true);assert.equal(h.api.projectSnapshot().records[0].draft.rows[0].inputs.O,6);
+  });
+  await check('Invalid or failed project library preparation preserves editor values and diagram', async h => {
+    h.api.present(fixture());h.control('O').value='1e';await h.control('O').emit('input');await assert.rejects(h.api.completeProjectSnapshot(),/input marked invalid/);assert.equal(h.calls.length,0);
+    h.control('O').value='3';await h.control('O').emit('input');h.audit.queueDiagram('kept.png','Ynl0ZXM=');h.audit.setRequest(async()=>{throw new Error('No response');});
+    await assert.rejects(h.api.completeProjectSnapshot(),/No response/);assert.equal(h.audit.state.draft.rows[0].inputs.O,3);assert.equal(h.audit.state.diagramChange.filename,'kept.png');assert.equal(h.api.hasProjectChanges(),true);
+  });
+  await check('A delayed file receipt preserves newer project library drafts kept after capture', async h => {
+    h.audit.setProjectRequest(async value=>prepared(value));h.api.applyProject(prepared(bundle(portable())));await h.api.open('orphan-item');
+    h.control('O').value='6';await h.control('O').emit('input');const captured=await h.api.completeProjectSnapshot();
+    h.control('O').value='9';await h.control('O').emit('input');await h.audit.save();assert.equal(h.api.isOpen(),false);
+    h.api.markProjectSaved(captured,captured);assert.equal(h.api.projectSnapshot().records[0].draft.rows[0].inputs.O,9);assert.equal(h.api.hasProjectChanges(),true);
+    await h.api.open('orphan-item');assert.equal(h.audit.state.draft.rows[0].inputs.O,9);
+  });
+  await check('Image removal and restoration update project dirty notifications', async h => {
+    let changes=0;h.context.window.CeasefireProject={changed(){changes++;}};h.api.present(fixture(undefined,{diagram:{available:true,custom:true,url:'/image'}}));
+    await h.byId('library-editor-diagram-remove').emit('click');assert.equal(changes,1);assert.equal(h.api.hasProjectChanges(),true);
+    await h.byId('library-editor-diagram-remove').emit('click');assert.equal(changes,2);assert.equal(h.api.hasProjectChanges(),false);
+  });
+  await check('Cancelling a library draft refreshes project dirty status after discarding its edits', async h => {
+    let changes=0;h.context.window.CeasefireProject={changed(){changes++;}};h.api.present(fixture());h.control('O').value='7';await h.control('O').emit('input');const before=changes;
+    assert.equal(h.api.hasProjectChanges(),true);h.audit.cancel();assert.ok(changes>before);assert.equal(h.api.hasProjectChanges(),false);
+  });
+  await check('Pending image reads cannot be lost by shared Save or project Keep', async h => {
+    h.audit.setProjectRequest(async value=>prepared(value));
+    for(const local of [false,true]){
+      let reader;h.context.FileReader=class{readAsDataURL(){reader=this;}};
+      if(local){h.api.applyProject(prepared(bundle(portable())));await h.api.open('orphan-item');}else h.api.present(fixture());
+      const reading=h.audit.chooseDiagram({name:'pending.png',size:10}),calls=h.calls.length;await flush();assert.equal(h.byId('library-editor-save').disabled,true);
+      await h.audit.save();h.audit.cancel();assert.equal(h.api.isOpen(),true);assert.equal(h.calls.length,calls);
+      reader.result='data:image/png;base64,Ynl0ZXM=';reader.onload();await reading;assert.equal(h.audit.state.diagramChange.filename,'pending.png');assert.equal(h.byId('library-editor-save').disabled,false);
+      h.api.close();
+    }
+  });
+  await check('A late local calculation cannot change a replacement editor with the same record ID', async h => {
+    const original=prepared(bundle(portable())),pending=deferred();h.api.applyProject(original);await h.api.open('orphan-item');h.audit.setProjectRequest(()=>pending.promise);
+    const work=h.audit.calculate();await flush();h.api.applyProject(original);await h.api.open('orphan-item');h.audit.state.busy=true;
+    pending.resolve(original);await work;assert.equal(h.audit.state.busy,true);assert.equal(h.byId('library-editor-message').textContent,'');
+  });
+  await check('A pending diagram read blocks project saving until its exact image is captured', async h => {
+    let reader,changes=0;h.context.FileReader=class{readAsDataURL(){reader=this;}};h.context.window.CeasefireProject={changed(){changes++;}};h.api.present(fixture());
+    const reading=h.audit.chooseDiagram({name:'pending.png',size:10});await flush();assert.equal(h.api.hasPendingOperation(),true);
+    await assert.rejects(h.api.completeProjectSnapshot(),/diagram to finish loading/);assert.equal(h.calls.length,0);assert.equal(h.audit.state.diagramChange,undefined);
+    reader.result='data:image/png;base64,Ynl0ZXM=';reader.onload();await reading;assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.audit.state.diagramChange.filename,'pending.png');assert.equal(h.api.hasProjectChanges(),true);assert.ok(changes>=2);
+  });
   await check('Library editor shows only the pipe category and Bulkhead relevant to the item',async h=>{
     const metadata=definition();metadata.groups=['Penetration','Additional Allowances','Unlagged Pipes','Plastic Pipes','Cables/Bundles','Bulkhead'];metadata.group_labels={'Additional Allowances':'OTHER'};metadata.group_visibility={
       'Unlagged Pipes':{column:'K',values:['Unlagged Pipes']},'Plastic Pipes':{column:'K',values:['Plastic Pipes']},

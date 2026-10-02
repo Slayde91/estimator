@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const G = window.CeasefireTakeoffGeometry;
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
-    zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
+    zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
@@ -33,6 +33,9 @@
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && item.mode === state.mode);
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
   const isCount = item => item?.geometry?.kind === "count";
+  // Register selection covers the complete row; drawing selection may cover
+  // only named physical members of that row. Length groups are not move groups.
+  const selectedCountMemberIds = item => !isCount(item) || !state.selected.has(item.id) ? [] : item.member_ids.filter(id => !state.countSelection.has(item.id) || state.countSelection.get(item.id).has(id));
   const countBatchItems = item => items().filter(value => isCount(value) && value.count_id === item.count_id);
   const settingsSelectedItems = () => { const selected = [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean); const batches = new Set(selected.filter(isCount).map(item => item.count_id)); return selected.concat(items().filter(item => !selected.includes(item) && isCount(item) && batches.has(item.count_id))); };
   const appearanceOf = item => ({ stroke_color: "#16699B", fill_enabled: item.geometry?.kind === "polygon" || isCount(item), fill_color: "#16699B", stroke_width: 2, opacity: 1, marker_shape: "circle", marker_size: 12, ...item.appearance });
@@ -122,8 +125,16 @@
   }
   function accept(reply) {
     if (!reply?.session_id || !reply.snapshot || !Number.isInteger(reply.revision)) throw new Error("The takeoff response is incomplete.");
+    const selectedMembers = new Set(selectedItems().filter(isCount).flatMap(selectedCountMemberIds));
     state.session = reply; state.resultMap = new Map((reply.item_results || []).map(item => [item.id, item])); state.issues = reply.issues || [];
-    state.selected = new Set([...state.selected].filter(id => items().some(item => item.id === id)).concat(reply.regrouped_item_ids || []));
+    state.selected = new Set([...state.selected].filter(id => items().some(item => item.id === id && !isCount(item))));
+    state.countSelection.clear();
+    // A shared details edit can regroup rows. Carry only the previously
+    // selected physical members into their new rows, never all batch members.
+    for (const item of items().filter(isCount)) {
+      const retained = new Set(item.member_ids.filter(member => selectedMembers.has(member)));
+      if (retained.size) { state.selected.add(item.id); state.countSelection.set(item.id, retained); }
+    }
     if (!currentDocument()) { state.document = documents()[0]?.id || null; state.page = 1; }
     state.bindings = snapshot().transfers || [];
     state.physicalUI?.render(snapshot());
@@ -157,6 +168,7 @@
   }
   function formField(definition, initial = "") {
     const [key, title, kind] = definition, wrapper = node("label", "field"); wrapper.append(node("span", "", title));
+    if (kind === "checkbox") wrapper.classList.add("takeoff-checkbox-field");
     const control = Array.isArray(kind) ? select([["", "Choose…"], ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
     if (!Array.isArray(kind) && kind !== "textarea") control.type = ["number", "color", "checkbox"].includes(kind) ? kind : "text";
     if (kind === "number") control.step = "any";
@@ -233,7 +245,7 @@
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
     ui.sort = select([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); ui.sort.setAttribute("aria-label", "Sort register");
     ui.group = select([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); ui.group.setAttribute("aria-label", "Group register");
-    controls.append(ui.filter, ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => state.selected.add(item.id)); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); renderSelection(); }), button("Undo last edit", () => undoLastEdit()));
+    controls.append(ui.filter, ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => { state.selected.add(item.id); state.countSelection.delete(item.id); }); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); state.countSelection.clear(); renderSelection(); }), button("Undo last edit", () => undoLastEdit()));
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
@@ -444,10 +456,9 @@
     if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); return; }
     const first = selected[0], editor = { key, ids: selected.map(item => item.id), touched: new Map(), fields: [], appearance: [], quantity: null }; state.settingsEditor = editor;
     const content = node("div", "takeoff-settings-fields"); panel.append(content);
-    if (countsOnly) content.append(node("p", "helper", "All length groups in a Count share these steel and fire-protection details. Start a new Count for different details. Quantity comes only from its markers."));
-    content.append(node("p", "helper", `${selected.length} selected · First: ${first.fields.mark || first.id}. Only edited controls apply to all selected items. Stored fields that are hidden remain unchanged.`), node("h4", "", "Markup appearance"));
+    content.append(node("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
-    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker size (PDF points)", "number"]] : []), ["stroke_color", "Stroke colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["fill_color", "Fill colour", "color"], ["stroke_width", "Stroke width (PDF points)", "number"], ["opacity", "Opacity", "number"]]) {
+    for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_color", "Stroke colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["fill_color", "Fill colour", "color"], ["stroke_width", "Stroke Width", "number"], ["opacity", "Opacity", "number"]]) {
       const field = formField(def, appearance[def[0]]); if (def[0] === "stroke_width") { field.control.min = "0.25"; field.control.max = "20"; } if (def[0] === "opacity") { field.control.min = "0"; field.control.max = "1"; field.control.step = "0.05"; }
       field.control.addEventListener("input", () => markSettingsEdited(editor, `appearance:${def[0]}`)); editor.appearance.push(field); content.append(field.wrapper);
       if (def[0] === "marker_size") { field.control.min = "2"; field.control.max = "72"; }
@@ -827,7 +838,7 @@
   function cancelTrace() { cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function resetCountDraft() {
     for (const entry of state.countEntries) clearTimeout(entry.timer);
-    state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve();
+    state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
   }
   function refreshCountDraft() { state.points = state.countEntries.map(entry => entry.point); renderOverlay(); window.CeasefireProject?.changed?.(); }
   function removePendingCount(entry) { clearTimeout(entry?.timer); state.countEntries = state.countEntries.filter(value => value !== entry); refreshCountDraft(); }
@@ -865,9 +876,13 @@
       if (!state.countEntries.length) { cancelTrace(); return; }
       const markers = state.countEntries.map(entry => ({ point: [...entry.point], length_m: entry.length_m }));
       if (markers.some(entry => !(entry.length_m > 0) || !Number.isFinite(entry.length_m))) throw new Error("Every count marker requires a positive manual length.");
-      const reply = await command("add_count_items", { document_id: state.document, page: state.page, markers, fields: {}, appearance: {} });
-      cancelTrace(); state.selected = new Set(reply.created_item_ids); state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
-      message("Count recorded. Set the shared steel and fire-protection details in the panel. Different lengths have separate rows; marker quantity cannot be typed.");
+      const continuation = state.countContinuation;
+      if (continuation) continuationTarget(continuation);
+      const reply = continuation
+        ? await command("continue_count", { item_id: continuation.itemId, markers }, () => { if (state.formDirty || state.settingsDirty || generation !== state.countGeneration) throw new Error("The count changed before it could finish."); continuationTarget(continuation); return true; })
+        : await command("add_count_items", { document_id: state.document, page: state.page, markers, fields: {}, appearance: {} });
+      cancelTrace(); state.countSelection.clear(); state.selected = new Set(reply.regrouped_item_ids || reply.created_item_ids); state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+      message(continuation ? "Count continued with the same details. Added markers are grouped by their manually entered lengths. Confirm changed rows before updating their linked schedules." : "Count recorded. Set the shared steel and fire-protection details in the panel. Different lengths have separate rows; marker quantity cannot be typed.");
     } finally { if (generation === state.countGeneration) state.countFinishing = false; }
   }
   function drawingPointer(event) {
@@ -975,6 +990,7 @@
     document.addEventListener("focusin", outside, { signal: controller.signal });
   }
   function resetPlanInteraction() {
+    if (state.countContinuation) cancelTrace();
     deactivatePlan(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null;
     state.planContextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode]);
     if (state.ui?.controlStatus) { state.ui.controlStatus.hidden = true; state.ui.controlStatus.textContent = ""; }
@@ -1101,7 +1117,22 @@
     try { markupTarget(reference); } catch { state.markupMenu = null; return; }
     const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Markup actions");
     const memberId = state.markupMenu.memberId;
-    const remove = button(memberId ? "Delete count marker" : "Delete markup", () => memberId ? deleteCountMarker(reference, memberId) : deleteMarkup(reference)); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
+    if (memberId) { const resume = button("Continue count", () => continueCount(reference, memberId)); resume.setAttribute("role", "menuitem"); menu.append(resume); }
+    const remove = button(memberId ? "Delete count marker" : "Delete markup", () => memberId ? deleteCountMarker(reference, memberId) : deleteMarkup(reference)); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu, memberId ? 104 : 58);
+  }
+  function continueCount(reference, memberId) {
+    if (state.busy || state.modal) throw new Error("Finish the current operation before continuing a count.");
+    requireFinishedEdits(); const item = markupTarget(reference);
+    if (!isCount(item) || item.member_ids[reference.index] !== memberId) throw new Error("This marker changed. Open its menu again.");
+    setTool("count"); state.countContinuation = { ...reference, countId: item.count_id, batch: JSON.stringify(countBatchItems(item)) };
+    message("Continue this Count by placing additional markers. Enter their lengths manually; the existing Count details apply. Double-click or Enter finishes; right-click cancels the new markers.");
+  }
+  function continuationTarget(reference) {
+    // Re-rendering on zoom records render evidence and advances the revision.
+    // Permit that without accepting changed Count members or technical details.
+    const item = markupTarget({ ...reference, revision: state.session?.revision });
+    if (!isCount(item) || item.count_id !== reference.countId || JSON.stringify(countBatchItems(item)) !== reference.batch) throw new Error("This Count changed. Cancel the new markers and choose Continue count again.");
+    return item;
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
@@ -1130,6 +1161,7 @@
     const gesture = state.gesture; if (!gesture) return;
     state.gesture = null; gesture.cleanup();
     if (gesture.countSelectionBefore) state.selected = gesture.countSelectionBefore;
+    if (gesture.countMarkerSelectionBefore) { state.selected = gesture.countMarkerSelectionBefore.items; state.countSelection = gesture.countMarkerSelectionBefore.members; }
     if (gesture.moved) state.suppressSelectionClickUntil = Date.now() + 500;
     renderOverlay(); window.CeasefireProject?.changed?.();
   }
@@ -1144,7 +1176,8 @@
       event.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
       throw new Error("Apply or discard unfinished item/settings edits before selecting or moving markups.");
     }
-    const visible = drawableItems(), selected = settingsSelectedItems(), visibleIds = new Set(visible.map(item => item.id));
+    const visible = drawableItems(), selected = selectedItems(), visibleIds = new Set(visible.map(item => item.id));
+    if (id && selected.some(item => isCount(item) && state.countSelection.has(item.id))) throw new Error("Drag a selected Count marker to move the selected markers.");
     if (id && selected.some(item => !visibleIds.has(item.id))) throw new Error("Move only markups visible on this drawing page. Deselect hidden items or items on other pages first.");
     if (id && selected.length > 100) throw new Error("Move at most 100 selected markups in one operation.");
     const initial = drawingPoint(event), element = state.ui.viewport;
@@ -1166,9 +1199,17 @@
       void safely(async () => {
         if (!valid || state.busy || state.formDirty || state.settingsDirty) throw new Error("The drawing or item state changed during the gesture. Repeat the selection or move.");
         if (gesture.kind === "marquee") {
-          const box = G.bounds([gesture.initial, gesture.current]), enclosed = drawableItems().filter(item => G.enclosed(item.geometry.points, box));
-          if (!gesture.additive) state.selected.clear(); for (const item of enclosed) state.selected.add(item.id);
-          renderSelection(); message(`${enclosed.length} enclosed visible markups selected${gesture.additive ? " in addition to the existing selection" : ""}.`);
+          const box = G.bounds([gesture.initial, gesture.current]);
+          if (!gesture.additive) { state.selected.clear(); state.countSelection.clear(); }
+          let enclosed = 0, markers = 0;
+          for (const item of drawableItems()) {
+            if (isCount(item)) {
+              const members = item.member_ids.filter((member, index) => G.enclosed([item.geometry.points[index]], box));
+              if (!members.length) continue;
+              state.countSelection.set(item.id, new Set([...selectedCountMemberIds(item), ...members])); state.selected.add(item.id); markers += members.length;
+            } else if (G.enclosed(item.geometry.points, box)) { state.selected.add(item.id); enclosed++; }
+          }
+          renderSelection(); message(`${markers} Count marker${markers === 1 ? "" : "s"} and ${enclosed} other markup${enclosed === 1 ? "" : "s"} selected${gesture.additive ? " in addition to the existing selection" : ""}.`);
         } else {
           await command("move_items", { item_ids: gesture.ids, delta_pdf: gesture.delta }, () => { if (state.session?.session_id !== gesture.sessionId || state.session.revision !== gesture.revision) throw new Error("The takeoff changed before the move could apply. Repeat the move."); return true; });
           message(`Moved ${gesture.ids.length} markup${gesture.ids.length === 1 ? "" : "s"}. Source evidence references remain pinned; confirm the revised geometry before transfer.`);
@@ -1318,30 +1359,87 @@
     }
     return svg("circle", { cx: x, cy: y, r: radius, ...attributes });
   }
+  function setCountMarkerSelection(item, memberId, additive = false, toggle = true) {
+    const members = new Set(additive ? selectedCountMemberIds(item) : []);
+    if (!additive) { state.selected.clear(); state.countSelection.clear(); }
+    if (additive && toggle && members.has(memberId)) members.delete(memberId); else members.add(memberId);
+    if (members.size) { state.selected.add(item.id); state.countSelection.set(item.id, members); }
+    else { state.selected.delete(item.id); state.countSelection.delete(item.id); }
+    state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
+  }
+  async function selectCountMarker(itemId, memberId, additive = false) {
+    if (state.busy || state.modal || state.gesture || !await discardEditor()) return;
+    const item = drawableItems().find(value => value.id === itemId);
+    if (!isCount(item) || !item.member_ids.includes(memberId)) throw new Error("This marker changed. Select its current position again.");
+    setCountMarkerSelection(item, memberId, additive);
+    state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null;
+    renderViewportPanel(); renderSelection();
+  }
   function beginCountMarkerDrag(event, item, index, memberId) {
     if (event.button !== 0 || state.tool !== "select") return;
     event.stopPropagation();
     if (state.busy || state.modal || !state.viewport || state.gesture) return;
-    requireFinishedEdits(); const reference = pointReference(item, index), current = markupTarget(reference);
-    if (!isCount(current) || current.member_ids[index] !== memberId) throw new Error("This marker changed. Select its current position again.");
-    const previous = new Set(state.selected); state.selected = new Set([item.id]);
-    try {
-      beginControlPointDrag(event, reference);
-      if (state.gesture?.reference === reference) state.gesture.countSelectionBefore = previous;
-    } catch (error) { state.selected = previous; throw error; }
+    requireFinishedEdits(); const reference = pointReference(item, index), currentItem = markupTarget(reference);
+    if (!isCount(currentItem) || currentItem.member_ids[index] !== memberId) throw new Error("This marker changed. Select its current position again.");
+    const previous = { items: new Set(state.selected), members: new Map([...state.countSelection].map(([id, members]) => [id, new Set(members)])) };
+    const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+    if (!selectedCountMemberIds(item).includes(memberId)) setCountMarkerSelection(item, memberId, additive, false);
+    const selected = selectedItems().filter(isCount), visibleIds = new Set(drawableItems().map(value => value.id));
+    if (selected.some(value => !visibleIds.has(value.id))) { state.selected = previous.items; state.countSelection = previous.members; throw new Error("Move only Count markers visible on this drawing page. Deselect hidden markers or markers on other pages first."); }
+    const markers = selected.flatMap(value => selectedCountMemberIds(value).map(member => ({ item_id: value.id, member_id: member })));
+    if (markers.length > 10000) { state.selected = previous.items; state.countSelection = previous.members; throw new Error("Move at most 10,000 Count markers in one operation."); }
+    const references = selected.map(value => pointReference(value, 0)), initial = drawingPoint(event), element = state.ui.viewport;
+    const gesture = { kind: "count-markers", markers, references, membersByItem: new Map(selected.map(value => [value.id, new Set(selectedCountMemberIds(value))])), initial, current: initial, delta: [0, 0], pointerId: event.pointerId, startClient: [event.clientX, event.clientY], moved: false, countMarkerSelectionBefore: previous };
+    const current = () => {
+      if (state.gesture !== gesture || state.tool !== "select") return false;
+      try { references.forEach(markupTarget); return true; } catch { return false; }
+    };
+    const move = next => {
+      if (next.pointerId !== gesture.pointerId || !current()) return;
+      if (!gesture.moved && Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]) < 4) return;
+      const position = drawingPoint(next); gesture.current = position; gesture.delta = position.map((value, axis) => value - initial[axis]); gesture.moved = true;
+      next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
+    };
+    const finish = next => {
+      if (next.pointerId !== gesture.pointerId) return;
+      const valid = current();
+      try { if (valid) move(next); } finally { state.gesture = null; gesture.cleanup(); }
+      next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
+      if (!gesture.moved || !valid) {
+        state.selected = previous.items; state.countSelection = previous.members;
+        if (valid) void safely(() => selectCountMarker(item.id, memberId, additive)); else { renderSelection(); message("The drawing or count changed during the drag. Select the current markers and try again.", true); }
+        window.CeasefireProject?.changed?.(); return;
+      }
+      void safely(async () => {
+        requireFinishedEdits(); references.forEach(markupTarget);
+        if (gesture.delta.some(value => value !== 0)) await command("move_count_markers", { markers, delta_pdf: gesture.delta }, () => { requireFinishedEdits(); references.forEach(markupTarget); return true; });
+        message(`Moved ${markers.length} Count marker${markers.length === 1 ? "" : "s"}. Manual lengths and quantities are unchanged. Undo last edit restores their positions.`);
+      }).finally(() => { renderSelection(); window.CeasefireProject?.changed?.(); });
+    };
+    const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
+    gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
+    state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.gesture = gesture;
+    activatePlan(event); element.addEventListener("pointermove", move); element.addEventListener("pointerup", finish); element.addEventListener("pointercancel", cancel); element.addEventListener("lostpointercapture", cancel); element.setPointerCapture(event.pointerId);
+    event.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
   }
   function renderCountMarkers(overlay, item, geometry) {
-    const appearance = appearanceOf(item), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1);
+    const appearance = appearanceOf(item), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1), selectedMembers = new Set(selectedCountMemberIds(item));
     geometry.points.forEach((source, index) => {
       const point = G.transform(source, state.viewport.transform), memberId = item.member_ids[index];
-      const shape = countSymbol(point, appearance, { class: `takeoff-markup takeoff-count-marker${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale, fill: appearance.fill_enabled ? appearance.fill_color : "none", opacity: appearance.opacity });
-      const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id} · ${formatLength(item.measurement.length_m)} m` });
+      const chosen = selectedMembers.has(memberId);
+      const shape = countSymbol(point, appearance, { class: `takeoff-markup takeoff-count-marker${chosen ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale, fill: appearance.fill_enabled ? appearance.fill_color : "none", opacity: appearance.opacity });
+      if (chosen) {
+        const radius = Math.max(6, appearance.marker_size * scale / 2) + 5;
+        const attrs = { x: point[0] - radius, y: point[1] - radius, width: radius * 2, height: radius * 2, rx: 3, "pointer-events": "none", "aria-hidden": "true" };
+        overlay.append(svg("rect", { ...attrs, class: "takeoff-count-selection-underlay" }), svg("rect", { ...attrs, class: "takeoff-count-selection", "data-selected-member-id": memberId }));
+      }
+      const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-pressed": String(chosen), "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id} · ${formatLength(item.measurement.length_m)} m` });
       hit.dataset.itemId = item.id; hit.dataset.countItemId = item.id; hit.dataset.countMemberId = memberId;
       hit.addEventListener("pointerdown", event => void safely(() => beginCountMarkerDrag(event, item, index, memberId)));
-      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
-      const menu = event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = pointReference(item, index); markupTarget(reference); state.selected = new Set([item.id]); state.controlPoint = null; state.controlMenu = false; state.markupMenu = { reference, memberId, point }; renderSelection(); state.ui.overlay.querySelector('.takeoff-markup-menu button')?.focus({ preventScroll: true }); }); };
+      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectCountMarker(item.id, memberId, event.ctrlKey || event.metaKey || event.shiftKey)); });
+      const menu = event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = pointReference(item, index); markupTarget(reference); if (!selectedCountMemberIds(item).includes(memberId)) setCountMarkerSelection(item, memberId); state.controlPoint = null; state.controlMenu = false; state.markupMenu = { reference, memberId, point }; renderSelection(); state.ui.overlay.querySelector('.takeoff-markup-menu button')?.focus({ preventScroll: true }); }); };
       hit.addEventListener("contextmenu", menu);
-      hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") menu(event); else if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); void safely(() => selectItem(item.id, false, false)); } });
+      hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") menu(event); else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); void safely(() => selectCountMarker(item.id, memberId, event.ctrlKey || event.metaKey || event.shiftKey)); } });
       hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
       overlay.append(shape, hit);
     });
@@ -1357,7 +1455,6 @@
       } });
     }
     await command("delete_count_marker", { item_id: item.id, member_id: memberId }, () => { requireFinishedEdits(); markupTarget(reference); return true; });
-    state.selected = new Set(countBatchItems(item).map(value => value.id));
     state.markupMenu = null; state.settingsEditor = null; renderSelection();
     message("Marker removed and quantity recalculated. Undo last edit restores it. Existing calculator values are preserved until an explicit update.");
   }
@@ -1393,7 +1490,11 @@
     if (state.mode === "physical") { renderPhysicalOverlay(overlay); renderPendingTrace(overlay); return; }
     for (const item of drawableItems()) {
       const pointDrag = state.gesture?.kind === "point" && state.gesture.moved && state.gesture.reference.itemId === item.id;
-      const geometry = pointDrag ? state.gesture.geometry : state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
+      let geometry = pointDrag ? state.gesture.geometry : state.gesture?.kind === "move" && state.gesture.moved && state.gesture.ids.includes(item.id) ? G.translateGeometry(item.geometry, state.gesture.delta) : item.geometry;
+      if (isCount(item) && state.gesture?.kind === "count-markers" && state.gesture.moved) {
+        const moving = state.gesture.membersByItem.get(item.id);
+        if (moving) geometry = { ...item.geometry, points: item.geometry.points.map((point, index) => moving.has(item.member_ids[index]) ? point.map((value, axis) => value + state.gesture.delta[axis]) : point) };
+      }
       if (isCount(item)) { renderCountMarkers(overlay, item, geometry); continue; }
       const points = geometry.points.map(convert), className = `takeoff-markup ${reviewStatus(item).key}${state.selected.has(item.id) ? " selected" : ""}${state.hovered === item.id ? " hovered" : ""}`, appearance = appearanceOf(item);
       // PDF.js' transform includes UserUnit. Stored widths are physical PDF points.
@@ -1551,7 +1652,7 @@
     const item = items().find(value => value.id === id); if (!item) return;
     if (isCount(item)) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
     const modeChanged = state.mode !== item.mode;
-    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
     if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));
     if (focus && !item.geometry) message("This draft has no source markup yet. Inspect its fields, then attach source geometry before review or confirmation.", true);
     if (focus && item.geometry) { const changed = state.document !== item.geometry.document_id || state.page !== item.geometry.page; state.document = item.geometry.document_id; state.page = item.geometry.page; state.hidden.delete(id); if (changed) { renderRail(); renderCalibrations(); await renderPage(); } await focusGeometry(item); }
@@ -1616,7 +1717,7 @@
       const cell = node("th", "", title);
       if (title === "Select" || title === "Hide") {
         const input = node("input"), set = title === "Select" ? state.selected : state.hidden, count = list.filter(item => set.has(item.id)).length; input.type = "checkbox"; input.checked = !!list.length && count === list.length; input.indeterminate = count > 0 && count < list.length; input.disabled = !list.length || state.busy; input.setAttribute("aria-label", title === "Select" ? "Select all matching items" : "Hide all matching items"); input.title = `${title} all ${list.length} matching items across register pages`;
-        input.addEventListener("change", () => void safely(async () => { const checked = input.checked; if (title === "Select" && !await discardEditor()) { renderRegister(); return; } for (const item of list) checked ? set.add(item.id) : set.delete(item.id); renderSelection(); })); cell.append(input);
+        input.addEventListener("change", () => void safely(async () => { const checked = input.checked; if (title === "Select" && !await discardEditor()) { renderRegister(); return; } for (const item of list) { checked ? set.add(item.id) : set.delete(item.id); if (title === "Select") state.countSelection.delete(item.id); } renderSelection(); })); cell.append(input);
       }
       header.append(cell);
     }

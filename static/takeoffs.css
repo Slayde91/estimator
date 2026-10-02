@@ -62,10 +62,13 @@
 .takeoff-drawing-layout.with-settings{grid-template-columns:56px minmax(250px,1fr) 300px}
 .takeoff-markup-settings{align-self:start;min-width:0;border:1px solid #777;border-radius:8px;background:#2d2d2d;color:#fff;padding:0 12px 14px}
 .takeoff-markup-settings[hidden]{display:none}.takeoff-markup-settings .takeoff-viewports-heading{padding:10px 0}
-.takeoff-markup-settings .field{margin:12px 0;display:flex;flex-direction:column;gap:5px;min-width:0}.takeoff-markup-settings .field>span{font-size:11px;color:#fff}
+.takeoff-settings-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(120px,calc(50% - 5px)),1fr));gap:10px;align-items:start}
+.takeoff-settings-fields>h4,.takeoff-settings-fields>.helper,.takeoff-settings-fields>.actions,.takeoff-settings-fields>.takeoff-count-length{grid-column:1/-1}
+.takeoff-markup-settings .field{margin:0;display:flex;flex-direction:column;gap:5px;min-width:0}.takeoff-markup-settings .field>span{font-size:11px;color:#fff;margin-bottom:0;overflow-wrap:anywhere}
+.takeoff-dialog .takeoff-checkbox-field input[type=checkbox]{display:block;width:20px;height:20px;margin:0}
 .takeoff-markup-settings input,.takeoff-markup-settings select,.takeoff-markup-settings textarea{background:white;color:#222;min-width:0;width:100%;padding:7px;font-size:12px}
 .takeoff-markup-settings input[type=checkbox]{width:20px;height:20px;align-self:flex-start}.takeoff-markup-settings input[type=color]{height:34px;padding:2px}
-.takeoff-markup-settings .helper{color:#dedede;font-size:11px;line-height:1.5;overflow-wrap:anywhere}.takeoff-markup-settings h4{font-size:12px;margin:16px 0 10px;border-top:1px solid #666;padding-top:12px}
+.takeoff-markup-settings .helper{color:#dedede;font-size:11px;line-height:1.5;overflow-wrap:anywhere}.takeoff-markup-settings h4{font-size:12px;margin:8px 0 0;border-top:1px solid #666;padding-top:12px}.takeoff-settings-fields>h4:first-child{margin-top:0;border-top:0;padding-top:0}
 .takeoff-markup-settings .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.takeoff-markup-settings .actions .button{font-size:11px}
 .takeoff-markup-settings .takeoff-viewports-heading .button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:6px;background:transparent;border:0;color:white}
 .takeoff-markup-settings button:focus-visible,.takeoff-markup-settings input:focus-visible,.takeoff-markup-settings select:focus-visible{outline:2px solid #71c9ff;outline-offset:2px}
@@ -133,3 +136,7 @@
 .takeoff-overlay .takeoff-count-hit{fill:transparent;pointer-events:all}
 .takeoff-overlay .takeoff-count-pending{pointer-events:none}
 .takeoff-count-lengths{display:grid;gap:8px}
+.takeoff-overlay .takeoff-count-marker.selected,.takeoff-overlay .takeoff-count-marker.hovered{filter:none}
+.takeoff-overlay .takeoff-count-selection-underlay{fill:none;stroke:white;stroke-width:6;vector-effect:non-scaling-stroke;pointer-events:none}
+.takeoff-overlay .takeoff-count-selection{fill:none;stroke:#0068dc;stroke-width:2.5;stroke-dasharray:4 2;vector-effect:non-scaling-stroke;pointer-events:none}
+.takeoff-overlay .takeoff-count-hit:focus-visible{outline:2px solid #0068dc;outline-offset:5px}

@@ -728,6 +728,21 @@ class TakeoffService:
             if binding['item_id'] in ids:
                 binding['status'] = 'deleted'
 
+    def _count_locations(self, snapshot, document_id, page_number, markers):
+        """Validate explicit manual markers before changing any count row."""
+        _, page = page_metadata(snapshot, document_id, page_number)
+        if not isinstance(markers, list) or not 1 <= len(markers) <= MAX_ITEMS:
+            raise ValidationError(f'Count placement requires one to {MAX_ITEMS} explicit markers.')
+        if sum(len(item['member_ids']) for item in snapshot['items']) + len(markers) > MAX_ITEMS:
+            raise ValidationError(f'A takeoff project may retain at most {MAX_ITEMS} physical member identities.')
+        grouped = {}
+        for marker in markers:
+            object_fields(marker, {'point', 'length_m'}, 'Count marker', {'point', 'length_m'})
+            points([marker['point']], 'Count marker', page, maximum=1)
+            length = number(marker['length_m'], 'Manual length per member', positive=True)
+            grouped.setdefault(length, []).append(deepcopy(marker['point']))
+        return grouped
+
     def _regroup_counts(self, snapshot, count_ids):
         """Merge equal-length rows within their existing count, preserving members."""
         groups = {}
@@ -790,6 +805,8 @@ class TakeoffService:
             op = request.get('op')
             specs = {'create_item': {'item'}, 'update_item': {'item_id', 'changes'},
                      'add_count_items': {'document_id', 'page', 'markers', 'fields', 'appearance'},
+                     'continue_count': {'item_id', 'markers'},
+                     'move_count_markers': {'markers', 'delta_pdf'},
                      'delete_count_marker': {'item_id', 'member_id'},
                      'bulk_update': {'item_ids', 'changes'}, 'delete_items': {'item_ids'},
                      'move_items': {'item_ids', 'delta_pdf'},
@@ -811,22 +828,11 @@ class TakeoffService:
             if op == 'create_item':
                 self._create_item(after, request['item'])
             elif op == 'add_count_items':
-                _, page = page_metadata(after, request['document_id'], request['page'])
-                markers = request['markers']
-                if not isinstance(markers, list) or not 1 <= len(markers) <= MAX_ITEMS:
-                    raise ValidationError(f'Count placement requires one to {MAX_ITEMS} explicit markers.')
-                if sum(len(item['member_ids']) for item in after['items']) + len(markers) > MAX_ITEMS:
-                    raise ValidationError(f'A takeoff project may retain at most {MAX_ITEMS} physical member identities.')
                 # One batch has common fields, appearance and source. Partition
                 # only by exact entered length, preserving first-seen order.
                 # No fuzzy grouping or cross-batch identity replacement occurs.
                 validate_appearance(request['appearance'])
-                grouped = {}
-                for marker in markers:
-                    object_fields(marker, {'point', 'length_m'}, 'Count marker', {'point', 'length_m'})
-                    points([marker['point']], 'Count marker', page, maximum=1)
-                    length = number(marker['length_m'], 'Manual length per member', positive=True)
-                    grouped.setdefault(length, []).append(deepcopy(marker['point']))
+                grouped = self._count_locations(after, request['document_id'], request['page'], request['markers'])
                 created_item_ids = []
                 count_id = str(uuid4())
                 for length, locations in grouped.items():
@@ -837,6 +843,74 @@ class TakeoffService:
                         'measurement': {'method': 'manual', 'length_m': length},
                         'quantity': len(locations)}, allow_count=True)
                     created_item_ids.append(item['id'])
+            elif op == 'continue_count':
+                original = self._items(after, [request['item_id']])[0]
+                if not is_count_item(original):
+                    raise ValidationError('Choose an existing Steel count to continue.')
+                geometry = original['geometry']
+                grouped = self._count_locations(after, geometry['document_id'], geometry['page'], request['markers'])
+                existing = {item['measurement']['length_m']: item for item in after['items']
+                            if item.get('count_id') == original['count_id']}
+                created_item_ids = []
+                for length, locations in grouped.items():
+                    if length in existing:
+                        # Append to its stable row instead of replacing or
+                        # merging rows, retaining evidence and linked identities.
+                        item = existing[length]
+                        item['geometry']['points'].extend(locations)
+                        item['quantity'] += len(locations)
+                        self._resize_members(item)
+                        self._invalidate(after, item)
+                        validate_item(item, after, copy_result=False)
+                    else:
+                        proposed = self._group_proposal(original)
+                        proposed.update(count_id=original['count_id'], quantity=len(locations),
+                                        measurement={'method': 'manual', 'length_m': length})
+                        proposed.pop('member_ids')
+                        proposed['geometry']['points'] = locations
+                        item = self._create_item(after, proposed, allow_count=True)
+                        created_item_ids.append(item['id'])
+                regrouped_item_ids = [item['id'] for item in after['items']
+                                      if item.get('count_id') == original['count_id']]
+            elif op == 'move_count_markers':
+                markers = request['markers']
+                if not isinstance(markers, list) or not 1 <= len(markers) <= MAX_ITEMS:
+                    raise ValidationError('Select a bounded nonempty list of count markers to move.')
+                delta = request['delta_pdf']
+                if not isinstance(delta, list) or len(delta) != 2:
+                    raise ValidationError('A marker move requires a PDF x/y offset.')
+                dx, dy = (number(value, 'Marker offset') for value in delta)
+                if dx == 0 and dy == 0:
+                    raise ValidationError('Drag the markers to a different position.')
+                mapping = {item['id']: item for item in after['items']}
+                selected = {}; member_indexes = {}; seen = set(); source = None
+                for marker in markers:
+                    object_fields(marker, {'item_id', 'member_id'}, 'Selected count marker', {'item_id', 'member_id'})
+                    item_id = identity(marker['item_id'], 'Count item ID')
+                    member_id = identity(marker['member_id'], 'Count member ID')
+                    if (item_id, member_id) in seen:
+                        raise ValidationError('Select each count marker only once.')
+                    seen.add((item_id, member_id))
+                    item = mapping.get(item_id)
+                    if item is None or not is_count_item(item):
+                        raise ValidationError('A selected count marker no longer exists.')
+                    if item_id not in member_indexes:
+                        member_indexes[item_id] = {member: index for index, member in enumerate(item['member_ids'])}
+                    if member_id not in member_indexes[item_id]:
+                        raise ValidationError('A selected count marker no longer exists.')
+                    geometry = item['geometry']
+                    key = (geometry['document_id'], geometry['page'])
+                    if source is not None and key != source:
+                        raise ValidationError('Move count markers from one source page at a time.')
+                    source = key
+                    index = member_indexes[item_id][member_id]
+                    x, y = geometry['points'][index]
+                    geometry['points'][index] = [x + dx, y + dy]
+                    selected[item_id] = item
+                for item in selected.values():
+                    self._invalidate(after, item)
+                    validate_item(item, after, copy_result=False)
+                    validate_measurement_scope(item, after)
             elif op == 'delete_count_marker':
                 item = self._items(after, [request['item_id']])[0]
                 if not is_count_item(item):
@@ -1201,10 +1275,10 @@ class TakeoffService:
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}
             if created_item_ids is not None:
                 response['created_item_ids'] = created_item_ids
-                session['requests'][request['request_id']]['metadata'] = {'created_item_ids': created_item_ids}
+                session['requests'][request['request_id']].setdefault('metadata', {})['created_item_ids'] = created_item_ids
             if regrouped_item_ids is not None:
                 response['regrouped_item_ids'] = regrouped_item_ids
-                session['requests'][request['request_id']]['metadata'] = {'regrouped_item_ids': regrouped_item_ids}
+                session['requests'][request['request_id']].setdefault('metadata', {})['regrouped_item_ids'] = regrouped_item_ids
             return response
 
     def _validate_topology_change(self, whole, parts, snapshot):

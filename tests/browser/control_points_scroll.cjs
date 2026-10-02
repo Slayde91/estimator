@@ -18,6 +18,14 @@ const ready = new Promise((resolve,reject) => {
 const errors=[], requests=[], evidence={};
 const idle=()=>expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy','true');
 async function command(action,op,status=200){const pending=page.waitForResponse(r=>r.url().endsWith('/commands')&&r.request().postDataJSON()?.op===op);pending.catch(()=>{});await action();const response=await pending,body=await response.json();assert.equal(response.status(),status,JSON.stringify(body));await idle();return body;}
+async function renderedPage(action,number,detectScale=false){
+  const pending=[page.waitForResponse(r=>r.url().endsWith('/commands')&&r.request().postDataJSON()?.op==='record_render'&&r.request().postDataJSON()?.page===number)];
+  if(detectScale)pending.push(page.waitForResponse(r=>r.url().endsWith('/auto-calibrate')&&r.request().postDataJSON()?.page===number));
+  pending.forEach(value=>value.catch(()=>{}));await action();
+  for(const response of await Promise.all(pending)){const body=await response.json();assert.equal(response.status(),200,JSON.stringify(body));}
+  await idle();await expect(page.getByLabel('Page number',{exact:true})).toHaveValue(String(number));
+  await expect(page.locator('.takeoff-progress')).toHaveText(`synthetic-drawings.pdf · Page ${number} · Original source`);
+}
 async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible({timeout:30000});for(const[label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
 const snapshot=async()=>{await idle();let value;await expect.poll(async()=>{try{value=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());return true;}catch{return false;}}).toBe(true);return value;};
 const fit=()=>command(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),'record_render');
@@ -48,13 +56,20 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   // project controls. Do not race that navigation with this drawing journey.
   await expect(page.locator('#project-tools')).toBeVisible();
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
-  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
-  await command(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},'record_render');await fit();
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
+  // Upload publishes the document before its initial fit/render has finished.
+  // Wait for that page's render and scale inspection before editing the page input.
+  await renderedPage(()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1,true);
+  await expect(page.locator('.takeoff-document')).toHaveCount(1);
+  await renderedPage(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},3,true);
+  await renderedPage(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),3);
+  evidence.sourcePageBeforeTracing={page:3,status:await page.locator('.takeoff-progress').innerText()};
   await page.getByRole('button',{name:'Scale',exact:true}).click();await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
   const shapes=[['CP-PRIMARY',[[100,120],[200,120],[200,220],[300,220]]],['CP-SECONDARY',[[400,350],[500,350],[550,450]]]];
   let state;
   for(const[mark,points]of shapes){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':'L1','Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':120,'Crit. Temp (\u00b0C)':550,'Exposure':'Re-entrant - 3 sides','Count/QTY':1},'Add item'),'create_item');}
   const a=state.snapshot.items.find(i=>i.fields.mark==='CP-PRIMARY'),b=state.snapshot.items.find(i=>i.fields.mark==='CP-SECONDARY');
+  assert.equal(a.geometry.page,3);assert.equal(b.geometry.page,3);
   await select([a.id]);await page.getByRole('button',{name:'Select',exact:true}).click();await handles(a.id).first().scrollIntoViewIfNeeded();await expect(handles(a.id)).toHaveCount(4);await expect(handles(b.id)).toHaveCount(0);
   // Original PDF coordinates determine handle placement even at rotated/cropped/UserUnit2 display scale.
   const centers=await handles(a.id).evaluateAll(nodes=>nodes.map(node=>({index:Number(node.dataset.pointIndex),cx:Number(node.getAttribute('cx')),cy:Number(node.getAttribute('cy'))})));

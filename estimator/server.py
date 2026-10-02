@@ -225,6 +225,19 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         self.send_payload(405, {'error': 'Method not allowed.'})
                         return
                     self.send_payload(200, libraries.add_link(route.split('/')[-2], body))
+                elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/project-draft', route):
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    self.send_payload(200, libraries.project_draft(route.split('/')[-2], body))
+                elif route == '/api/project/library-drafts/prepare':
+                    if self.command != 'POST':
+                        self.send_payload(405, {'error': 'Method not allowed.'})
+                        return
+                    if not isinstance(body, dict) or set(body) != {'library_drafts'}:
+                        raise ValidationError('Include only the project library drafts to prepare.')
+                    from .project_library_drafts import prepare_library_drafts
+                    self.send_payload(200, prepare_library_drafts(body['library_drafts'], service_types=libraries.service_types()))
                 elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save|delete)', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

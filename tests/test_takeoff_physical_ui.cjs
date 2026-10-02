@@ -10,7 +10,7 @@ const make = (id,fields={},more={}) => ({id:uuid(id),revision:1,deleted:false,de
 const legacyGraph = () => ({version:1,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',barriers:[make(1,{label:'Wall A',substrate:'Concrete'})],defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{barrier_id:uuid(1)})],openings:[make(3,{label:'Core A',opening_type:'Corehole'},{defect_id:uuid(2)}),make(4,{label:'Empty core'},{defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{opening_id:uuid(3),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{opening_id:uuid(3),quantity:3})]});
 const graph = () => ({version:2,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{display_id:'D-0001'})],barriers:[make(1,{label:'Wall A',substrate:'Concrete'},{display_id:'B-0001',defect_id:uuid(2)}),make(4,{label:'Empty barrier'},{display_id:'B-0002',defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{display_id:'S-0001',barrier_id:uuid(1),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{display_id:'S-0002',barrier_id:uuid(1),quantity:3})]});
 const snapshot = value => ({version:1,project_id:uuid(98),revision:1,documents:[{id:uuid(80),sha256:'d'.repeat(64),name:'Inspection.pdf',pages:[{page:1},{page:2}]}],physical:value,image_extractions:[{id:uuid(90),document_id:uuid(80),pages:[1]}]});
-const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service']};
+const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service'],frl:['N/A','-/60/60','-/90/90','-/120/120','-/180/180','-/240/240']};
 const optionsOf = control => control.children.filter(child=>child.tagName==='OPTION').map(child=>child.value).filter(value=>value!=='');
 const definitionOptions = definition => definition[2].map(option=>Array.isArray(option)?option[0]:option);
 function documentHarness(){
@@ -28,7 +28,7 @@ function documentHarness(){
     emit(name){for(const listener of this.events[name]||[])listener({target:this});}
     querySelectorAll(selector){const matches=element=>selector.split(',').some(part=>part.startsWith('[data-')?Object.hasOwn(element.dataset,part.slice(6,-1).replace(/-([a-z])/g,(_,char)=>char.toUpperCase())):element.tagName===part.toUpperCase());return this.children.flatMap(child=>[...(matches(child)?[child]:[]),...child.querySelectorAll(selector)]);}
   }
-  doc={createElement:tag=>new Element(tag)};
+  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};
   return {container:new Element('div'),all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 function component(initial=graph(),extra={}){
@@ -83,7 +83,83 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Unknown fields stay absent and service quantity never receives a fallback',()=>{
     assert.deepEqual(physical.fieldsFromValues('barrier',{location:' L02 ',notes:''}),{location:'L02'});
     for(const invalid of ['',null,undefined,0,-1,1.5,Infinity,'NaN'])assert.throws(()=>physical.fieldValue('service','quantity',invalid),/explicit positive/);
-    assert.equal(physical.fieldValue('service','quantity','2'),2);assert.equal(physical.fieldValue('service','insulation_mm','0'),0);assert.throws(()=>physical.fieldValue('service','width_mm','0'),/positive/);assert.throws(()=>physical.fieldValue('barrier','frl','120'),/belonging/);
+    assert.equal(physical.fieldValue('service','quantity','2'),2);assert.equal(physical.fieldValue('service','insulation_mm','0'),0);assert.throws(()=>physical.fieldValue('service','width_height_mm','0x10'),/positive/);assert.throws(()=>physical.fieldValue('barrier','frl','120'),/belonging/);
+  });
+  await check('Combined service dimensions are strict, atomic and preserve untouched partial legacy dimensions',()=>{
+    for(const [text,width_mm,height_mm] of [['100x200',100,200],[' .5 X 20.25 ',.5,20.25],['30 × 40',30,40]])assert.deepEqual(physical.parseDimensions(text),{width_mm,height_mm});
+    for(const text of ['100','100x','x100','1x2x3','0x2','-1x2','NaNx2','Infinityx2','1000000000001x2'])assert.throws(()=>physical.parseDimensions(text),/Width x Height/);
+    assert.deepEqual(physical.parseDimensions(''),{});
+    const entry={kind:'service',entity:make(5,{label:'Hidden label',service:'Mechanical',width_mm:100,future_property:'Keep',diameter_mm:25},{quantity:2})},before=copy(entry);
+    assert.equal(physical.formatDimensions(entry.entity.fields),'100 x ');
+    const retained=physical.fieldsFromValues('service',{service:'Mechanical',width_height_mm:'100 x ',diameter_mm:'25',notes:'New note'},entry.entity.fields);
+    assert.deepEqual(retained,{...entry.entity.fields,notes:'New note'});
+    assert.throws(()=>physical.changedFields(entry,'width_height_mm','200x'),/Width x Height/);assert.deepEqual(entry,before);
+    assert.deepEqual(physical.changedFields(entry,'width_height_mm','200x300').fields,{...entry.entity.fields,width_mm:200,height_mm:300});
+    const cleared=physical.changedFields(entry,'width_height_mm','').fields;assert.equal(cleared.width_mm,undefined);assert.equal(cleared.height_mm,undefined);assert.equal(cleared.diameter_mm,25);
+    const image={id:uuid(70),occurrence_id:uuid(71),sha256:'a'.repeat(64),document_id:uuid(80),document_sha256:'d'.repeat(64),page:1};
+    assert.deepEqual(physical.imageEvidence(image,'Dimensions shown','width_height_mm').fields,['width_mm','height_mm']);
+  });
+  await check('Defect FRL is a shared native choice in create, inspector, table and bulk; legacy strings stay exact',async()=>{
+    const value=graph();value.defects[0].fields.frl=' Historic FRL ';const h=component(value);await flush();
+    await h.click('Add defect');const definitions=h.calls.asks.at(-1).definitions;assert.equal(definitions.find(([key])=>key==='label')[1],'Defect Ref.');assert.deepEqual(definitionOptions(definitions.find(([key])=>key==='frl')),fieldChoices.frl);
+    await h.select(2);assert.equal(h.input('FRL').tagName,'SELECT');assert.equal(h.input('FRL for Defect 01').tagName,'SELECT');assert.equal(h.input('FRL').value,' Historic FRL ');assert.deepEqual(optionsOf(h.input('FRL')),[...fieldChoices.frl,' Historic FRL ']);
+    h.input('Notes').value='Retain prior choice';h.input('Notes').emit('input');await h.click('Preview physical edits');assert.equal(h.current.physical.defects[0].fields.frl,' Historic FRL ');
+    h.answers.push({field:'frl'},{value:'-/90/90'});await h.click('Bulk edit same-type records');assert.deepEqual(definitionOptions(h.calls.asks.at(-1).definitions[0]),[...fieldChoices.frl,' Historic FRL ']);assert.equal(h.current.physical.defects[0].fields.frl,'-/90/90');h.controller.destroy();
+  });
+  await check('Service creation and inspector expose one combined dimension field and Overall Diameter',async()=>{
+    const h=component();await flush();h.answers.push({service:'Mechanical',service_type:'Copper pipe',width_height_mm:'120x80.5',diameter_mm:'25',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service to B-0001');
+    const fields=h.calls.asks[0].definitions;assert.equal(fields.find(([key])=>key==='width_height_mm')[1],'Width x Height (mm)');assert.equal(fields.find(([key])=>key==='diameter_mm')[1],'Overall Diameter (mm)');assert.ok(!fields.some(([key])=>['width_mm','height_mm'].includes(key)));
+    const created=h.calls.previews[0][0].entity;assert.equal(created.fields.width_mm,120);assert.equal(created.fields.height_mm,80.5);assert.equal(created.fields.width_height_mm,undefined);assert.equal(created.fields.diameter_mm,25);
+    assert.equal(h.input('Width x Height (mm)').value,'120 x 80.5');assert.equal(h.input('Overall Diameter (mm)').value,25);h.controller.destroy();
+  });
+  await check('Register actions use compact accessible icons and Add defect follows the table before pagination',async()=>{
+    const h=component(graph(),{history:async()=>{throw new Error('Removed history must not run');}});await flush();
+    for(const label of ['Undo physical / takeoff edit','Physical / takeoff audit history'])assert.ok(!h.all().some(node=>node.tagName==='BUTTON'&&node.textContent===label));
+    const table=h.all().find(node=>node.className==='takeoff-register-table'),siblings=table.parentElement.children,index=siblings.indexOf(table);assert.equal(siblings[index+1].className,'takeoff-physical-add-row');assert.equal(siblings[index+1].children[0],h.button('Add defect'));assert.ok(h.button('Add defect').className.includes('takeoff-physical-add-child'));assert.equal(h.button('Add defect').textContent,'+');assert.equal(h.button('Add defect').attributes['aria-label'],'Add defect');assert.equal(h.button('Add defect').title,'Add defect');assert.equal(siblings[index+2].className,'takeoff-register-controls');
+    const disclosure=h.button('Collapse D-0001');assert.equal(disclosure.textContent,'<');assert.equal(disclosure.attributes['aria-expanded'],'true');await h.click('Collapse D-0001');assert.equal(h.button('Expand D-0001').textContent,'>');assert.equal(h.button('Expand D-0001').attributes['aria-expanded'],'false');
+    for(const label of ['Discard unfinished physical edits','Delete selected records']){const button=h.button(label);assert.equal(button.textContent,'');assert.equal(button.children[0].tagName,'SVG');assert.equal(button.children[0].attributes['aria-hidden'],'true');assert.equal(button.attributes['aria-label'],label);}
+    h.controller.destroy();
+  });
+  await check('Select-all spans collapsed pages, excludes deleted and ancestor-context rows, and preserves other selections',async()=>{
+    const value=graph();value.services=Array.from({length:205},(_,index)=>make(100+index,{service:index<2?'Needle':'Other'},{display_id:`S-${String(index+1).padStart(4,'0')}`,barrier_id:uuid(1),quantity:1}));value.services[204].deleted=true;value.services[204].deleted_at_revision=1;
+    let selected=[];const h=component(value,{viewChanged:(_visible,ids)=>selected=ids,confirm:async()=>false});await flush();await h.click('Collapse D-0001');let header=h.input('Select all matching physical records');header.checked=true;header.emit('change');await flush();assert.equal(selected.length,207);assert.ok(!selected.includes(uuid(304)));assert.equal(h.input('Select all matching physical records').checked,true);
+    await h.click('Delete selected records');assert.deepEqual(h.calls.previews[0],[{op:'delete',entity_id:uuid(2),cascade:true}]);assert.equal(h.calls.applied.length,0);
+    const filter=h.input('Filter physical hierarchy');filter.value='Needle';filter.emit('input');await flush();header=h.input('Select all matching physical records');assert.equal(header.checked,true);header.checked=false;header.emit('change');await flush();assert.equal(selected.length,205);assert.ok(selected.includes(uuid(2)));assert.ok(!selected.includes(uuid(100)));assert.ok(!selected.includes(uuid(101)));
+    await h.click('Clear physical selection');header=h.input('Select all matching physical records');header.checked=true;header.emit('change');await flush();assert.deepEqual(selected,[uuid(100),uuid(101)]);await h.select(100);assert.equal(h.input('Select all matching physical records').indeterminate,true);h.controller.destroy();
+  });
+  await check('Bulk deletion deduplicates fully selected subtrees and requires explicit consent for additional descendants',async()=>{
+    const value=graph(),index=physical.indexGraph(value),all=[...index.values()],plan=physical.deletionPlan(all,index);
+    assert.deepEqual(plan.commands,[{op:'delete',entity_id:uuid(2),cascade:true}]);assert.deepEqual(plan.additional,[]);
+    const parent=[index.get(uuid(1)),index.get(uuid(5))];assert.deepEqual(physical.deletionPlan(parent,index).additional.map(entry=>entry.entity.id),[uuid(6)]);assert.deepEqual(physical.deletionPlan(parent,index).commands,[]);assert.deepEqual(physical.deletionPlan(parent,index,true).commands,[{op:'delete',entity_id:uuid(1),cascade:true}]);
+    const h=component(value);await flush();await h.select(1);h.answers.push({scope:'only'});await h.click('Delete selected records');assert.equal(h.calls.previews.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('No records have been deleted'));
+    h.answers.push({scope:'cascade'});await h.click('Delete selected records');assert.deepEqual(h.calls.previews[0],[{op:'delete',entity_id:uuid(1),cascade:true}]);assert.ok(h.calls.asks.at(-1).text.includes('2 unselected active descendants'));assert.equal(h.calls.confirmations.at(-1).title,'Review recoverable deletion');h.controller.destroy();
+    const cancel=component(value,{confirm:async()=>false});await flush();await cancel.select(5);await cancel.select(6);await cancel.click('Delete selected records');assert.deepEqual(cancel.calls.previews[0],[{op:'delete',entity_id:uuid(5),cascade:false},{op:'delete',entity_id:uuid(6),cascade:false}]);assert.equal(cancel.calls.applied.length,0);assert.deepEqual(cancel.current.physical,value);cancel.controller.destroy();
+  });
+  await check('Bulk deletion enforces the backend command limit without partially deleting independent selections',()=>{
+    const value=graph();value.services=Array.from({length:101},(_,n)=>make(100+n,{}, {display_id:`S-${n+1}`,barrier_id:uuid(1),quantity:1}));const index=physical.indexGraph(value),leaves=value.services.map(entity=>index.get(entity.id));
+    assert.throws(()=>physical.deletionPlan(leaves,index),/at most 100 independent/);assert.equal(physical.deletionPlan(leaves.slice(0,100),index).commands.length,100);
+    const complete=[index.get(uuid(1)),...leaves];assert.deepEqual(physical.deletionPlan(complete,index).commands,[{op:'delete',entity_id:uuid(1),cascade:true}]);assert.deepEqual(physical.deletionPlan(complete.slice(0,-1),index).additional.map(entry=>entry.entity.id),[uuid(200)]);assert.deepEqual(physical.deletionPlan(complete.slice(0,-1),index).commands,[]);
+  });
+  await check('Save completion applies pending inspector values through existing reviewed commands',async()=>{
+    const h=component();await flush();await h.select(5);const size=h.input('Width x Height (mm)'),notes=h.input('Notes');size.value='100x';size.emit('input');notes.value='Keep pending note';notes.emit('input');
+    await assert.rejects(h.controller.completePendingEdits(),/Width x Height/);assert.equal(h.calls.previews.length,0);assert.equal(size.value,'100x');assert.equal(notes.value,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),true);
+    size.value='100x200';size.emit('input');await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations[0].title,'Review physical field changes');assert.equal(h.current.physical.services[0].fields.width_mm,100);assert.equal(h.current.physical.services[0].fields.height_mm,200);assert.equal(h.current.physical.services[0].fields.notes,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+  });
+  await check('Cancelled or failed save reviews preserve pending inspector and table values',async()=>{
+    for(const mode of ['inspector','table']){
+      const h=component(graph(),{confirm:async()=>false});await flush();if(mode==='inspector')await h.select(1);const control=h.input(mode==='inspector'?'Notes':'Location for Wall A');control.value='Unsaved value';control.emit('input');
+      await assert.rejects(h.controller.completePendingEdits(),/review was cancelled/);assert.equal(control.value,'Unsaved value');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.equal(h.calls.applied.length,0);h.bridge.confirm=async()=>true;await h.controller.completePendingEdits();assert.equal(h.calls.applied.length,1);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    }
+    const h=component(graph(),{preview:async()=>{throw new Error('Preview unavailable');}});await flush();await h.select(1);const notes=h.input('Notes');notes.value='Keep on outage';notes.emit('input');await assert.rejects(h.controller.completePendingEdits(),/Preview unavailable/);assert.equal(notes.value,'Keep on outage');assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();
+  });
+  await check('Save completion rejects stale or unrelated physical pending controls before applying',async()=>{
+    const h=component();await flush();await h.select(1);const notes=h.input('Notes');notes.value='Retain stale note';notes.emit('input');const next=copy(h.current);next.physical.revision++;next.physical.barriers[0].revision++;h.controller.render(next);await assert.rejects(h.controller.completePendingEdits(),/draft changed/);assert.equal(h.calls.applied.length,0);assert.equal(notes.value,'Retain stale note');h.controller.destroy();
+    const separate=component();await flush();await separate.select(1);for(const label of ['Notes','Location for Wall A']){const control=separate.input(label);control.value='Unfinished';control.emit('input');}await assert.rejects(separate.controller.completePendingEdits(),/separate physical field edits/);assert.equal(separate.calls.previews.length,0);assert.equal(separate.controller.hasUnfinishedChanges(),true);separate.controller.destroy();
+  });
+  await check('A replacement project with the same entity IDs cannot receive a save started in the old inspector',async()=>{
+    const h=component();await flush();await h.select(1);const notes=h.input('Notes');notes.value='Old project edit';notes.emit('input');
+    const saving=h.controller.completePendingEdits(),replacement=copy(h.current);replacement.project_id=uuid(500);replacement.physical.project_id=uuid(500);replacement.physical.id=uuid(501);h.controller.render(replacement);
+    await assert.rejects(saving,/draft changed/);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(!h.dom.container.textContent.includes('Old project edit'));h.controller.destroy();
   });
   await check('Barrier and service forms share catalogue dropdowns in creation, inspector and register',async()=>{
     const value=graph();Object.assign(value.barriers[0].fields,{barrier_type:'Core hole',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe'});
@@ -185,7 +261,8 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const value=legacyGraph();value.openings[0].evidence=[{document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,note:'Legacy opening evidence'}];const original=copy(value),h=component(value);await flush();
     assert.deepEqual(physical.hierarchyRows(value).filter(row=>!row.context).map(row=>row.kind),['barrier','defect','opening','service','service','opening']);
     assert.ok(h.dom.container.textContent.includes('Legacy hierarchy — read-only'));assert.ok(h.dom.container.textContent.includes('Opening ID'));
-    for(const label of ['Add defect','Bulk edit same-type records','Undo physical / takeoff edit','Extract images from selected PDF page'])assert.equal(h.button(label).disabled,true,label);
+    for(const label of ['Add defect','Bulk edit same-type records','Delete selected records','Extract images from selected PDF page'])assert.equal(h.button(label).disabled,true,label);
+    for(const label of ['Undo physical / takeoff edit','Physical / takeoff audit history'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&element.textContent===label));
     await h.select(3);const inspector=h.all().find(element=>element.tagName==='ASIDE');assert.equal(inspector.querySelectorAll('input,select,textarea').length,0);assert.ok(inspector.textContent.includes('Opening type: Corehole'));assert.ok(inspector.textContent.includes('Legacy opening evidence'));
     for(const label of ['Preview physical edits','Delete draft record','Change physical parent','Remove source association'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&element.textContent===label));
     // Even a programmatically delivered event on a disabled mutation button cannot reach the bridge.

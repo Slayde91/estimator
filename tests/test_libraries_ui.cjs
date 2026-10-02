@@ -35,6 +35,14 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Project library drafts remain accessible when the shared source library is unavailable',async h=>{
+    const opened=[];let records=[{id:'orphan-record',title:'Saved project copy',library_id:'PROJECT-1'}];
+    h.context.window.CeasefireLibraryEditor={projectRecords:()=>records,open:async id=>opened.push(id)};
+    h.setRoute(()=>({libraries:[{id:'penetration',available:false,notice:'Source unavailable'}]}));await h.api.open('penetration');
+    const pane=h.pane('penetration');assert.equal(pane.projectDrafts.hidden,false);assert.match(text(pane.projectDrafts),/Saved project copy/);
+    await walk(pane.projectDrafts).find(node=>node.dataset.projectLibraryDraft==='orphan-record').emit('click');assert.deepEqual(opened,['orphan-record']);assert.equal(h.calls.length,1);
+    records=[];h.api.projectChanged();assert.equal(pane.projectDrafts.hidden,true);
+  });
   await check('Opening is lazy and a revisited list retains its controls, query and fetched data',async h=>{
     assert.equal(h.calls.length,0);await h.api.open('penetration');const pane=h.pane('penetration'),search=pane.searchInput;
     assert.deepEqual(h.calls.map(call=>call.path),['/api/libraries','/api/libraries/penetration?offset=0&limit=50']);assert.equal(pane.results.children.length,1);assert.equal(search.maxLength,400);

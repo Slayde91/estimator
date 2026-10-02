@@ -386,7 +386,7 @@
         const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) });
         const definition = await response.json();
         if (!response.ok) throw new Error(definition.error || "The Firestopping field choices could not be loaded.");
-        const columns = { substrate: "P", orientation: "M", service: "J", service_type: "K" };
+        const columns = { substrate: "P", orientation: "M", service: "J", service_type: "K", frl: "N" };
         return Object.fromEntries(Object.entries(columns).map(([key, column]) => {
           const field = definition.row_fields?.find(value => value.column === column);
           if (field?.type !== "select" || !Array.isArray(field.options) || !field.options.length || field.options.some(value => typeof value !== "string")) throw new Error(`The Firestopping ${key.replaceAll("_", " ")} choices are unavailable.`);
@@ -2371,7 +2371,13 @@
   async function discardPreparedSession(sessionId) { if (sessionId && sessionId !== state.session?.session_id) await api(`/sessions/${sessionId}/close`, {}).catch(() => {}); }
   function markProjectSaved(value, captured) { if (!value) return; if (snapshotKey(snapshot()) === snapshotKey(captured || value)) { state.saved = snapshotKey(value); if (state.session) state.session.snapshot = clone(value); } else state.saved = snapshotKey(captured || value); window.CeasefireProject?.changed?.(); }
 
-  async function completeProjectSnapshot() { await flushSettings(); await state.queue; return projectSnapshot(); }
+  async function completeProjectSnapshot() {
+    await flushSettings();
+    await state.queue;
+    await state.physicalUI?.completePendingEdits?.();
+    await state.queue;
+    return projectSnapshot();
+  }
   function scheduleBindings(calculatorId, row) { return (snapshot()?.transfers || []).filter(binding => binding.calculator_id === calculatorId && binding.row === row && binding.status !== "detached"); }
   async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); if (!items().some(item => item.id === itemId)) { await safely(() => manageLinkedRows(itemId)); return; } await selectItem(itemId); }
   window.CeasefireTakeoffs = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,

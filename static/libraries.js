@@ -63,6 +63,7 @@
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
     pane.notice = node("p", "helper library-notice"); pane.notice.hidden = true;
+    pane.projectDrafts = node("section", "card library-project-drafts"); pane.projectDrafts.hidden = true; pane.projectDrafts.setAttribute("aria-label", "Project library drafts");
     pane.summary = node("section", "card library-summary"); pane.summary.hidden = true; pane.summary.dataset.librarySummary = kind;
     pane.linkPanel = node("section", "card library-link-picker"); pane.linkPanel.hidden = true; pane.linkPanel.dataset.libraryLinkPicker = kind;
     pane.list = node("section", "card library-browser"); pane.list.setAttribute("aria-label", titles[kind] + " records");
@@ -83,7 +84,7 @@
     const pagination = node("nav", "library-pagination"); pagination.setAttribute("aria-label", titles[kind] + " result pages"); pagination.append(pane.previous, pane.next);
     pane.list.append(controls, pane.filterControls, pane.count, pane.results, pagination);
     pane.detailPanel = node("section", "card library-detail"); pane.detailPanel.hidden = true; pane.detailPanel.dataset.libraryDetail = kind;
-    root.replaceChildren(pane.message, pane.summary, pane.notice, pane.linkPanel, pane.list, pane.detailPanel);
+    root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, pane.notice, pane.linkPanel, pane.list, pane.detailPanel);
     pane.searchInput.addEventListener("input", () => {
       pane.search = pane.searchInput.value.trim(); pane.offset = 0;
       invalidateList(pane); pane.count.textContent = "Searching…";
@@ -669,6 +670,10 @@
     if (!kinds.includes(kind)) return;
     for (const existing of state.panes.values()) closeLinkPicker(existing);
     state.current = kind; const pane = paneFor(kind), revision = ++pane.openRevision;
+    renderProjectDrafts(pane);
+    if (kind === "penetration" && validId(selection) && window.CeasefireLibraryEditor?.projectRecords?.().some(record => record.id === selection)) {
+      pane.list.hidden = false; pane.detailPanel.hidden = true; return;
+    }
     try {
       pane.count.textContent ||= "Loading library…";
       const data = await metadata();
@@ -696,5 +701,15 @@
     state.metadata = null; state.metadataRequest = null;
     for (const pane of state.panes.values()) { invalidateList(pane); ++pane.detailRevision; pane.detailAbort?.abort(); pane.data = null; pane.dataQuery = null; pane.detail = null; }
   }
-  window.CeasefireLibraries = { open, invalidate, scheduleChanged };
+  function renderProjectDrafts(pane) {
+    const records = pane.kind === "penetration" ? window.CeasefireLibraryEditor?.projectRecords?.() || [] : [];
+    pane.projectDrafts.hidden = !records.length; pane.projectDrafts.replaceChildren();
+    if (!records.length) return;
+    pane.projectDrafts.append(node("h3", "", "Project library drafts"), node("p", "helper", "These item details and diagrams belong to this project. Save or Save As stores them with the project file."));
+    const choices = node("div", "actions");
+    for (const record of records) { const edit = button(record.title || record.library_id || record.id, () => editItem(pane, record.id)); edit.dataset.projectLibraryDraft = record.id; choices.append(edit); }
+    pane.projectDrafts.append(choices);
+  }
+  function projectChanged() { for (const pane of state.panes.values()) renderProjectDrafts(pane); }
+  window.CeasefireLibraries = { open, invalidate, scheduleChanged, projectChanged };
 })();

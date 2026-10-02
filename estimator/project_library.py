@@ -156,6 +156,19 @@ def _preserve_penetration_inputs(path, request):
                     raise ValidationError("Refresh the application and reload this project before saving its Firestopping Estimator library items.")
 
 
+def _preserve_library_drafts(path, request):
+    """An older browser must not silently remove a project's library copies."""
+    if 'library_drafts' in request:
+        return
+    existing, _ = _read_file(path)
+    try:
+        snapshot = json.loads(existing)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return
+    if isinstance(snapshot, dict) and has_project_identity(existing) and 'library_drafts' in snapshot:
+        raise ValidationError('Refresh the application and reload this project before saving its project library drafts.')
+
+
 def _file_id(folder, name):
     return hashlib.sha256((str(folder) + "\0" + name).encode("utf-8")).hexdigest()
 
@@ -685,7 +698,7 @@ class ProjectLibrary:
     def save(self, request):
         require_project_edition(request, self.edition)
         required = {"save_token", "estimate", "calculators"}
-        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id"}:
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if not isinstance(request["calculators"], dict) or set(request["calculators"]) != set(CALCULATOR_IDS):
             raise ValidationError("Save must include all three calculator drafts.")
@@ -699,7 +712,7 @@ class ProjectLibrary:
             selection = self._save_targets.get(token)
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
-        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id") if key in request})
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts") if key in request})
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         # Serialize writes and recheck the capability after preparation so two
@@ -711,6 +724,7 @@ class ProjectLibrary:
             if file_fingerprint(path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
             _preserve_penetration_inputs(path, request)
+            _preserve_library_drafts(path, request)
             self._preserve_takeoffs(path, request)
             selected_folder = self.store.project_folder()
             if 'takeoffs' in captured:
@@ -752,6 +766,7 @@ class ProjectLibrary:
             with self._lock:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
                     _preserve_penetration_inputs(Path(selection.path), request)
+                    _preserve_library_drafts(Path(selection.path), request)
                     self._preserve_takeoffs(Path(selection.path), request)
                 if 'takeoffs' in captured:
                     captured = self._publish_takeoffs(captured, Path(selection.path))

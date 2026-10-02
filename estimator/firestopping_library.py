@@ -861,6 +861,35 @@ class FirestoppingLibrary(ReferenceLibrary):
             key, added = self.edits.create(request_key, request_hash, maximum, build, snapshot, diagram)
             return {**self.edit(key), 'created': added}
 
+    def project_draft(self, key, body):
+        """Capture one editor draft for a project, without changing shared data."""
+        from .project_library_drafts import normalize_library_drafts
+        with self._lock:
+            required = {'draft', 'revision', 'pricing_token'}
+            if not isinstance(body, dict) or not required <= set(body) or set(body) - required - {'diagram'}:
+                raise ValidationError('Include the library draft, revision, captured pricing token and optional diagram only.')
+            # Reuse the ordinary revision/source/pricing checks, but never the
+            # shared save action. Its calculated response supplies captured data.
+            edit = self.action(key, 'calculate', {name: body[name] for name in required})
+            source = self._context(key)[1]['source_sha256']
+            diagram = None
+            if 'diagram' in body:
+                image = diagram_upload(body['diagram'])
+                if image is not None:
+                    diagram = {'filename': f'{key}.jpg',
+                               'content_base64': base64.b64encode(image['image_data']).decode('ascii')}
+            elif edit['diagram']['available']:
+                payload, _, filename = self.diagram_asset(key)
+                diagram = {'filename': Path(filename).name,
+                           'content_base64': base64.b64encode(payload).decode('ascii')}
+            portable = normalize_library_drafts({
+                'version': 1, 'source_sha256': source_model()['source']['sha256'],
+                'records': [{'id': key, 'title': edit['title'], 'library_id': edit['library_id'],
+                             'source_sha256': source, 'draft': edit['draft'],
+                             'configuration': edit['configuration'], 'diagram': diagram}],
+            })
+            return {'source_sha256': portable['source_sha256'], 'record': portable['records'][0]}
+
     def edit(self, key):
         with self._lock:
             item, source, saved, snapshot, token = self._context(key)

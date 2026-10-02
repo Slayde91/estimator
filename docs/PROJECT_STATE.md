@@ -75,12 +75,22 @@ contents. Symbolic links, junctions and unknown reparse providers are rejected;
 documented OneDrive cloud tags are permitted when readable.
 
 The persistent Current project area shows the known location and last-saved time.
-Save state appears under the main logo and covers the estimate, project pricing
-and calculators; the duplicate filename line is omitted. Browser file uploads do
+Save state appears under the main logo and covers the estimate, project pricing,
+calculators, Takeoffs and project library drafts; the duplicate filename line is omitted. Browser file uploads do
 not reveal an original full path. The Older
 estimate-only saves section is removed from the UI, while historical SQLite
-records and compatibility APIs are retained. Shared-library pricing remains
-separate from project snapshots; no stored prices or calculations are migrated.
+records and compatibility APIs are retained. Save captures pending Pricing
+Library edits for the current project without changing the shared library. If
+both pricing scopes differ, the user chooses the project's prices and the other
+draft is retained. No stored prices or calculations are migrated.
+
+Project files may contain an optional, source-bound `library_drafts` snapshot
+with up to 100 Firestopping library copies. Each copy retains one calculation row,
+its pricing configuration and its diagram. Copies remain project-local on load;
+they carry no authority to overwrite shared library entries. The existing 16 MB
+project-file limit still applies. Older files remain supported, and saving over
+a file with this field from an unaware browser is rejected rather than dropping
+its library copies.
 
 Yield unit is read-only in the pricing page and protected XLSX column L. It
 shows distinct calculation units only: `m² / unit`, or `m / unit` for mastic;

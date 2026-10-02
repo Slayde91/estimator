@@ -813,5 +813,18 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.setApi(async path=>path.endsWith('/transfer-preview')?{revision:0,preview_id:'p',calculator_id:'steel_board',changes:[{item_id:'b',action:'append',row:10}],bindings:[{item_id:'b',sheet:'CALCULATOR',row:10,values:{}}],skipped:[{item_id:'a',row:9,calculator_id:'steel_board'}]}:{columns:[]});
     h.audit.setAsk(async(title,definitions,detail,action)=>{assert.equal(title,'Transfer 1 confirmed items?');assert.equal(action,'Add to schedule');assert.match(detail,/Skipped 1 already-linked item.*Retained/);assert.match(detail,/Add: New/);return null;});await h.audit.transfer(false);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
   });
+  await check('Project snapshot awaits reviewed physical edits and their queued apply before capturing', async()=>{
+    const h=harness(),value=blank();value.physical={revision:1};h.audit.accept(response(value));
+    const review=deferred(),applied=deferred(),order=[];let unfinished=true;
+    h.audit.setFlushSettings(async()=>order.push('settings'));
+    h.audit.state.physicalUI={hasUnfinishedChanges:()=>unfinished,async completePendingEdits(){order.push('review');await review.promise;h.audit.state.queue=applied.promise.then(()=>{h.audit.state.session.snapshot.physical.revision=2;unfinished=false;order.push('applied');});}};
+    let saved=false;const pending=h.api.completeProjectSnapshot().then(snapshot=>{saved=true;return snapshot;});await flush();assert.deepEqual(order,['settings','review']);assert.equal(saved,false);
+    review.resolve();await flush();assert.equal(saved,false);applied.resolve();const captured=await pending;assert.equal(captured.physical.revision,2);assert.deepEqual(order,['settings','review','applied']);
+  });
+  await check('Cancelled physical review prevents a project snapshot and retains unfinished state', async()=>{
+    const h=harness(),value=blank();value.physical={revision:1};h.audit.accept(response(value));
+    h.audit.setFlushSettings(async()=>{});h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,async completePendingEdits(){throw new Error('Physical review cancelled');}};
+    await assert.rejects(h.api.completeProjectSnapshot(),/Physical review cancelled/);assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.audit.state.session.snapshot.physical.revision,1);
+  });
   console.log(`${passed} takeoff UI and geometry checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

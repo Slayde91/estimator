@@ -59,7 +59,15 @@ async function create(kind, values, trigger = `Add ${kind}`) {
   assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Physical draft inspector'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
-async function undo() { await page.getByRole('button', { name: 'Undo physical / takeoff edit', exact: true }).click(); state = await response(() => dialog('Undo last takeoff edit?', {}, 'Undo last edit'), '/commands'); await idle(); }
+// Undo remains an API compatibility operation after its physical toolbar shortcut is removed.
+async function undo() {
+  state = await page.evaluate(async () => {
+    const takeoffs=window.CeasefireTakeoffs, session=takeoffs.sessionId(), current=takeoffs.projectSnapshot();
+    const reply=await fetch(`/api/takeoffs/sessions/${session}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:current.revision,request_id:crypto.randomUUID(),op:'undo'})});
+    const result=await reply.json();if(!reply.ok)throw new Error(JSON.stringify(result));
+    takeoffs.applyProject(await takeoffs.prepareProject(result.snapshot,session));await takeoffs.open();return result;
+  }); await idle();
+}
 async function extract() { state = await response(() => page.getByRole('button', { name: 'Extract images from selected PDF page', exact: true }).click(), '/images/extract'); await idle(); return state.extraction_id; }
 async function showImage() {
   const card = page.locator('details[data-image-occurrence]').first(); await card.locator('summary').click();
@@ -72,9 +80,9 @@ async function showImage() {
   page.on('request', request => { const url = new URL(request.url()); if (url.pathname.endsWith('/images') && request.method() === 'GET') inventoryRequests.push({ extraction: url.searchParams.get('extraction_id'), limit: url.searchParams.get('limit') }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible(); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  await expect(page.locator('#project-tools')).toBeVisible(); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const definitionReply=await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);
-  const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({substrate:'P',orientation:'M',service:'J',service_type:'K'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
+  const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({substrate:'P',orientation:'M',service:'J',service_type:'K',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click();
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toBeVisible();
@@ -85,13 +93,13 @@ async function showImage() {
   assert.equal(state.snapshot.physical, null);
   // The UI's retained-image display is the acceptance surface; source metadata is also checked exactly below.
   let card = await showImage(); await page.screenshot({ path: path.join(output, 'retained-bitmap.png'), fullPage: true });
-  const defect = await create('defect', { 'Defect label': 'D-001', 'Location': 'L02 north', 'FRL': '-/120/120' }); await identifier(defect, 'D-0001');
+  const defect = await create('defect', { 'Defect Ref.': 'D-001', 'Location': 'L02 north', 'FRL': '-/120/120' }); await identifier(defect, 'D-0001');
   const barrierFields = { 'Location': 'L02 north', 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Substrate orientation': 'Vertical' };
   const empty = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(empty, 'B-0001');
   for(const field of ['label','thickness_mm'])assert.equal(Object.hasOwn(record(empty).fields,field),false);
   await dropdown(page.getByLabel('Substrate for B-0001',{exact:true}),physicalChoices.substrate);await dropdown(page.getByLabel('Substrate orientation for B-0001',{exact:true}),physicalChoices.orientation);
   await expect(page.locator(`tr[data-physical-id="${empty}"]`)).toContainText('0 services');
-  const otherDefect = await create('defect', { 'Defect label': 'OTHER-DEFECT', 'Location': 'L03 south' }); await identifier(otherDefect, 'D-0002');
+  const otherDefect = await create('defect', { 'Defect Ref.': 'OTHER-DEFECT', 'Location': 'L03 south' }); await identifier(otherDefect, 'D-0002');
   // The row that owns '+' is the parent, regardless of the currently selected row.
   await select(otherDefect);
   const occupied = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(occupied, 'B-0002');
@@ -113,10 +121,10 @@ async function showImage() {
   await page.locator(`.takeoff-hit[data-physical-id="${cable}"]`).hover(); await expect(page.locator(`tr[data-physical-id="${cable}"]`)).toHaveClass(/hovered/);
   await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-0002'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
   const notes = page.getByRole('complementary', { name: 'Physical draft inspector' }).getByLabel('Notes', { exact: true });
-  await notes.fill('Unapplied inspection finding must remain visible'); const frl = page.getByLabel('FRL for D-001', { exact: true }); await frl.fill('-/90/90'); await frl.press('Tab');
+  await notes.fill('Unapplied inspection finding must remain visible'); const frl = page.getByLabel('FRL for D-001', { exact: true }); await frl.selectOption('-/90/90');
   await expect(page.getByRole('alert')).toContainText('Those edits have been preserved'); await expect(notes).toHaveValue('Unapplied inspection finding must remain visible'); await expect(frl).toHaveValue('-/120/120');
   await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue('');
-  await frl.fill('-/90/90'); await frl.press('Tab'); await apply('Change defect frl?'); assert.equal(activeGraph().defects[0].fields.frl, '-/90/90'); await undo(); assert.equal(activeGraph().defects[0].fields.frl, '-/120/120');
+  await frl.selectOption('-/90/90'); await apply('Change defect frl?'); assert.equal(activeGraph().defects[0].fields.frl, '-/90/90'); await undo(); assert.equal(activeGraph().defects[0].fields.frl, '-/120/120');
   await page.getByRole('button', { name: 'Clear physical selection', exact: true }).click(); await page.getByLabel('Select Service S-0001', { exact: true }).check(); await page.getByLabel('Select Service S-0002', { exact: true }).check();
   await page.getByRole('button', { name: 'Bulk edit same-type records', exact: true }).click();await dialog('Choose field for 2 draft records',{'Field to change':'notes'},'Continue');const bulk = await response(() => dialog('Edit 2 draft service records', { 'Notes': 'One reviewed draft edit batch' }, 'Preview bulk edit'), '/physical/preview'); assert.equal(bulk.changed_ids.length, 2);
   await apply('Change 2 of 2 selected records? 0 already match and stay unchanged.'); assert.ok(activeGraph().services.every(entity => entity.fields.notes === 'One reviewed draft edit batch')); await undo(); assert.ok(activeGraph().services.every(entity => !entity.fields.notes)); assert.deepEqual(activeGraph().services.find(entity => entity.id === cable).evidence[0], evidence);
@@ -129,7 +137,7 @@ async function showImage() {
   const deleted = await create('service', serviceFields, 'Add service to B-0001'); await identifier(deleted, 'S-0004');
   await page.getByRole('button', { name: 'Delete draft record', exact: true }).click(); await response(() => dialog('Delete draft service', { 'Deletion scope': 'only' }, 'Preview deletion'), '/physical/preview'); await apply('Review recoverable deletion'); assert.equal(record(deleted).deleted, true);
   const savedIdentities = identities(); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6);
-  await select(cable); await page.getByRole('button', { name: 'Physical / takeoff audit history', exact: true }).click(); const history = page.getByRole('dialog'); await expect(history.getByRole('heading')).toContainText('Takeoff audit history'); await expect(history).toContainText(occupied); await history.getByRole('button', { name: 'Continue', exact: true }).click(); await page.screenshot({ path: path.join(output, 'physical-hierarchy.png'), fullPage: true });
+  await select(cable); for(const label of ['Physical / takeoff audit history','Undo physical / takeoff edit'])await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0); const historyReply=await page.request.post(await page.evaluate(()=>`${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}/history`),{data:{offset:0,limit:100}});assert.equal(historyReply.status(),200);assert.ok(JSON.stringify(await historyReply.json()).includes(occupied),'Audit identity remains available after toolbar removal'); await page.screenshot({ path: path.join(output, 'physical-hierarchy.png'), fullPage: true });
   state = await response(() => page.getByRole('button', { name: 'Page ›', exact: true }).click(), '/commands'); await idle(); const emptyExtraction = await extract(); assert.notEqual(emptyExtraction, firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(0); await expect(page.getByRole('region', { name: 'Retained image gallery' })).toContainText('0 retained image occurrences');
   await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
   const save = await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
@@ -155,7 +163,7 @@ async function showImage() {
   const legacy = await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); assert.deepEqual(legacy.takeoffs.physical, legacySaved.takeoffs.physical); assert.equal(legacy.takeoffs.physical.version, 1);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await expect(page.locator('.takeoff-physical-register')).toContainText('Legacy hierarchy');
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
-  for (const label of ['Add defect', 'Bulk edit same-type records', 'Undo physical / takeoff edit', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
+  for (const label of ['Add defect', 'Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await select(legacySaved.takeoffs.physical.services[0].id);
   for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change physical parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   const legacyInspector = page.getByRole('complementary', { name: 'Physical draft inspector' }); await expect(legacyInspector.locator('input, textarea, select')).toHaveCount(0);

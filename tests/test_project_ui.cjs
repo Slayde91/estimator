@@ -71,7 +71,7 @@ function harness({ penetration = false } = {}) {
   })();`);
   vm.runInContext(appSource, context);
   const app = context.appAudit, calc = context.calcAudit, bridgeApi = context.window.CeasefireCalculators;
-  Object.assign(app.state, { configuration: { inventory: {}, rates: { local: { price: 12 } } }, draft: { inventory: {}, rates: { unsavedLibrary: { price: 14 } } },
+  Object.assign(app.state, { configuration: { inventory: {}, rates: { local: { price: 12 } } }, draft: { inventory: {}, rates: { local: { price: 12 } } },
     quote: { id: 'existing-quote' }, quoteConfiguration: { inventory: {}, rates: { frozen: { price: 17.12345 } } },
     inputs: { D15: 'Local product', B15: 123 }, fields: [{ cell: 'D15', label: 'Product', type: 'select', options: ['Local product'] }],
     currentFields: [{ cell: 'D15', options: ['Current library product'] }], workflow: 'Local workflow', dirty: true, pricingDirty: true });
@@ -751,6 +751,81 @@ async function penetrationCheck(name, fn) {
     h.context.window.CeasefireTakeoffs={projectSnapshot:()=>copy(takeoffs),completeProjectSnapshot:async()=>copy(takeoffs),projectFingerprint:()=>JSON.stringify(takeoffs),hasUnsavedChanges:()=>false,sessionId:()=> 'private-session',markProjectSaved:(saved,captured)=>{receipt={saved,captured};}};
     h.app.setRequest(async(path,options)=>{const payload=JSON.parse(options.body);assert.equal(payload.takeoffs_session_id,'private-session');assert.equal(payload.takeoffs.session_id,undefined);assert.deepEqual(payload.takeoffs,takeoffs);return {file:{name:'saved.json',path:'C:/estimates/saved.json'},project:{...project(),estimate:payload.estimate,calculators:payload.calculators,takeoffs:{...payload.takeoffs,companion_folder:'saved.takeoffs'}}};});
     await h.app.saveProject();assert.equal(receipt.saved.companion_folder,'saved.takeoffs');assert.deepEqual(copy(receipt.captured),takeoffs);
+  });
+  for (const saveAs of [true,false]) await check(`${saveAs?'Save As':'Save'} keeps Pricing Library edits in the current project without changing shared prices`, async h => {
+    h.app.state.draft.rates.local.price=67.123456789;h.app.state.projectFile={save_token:'target'};const shared=copy(h.app.state.configuration),paths=[];let saved;
+    h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);if(path==='/api/configuration/preview')return{configuration:body.configuration,fields:copy(h.app.state.fields)};saved=body;return{file:{path:'C:/estimates/all.json',save_token:'saved'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};});
+    await h.app.saveProject(saveAs);assert.deepEqual(paths,['/api/configuration/preview',saveAs?'/api/project/save-as':'/api/project/save']);assert.equal(saved.estimate.configuration.rates.local.price,67.123456789);
+    assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),shared);assert.equal(h.app.state.quoteConfiguration.rates.local.price,67.123456789);assert.equal(h.app.state.pricingScope,'project');assert.equal(h.app.projectPricingChanged(),false);assert.match(h.byId('app-message').textContent,/saved for this project only/);
+  });
+  for(const choice of ['confirm','library','cancel']) await check(`Conflicting pricing drafts require an explicit project save choice: ${choice}`, async h=>{
+    h.app.state.draft.rates.local.price=55;h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=99;const before=h.snapshot(),paths=[];let saved;
+    h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);if(path==='/api/configuration/preview')return{configuration:body.configuration,fields:copy(h.app.state.fields)};saved=body;return{file:{path:'C:/estimates/prices.json'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};});
+    const saving=h.app.saveProject();await flush();assert.equal(h.byId('discard-dialog').open,true);assert.equal(paths.length,0);await h.byId('discard-dialog').close(choice);await saving;
+    assert.deepEqual(copy(h.app.state.configuration),before.pricing);
+    if(choice==='cancel'){assert.equal(paths.length,0);assert.deepEqual(h.snapshot(),before);assert.match(h.byId('app-message').textContent,/Both pricing drafts were kept/);}
+    else if(choice==='confirm'){assert.equal(saved.estimate.configuration.rates.frozen.price,99);assert.equal(h.app.state.libraryDraft.rates.local.price,55);assert.match(h.byId('app-message').textContent,/other pricing draft/);}
+    else{assert.equal(saved.estimate.configuration.rates.local.price,55);assert.equal(h.app.state.projectPricingDraft.rates.frozen.price,99);assert.equal(h.app.projectPricingChanged(),true);}
+  });
+  for (const outcome of ['cancel','failure']) await check(`A ${outcome} during Save As preserves project-only shared pricing edits`,async h=>{
+    h.app.state.draft.rates.local.price=123.456;const before=h.snapshot();h.app.setRequest(async(path,options)=>{if(path==='/api/configuration/preview')return{configuration:JSON.parse(options.body).configuration,fields:copy(h.app.state.fields)};if(outcome==='cancel')return{cancelled:true};throw new Error('Disk unavailable');});
+    await h.app.saveProject();assert.deepEqual(h.snapshot().pricing,before.pricing);assert.deepEqual(h.snapshot().pricingDraft,before.pricingDraft);assert.deepEqual(h.snapshot().estimate,before.estimate);assert.equal(h.app.state.projectFile,null);
+  });
+  await check('Save includes portable project library drafts and preserves their captured receipt without global library calls',async h=>{
+    const library={version:1,source_sha256:'calculator',records:[{id:'record',draft:{rows:[]},diagram:{filename:'source.png',content_base64:'YQ=='}}]};let marked;
+    h.context.window.CeasefireLibraryEditor={projectFingerprint:()=> 'captured',completeProjectSnapshot:async()=>copy(library),hasProjectChanges:()=>true,markProjectSaved:(saved,captured)=>{marked={saved,captured};}};
+    h.app.setRequest(async(path,options)=>{assert.equal(path,'/api/project/save-as');const body=JSON.parse(options.body);assert.deepEqual(body.library_drafts,library);return{file:{path:'C:/estimates/library.json'},project:{...project(),estimate:body.estimate,calculators:body.calculators,library_drafts:body.library_drafts}};});
+    await h.app.saveProject();assert.deepEqual(copy(marked),{saved:library,captured:library});assert.match(h.byId('app-message').textContent,/project library drafts/);
+  });
+  await check('A library draft changed during physical preparation prevents saving mixed project revisions',async h=>{
+    let stamp=1,writes=0;const pending=deferred();h.context.window.CeasefireLibraryEditor={hasProjectChanges:()=>true,projectFingerprint:()=>String(stamp),completeProjectSnapshot:async()=>({version:1,records:[]})};
+    h.context.window.CeasefireTakeoffs={hasUnsavedChanges:()=>true,completeProjectSnapshot:()=>pending.promise,projectSnapshot:()=>undefined};h.app.setRequest(async()=>{writes++;});
+    const saving=h.app.saveProject();await flush();stamp++;pending.resolve();await saving;assert.equal(writes,0);assert.match(h.byId('app-message').textContent,/library drafts changed/);
+  });
+  for (const saveAs of [true, false]) await check(`${saveAs ? 'Save As' : 'Save'} waits for physical edits and captures the complete current project`, async h => {
+    const pending = deferred(); let takeoffs = { version: 2, project_id: 'physical-project', revision: 1, documents: [{ id: 'drawing' }], items: [], physical: { defects: [{ id: 'defect', fields: { description: 'Before edit' } }] } }, sent, savedTakeoffs;
+    h.app.state.projectFile = { save_token: 'current-file', path: 'C:/estimates/current.json' };
+    h.context.window.CeasefireTakeoffs = {
+      projectSnapshot: () => copy(takeoffs), projectFingerprint: () => JSON.stringify(takeoffs), hasUnsavedChanges: () => true, sessionId: () => 'physical-session',
+      completeProjectSnapshot: async () => { await pending.promise; takeoffs = { ...takeoffs, revision: 2, physical: { defects: [{ id: 'defect', fields: { description: 'Finished physical edit' } }] } }; return copy(takeoffs); },
+      markProjectSaved: (saved, captured) => { savedTakeoffs = { saved, captured }; },
+    };
+    h.app.setRequest(async (path, options) => { assert.equal(path, saveAs ? '/api/project/save-as' : '/api/project/save'); sent = JSON.parse(options.body); return { file: { path: 'C:/estimates/complete.json', save_token: 'next' }, project: { ...project(), estimate: sent.estimate, calculators: sent.calculators, takeoffs: sent.takeoffs } }; });
+    const saving = h.app.saveProject(saveAs); await flush();
+    assert.equal(h.app.state.projectBusy, true); assert.equal(sent, undefined);
+    pending.resolve(); await saving;
+    assert.equal(sent.takeoffs.physical.defects[0].fields.description, 'Finished physical edit'); assert.equal(sent.takeoffs_session_id, 'physical-session');
+    assert.deepEqual(Object.keys(sent.calculators).sort(), [...ids].sort()); assert.equal(sent.estimate.client, 'Local client');
+    assert.equal(sent.save_token, saveAs ? undefined : 'current-file'); assert.deepEqual(copy(savedTakeoffs.captured), sent.takeoffs); assert.equal(h.app.state.projectBusy, false);
+  });
+  await check('Invalid calculator input stops Save before a physical-edit review is opened', async h => {
+    let reviews = 0, writes = 0;
+    h.context.window.CeasefireTakeoffs = { hasUnsavedChanges: () => true, completeProjectSnapshot: async () => { reviews++; throw new Error('Review should not open'); } };
+    h.calc.current().invalid.set('A9', 'Invalid calculator input'); h.app.setRequest(async () => { writes++; });
+    await h.app.saveProject(); assert.equal(reviews, 0); assert.equal(writes, 0); assert.equal(h.app.state.projectBusy, false); assert.match(h.byId('app-message').textContent, /not saved/);
+  });
+  await check('Project replacement during calculator preparation cannot open a physical review in the replacement project', async h => {
+    const pending = deferred(); let reviews = 0, writes = 0;
+    h.bridgeApi.completeProjectSnapshot = () => pending.promise;
+    h.context.window.CeasefireTakeoffs = { hasUnsavedChanges: () => true, completeProjectSnapshot: async () => { reviews++; } };
+    h.app.setRequest(async () => { writes++; }); const saving = h.app.saveProject(); await flush();
+    h.app.state.quoteContext++; pending.resolve(h.bridgeApi.projectSnapshot()); await saving;
+    assert.equal(reviews, 0); assert.equal(writes, 0); assert.match(h.byId('app-message').textContent, /project changed while preparing/);
+  });
+  for (const reason of ['Physical edit review was cancelled. Your field edits were kept.', 'Physical preview is unavailable.']) await check(`A stopped physical review prevents the complete project save: ${reason}`, async h => {
+    const pending = deferred(); let writes = 0; const before = h.snapshot();
+    h.context.window.CeasefireTakeoffs = { hasUnsavedChanges: () => true, completeProjectSnapshot: () => pending.promise };
+    h.app.setRequest(async () => { writes++; }); const saving = h.app.saveProject(); await flush(); assert.equal(h.app.state.projectBusy, true);
+    pending.reject(new Error(reason)); await saving;
+    assert.equal(writes, 0); assert.deepEqual(h.snapshot().estimate, before.estimate); assert.deepEqual(h.snapshot().pricingDraft, before.pricingDraft); assert.equal(h.app.state.projectFile, null); assert.equal(h.app.state.projectBusy, false);
+    assert.equal(h.byId('app-message').textContent, `Project was not saved. ${reason}`);
+  });
+  await check('Calculator changes during physical review prevent saving mixed revisions', async h => {
+    const pending = deferred(), takeoffs = { version: 2, revision: 3, physical: { defects: [] } }; let writes = 0;
+    h.context.window.CeasefireTakeoffs = { hasUnsavedChanges: () => true, completeProjectSnapshot: () => pending.promise, projectSnapshot: () => copy(takeoffs) };
+    h.app.setRequest(async () => { writes++; }); const saving = h.app.saveProject(); await flush();
+    h.calc.setInput(h.calc.current(), 'CALCULATOR', 'A9', 'Later calculator edit'); pending.resolve(copy(takeoffs)); await saving;
+    assert.equal(writes, 0); assert.equal(h.calc.current().inputs.CALCULATOR.A9, 'Later calculator edit'); assert.equal(h.calc.dirty(h.calc.current()), true); assert.match(h.byId('app-message').textContent, /calculator drafts changed/);
   });
   await check('Cancelled project replacement closes only its prepared takeoff evidence session',async h=>{
     const closed=[],applied=[];h.context.window.CeasefireTakeoffs={projectFingerprint:()=> 'current',hasUnsavedChanges:()=>true,prepareProject:async(value,id)=>({session:{session_id:id},value}),applyProject:value=>applied.push(value),discardPreparedSession:async id=>closed.push(id)};

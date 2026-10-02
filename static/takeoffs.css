@@ -157,3 +157,14 @@
 /* The pan plane includes space beyond every PDF edge; the source overlay moves with its page. */
 .takeoff-pan-space{position:relative;min-width:100%;min-height:100%}
 .takeoff-pan-space>.takeoff-page{position:absolute;margin:0}
+
+/* Physical register actions remain compact without losing their accessible names. */
+.takeoff-physical-add-row{display:flex;align-items:center;margin:8px 0 0;min-height:32px}
+.takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
+.takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
+.takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
+.takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
+.takeoff-physical-discard svg,.takeoff-physical-delete-selected svg{display:block;width:22px;height:22px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.takeoff-physical-register .takeoff-physical-disclosure:focus-visible,.takeoff-physical-add-row .takeoff-physical-add-defect:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.takeoff-physical-register .takeoff-physical-discard{color:#c01b12;border-color:#f2c6c3;background:#fff3f2}

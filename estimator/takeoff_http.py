@@ -146,6 +146,8 @@ class TakeoffHTTP:
             result = {'cancelled': True}
         elif action == 'commands':
             result = self.service.command(session_id, body)
+        elif action == 'auto-calibrate':
+            result = self.service.auto_calibrate(session_id, body)
         elif action == 'physical/preview':
             result = self.service.preview_physical(session_id, body)
         elif action == 'physical/apply':

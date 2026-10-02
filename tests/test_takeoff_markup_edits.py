@@ -78,7 +78,7 @@ class TakeoffMarkupEditTests(unittest.TestCase):
     def test_appearance_is_bounded_literal_and_legacy_items_keep_their_bytes(self):
         identifier = self.case.create(); original = deepcopy(self.item(identifier))
         self.assertNotIn('appearance', validate_snapshot(self.case.state['snapshot'])['items'][0])
-        self.assertEqual(markup_appearance(original), {'stroke_color': '#16699B', 'fill_color': '#16699B',
+        self.assertEqual(markup_appearance(original), {'stroke_color': '#FF0000', 'fill_color': '#FF0000',
             'stroke_width': 2, 'fill_enabled': False, 'opacity': 1})
         invalid = [None, [], {}, {'unknown': 1}, {'stroke_color': 'red'}, {'stroke_color': '#fff'},
                    {'fill_color': 'url(http://example.test)'}, {'fill_enabled': 1}, {'opacity': True},

@@ -78,8 +78,8 @@ def validate_appearance(value):
 
 def markup_appearance(item):
     """Shared physical-PDF-point defaults for browser and drawing exports."""
-    return {'stroke_color': '#16699B', 'fill_enabled': item['mode'] in AREA_MODES or is_count_item(item),
-            'fill_color': '#16699B', 'stroke_width': 2, 'opacity': 1,
+    return {'stroke_color': '#FF0000', 'fill_enabled': item['mode'] in AREA_MODES or is_count_item(item),
+            'fill_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
             **({'marker_shape': 'circle', 'marker_size': 12} if is_count_item(item) else {}),
             **validate_appearance(item.get('appearance', {}))}
 
@@ -276,10 +276,10 @@ def polyline_length(value):
 
 def validate_calibration(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'document_id', 'page', 'name', 'points', 'distance_m', 'uniform_scale',
-                          'region', 'scale_denominator', 'supersedes_id', 'deleted'}, 'Calibration',
+                          'region', 'scale_denominator', 'supersedes_id', 'deleted', 'printed_scale_evidence'}, 'Calibration',
                   {'id', 'document_id', 'page', 'points', 'distance_m', 'uniform_scale'})
     identity(value['id'], 'Calibration ID')
-    _, page = page_metadata(snapshot, value['document_id'], value['page'])
+    document, page = page_metadata(snapshot, value['document_id'], value['page'])
     points(value['points'], 'Calibration', page, 2, 2)
     polyline_length(value['points'])
     number(value['distance_m'], 'Known distance in metres', positive=True)
@@ -297,6 +297,17 @@ def validate_calibration(value, snapshot, *, copy_result=True):
         expected = preset_distance(value, snapshot)
         if not math.isclose(value['distance_m'], expected, rel_tol=1e-12, abs_tol=0):
             raise ValidationError('The preset distance must match the PDF page UserUnit and selected printed scale.')
+    if 'printed_scale_evidence' in value:
+        evidence = value['printed_scale_evidence']
+        object_fields(evidence, {'source_sha256', 'text', 'points', 'detector'}, 'Printed scale evidence',
+                      {'source_sha256', 'text', 'points', 'detector'})
+        if (evidence['source_sha256'] != document['sha256'] or evidence['detector'] != 'pdf-footer-v1'
+                or 'scale_denominator' not in value or 'region' in value):
+            raise ValidationError('Printed scale evidence must identify its original PDF page and preset.')
+        text(evidence['text'], 'Printed scale evidence', 200)
+        if not evidence['text'].strip():
+            raise ValidationError('Printed scale evidence cannot be blank.')
+        points(evidence['points'], 'Printed scale evidence', page, 2, 2)
     if 'supersedes_id' in value:
         identity(value['supersedes_id'], 'Previous calibration ID')
         if value['supersedes_id'] == value['id']:

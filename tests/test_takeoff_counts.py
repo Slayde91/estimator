@@ -160,6 +160,54 @@ class TakeoffCountTests(unittest.TestCase):
                 self.assertEqual(restored[name], previous[name])
             self.assertIsNone(restored['confirmation'])
 
+    def test_member_length_edits_survive_regrouping_and_keep_unedited_members_unchanged(self):
+        ids = self.add((3, 4, 4)); other = self.add((3,))[0]
+        originals = [deepcopy(self.item(identifier)) for identifier in ids]
+        members = [item['member_ids'] for item in originals]
+        self.case.command('confirm_items', item_ids=ids)
+        self.case.apply(self.case.preview(ids[0])); calculator = deepcopy(self.case.state['calculator'])
+        self.case.command('update_count_lengths', groups=[{'member_ids': members[0], 'length_m': 4}])
+        merged = deepcopy(self.item(ids[0])); self.assertEqual(merged['quantity'], 3)
+        self.assertEqual(self.case.state['snapshot']['transfers'][0]['status'], 'stale')
+        # A second edit captured before the merge still targets its own members.
+        request = {'op': 'update_count_lengths', 'request_id': str(uuid4()), 'expected_revision': self.case.state['revision'],
+                   'groups': [{'member_ids': members[1], 'length_m': 6.123456789}]}
+        self.case.state = self.case.service.command(self.case.sid, request)
+        self.assertEqual(self.case.state, self.case.service.command(self.case.sid, request))
+        rows = [item for item in self.case.state['snapshot']['items'] if item['count_id'] == merged['count_id']]
+        self.assertEqual(len(rows), 2)
+        by_member = {member: (item['measurement']['length_m'], point) for item in rows
+                     for member, point in zip(item['member_ids'], item['geometry']['points'])}
+        for index, original in enumerate(originals):
+            for member, point in zip(original['member_ids'], original['geometry']['points']):
+                self.assertEqual(by_member[member], (4 if index == 0 else 6.123456789, point))
+        for item in rows:
+            self.assertEqual(item['fields'], originals[0]['fields'])
+            self.assertEqual(item['evidence'], originals[0]['evidence'])
+            self.assertIsNone(item['confirmation'])
+        self.assertEqual(self.item(other)['measurement']['length_m'], 3)
+        self.assertNotIn('calculator', self.case.state)
+        self.assertEqual(calculator['inputs']['SCHEDULE']['I10'], 1)
+        self.case.command('undo')
+        restored = self.item(merged['id'])
+        for key in ('geometry', 'measurement', 'member_ids', 'evidence', 'quantity', 'count_id'):
+            self.assertEqual(restored[key], merged[key])
+
+    def test_member_length_swaps_are_atomic_and_invalid_or_duplicate_members_are_rejected(self):
+        ids = self.add((3, 4)); before = [deepcopy(self.item(identifier)) for identifier in ids]
+        groups = [{'member_ids': before[0]['member_ids'], 'length_m': 4},
+                  {'member_ids': before[1]['member_ids'], 'length_m': 3}]
+        self.case.command('update_count_lengths', groups=groups)
+        for old, length in zip(before, (4, 3)):
+            current = self.item(old['id'])
+            self.assertEqual(current['measurement']['length_m'], length)
+            self.assertEqual(current['member_ids'], old['member_ids'])
+        for invalid in ([], [{'member_ids': [], 'length_m': 3}], groups + [groups[0]],
+                        [{'member_ids': [str(uuid4())], 'length_m': 3}]):
+            self.assert_rejected('update_count_lengths', groups=invalid)
+        for length in (None, 0, -1, True, float('nan'), float('inf'), 1e13):
+            self.assert_rejected('update_count_lengths', groups=[{'member_ids': before[0]['member_ids'], 'length_m': length}])
+
     def test_bulk_manual_length_groups_each_count_separately_and_rejects_mixed_traces(self):
         ids = self.add(); other = self.add((6.25,), fields={**FIELDS, 'mark': 'Different count'})[0]
         self.case.command('bulk_update', item_ids=ids+[other], changes={'measurement': {'method': 'manual', 'length_m': 8}})

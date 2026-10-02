@@ -98,7 +98,27 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   const beforeZoom=await scrollState();await page.keyboard.down('Control');try{await command(()=>wheel(-120),'record_render');}finally{await page.keyboard.up('Control');}assert.ok((await scrollState()).scrollHeight>beforeZoom.scrollHeight);await geometryEqual(a.id,minimum.items.find(i=>i.id===a.id).geometry.points);
   await select([b.id]);await page.evaluate(()=>window.scrollTo(0,100));await page.locator('.takeoff-viewport').evaluate((el,id)=>{const point=el.querySelector(`[data-control-item-id="${id}"][data-point-index="1"]`),box=point.getBoundingClientRect(),frame=el.getBoundingClientRect();el.scrollTop+=(box.top+box.height/2)-(frame.bottom-16);},b.id);
   await handle(b.id,1).click({button:'right'});const edgeMenu=page.getByRole('menu');await expect(edgeMenu.getByRole('menuitem',{name:'Delete control point',exact:true})).toBeVisible();const menuBox=await edgeMenu.boundingBox(),frameBox=await page.locator('.takeoff-viewport').boundingBox();assert.ok(menuBox.x>=frameBox.x&&menuBox.y>=frameBox.y&&menuBox.x+menuBox.width<=frameBox.x+frameBox.width+1&&menuBox.y+menuBox.height<=frameBox.y+frameBox.height+1,JSON.stringify({menuBox,frameBox}));await page.screenshot({path:path.join(output,'edge-control-menu.png')});await page.keyboard.press('Escape');
-  await page.getByLabel('Filter register',{exact:true}).focus();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','false');await page.getByRole('button',{name:'Pan',exact:true}).click();await expect(page.locator('.takeoff-control-point')).toHaveCount(0);await page.evaluate(()=>window.scrollTo(0,100));await page.locator('.takeoff-viewport').evaluate(el=>{el.scrollTop=100;});const panBox=await page.locator('.takeoff-viewport').boundingBox();await page.mouse.move(panBox.x+panBox.width/2,panBox.y+300);await page.mouse.down();await page.mouse.move(panBox.x+panBox.width/2,panBox.y+220,{steps:5});await page.mouse.up();assert.ok(Math.abs((await scrollState()).top-180)<2);await geometryEqual(b.id,b.geometry.points);
+  await page.getByLabel('Filter register',{exact:true}).focus();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','false');await page.getByRole('button',{name:'Pan',exact:true}).click();await expect(page.locator('.takeoff-control-point')).toHaveCount(0);
+  await fit(); for(let i=0;i<4;i++) await command(()=>page.getByRole('button',{name:'−',exact:true}).click(),'record_render');
+  await page.locator('.takeoff-viewport').evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-180));
+  const panBefore=await snapshot(),panBox=await page.locator('.takeoff-viewport').boundingBox();
+  async function freeDrag(dx,dy){
+    const before=await page.locator('.takeoff-page').boundingBox(),x=panBox.x+panBox.width/2,y=panBox.y+panBox.height/2;
+    await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:8});await page.mouse.up();
+    const after=await page.locator('.takeoff-page').boundingBox();
+    assert.ok(Math.abs(after.x-before.x-dx)<2&&Math.abs(after.y-before.y-dy)<2,JSON.stringify({before,after,dx,dy}));return after;
+  }
+  // Keep dragging on the grey background even after the page leaves the viewport.
+  const panSteps=Math.ceil(Math.max(panBox.width/170,panBox.height/90))+2;
+  for(let i=0;i<panSteps;i++)await freeDrag(170,90);
+  let paper=await page.locator('.takeoff-page').boundingBox();assert.ok(paper.x>panBox.x+panBox.width&&paper.y>panBox.y+panBox.height);
+  for(let i=0;i<panSteps*2;i++)await freeDrag(-170,-90);
+  paper=await page.locator('.takeoff-page').boundingBox();assert.ok(paper.x+paper.width<panBox.x&&paper.y+paper.height<panBox.y);
+  assert.deepEqual(await snapshot(),panBefore,'Panning never edits measurement, scale, evidence or quantity');
+  await page.screenshot({path:path.join(output,'paper-outside-viewport.png')});
+  await fit();paper=await page.locator('.takeoff-page').boundingBox();
+  assert.ok(paper.x>=panBox.x&&paper.y>=panBox.y&&paper.x+paper.width<=panBox.x+panBox.width&&paper.y+paper.height<=panBox.y+panBox.height,'Fit page recovers the paper');
+  await geometryEqual(b.id,b.geometry.points);evidence.freePan={allDirections:true,greyBackground:true,fitRecovers:true,geometryUnchanged:true};
   await page.getByRole('button',{name:'Select',exact:true}).click();await select([a.id]);
   await fit();await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(output,'selected-control-points.png'),fullPage:true});await page.screenshot({path:path.join(output,'selected-control-points-viewport.png')});await page.locator('.takeoff-viewport').evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-180));await page.screenshot({path:path.join(output,'selected-control-points-plan.png')});
   await save();const saved=JSON.parse(fs.readFileSync(info.project));await load();await select([a.id]);await page.locator(`tr[data-item-id="${a.id}"] .takeoff-row-link`).click();await idle();await geometryEqual(a.id,saved.takeoffs.items.find(i=>i.id===a.id).geometry.points);await expect(handles(a.id)).toHaveCount(2);assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);

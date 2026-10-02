@@ -317,6 +317,44 @@ class TakeoffDocuments:
             raise ValidationError("The PDF changed before inspection. Its page metadata was not accepted.")
         return data["pages"]
 
+    def printed_scale(self, document, page, owner=None):
+        """Inspect exact retained bytes without altering immutable PDF metadata."""
+        self.assert_documents([document], owner=owner)
+        if type(page) is not int or not 1 <= page <= len(document['pages']):
+            raise ValidationError('Choose an existing source page for automatic calibration.')
+        path = self.document_path(document)
+        if not _PARSER_SLOTS.acquire(blocking=False):
+            raise ValidationError('Two PDFs are already being inspected. Retry when an inspection finishes.')
+        try:
+            try:
+                result = subprocess.run([sys.executable, '-I', str(Path(__file__).with_name('takeoff_pdf_worker.py')), str(path), str(page)],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=PARSER_TIMEOUT, check=False,
+                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            except subprocess.TimeoutExpired as error:
+                raise ValidationError('Automatic scale detection exceeded its time limit. Choose a scale manually.') from error
+        finally:
+            _PARSER_SLOTS.release()
+        if result.returncode or len(result.stdout) > 4096:
+            raise ValidationError('The printed PDF scale could not be inspected safely. Choose a scale manually.')
+        try:
+            data = json.loads(result.stdout)
+        except (ValueError, UnicodeError) as error:
+            raise ValidationError('Automatic scale detection did not return valid evidence.') from error
+        if not isinstance(data, dict) or set(data) != {'sha256', 'printed_scale'} or data['sha256'] != document['sha256']:
+            raise ValidationError('Automatic scale evidence does not match the retained PDF.')
+        scale = data['printed_scale']
+        if scale is not None:
+            from .takeoff_model import SCALE_DENOMINATORS, points, text
+            if (not isinstance(scale, dict) or set(scale) != {'scale_denominator', 'text', 'points'}
+                    or type(scale['scale_denominator']) is not int or scale['scale_denominator'] not in SCALE_DENOMINATORS):
+                raise ValidationError('Automatic scale detection returned invalid scale evidence.')
+            text(scale['text'], 'Printed scale evidence', 200)
+            if not scale['text'].strip():
+                raise ValidationError('Printed scale evidence cannot be blank.')
+            points(scale['points'], 'Printed scale evidence', document['pages'][page-1], 2, 2)
+        self.assert_documents([document], owner=owner)
+        return deepcopy(scale)
+
     def _copy(self, source, destination, digest, maximum, *, allow_empty=False):
         """Copy exact verified bytes, never overwrite an existing evidence object."""
         _directory(destination.parent, create=True)

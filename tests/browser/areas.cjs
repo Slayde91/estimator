@@ -27,6 +27,9 @@ async function dialog(title, values, submit) {
     if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
   }
   await modal.getByRole('button', { name: submit, exact: true }).click();
+  // The native close event clears the in-progress review asynchronously.
+  // Wait for that cleanup before taking a synchronous project snapshot.
+  await expect(page.locator('dialog.takeoff-dialog')).toHaveCount(0);
 }
 async function fit() { await idle(); await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render'); }
 async function draw(points, rotated = false, doubleFinish = false) {
@@ -143,7 +146,7 @@ async function surface(mode, rotated = false) {
   await draw([[300, 300], [400, 300], [400, 400]]);
   await page.locator('.takeoff-viewport').press('Enter');
   await dialog('Add wall surface', {}, 'Cancel');
-  await page.getByRole('button', { name: 'Cancel trace', exact: true }).click();
+  await page.locator('.takeoff-viewport').press('Escape');
   assert.deepEqual(await page.evaluate(id => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === id).geometry, wall.id), wall.geometry);
   // A bulk edit invalidates confirmation; one undo restores identities and evidence.
   await page.getByLabel('Bulk edit field', { exact: true }).selectOption('level');

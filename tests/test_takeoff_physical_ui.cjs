@@ -141,6 +141,19 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await h.click('Add defect');assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('read-only'));
     h.answers.push({});await h.click('Export draft CSV');assert.deepEqual(h.calls.exports,['csv']);assert.deepEqual(h.current.physical,original);h.controller.destroy();
   });
+  await check('Inherited locations follow the nearest location-bearing parent in each saved hierarchy version',async()=>{
+    for(const value of [legacyGraph(),graph()]){
+      value.barriers[0].fields.location='Barrier location';value.defects[0].fields.location='Defect location';
+      const original=copy(value),h=component(value);await flush();
+      const locationOf=id=>{const column=h.all().filter(element=>element.tagName==='TH').findIndex(element=>element.textContent==='Location');return h.all().find(element=>element.dataset.physicalId===uuid(id)).children[column].textContent;};
+      const ids=value.version===1?[3,5]:[5],nearest=value.version===1?'Defect location':'Barrier location';
+      for(const id of ids)assert.equal(locationOf(id),nearest);
+      assert.deepEqual(h.current.physical,original);
+      const next=copy(h.current);delete next.physical[value.version===1?'defects':'barriers'][0].fields.location;h.controller.render(next);await flush();
+      for(const id of ids)assert.equal(locationOf(id),value.version===1?'Barrier location':'Defect location');
+      h.controller.destroy();
+    }
+  });
   await check('Inline editing previews authoritative commands and restores an untouched value when review is cancelled',async()=>{
     const h=component(graph(),{confirm:async()=>false});await flush();const control=h.input('Substrate for Wall A');control.value='Masonry';control.emit('input');assert.equal(h.controller.hasUnfinishedChanges(),true);control.emit('change');await flush();
     assert.equal(h.calls.previews.length,1);assert.equal(h.calls.previews[0][0].changes.fields.substrate,'Masonry');assert.equal(h.calls.applied.length,0);assert.equal(h.input('Substrate for Wall A').value,'Concrete');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();

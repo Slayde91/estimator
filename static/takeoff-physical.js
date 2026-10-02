@@ -349,7 +349,8 @@
           line.append(cell);
         }
         const status = node("td"); status.append(node("span", `takeoff-state ${entity.deleted ? "blocked" : "draft"}`, entity.deleted ? "Deleted draft" : legacy ? "Legacy read-only" : "Unapproved draft"), node("p", "helper", uncertainty.find(([key]) => key === entity.uncertainty.state)?.[1] || "Not assessed")); line.append(status);
-        const location = kind === "barrier" || kind === "defect" ? editableCell(row, "location") : textCell(relation.barrier?.entity.fields.location ?? relation.defect?.entity.fields.location, "Inherited parent location.");
+        const inheritedLocation = legacy ? relation.defect?.entity.fields.location ?? relation.barrier?.entity.fields.location : relation.barrier?.entity.fields.location ?? relation.defect?.entity.fields.location;
+        const location = kind === "barrier" || kind === "defect" ? editableCell(row, "location") : textCell(inheritedLocation, "Inherited parent location.");
         line.append(location, kind === "defect" ? editableCell(row, "frl") : textCell(relation.defect?.entity.fields.frl, "Recorded defect FRL; not a technical approval."));
         if (legacy) line.append(textCell(relation.opening?.entity.fields.opening_type), textCell(relation.opening?.entity.fields.size));
         line.append(kind === "barrier" ? editableCell(row, "substrate") : textCell(relation.barrier?.entity.fields.substrate), kind === "barrier" ? editableCell(row, "orientation") : textCell(relation.barrier?.entity.fields.orientation));

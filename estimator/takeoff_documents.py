@@ -706,6 +706,8 @@ class TakeoffDocuments:
             # Numbered identities survive edits and Undo. A future legacy
             # migration needs an explicit contract rather than a silent swap.
             from .takeoff_physical import graph_collections
+            if event['before']['revision'] == 0 and before_graph is not None:
+                raise ValidationError('The initial audit state cannot contain an unrecorded numbered physical hierarchy.')
             if before_graph and (not after_graph or before_graph['version'] != after_graph['version']
                                  or before_graph['id'] != after_graph['id']):
                 raise ValidationError('The numbered physical hierarchy cannot be replaced in audit history.')

@@ -78,6 +78,15 @@ class NumberedPhysicalAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'continue the retained sequence'):
             self.documents.validate_audit(self.record(self.current, altered))
 
+    def test_first_event_cannot_seed_an_unrecorded_numbered_hierarchy(self):
+        initial = upgrade_snapshot(self.initial)
+        initial['physical'] = deepcopy(self.current['physical'])
+        initial['physical']['defects'][0]['display_id'] = 'D-0042'
+        after = deepcopy(initial)
+        after['physical']['defects'][0]['fields']['label'] = 'Imported'
+        with self.assertRaisesRegex(ValidationError, 'initial audit state'):
+            self.documents.validate_audit(self.record(initial, after))
+
 
 if __name__ == '__main__':
     unittest.main()

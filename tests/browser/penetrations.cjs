@@ -5,7 +5,7 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime', 'browser-qa', `penetrations-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output, '--physical-legacy'], { cwd: root, windowsHide: true });
-let logs = '', browser, page, state;
+let logs = '', browser, page, state, physicalChoices;
 server.stderr.on('data', data => { logs += data; });
 const ready = new Promise((resolve, reject) => {
   let stdout = ''; const timer = setTimeout(() => reject(new Error(`Startup timeout: ${logs}`)), 120000);
@@ -32,10 +32,31 @@ async function dialog(title, values, submit) {
   await modal.getByRole('button', { name: submit, exact: true }).click();
 }
 async function apply(title) { state = await response(() => dialog(title, {}, 'Apply draft change'), '/physical/apply'); await idle(); return state; }
+async function dropdown(control, expected) {
+  assert.equal(await control.evaluate(element=>element.tagName), 'SELECT');
+  assert.deepEqual(await control.locator('option').evaluateAll(options=>options.map(option=>option.value).filter(Boolean)), expected);
+}
+async function physicalForm(kind, scope) {
+  if (kind === 'barrier') {
+    for (const label of ['Barrier label', 'Thickness (mm)']) await expect(scope.getByLabel(label, { exact: true })).toHaveCount(0);
+    await dropdown(scope.getByLabel('Barrier type', { exact: true }), ['Empty Opening', 'Core hole', 'Oversized']);
+    await dropdown(scope.getByLabel('Substrate', { exact: true }), physicalChoices.substrate);
+    await dropdown(scope.getByLabel('Substrate orientation', { exact: true }), physicalChoices.orientation);
+  } else if (kind === 'service') {
+    await expect(scope.getByLabel('Service label', { exact: true })).toHaveCount(0);
+    await dropdown(scope.getByLabel('Category', { exact: true }), physicalChoices.service);
+    await dropdown(scope.getByLabel('Service type', { exact: true }), physicalChoices.service_type);
+    await expect(scope.getByLabel('Service Size (mm)', { exact: true })).toBeVisible();
+    const names=await scope.locator('input, select, textarea').evaluateAll(controls=>controls.map(control=>control.name));
+    assert.equal(names.indexOf('quantity'), names.indexOf('service_type')+1, 'Service quantity follows Service type');
+  }
+}
 async function create(kind, values, trigger = `Add ${kind}`) {
   await idle(); await page.getByRole('button', { name: trigger, exact: true }).click();
+  const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:`Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
+  if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
   const preview = await response(() => dialog(`Create draft ${kind}`, { ...values, 'Uncertainty / review state': 'human_review_required' }, 'Preview new draft'), '/physical/preview');
-  assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
+  assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Physical draft inspector'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
 async function undo() { await page.getByRole('button', { name: 'Undo physical / takeoff edit', exact: true }).click(); state = await response(() => dialog('Undo last takeoff edit?', {}, 'Undo last edit'), '/commands'); await idle(); }
@@ -52,6 +73,8 @@ async function showImage() {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible(); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  const definitionReply=await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);
+  const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({substrate:'P',orientation:'M',service:'J',service_type:'K'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click();
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toBeVisible();
@@ -63,18 +86,21 @@ async function showImage() {
   // The UI's retained-image display is the acceptance surface; source metadata is also checked exactly below.
   let card = await showImage(); await page.screenshot({ path: path.join(output, 'retained-bitmap.png'), fullPage: true });
   const defect = await create('defect', { 'Defect label': 'D-001', 'Location': 'L02 north', 'FRL': '-/120/120' }); await identifier(defect, 'D-0001');
-  const barrierFields = { 'Location': 'L02 north', 'Barrier type': 'Wall', 'Substrate': 'Concrete', 'Substrate orientation': 'Vertical', 'Thickness (mm)': 150 };
-  const empty = await create('barrier', { 'Barrier label': 'B-EMPTY', ...barrierFields }, 'Add barrier to D-0001'); await identifier(empty, 'B-0001');
+  const barrierFields = { 'Location': 'L02 north', 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Substrate orientation': 'Vertical' };
+  const empty = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(empty, 'B-0001');
+  for(const field of ['label','thickness_mm'])assert.equal(Object.hasOwn(record(empty).fields,field),false);
+  await dropdown(page.getByLabel('Substrate for B-0001',{exact:true}),physicalChoices.substrate);await dropdown(page.getByLabel('Substrate orientation for B-0001',{exact:true}),physicalChoices.orientation);
   await expect(page.locator(`tr[data-physical-id="${empty}"]`)).toContainText('0 services');
   const otherDefect = await create('defect', { 'Defect label': 'OTHER-DEFECT', 'Location': 'L03 south' }); await identifier(otherDefect, 'D-0002');
   // The row that owns '+' is the parent, regardless of the currently selected row.
   await select(otherDefect);
-  const occupied = await create('barrier', { 'Barrier label': 'B-MIXED', ...barrierFields }, 'Add barrier to D-0001'); await identifier(occupied, 'B-0002');
+  const occupied = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(occupied, 'B-0002');
   assert.equal(record(occupied).defect_id, defect); assert.equal(record(empty).defect_id, defect);
-  const serviceFields = { 'Service': 'Copper pipe', 'Service type': 'Copper', 'Service size / source designation': '25 mm', 'Explicit service quantity': 1 };
-  const pipe = await create('service', { 'Service label': 'S-PIPE', ...serviceFields }, 'Add service to B-0002'); await identifier(pipe, 'S-0001');
+  const serviceFields = { 'Category': 'Plumbing & Hydraulic', 'Service type': 'Unlagged Pipes', 'Service Size (mm)': '25', 'Explicit service quantity': 1 };
+  const pipe = await create('service', serviceFields, 'Add service to B-0002'); await identifier(pipe, 'S-0001');
+  assert.equal(Object.hasOwn(record(pipe).fields,'label'),false);await dropdown(page.getByLabel('Category for S-0001',{exact:true}),physicalChoices.service);await dropdown(page.getByLabel('Service type for S-0001',{exact:true}),physicalChoices.service_type);
   await select(empty);
-  const cable = await create('service', { 'Service label': 'S-CABLE', 'Service': 'Cable', 'Service type': 'Electrical cable', 'Service size / source designation': '3 separate cables', 'Explicit service quantity': 3 }, 'Add service to B-0002'); await identifier(cable, 'S-0002');
+  const cable = await create('service', { 'Category': 'Electrical & Communications', 'Service type': 'Single Cables', 'Service Size (mm)': '10', 'Explicit service quantity': 3 }, 'Add service to B-0002'); await identifier(cable, 'S-0002');
   assert.equal(activeGraph().version, 2); assert.equal(activeGraph().barriers.length, 2); assert.equal(activeGraph().defects.length, 2); assert.equal(activeGraph().services.length, 2); assert.equal(activeGraph().services.reduce((sum, entity) => sum + entity.quantity, 0), 4);
   assert.ok(!Object.hasOwn(activeGraph(), 'openings')); assert.ok(activeGraph().services.every(entity => entity.barrier_id === occupied && !Object.hasOwn(entity, 'opening_id')));
   await expect(page.locator('.takeoff-physical-register')).not.toContainText('Opening');
@@ -85,22 +111,22 @@ async function showImage() {
   await page.locator(`tr[data-physical-id="${cable}"] .takeoff-row-link`).hover(); await expect(page.locator('.takeoff-physical-shape')).toHaveClass(/hovered/);
   state = await response(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), '/commands'); await idle();
   await page.locator(`.takeoff-hit[data-physical-id="${cable}"]`).hover(); await expect(page.locator(`tr[data-physical-id="${cable}"]`)).toHaveClass(/hovered/);
-  await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-CABLE'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
+  await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-0002'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
   const notes = page.getByRole('complementary', { name: 'Physical draft inspector' }).getByLabel('Notes', { exact: true });
   await notes.fill('Unapplied inspection finding must remain visible'); const frl = page.getByLabel('FRL for D-001', { exact: true }); await frl.fill('-/90/90'); await frl.press('Tab');
   await expect(page.getByRole('alert')).toContainText('Those edits have been preserved'); await expect(notes).toHaveValue('Unapplied inspection finding must remain visible'); await expect(frl).toHaveValue('-/120/120');
   await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue('');
   await frl.fill('-/90/90'); await frl.press('Tab'); await apply('Change defect frl?'); assert.equal(activeGraph().defects[0].fields.frl, '-/90/90'); await undo(); assert.equal(activeGraph().defects[0].fields.frl, '-/120/120');
-  await page.getByRole('button', { name: 'Clear physical selection', exact: true }).click(); await page.getByLabel('Select Service S-PIPE', { exact: true }).check(); await page.getByLabel('Select Service S-CABLE', { exact: true }).check();
-  await page.getByRole('button', { name: 'Bulk edit same-type records', exact: true }).click(); const bulk = await response(() => dialog('Edit 2 draft service records', { 'Field to change': 'notes', 'New value (blank clears unknown properties)': 'One reviewed draft edit batch' }, 'Preview bulk edit'), '/physical/preview'); assert.equal(bulk.changed_ids.length, 2);
+  await page.getByRole('button', { name: 'Clear physical selection', exact: true }).click(); await page.getByLabel('Select Service S-0001', { exact: true }).check(); await page.getByLabel('Select Service S-0002', { exact: true }).check();
+  await page.getByRole('button', { name: 'Bulk edit same-type records', exact: true }).click();await dialog('Choose field for 2 draft records',{'Field to change':'notes'},'Continue');const bulk = await response(() => dialog('Edit 2 draft service records', { 'Notes': 'One reviewed draft edit batch' }, 'Preview bulk edit'), '/physical/preview'); assert.equal(bulk.changed_ids.length, 2);
   await apply('Change 2 of 2 selected records? 0 already match and stay unchanged.'); assert.ok(activeGraph().services.every(entity => entity.fields.notes === 'One reviewed draft edit batch')); await undo(); assert.ok(activeGraph().services.every(entity => !entity.fields.notes)); assert.deepEqual(activeGraph().services.find(entity => entity.id === cable).evidence[0], evidence);
   const beforeDeleteIds = identities();
   await select(occupied); await page.getByRole('button', { name: 'Delete draft record', exact: true }).click(); const deletion = await response(() => dialog('Delete draft barrier', { 'Deletion scope': 'cascade' }, 'Preview deletion'), '/physical/preview'); assert.equal(deletion.changed_ids.length, 3); await apply('Review recoverable deletion'); assert.ok(activeGraph().services.every(entity => entity.deleted)); assert.equal(record(empty).deleted, false); assert.equal(record(otherDefect).deleted, false);
   await page.getByLabel('Show deleted records', { exact: true }).check(); await select(occupied); await page.getByRole('button', { name: 'Restore draft record', exact: true }).click(); await response(() => dialog('Restore draft barrier', { 'Restore scope': 'same_deletion' }, 'Preview restoration'), '/physical/preview'); await apply('Review retained identities to restore'); assert.ok(activeGraph().services.every(entity => !entity.deleted)); assert.deepEqual(identities(), beforeDeleteIds);
   await page.getByLabel('Show deleted records', { exact: true }).uncheck();
   // Undo and recoverable deletion must reserve serials, not recycle them for new records.
-  const undone = await create('service', { 'Service label': 'S-UNDO', ...serviceFields }, 'Add service to B-0001'); await identifier(undone, 'S-0003'); await undo(); assert.equal(record(undone).deleted, true);
-  const deleted = await create('service', { 'Service label': 'S-DELETED', ...serviceFields }, 'Add service to B-0001'); await identifier(deleted, 'S-0004');
+  const undone = await create('service', serviceFields, 'Add service to B-0001'); await identifier(undone, 'S-0003'); await undo(); assert.equal(record(undone).deleted, true);
+  const deleted = await create('service', serviceFields, 'Add service to B-0001'); await identifier(deleted, 'S-0004');
   await page.getByRole('button', { name: 'Delete draft record', exact: true }).click(); await response(() => dialog('Delete draft service', { 'Deletion scope': 'only' }, 'Preview deletion'), '/physical/preview'); await apply('Review recoverable deletion'); assert.equal(record(deleted).deleted, true);
   const savedIdentities = identities(); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6);
   await select(cable); await page.getByRole('button', { name: 'Physical / takeoff audit history', exact: true }).click(); const history = page.getByRole('dialog'); await expect(history.getByRole('heading')).toContainText('Takeoff audit history'); await expect(history).toContainText(occupied); await history.getByRole('button', { name: 'Continue', exact: true }).click(); await page.screenshot({ path: path.join(output, 'physical-hierarchy.png'), fullPage: true });
@@ -115,7 +141,7 @@ async function showImage() {
   await expect(page.getByText('Project was not loaded. Your draft changed while reading the file. Load it again when ready.', { exact: true })).toBeVisible(); await expect(notes).toHaveValue('Later pending note must survive the load race'); await page.unroute('**/api/project/open'); await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click();
   const reopened = await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); assert.deepEqual(reopened.takeoffs.physical, saved.takeoffs.physical);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6); await select(cable); await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
-  const afterReopen = await create('service', { 'Service label': 'S-AFTER-REOPEN', ...serviceFields }, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
+  const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
   await select(cable); assert.deepEqual(record(cable).evidence[0], evidence);
   for (const format of ['CSV', 'XLSX']) { await page.getByRole('button', { name: `Export draft ${format}`, exact: true }).click(); const download = page.waitForEvent('download'); await dialog('Export unapproved physical draft?', {}, 'Export unapproved draft'); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
   assert.ok(inventoryRequests.length); assert.ok(inventoryRequests.every(request => request.extraction && request.limit === '100')); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

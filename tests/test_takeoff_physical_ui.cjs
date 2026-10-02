@@ -10,6 +10,9 @@ const make = (id,fields={},more={}) => ({id:uuid(id),revision:1,deleted:false,de
 const legacyGraph = () => ({version:1,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',barriers:[make(1,{label:'Wall A',substrate:'Concrete'})],defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{barrier_id:uuid(1)})],openings:[make(3,{label:'Core A',opening_type:'Corehole'},{defect_id:uuid(2)}),make(4,{label:'Empty core'},{defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{opening_id:uuid(3),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{opening_id:uuid(3),quantity:3})]});
 const graph = () => ({version:2,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{display_id:'D-0001'})],barriers:[make(1,{label:'Wall A',substrate:'Concrete'},{display_id:'B-0001',defect_id:uuid(2)}),make(4,{label:'Empty barrier'},{display_id:'B-0002',defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{display_id:'S-0001',barrier_id:uuid(1),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{display_id:'S-0002',barrier_id:uuid(1),quantity:3})]});
 const snapshot = value => ({version:1,project_id:uuid(98),revision:1,documents:[{id:uuid(80),sha256:'d'.repeat(64),name:'Inspection.pdf',pages:[{page:1},{page:2}]}],physical:value,image_extractions:[{id:uuid(90),document_id:uuid(80),pages:[1]}]});
+const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service']};
+const optionsOf = control => control.children.filter(child=>child.tagName==='OPTION').map(child=>child.value).filter(value=>value!=='');
+const definitionOptions = definition => definition[2].map(option=>Array.isArray(option)?option[0]:option);
 function documentHarness(){
   let doc;
   class Element {
@@ -31,6 +34,7 @@ function documentHarness(){
 function component(initial=graph(),extra={}){
   const dom=documentHarness(),calls={previews:[],applied:[],notifications:[],asks:[],confirmations:[],sources:[],exports:[],changed:0},answers=[],current=snapshot(initial);let controller,preview;
   const bridge={
+    fieldOptions:async()=>copy(fieldChoices),
     async ask(title,definitions,text,button){calls.asks.push({title,definitions,text,button});return answers.shift()??null;},
     async confirm(title,text,button){calls.confirmations.push({title,text,button});return true;},
     async preview(commands){
@@ -77,9 +81,56 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.ok(!physical.hierarchyRows(value).some(row=>row.entity.id===uuid(4)));assert.ok(physical.hierarchyRows(value,{showDeleted:true}).some(row=>row.entity.id===uuid(4)&&row.entity.defect_id===uuid(2)));
   });
   await check('Unknown fields stay absent and service quantity never receives a fallback',()=>{
-    assert.deepEqual(physical.fieldsFromValues('barrier',{label:' B1 ',thickness_mm:'',notes:''}),{label:'B1'});
+    assert.deepEqual(physical.fieldsFromValues('barrier',{location:' L02 ',notes:''}),{location:'L02'});
     for(const invalid of ['',null,undefined,0,-1,1.5,Infinity,'NaN'])assert.throws(()=>physical.fieldValue('service','quantity',invalid),/explicit positive/);
     assert.equal(physical.fieldValue('service','quantity','2'),2);assert.equal(physical.fieldValue('service','insulation_mm','0'),0);assert.throws(()=>physical.fieldValue('service','width_mm','0'),/positive/);assert.throws(()=>physical.fieldValue('barrier','frl','120'),/belonging/);
+  });
+  await check('Barrier and service forms share catalogue dropdowns in creation, inspector and register',async()=>{
+    const value=graph();Object.assign(value.barriers[0].fields,{barrier_type:'Core hole',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe'});
+    const h=component(value);await flush();
+    await h.click('Add barrier to D-0001');const barrier=h.calls.asks.at(-1).definitions;
+    assert.ok(!barrier.some(([key])=>['label','thickness_mm'].includes(key)));
+    assert.deepEqual(definitionOptions(barrier.find(([key])=>key==='barrier_type')),['Empty Opening','Core hole','Oversized']);
+    for(const key of ['substrate','orientation'])assert.deepEqual(definitionOptions(barrier.find(([name])=>name===key)),fieldChoices[key]);
+    await h.click('Add service to B-0001');const service=h.calls.asks.at(-1).definitions;
+    assert.ok(!service.some(([key])=>key==='label'));assert.equal(service.find(([key])=>key==='service')[1],'Category');assert.equal(service.find(([key])=>key==='size')[1],'Service Size (mm)');
+    assert.equal(service.findIndex(([key])=>key==='quantity'),service.findIndex(([key])=>key==='service_type')+1);
+    for(const key of ['service','service_type'])assert.deepEqual(definitionOptions(service.find(([name])=>name===key)),fieldChoices[key]);
+    await h.select(1);
+    for(const [label,choices] of [['Barrier type',['Empty Opening','Core hole','Oversized']],['Substrate',fieldChoices.substrate],['Substrate orientation',fieldChoices.orientation]]){const control=h.input(label);assert.equal(control.tagName,'SELECT');assert.deepEqual(optionsOf(control),choices);}
+    for(const label of ['Barrier label','Thickness (mm)'])assert.ok(!h.all().some(control=>control.attributes['aria-label']===label));
+    for(const [label,choices] of [['Substrate for Wall A',fieldChoices.substrate],['Substrate orientation for Wall A',fieldChoices.orientation]]){const control=h.input(label);assert.equal(control.tagName,'SELECT');assert.deepEqual(optionsOf(control),choices);}
+    await h.click('Clear physical selection');await h.select(5);
+    for(const [label,choices] of [['Category',fieldChoices.service],['Service type',fieldChoices.service_type],['Category for Pipe',fieldChoices.service],['Service type for Pipe',fieldChoices.service_type]]){const control=h.input(label);assert.equal(control.tagName,'SELECT');assert.deepEqual(optionsOf(control),choices);}
+    const inspector=h.all().find(control=>control.tagName==='ASIDE'),controls=h.dom.all(inspector).filter(control=>['INPUT','SELECT','TEXTAREA'].includes(control.tagName));
+    assert.equal(controls.findIndex(control=>control.name==='quantity'),controls.findIndex(control=>control.name==='service_type')+1);assert.equal(h.input('Service Size (mm)').value,'25 mm');assert.ok(!h.all().some(control=>control.attributes['aria-label']==='Service label'));
+    h.controller.destroy();
+  });
+  await check('Hidden labels and barrier thickness survive visible-field edits and old dropdown values remain explicit',async()=>{
+    const value=graph();Object.assign(value.barriers[0].fields,{thickness_mm:175,substrate:' Historic substrate ',orientation:'Historic orientation',barrier_type:'Historic barrier',future_property:'retained barrier data'});Object.assign(value.services[0].fields,{service:'Historic category',service_type:'Historic type',future_property:'retained service data'});
+    const barrierBefore=copy(value.barriers[0].fields),serviceBefore=copy(value.services[0].fields);
+    const h=component(value);await flush();await h.select(1);
+    for(const [label,retained] of [['Barrier type','Historic barrier'],['Substrate',' Historic substrate '],['Substrate orientation','Historic orientation']]){const control=h.input(label);assert.equal(control.value,retained);assert.ok(optionsOf(control).includes(retained));assert.ok(control.children.some(option=>option.value===retained&&option.textContent.includes('retained')));}
+    const location=h.input('Location');location.value='New location';location.emit('input');await h.click('Preview physical edits');
+    assert.deepEqual(h.current.physical.barriers[0].fields,{...barrierBefore,location:'New location'});assert.equal(h.current.physical.barriers[0].defect_id,uuid(2));
+    await h.click('Clear physical selection');await h.select(5);for(const [label,retained] of [['Category','Historic category'],['Service type','Historic type']]){const control=h.input(label);assert.equal(control.value,retained);assert.ok(optionsOf(control).includes(retained));}
+    const size=h.input('Service Size (mm)');size.value='32';size.emit('input');await h.click('Preview physical edits');
+    assert.deepEqual(h.current.physical.services[0].fields,{...serviceBefore,size:'32'});assert.equal(h.current.physical.services[0].quantity,1);assert.equal(h.current.physical.services[0].barrier_id,uuid(1));
+    const retained=physical.fieldsFromValues('barrier',{location:'',notes:''},barrierBefore);assert.equal(retained.label,'Wall A');assert.equal(retained.thickness_mm,175);assert.equal(retained.future_property,'retained barrier data');assert.equal(retained.location,undefined);
+    h.controller.destroy();
+  });
+  await check('Delayed catalogue choices preserve unfinished text and a failed load can retry before creation',async()=>{
+    const held=defer(),h=component(graph(),{fieldOptions:()=>held.promise});await flush();await h.select(1);
+    const notes=h.input('Notes'),substrate=h.input('Substrate');assert.equal(substrate.disabled,true);notes.value='Keep this unfinished inspection note';notes.emit('input');
+    held.resolve(copy(fieldChoices));await flush();assert.equal(h.input('Notes'),notes);assert.equal(notes.value,'Keep this unfinished inspection note');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.equal(substrate.disabled,false);assert.deepEqual(optionsOf(substrate),fieldChoices.substrate);assert.equal(h.calls.previews.length,0);h.controller.destroy();
+    let attempts=0;const retry=component(graph(),{fieldOptions:async()=>{if(++attempts===1)throw new Error('Temporary catalogue outage');return copy(fieldChoices);}});await flush();assert.ok(retry.calls.notifications.some(notice=>notice.error&&notice.text.includes('Temporary catalogue outage')));
+    await retry.click('Add barrier to D-0001');assert.equal(attempts,2);assert.deepEqual(definitionOptions(retry.calls.asks.at(-1).definitions.find(([key])=>key==='substrate')),fieldChoices.substrate);assert.equal(retry.calls.previews.length,0);retry.controller.destroy();
+  });
+  await check('Bulk service changes use the same typed catalogue values and preserve hidden labels and relationships',async()=>{
+    const h=component(),before=copy(h.current.physical.services);await flush();await h.select(5);await h.select(6);h.answers.push({field:'service_type'},{value:'Custom library service'});await h.click('Bulk edit same-type records');
+    assert.equal(h.calls.asks[0].title,'Choose field for 2 draft records');assert.ok(!definitionOptions(h.calls.asks[0].definitions[0]).includes('label'));
+    assert.equal(h.calls.asks[1].title,'Edit 2 draft service records');assert.equal(h.calls.asks[1].definitions[0][1],'Service type');assert.deepEqual(definitionOptions(h.calls.asks[1].definitions[0]),fieldChoices.service_type);
+    for(const [index,service] of h.current.physical.services.entries()){assert.deepEqual(service.fields,{...before[index].fields,service_type:'Custom library service'});assert.equal(service.barrier_id,before[index].barrier_id);assert.equal(service.quantity,before[index].quantity);}h.controller.destroy();
   });
   await check('Bulk field replacement preserves unrelated facts and every parent while counting unchanged entries explicitly',()=>{
     const index=physical.indexGraph(graph()),entries=[index.get(uuid(5)),index.get(uuid(6))],original=copy(entries),batch=physical.bulkCommands(entries,'size','25 mm');

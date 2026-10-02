@@ -50,6 +50,8 @@ async function openProjectCopy() {
   await page.screenshot({ path: path.join(output, 'project-library-list.png') });
   await section.locator(`[data-project-library-draft="${info.item_id}"]`).click();
   await expect(page.locator('#library-editor-save')).toHaveText('Keep in project draft');
+  await expect(page.locator('.library-editor-scope')).toHaveText('These library edits stay within the current project. Use Save or Save As to store them in its file.');
+  await expect(page.locator('#library-editor-pricing-heading')).toHaveText('Project library price');
 }
 
 (async () => {

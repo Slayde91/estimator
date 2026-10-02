@@ -11,6 +11,7 @@ from estimator.takeoff_documents import TakeoffDocuments
 from estimator.takeoff_model import (audit_affected, audit_state_digest, new_snapshot,
                                     upgrade_snapshot, validate_snapshot)
 from estimator.takeoff_physical_operations import prepare_changes
+from estimator.takeoff_physical import new_graph
 
 
 class PhysicalPersistenceTests(unittest.TestCase):
@@ -48,7 +49,8 @@ class PhysicalPersistenceTests(unittest.TestCase):
 
     def physical(self):
         upgraded = upgrade_snapshot(self.base)
-        upgraded['physical'] = prepare_changes(self.base, [self.command])['graph']
+        legacy = {**upgraded, 'physical': new_graph(self.base['project_id'], version=1)}
+        upgraded['physical'] = prepare_changes(legacy, [self.command])['graph']
         return self.record(self.base, upgraded, 'apply_physical')
 
     def descriptor(self):

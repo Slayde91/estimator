@@ -191,7 +191,7 @@ class TakeoffViewportDeleteTests(unittest.TestCase):
         physical = PhysicalWorkspaceTests(); physical.case = self.case
         physical.service, physical.sid = self.case.service, self.case.sid
         self.case.documents.images = Images()
-        self.case.state, _ = physical.apply([physical.barrier()])
+        self.case.state, _ = physical.apply([physical.defect()])
         graph = deepcopy(self.case.state['snapshot']['physical'])
         self.case.command('delete_viewport', calibration_id=viewport['id'])
         self.assertEqual(self.case.state['snapshot']['physical'], graph)

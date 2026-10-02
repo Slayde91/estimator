@@ -149,8 +149,9 @@ def audit_affected(before, after):
     if before.get('version') == 2 or after.get('version') == 2:
         affected['image_extractions'] = sorted(changed(entries(before, 'image_extractions', 2000), entries(after, 'image_extractions', 2000)))
         def physical_entries(state):
+            from .takeoff_physical import graph_collections
             graph = state.get('physical')
-            return entries({'physical': [entity for kind in ('barriers', 'defects', 'openings', 'services')
+            return entries({'physical': [entity for kind in graph_collections(graph).values()
                                          for entity in graph[kind]] if graph else []}, 'physical', 10000)
         affected['physical'] = sorted(changed(physical_entries(before), physical_entries(after)))
     return affected
@@ -206,7 +207,7 @@ def validate_physical_extension(snapshot):
         if 'physical' in snapshot or 'image_extractions' in snapshot:
             raise ValidationError('Physical evidence requires takeoff schema version two.')
         return
-    from .takeoff_physical import validate_graph
+    from .takeoff_physical import graph_collections, validate_graph
     from .takeoff_image_evidence import validate_descriptor, MAX_IMAGE_DESCRIPTORS, MAX_IMAGE_PROJECT_BYTES
     if not {'physical', 'image_extractions'} <= snapshot.keys():
         raise ValidationError('Physical takeoff state is incomplete.')
@@ -231,7 +232,7 @@ def validate_physical_extension(snapshot):
     validate_graph(graph, copy_result=False)
     if graph['project_id'] != snapshot['project_id']:
         raise ValidationError('The physical draft belongs to another project.')
-    for kind in ('barriers', 'defects', 'openings', 'services'):
+    for kind in graph_collections(graph).values():
         for entity in graph[kind]:
             for ref in entity['evidence']:
                 document, page = page_metadata(snapshot, ref['document_id'], ref['page'])

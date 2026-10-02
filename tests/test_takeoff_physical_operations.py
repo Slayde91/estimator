@@ -5,13 +5,15 @@ import unittest
 from uuid import uuid4
 
 from estimator.catalog import ValidationError
-from estimator.takeoff_model import new_snapshot
+from estimator.takeoff_model import new_snapshot, upgrade_snapshot
+from estimator.takeoff_physical import new_graph
 from estimator.takeoff_physical_operations import current_graph, prepare_changes
 
 
 class PhysicalOperationTests(unittest.TestCase):
     def setUp(self):
-        self.snapshot = new_snapshot()
+        self.snapshot = upgrade_snapshot(new_snapshot())
+        self.snapshot['physical'] = new_graph(self.snapshot['project_id'], version=1)
         self.document_id = str(uuid4())
         self.snapshot['documents'] = [{'id': self.document_id, 'name': 'synthetic.pdf',
             'sha256': '1' * 64, 'size': 100, 'pages': [{'page': 1, 'width': 200,
@@ -27,6 +29,7 @@ class PhysicalOperationTests(unittest.TestCase):
         return {'op': 'create', 'kind': kind, 'entity': entity}
 
     def test_new_graph_identity_is_stable_but_does_not_mutate_snapshot(self):
+        self.snapshot['physical'] = None
         original = deepcopy(self.snapshot)
         first = current_graph(self.snapshot)
         self.assertEqual(first, current_graph(self.snapshot))
@@ -44,7 +47,7 @@ class PhysicalOperationTests(unittest.TestCase):
         self.assertEqual(result['summary']['authority'], 'none')
         self.assertEqual(result['summary']['state'], 'draft')
         self.assertEqual(result['summary']['result_revision'], 3)
-        self.assertNotIn('physical', self.snapshot)
+        self.assertEqual(self.snapshot['physical']['revision'], 0)
 
     def test_late_failure_preserves_original_and_earlier_batch_changes(self):
         before = deepcopy(self.snapshot)

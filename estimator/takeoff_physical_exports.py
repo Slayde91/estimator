@@ -2,8 +2,9 @@
 
 This formatter neither verifies source bytes nor creates an approval or lock.
 Locators, display names and uncertainty remain recorded assertions. Every
-retained entity is exported, including tombstones; an opening without services
-has an opening row and no invented service or quantity.
+retained entity is exported, including tombstones. Version two uses numbered
+Defect -> Barrier -> Service IDs; legacy exports retain their original schema.
+An empty parent never invents a service or quantity.
 """
 
 import csv
@@ -20,7 +21,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
-from .takeoff_physical import COLLECTIONS, PARENTS, graph_digest, validate_graph
+from .takeoff_physical import graph_collections, graph_parents, graph_digest, validate_graph
 
 STATUS = 'UNAPPROVED DRAFT'
 SOURCE_STATUS = 'UNVERIFIED ASSERTIONS'
@@ -41,6 +42,10 @@ FIELD_HEADERS = ('label', 'location', 'frl', 'barrier_type', 'substrate', 'orien
 DETAIL_HEADERS = ('fields_json', 'evidence_json', 'source_names_json',
                   'uncertainty_state', 'uncertainty_note', 'uncertainty_json')
 CSV_HEADERS = COMMON_HEADERS + FIELD_HEADERS + DETAIL_HEADERS
+V2_COMMON_HEADERS = COMMON_HEADERS[:-4] + ('display_id', 'defect_id', 'barrier_id',
+    'service_id', 'defect_uuid', 'barrier_uuid', 'service_uuid')
+V2_FIELD_HEADERS = tuple(field for field in FIELD_HEADERS
+                        if field not in ('opening_type', 'opening_size', 'shape', 'depth_mm'))
 KIND_FIELDS = {
     'barrier': ('label', 'location', 'barrier_type', 'substrate', 'orientation', 'thickness_mm', 'notes'),
     'defect': ('label', 'location', 'frl', 'notes'),
@@ -85,11 +90,14 @@ def _names(value):
 
 
 def _rows(graph, names):
-    index = {entity['id']: (kind, entity) for kind, collection in COLLECTIONS.items()
+    collections, parents = graph_collections(graph), graph_parents(graph)
+    current = graph['version'] == 2
+    common_headers = V2_COMMON_HEADERS if current else COMMON_HEADERS
+    index = {entity['id']: (kind, entity) for kind, collection in collections.items()
              for entity in graph[collection]}
     fingerprint = graph_digest(graph)
     entities, associations = [], []
-    for kind, collection in COLLECTIONS.items():
+    for kind, collection in collections.items():
         for entity in graph[collection]:
             row = {STATUS_COLUMN: STATUS, SOURCE_STATUS_COLUMN: SOURCE_STATUS,
                 'record_scope': 'historical' if entity['deleted'] else 'active',
@@ -97,14 +105,18 @@ def _rows(graph, names):
                 'graph_revision': graph['revision'], 'graph_sha256': fingerprint,
                 'entity_type': kind, 'entity_id': entity['id'], 'entity_revision': entity['revision'],
                 'deleted': entity['deleted'], 'deleted_at_revision': entity['deleted_at_revision'],
-                'parent_type': PARENTS[kind][0] if kind in PARENTS else None,
-                'parent_id': entity[PARENTS[kind][1]] if kind in PARENTS else None}
+                'parent_type': parents[kind][0] if kind in parents else None,
+                'parent_id': entity[parents[kind][1]] if kind in parents else None}
+            if current:
+                row['display_id'] = entity['display_id']
             ancestor_kind, ancestor = kind, entity
             while True:
-                row[f'{ancestor_kind}_id'] = ancestor['id']
-                if ancestor_kind not in PARENTS:
+                row[f'{ancestor_kind}_id'] = ancestor['display_id'] if current else ancestor['id']
+                if current:
+                    row[f'{ancestor_kind}_uuid'] = ancestor['id']
+                if ancestor_kind not in parents:
                     break
-                ancestor_kind, ancestor = index[ancestor[PARENTS[ancestor_kind][1]]]
+                ancestor_kind, ancestor = index[ancestor[parents[ancestor_kind][1]]]
             # Columns contain only this entity's facts. Ancestor IDs provide
             # joins; substrate, FRL and other parent facts are not inferred.
             for key, value in entity['fields'].items():
@@ -118,7 +130,7 @@ def _rows(graph, names):
                 uncertainty_json=_json(entity['uncertainty']))
             entities.append(row)
             for ordinal, reference in enumerate(entity['evidence'], 1):
-                association = {key: row.get(key) for key in COMMON_HEADERS}
+                association = {key: row.get(key) for key in common_headers}
                 association.update(association_key=f'{entity["id"]}/{ordinal}', association_index=ordinal,
                     document_id=reference['document_id'], document_name=names.get(reference['document_id']),
                     document_sha256=reference['document_sha256'], page=reference['page'],
@@ -204,14 +216,18 @@ def export_physical_graph(graph, format, source_names=None):
     if not isinstance(format, str) or format not in ('csv', 'xlsx'):
         raise ValidationError('Choose CSV or XLSX draft physical export.')
     graph = validate_graph(graph)
+    current = graph['version'] == 2
+    common_headers = V2_COMMON_HEADERS if current else COMMON_HEADERS
+    csv_headers = common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + DETAIL_HEADERS
+    evidence_headers = common_headers + EVIDENCE_HEADERS[len(COMMON_HEADERS):]
     names = _names(source_names)
     rows, associations, fingerprint = _rows(graph, names)
     filename = f'CEASEFIRE-Physical-UNAPPROVED-DRAFT.{format}'
     if format == 'csv':
         output = StringIO(newline='')
         writer = csv.writer(output)
-        writer.writerow(CSV_HEADERS)
-        writer.writerows([_csv_text(row.get(column)) for column in CSV_HEADERS] for row in rows)
+        writer.writerow(csv_headers)
+        writer.writerows([_csv_text(row.get(column)) for column in csv_headers] for row in rows)
         return output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8', filename
     workbook = Workbook()
     workbook.remove(workbook.active)
@@ -222,11 +238,11 @@ def export_physical_graph(graph, format, source_names=None):
     workbook.properties.modified = datetime(*_EXCEL_DATE)
     details = []
     try:
-        for kind, collection in COLLECTIONS.items():
-            _sheet(workbook, collection.title(), COMMON_HEADERS + KIND_FIELDS[kind] + DETAIL_HEADERS,
+        for kind, collection in graph_collections(graph).items():
+            _sheet(workbook, collection.title(), common_headers + KIND_FIELDS[kind] + DETAIL_HEADERS,
                    [row for row in rows if row['entity_type'] == kind and not row['deleted']], details)
-        _sheet(workbook, 'Evidence', EVIDENCE_HEADERS, associations, details, record_key='association_key')
-        _sheet(workbook, 'Historical Entities', CSV_HEADERS, [row for row in rows if row['deleted']], details)
+        _sheet(workbook, 'Evidence', evidence_headers, associations, details, record_key='association_key')
+        _sheet(workbook, 'Historical Entities', csv_headers, [row for row in rows if row['deleted']], details)
         if details:
             _sheet(workbook, 'Provenance Detail', CHUNK_HEADERS, details, [], record_key='record_id')
         info = workbook.create_sheet('Provenance')
@@ -237,9 +253,11 @@ def export_physical_graph(graph, format, source_names=None):
             ('Project ID', graph['project_id']), ('Physical graph ID', graph['id']),
             ('Physical graph revision', graph['revision']), ('Physical graph SHA-256', fingerprint),
             ('State', 'draft'),
-            ('Hierarchy', 'Barrier -> Defect -> Opening -> Service. Typed parent and ancestor IDs are explicit links.'),
+            ('Hierarchy', ('Defect -> Barrier -> Service. Numbered IDs are project-local display IDs; entity_id, parent_id and *_uuid retain exact UUID links.' if current else
+                           'Barrier -> Defect -> Opening -> Service. Typed parent and ancestor IDs are explicit links.')),
             ('Facts', 'Field columns contain only the entity\'s own recorded facts. Parent facts are not copied into child fields. Exact typed fields remain in fields_json.'),
-            ('Quantity', 'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.'),
+            ('Quantity', ('Only services carry explicit positive quantities. Empty barriers have no service row or quantity. Images and repeated views never create counts.' if current else
+                          'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.')),
             ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.'),
             ('Evidence associations', 'association_index identifies the retained list position, not physical quantity. Image UUID, SHA-256 and occurrence UUID remain distinct.'),
             ('Long text', 'Provenance Detail stores ordered exact text chunks identified by sheet, record ID and column. Concatenate in part order and check the recorded SHA-256.'),

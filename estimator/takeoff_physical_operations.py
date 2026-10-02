@@ -9,8 +9,8 @@ from uuid import UUID, uuid5
 
 from .catalog import ValidationError
 from .takeoff_model import digest, page_metadata, points
-from .takeoff_physical import (COLLECTIONS, PARENTS, apply_change, graph_digest,
-                               new_graph, preview_change, validate_graph)
+from .takeoff_physical import (apply_change, graph_collections, graph_parents,
+                               graph_digest, new_graph, preview_change, validate_graph)
 
 MAX_PHYSICAL_COMMANDS = 100
 
@@ -18,7 +18,8 @@ MAX_PHYSICAL_COMMANDS = 100
 def current_graph(snapshot):
     graph = snapshot.get('physical')
     if graph is None:
-        return new_graph(snapshot['project_id'], str(uuid5(UUID(snapshot['project_id']), 'physical-graph-v1')))
+        return new_graph(snapshot['project_id'],
+                         str(uuid5(UUID(snapshot['project_id']), 'physical-graph-v2')), version=2)
     validate_graph(graph, copy_result=False)
     if graph['project_id'] != snapshot['project_id']:
         raise ValidationError('The physical graph belongs to another project.')
@@ -31,7 +32,7 @@ def validate_source_links(graph, snapshot, image_check=None):
     image_check is a trusted service callback that resolves the actual retained
     image occurrence and exact hashes. A missing resolver rejects image links.
     """
-    for collection in COLLECTIONS.values():
+    for collection in graph_collections(graph).values():
         for entity in graph[collection]:
             if entity['deleted']:
                 continue
@@ -48,7 +49,7 @@ def validate_source_links(graph, snapshot, image_check=None):
 
 
 def _entities(graph):
-    return {entity['id']: (kind, entity) for kind, collection in COLLECTIONS.items()
+    return {entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items()
             for entity in graph[collection]}
 
 
@@ -68,16 +69,19 @@ def prepare_changes(snapshot, commands, image_check=None):
         descendants.update(preview['descendant_ids'])
     validate_source_links(after, snapshot, image_check)
     old, new = _entities(before), _entities(after)
+    parents = graph_parents(after)
     relationships = []
     for identifier in sorted(affected | descendants):
         kind, entity = new[identifier]
-        parent = PARENTS.get(kind, (None, None))[1]
+        parent = parents.get(kind, (None, None))[1]
         prior = old.get(identifier)
         relationships.append({'id': identifier, 'kind': kind,
             'parent_before': prior[1].get(parent) if prior else None,
             'parent_after': entity.get(parent),
             'deleted_before': prior[1]['deleted'] if prior else None,
             'deleted_after': entity['deleted']})
+        if after['version'] == 2:
+            relationships[-1]['display_id'] = entity['display_id']
     summary = {'version': 1, 'graph_id': before['id'], 'project_id': before['project_id'],
         'base_revision': before['revision'], 'base_digest': graph_digest(before),
         'commands': deepcopy(commands), 'command_count': len(commands),

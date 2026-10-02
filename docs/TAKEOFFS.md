@@ -237,15 +237,22 @@ the current item. Multiple page scales must be separately calibrated.
 
 ## Penetrations: manual physical draft
 
-The hierarchy is **Barrier → Defect → Opening → Service**. Create the barrier
-first, then explicitly choose each child's parent. A defect may have several
-openings; an opening may have several service types or no services at all.
-An empty opening remains visible with zero services. Existing services require
+The active hierarchy is **Defect → Barrier → Service**. Use **Add defect** to
+create a root row. On that row, the **+** in the Barrier ID column creates a
+child barrier; on a barrier row, the **+** in the Service ID column creates a
+child service. A defect may have several barriers, and a barrier may have
+several service types or no services. There is no Opening level or Opening
+field in the active workflow. An empty barrier remains visible with zero
+services. Existing services require
 an explicit positive integer quantity. No quantity is inferred from photographs,
 image occurrences or missing inputs.
 
-Each record has a persistent ID, its own typed fields, uncertainty and source
-references. Parent fields are shown as context rather than copied into children.
+Each record retains a UUID and receives a visible sequential ID: **D-0001**,
+**B-0001** or **S-0001**. The server assigns each type's sequence independently
+within the project. IDs remain unchanged through edits, reparenting, deletion,
+Undo, save and reopen; deleted or undone IDs are never reused. Each record has
+its own typed fields, uncertainty and source references. Parent fields are
+shown as context rather than copied into children.
 Selecting a row opens its cited source page/region; supported evidence overlays
 and register rows share selection and hover. Unknown dimensions and properties
 remain blank. The hierarchical register can filter and page records while
@@ -254,11 +261,18 @@ one undoable operation. Reparenting and cascade deletion require explicit
 preview. Deleted records retain their identities, fields and evidence and can
 be restored. A restore does not silently revive descendants deleted earlier.
 
+Saved version 1 physical graphs retain their original
+**Barrier → Defect → Opening → Service** relationships, fields, UUIDs and evidence.
+They are read-only in Penetrations and remain available for inspection, save,
+reopen and export. New relationships must be assigned explicitly before those
+graphs can use the new workflow; there is no migration or relationship-assignment
+UI yet. Opening records are never silently removed or converted.
+
 Use **Extract images from selected PDF page** to retain the actual embedded
 image evidence. The gallery identifies source, page, extraction and image
 occurrence. Repeated views remain separate provenance occurrences but never
-create physical records or quantities. Link an image to the specific barrier,
-defect, opening or service it supports; one image may support several records.
+create physical records or quantities. Link an image to the specific defect,
+barrier or service it supports; one image may support several records.
 The original source page remains available for text and surrounding context.
 
 The original encoded PDF image stream and typed PDF metadata are retained
@@ -274,6 +288,9 @@ page content. Text remains available through the shared PDF search, without OCR.
 All physical records in this increment are **UNAPPROVED DRAFT**. CSV and
 values-only XLSX exports retain the hierarchy, source/image hashes, quantities
 asserted by the user, uncertainty and tombstone history with that label. They
+include the visible Defect, Barrier and Service IDs alongside the exact UUID
+links. Version 2 XLSX exports have Defects, Barriers and Services sheets, with
+no Opening sheet or fields; legacy exports retain their original format. They
 cannot represent approved quantities, create calculator rows or advance a priced
 quote. Independent image validation and a verified Physical Model Lock are
 required by the later approval workflow.
@@ -336,6 +353,11 @@ remains retained.
 The nested takeoff snapshot remains schema version 1 for existing measurement
 projects. The first physical edit or image extraction records an explicit
 upgrade to nested schema version 2. Old audit files retain their original hashes.
+The physical graph has its own version: new graphs use version 2 for
+Defect → Barrier → Service, while saved version 1 physical graphs remain
+unchanged and read-only. Both are retained inside the nested version 2 takeoff
+snapshot. Numbered identities and their sequence are checked against retained
+audit history, including tombstones, so save/reopen does not reset numbering.
 Image manifests, original streams and display derivatives live in the companion
 folder and are published before the JSON, including assets retained only in
 history. Save As binds the window to the new copy of every retained asset.
@@ -431,8 +453,11 @@ page. These failures leave the original and the Takeoffs project unchanged.
 - `takeoff_area.py` validates bounded polygon topology and computes true-surface
   areas and exclusions with the square of the retained page calibration.
 - `takeoff_physical.py` and `takeoff_physical_operations.py` validate the separate
-  draft graph and atomic previews. There are at most 10,000 entities including
-  tombstones, 32 references per entity and 100 commands per bulk operation.
+  versioned draft graph and atomic previews. Version 2 enforces Defect → Barrier
+  → Service and server-assigned display IDs; version 1 validation preserves the
+  original four-level graph. The workspace blocks version 1 physical mutations.
+  There are at most 10,000 entities including tombstones, 32 references per
+  entity and 100 commands per bulk operation.
 - `takeoff_image_worker.py` extracts images in a restricted child process;
   `takeoff_image_evidence.py` verifies every inventory path, byte hash, source
   binding and PNG dimension before retaining the result. A batch supports one

@@ -63,9 +63,9 @@ class PhysicalWorkspaceTests(unittest.TestCase):
     def state(self):
         return self.service.get(self.sid, verify_evidence=False)
 
-    def barrier(self, identifier=None, evidence=None):
-        return {'op': 'create', 'kind': 'barrier', 'entity': {'id': identifier or str(uuid4()),
-            'fields': {'label': 'B1', 'substrate': 'Concrete'}, 'evidence': evidence or [],
+    def defect(self, identifier=None, evidence=None):
+        return {'op': 'create', 'kind': 'defect', 'entity': {'id': identifier or str(uuid4()),
+            'fields': {'label': 'D1', 'frl': '120/120/120'}, 'evidence': evidence or [],
             'uncertainty': {'state': 'unresolved', 'note': 'Draft source assertion'}}}
 
     def apply(self, commands):
@@ -80,12 +80,12 @@ class PhysicalWorkspaceTests(unittest.TestCase):
         return self.service.extract_images(self.sid, request), request
 
     def test_first_physical_apply_upgrades_with_actor_audit_and_idempotent_replay(self):
-        before = self.state(); command = self.barrier()
+        before = self.state(); command = self.defect()
         result, request = self.apply([command])
         self.assertEqual(before['snapshot']['version'], 1)
         self.assertEqual(result['snapshot']['version'], 2)
         self.assertEqual(result['revision'], before['revision']+1)
-        self.assertEqual(result['snapshot']['physical']['barriers'][0]['id'], command['entity']['id'])
+        self.assertEqual(result['snapshot']['physical']['defects'][0]['id'], command['entity']['id'])
         event = self.case.documents.get_blob(result['snapshot']['audit_head'])
         self.assertEqual(event['version'], 2)
         self.assertEqual(event['before']['version'], 1)
@@ -97,18 +97,18 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 
     def test_preview_is_read_only_and_stale_or_other_session_preview_is_rejected(self):
         before = self.state()
-        preview = self.service.preview_physical(self.sid, {'expected_revision': before['revision'], 'commands': [self.barrier()]})
+        preview = self.service.preview_physical(self.sid, {'expected_revision': before['revision'], 'commands': [self.defect()]})
         self.assertEqual(self.state(), before)
         other = self.service.open()
         with self.assertRaises(ValidationError):
             self.service.apply_physical(other['session_id'], {'expected_revision': 0, 'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
-        self.apply([self.barrier()])
+        self.apply([self.defect()])
         with self.assertRaises(ValidationError):
             self.service.apply_physical(self.sid, {'expected_revision': before['revision'], 'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
 
     def test_request_identity_cannot_be_reused_for_different_operation_and_replay_returns_current(self):
-        first, request = self.apply([self.barrier()])
-        second, _ = self.apply([self.barrier()])
+        first, request = self.apply([self.defect()])
+        second, _ = self.apply([self.defect()])
         replay = self.service.apply_physical(self.sid, request)
         self.assertEqual(replay['snapshot'], second['snapshot'])
         with self.assertRaises(ValidationError):
@@ -128,20 +128,20 @@ class PhysicalWorkspaceTests(unittest.TestCase):
         self.assertEqual(len(image['issues']), 1)
         reference = {key: image[key] for key in ('document_id', 'document_sha256', 'page', 'image_id', 'image_sha256', 'occurrence_id')}
         reference['region'] = [[21, 31], [22, 31], [22, 32]]
-        applied, _ = self.apply([self.barrier(evidence=[reference])])
+        applied, _ = self.apply([self.defect(evidence=[reference])])
         self.assertEqual(applied['snapshot']['physical']['state'], 'draft')
         for key, value in (('image_sha256', 'c'*64), ('occurrence_id', str(uuid4())), ('image_id', str(uuid4()))):
             changed = {**reference, key: value}
             with self.subTest(key=key), self.assertRaises(ValidationError):
-                self.apply([self.barrier(evidence=[changed])])
+                self.apply([self.defect(evidence=[changed])])
         self.assertEqual(self.service.image_file(self.sid, image['extraction_id'], image['asset_id']), (b'fixture image bytes', 'image/png'))
 
     def test_image_or_source_tamper_blocks_apply_inventory_file_export_and_cached_apply(self):
         self.extract(); inventory = self.service.images(self.sid); image = inventory['items'][0]
         reference = {key: image[key] for key in ('document_id', 'document_sha256', 'page', 'image_id', 'image_sha256', 'occurrence_id')}
-        self.apply([self.barrier(evidence=[reference])])
+        self.apply([self.defect(evidence=[reference])])
         before = self.state()
-        preview = self.service.preview_physical(self.sid, {'expected_revision': before['revision'], 'commands': [self.barrier()]})
+        preview = self.service.preview_physical(self.sid, {'expected_revision': before['revision'], 'commands': [self.defect()]})
         request = {'expected_revision': before['revision'], 'request_id': str(uuid4()), 'preview_id': preview['preview_id']}
         self.images.blocked = True
         actions = (lambda: self.service.apply_physical(self.sid, request), lambda: self.service.images(self.sid),
@@ -190,7 +190,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
             # Both another session and this session remain responsive while
             # the simulated child is held outside the workspace lock.
             other = self.service.open(); self.assertEqual(self.service.get(other['session_id'])['revision'], 0)
-            current, _ = self.apply([self.barrier()])
+            current, _ = self.apply([self.defect()])
         finally:
             self.images.release.set(); thread.join(5)
         self.assertFalse(thread.is_alive())
@@ -211,7 +211,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 
     def test_delete_document_rejects_image_history_or_physical_tombstone_references(self):
         reference = {'document_id': self.case.doc['id'], 'document_sha256': self.case.doc['sha256'], 'page': 1}
-        command = self.barrier(evidence=[reference]); self.apply([command])
+        command = self.defect(evidence=[reference]); self.apply([command])
         self.apply([{'op': 'delete', 'entity_id': command['entity']['id'], 'cascade': False}])
         request = {'op': 'delete_document', 'expected_revision': self.state()['revision'], 'request_id': str(uuid4()), 'document_id': self.case.doc['id']}
         with self.assertRaisesRegex(ValidationError, 'tombstones'):
@@ -221,23 +221,23 @@ class PhysicalWorkspaceTests(unittest.TestCase):
             self.service.command(self.sid, {**request, 'expected_revision': self.state()['revision'], 'request_id': str(uuid4())})
 
     def test_undo_first_physical_creation_preserves_ids_as_tombstones_and_v2(self):
-        command = self.barrier(); self.apply([command])
+        command = self.defect(); self.apply([command])
         result = self.service.command(self.sid, {'op': 'undo', 'expected_revision': self.state()['revision'], 'request_id': str(uuid4())})
         graph = result['snapshot']['physical']
         self.assertEqual(result['snapshot']['version'], 2)
         self.assertEqual(graph['revision'], 2)
-        self.assertEqual(graph['barriers'][0]['id'], command['entity']['id'])
-        self.assertTrue(graph['barriers'][0]['deleted'])
-        self.assertEqual(graph['barriers'][0]['revision'], 2)
+        self.assertEqual(graph['defects'][0]['id'], command['entity']['id'])
+        self.assertTrue(graph['defects'][0]['deleted'])
+        self.assertEqual(graph['defects'][0]['revision'], 2)
         with self.assertRaises(ValidationError): self.apply([command])
 
     def test_undo_updates_and_legacy_edits_keep_graph_revisions_and_retained_images(self):
-        self.extract(); command = self.barrier(); self.apply([command])
+        self.extract(); command = self.defect(); self.apply([command])
         identifier = command['entity']['id']
         self.apply([{'op': 'update', 'entity_id': identifier, 'changes': {'fields': {'label': 'Changed'}}}])
         result = self.service.command(self.sid, {'op': 'undo', 'expected_revision': self.state()['revision'], 'request_id': str(uuid4())})
-        graph = result['snapshot']['physical']; self.assertEqual(graph['barriers'][0]['fields']['label'], 'B1')
-        self.assertEqual(graph['revision'], 3); self.assertEqual(graph['barriers'][0]['revision'], 3)
+        graph = result['snapshot']['physical']; self.assertEqual(graph['defects'][0]['fields']['label'], 'D1')
+        self.assertEqual(graph['revision'], 3); self.assertEqual(graph['defects'][0]['revision'], 3)
         self.assertEqual(len(result['snapshot']['image_extractions']), 1)
         self.case.state = result
         self.case.create()
@@ -249,7 +249,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
         self.extract()
         with self.assertRaises(ValidationError):
             self.service.command(self.sid, {'op': 'undo', 'expected_revision': self.state()['revision'], 'request_id': str(uuid4())})
-        self.apply([self.barrier()])
+        self.apply([self.defect()])
         payload, mime, filename = self.service.export_physical(self.sid, 'csv')
         self.assertIn(b'UNAPPROVED DRAFT', payload); self.assertIn('DRAFT', filename)
         self.assertIn(b'UNVERIFIED ASSERTIONS', payload)

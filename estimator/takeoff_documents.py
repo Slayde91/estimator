@@ -701,6 +701,29 @@ class TakeoffDocuments:
         if (event['version'] != after_version or before_version > after_version
                 or (before_version != after_version and event['op'] not in ('apply_physical', 'extract_images'))):
             raise ValidationError('The takeoff schema changed outside a controlled physical operation.')
+        before_graph, after_graph = event['before'].get('physical'), event['after'].get('physical')
+        if any(graph and graph['version'] == 2 for graph in (before_graph, after_graph)):
+            # Numbered identities survive edits and Undo. A future legacy
+            # migration needs an explicit contract rather than a silent swap.
+            from .takeoff_physical import graph_collections
+            if before_graph and (not after_graph or before_graph['version'] != after_graph['version']
+                                 or before_graph['id'] != after_graph['id']):
+                raise ValidationError('The numbered physical hierarchy cannot be replaced in audit history.')
+            old_entities = {entity['id']: (kind, entity['display_id'])
+                            for kind, collection in graph_collections(before_graph).items()
+                            for entity in before_graph[collection]} if before_graph else {}
+            new_entities = {entity['id']: (kind, entity['display_id'])
+                            for kind, collection in graph_collections(after_graph).items()
+                            for entity in after_graph[collection]}
+            if any(new_entities.get(identifier) != identity for identifier, identity in old_entities.items()):
+                raise ValidationError('A numbered physical identity was removed or rewritten in audit history.')
+            for kind in graph_collections(after_graph):
+                previous_max = max((int(number[2:]) for entry_kind, number in old_entities.values()
+                                    if entry_kind == kind), default=0)
+                added = sorted(int(number[2:]) for identifier, (entry_kind, number) in new_entities.items()
+                               if entry_kind == kind and identifier not in old_entities)
+                if added != list(range(previous_max + 1, previous_max + 1 + len(added))):
+                    raise ValidationError('New physical display IDs must continue the retained sequence.')
         if "affected_ids" in event:
             from .takeoff_model import audit_affected
             if event["affected_ids"] != audit_affected(event["before"], event["after"]):

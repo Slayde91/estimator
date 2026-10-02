@@ -1,9 +1,11 @@
-"""Deterministic draft Barrier -> Defect -> Opening -> Service graph.
+"""Versioned deterministic draft physical hierarchies.
 
 This module owns no persistence, evidence bytes, calculator values, approval or
 Physical Model Lock. Evidence locators and uncertainty are recorded assertions.
 A preview digest prevents applying a different edit or a stale graph; it is not
-an authorization token. IDs are supplied by the caller and never recycled.
+an authorization token. UUIDs are supplied by the caller and never recycled.
+Version 2 uses Defect -> Barrier -> Service and assigns immutable display IDs.
+Version 1 remains a lossless legacy Barrier -> Defect -> Opening -> Service graph.
 """
 
 from copy import deepcopy
@@ -27,6 +29,9 @@ COLLECTIONS = dict(zip(KINDS, ('barriers', 'defects', 'openings', 'services')))
 PARENTS = {'defect': ('barrier', 'barrier_id'),
            'opening': ('defect', 'defect_id'),
            'service': ('opening', 'opening_id')}
+_V2_COLLECTIONS = {'defect': 'defects', 'barrier': 'barriers', 'service': 'services'}
+_V2_PARENTS = {'barrier': ('defect', 'defect_id'), 'service': ('barrier', 'barrier_id')}
+_DISPLAY_PREFIXES = {'defect': 'D', 'barrier': 'B', 'service': 'S'}
 FIELDS = {
     'barrier': frozenset(('label', 'location', 'barrier_type', 'substrate',
                           'orientation', 'thickness_mm', 'notes')),
@@ -43,8 +48,31 @@ UNCERTAINTY_STATES = frozenset(('not_assessed', 'unresolved', 'missing',
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ENTITY_KEYS = frozenset(('id', 'revision', 'deleted', 'deleted_at_revision',
                           'fields', 'evidence', 'uncertainty'))
-_GRAPH_KEYS = frozenset(('version', 'project_id', 'id', 'revision', 'state',
-                        *COLLECTIONS.values()))
+_GRAPH_BASE_KEYS = frozenset(('version', 'project_id', 'id', 'revision', 'state'))
+
+
+def graph_collections(graph):
+    """Return typed collections without converting either stored hierarchy."""
+    version = graph.get('version') if isinstance(graph, dict) else None
+    if type(version) is not int or version not in (1, 2):
+        raise ValidationError('Only version 1 and 2 draft physical graphs are supported.')
+    return dict(COLLECTIONS if version == 1 else _V2_COLLECTIONS)
+
+
+def graph_parents(graph):
+    """Return the explicit typed parent rules for this stored graph version."""
+    graph_collections(graph)
+    return dict(PARENTS if graph['version'] == 1 else _V2_PARENTS)
+
+
+def _display_number(value, kind):
+    prefix = _DISPLAY_PREFIXES[kind]
+    if not isinstance(value, str) or not re.fullmatch(rf'{prefix}-[0-9]{{4,5}}', value):
+        raise ValidationError('Physical display IDs must use their typed sequential format.')
+    ordinal = int(value[2:])
+    if not 1 <= ordinal <= MAX_ENTITIES or value != f'{prefix}-{ordinal:04d}':
+        raise ValidationError('Physical display IDs must use their typed sequential format.')
+    return ordinal
 
 
 def _object(value, allowed, required, label):
@@ -101,22 +129,22 @@ def _digest(value):
                             separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
-def _kind(value):
-    if not isinstance(value, str) or value not in KINDS:
-        raise ValidationError('Physical entity kind must be barrier, defect, opening or service.')
+def _kind(value, collections):
+    if not isinstance(value, str) or value not in collections:
+        raise ValidationError('Physical entity kind is not supported by this graph version.')
     return value
 
 
-def _parent(kind, entity):
-    return entity[PARENTS[kind][1]] if kind in PARENTS else None
+def _parent(kind, entity, parents):
+    return entity[parents[kind][1]] if kind in parents else None
 
 
-def _evidence(value, kind):
+def _evidence(value, kind, parents):
     if not isinstance(value, list) or len(value) > MAX_EVIDENCE:
         raise ValidationError(f'Physical evidence is limited to {MAX_EVIDENCE} associations per entity.')
     field_names = FIELDS[kind] | {'uncertainty'}
-    if kind in PARENTS:
-        field_names |= {PARENTS[kind][1]}
+    if kind in parents:
+        field_names |= {parents[kind][1]}
     if kind == 'service':
         field_names |= {'quantity'}
     for entry in value:
@@ -154,7 +182,7 @@ def _evidence(value, kind):
                 raise ValidationError('Evidence region vertices must be distinct.')
 
 
-def _properties(entity, kind):
+def _properties(entity, kind, parents):
     fields = _object(entity['fields'], FIELDS[kind], (), 'Physical fields')
     for key, value in fields.items():
         if key in DIMENSIONS:
@@ -163,7 +191,7 @@ def _properties(entity, kind):
                 raise ValidationError('Known physical dimensions must be positive; omit an unknown dimension.')
         else:
             _text(value, key)
-    _evidence(entity['evidence'], kind)
+    _evidence(entity['evidence'], kind, parents)
     uncertainty = _object(entity['uncertainty'], {'state', 'note'}, {'state', 'note'}, 'Physical uncertainty')
     if not isinstance(uncertainty['state'], str) or uncertainty['state'] not in UNCERTAINTY_STATES:
         raise ValidationError('Physical uncertainty must use an explicit supported state.')
@@ -179,24 +207,34 @@ def validate_graph(graph, *, copy_result=True):
     and every active child has an active parent. Strict level-specific links
     make cycles and implicit parent inference impossible.
     """
-    _object(graph, _GRAPH_KEYS, _GRAPH_KEYS, 'Physical graph')
-    if type(graph['version']) is not int or graph['version'] != 1 or graph['state'] != 'draft':
-        raise ValidationError('Only version 1 draft physical graphs are supported.')
+    collections, parents = graph_collections(graph), graph_parents(graph)
+    graph_keys = _GRAPH_BASE_KEYS | set(collections.values())
+    _object(graph, graph_keys, graph_keys, 'Physical graph')
+    if graph['state'] != 'draft':
+        raise ValidationError('Only draft physical graphs are supported.')
     _id(graph['project_id'], 'Project ID')
     _id(graph['id'], 'Physical graph ID')
     _number(graph['revision'], 'Physical graph revision', minimum=0, integer=True)
     index = {}
     evidence_count = vertex_count = text_count = 0
     documents, images, occurrences = {}, {}, {}
-    for kind, collection in COLLECTIONS.items():
+    for kind, collection in collections.items():
+        display_ids = set()
         entries = graph[collection]
         if not isinstance(entries, list) or len(entries) > MAX_ENTITIES:
             raise ValidationError('Physical entity collections must be bounded lists.')
         for entity in entries:
-            keys = _ENTITY_KEYS | ({PARENTS[kind][1]} if kind in PARENTS else set())
+            keys = _ENTITY_KEYS | ({parents[kind][1]} if kind in parents else set())
+            if graph['version'] == 2:
+                keys |= {'display_id'}
             if kind == 'service':
                 keys |= {'quantity'}
             _object(entity, keys, keys, 'Physical entity')
+            if graph['version'] == 2:
+                ordinal = _display_number(entity['display_id'], kind)
+                if ordinal in display_ids:
+                    raise ValidationError('Physical display IDs must be unique, including tombstones.')
+                display_ids.add(ordinal)
             identifier = _id(entity['id'])
             if identifier in index:
                 raise ValidationError('Physical entity IDs must be globally unique, including tombstones.')
@@ -215,9 +253,9 @@ def validate_graph(graph, *, copy_result=True):
                     raise ValidationError('Deletion revision cannot exceed the graph revision.')
             elif deleted_revision is not None:
                 raise ValidationError('An active entity cannot have a deletion revision.')
-            if kind in PARENTS:
-                _id(entity[PARENTS[kind][1]], 'Physical parent ID')
-            _properties(entity, kind)
+            if kind in parents:
+                _id(entity[parents[kind][1]], 'Physical parent ID')
+            _properties(entity, kind, parents)
             evidence_count += len(entity['evidence'])
             text_count += sum(len(value) for value in entity['fields'].values() if isinstance(value, str))
             text_count += len(entity['uncertainty']['note'])
@@ -245,8 +283,8 @@ def validate_graph(graph, *, copy_result=True):
             if text_count > MAX_TOTAL_TEXT:
                 raise ValidationError('The physical graph exceeds its total descriptive text limit.')
     for kind, entity in index.values():
-        if kind in PARENTS:
-            expected_kind, parent_key = PARENTS[kind]
+        if kind in parents:
+            expected_kind, parent_key = parents[kind]
             parent = index.get(entity[parent_key])
             if parent is None or parent[0] != expected_kind:
                 raise ValidationError(f'Every {kind} must reference an existing {expected_kind}.')
@@ -255,10 +293,15 @@ def validate_graph(graph, *, copy_result=True):
     return deepcopy(graph) if copy_result else graph
 
 
-def new_graph(project_id, graph_id=None):
-    """Create an empty draft. Its generated ID must be retained by the caller."""
-    graph = {'version': 1, 'project_id': project_id, 'id': str(uuid4()) if graph_id is None else graph_id,
-             'revision': 0, 'state': 'draft', **{name: [] for name in COLLECTIONS.values()}}
+def new_graph(project_id, graph_id=None, *, version=1):
+    """Create an explicit draft; default v1 preserves legacy low-level callers.
+
+    The workspace chooses version 2 for new projects. Generated UUIDs must be
+    retained by the caller, and saved graphs are never converted here.
+    """
+    graph = {'version': version, 'project_id': project_id, 'id': str(uuid4()) if graph_id is None else graph_id,
+             'revision': 0, 'state': 'draft'}
+    graph.update({name: [] for name in graph_collections(graph).values()})
     return validate_graph(graph)
 
 
@@ -269,13 +312,13 @@ def graph_digest(graph):
 
 
 def _index(graph):
-    return {entry['id']: (kind, entry) for kind, name in COLLECTIONS.items() for entry in graph[name]}
+    return {entry['id']: (kind, entry) for kind, name in graph_collections(graph).items() for entry in graph[name]}
 
 
-def _descendants(index, identifier):
+def _descendants(index, identifier, parents):
     children = {}
     for child_id, (kind, entity) in index.items():
-        children.setdefault(_parent(kind, entity), []).append(child_id)
+        children.setdefault(_parent(kind, entity, parents), []).append(child_id)
     result, pending = set(), [identifier]
     while pending:
         for child in children.get(pending.pop(), []):
@@ -298,34 +341,39 @@ def _command(graph, command):
         raise ValidationError('Unsupported physical graph operation.')
     required = schemas[op] - ({'entity_ids'} if op == 'restore' else set())
     _object(command, schemas[op], required, 'Physical edit')
+    collections, parents = graph_collections(graph), graph_parents(graph)
     before = _index(graph)
     candidate = deepcopy(graph)
     candidate['revision'] += 1
     after = _index(candidate)
     if op == 'create':
-        kind = _kind(command['kind'])
+        kind = _kind(command['kind'], collections)
         keys = {'id', 'fields', 'evidence', 'uncertainty'}
-        if kind in PARENTS:
-            keys.add(PARENTS[kind][1])
+        if kind in parents:
+            keys.add(parents[kind][1])
         if kind == 'service':
             keys.add('quantity')
         source = _object(command['entity'], keys, keys, 'New physical entity')
         identifier = _id(source['id'])
-        if kind in PARENTS:
-            _id(source[PARENTS[kind][1]], 'Physical parent ID')
-        _properties(source, kind)
+        if kind in parents:
+            _id(source[parents[kind][1]], 'Physical parent ID')
+        _properties(source, kind, parents)
         entity = deepcopy(source)
         if identifier in before:
             raise ValidationError('A physical ID cannot be reused, including a deleted ID.')
         entity.update(revision=1, deleted=False, deleted_at_revision=None)
-        candidate[COLLECTIONS[kind]].append(entity)
+        if graph['version'] == 2:
+            ordinal = max((_display_number(entry['display_id'], kind)
+                           for entry in candidate[collections[kind]]), default=0) + 1
+            entity['display_id'] = f'{_DISPLAY_PREFIXES[kind]}-{ordinal:04d}'
+        candidate[collections[kind]].append(entity)
         affected, descendants = {identifier}, set()
     else:
         identifier = _id(command['entity_id'])
         if identifier not in after:
             raise ValidationError('The physical entity does not exist.')
         kind, entity = after[identifier]
-        descendants = _descendants(before, identifier)
+        descendants = _descendants(before, identifier, parents)
         affected = {identifier}
         if op != 'restore' and entity['deleted']:
             raise ValidationError('Restore a deleted physical entity before editing it.')
@@ -334,15 +382,15 @@ def _command(graph, command):
             changes = _object(command['changes'], allowed, (), 'Physical property changes')
             if not changes:
                 raise ValidationError('A physical update requires explicit changes.')
-            _properties({**entity, **changes}, kind)
+            _properties({**entity, **changes}, kind, parents)
             for key, value in changes.items():
                 # A supplied fields object replaces the typed field set. This
                 # makes clearing an unknown field explicit and lossless.
                 entity[key] = deepcopy(value)
         elif op == 'reparent':
-            if kind not in PARENTS:
-                raise ValidationError('A barrier has no physical parent to change.')
-            entity[PARENTS[kind][1]] = _id(command['parent_id'], 'New physical parent ID')
+            if kind not in parents:
+                raise ValidationError(f'A {kind} has no physical parent to change.')
+            entity[parents[kind][1]] = _id(command['parent_id'], 'New physical parent ID')
             affected |= descendants
         elif op == 'delete':
             if type(command['cascade']) is not bool:
@@ -393,15 +441,18 @@ def _command(graph, command):
 def _preview(graph, command):
     candidate, affected, descendants, changed = _command(graph, command)
     before, after = _index(graph), _index(candidate)
+    parents = graph_parents(graph)
     relationships = []
     for identifier in sorted(affected | descendants):
         kind, entity = after[identifier]
         old = before.get(identifier)
         relationships.append({'id': identifier, 'kind': kind,
-            'parent_before': _parent(*old) if old else None,
-            'parent_after': _parent(kind, entity),
+            'parent_before': _parent(*old, parents) if old else None,
+            'parent_after': _parent(kind, entity, parents),
             'deleted_before': old[1]['deleted'] if old else None,
             'deleted_after': entity['deleted']})
+        if graph['version'] == 2:
+            relationships[-1]['display_id'] = entity['display_id']
     preview = {'version': 1, 'graph_id': graph['id'], 'project_id': graph['project_id'],
         'base_revision': graph['revision'], 'base_digest': _digest(graph),
         'command': deepcopy(command), 'affected_ids': sorted(affected),

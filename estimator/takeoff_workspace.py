@@ -20,7 +20,7 @@ from .takeoff_model import (active_calibrations, item_references, markup_appeara
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview, transfer_selection
 from .takeoff_linked_delete import prepare_delete as prepare_linked_delete, prepare_undo as prepare_linked_undo
-from .takeoff_physical import COLLECTIONS as PHYSICAL_COLLECTIONS, validate_graph
+from .takeoff_physical import graph_collections, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
 
 SESSION_CACHE_BYTES = 4 * 1_048_576
@@ -320,7 +320,7 @@ class TakeoffService:
             needed.add(tuple(reference[key] for key in ('document_id', 'document_sha256', 'page',
                                                         'image_id', 'image_sha256', 'occurrence_id')))
         validate_source_links(graph, snapshot, collect)
-        source_ids = {ref['document_id'] for collection in PHYSICAL_COLLECTIONS.values()
+        source_ids = {ref['document_id'] for collection in graph_collections(graph).values()
                       for entity in graph[collection] if not entity['deleted'] for ref in entity['evidence']}
         documents = {document['id']: document for document in snapshot['documents']}
         self.documents.assert_documents([documents[identifier] for identifier in source_ids], owner=session_id)
@@ -357,6 +357,7 @@ class TakeoffService:
             session = self._session(session_id); snapshot = session['snapshot']
             if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
                 raise ValidationError('The takeoff draft changed before physical preview.')
+            self._physical_editable(snapshot)
             self._physical_gate(session_id, snapshot, links=False)
             prepared = prepare_changes(snapshot, request['commands'], lambda reference: None)
             self._validate_physical_links(session_id, {**snapshot, 'physical': prepared['graph']})
@@ -373,6 +374,7 @@ class TakeoffService:
             object_fields(request, {'expected_revision', 'request_id', 'preview_id'}, 'Physical apply',
                           {'expected_revision', 'request_id', 'preview_id'})
             actual = {**request, 'op': 'apply_physical'}
+            self._physical_editable(self._session(session_id)['snapshot'])
             session, prior = self._start(session_id, actual)
             if prior:
                 self._physical_gate(session_id, session['snapshot'])
@@ -522,6 +524,12 @@ class TakeoffService:
             return export_physical_graph(current_graph(snapshot), format,
                                          {document['id']: document['name'] for document in snapshot['documents']})
 
+    @staticmethod
+    def _physical_editable(snapshot):
+        graph = snapshot.get('physical')
+        if graph is not None and graph['version'] == 1:
+            raise ValidationError('This legacy penetration hierarchy is read-only until its new relationships are assigned.')
+
     def _undo_physical(self, session_id, before, after):
         from .takeoff_model import upgrade_snapshot
         after = upgrade_snapshot(after)
@@ -530,11 +538,17 @@ class TakeoffService:
         if current is None:
             after['physical'] = None
             return after
+        if current['version'] == 1:
+            if after.get('physical') != current:
+                self._physical_editable(before)
+            return after
         target = current_graph(after)
+        if target['version'] != current['version']:
+            raise ValidationError('Physical undo cannot change the stored hierarchy version.')
         restored = deepcopy(current)
         changed = False
         next_revision = current['revision'] + 1
-        for collection in PHYSICAL_COLLECTIONS.values():
+        for collection in graph_collections(current).values():
             previous = {value['id']: value for value in target[collection]}
             for index, entity in enumerate(restored[collection]):
                 desired = deepcopy(previous.get(entity['id'], entity))
@@ -1161,7 +1175,7 @@ class TakeoffService:
                 if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
                     raise ValidationError('A source document with retained image extraction history cannot be deleted.')
                 if after.get('physical') and any(reference['document_id'] == document_id
-                        for collection in PHYSICAL_COLLECTIONS.values() for entity in after['physical'][collection]
+                        for collection in graph_collections(after['physical']).values() for entity in after['physical'][collection]
                         for reference in entity['evidence']):
                     raise ValidationError('A source document referenced by physical records or tombstones cannot be deleted.')
                 after['documents'] = [d for d in after['documents'] if d['id'] != document_id]

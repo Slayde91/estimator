@@ -85,17 +85,21 @@ class PhysicalHTTPTests(unittest.TestCase):
         reference['region'] = [[11, 21], [12, 21], [12, 22]]
         ids = [str(uuid4()) for _ in range(3)]
         commands = []
-        for kind, identifier, parent_key, parent in (('barrier', ids[0], None, None),
-                ('defect', ids[1], 'barrier_id', ids[0]), ('opening', ids[2], 'defect_id', ids[1])):
+        for kind, identifier, parent_key, parent in (('defect', ids[0], None, None),
+                ('barrier', ids[1], 'defect_id', ids[0]), ('service', ids[2], 'barrier_id', ids[1])):
             entity = {'id': identifier, 'fields': {'label': kind}, 'evidence': [reference],
                       'uncertainty': {'state': 'unresolved', 'note': 'Synthetic draft'}}
             if parent_key: entity[parent_key] = parent
+            if kind == 'service': entity['quantity'] = 2
             commands.append({'op': 'create', 'kind': kind, 'entity': entity})
         preview = self.json_request('POST', base+'/physical/preview', {'expected_revision': state['revision'], 'commands': commands})
         self.assertEqual(set(preview['changed_ids']), set(ids))
         state = self.json_request('POST', base+'/physical/apply', {'expected_revision': state['revision'],
             'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
-        self.assertEqual(state['snapshot']['physical']['services'], [])
+        self.assertEqual(state['snapshot']['physical']['version'], 2)
+        self.assertNotIn('openings', state['snapshot']['physical'])
+        self.assertEqual(state['snapshot']['physical']['services'][0]['display_id'], 'S-0001')
+        self.assertEqual(state['snapshot']['physical']['services'][0]['quantity'], 2)
         self.assertEqual(state['snapshot']['physical']['state'], 'draft')
         for format in ('csv', 'xlsx'):
             status, headers, payload = self.request('POST', base+'/physical/export/'+format, {})
@@ -105,7 +109,8 @@ class PhysicalHTTPTests(unittest.TestCase):
             else:
                 with BytesIO(payload) as stream:
                     workbook = load_workbook(stream)
-                    self.assertEqual(workbook['Services'].max_row, 1)
+                    self.assertEqual(workbook['Services'].max_row, 2)
+                    self.assertNotIn('Openings', workbook.sheetnames)
                     workbook.close()
         other, _ = self.session(upload=False)
         other_route = other+f'/images/{image["extraction_id"]}/{image["asset_id"]}/file'
@@ -129,12 +134,12 @@ class PhysicalHTTPTests(unittest.TestCase):
         self.assertIn('SOURCE_MARKER_CLIPPED', {issue['code'] for issue in image['issues']})
         self.assertTrue(all(15 <= point[0] <= 40 and 25 <= point[1] <= 35 for point in image['region']))
         reference = {key: image[key] for key in ('document_id', 'document_sha256', 'page', 'image_id', 'image_sha256', 'occurrence_id', 'region')}
-        command = {'op': 'create', 'kind': 'barrier', 'entity': {'id': str(uuid4()), 'fields': {},
+        command = {'op': 'create', 'kind': 'defect', 'entity': {'id': str(uuid4()), 'fields': {},
             'evidence': [reference], 'uncertainty': {'state': 'unresolved', 'note': 'Cropped source view'}}}
         preview = self.json_request('POST', base+'/physical/preview', {'expected_revision': state['revision'], 'commands': [command]})
         result = self.json_request('POST', base+'/physical/apply', {'expected_revision': state['revision'],
             'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
-        self.assertEqual(result['snapshot']['physical']['barriers'][0]['evidence'], [reference])
+        self.assertEqual(result['snapshot']['physical']['defects'][0]['evidence'], [reference])
 
     def test_invalid_ranges_queries_and_stale_previews_fail_without_mutation(self):
         base, state = self.session()

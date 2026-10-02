@@ -9,7 +9,9 @@ from uuid import uuid4
 
 from estimator.catalog import ValidationError
 from estimator.native_dialogs import SaveSelection
-from estimator.takeoff_model import audit_affected
+from estimator.takeoff_model import audit_affected, upgrade_snapshot
+from estimator.takeoff_physical import new_graph
+from estimator.takeoff_physical_operations import prepare_changes
 from tests import test_takeoff_project as fixtures
 from tests.test_takeoff_images_worker import make_pdf
 
@@ -46,10 +48,15 @@ class PhysicalProjectTests(unittest.TestCase):
             if kind == 'service':
                 entity['quantity'] = 2
             commands.append({'op': 'create', 'kind': kind, 'entity': entity})
-        preview = case.service.preview_physical(case.session['session_id'], {
-            'expected_revision': case.session['revision'], 'commands': commands})
-        case.session = case.service.apply_physical(case.session['session_id'], {
-            'expected_revision': case.session['revision'], 'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
+        # Reconstruct an authentic legacy fixture through the original low-level
+        # model, with a real audit event. The active editor no longer creates v1.
+        before = deepcopy(case.session['snapshot'])
+        legacy = {**before, 'physical': new_graph(before['project_id'], version=1)}
+        after = upgrade_snapshot(before)
+        after['physical'] = prepare_changes(legacy, commands, lambda ref: None)['graph']
+        case.session = case.service._commit(case.session['session_id'], {
+            'op': 'apply_physical', 'expected_revision': before['revision'],
+            'request_id': str(uuid4())}, before, after)
         self.refresh_request()
 
     def refresh_request(self):
@@ -76,6 +83,10 @@ class PhysicalProjectTests(unittest.TestCase):
         reopened = case.library.open_file()
         self.assertEqual(reopened['takeoffs_issues'], [])
         self.assertEqual(reopened['takeoffs']['physical'], original_graph)
+        with self.assertRaisesRegex(ValidationError, 'read-only'):
+            case.service.preview_physical(reopened['takeoffs_session_id'], {
+                'expected_revision': reopened['takeoffs']['revision'],
+                'commands': [{'op': 'delete', 'entity_id': self.ids[0], 'cascade': True}]})
         second = case.root / 'other' / 'renamed.json'; second.parent.mkdir()
         case.dialogs.selection = SaveSelection(str(second), None)
         case.library.save_as({**deepcopy(case.base), 'takeoffs': reopened['takeoffs'],

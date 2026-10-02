@@ -18,7 +18,8 @@
     "test:takeoffs-item-actions": "node tests/browser/item_actions.cjs",
     "test:takeoffs-viewer-controls": "node tests/browser/viewer_controls.cjs",
     "test:takeoffs-transfer-skip": "node tests/browser/transfer_skip.cjs",
-    "test:takeoffs-auto-scale": "node tests/browser/auto_scale.cjs"
+    "test:takeoffs-auto-scale": "node tests/browser/auto_scale.cjs",
+    "test:takeoffs-duct-settings": "node tests/browser/duct_settings.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

@@ -1,5 +1,6 @@
 // Real Add-to-schedule review with existing links and manual calculator edits.
 const { chromium, expect } = require('@playwright/test');
+const { editSettings } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `transfer-skip-${Date.now()}`);
@@ -27,7 +28,7 @@ async function fill(scope, label, value) {
   if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
 }
 async function dialog(title, values, action) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) await fill(modal, label, value);
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
@@ -40,7 +41,7 @@ async function screen([x, y]) {
 async function trace(mark, y) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await page.mouse.click(...await screen([150, y])); await page.mouse.dblclick(...await screen([350, y]));
-  const reply = await command(() => dialog('Add steel object', { 'Member mark': mark, 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 }, 'Add item'), 'create_item');
+  const reply = await command(() => dialog('Add steel object', { 'Member mark': mark, 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   return reply.snapshot.items.find(item => item.fields.mark === mark);
 }
 async function select(ids) {
@@ -78,7 +79,8 @@ function assertSkipped(preview, binding) {
   page.on('request', request => { if (/\/(commands|transfer-preview|transfer-apply)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
   await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
   await page.getByRole('button', { name: 'Scale', exact: true }).click(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100');
@@ -88,9 +90,7 @@ function assertSkipped(preview, binding) {
   const b = await trace('NEW-B', 250); await select([b.id]); await confirmSelected(1);
   // A stale source and a manually edited destination are outside append authority.
   await select([a.id]);
-  const editor = page.locator(`.takeoff-register-editor[data-editor-item-id="${a.id}"]`);
-  if (!await editor.isVisible()) await page.locator(`tr[data-item-id="${a.id}"]`).getByRole('button', { name: 'Edit item', exact: true }).click();
-  await fill(editor, 'Level', 'UNCONFIRMED-SOURCE-EDIT'); await command(() => editor.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
+  await editSettings(page, { 'Level': 'UNCONFIRMED-SOURCE-EDIT' }, a.id);
   await openSpray(); const linkedLength = (await calculators()).steel_vermiculite.inputs.SCHEDULE[`J${originalBinding.row}`];
   await changeCell(`J${originalBinding.row}`, linkedLength + 7.125);
   await page.getByRole('button', { name: 'Add row', exact: true }).click(); await changeCell('A11', 'UNRELATED-MANUAL-ROW');

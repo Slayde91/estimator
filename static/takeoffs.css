@@ -65,6 +65,12 @@
 .takeoff-markup-settings input[type=checkbox]{width:20px;height:20px;align-self:flex-start}.takeoff-markup-settings input[type=color]{height:34px;padding:2px}
 .takeoff-markup-settings .helper{color:#dedede;font-size:11px;line-height:1.5;overflow-wrap:anywhere}.takeoff-markup-settings h4{font-size:12px;margin:8px 0 0;border-top:1px solid #666;padding-top:12px}.takeoff-settings-fields>h4:first-child{margin-top:0;border-top:0;padding-top:0}
 .takeoff-markup-settings .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.takeoff-markup-settings .actions .button{font-size:11px}
+.takeoff-settings-tools{grid-column:1/-1;min-width:0;color:#fff}
+.takeoff-settings-tools h3{font-size:12px;color:#fff;margin:16px 0 10px}
+.takeoff-settings-tools .takeoff-identity{font-size:10px;overflow-wrap:anywhere;color:#dedede}
+.takeoff-settings-tools .takeoff-calibration-summary{color:#244b6e;overflow-wrap:anywhere}
+.takeoff-settings-tools .text-button{color:#fff;text-decoration:underline}
+.takeoff-settings-tools .actions{margin:10px 0}
 .takeoff-markup-settings .takeoff-viewports-heading .button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:6px;background:transparent;border:0;color:white}
 .takeoff-markup-settings button:focus-visible,.takeoff-markup-settings input:focus-visible,.takeoff-markup-settings select:focus-visible{outline:2px solid #71c9ff;outline-offset:2px}
 .takeoff-markup-settings [hidden]{display:none}
@@ -117,10 +123,10 @@
 .takeoff-heading-controls>.takeoff-modes{margin:0}
 .takeoff-drawing-downloads{padding:0;margin:0;border:0;background:transparent;gap:6px}
 .takeoff-scale-anchor{position:relative;display:flex}
-.takeoff-scale-controls{position:absolute;left:calc(100% + 18px);top:0;z-index:12;width:min(310px,calc(100vw - 120px));margin:0;box-shadow:0 4px 18px #0003;flex-direction:column;align-items:stretch}
+.takeoff-scale-controls{position:absolute;left:calc(100% + 18px);top:0;z-index:12;width:min(310px,calc(100vw - 120px));margin:0;box-shadow:0 4px 18px #0003;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
 .takeoff-scale-controls[hidden]{display:none}
-.takeoff-scale-controls select{flex:none;min-width:0;max-width:none;width:100%}
-.takeoff-scale-controls .button{flex:none;width:100%}
+.takeoff-scale-controls select{grid-column:1/-1;min-width:0;max-width:none;width:100%}
+.takeoff-scale-controls .button{min-width:0;width:100%;padding:9px 6px;white-space:normal}
 .takeoff-drawing-pane>.takeoff-progress,.takeoff-drawing-pane>.takeoff-control-status{margin:0}
 @media(max-width:650px){.takeoff-tool-rail{padding:8px;gap:8px}.takeoff-scale-controls{gap:6px}.takeoff-viewer-controls{max-width:calc(100% - 12px);padding:6px}.takeoff-viewer-top{top:6px}.takeoff-page-controls{bottom:6px;gap:4px}}
 

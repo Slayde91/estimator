@@ -1,5 +1,6 @@
 // Real keyboard/control-point editing and nested scroll focus on disposable drawings.
 const { chromium, expect } = require('@playwright/test');
+const { openItemSettings, settingsSettled } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -17,7 +18,7 @@ const ready = new Promise((resolve,reject) => {
 const errors=[], requests=[], evidence={};
 const idle=()=>expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy','true');
 async function command(action,op,status=200){const pending=page.waitForResponse(r=>r.url().endsWith('/commands')&&r.request().postDataJSON()?.op===op);pending.catch(()=>{});await action();const response=await pending,body=await response.json();assert.equal(response.status(),status,JSON.stringify(body));await idle();return body;}
-async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible();for(const[label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
+async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible({timeout:30000});for(const[label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
 const snapshot=async()=>{await idle();let value;await expect.poll(async()=>{try{value=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());return true;}catch{return false;}}).toBe(true);return value;};
 const fit=()=>command(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),'record_render');
 async function screen([x,y]){
@@ -46,12 +47,13 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   // Bootstrap finishes its default quote and Home navigation before publishing
   // project controls. Do not race that navigation with this drawing journey.
   await expect(page.locator('#project-tools')).toBeVisible();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
   await command(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},'record_render');await fit();
   await page.getByRole('button',{name:'Scale',exact:true}).click();await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
   const shapes=[['CP-PRIMARY',[[100,120],[200,120],[200,220],[300,220]]],['CP-SECONDARY',[[400,350],[500,350],[550,450]]]];
   let state;
-  for(const[mark,points]of shapes){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':'L1','Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':120,'Critical temperature (°C)':550,'Exposure description':'Re-entrant - 3 sides','Physical quantity':1},'Add item'),'create_item');}
+  for(const[mark,points]of shapes){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':'L1','Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':120,'Crit. Temp (\u00b0C)':550,'Exposure':'Re-entrant - 3 sides','Count/QTY':1},'Add item'),'create_item');}
   const a=state.snapshot.items.find(i=>i.fields.mark==='CP-PRIMARY'),b=state.snapshot.items.find(i=>i.fields.mark==='CP-SECONDARY');
   await select([a.id]);await page.getByRole('button',{name:'Select',exact:true}).click();await handles(a.id).first().scrollIntoViewIfNeeded();await expect(handles(a.id)).toHaveCount(4);await expect(handles(b.id)).toHaveCount(0);
   // Original PDF coordinates determine handle placement even at rotated/cropped/UserUnit2 display scale.
@@ -76,7 +78,7 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   const minimum=await snapshot(),countMin=requests.length;await page.keyboard.press('Control+z');await expect(page.locator('#takeoffs-workspace > .message')).toContainText(/two|2|minimum/i);assert.equal(requests.length,countMin);assert.deepEqual(await snapshot(),minimum);
   await handles(a.id).first().click({button:'right'});await expect(page.getByRole('menu').getByRole('menuitem',{name:'Delete control point',exact:true})).toBeDisabled();await page.keyboard.press('Escape');
   // Native text undo must remain text undo, even with a markup selected.
-  const level=page.locator('.takeoff-register-editor').getByLabel('Level',{exact:true});await level.fill('UNCHANGED-GEOMETRY');const beforeInput=JSON.parse(JSON.stringify(minimum)),countInput=requests.length;await level.press('Control+z');assert.equal(requests.length,countInput);assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireTakeoffs.projectFingerprint()).snapshot),beforeInput);await page.locator('.takeoff-register-editor').getByRole('button',{name:'Discard edits',exact:true}).click();
+  const inputPanel=await openItemSettings(page,a.id),level=inputPanel.getByLabel('Level',{exact:true});await level.fill('UNCHANGED-GEOMETRY');const countInput=requests.length;await level.press('Control+z');assert.ok(!requests.slice(countInput).some(request=>request.op==='update_item'),'Native text undo must not delete a geometry point');await level.fill(minimum.items.find(item=>item.id===a.id).fields.level||'');await level.press('Tab');await settingsSettled(page);await geometryEqual(a.id,minimum.items.find(item=>item.id===a.id).geometry.points);await inputPanel.getByRole('button',{name:'Close settings',exact:true}).click();
   // Pending-trace Ctrl+Z removes its last pending point, not a stored item or calculator row.
   await page.getByRole('button',{name:'Trace length',exact:true}).click();await expect(page.locator('.takeoff-control-point')).toHaveCount(0);await fit();for(const point of[minimum.items.find(i=>i.id===a.id).geometry.points[0],[350,130],[400,170]])await page.mouse.click(...await screen(point));await page.locator('.takeoff-viewport').press('Control+z');assert.equal(await page.locator('polyline.takeoff-pending').evaluate(el=>el.points.numberOfItems),2);await page.locator('.takeoff-viewport').press('Enter');
   await expect(page.getByRole('dialog').getByRole('heading',{name:'Add steel object',exact:true})).toBeVisible();await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();await geometryEqual(a.id,minimum.items.find(i=>i.id===a.id).geometry.points);

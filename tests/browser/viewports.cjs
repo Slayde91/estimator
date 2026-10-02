@@ -1,5 +1,6 @@
 // Rendered scale/viewport and per-member vertical-dimension acceptance on disposable data.
 const { chromium, expect } = require('@playwright/test');
+const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -35,7 +36,7 @@ async function snapshot() { await idle(); return page.evaluate(() => window.Ceas
 async function fit() { return command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render'); }
 async function assertAutoHeight(layout) {
   const sizes = {};
-  for (const selector of ['.takeoff-register', '.takeoff-register-table', '.takeoff-register-editor']) {
+  for (const selector of ['.takeoff-register', '.takeoff-register-table']) {
     const size = await page.locator(selector).evaluate(el => ({clientHeight:el.clientHeight,scrollHeight:el.scrollHeight,overflowY:getComputedStyle(el).overflowY}));
     assert.ok(size.scrollHeight <= size.clientHeight + 1,`${layout} ${selector} has nested vertical scrolling: ${JSON.stringify(size)}`);sizes[selector]=size;
   }
@@ -74,7 +75,7 @@ async function viewport(name, points, denominator) {
   await page.mouse.dblclick(...await screenPoint(points[1]));
   return command(() => dialog('Create viewport', { 'Viewport name': name, 'Scale': denominator }, 'Create viewport'), 'add_calibration');
 }
-const steelFields = { 'Member mark': 'SCALE-100', 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 };
+const steelFields = { 'Member mark': 'SCALE-100', 'Level': 'L02', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides', 'Count/QTY': 2 };
 async function steel(mark, points) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await draw(points, true);
   return command(() => dialog('Add steel object', { ...steelFields, 'Member mark': mark }, 'Add item'), 'create_item');
@@ -102,14 +103,7 @@ async function addition(docId, kind, mm) {
   await expect(page.locator(`[data-addition-id="${retained.id}"]`)).toContainText(String(mm));
   return result;
 }
-async function inspector(values) {
-  const panel = page.locator('.takeoff-register-editor');
-  for (const [label, value] of Object.entries(values)) {
-    const field = panel.getByLabel(label, { exact: true });
-    if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
-  }
-  return command(() => panel.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
-}
+async function inspector(values) { return editSettings(page, values); }
 async function transfer() {
   const waiting = page.waitForResponse(r => r.url().endsWith('/transfer-preview'));
   await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
@@ -148,7 +142,8 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible();
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Finish trace', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Cite length', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-inspector')).toHaveCount(0);
@@ -183,82 +178,58 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   assert.ok(Math.abs(result.length_m - 400 * 2 * .0254 / 72 * 100) < .06);
   assert.equal(main.fields.section, '100UC15'); assert.equal(main.fields.product, 'CAFCO 300'); assert.equal(main.quantity, 2);
   assert.equal(main.review, null); assert.equal(main.confirmation, null);
-  // The register owns the editor: unapplied edits survive filters and a late Apply response.
-  const editor = page.locator(`.takeoff-register-editor[data-editor-item-id="${mainId}"]`);
-  await expect(editor).toBeVisible(); await expect(editor.locator('xpath=ancestor::table')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Trace length', exact: true }).click();
-  await editor.getByLabel('Level', { exact: true }).fill('L03');
-  await page.getByLabel('Filter register', { exact: true }).fill('not-a-matching-item');
-  await expect(page.locator(`tr[data-item-id="${mainId}"]`)).toHaveCount(0);
-  await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L03');
-  await expect(page.locator('.takeoff-editor-pending-notice')).toContainText('unfinished edits');
-  await page.getByLabel('Filter register', { exact: true }).fill('');
-  await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L03');
-  for (const target of ['steel_board', 'steel_vermiculite']) {
-    const choices = page.waitForResponse(r => r.url().includes(`/options?calculator=${target}&`));
-    await page.getByLabel('Destination schedule', { exact: true }).selectOption(target); assert.equal((await choices).status(), 200);
-    await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L03');
-    await expect(editor.getByLabel('Steel section', { exact: true })).toHaveValue('100UC15');
-    await expect(editor.getByLabel('Protection product', { exact: true })).toHaveValue('CAFCO 300');
-  }
-  const beforeDirtyTool = operations.length;
-  await page.getByRole('button', { name: 'Trace length', exact: true }).click();
-  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('unfinished item edits');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await draw([[400, 420], [500, 420]]); await page.locator('.takeoff-viewport').press('Enter');
-  await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('unfinished item edits');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  assert.ok(!operations.slice(beforeDirtyTool).includes('create_item'));
-  await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L03');
-  const unsavedGuard = await page.evaluate(() => { try { window.CeasefireTakeoffs.projectSnapshot(); return ''; } catch (error) { return error.message; } });
-  assert.match(unsavedGuard, /unfinished/);
-  const saveRequests = []; const watchSave = request => { if (request.url().endsWith('/api/project/save-as')) saveRequests.push(request.url()); }; page.on('request', watchSave);
-  await page.getByRole('button', { name: 'Save As', exact: true }).click();
-  await expect(page.locator('#app-message')).toContainText(/unfinished/);
-  await page.screenshot({path:path.join(output,'unapplied-save-guard.png'),fullPage:true});
-  page.off('request', watchSave); assert.deepEqual(saveRequests, []); assert.equal(fs.existsSync(info.project), false);
-  await editor.getByRole('button', { name: 'Discard edits', exact: true }).click();
-  await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L02');
-  await page.locator('.takeoff-viewport').press('Escape');
-  await editor.getByLabel('Level', { exact: true }).fill('L03');
-  await page.route('**/commands', route => route.request().postDataJSON()?.op === 'update_item' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({error:'Synthetic revision race; reload current source'}) }) : route.continue());
+  // Settings preserve failed edits and later typing while automatic requests settle.
+  const editor = await openItemSettings(page, mainId);
+  await expect(page.locator('.takeoff-register-editor')).toHaveCount(0);
+  await expect(editor.getByRole('button', {name:/Apply settings|Discard settings|Apply item edits/})).toHaveCount(0);
+  await page.route('**/commands', route => route.request().postDataJSON()?.op === 'bulk_update' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({error:'Synthetic revision race; retry current settings'}) }) : route.continue());
   try {
-    await command(() => editor.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item', 409);
-    await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L03');
-    assert.match(await page.evaluate(() => { try { window.CeasefireTakeoffs.projectSnapshot(); return ''; } catch (error) { return error.message; } }), /unfinished/);
+    await command(async () => { await editor.getByLabel('Level', {exact:true}).fill('L03'); await editor.getByLabel('Level', {exact:true}).press('Tab'); }, 'bulk_update', 409);
+    await page.getByLabel('Filter register', {exact:true}).fill('not-a-matching-item');
+    await expect(page.locator(`tr[data-item-id="${mainId}"]`)).toHaveCount(0);
+    await expect(editor.getByLabel('Level', {exact:true})).toHaveValue('L03');
+    await page.getByLabel('Filter register', {exact:true}).fill('');
+    for (const target of ['steel_board', 'steel_vermiculite']) {
+      const choices = page.waitForResponse(r => r.url().includes(`/options?calculator=${target}&`));
+      await page.getByLabel('Destination schedule', {exact:true}).selectOption(target); assert.equal((await choices).status(),200);
+      await expect(editor.getByLabel('Level', {exact:true})).toHaveValue('L03');
+      await expect(editor.getByLabel('Steel section', {exact:true})).toHaveValue('100UC15');
+      await expect(editor.getByLabel('Product', {exact:true})).toHaveValue('CAFCO 300');
+    }
+    assert.match(await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return '';} catch(error) {return error.message;}}), /unfinished/);
+    const saveRequests=[]; const watchSave=request=>{if(request.url().endsWith('/api/project/save-as'))saveRequests.push(request.url());};page.on('request',watchSave);
+    await page.getByRole('button',{name:'Save As',exact:true}).click();
+    await expect(page.locator('#app-message')).toContainText('Synthetic revision race');
+    page.off('request',watchSave);assert.deepEqual(saveRequests,[]);assert.equal(fs.existsSync(info.project),false);
+    await page.screenshot({path:path.join(output,'failed-settings-save-guard.png'),fullPage:true});
   } finally { await page.unroute('**/commands'); }
-  await editor.getByRole('button', { name: 'Discard edits', exact: true }).click();
-  let releaseApply, arrivedResolve, heldOnce = false;
-  const heldApply = new Promise(resolve => { releaseApply = resolve; }), arrived = new Promise(resolve => { arrivedResolve = resolve; });
-  await page.route('**/commands', async route => {
-    const body = route.request().postDataJSON();
-    if (body.op === 'update_item' && body.item_id === mainId && !heldOnce) {
-      heldOnce = true; const response = await route.fetch(); arrivedResolve(); await heldApply; await route.fulfill({ response });
-    } else await route.continue();
+  // Re-entering a retained value retries the failed automatic patch.
+  state=await inspector({'Level':'L03'});assert.equal(state.snapshot.items.find(item=>item.id===mainId).fields.level,'L03');
+  let releaseApply,arrivedResolve,heldOnce=false;
+  const heldApply=new Promise(resolve=>{releaseApply=resolve;}),arrived=new Promise(resolve=>{arrivedResolve=resolve;});
+  await page.route('**/commands',async route=>{
+    const body=route.request().postDataJSON();
+    if(body.op==='bulk_update'&&body.item_ids.includes(mainId)&&!heldOnce){heldOnce=true;const response=await route.fetch();arrivedResolve();await heldApply;await route.fulfill({response});}else await route.continue();
   });
   try {
-    await editor.getByLabel('Level', { exact: true }).fill('L03');
-    const applying = command(() => editor.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item');
-    await arrived; await editor.getByLabel('Level', { exact: true }).fill('L04'); releaseApply();
-    const captured = await applying; assert.equal(captured.snapshot.items.find(item => item.id === mainId).fields.level, 'L03');
-    await expect(editor.getByLabel('Level', { exact: true })).toHaveValue('L04');
-    await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Later form edits remain unfinished'})).toBeVisible();
-    await inspector({ 'Level': 'L04' });
-  } finally { releaseApply(); await page.unroute('**/commands'); }
-  state = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
-  assert.equal(state.snapshot.items.find(item => item.id === mainId).fields.level, 'L03');
-  state = await inspector({ 'Level': 'L02' });
-  const restoredMain = state.snapshot.items.find(item => item.id === mainId);
-  assert.equal(restoredMain.fields.level, 'L02'); assert.deepEqual(restoredMain.geometry, main.geometry); assert.equal(restoredMain.quantity, main.quantity);
-  evidence.register = { preservedFilteredEdit: true, blockedUnappliedSave: true, retainedLaterApplyEdit: true, undoRestoredInputs: true, failedApplyPreservedEdits: true, dirtyTraceBlocked: true, destinationChoicesRetainPendingEdits: true };
-  state = await confirm(); assert.equal(state.snapshot.items.find(item => item.id === mainId).state, 'confirmed');
-  const confirmedBeforeNoop = state.snapshot.items.find(item => item.id === mainId), noOpStart = operations.length;
-  await editor.getByLabel('Level', { exact: true }).fill('L02');
-  await editor.getByRole('button', { name: 'Apply item edits', exact: true }).click();
-  await expect.poll(async () => page.evaluate(() => { try { return !!window.CeasefireTakeoffs.projectSnapshot(); } catch { return false; } })).toBe(true);
-  assert.ok(!operations.slice(noOpStart).includes('update_item'));
-  assert.deepEqual((await snapshot()).items.find(item => item.id === mainId), confirmedBeforeNoop, 'No-op apply preserves sparse fields, revision and bound confirmation');
-  evidence.register.noOpPreservesConfirmation = true;
+    const applying=command(async()=>{await editor.getByLabel('Level',{exact:true}).fill('L04');await editor.getByLabel('Level',{exact:true}).press('Tab');},'bulk_update');applying.catch(()=>{});
+    await arrived;await editor.getByLabel('Level',{exact:true}).fill('L05');releaseApply();
+    const captured=await applying;assert.equal(captured.snapshot.items.find(item=>item.id===mainId).fields.level,'L04');
+    await settingsSettled(page);await expect(editor.getByLabel('Level',{exact:true})).toHaveValue('L05');
+    assert.equal((await snapshot()).items.find(item=>item.id===mainId).fields.level,'L05');
+  } finally {releaseApply();await page.unroute('**/commands');}
+  state=await command(()=>page.getByRole('button',{name:'Undo last edit',exact:true}).click(),'undo');
+  assert.equal(state.snapshot.items.find(item=>item.id===mainId).fields.level,'L04');
+  state=await inspector({'Level':'L02'});
+  const restoredMain=state.snapshot.items.find(item=>item.id===mainId);
+  assert.equal(restoredMain.fields.level,'L02');assert.deepEqual(restoredMain.geometry,main.geometry);assert.equal(restoredMain.quantity,main.quantity);
+  evidence.register={preservedFilteredEdit:true,blockedFailedSave:true,retainedLaterAutomaticEdit:true,undoRestoredInputs:true,failedApplyPreservedEdits:true,destinationChoicesRetainPendingEdits:true};
+  state=await confirm();assert.equal(state.snapshot.items.find(item=>item.id===mainId).state,'confirmed');
+  const confirmedBeforeNoop=state.snapshot.items.find(item=>item.id===mainId),noOpStart=operations.length;
+  await inspector({'Level':'L02'});
+  assert.ok(!operations.slice(noOpStart).includes('bulk_update'));
+  assert.deepEqual((await snapshot()).items.find(item=>item.id===mainId),confirmedBeforeNoop,'Unchanged settings preserve sparse fields, revision and bound confirmation');
+  evidence.register.noOpPreservesConfirmation=true;
   const baseline = state.item_results.find(item => item.id === mainId).length_m;
   state = await addition(doc.id, 'riser', 500, 'Synthetic R-01: 500 mm riser on each physical member; test-only cited dimension');
   main = state.snapshot.items.find(item => item.id === mainId); assert.equal(main.confirmation, null);
@@ -378,12 +349,12 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   // Rectangular duct default, and a cited drop is added once per physical run.
   await page.locator('[data-mode="duct"]').click();
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await draw([[400, 450], [600, 450]], true);
-  state = await command(() => dialog('Add duct object', { 'Run ID': 'DUCT-DROP', 'Physical quantity': 2 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Duct ID': 'DUCT-DROP', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const ductId = state.snapshot.items.find(item => item.mode === 'duct').id;
   assert.equal(state.snapshot.items.find(item => item.id === ductId).fields.shape, 'rectangular');
-  await expect(page.locator('.takeoff-register-editor').getByLabel('Shape', { exact: true })).toHaveCount(0);
-  await expect(page.locator('.takeoff-register-editor').getByLabel('Diameter (mm)', { exact: true })).toHaveCount(0);
-  state = await inspector({ 'Level': 'L02', 'Width (mm)': 600, 'Height (mm)': 400, 'Protection product': 'FyreWrap', 'Duct application / exposure': 'Internal', 'Mechanical system': 'Supply air', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
+  await expect(page.locator('#takeoff-markup-settings').getByLabel('Shape', { exact: true })).toHaveCount(0);
+  await expect(page.locator('#takeoff-markup-settings').getByLabel('Diameter (mm)', { exact: true })).toHaveCount(0);
+  state = await inspector({ 'Level': 'L02', 'WxH (mm)': '600x400', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   const ductBase = state.item_results.find(item => item.id === ductId).length_m;
   state = await addition(doc.id, 'drop', 750, 'Synthetic D-02: 750 mm drop on each of two runs; no inferred height');
   assert.equal(state.item_results.find(item => item.id === ductId).total_length_m, (ductBase + .75) * 2);
@@ -392,15 +363,17 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
   const repeatedResponse = await repeatedPreview, repeatedError = await repeatedResponse.json();
   assert.equal(repeatedResponse.status(), 400); assert.match(repeatedError.error, /each physical duct run separately/);
-  await inspector({ 'Physical quantity': 1 }); await confirm(); const ductTotal = ductBase + .75;
+  await inspector({ 'Count/QTY': 1 }); await confirm(); const ductTotal = ductBase + .75;
   transferred = await transfer(); const ductBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === ductId);
   assert.equal(transferred.preview.inputs.CALCULATOR['D' + ductBinding.row], ductTotal);
   await viewport('SECOND-25', [[100, 450], [250, 540]], 25);
   await page.setViewportSize({width:1440,height:1000}); await fit();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: path.join(output, 'viewport-riser-confirmed.png'), fullPage: true });
-  await page.locator('.takeoff-register-editor').evaluate(el => { el.scrollTop = el.scrollHeight; });
-  await page.locator('.takeoff-register-editor').screenshot({ path: path.join(output, 'riser-inspector.png') });
+  await openItemSettings(page,ductId);
+  await page.locator('#takeoff-markup-settings').evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await page.locator('#takeoff-markup-settings').screenshot({ path: path.join(output, 'riser-settings.png') });
+  await page.getByRole('button',{name:'Viewport',exact:true}).click();
   const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await page.getByRole('button', { name: 'Save As', exact: true }).click();
   assert.equal((await save).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2);
@@ -446,7 +419,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   assert.equal((await exportResponse).status(), 400);
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, strictCsp: true, mainId, detailId, ductId, baseline, ductBase, ductTotal, evidence, operations, errors, csp: [] }, null, 2));
-  console.log(`PASS: sole register editor, dirty/filter/save and late/failed Apply guards, panel deletion/rescale/undo, preset/UserUnit/rotation/crop, boundary and zoom, full-precision transfers with fixed2 display, Save As/reopen, exports and tamper rejection. Evidence: ${output}`);
+  console.log(`PASS: single settings pane, retained filters and late/failed automatic update guards, panel deletion/rescale/undo, preset/UserUnit/rotation/crop, boundary and zoom, full-precision transfers with fixed2 display, Save As/reopen, exports and tamper rejection. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

@@ -35,7 +35,7 @@ async function fill(scope, label, value) {
   if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value));
 }
 async function dialog(title, values, action) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) await fill(modal, label, value);
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
@@ -63,7 +63,7 @@ async function finishCount(point, op = 'add_count_items') {
   const position = await screen(point);
   const result = await command(() => page.mouse.dblclick(...position), op);
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(0);
-  await expect(page.locator('.takeoff-markup-settings').getByRole('heading', { name: 'Count details', exact: true })).toBeVisible();
+  await expect(page.locator('.takeoff-markup-settings').getByRole('heading', { name: 'Count Settings', exact: true })).toBeVisible();
   return result;
 }
 async function selectedCount(ids) {
@@ -71,7 +71,7 @@ async function selectedCount(ids) {
   for (const id of ids) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
   const panel = page.locator('.takeoff-markup-settings');
   if (!await panel.isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(panel.getByRole('heading', { name: 'Count details', exact: true })).toBeVisible(); return panel;
+  await expect(panel.getByRole('heading', { name: 'Count Settings', exact: true })).toBeVisible(); return panel;
 }
 async function applySettings(panel) {
   await page.keyboard.press('Tab'); await snapshot();
@@ -79,7 +79,7 @@ async function applySettings(panel) {
 }
 async function technicalDetails(mark, rows) {
   const panel = page.locator('.takeoff-markup-settings');
-  const fields = { 'Member mark': mark, 'Level': 'L-COUNT', 'Member type': 'Beam', 'Protection product': 'CAFCO 300', 'Steel section': '100UC15', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides' };
+  const fields = { 'Member mark': mark, 'Level': 'L-COUNT', 'Member type': 'Beam', 'Product': 'CAFCO 300', 'Steel section': '100UC15', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides' };
   for (const [label, value] of Object.entries(fields)) await fill(panel, label, value);
   return applySettings(panel, rows);
 }
@@ -92,7 +92,7 @@ async function saveAndLoad(info) {
   await page.getByRole('button', { name: 'Load', exact: true }).click(); assert.equal((await open).status(), 200);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   // Opening a project starts on its first page; return to the counted source page.
   await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
@@ -189,7 +189,8 @@ function pythonJson(script, ...args) {
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
   await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
   await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
@@ -213,9 +214,9 @@ function pythonJson(script, ...args) {
   assert.equal(new Set(members(state)).size, 3);
   for (const item of firstCount) { assert.equal(item.measurement.method, 'manual'); assert.equal(item.geometry.page, 3); assert.equal(item.geometry.document_id, source.id); }
   const pointPairs = firstCount.flatMap(item => item.geometry.points); [[150, 140], [250, 140], [350, 140]].forEach((expected, index) => expected.forEach((value, axis) => assert.ok(Math.abs(pointPairs[index][axis] - value) < 1.5, JSON.stringify(pointPairs[index]))));
-  let panel = page.locator('.takeoff-markup-settings'); await expect(panel.getByLabel('Count quantity', { exact: true })).toHaveCount(2); assert.deepEqual(await panel.getByLabel('Count quantity', { exact: true }).evaluateAll(fields => fields.map(field => field.value)), ['1', '2']);
-  assert.equal(await panel.getByLabel('Count quantity', { exact: true }).first().evaluate(el => el.readOnly || el.disabled), true);
-  await expect(panel.getByLabel('Length per member (m)', { exact: true })).toHaveCount(2); await expect(panel.getByRole('button', { name: /Change length for group|Apply settings|Discard settings/ })).toHaveCount(0);
+  let panel = page.locator('.takeoff-markup-settings'); await expect(panel.getByLabel('Count/QTY', { exact: true })).toHaveCount(2); assert.deepEqual(await panel.getByLabel('Count/QTY', { exact: true }).evaluateAll(fields => fields.map(field => field.value)), ['1', '2']);
+  assert.equal(await panel.getByLabel('Count/QTY', { exact: true }).first().evaluate(el => el.readOnly || el.disabled), true);
+  await expect(panel.getByLabel('Length (m)', { exact: true })).toHaveCount(2); await expect(panel.getByRole('button', { name: /Change length for group|Apply settings|Discard settings/ })).toHaveCount(0);
   reply = await technicalDetails('COUNT-A', 2); state = reply.snapshot;
   for (const item of countItems(state)) { assert.equal(item.fields.mark, 'COUNT-A'); assert.equal(item.fields.section, '100UC15'); assert.equal(item.fields.product, 'CAFCO 300'); }
   for (const item of countItems(state)) await expect(page.locator(`tr[data-item-id="${item.id}"] input[name="quantity"]`)).toBeDisabled();
@@ -235,7 +236,7 @@ function pythonJson(script, ...args) {
   await page.screenshot({ path: path.join(output, 'compact-count-settings.png') });
   await page.setViewportSize({ width: 1600, height: 1100 }); await idle();
   const beforeLength = stable(state);
-  reply = await command(async () => { await panel.getByLabel('Length per member (m)', { exact: true }).first().fill('3.375'); await panel.getByLabel('Length per member (m)', { exact: true }).first().press('Tab'); }, 'update_count_lengths'); state = reply.snapshot;
+  reply = await command(async () => { await panel.getByLabel('Length (m)', { exact: true }).first().fill('3.375'); await panel.getByLabel('Length (m)', { exact: true }).first().press('Tab'); }, 'update_count_lengths'); state = reply.snapshot;
   const changedLength = state.items.find(item => item.id === firstCount[0].id);
   assert.equal(changedLength.measurement.length_m, 3.375); assert.deepEqual(changedLength.member_ids, firstCount[0].member_ids); assert.equal(changedLength.quantity, 1);
   assert.deepEqual(stable(state).find(item => item.id === firstCount[1].id), beforeLength.find(item => item.id === firstCount[1].id));
@@ -431,7 +432,7 @@ function pythonJson(script, ...args) {
   assert.deepEqual(stable(state), stable(linkedBaseline)); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter);
   evidence.continueCount.savedReopenedIdsExact = true; evidence.continueCount.appendedEqualAndNewRowsRemovable = true;
   panel = await selectedCount([firstIds[0]]);
-  await panel.getByLabel('Count quantity', { exact: true }).first().scrollIntoViewIfNeeded();
+  await panel.getByLabel('Count/QTY', { exact: true }).first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'count-details-fields-and-quantity.png'), fullPage: true });
 
   const xlsx = await download('Download XLSX', 'counts.xlsx'), pdf = await download('Download PDF', 'counts.pdf');

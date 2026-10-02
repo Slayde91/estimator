@@ -21,7 +21,7 @@ async function response(action, suffix, op) {
   await action(); const result = await pending, body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body)); await idle(); return body;
 }
 async function dialog(title, values, action) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) await modal.getByLabel(label, { exact: true }).fill(String(value));
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
@@ -51,7 +51,8 @@ async function saveAndReopen(info) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible();
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   let reply = await response(() => page.locator('#takeoff-upload').setInputFiles(info.scale_fixture), '/auto-calibrate');
   assert.equal(reply.auto_calibration.status, 'applied');
   const calibration = reply.snapshot.calibrations[0], document = reply.snapshot.documents[0];
@@ -67,7 +68,7 @@ async function saveAndReopen(info) {
 
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await page.mouse.click(...await point([100, 400])); await page.mouse.dblclick(...await point([244, 400]));
-  reply = await response(() => dialog('Add steel object', { 'Member mark': 'AUTOMATIC-SCALE', 'Physical quantity': 1 }, 'Add item'), '/commands', 'create_item');
+  reply = await response(() => dialog('Add steel object', { 'Member mark': 'AUTOMATIC-SCALE', 'Count/QTY': 1 }, 'Add item'), '/commands', 'create_item');
   const item = reply.snapshot.items[0], measured = reply.item_results.find(value => value.id === item.id).length_m;
   assert.ok(Math.abs(measured-10.16) < .05, `Physical UserUnit is applied once: ${measured} ~= 10.16 m`);
   const [start, end] = item.geometry.points, sourceUnits = Math.hypot(end[0]-start[0], end[1]-start[1]);

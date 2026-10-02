@@ -15,11 +15,11 @@ function harness() {
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   let source=fs.readFileSync('static/takeoffs.js','utf8');
-  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,flushSettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,enrichInspectorOptions,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,itemEditChanges,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
+  source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,flushSettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
   source=source.replace('setApi(fn){api=fn;}', 'renderControlPoints,pointReference,pointTarget,pointRemovalReason,removeControlPoint,planKeydown,handoffPlanWheel,downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'pointGeometry,moveControlPoint,beginControlPointDrag,cancelSelectionGesture,markupTarget,deleteMarkup,surfacePreview,renderSurfaceLabel,renderPendingTrace,tracePointerMove,setSelectionRenderer(fn){renderSelection=fn;},setPointSelector(fn){selectControlPoint=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -48,6 +48,12 @@ function countHarness() {
   Object.assign(h.audit.state,{document:'doc',page:1,tool:'count',viewport:{width:200,height:200,transform:[1,0,0,1,0,0]}});h.audit.setOverlayRenderer(()=>{});h.audit.setSelectionRenderer(()=>{});
   const timers=new Map();let timerId=0;h.context.setTimeout=fn=>{timers.set(++timerId,fn);return timerId;};h.context.clearTimeout=id=>timers.delete(id);
   return {...h,dom,timers,stage(point,timeStamp=10){h.audit.stageCountMarker(point,{timeStamp,clientX:point[0],clientY:point[1]});return h.audit.state.countEntries.at(-1);}};
+}
+function attachSettings(h, calculator='steel_vermiculite') {
+  const dom=attachMinimalDom(h);
+  dom.ui.settingsPanel=dom.element();dom.ui.layout=dom.element();dom.ui.tools={settings:dom.element()};dom.ui.target={value:calculator};
+  h.audit.setApi(async()=>({columns:[{column:'C',options:[]}]}));
+  return dom;
 }
 function linkedOperationHarness() {
   const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.root=dom.element();dom.ui.status=dom.element();
@@ -115,7 +121,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.state.session.snapshot.items=[a,b,other,trace];h.audit.state.tool='select';h.audit.state.selected=new Set(['b']);
     assert.deepEqual(new Set(h.audit.settingsSelectedItems().map(item=>item.id)),new Set(['a','b']));
     const {ui,element,all}=h.dom;ui.settingsPanel=element();ui.layout=element();ui.tools={settings:element()};ui.target={value:'steel_vermiculite'};h.audit.state.settingsOpen=true;h.audit.setApi(async()=>({columns:[]}));h.audit.renderSettingsPanel();
-    const editor=h.audit.state.settingsEditor,quantity=all.call(h.dom,ui.settingsPanel).find(el=>el.attributes['aria-label']==='Count quantity');assert.equal(quantity.value,2);assert.equal(quantity.readOnly,true);assert.equal(editor.quantity,null);assert.equal(editor.lengths.length,2);assert.deepEqual(copy(editor.lengths.map(entry=>entry.field.control.value)),[3.5,5]);assert.ok(!ui.settingsPanel.textContent.includes("Change length for group"));assert.ok(!ui.settingsPanel.textContent.includes("Apply settings"));assert.ok(!ui.settingsPanel.textContent.includes("Discard settings"));assert.equal(editor.appearance.find(field=>field.control.name==='marker_shape').control.value,'circle');assert.ok(ui.settingsPanel.textContent.includes('2 markers · Manual base: 3.50 m each + additions: 0.50 m each · Total: 8.00 m'));
+    const editor=h.audit.state.settingsEditor,quantity=all.call(h.dom,ui.settingsPanel).find(el=>el.attributes['aria-label']==='Count/QTY');assert.equal(quantity.value,2);assert.equal(quantity.readOnly,true);assert.equal(editor.quantity,null);assert.equal(editor.lengths.length,2);assert.deepEqual(copy(editor.lengths.map(entry=>entry.field.control.value)),[3.5,5]);assert.ok(!ui.settingsPanel.textContent.includes("Change length for group"));assert.ok(!ui.settingsPanel.textContent.includes("Apply settings"));assert.ok(!ui.settingsPanel.textContent.includes("Discard settings"));assert.equal(editor.appearance.find(field=>field.control.name==='marker_shape').control.value,'circle');assert.ok(ui.settingsPanel.textContent.includes('2 markers · Manual base: 3.50 m each + additions: 0.50 m each · Total: 8.00 m'));
     const level=editor.fields.find(field=>field.control.name==='level').control;level.value='L2';level.events.input();h.audit.setAsk(async()=>({}));let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};});await h.audit.applySettings(editor);assert.equal(sent.op,'bulk_update');assert.deepEqual(new Set(sent.item_ids),new Set(['a','b']));assert.deepEqual(sent.changes,{fields:{level:'L2'}});assert.equal(h.audit.state.settingsDirty,false);
     h.audit.state.selected=new Set(['b','trace']);const regrouped=copy(h.audit.state.session.snapshot),survivor=regrouped.items.find(item=>item.id==='a');survivor.member_ids.push(...b.member_ids);survivor.geometry.points.push(...b.geometry.points);survivor.quantity+=b.quantity;regrouped.items=regrouped.items.filter(item=>item.id!=='b');h.audit.accept({...response(regrouped),regrouped_item_ids:['a']});assert.deepEqual(new Set(h.audit.state.selected),new Set(['a','trace']));assert.deepEqual(copy(h.audit.selectedCountMemberIds(survivor)),b.member_ids);
   });
@@ -371,7 +377,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       await assert.rejects(h.audit.transfer(false),/cannot transfer/);await assert.rejects(h.audit.transfer(true),/cannot transfer/);
       await assert.rejects(h.audit.detachSelected(),/no calculator/);await assert.rejects(h.audit.manageLinkedRows(),/no calculator/);
       await assert.rejects(h.audit.splitSelected(),/splitting is unavailable/);await assert.rejects(h.audit.mergeSelected(),/merging is unavailable/);
-      await h.audit.enrichInspectorOptions({mode},[]);
+      const value=blank();value.items=[{id:'surface',mode,fields:{}}];h.audit.accept(response(value));h.audit.state.selected=new Set(['surface']);await h.audit.loadSettingsOptions({});
     }
     assert.equal(calls,0);
   });
@@ -379,11 +385,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     for(const mode of ['wall','slab']){
       const h=harness(),value=blank(),item={id:'diagnostic-surface',mode,version:1,state:'draft',quantity:1,fields:{mark:'Missing source'},geometry:null,measurement:null,evidence:[],member_ids:[]};value.items=[item];
       h.audit.accept({...response(value),item_results:[{id:item.id,issues:[{code:'MISSING_GEOMETRY',message:'Source geometry required.'}]}]});h.audit.state.mode=mode;
-      const dom=attachMinimalDom(h);await h.audit.selectItem(item.id);
-      assert.ok(h.audit.state.selected.has(item.id));assert.ok(dom.ui.tableWrap.textContent.includes('Source markup missing'));assert.ok(h.audit.state.registerEditor.panel.textContent.includes('Source markup is missing'));
-      const buttons=dom.all(h.audit.state.registerEditor.panel).filter(node=>node.tagName==='BUTTON');
+      const dom=attachSettings(h);await h.audit.openItemSettings(item);
+      assert.ok(h.audit.state.selected.has(item.id));assert.ok(dom.ui.tableWrap.textContent.includes('Source markup missing'));assert.ok(dom.ui.settingsPanel.textContent.includes('Source markup is missing'));
+      const buttons=dom.all(dom.ui.settingsPanel).filter(node=>node.tagName==='BUTTON');
       for(const label of ['Change surface calibration','Re-trace geometry','Edit surface vertices','Add excluded opening']){const control=buttons.find(button=>button.textContent===label);assert.equal(control.disabled,true,label);assert.match(control.title,/Attach source geometry/);}
-      for(const label of ['Apply item edits','Attach source on current page','Delete item'])assert.ok(!buttons.find(button=>button.textContent===label).disabled,label);
+      for(const label of ['Attach source on current page','Delete item'])assert.ok(!buttons.find(button=>button.textContent===label).disabled,label);
       for(const label of ['Change length basis','Replace source on current page','Add evidence reference','Riser/Drop'])assert.ok(!buttons.some(button=>button.textContent===label),label);
       await assert.rejects(h.audit.startExclusion(),/no source boundary/);await assert.rejects(h.audit.editAreaBoundary(item),/Attach source geometry/);await assert.rejects(h.audit.changeAreaCalibration(item),/Attach source geometry/);
       h.audit.state.retraceId=item.id;assert.equal(h.audit.areaTraceLimit(),1000);
@@ -438,17 +444,31 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.state.collapsed.add('Z');await h.audit.selectItem('surface-99',false,false);
     assert.equal(h.audit.state.offset,100);assert.ok(!h.audit.state.collapsed.has('Z'));assert.deepEqual(ui.tableWrap.querySelectorAll('[data-item-id]').map(row=>row.dataset.itemId),['surface-99']);
   });
-  await check('Register keeps the exact unfinished editor while filtering, grouping and paging hide its source row',async()=>{
+  await check('Register View/Edit actions open left settings without an inline editor and retain pending edits through register filtering',async()=>{
     const h=harness(),value=blank(),item={id:'surface',mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:'W1',level:'L01',group:'West'},geometry:null,measurement:null,evidence:[],member_ids:[]};
-    value.items=[item];h.audit.accept(response(value));h.audit.state.mode='wall';const dom=attachMinimalDom(h);await h.audit.selectItem(item.id,false,false);
-    const editor=h.audit.state.registerEditor,level=editor.controls.find(field=>field.control.name==='level').control;
-    assert.equal(editor.panel.dataset.editorItemId,item.id);assert.ok(dom.all(dom.ui.tableWrap).includes(editor.panel));assert.equal(dom.ui.inspector,undefined);
+    value.items=[item];h.audit.accept(response(value));h.audit.state.mode='wall';const dom=attachSettings(h);await h.audit.openItemSettings(item);
+    const editor=h.audit.state.settingsEditor,level=editor.fields.find(field=>field.control.name==='level').control;
+    assert.equal(h.audit.state.settingsOpen,true);assert.equal(dom.ui.settingsPanel.scrollTop,0);assert.ok(dom.ui.tableWrap.textContent.includes('View/Edit'));assert.ok(!dom.ui.tableWrap.textContent.includes('ITEM DETAILS'));
+    const actions=dom.all(dom.ui.tableWrap).filter(node=>node.tagName==='BUTTON');assert.ok(actions.some(node=>(node.attributes['aria-label']||node.textContent)==='View'));assert.ok(actions.some(node=>(node.attributes['aria-label']||node.textContent)==='Edit item'));
     level.value='L02';level.events.input();const before=copy(h.audit.state.session.snapshot);
-    h.audit.state.filter='No matching item';h.audit.renderRegister();assert.equal(h.audit.state.registerEditor,editor);assert.equal(level.value,'L02');assert.ok(dom.ui.tableWrap.textContent.includes('unfinished edits are kept here'));
-    h.audit.state.filter='';h.audit.state.group='group';h.audit.state.collapsed.add('West');h.audit.renderRegister();assert.equal(h.audit.state.registerEditor,editor);assert.ok(dom.all(dom.ui.tableWrap).includes(editor.panel));
+    h.audit.state.filter='No matching item';h.audit.renderRegister();assert.equal(h.audit.state.settingsEditor,editor);assert.equal(level.value,'L02');assert.ok(dom.all(dom.ui.settingsPanel).includes(level));
+    h.audit.state.filter='';h.audit.state.group='group';h.audit.state.collapsed.add('West');h.audit.renderRegister();assert.equal(h.audit.state.settingsEditor,editor);assert.ok(dom.all(dom.ui.settingsPanel).includes(level));
     assert.throws(()=>h.api.projectSnapshot(),/unfinished/);assert.deepEqual(copy(h.audit.state.session.snapshot),before);
-    const discard=dom.all(editor.panel).find(node=>node.tagName==='BUTTON'&&node.textContent==='Discard edits');discard.events.click();await flush();
-    assert.equal(h.audit.state.formDirty,false);assert.notEqual(h.audit.state.registerEditor,editor);assert.equal(h.audit.state.registerEditor.controls.find(field=>field.control.name==='level').control.value,'L01');assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};Object.assign(h.audit.state.session.snapshot.items[0].fields,body.changes.fields);});await h.audit.flushSettings();
+    assert.deepEqual(sent,{op:'bulk_update',item_ids:['surface'],changes:{fields:{level:'L02'}}});assert.equal(h.audit.state.settingsDirty,false);assert.equal(h.api.projectSnapshot().items[0].fields.level,'L02');
+  });
+  await check('Register fields, View/Edit and settings tools reject a replacement project after a pending settings flush',async()=>{
+    for(const action of ['register','view','edit','delete']){
+      const h=harness(),value=blank(),item={id:'same-id',version:1,mode:'duct',quantity:1,fields:{mark:'Original',shape:'rectangular',width_mm:100,height_mm:200}};value.items=[item];h.audit.accept(response(value));h.audit.state.mode='duct';const dom=attachSettings(h,'ductwork');
+      if(action==='delete')await h.audit.openItemSettings(item);else h.audit.renderRegister();
+      const pending=deferred();h.audit.setFlushSettings(()=>pending.promise);let commands=0,dialogs=0;h.audit.setCommand(async()=>{commands++;});h.audit.setAsk(async()=>{dialogs++;return {};});let operation;
+      if(action==='register'){const field=dom.all(dom.ui.tableWrap).find(node=>node.attributes['aria-label']==='WxH (mm)');field.value='150x250';field.events.change();}
+      else if(action==='delete')dom.all(dom.ui.settingsPanel).find(node=>(node.attributes['aria-label']||node.textContent)==='Delete item').events.click();
+      else operation=action==='view'?h.audit.viewItem(item):h.audit.openItemSettings(item);
+      await flush();const replacement=blank();replacement.items=[{...copy(item),fields:{...item.fields,mark:'Replacement'}}];h.audit.accept(response(replacement,'replacement-session'));pending.resolve();
+      if(operation)await assert.rejects(operation,/project changed/);else{await flush();assert.match(dom.ui.message.textContent,/project changed/);}
+      assert.equal(commands,0);assert.equal(dialogs,0);assert.equal(h.audit.state.session.snapshot.items[0].fields.mark,'Replacement');assert.equal(h.audit.state.session.snapshot.items[0].fields.width_mm,100);
+    }
   });
   await check('Header select and hide actions cover every filtered match beyond pagination and preserve other modes',async()=>{
     const h=harness(),value=blank();value.items=Array.from({length:101},(_,n)=>({id:`wall-${n}`,mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:`W${n}`,level:n%2?'ODD':'EVEN'},geometry:null,measurement:null,evidence:[],member_ids:[]}));value.items.push({id:'other-mode',mode:'slab',fields:{mark:'Other'}});h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.selected.add('other-mode');h.audit.state.selected.add('wall-0');const dom=attachMinimalDom(h);
@@ -630,24 +650,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.state.ui={target:{value:'steel_board'}};assert.ok(h.audit.creationFields('steel').some(field=>field[0]==='sides'));
     for(const mode of ['steel','duct','wall','slab'])assert.ok(h.audit.editableFields(mode,'steel_board').every(field=>!['zone','group','notes'].includes(field[0])));
     assert.ok(!h.audit.editableFields('steel','steel_vermiculite').some(field=>field[0]==='sides'));assert.ok(h.audit.editableFields('steel','steel_board').some(field=>field[0]==='sides'));
-    const legacy={fields:{mark:'Old circular',shape:'circular',diameter_mm:355,unexposed_sides:2}},changes=h.audit.itemEditChanges(legacy,[{control:{name:'mark'},read:()=> 'Updated mark'}],{read:()=>1});
-    assert.deepEqual(copy(changes),{fields:{mark:'Updated mark'},quantity:1});assert.equal(legacy.fields.shape,'circular');assert.equal(legacy.fields.diameter_mm,355);assert.equal(legacy.fields.unexposed_sides,2);
     const dom=attachMinimalDom(h);dom.ui.target={value:'ductwork'};dom.ui.viewport={dataset:{}};h.audit.state.mode='duct';let created;
     h.audit.setAsk(async()=>({mark:'D1',quantity:1}));h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});
     await h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]);assert.equal(created.fields.shape,'rectangular');assert.equal(created.quantity,1);assert.equal(created.fields.diameter_mm,undefined);
   });
-  await check('Register patches only changed fields, leaves unknown blanks absent and retains full numeric precision',()=>{
-    const h=harness(),item={quantity:2,fields:{mark:'B1',length_note:null,precise:1.123456789,shape:'circular',diameter_mm:355}},control=(name,value)=>({control:{name},read:()=>value});
-    assert.deepEqual(copy(h.audit.itemEditChanges(item,[control('mark','B1'),control('notes',''),control('length_note',''),control('precise',1.123456789)],{read:()=>2})),{});
-    assert.deepEqual(copy(h.audit.itemEditChanges(item,[control('mark','B2'),control('notes',''),control('precise',1.123456788)],{read:()=>3})),{fields:{mark:'B2',precise:1.123456788},quantity:3});
-    assert.deepEqual(copy(h.audit.itemEditChanges(item,[control('mark','')],null)),{fields:{mark:''}});
-    const current={...item,fields:{...item.fields,mark:'B2'}};assert.deepEqual(copy(h.audit.itemEditChanges(current,[control('mark','B1')],{read:()=>2})),{fields:{mark:'B1'}});
-    assert.equal(item.fields.precise,1.123456789);assert.equal(item.fields.diameter_mm,355);
-    assert.deepEqual(copy(h.audit.itemEditChanges({fields:{mark:'  retained legacy text  '}},[{control:{name:'mark',value:'  retained legacy text  '},read:()=> 'retained legacy text'}],null)),{});
-  });
   await check('Steel creation reloads exact calculator options for chosen product/member and never rewrites entered profile',async()=>{
     const h=harness();h.audit.accept(response(blank()));const controls=['product','member_type','section'].map(name=>({control:{name,value:name==='member_type'?'Beam':name==='section'?'Explicit profile':'',isConnected:false,events:{},addEventListener(event,fn){this.events[event]=fn;}}})),calls=[];
-    h.audit.setApi(async path=>{calls.push(new URL(path,'http://localhost'));return {columns:[]};});await h.audit.configureSteelCreation(controls,'steel_board');
+    h.audit.setApi(async path=>{const url=new URL(path,'http://localhost');if(url.searchParams.get('calculator')==='steel_board')calls.push(url);return {columns:[{column:'C',options:[]}]};});await h.audit.configureSteelCreation(controls,'steel_board');
     assert.equal(calls[0].searchParams.get('calculator'),'steel_board');assert.equal(calls[0].searchParams.get('member_type'),'Beam');
     controls[0].control.value='PROMATECT 250';controls[0].control.events.change();await flush();assert.equal(calls.at(-1).searchParams.get('product'),'PROMATECT 250');
     controls[1].control.value='Column';controls[1].control.events.change();await flush();assert.equal(calls.at(-1).searchParams.get('member_type'),'Column');assert.equal(controls[2].control.value,'Explicit profile');
@@ -730,18 +739,57 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       h.audit.drawingPointer(click(40,40));h.audit.drawingPointer(click(40,40,2));await h.audit.finishTraceFromDoubleClick(doubleClick);assert.equal(finished,2);assert.equal(h.audit.state.points.length,4);
     }
   });
-  await check('Board choices follow the current unsaved member type and product instead of stale saved requirements',async()=>{
-    const h=harness(),value=blank(),item={id:'member',mode:'steel',fields:{member_type:'Column',product:'Old product'}};
-    value.items=[item];h.audit.accept(response(value));h.audit.state.selected.add(item.id);h.audit.state.ui={target:{value:'steel_board'}};
-    const control=(name,value)=>({name,value,dataset:{},addEventListener(event,callback){this[event]=callback;}});
-    const member=control('member_type','Beam'),product=control('product','TRAFALGAR COREX'),controls=[{control:member},{control:product}],paths=[];
-    h.audit.setApi(async path=>{paths.push(path);return {columns:[]};});
-    await h.audit.enrichInspectorOptions(item,controls);
-    assert.equal(new URL(paths.at(-1),'http://localhost').searchParams.get('member_type'),'Beam');
-    member.value='Column';member.change();await flush();
-    let query=new URL(paths.at(-1),'http://localhost').searchParams;assert.equal(query.get('member_type'),'Column');assert.equal(query.get('product'),'TRAFALGAR COREX');
-    product.value='PROMATECT 250';product.change();await flush();query=new URL(paths.at(-1),'http://localhost').searchParams;
-    assert.equal(query.get('product'),'PROMATECT 250');assert.equal(query.get('member_type'),'Column');
+  await check('Board settings load choices from current controls and retain independent physical Exposure options',async()=>{
+    const h=countHarness(),item={id:'member',version:1,mode:'steel',quantity:1,fields:{member_type:'Column',product:'Old product',exposure:'Historic physical exposure'}};
+    h.audit.state.session.snapshot.items=[item];h.audit.state.selected=new Set([item.id]);h.audit.state.tool='select';h.audit.state.settingsOpen=true;const dom=attachSettings(h,'steel_board'),paths=[];
+    h.audit.setApi(async path=>{const query=new URL(path,'http://localhost').searchParams;paths.push(query);return query.get('calculator')==='steel_board'?{columns:[{column:'C',options:['TRAFALGAR COREX','PROMATECT 250']},{column:'J',options:query.get('member_type')==='Beam'?[620]:[550]}]}:{columns:[{column:'C',options:['Re-entrant - 3 sides','Hollow - 4 sides']}]};});
+    h.audit.renderSettingsPanel();const editor=h.audit.state.settingsEditor;for(const field of editor.fields)field.control.isConnected=true;
+    const member=editor.fields.find(field=>field.control.name==='member_type').control,product=editor.fields.find(field=>field.control.name==='product').control,temp=editor.fields.find(field=>field.control.name==='critical_temperature').control,exposure=editor.fields.find(field=>field.control.name==='exposure').control;
+    member.value='Beam';product.value='TRAFALGAR COREX';await h.audit.loadSettingsOptions(editor);let query=paths.filter(query=>query.get('calculator')==='steel_board').at(-1);assert.equal(query.get('member_type'),'Beam');assert.equal(query.get('product'),'TRAFALGAR COREX');assert.deepEqual(temp.children.map(option=>String(option.value)),['','620']);
+    assert.deepEqual(exposure.children.map(option=>option.value),['','Re-entrant - 3 sides','Hollow - 4 sides','Historic physical exposure']);assert.equal(exposure.value,'Historic physical exposure');
+    member.value='Column';product.value='PROMATECT 250';await h.audit.loadSettingsOptions(editor);query=paths.filter(query=>query.get('calculator')==='steel_board').at(-1);assert.equal(query.get('member_type'),'Column');assert.equal(query.get('product'),'PROMATECT 250');assert.deepEqual(temp.children.map(option=>String(option.value)),['','550']);assert.equal(item.fields.product,'Old product');assert.equal(h.audit.state.settingsDirty,false);
+  });
+  await check('Native calculator selects preserve returned order and historical values while numeric choices remain JSON numbers',()=>{
+    const h=harness();attachMinimalDom(h);
+    for(const key of ['product','exposure','fire_period_min','critical_temperature']){
+      const initial=key==='product'?'  Legacy product  ':key==='exposure'?'Legacy exposure':key==='fire_period_min'?'135':'615',field=h.audit.formField([key,key,[]],initial);field.control.isConnected=true;
+      const column={product:'B',exposure:'C',fire_period_min:'H',critical_temperature:'D'}[key],values=['product','exposure'].includes(key)?['Second','First']:[120,60];
+      h.audit.populateCalculatorOptions([field],{columns:[{column,options:values}]},'steel_vermiculite');assert.equal(field.control.tagName,'SELECT');assert.deepEqual(field.control.children.map(option=>String(option.value)),['',...values.map(String),initial]);assert.equal(field.control.value,initial);assert.equal(field.control.children.at(-1).textContent,`${initial} (retained)`);
+      assert.equal(field.read(),['product','exposure'].includes(key)?initial:Number(initial));field.control.value='';assert.equal(field.read(),['product','exposure'].includes(key)?'':null);
+    }
+  });
+  await check('Late options cannot replace newer choices or pending field values after selection changes',async()=>{
+    const h=countHarness(),item={id:'duct',version:1,mode:'duct',quantity:1,fields:{mark:'D1',shape:'rectangular',width_mm:100,height_mm:200,product:'CAFCO 300',exposure:'Historical exposure'}};
+    h.audit.state.session.snapshot.items=[item];h.audit.state.mode='duct';h.audit.state.tool='select';h.audit.state.selected=new Set(['duct']);h.audit.state.settingsOpen=true;attachSettings(h,'ductwork');h.audit.renderSettingsPanel();await flush();
+    const editor=h.audit.state.settingsEditor;for(const field of editor.fields)field.control.isConnected=true;
+    const product=editor.fields.find(field=>field.control.name==='product').control,exposure=editor.fields.find(field=>field.control.name==='exposure').control,level=editor.fields.find(field=>field.control.name==='level').control,pending=[];
+    h.audit.setApi(path=>{const result=deferred();pending.push({path,...result});return result.promise;});const older=h.audit.loadSettingsOptions(editor);
+    product.value='FyreWrap';level.value='Unsubmitted level';level.events.input();const newer=h.audit.loadSettingsOptions(editor);assert.equal(new URL(pending[1].path,'http://localhost').searchParams.get('product'),'FyreWrap');
+    pending[1].resolve({columns:[{column:'C',options:['CAFCO 300','FyreWrap']},{column:'H',options:['External','Both']}]});await newer;const newest=exposure.children.map(option=>option.value);
+    pending[0].resolve({columns:[{column:'C',options:['Old product']},{column:'H',options:['Old exposure']}]});await older;assert.deepEqual(exposure.children.map(option=>option.value),newest);assert.equal(product.value,'FyreWrap');assert.equal(level.value,'Unsubmitted level');assert.equal(h.audit.state.settingsDirty,true);
+    const abandoned=h.audit.loadSettingsOptions(editor);h.audit.state.settingsEditor=null;pending[2].resolve({columns:[{column:'H',options:['Replacement project value']}]});await abandoned;assert.deepEqual(exposure.children.map(option=>option.value),newest);assert.equal(level.value,'Unsubmitted level');clearTimeout(editor.timer);h.timers.clear();
+  });
+  await check('WxH settings reject the entire pending edit atomically and preserve circular geometry and hidden data',async()=>{
+    const h=countHarness(),first={id:'d1',version:1,mode:'duct',quantity:1,fields:{mark:'D1',shape:'rectangular',width_mm:100.123456789,height_mm:200.987654321,system:'Supply',notes:'keep'}},second={id:'d2',version:1,mode:'duct',quantity:1,fields:{mark:'D2',shape:'circular',diameter_mm:355,width_mm:80,height_mm:90,system:'Historical'}};
+    h.audit.state.session.snapshot.items=[first,second];h.audit.state.mode='duct';h.audit.state.tool='select';h.audit.state.selected=new Set(['d1','d2']);h.audit.state.settingsOpen=true;attachSettings(h,'ductwork');h.audit.renderSettingsPanel();
+    const editor=h.audit.state.settingsEditor,size=editor.fields.find(field=>field.control.name==='duct_size').control,level=editor.fields.find(field=>field.control.name==='level').control,before=copy(h.audit.state.session.snapshot),sent=[];
+    h.audit.setCommand(async(op,body)=>{sent.push({op,...copy(body)});for(const item of h.audit.state.session.snapshot.items)Object.assign(item.fields,body.changes.fields);});level.value='L2';level.events.input();
+    for(const invalid of ['100','100x','0x100','-2x100','Infinityx100','100x200x300','1000000000001x100']){size.value=invalid;size.events.input();await assert.rejects(h.audit.flushSettings(),/WxH/);assert.equal(sent.length,0);assert.deepEqual(copy(h.audit.state.session.snapshot),before);assert.equal(size.value,invalid);assert.equal(level.value,'L2');assert.equal(h.audit.state.settingsDirty,true);}
+    size.value='125.123456789 × 250.987654321';size.events.input();await h.audit.flushSettings();assert.deepEqual(sent,[{op:'bulk_update',item_ids:['d1','d2'],changes:{fields:{level:'L2',width_mm:125.123456789,height_mm:250.987654321}}}]);assert.equal(second.fields.shape,'circular');assert.equal(second.fields.diameter_mm,355);assert.equal(second.fields.system,'Historical');assert.equal(first.fields.notes,'keep');assert.equal(h.audit.state.settingsDirty,false);
+    size.value='125.123456789x250.987654321';size.events.input();await h.audit.flushSettings();assert.equal(sent.length,1,'Equivalent size text must not write or change precision');
+  });
+  await check('Duct creation includes its details and parses WxH before any item command',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.target={value:'ductwork'};dom.ui.viewport={dataset:{}};h.audit.state.mode='duct';
+    const definitions=copy(h.audit.creationFields('duct'));assert.deepEqual(definitions.map(field=>field[0]),['mark','level','duct_size','product','exposure','frl','orientation','wall_penetrations','floor_penetrations','quantity']);assert.equal(definitions.find(field=>field[0]==='duct_size')[1],'WxH (mm)');assert.ok(!definitions.some(field=>field[0]==='system'));
+    let entered={mark:'D1',level:'L1',duct_size:'100x',product:'FyreWrap',exposure:'External',frl:'120/120/120',orientation:'Horizontal',wall_penetrations:0,floor_penetrations:0,quantity:1},sent=[];h.audit.setAsk(async()=>copy(entered));h.audit.setCommand(async(op,body)=>sent.push({op,...copy(body)}));
+    await assert.rejects(h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]),/WxH/);assert.equal(sent.length,0);
+    entered.duct_size='100.123456789X200.987654321';await h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]);assert.equal(sent.length,1);const item=sent[0].item;assert.equal(item.fields.width_mm,100.123456789);assert.equal(item.fields.height_mm,200.987654321);assert.equal(item.fields.duct_size,undefined);assert.equal(item.fields.shape,'rectangular');assert.equal(item.fields.wall_penetrations,0);assert.equal(item.fields.product,'FyreWrap');
+  });
+  await check('Bulk fields preserve numeric steel selections and serialize WxH as two atomic numeric dimensions',async()=>{
+    const h=harness(),value=blank();value.items=[{id:'a',mode:'steel',fields:{mark:'A'}}];h.audit.accept(response(value));h.audit.state.selected=new Set(['a']);const dom=attachMinimalDom(h);dom.ui.bulkValue={value:''};h.audit.setAsk(async()=>({}));const sent=[];h.audit.setCommand(async(op,body)=>sent.push({op,...copy(body)}));
+    for(const [key,raw,expected] of [['fire_period_min','120',120],['critical_temperature','620',620],['fire_period_min','',null]]){dom.ui.bulkField.value=key;dom.ui.bulkValue.value=raw;await h.audit.bulkEdit();assert.equal(sent.at(-1).changes.fields[key],expected);}
+    h.audit.state.mode='duct';h.audit.state.session.snapshot.items[0].mode='duct';dom.ui.bulkField.value='duct_size';dom.ui.bulkValue.value='100.123456789 x 200.987654321';await h.audit.bulkEdit();assert.deepEqual(sent.at(-1).changes,{fields:{width_mm:100.123456789,height_mm:200.987654321}});
+    dom.ui.bulkValue.value='100x';const count=sent.length;await assert.rejects(h.audit.bulkEdit(),/WxH/);assert.equal(sent.length,count);
   });
   await check('Transfer review rounds displayed lengths to two decimals without changing mapped precision or native notes',()=>{
     const h=harness(),item={id:'member',mode:'steel',quantity:3,fields:{mark:'B17'}},binding={item_id:'member',sheet:'CALCULATOR',row:9,values:{A9:'B17',F9:.370370367,L9:0,X9:null}};

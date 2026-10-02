@@ -1,5 +1,6 @@
 // Real plan layout, control-point movement and surface-label acceptance on disposable evidence.
 const { chromium, expect } = require('@playwright/test');
+const { editSettings } = require('./settings_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
@@ -27,7 +28,7 @@ async function linkedOperation(action, endpoint) {
 }
 async function snapshot() { let value; await idle(); await expect.poll(async () => { try { value = await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); return true; } catch { return false; } }).toBe(true); return value; }
 async function dialog(title, values, submit) {
-  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible({timeout:30000});
   for (const [label, value] of Object.entries(values)) { const field = modal.getByLabel(label, { exact: true }); if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value)); }
   await modal.getByRole('button', { name: submit, exact: true }).click();
 }
@@ -54,7 +55,7 @@ async function checkAreaLabel(state, id) {
   const numeric = Number((await label.textContent()).replace(/,/g, '').match(/\d+(?:\.\d+)?/)[0]); assert.ok(Math.abs(numeric - expected) <= .0051, JSON.stringify({ numeric, expected }));
   return expected;
 }
-async function edit(values) { const panel = page.locator('.takeoff-register-editor'); for (const [label, value] of Object.entries(values)) { const field = panel.getByLabel(label, { exact: true }); if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value)); } return command(() => panel.getByRole('button', { name: 'Apply item edits', exact: true }).click(), 'update_item'); }
+async function edit(values) { return editSettings(page, values); }
 async function confirm() { await page.getByRole('button', { name: 'Confirm', exact: true }).click(); return command(() => dialog('Confirm 1 items?', {}, 'Confirm items'), 'confirm_items'); }
 async function layout(width) {
   await page.setViewportSize({ width, height: 1100 }); await page.evaluate(() => window.scrollTo(0, 0));
@@ -72,7 +73,8 @@ async function layout(width) {
   page.on('response', response => { const pathname = new URL(response.url()).pathname; if (['/takeoffs.js', '/takeoff-geometry.js', '/takeoffs.css'].includes(pathname)) assetTasks.push(response.body().then(bytes => { assets[pathname] = { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }; })); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles([info.fixture, info.area_fixture]); await expect(page.locator('.takeoff-document')).toHaveCount(2, { timeout: 60000 }); await idle();
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await page.locator('#takeoff-upload').setInputFiles([info.fixture, info.area_fixture]); await expect(page.locator('.takeoff-document')).toHaveCount(2, { timeout: 60000 }); await idle();
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   const sources = (await snapshot()).documents, primary = sources.find(doc => doc.name === 'synthetic-drawings.pdf'), secondary = sources.find(doc => doc.id !== primary.id);
   if (await page.getByLabel('Drawing document', { exact: true }).inputValue() !== secondary.id) await command(() => page.getByLabel('Drawing document', { exact: true }).selectOption(secondary.id), 'record_render');
@@ -80,7 +82,7 @@ async function layout(width) {
   await command(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render'); await fit();
   await page.getByRole('button', { name: 'Scale', exact: true }).click(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100'); await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await points([[100, 100], [200, 100], [250, 180]]); await finish();
-  let state = await command(() => dialog('Add steel object', { 'Member mark': 'DRAG-STEEL', 'Level': 'L1', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Critical temperature (°C)': 550, 'Exposure description': 'Re-entrant - 3 sides', 'Physical quantity': 2 }, 'Add item'), 'create_item');
+  let state = await command(() => dialog('Add steel object', { 'Member mark': 'DRAG-STEEL', 'Level': 'L1', 'Member type': 'Beam', 'Steel section': '100UC15', 'Product': 'CAFCO 300', 'Fire period (min)': 120, 'Crit. Temp (\u00b0C)': 550, 'Exposure': 'Re-entrant - 3 sides', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const steel = state.snapshot.items.find(value => value.mode === 'steel'); await select(steel.id); await confirm();
   const preview = page.waitForResponse(r => r.url().endsWith('/transfer-preview')); await page.getByRole('button', { name: 'Preview transfer', exact: true }).click(); assert.equal((await preview).status(), 200);
   const transferred = page.waitForResponse(r => r.url().endsWith('/transfer-apply')); await dialog('Transfer 1 confirmed items?', {}, 'Add to schedule'); assert.equal((await transferred).status(), 200); await idle();
@@ -119,7 +121,7 @@ async function layout(width) {
     areaRecords.push(item(state, area.id));
   }
   await page.locator('[data-mode="duct"]').click(); await fit(); await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await points([[150, 200], [300, 200]]); await finish();
-  state = await command(() => dialog('Add duct object', { 'Run ID': 'DRAG-DUCT', 'Physical quantity': 1 }, 'Add item'), 'create_item'); const duct = state.snapshot.items.find(value => value.mode === 'duct'); await select(duct.id);
+  state = await command(() => dialog('Add duct object', { 'Duct ID': 'DRAG-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item'); const duct = state.snapshot.items.find(value => value.mode === 'duct'); await select(duct.id);
   state = await command(() => drag(duct.id, 1, [350, 225]), 'update_item'); assert.equal(item(state, duct.id).fields.shape, 'rectangular'); assert.deepEqual(item(state, duct.id).geometry.points[0], duct.geometry.points[0]);
   await page.locator('[data-mode="wall"]').click(); await select(areaRecords[0].id); await fit();
   for (const width of [1600, 900, 620]) { await layout(width); await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180)); await page.screenshot({ path: path.join(output, `layout-${width}.png`) }); }

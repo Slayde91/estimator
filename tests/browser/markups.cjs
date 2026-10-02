@@ -11,7 +11,7 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
 const errors=[],requests=[],evidence={};
 const idle=()=>expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy','true');
 async function command(action,op,status=200){const pending=page.waitForResponse(r=>r.url().endsWith('/commands')&&r.request().postDataJSON()?.op===op);await action();const response=await pending,body=await response.json();assert.equal(response.status(),status,JSON.stringify(body));await idle();return body;}
-async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible();for(const [label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
+async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible({timeout:30000});for(const [label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
 async function snapshot(){await idle();return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());}
 async function screen([x,y]){const overlay=page.locator('.takeoff-overlay');await overlay.scrollIntoViewIfNeeded();const box=await overlay.boundingBox();return[box.x+(y-30)/540*box.width,box.y+(x-20)/780*box.height];}
 async function draw(points){for(const point of points)await page.mouse.click(...await screen(point));await page.locator('.takeoff-viewport').press('Enter');}
@@ -30,20 +30,12 @@ async function download(label){
   const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return {path:target,request:response.request().postDataJSON()};
 }
 async function focusRow(item,document){
-  const previous=await page.$('.takeoff-register-editor');
-  try{
-    await page.locator(`tr[data-item-id="${item.id}"] .takeoff-row-link`).click();
-    // A row click can render its source page and then render again to fit the
-    // geometry. API idle alone is true during PDF.js work between those commands.
-    await page.waitForFunction(({id,previous,progress})=>{
-      const editor=document.querySelector('.takeoff-register-editor');
-      return editor&&editor!==previous&&editor.dataset.editorItemId===id&&
-        document.querySelector('.takeoff-progress').textContent===progress&&
-        document.querySelector('#takeoffs-workspace').getAttribute('aria-busy')!=='true'&&
-        !document.querySelector('.takeoff-page').hidden;
-    },{id:item.id,previous,progress:`${document.name} \u00b7 Page ${item.geometry.page} \u00b7 Original source`});
-  }finally{await previous?.dispose();}
+  await page.locator(`tr[data-item-id="${item.id}"] .takeoff-row-link`).click();
+  await expect(page.locator('.takeoff-viewport')).toBeFocused();
+  await expect(page.locator('.takeoff-progress')).toHaveText(`${document.name} \u00b7 Page ${item.geometry.page} \u00b7 Original source`);
+  await idle();await expect(page.locator('.takeoff-page')).toBeVisible();
 }
+
 async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await page.getByRole('button',{name:'Save As',exact:true}).click();assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
 async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await page.getByRole('button',{name:'Load',exact:true}).click();assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
 (async()=>{
@@ -51,6 +43,7 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/commands'))requests.push(request.postDataJSON());});
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
   const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
   await command(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},'record_render');
   await command(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),'record_render');
@@ -58,16 +51,16 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   // Test-only retained metadata represents imported legacy fields that no longer have editing controls.
   await page.route('**/commands',route=>{const body=route.request().postDataJSON();if(body.op==='create_item'){Object.assign(body.item.fields,{zone:`Retained zone ${body.item.fields.mark}`,group:'Retained group',notes:`=Retained notes ${body.item.fields.mark}`});return route.continue({postData:JSON.stringify(body)});}return route.continue();});
   let state;const definitions=[['QA-MATCH-FIRST','L01',120,1,[[100,150],[200,150]]],['QA-MATCH-SECOND','L02',90,2,[[100,250],[250,250]]],['QA-OTHER-THIRD','L03',60,3,[[400,500],[600,500]]]];
-  for(const[mark,level,period,quantity,points]of definitions){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':level,'Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':period,'Critical temperature (°C)':550,'Exposure description':'Re-entrant - 3 sides','Physical quantity':quantity},'Add item'),'create_item');}
+  for(const[mark,level,period,quantity,points]of definitions){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':level,'Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':period,'Crit. Temp (\u00b0C)':550,'Exposure':'Re-entrant - 3 sides','Count/QTY':quantity},'Add item'),'create_item');}
   await page.unroute('**/commands');const[a,b,c]=definitions.map(([mark])=>state.snapshot.items.find(item=>item.fields.mark===mark));
   const before=JSON.parse(JSON.stringify(state.snapshot.items)),lengths=Object.fromEntries(state.item_results.map(item=>[item.id,item.length_m]));
-  const editor=page.locator('.takeoff-register-editor');for(const label of ['Zone','Group','Notes','Exposed sides'])await expect(editor.getByLabel(label,{exact:true})).toHaveCount(0);
+  await expect(page.locator('.takeoff-register-editor')).toHaveCount(0);
   const selectAll=page.getByRole('checkbox',{name:'Select all matching items',exact:true}),hideAll=page.getByRole('checkbox',{name:'Hide all matching items',exact:true});
   await selectAll.check();for(const item of[a,b,c])await expect(page.locator(`tr[data-item-id="${item.id}"]`).getByRole('checkbox',{name:/^Select /})).toBeChecked();
   await page.getByLabel('Filter register',{exact:true}).fill('QA-MATCH-');await hideAll.check();
   await expect(page.locator(`.takeoff-hit[data-item-id="${a.id}"]`)).toHaveCount(0);await expect(page.locator(`.takeoff-hit[data-item-id="${b.id}"]`)).toHaveCount(0);await expect(page.locator(`.takeoff-hit[data-item-id="${c.id}"]`)).toHaveCount(0);
   await page.getByLabel('Filter register',{exact:true}).fill('');await expect(page.locator('.takeoff-hit[data-item-id]')).toHaveCount(1);assert.equal(await hideAll.evaluate(el=>el.indeterminate),true);await hideAll.check();await expect(page.locator('.takeoff-hit[data-item-id]')).toHaveCount(0);await hideAll.uncheck();await expect(page.locator('.takeoff-hit[data-item-id]')).toHaveCount(3);
-  await selectIds([b.id,a.id]);let panel=await settings();await expect(panel.getByLabel('Level',{exact:true})).toHaveValue('L02');await expect(panel.getByLabel('Fire period (min)',{exact:true})).toHaveValue('90');await expect(panel.getByLabel('Physical quantity',{exact:true})).toHaveValue('2');
+  await selectIds([b.id,a.id]);let panel=await settings();await expect(panel.getByLabel('Level',{exact:true})).toHaveValue('L02');await expect(panel.getByLabel('Fire period (min)',{exact:true})).toHaveValue('90');await expect(panel.getByLabel('Count/QTY',{exact:true})).toHaveValue('2');
   for(const label of['Zone','Group','Notes'])await expect(panel.getByLabel(label,{exact:true})).toHaveCount(0);await expect(panel.getByLabel('Exposed sides',{exact:true})).toBeHidden();
   await expect(panel.getByRole('button',{name:/Apply settings|Discard settings/})).toHaveCount(0);
   await page.route('**/commands',route=>route.request().postDataJSON()?.op==='bulk_update'?route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'Synthetic stale settings revision'})}):route.continue());

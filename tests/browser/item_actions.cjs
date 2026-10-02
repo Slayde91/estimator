@@ -35,6 +35,10 @@ async function pageNumber(number) {
   return command(async () => { await fill(page, 'Page number', number); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
 }
 const fit = () => command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+// Opening Takeoffs with a retained PDF renders it asynchronously. aria-busy
+// becomes true only when its render observation is recorded, so a click plus
+// an immediate idle check can race that command before a snapshot or edit.
+const returnToTakeoffs = () => command(() => page.getByRole('button', { name: 'Takeoffs', exact: true }).click(), 'record_render');
 async function screen([x, y]) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
   await overlay.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
@@ -79,7 +83,7 @@ async function saveLoad(info) {
   await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle(); return saved;
+  await returnToTakeoffs(); return saved;
 }
 function clearedExpected(original, bindings) {
   const expected = structuredClone(original);
@@ -142,11 +146,11 @@ function clearedExpected(original, bindings) {
   await openSpray(); await page.getByRole('button', { name: 'Add row', exact: true }).click(); await changeCell('A11', 'UNRELATED-MANUAL');
   let baseline = await calculators(); const sourceLength = baseline.steel_vermiculite.inputs.SCHEDULE[`J${spray.row}`];
   await changeCell(`J${spray.row}`, sourceLength + 1); const conflicted = await calculators();
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); const conflictBefore = await snapshot();
+  await returnToTakeoffs(); const conflictBefore = await snapshot();
   await deleteItem(id, 400); assert.deepEqual(await snapshot(), conflictBefore); assert.deepEqual(await calculators(), conflicted);
   await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('row was edited'); evidence.conflictPreservesBothSchedules = true;
   console.log('Manual row conflict blocked deletion without changing either calculator or takeoffs.');
-  await openSpray(); await changeCell(`J${spray.row}`, sourceLength); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); baseline = await calculators();
+  await openSpray(); await changeCell(`J${spray.row}`, sourceLength); await returnToTakeoffs(); baseline = await calculators();
   const before = await snapshot();
   // Lose one response after the server commits, then let the UI retry the same
   // request identity. No second deletion or calculator overwrite is permitted.
@@ -170,7 +174,7 @@ function clearedExpected(original, bindings) {
   await openSpray(); await page.locator(`tr[data-source-row="${spray.row}"]`).getByRole('button', { name: /Remove line/ }).click();
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true'); const alreadyCleared = await calculators();
   for (const address of Object.keys(spray.values)) assert.ok(alreadyCleared.steel_vermiculite.inputs.SCHEDULE[address] == null);
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await returnToTakeoffs();
   const uncertainBefore = await snapshot(); let unreadable = 0, saveAttempts = 0;
   const saveWatcher = request => { if (/\/api\/project\/save(?:-as)?$/.test(request.url())) saveAttempts++; };
   page.on('request', saveWatcher);

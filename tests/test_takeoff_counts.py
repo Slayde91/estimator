@@ -4,6 +4,7 @@ from hashlib import sha256
 from io import BytesIO
 import json
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 from openpyxl import load_workbook
@@ -189,6 +190,134 @@ class TakeoffCountTests(unittest.TestCase):
         self.assertEqual(self.item(identifier)['member_ids'], [original['member_ids'][-1]])
         self.assertIsNone(self.item(identifier)['confirmation'])
 
+    def test_continue_groups_lengths_preserves_rows_and_retries_without_duplicate_members(self):
+        ids = self.add(appearance={'marker_shape': 'diamond', 'marker_size': 18})
+        for identifier in ids:
+            self.case.command('update_item', item_id=identifier, changes={'evidence': [
+                {'document_id': self.case.doc['id'], 'page': 1, 'note': identifier}]})
+        self.case.command('confirm_items', item_ids=ids)
+        self.case.apply(self.case.preview(ids[0])); calculator = deepcopy(self.case.state['calculator'])
+        before = deepcopy(self.case.state['snapshot']); original = {item['id']: item for item in before['items']}
+        request = {'op': 'continue_count', 'request_id': str(uuid4()), 'expected_revision': before['revision'],
+                   'item_id': ids[1], 'markers': [{'point': [70, 60], 'length_m': 3.5},
+                                               {'point': [80, 65], 'length_m': 8},
+                                               {'point': [90, 70], 'length_m': 8}]}
+        self.case.state = self.case.service.command(self.case.sid, request)
+        self.assertEqual(self.case.state, self.case.service.command(self.case.sid, request))
+        new_id, = self.case.state['created_item_ids']
+        self.assertEqual(self.case.state['regrouped_item_ids'], ids + [new_id])
+        appended = self.item(ids[0]); untouched = self.item(ids[1]); new = self.item(new_id)
+        self.assertEqual(appended['geometry']['points'], original[ids[0]]['geometry']['points'] + [[70, 60]])
+        self.assertEqual(appended['member_ids'][:2], original[ids[0]]['member_ids'])
+        self.assertEqual(appended['quantity'], 3); self.assertIsNone(appended['confirmation'])
+        self.assertEqual(appended['evidence'], original[ids[0]]['evidence'])
+        self.assertEqual(untouched, original[ids[1]], 'A row with no new marker retains its confirmation.')
+        for key in ('count_id', 'fields', 'appearance', 'evidence'):
+            self.assertEqual(new[key], original[ids[1]][key])
+        self.assertEqual(new['measurement'], {'method': 'manual', 'length_m': 8})
+        self.assertEqual(new['quantity'], 2)
+        members = [member for item in self.case.state['snapshot']['items'] for member in item['member_ids']]
+        self.assertEqual(len(set(members)), 6)
+        for key, value in before['transfers'][0].items():
+            self.assertEqual(self.case.state['snapshot']['transfers'][0][key], 'stale' if key == 'status' else value)
+        self.assertNotIn('calculator', self.case.state)
+        self.assertEqual(calculator['inputs']['SCHEDULE']['I10'], 2)
+        self.case.command('undo')
+        self.assertEqual([item['id'] for item in self.case.state['snapshot']['items']], ids)
+        for identifier in ids:
+            for key in ('geometry', 'measurement', 'member_ids', 'evidence', 'quantity', 'count_id', 'appearance'):
+                self.assertEqual(self.item(identifier)[key], original[identifier][key])
+
+    def test_continue_new_length_retains_additions_and_does_not_invalidate_existing_links(self):
+        identifier = self.add((3.5,))[0]
+        addition = {'id': str(uuid4()), 'kind': 'riser', 'length_mm': 500, 'note': 'Manually entered rise',
+                    'document_id': self.case.doc['id'], 'page': 1}
+        self.case.command('update_item', item_id=identifier, changes={'length_additions': [addition]})
+        self.case.confirm(identifier); self.case.apply(self.case.preview(identifier))
+        previous = deepcopy(self.case.state['snapshot'])
+        self.case.command('continue_count', item_id=identifier, markers=[{'point': [60, 50], 'length_m': 6.25}])
+        new_id, = self.case.state['created_item_ids']
+        self.assertEqual(self.item(identifier), previous['items'][0])
+        self.assertEqual(self.case.state['snapshot']['transfers'], previous['transfers'])
+        self.assertEqual(self.item(new_id)['length_additions'], [addition])
+        result = next(result for result in self.case.state['item_results'] if result['id'] == new_id)
+        self.assertEqual(result['length_m'], 6.75)
+        self.assertEqual(result['total_length_m'], 6.75)
+
+    def test_continue_rejects_invalid_batches_and_unauthorised_detail_changes_atomically(self):
+        identifier = self.add((3.5,))[0]
+        valid = {'point': [50, 50], 'length_m': 4}
+        for marker in ({'point': [0, 0], 'length_m': 5}, {'point': [60, 60], 'length_m': 0},
+                       {'point': [60, 60], 'length_m': True}, {'point': [60, 60], 'length_m': float('inf')},
+                       {'point': [60, 60], 'length_m': 4, 'member_id': str(uuid4())}):
+            with self.subTest(marker=marker):
+                self.assert_rejected('continue_count', item_id=identifier, markers=[valid, marker])
+        for details in ({'fields': {}}, {'appearance': {}}, {'document_id': self.case.doc['id']}, {'page': 1}):
+            self.assert_rejected('continue_count', item_id=identifier, markers=[valid], **details)
+        for target in (str(uuid4()), None, [], self.case.create(measurement={'method': 'cited', 'length_m': 4, 'citation': 'Plan'})):
+            self.assert_rejected('continue_count', item_id=target, markers=[valid])
+        self.assert_rejected('continue_count', item_id=identifier, markers=[])
+        with patch('estimator.takeoff_workspace.MAX_ITEMS', 4):
+            self.assert_rejected('continue_count', item_id=identifier, markers=[valid, valid])
+
+    def test_selected_marker_move_is_atomic_and_keeps_manual_lengths_and_other_markers(self):
+        ids = self.add((3.5, 3.5, 3.5, 4.25)); other = self.add((7,))[0]
+        self.case.command('confirm_items', item_ids=ids + [other])
+        self.case.apply(self.case.preview(ids[0])); calculator = deepcopy(self.case.state['calculator'])
+        before = deepcopy(self.case.state['snapshot']); original = {item['id']: item for item in before['items']}
+        targets = [{'item_id': identifier, 'member_id': original[identifier]['member_ids'][index]}
+                   for identifier, index in ((ids[0], 0), (ids[0], 2), (ids[1], 0))]
+        request = {'op': 'move_count_markers', 'request_id': str(uuid4()), 'expected_revision': before['revision'],
+                   'markers': targets, 'delta_pdf': [12.125, 8.875]}
+        self.case.state = self.case.service.command(self.case.sid, request)
+        self.assertEqual(self.case.state, self.case.service.command(self.case.sid, request))
+        self.assertEqual(self.case.state['revision'], before['revision'] + 1)
+        for identifier in ids:
+            current = self.item(identifier); old = original[identifier]
+            self.assertEqual(current['version'], old['version'] + 1)
+            for key in ('quantity', 'measurement', 'member_ids', 'fields', 'appearance', 'count_id'):
+                self.assertEqual(current[key], old[key])
+            self.assertIsNone(current['confirmation'])
+            for index, (x, y) in enumerate(old['geometry']['points']):
+                expected = [x + 12.125, y + 8.875] if identifier != ids[0] or index != 1 else [x, y]
+                self.assertEqual(current['geometry']['points'][index], expected)
+        self.assertEqual(self.item(other), original[other])
+        self.assertEqual(self.case.state['snapshot']['transfers'][0]['status'], 'stale')
+        self.assertNotIn('calculator', self.case.state)
+        self.assertEqual(calculator['inputs']['SCHEDULE']['I10'], 3)
+        self.assertEqual(calculator['inputs']['SCHEDULE']['J10'], 3.5)
+        self.case.command('undo')
+        for identifier in ids:
+            self.assertEqual(self.item(identifier)['geometry'], original[identifier]['geometry'])
+            self.assertEqual(self.item(identifier)['member_ids'], original[identifier]['member_ids'])
+
+    def test_marker_move_rejects_bad_targets_offsets_and_mixed_sources_without_partial_write(self):
+        identifier = self.add((3.5, 3.5))[0]
+        valid = {'item_id': identifier, 'member_id': self.item(identifier)['member_ids'][0]}
+        for target in (valid, {'item_id': identifier, 'member_id': str(uuid4())},
+                       {'item_id': str(uuid4()), 'member_id': valid['member_id']},
+                       {'item_id': identifier, 'member_id': []}, {**valid, 'point': [40, 40]}):
+            self.assert_rejected('move_count_markers', markers=[valid, target], delta_pdf=[2, 3])
+        for delta in ([], [0, 0], [1000, 0], [True, 0], [float('nan'), 0], [1], '1,2'):
+            self.assert_rejected('move_count_markers', markers=[valid], delta_pdf=delta)
+        self.assert_rejected('move_count_markers', markers=[], delta_pdf=[2, 3])
+        document = {**fixtures.document(), 'sha256': 'b'*64}
+        self.case.state = self.case.service.add_document(self.case.sid, document, self.case.state['revision'])
+        other = self.add((4,), document_id=document['id'])[0]
+        target = {'item_id': other, 'member_id': self.item(other)['member_ids'][0]}
+        self.assert_rejected('move_count_markers', markers=[valid, target], delta_pdf=[2, 3])
+        with patch('estimator.takeoff_workspace.MAX_ITEMS', 1):
+            self.assert_rejected('move_count_markers', markers=[valid, target], delta_pdf=[2, 3])
+
+    def test_continue_and_move_reject_stale_revisions(self):
+        identifier = self.add((3.5,))[0]
+        revision = self.case.state['revision']; member = self.item(identifier)['member_ids'][0]
+        self.case.command('continue_count', item_id=identifier, markers=[{'point': [40, 50], 'length_m': 3.5}])
+        self.assert_rejected('continue_count', expected_revision=revision, item_id=identifier,
+                             markers=[{'point': [60, 60], 'length_m': 8}])
+        self.assert_rejected('move_count_markers', expected_revision=revision,
+                             markers=[{'item_id': identifier, 'member_id': member}], delta_pdf=[2, 3])
+
     def test_both_steel_transfer_mappings_keep_existing_quantity_and_length_contract(self):
         spray = self.add((2.75, 2.75))[0]
         self.case.confirm(spray); preview = self.case.preview(spray); self.case.apply(preview)
@@ -251,6 +380,29 @@ class TakeoffCountEvidenceTests(unittest.TestCase):
         self.assertEqual(reopened['takeoffs']['items'], snapshot['items']); self.assertEqual(reopened['takeoffs_issues'], [])
         self.assertEqual(validate_snapshot(initial), initial)
         for name, content in old_audit.items(): self.assertEqual((case.documents.root/'audit'/name).read_bytes(), content)
+        self.assertEqual(case.documents.document_path(self.document).read_bytes(), case.pdf)
+
+    def test_continued_and_moved_markers_save_reopen_with_original_member_mapping(self):
+        identifier = self.add(); case = self.case
+        original = deepcopy(case.session['snapshot']['items'][0])
+        self.command('continue_count', item_id=identifier, markers=[{'point': [80, 60], 'length_m': 3.5},
+                                                                 {'point': [120, 70], 'length_m': 5.25}])
+        new_id, = case.session['created_item_ids']
+        new = next(item for item in case.session['snapshot']['items'] if item['id'] == new_id)
+        self.command('move_count_markers', markers=[{'item_id': identifier, 'member_id': original['member_ids'][0]},
+                                                  {'item_id': new_id, 'member_id': new['member_ids'][0]}],
+                     delta_pdf=[10, 15])
+        snapshot = deepcopy(case.session['snapshot'])
+        case.request.update(takeoffs=snapshot, takeoffs_session_id=case.session['session_id'])
+        case.library.save_as(case.request)
+        case.dialogs.opened = str(case.target); reopened = case.library.open_file()
+        self.assertEqual(reopened['takeoffs']['items'], snapshot['items'])
+        self.assertEqual(reopened['takeoffs_issues'], [])
+        first = next(item for item in reopened['takeoffs']['items'] if item['id'] == identifier)
+        self.assertEqual(first['member_ids'][:2], original['member_ids'])
+        self.assertEqual(first['geometry']['points'], [[40, 55], [160, 80], [80, 60]])
+        for name in ('estimate', 'calculators'):
+            self.assertEqual(json.loads(case.target.read_bytes())[name], json.loads(case.legacy)[name])
         self.assertEqual(case.documents.document_path(self.document).read_bytes(), case.pdf)
 
     def test_actual_pdf_renders_separate_shapes_and_retains_rotation_crop_and_manual_legend(self):

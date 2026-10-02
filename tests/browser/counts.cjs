@@ -50,6 +50,8 @@ async function place(point, length, reuse, pendingCount) {
   await page.mouse.click(...await screen(point));
   if (length != null) {
     const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Counted member length', exact: true })).toBeVisible();
+    const checkbox = await modal.getByLabel('Use this length for additional counts', { exact: true }).boundingBox(), field = await modal.getByLabel('Length per member (m)', { exact: true }).boundingBox();
+    assert.ok(checkbox.width < 30 && Math.abs(checkbox.x - field.x) < 18, 'The reuse checkbox stays at the left edge of the length form');
     await fill(modal, 'Length per member (m)', length);
     await modal.getByLabel('Use this length for additional counts', { exact: true }).setChecked(reuse);
     await modal.getByRole('button', { name: 'Place marker', exact: true }).click();
@@ -57,9 +59,9 @@ async function place(point, length, reuse, pendingCount) {
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(pendingCount);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
-async function finishCount(point) {
+async function finishCount(point, op = 'add_count_items') {
   const position = await screen(point);
-  const result = await command(() => page.mouse.dblclick(...position), 'add_count_items');
+  const result = await command(() => page.mouse.dblclick(...position), op);
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(0);
   await expect(page.locator('.takeoff-markup-settings').getByRole('heading', { name: 'Count details', exact: true })).toBeVisible();
   return result;
@@ -104,6 +106,39 @@ async function deleteMarker(item, memberId) {
   await marker.click({ button: 'right' });
   return command(() => page.getByRole('menuitem', { name: 'Delete count marker', exact: true }).click(), 'delete_count_marker');
 }
+async function continueCount(memberId) {
+  const marker = page.locator(`.takeoff-count-hit[data-count-member-id="${memberId}"]`); await marker.scrollIntoViewIfNeeded();
+  await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
+  await marker.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Continue count', exact: true }).click();
+  await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
+}
+async function selectMarkers(memberIds) {
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  for (let index = 0; index < memberIds.length; index++) {
+    const marker = page.locator(`.takeoff-count-hit[data-count-member-id="${memberIds[index]}"]`); await marker.scrollIntoViewIfNeeded();
+    await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
+    await marker.click({ modifiers: index ? ['Shift'] : [] });
+  }
+  await assertSelectedMarkers(memberIds);
+}
+async function assertSelectedMarkers(memberIds) {
+  const selected = page.locator('.takeoff-count-hit[aria-pressed="true"]');
+  await expect(selected).toHaveCount(memberIds.length);
+  assert.deepEqual((await selected.evaluateAll(elements => elements.map(element => element.dataset.countMemberId))).sort(), [...memberIds].sort());
+  await expect(page.locator('.takeoff-count-selection')).toHaveCount(memberIds.length);
+  for (const shape of await page.locator('.takeoff-count-selection').all()) {
+    const style = await shape.evaluate(el => ({ stroke: getComputedStyle(el).stroke, width: Number.parseFloat(getComputedStyle(el).strokeWidth), box: el.getBoundingClientRect() }));
+    assert.ok(style.stroke !== 'none' && style.width >= 2 && style.box.width > 0, 'Selected markers need a visible selection outline');
+  }
+}
+async function marquee(from, to, additive = false) {
+  const start = await screen(from), end = await screen(to);
+  if (additive) await page.keyboard.down('Shift');
+  try { await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(...end, { steps: 8 }); await page.mouse.up(); }
+  finally { if (additive) await page.keyboard.up('Shift'); }
+  await idle();
+}
 async function markerMetrics(memberId) {
   return page.locator(`[data-count-member-id="${memberId}"]`).evaluate(el => {
     const shape = el.previousElementSibling, box = shape.getBBox(), visible = shape.getBoundingClientRect(), hit = el.getBoundingClientRect();
@@ -124,6 +159,9 @@ async function dragMarker(memberId, delta) {
   return { start, end, sourceDelta: [delta[1] / overlay.height * 780, delta[0] / overlay.width * 540] };
 }
 function assertIndependentMove(before, after, itemId, index, drag) {
+  assertSubsetMove(before, after, [before.items.find(item => item.id === itemId).member_ids[index]], drag);
+}
+function assertSubsetMove(before, after, memberIds, drag) {
   assert.deepEqual(members(after), members(before)); assert.equal(markerTotal(after), markerTotal(before));
   for (const original of countItems(before)) {
     const current = after.items.find(item => item.id === original.id);
@@ -131,9 +169,9 @@ function assertIndependentMove(before, after, itemId, index, drag) {
     assert.equal(current.quantity, original.quantity); assert.equal(current.count_id, original.count_id);
     assert.deepEqual(current.fields, original.fields); assert.deepEqual(current.appearance, original.appearance);
     for (let pointIndex = 0; pointIndex < original.geometry.points.length; pointIndex++) {
-      if (original.id === itemId && pointIndex === index) {
+      if (memberIds.includes(original.member_ids[pointIndex])) {
         original.geometry.points[pointIndex].forEach((value, axis) => assert.ok(Math.abs(current.geometry.points[pointIndex][axis] - value - drag.sourceDelta[axis]) < 1e-7, JSON.stringify({ original: original.geometry.points[pointIndex], moved: current.geometry.points[pointIndex], drag })));
-      } else assert.deepEqual(current.geometry.points[pointIndex], original.geometry.points[pointIndex], 'Dragging one Count marker cannot translate another marker');
+      } else assert.deepEqual(current.geometry.points[pointIndex], original.geometry.points[pointIndex], 'Dragging selected Count markers cannot translate an unselected marker');
     }
   }
 }
@@ -185,12 +223,55 @@ function pythonJson(script, ...args) {
   for (const item of countItems(state)) await expect(page.locator(`tr[data-item-id="${item.id}"] input[name="quantity"]`)).toBeDisabled();
   await expect(page.getByLabel('Bulk edit field', { exact: true }).locator('option[value="quantity"]')).toBeDisabled();
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBefore);
+  await expect(panel).not.toContainText('All length groups in a Count share');
+  await expect(panel).not.toContainText('Only edited controls apply');
+  await expect(panel.getByLabel('Marker Size', { exact: true })).toBeVisible();
+  await expect(panel.getByLabel('Stroke Width', { exact: true })).toHaveCount(1);
+  for (const width of [1600, 1146]) {
+    await page.setViewportSize({ width, height: 1100 });
+    const shape = await panel.getByLabel('Marker shape', { exact: true }).boundingBox(), size = await panel.getByLabel('Marker Size', { exact: true }).boundingBox();
+    assert.ok(Math.abs(shape.y - size.y) < 2 && size.x > shape.x + shape.width - 2, `Count settings show at least two fields per row at ${width}px`);
+    const bounds = await panel.boundingBox(); assert.ok(size.x + size.width <= bounds.x + bounds.width, 'Compact settings stay inside their pane');
+  }
+  await panel.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
+  await page.screenshot({ path: path.join(output, 'compact-count-settings.png') });
+  await page.setViewportSize({ width: 1600, height: 1100 }); await idle();
   const beforeLength = stable(state);
   await panel.getByRole('button', { name: 'Change length for group 1', exact: true }).click();
   reply = await command(() => dialog('Change counted member length', { 'Length per member (m)': 3.375 }, 'Apply length'), 'update_item'); state = reply.snapshot;
   const changedLength = state.items.find(item => item.id === firstCount[0].id);
   assert.equal(changedLength.measurement.length_m, 3.375); assert.deepEqual(changedLength.member_ids, firstCount[0].member_ids); assert.equal(changedLength.quantity, 1);
   assert.deepEqual(stable(state).find(item => item.id === firstCount[1].id), beforeLength.find(item => item.id === firstCount[1].id));
+
+  // Continue an existing Count: cancellation is provisional, while a finish
+  // appends manual lengths into the existing equal-length group or a new row.
+  const continuationBaseline = state, continueMember = firstCount[1].member_ids[0], beforeContinuationRequests = requests.length;
+  await continueCount(continueMember); await place([420, 180], 4.5, false, 1);
+  await page.mouse.click(...await screen([480, 200]), { button: 'right' });
+  await expect(page.locator('.takeoff-count-pending')).toHaveCount(0);
+  assert.deepEqual(stable(await snapshot()), stable(continuationBaseline));
+  assert.equal(requests.filter(request => request.op === 'continue_count').length, 0, 'Cancelling a continuation sends no mutation');
+  assert.equal(requests.length, beforeContinuationRequests);
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await continueCount(continueMember);
+  await command(() => page.getByRole('button', { name: '+', exact: true }).click(), 'record_render');
+  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
+  await place([420, 180], 4.5, false, 1); await place([480, 180], 8.125, true, 2);
+  reply = await finishCount([520, 180], 'continue_count'); state = reply.snapshot;
+  assert.equal(markerTotal(state), 5); assert.equal(countItems(state).length, 3);
+  assert.ok(countItems(state).every(item => item.count_id === countId));
+  const continuedGroup = state.items.find(item => item.id === firstCount[1].id), newLengthGroup = state.items.find(item => item.measurement.length_m === 8.125);
+  assert.equal(continuedGroup.quantity, 3); assert.deepEqual(continuedGroup.member_ids.slice(0, 2), firstCount[1].member_ids);
+  assert.deepEqual(continuedGroup.geometry.points.slice(0, 2), firstCount[1].geometry.points);
+  assert.equal(newLengthGroup.quantity, 1); assert.deepEqual(newLengthGroup.fields, continuedGroup.fields); assert.deepEqual(newLengthGroup.appearance, continuedGroup.appearance);
+  assert.equal(newLengthGroup.geometry.document_id, source.id); assert.equal(newLengthGroup.geometry.page, 3);
+  assert.ok(members(continuationBaseline).every(id => members(state).includes(id))); assert.equal(new Set(members(state)).size, 5);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBefore);
+  await page.screenshot({ path: path.join(output, 'continued-count-length-groups.png') });
+  reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
+  assert.deepEqual(stable(state), stable(continuationBaseline));
+  evidence.continueCount = { sameCountId: countId, originalIdsRetained: true, equalLengthGrouped: true, newLengthSeparated: true, cancelNoMutation: true, zoomFitBeforePlacement: true, undoExact: true };
 
   // A new Count is a distinct physical group even with the same entered length.
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await place([550, 320], 4.5, false, 1);
@@ -207,12 +288,12 @@ function pythonJson(script, ...args) {
   await page.getByRole('button', { name: 'Select', exact: true }).click();
   const dragBaseline = state, dragGroup = state.items.find(item => item.count_id === countId && item.quantity === 2);
   let movement;
-  reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[0], [32, 24]); }, 'update_item');
+  reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[0], [32, 24]); }, 'move_count_markers');
   assertIndependentMove(dragBaseline, reply.snapshot, dragGroup.id, 0, movement);
-  assert.equal(requests.at(-1).item_id, dragGroup.id, 'The clicked marker selects its own item before moving');
+  assert.deepEqual(requests.at(-1).markers, [{ item_id: dragGroup.id, member_id: dragGroup.member_ids[0] }], 'The clicked marker selects only itself before moving');
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
   assert.deepEqual(stable(reply.snapshot), stable(dragBaseline), 'Undo restores exactly the dragged point and retained physical IDs');
-  reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[1], [26, -22]); }, 'update_item'); state = reply.snapshot;
+  reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[1], [26, -22]); }, 'move_count_markers'); state = reply.snapshot;
   assertIndependentMove(dragBaseline, state, dragGroup.id, 1, movement);
   const movedStable = stable(state), calculatorBeforeDrag = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   panel = await selectedCount([dragGroup.id]); await fill(panel, 'Opacity', .42);
@@ -231,13 +312,43 @@ function pythonJson(script, ...args) {
   await page.screenshot({ path: path.join(output, 'independent-count-marker-drag.png') });
   console.log('Independent Count marker drag, rotated source coordinates, manual lengths, dirty guard, Undo and save/reopen passed.');
 
+  // The Select tool operates on individual members, including a strict subset
+  // of a length row and a selection spanning separate length rows and Counts.
+  const multiBaseline = state, firstMember = firstCount[0].member_ids[0], movedMember = dragGroup.member_ids[1], untouchedMember = dragGroup.member_ids[0], otherMember = secondCount[0].member_ids[0];
+  await selectMarkers([firstMember, movedMember]);
+  await page.screenshot({ path: path.join(output, 'selected-count-markers.png') });
+  const beforeMultiRequests = requests.length;
+  reply = await command(async () => { movement = await dragMarker(movedMember, [19, 17]); }, 'move_count_markers'); state = reply.snapshot;
+  assert.equal(requests.length, beforeMultiRequests + 1, 'A group marker drag is one atomic command');
+  assertSubsetMove(multiBaseline, state, [firstMember, movedMember], movement); await assertSelectedMarkers([firstMember, movedMember]);
+  assert.deepEqual(new Set(requests.at(-1).markers.map(marker => marker.member_id)), new Set([firstMember, movedMember]));
+  reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
+  assert.deepEqual(stable(state), stable(multiBaseline));
+  await selectMarkers([firstMember, otherMember]);
+  reply = await command(async () => { movement = await dragMarker(firstMember, [14, 12]); }, 'move_count_markers');
+  assertSubsetMove(multiBaseline, reply.snapshot, [firstMember, otherMember], movement);
+  reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
+  assert.deepEqual(stable(state), stable(multiBaseline));
+  // Marquee includes one point of the two-member group, never its entire row.
+  await page.getByRole('button', { name: 'Select', exact: true }).click(); await marquee([120, 110], [280, 170]);
+  await assertSelectedMarkers([firstMember, untouchedMember]);
+  reply = await command(async () => { movement = await dragMarker(untouchedMember, [12, 10]); }, 'move_count_markers');
+  assertSubsetMove(multiBaseline, reply.snapshot, [firstMember, untouchedMember], movement);
+  const subsetRoundtrip = await saveAndLoad(info); state = subsetRoundtrip.reopened; assert.deepEqual(stable(state), stable(reply.snapshot));
+  assert.deepEqual(stable(subsetRoundtrip.saved.takeoffs), stable(reply.snapshot));
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBeforeDrag);
+  evidence.selectedMarkerDrag = { exactSubset: [firstMember, untouchedMember], multiLengthRow: true, separateCounts: true, visibleOutline: true, marqueeSubset: true, atomicCommand: true, undoExact: true, savedReopened: true };
+  console.log('Marker-level click/multi-selection, visible outlines, exact marquee subset, atomic group drag and save/reopen passed.');
+
   // Every supported symbol persists independently of source geometry and manual lengths.
   const originalStable = stable(state), firstIds = firstCount.map(item => item.id);
   for (const shape of ['circle', 'square', 'triangle', 'diamond']) {
     panel = await selectedCount([firstIds[0]]);
-    await fill(panel, 'Marker shape', shape); await fill(panel, 'Marker size (PDF points)', 18);
+    if (shape === 'circle') await selectMarkers([firstCount[0].member_ids[0]]);
+    await fill(panel, 'Marker shape', shape); await fill(panel, 'Marker Size', 18);
     await fill(panel, 'Stroke colour', '#1a2b3c'); await panel.getByLabel('Fill enabled', { exact: true }).check(); await fill(panel, 'Fill colour', '#4f6e8d'); await fill(panel, 'Opacity', .65);
     reply = await applySettings(panel, 2); state = reply.snapshot;
+    if (shape === 'circle') await assertSelectedMarkers([firstCount[0].member_ids[0]]);
     for (const item of state.items.filter(item => item.count_id === countId)) {
       assert.equal(item.appearance.marker_shape ?? 'circle', shape); assert.equal(item.appearance.marker_size, 18); assert.equal(item.appearance.opacity, .65); assert.equal(item.appearance.fill_enabled ?? true, true);
       assert.equal(item.appearance.stroke_color.toLowerCase(), '#1a2b3c'); assert.equal(item.appearance.fill_color.toLowerCase(), '#4f6e8d');
@@ -298,6 +409,34 @@ function pythonJson(script, ...args) {
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter);
   assert.equal(state.documents[0].sha256, createHash('sha256').update(fs.readFileSync(info.fixture)).digest('hex'));
   assert.equal(state.calibrations.length, 0);
+  const linkedBaseline = state, continuedLinkedItem = state.items.find(item => item.id === firstIds[0]);
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await continueCount(continuedLinkedItem.member_ids[0]); await place([620, 220], continuedLinkedItem.measurement.length_m, true, 1);
+  reply = await finishCount([650, 240], 'continue_count');
+  const linkedContinued = reply.snapshot.items.find(item => item.id === continuedLinkedItem.id);
+  assert.equal(linkedContinued.quantity, continuedLinkedItem.quantity + 1); assert.equal(linkedContinued.confirmation, null);
+  assert.deepEqual(linkedContinued.member_ids.slice(0, -1), continuedLinkedItem.member_ids); assert.deepEqual(linkedContinued.fields, continuedLinkedItem.fields);
+  const beforeBinding = linkedBaseline.transfers.find(binding => binding.item_id === continuedLinkedItem.id), staleBinding = reply.snapshot.transfers.find(binding => binding.item_id === continuedLinkedItem.id);
+  assert.equal(staleBinding.status, 'stale'); assert.equal(staleBinding.row, beforeBinding.row);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter, 'Continuing a linked Count must not overwrite its calculator row');
+  reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
+  assert.deepEqual(stable(state), stable(linkedBaseline));
+  assert.deepEqual(state.transfers.map(({status,...binding}) => binding), linkedBaseline.transfers.map(({status,...binding}) => binding));
+  assert.equal(state.transfers.find(binding => binding.item_id === continuedLinkedItem.id).status, 'stale', 'Undo preserves the existing requirement to reconfirm restored linked quantities');
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter);
+  evidence.continueCount.linkedRowRetained = true; evidence.continueCount.linkedMarkedStale = true; evidence.continueCount.linkedUndoGeometryExact = true;
+  // Persist a resumed Count with both an existing and a new manual length;
+  // newly allocated member identities must survive opening the saved project.
+  await continueCount(continuedLinkedItem.member_ids[0]);
+  await place([620, 220], continuedLinkedItem.measurement.length_m, false, 1); await place([660, 240], 9.875, false, 2);
+  reply = await finishCount([700, 260], 'continue_count');
+  const persistedContinuation = reply.snapshot, addedMembers = members(persistedContinuation).filter(member => !members(linkedBaseline).includes(member));
+  assert.equal(addedMembers.length, 2); const continuedRoundtrip = await saveAndLoad(info); state = continuedRoundtrip.reopened;
+  assert.deepEqual(stable(state), stable(persistedContinuation)); assert.deepEqual(stable(continuedRoundtrip.saved.takeoffs), stable(persistedContinuation));
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter);
+  for (const member of addedMembers) { const item = state.items.find(item => item.member_ids.includes(member)); reply = await deleteMarker(item, member); state = reply.snapshot; }
+  assert.deepEqual(stable(state), stable(linkedBaseline)); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorAfter);
+  evidence.continueCount.savedReopenedIdsExact = true; evidence.continueCount.appendedEqualAndNewRowsRemovable = true;
   panel = await selectedCount([firstIds[0]]);
   await panel.getByLabel('Count quantity', { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'count-details-fields-and-quantity.png'), fullPage: true });

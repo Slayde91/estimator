@@ -249,8 +249,8 @@ async function controls() {
 
   await tab('Defect Reports'); await expect(row(defect)).toBeVisible(); await expect(row(barrier)).toHaveCount(0); await expect(marker(barrier)).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'Defect ID', exact: true })).toBeVisible(); await snapshot(); assert.deepEqual(state.physical, reportBefore);
-  await select(reportBarrier); await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([330, 320]));
-  await response(() => dialog('Place barrier marker', { 'Barrier': 'existing' }, 'Continue'), '/physical/preview'); await apply('Review barrier count marker');
+  await select(reportBarrier); await details().getByRole('button', { name: 'Place count marker', exact: true }).click();
+  await response(async () => page.mouse.click(...await screen([330, 320])), '/physical/preview'); await apply('Review barrier count marker');
   await summaryContains(reportBarrier, 'FRL -/120/120'); await summaryContains(reportBarrier, '3 ×');
   const savedReport = structuredClone(state.physical); await tab('Service Plans');
   await expect(marker(reportBarrier)).toHaveCount(0); await expect(marker(barrier)).toBeVisible(); await expect(marker(secondBarrier)).toBeVisible();

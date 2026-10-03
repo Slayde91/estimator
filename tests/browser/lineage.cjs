@@ -126,7 +126,7 @@ async function fitCurrentDrawing(name) {
     assert.ok(Math.abs(state.item_results.find(item => item.id === group.id).length_m - 10) < .02);
   }
   await page.getByLabel('Filter register', { exact: true }).fill('STEEL-REPEATED');
-  await page.getByRole('button', { name: 'Select filtered items', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
   await screenshot('partitioned-steel-members.png');
   await page.getByRole('button', { name: 'Merge', exact: true }).click();
   state = await command(() => dialog('Merge repeated-member groups?', {}, 'Merge steel groups'), 'merge_steel_groups');
@@ -152,7 +152,7 @@ async function fitCurrentDrawing(name) {
   state = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');
   const runs = state.snapshot.items.filter(item => item.predecessor_ids.includes(originalRun)); assert.equal(runs.length, 2);
   await page.getByLabel('Filter register', { exact: true }).fill('LINEAGE-DUCT');
-  await page.getByRole('button', { name: 'Select filtered items', exact: true }).click(); await reviewConfirm(2);
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check(); await reviewConfirm(2);
   const before = await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() }));
   const pending = page.waitForResponse(response => response.url().endsWith('/transfer-preview'));
   await page.getByRole('button', { name: 'Preview transfer', exact: true }).click();
@@ -185,7 +185,7 @@ async function fitCurrentDrawing(name) {
   const cleared = await page.evaluate(() => window.CeasefireCalculators.projectSnapshot());
   for (const address of Object.keys(ancestorBinding.values)) assert.ok(cleared.ductwork.inputs.CALCULATOR[address] == null || cleared.ductwork.inputs.CALCULATOR[address] === '', `${address} must be explicitly cleared`);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
-  await page.getByRole('button', { name: 'Select filtered items', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
   transferred = await transfer(false, null, 2); assert.equal(transferred.state.snapshot.transfers.length, 2);
   const lengths = transferred.state.snapshot.transfers.map(binding => transferred.preview.inputs.CALCULATOR['D' + binding.row]);
   assert.ok(lengths.every(length => Math.abs(length - 5) < .02)); assert.ok(Math.abs(lengths.reduce((sum, length) => sum + length, 0) - 10) < .02);

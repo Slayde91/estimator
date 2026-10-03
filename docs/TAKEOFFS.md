@@ -109,6 +109,20 @@ Drawing XLSX/PDF downloads sit beside the Steel/Duct/Penetrations/Walls/Slabs ta
 Source PDFs remain in the project; the
 old document list and page thumbnails no longer occupy the tool rail.
 
+**Source documents** is above the drawing. Use **Select PDF text** (the I-beam)
+in the bottom toolbar to drag across embedded PDF text, then press Ctrl/Cmd+C.
+The native selection stays aligned while zooming. Scanned image pages have no
+selectable text unless the original PDF already includes a text layer; this
+tool does not perform OCR. Switch to **Select** to edit markups or **Pan** to
+move the drawing.
+
+The Duct register filters from the six column headings: **Confirmation**, **Duct
+ID**, **Level**, **WxH (mm)**, **FRL** and **Orientation**. Each filter has a value
+search, checkboxes, **Apply filter** and **Reset filter**. Multiple selected values
+within one column are alternatives; filters across columns must all match.
+The register search further narrows those results. Filters do not change saved
+records, confirmation or quantities and are cleared when another project opens.
+
 ## Count steel members
 
 Choose **Count** below **Trace length**, then click once for each physical member.
@@ -283,12 +297,22 @@ inherited context for its services. Switching sub-tabs never copies, merges or
 reparents records between these two hierarchies. Both retain their own numbered
 identities and are saved in the project.
 
-In either sub-tab, **Count** below **Scale** places one barrier marker on the
-original PDF page. An existing unmarked barrier can be chosen, or a new barrier
-can be created at that point. Each marker has an automatic callout derived from
+In Defect Reports, **Count** below **Scale** opens **Add Defect**, **Add Barrier**
+and **Add Services**. These use the existing reviewed creation dialogs and the
+selected record's relevant parent, or ask for a parent when none is selected.
+Adding a barrier with a PDF open then lets you click its marker position. Choose
+**Select** to leave it unplaced. An unmarked barrier's Item Details has **Place
+count marker** to add its position later. In Service Plans, **Count** still
+places an existing or new barrier directly on the original PDF page.
+Each marker has an automatic callout derived from
 the barrier fields and its active services. Editing those records updates the
 description; the marker does not infer or multiply service quantities. Selecting
-a marker or register record opens **Item Details** on the left of the PDF.
+a marker opens **Item Details** on the left of the PDF. In Defect Reports it
+opens the parent Defect first while keeping the actual marker selected for
+drawing actions. A compact **Defect | Barrier | Service** dropdown table lists
+all active IDs and switches the details pane to the chosen record. Service
+Plans uses **Barrier | Service** without a Defect column. Register selection
+opens the selected record's details directly.
 The **Settings** button also opens that pane. Barrier Item Details includes an
 **Add service** action, and Defect Item Details can add a child barrier.
 The former inspector below the
@@ -459,8 +483,8 @@ citations retain their original evidence. Anchored rises and drops move with
 their traced control points while keeping their explicit additional lengths.
 
 Search and the document selector sit in the viewer's top-centre overlay. Page
-navigation, Select, Pan and zoom controls sit in its bottom-centre overlay.
-The Source documents list below the viewer opens each retained original PDF.
+navigation, Select, Pan, Select PDF text and zoom controls sit in its bottom-centre overlay.
+The Source documents list above the viewer opens each retained original PDF.
 
 Item Details saves validated field changes automatically and provides a
 **Delete item** trash icon. Deleting a linked item also clears its linked

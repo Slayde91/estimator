@@ -46,7 +46,8 @@ async function trace(mark, y) {
   return reply.snapshot.items.find(item => item.fields.mark === mark);
 }
 async function select(ids) {
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).uncheck();
   for (const id of ids) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
 }
 async function confirmSelected(count) {

@@ -1,0 +1,109 @@
+// Duct column filters against a disposable, source-backed 102-row register.
+const { chromium, expect } = require('@playwright/test');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `duct-filters-${Date.now()}`);
+fs.mkdirSync(output, { recursive: true });
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
+let logs = '', browser, page;
+server.stderr.on('data', value => { logs += value; });
+const ready = new Promise((resolve, reject) => {
+  let text = ''; const timer = setTimeout(() => reject(new Error(`Startup timeout: ${logs}`)), 120000);
+  server.stdout.on('data', value => { text += value; if (text.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(text.split('\n')[0])); } catch (error) { reject(error); } } });
+  server.once('error', error => { clearTimeout(timer); reject(error); });
+  server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
+});
+const errors = [], commands = [], evidence = {};
+const register = () => page.getByRole('table', { name: 'Duct editable takeoff register', exact: true });
+const rows = () => register().locator('tbody tr[data-item-id]');
+const rowMarks = () => rows().getByLabel('Duct ID', { exact: true }).evaluateAll(fields => fields.map(field => field.value));
+const panel = () => page.locator('.takeoff-column-filter');
+async function menu(label) { await register().getByRole('button', { name: `Filter ${label}`, exact: true }).click(); await expect(panel()).toBeVisible(); return panel(); }
+async function filter(label, values) {
+  const dialog = await menu(label); await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck();
+  for (const value of values) await dialog.getByRole('checkbox', { name: value, exact: true }).check();
+  await dialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); await expect(dialog).toHaveCount(0);
+}
+async function reset(label) { const dialog = await menu(label); await dialog.getByRole('button', { name: 'Reset filter', exact: true }).click(); await expect(dialog).toHaveCount(0); }
+
+(async () => {
+  const info = await ready; assert.notEqual(info.port, 8765);
+  browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } }); page.setDefaultTimeout(30000);
+  page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
+  await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
+  await page.goto(`http://127.0.0.1:${info.port}/`); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.locator('#takeoff-upload').setInputFiles(info.fixture);
+  await page.waitForFunction(() => { try { return window.CeasefireTakeoffs.projectSnapshot().render_checks.some(check => check.page === 1 && check.success); } catch { return false; } });
+  // The fixture uses only validated public commands. All ordinary interaction
+  // below is through the actual register controls; no filtering is mocked.
+  const seeded = await page.evaluate(async () => {
+    const takeoffs = window.CeasefireTakeoffs, sid = takeoffs.sessionId(); let current = takeoffs.projectSnapshot();
+    const command = async (op, values) => {
+      const reply = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expected_revision: current.revision, request_id: crypto.randomUUID(), op, ...values }) });
+      const body = await reply.json(); if (!reply.ok) throw new Error(JSON.stringify(body)); current = body.snapshot; return body;
+    };
+    const doc = current.documents[0], view = doc.pages[0].view, calibration = crypto.randomUUID();
+    const points = [[view[0] + 20, view[1] + 20], [view[0] + 120, view[1] + 20]];
+    await command('add_calibration', { calibration: { id: calibration, document_id: doc.id, page: 1, name: 'Synthetic filter baseline', points, distance_m: 10, uniform_scale: true } });
+    for (let index = 1; index <= 102; index++) {
+      const level = index <= 2 ? 'L1' : index === 4 ? '' : 'L2';
+      const fields = { mark: `D${String(index).padStart(3, '0')}`, level, shape: 'rectangular', width_mm: index <= 2 ? 100 : 300, height_mm: index <= 2 ? 200 : 400,
+        frl: index === 2 ? '60/60/60' : '120/120/120', orientation: index === 2 ? 'Vertical' : index === 3 ? 'Both' : 'Horizontal', product: 'FyreWrap', exposure: 'Internal', wall_penetrations: 0, floor_penetrations: 0 };
+      if (index === 4) { delete fields.width_mm; delete fields.height_mm; fields.frl = ''; fields.orientation = ''; }
+      await command('create_item', { item: { mode: 'duct', quantity: 1, fields, geometry: { document_id: doc.id, page: 1, points }, measurement: { method: 'calibrated', calibration_id: calibration }, evidence: [{ document_id: doc.id, page: 1, note: 'Synthetic column-filter record' }] } });
+    }
+    await command('confirm_items', { item_ids: [current.items[0].id] });
+    await command('create_item', { item: { mode: 'steel', quantity: 1, fields: { mark: 'S001', level: 'L1' } } });
+    takeoffs.applyProject(await takeoffs.prepareProject(current, sid));
+    return { first: current.items[0].id, snapshot: current };
+  });
+  await page.getByLabel('Filter confirmation state', { exact: true }).selectOption('unconfirmed');
+  await page.getByLabel('Group register', { exact: true }).selectOption('state');
+  await page.getByRole('tab', { name: 'DUCT', exact: true }).click();
+  await expect(rows()).toHaveCount(100); await expect(page.getByText('1–100 of 102 matching items', { exact: true })).toBeVisible();
+  for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+  for (const label of ['Select filtered items', 'Clear selection', 'Undo last edit']) await expect(page.getByRole('button', { name: label, exact: true })).toBeHidden();
+  await expect(page.getByLabel('Filter register', { exact: true })).toBeVisible();
+  assert.equal(await register().locator('.takeoff-column-filter-button').count(), 6); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
+  const baselineCommands = commands.length;
+  await page.getByRole('button', { name: 'Next 100', exact: true }).click(); assert.deepEqual(await rowMarks(), ['D101', 'D102']);
+  await filter('Level', ['L1']); assert.deepEqual(await rowMarks(), ['D001', 'D002']);
+  await expect(page.getByText('1–2 of 2 matching items', { exact: true })).toBeVisible();
+  await expect(register().getByRole('button', { name: 'Filter Level', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await rows().first().getByRole('checkbox', { name: 'Select D001', exact: true }).check();
+  await filter('Orientation', ['Vertical']); assert.deepEqual(await rowMarks(), ['D002']);
+  // Existing selected-register CSV export remains based on the explicit
+  // selection, even if that row is now hidden by a view filter.
+  const download = page.waitForEvent('download'), exported = page.waitForRequest(request => request.url().endsWith('/export/csv'));
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  assert.deepEqual((await exported).postDataJSON().selected_ids, [seeded.first]); await (await download).saveAs(path.join(output, 'selected-confirmed.csv'));
+  await page.getByLabel('Filter register', { exact: true }).fill('D001'); await expect(rows()).toHaveCount(0);
+  await page.getByLabel('Filter register', { exact: true }).fill('vertical'); assert.deepEqual(await rowMarks(), ['D002']);
+  await page.getByLabel('Filter register', { exact: true }).fill(''); await reset('Orientation');
+  await filter('Confirmation', ['Confirmed']); assert.deepEqual(await rowMarks(), ['D001']); await reset('Confirmation');
+  await filter('FRL', ['120/120/120']); assert.deepEqual(await rowMarks(), ['D001']); await reset('FRL');
+  await filter('WxH (mm)', ['300 x 400']); await expect(rows()).toHaveCount(0); await reset('Level'); assert.equal((await rowMarks()).length, 99);
+  await filter('Duct ID', ['D003', 'D005']); assert.deepEqual(await rowMarks(), ['D003', 'D005']);
+  await reset('Duct ID'); await reset('WxH (mm)'); await filter('Level', ['(Blanks)']); assert.deepEqual(await rowMarks(), ['D004']); await reset('Level');
+  let dialog = await menu('Duct ID'); await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck();
+  await dialog.getByLabel('Search Duct ID values', { exact: true }).fill('D10');
+  await expect(dialog.getByRole('group', { name: 'Duct ID values', exact: true }).getByRole('checkbox')).toHaveCount(3);
+  await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).check(); await dialog.getByLabel('Search Duct ID values', { exact: true }).fill('');
+  await expect(dialog.getByRole('checkbox', { name: 'Select all values', exact: true })).toHaveJSProperty('indeterminate', true);
+  await dialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
+  dialog = await menu('Duct ID'); await dialog.getByRole('checkbox', { name: 'D001', exact: true }).check(); await dialog.press('Escape'); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
+  await page.getByRole('tab', { name: 'STEEL', exact: true }).click();
+  for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Group register', { exact: true })).toHaveValue('state'); await expect(page.getByLabel('Filter confirmation state', { exact: true })).toHaveValue('unconfirmed');
+  assert.equal(await page.locator('.takeoff-column-filter-button').count(), 0);
+  await page.getByRole('tab', { name: 'DUCT', exact: true }).click(); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
+  await page.setViewportSize({ width: 764, height: 764 }); dialog = await menu('Duct ID');
+  const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 764 && box.y + box.height <= 764);
+  await page.screenshot({ path: path.join(output, 'duct-filter-menu-narrow.png') }); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.setViewportSize({ width: 1146, height: 764 }); await register().scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'duct-filter-active-register.png') });
+  assert.equal(commands.length, baselineCommands, 'Filters, search, pagination and export sent no item or calibration command');
+  assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()), seeded.snapshot, 'Snapshot and calculation inputs remain unchanged');
+  assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
+  Object.assign(evidence, { passed: true, itemCount: 102, allSixColumns: true, paginationReset: true, andOrBlankSearch: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2)); console.log(JSON.stringify({ output, ...evidence }, null, 2));
+})().catch(async error => { console.error(error); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); fs.writeFileSync(path.join(output, 'server.log'), logs); });

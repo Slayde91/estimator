@@ -21,6 +21,7 @@ function harness() {
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'addPhysicalCountRecord,armPhysicalMarker,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -65,15 +66,15 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
-  await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and sources directly below',()=>{
+  await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and sources above the viewer',()=>{
     const h=harness(),dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();
     const ui=h.audit.state.ui,all=dom.all(root),find=name=>all.find(el=>el.classList.contains(name)),viewer=find('takeoff-viewer'),top=find('takeoff-viewer-top'),bottom=find('takeoff-page-controls'),search=find('takeoff-search-controls');
     assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,viewer);assert.deepEqual(top.children,[search,ui.navigation]);
     assert.equal(ui.tools.select.parentNode,bottom);assert.equal(ui.tools.pan.parentNode,bottom);const labels=bottom.children.map(el=>el.attributes['aria-label']||el.textContent);assert.ok(labels.indexOf('Select')<labels.indexOf('Pan'));assert.ok(labels.indexOf('Pan')<labels.indexOf('−'));
-    assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.toolRail);assert.equal(ui.scaleToggle.parentNode.previousElementSibling,ui.tools.viewport);
+    assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleToggle.parentNode.previousElementSibling,ui.tools.viewport);
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);
-    assert.equal(ui.sourceDocuments.previousElementSibling,viewer);assert.equal(ui.sourceDocuments.parentNode,ui.drawingPane);assert.equal(ui.navigation.attributes['aria-label'],'Drawing navigation');assert.equal(search.attributes.role,'search');assert.equal(ui.sourceDocuments.attributes['aria-labelledby'],'takeoff-source-documents-heading');
+    assert.equal(ui.sourceDocuments.parentNode,ui.layout);assert.equal(ui.layout.children[0],ui.sourceDocuments);assert.equal(ui.navigation.attributes['aria-label'],'Drawing navigation');assert.equal(search.attributes.role,'search');assert.equal(ui.sourceDocuments.attributes['aria-labelledby'],'takeoff-source-documents-heading');
   });
   await check('Source documents show retained names, page counts and sizes, refresh selection and empty state without mutating evidence',()=>{
     const h=harness(),value=blank();value.documents=[{id:'first',name:'First original.pdf',size:1048576,pages:[{page:1},{page:2}]},{id:'second',name:'<Retained name>.pdf',size:2097152,pages:[{page:1}]}];h.audit.accept(response(value));
@@ -419,17 +420,17 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Changing tools or selection clears abandoned retrace targets before a new linear or surface trace',async()=>{
     for(const [mode,tool] of [['steel','trace'],['duct','trace'],['wall','polygon'],['slab','polygon']]){
       const h=harness();h.audit.state.mode=mode;h.audit.state.calibration='calibration';h.audit.state.viewport={};
-      attachMinimalDom(h);Object.assign(h.audit.state.ui,{root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{}});
+      attachMinimalDom(h);Object.assign(h.audit.state.ui,{root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{classList:{toggle(){}}}});
       h.audit.setTool(tool,{retraceId:'old-item'});assert.equal(h.audit.state.retraceId,'old-item');
       h.audit.setTool('select');assert.equal(h.audit.state.retraceId,null);h.audit.setTool(tool);assert.equal(h.audit.state.retraceId,null);
       h.audit.setTool(tool,{retraceId:'old-item'});h.audit.setTool(tool);assert.equal(h.audit.state.retraceId,null);
       h.audit.setTool(tool,{retraceId:'old-item'});h.audit.state.viewport=null;await h.audit.discardEditor();assert.equal(h.audit.state.retraceId,null);
     }
-    const h=harness();h.audit.state.mode='wall';h.audit.state.viewport={};attachMinimalDom(h);Object.assign(h.audit.state.ui,{root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{}});
+    const h=harness();h.audit.state.mode='wall';h.audit.state.viewport={};attachMinimalDom(h);Object.assign(h.audit.state.ui,{root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{classList:{toggle(){}}}});
     h.audit.setTool('exclusion',{exclusionItemId:'old-surface'});assert.equal(h.audit.state.exclusionItemId,'old-surface');h.audit.setTool('pan');assert.equal(h.audit.state.exclusionItemId,null);assert.throws(()=>h.audit.setTool('exclusion'),/Select one surface/);
   });
   await check('Dirty register edits block every geometry-writing tool and zero-point manual calibration is cancellable',async()=>{
-    const h=harness();h.audit.state.calibration='scale';h.audit.state.viewport={};h.audit.state.ui={root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{},overlay:{replaceChildren(){}}};
+    const h=harness();h.audit.state.calibration='scale';h.audit.state.viewport={};h.audit.state.ui={root:{querySelectorAll(){return[];}},viewport:{dataset:{},focus(){}},progress:{classList:{toggle(){}}},overlay:{replaceChildren(){}}};
     h.audit.state.formDirty=true;
     for(const tool of ['trace','calibrate','viewport','polygon','exclusion']){h.audit.state.mode=['polygon','exclusion'].includes(tool)?'wall':'steel';assert.throws(()=>h.audit.setTool(tool),/unfinished/);assert.equal(h.audit.state.formDirty,true);}
     h.audit.state.formDirty=false;h.audit.state.viewport=null;h.audit.state.calibrationTarget='stale-viewport';h.audit.state.tool='calibrate';await h.audit.discardEditor();assert.equal(h.audit.state.calibrationTarget,null);assert.equal(h.audit.state.tool,'select');
@@ -721,7 +722,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const h=harness(),value=blank(),pending=deferred();value.documents=[{id:'doc',name:'Drawing.pdf',pages:[{page:1}]}];h.audit.accept(response(value));const dom=attachMinimalDom(h),create=h.context.document.createElement;
     h.context.document.createElement=tag=>{const element=create(tag);element.style={};element.getContext=()=>({});return element;};
     const viewport={width:400,height:400,transform:[2,0,0,-2,0,400]},page={getViewport(){return viewport;},render(){return {promise:pending.promise,cancel(){}};}};
-    for(const key of ['page','pageCount','progress','zoom','pageWrap','empty'])dom.ui[key]={};let replacement;
+    for(const key of ['page','pageCount','progress','zoom','pageWrap','empty'])dom.ui[key]=dom.element();let replacement;
     dom.ui.pageWrap.style={};dom.ui.panSpace={style:{}};dom.ui.canvas={replaceWith(value){replacement=value;}};dom.ui.overlay.getBoundingClientRect=()=>({left:30,top:40});dom.ui.viewport={getBoundingClientRect:()=>({left:0,top:0}),clientWidth:500,clientHeight:500,scrollLeft:0,scrollTop:0};
     h.audit.state.autoScalePages=new Set([JSON.stringify([h.audit.state.session.session_id,'doc',1])]);
     h.audit.setPdfTools(async()=>({}),async()=>page);h.audit.setCommand(async()=>{});h.audit.state.tool='trace';h.audit.state.points=[[10,10]];h.audit.state.viewport={width:200,height:200,transform:[1,0,0,-1,0,200]};
@@ -875,6 +876,24 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Physical workspace switching preserves unfinished forms instead of losing pending edits',async()=>{
     const h=harness();let destroyed=false;h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,destroy(){destroyed=true;}};
     await assert.rejects(h.audit.changePhysicalScope('service_plans'),/unfinished physical/);assert.equal(h.audit.state.physicalScope,'defect_reports');assert.equal(destroyed,false);
+  });
+  await check('Deferred physical Count creation cannot arm a tool or replace selection after switching mode or scope',async()=>{
+    for(const change of [state=>{state.mode='steel';},state=>{state.physicalScope='service_plans';}]){
+      const h=harness(), pending=deferred(), state=h.audit.state;h.audit.accept(response({...blank(),physical:{barriers:[{id:'barrier',deleted:false}]}}));
+      Object.assign(state,{mode:'physical',viewport:{width:200},tool:'select',selected:new Set(['kept'])});
+      state.physicalUI={hasUnfinishedChanges:()=>false,createFromSelection:()=>pending.promise,select(){throw Error('Stale marker must not be selected');}};
+      let armed=0,opened=0;h.audit.setCountTool(()=>armed++);h.audit.setPhysicalDetails(()=>opened++);
+      const before=copy(state.session.snapshot), work=h.audit.addPhysicalCountRecord('barrier');await flush();change(state);pending.resolve('barrier');await work;
+      assert.equal(armed,0);assert.equal(opened,0);assert.equal(state.physicalPlacementTarget,undefined);assert.deepEqual([...state.selected],['kept']);assert.deepEqual(copy(state.session.snapshot),before);
+    }
+  });
+  await check('Explicit marker placement requires Penetrations and rechecks its scope after asynchronous selection',async()=>{
+    const h=harness(), state=h.audit.state, pending=deferred();h.audit.accept(response({...blank(),physical:{barriers:[{id:'barrier',deleted:false}]}}));
+    Object.assign(state,{mode:'steel',viewport:{width:200},tool:'select'});let armed=0;h.audit.setCountTool(()=>armed++);
+    state.physicalUI={hasUnfinishedChanges:()=>false,select:()=>pending.promise};
+    await assert.rejects(h.audit.armPhysicalMarker('barrier'),/Penetrations/);assert.equal(armed,0);
+    state.mode='physical';const work=h.audit.armPhysicalMarker('barrier');await flush();state.physicalScope='service_plans';pending.resolve();await work;
+    assert.equal(armed,0);assert.equal(state.physicalPlacementTarget,undefined);
   });
   await check('Callouts wrap long tokens and disclose overflow without altering the generated summary',()=>{
     const h=harness(), summary=['Barrier B-0001 '+ 'Z'.repeat(110),...Array.from({length:20},(_,i)=>`S-${i} electrical cable 1 x 100 mm`)].join('\n');

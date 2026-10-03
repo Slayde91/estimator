@@ -6,6 +6,7 @@
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
     zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
+    ductColumnFilters: new Map(), ductFilterSession: null,
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
     physicalUI: null, physicalScope: "defect_reports", physicalDetailsOpen: false, physicalPlacing: false, physicalSelected: new Set(), physicalVisible: new Set(), physicalHovered: null, physicalPreviews: new Map() };
@@ -60,6 +61,7 @@
     "First page": "M4 5v14M17 5l-7 7 7 7", "‹ Page": "M15 5l-7 7 7 7", "Page ›": "M9 5l7 7-7 7", "Last page": "M20 5v14M7 5l7 7-7 7",
     "Discard item edits": "M20 7a8 8 0 0 0-13-2L3 9m0-6v6h6M4 17a8 8 0 0 0 13 2l4-4m0 6v-6h-6",
     "Select": "M5 3l14 10-7 1-3 7z",
+    "Select PDF text": "M6 3c4 0 6 2 6 5v8c0 4-2 6-6 6M18 3c-4 0-6 2-6 5M12 15c0 4 2 6 6 6",
     "Pan": "M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v7c0 4-3 6-7 6-3 0-4-2-6-4l-3-4a1.5 1.5 0 0 1 2-2l2 1z",
     "Settings": "M10 2h4l1 3 3 1 3-1 2 4-2 2v3l2 2-2 4-3-1-3 1-1 3h-4l-1-3-3-1-3 1-2-4 2-2v-3L1 9l2-4 3 1 3-1zM15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
     "Close settings": "M6 9l6 6 6-6",
@@ -123,9 +125,23 @@
     const notice = state.ui.message; notice.textContent = text; notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(button("Retry linked change", recoverLinkedOperation));
     if (error && text && notice.getClientRects?.().length) {
-      const header = document.querySelector(".app-header"), top = Math.max(0, header?.getBoundingClientRect().bottom || 0) + 12, bounds = notice.getBoundingClientRect();
-      if (bounds.top < top || bounds.bottom > window.innerHeight) window.scrollBy({ top: bounds.top - top, behavior: "auto" });
+      const reveal = () => {
+        if (notice.hidden || notice.getAttribute("role") !== "alert" || notice.textContent !== text) return;
+        const header = document.querySelector(".app-header"), top = Math.max(0, header?.getBoundingClientRect().bottom || 0) + 12, bounds = notice.getBoundingClientRect();
+        if (bounds.top < top || bounds.bottom > window.innerHeight) window.scrollBy({ top: bounds.top - top, behavior: "auto" });
+      };
+      reveal();
+      // A change raised by Tab precedes the browser's next-control focus scroll.
+      // Reveal the error after that default action as well.
+      window.requestAnimationFrame?.(reveal);
     }
+  }
+  function setProgress(text = "") {
+    if (!state.ui?.progress) return;
+    state.ui.progress.textContent = text;
+    // The source identity already appears in the document selector. Keep the
+    // render status available to assistive technology without repeating it.
+    state.ui.progress.classList.toggle("sr-only", !text || text.endsWith(" · Original source"));
   }
   async function safely(fn) { try { return await fn(); } catch (error) { message(error.message || String(error), true); } }
   async function api(path, data, method = data === undefined ? "GET" : "POST") {
@@ -239,7 +255,12 @@
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
+    ui.countControls = node("div", "takeoff-toolbar takeoff-count-controls"); ui.countControls.id = "takeoff-count-controls"; ui.countControls.hidden = true; ui.countControls.setAttribute("role", "group"); ui.countControls.setAttribute("aria-label", "Defect report count");
+    for (const [kind, label] of [["defect", "Add Defect"], ["barrier", "Add Barrier"], ["service", "Add Services"]]) ui.countControls.append(button(label, () => addPhysicalCountRecord(kind)));
+    ui.countAnchor.append(ui.countControls);
+    ui.countControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleCountControls(false); ui.tools.count.focus(); } });
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.tools.viewport.after(scaleAnchor); ui.scaleAnchor = scaleAnchor;
     ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
@@ -254,10 +275,11 @@
     pageNavigation.append(button("First page", () => navigatePage(1)), button("‹ Page", () => navigatePage(state.page - 1)));
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
     ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
-    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
+    ui.tools.text = button("Select PDF text", () => setTool("text")); ui.tools.text.dataset.tool = "text";
+    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
-    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; state.ui.progress.textContent += " · Search cancelled; coverage is incomplete."; }));
+    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; setProgress(state.ui.progress.textContent + " · Search cancelled; coverage is incomplete."); }));
     const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(searchControls, navigation);
     ui.sourceDocuments = node("section", "takeoff-source-documents"); ui.sourceDocuments.setAttribute("aria-labelledby", "takeoff-source-documents-heading"); const sourceHeading = node("h3", "", "Source documents"); sourceHeading.id = "takeoff-source-documents-heading"; ui.sourceDocumentList = node("div", "takeoff-source-document-list"); ui.sourceDocuments.append(sourceHeading, ui.sourceDocumentList);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
@@ -272,13 +294,14 @@
     ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings");
     ui.physicalDetails = node("div", "takeoff-physical-details"); ui.physicalDetails.id = "takeoff-physical-details"; ui.physicalDetails.hidden = true;
     ui.physicalDetails.append(button("Close Item Details", () => setPhysicalDetailsOpen(false), "button secondary", "Close settings"));
-    layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane);
+    layout.append(ui.sourceDocuments, toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
     ui.sort = select([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); ui.sort.setAttribute("aria-label", "Sort register");
     ui.group = select([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); ui.group.setAttribute("aria-label", "Group register");
-    controls.append(ui.filter, ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => { state.selected.add(item.id); state.countSelection.delete(item.id); }); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); state.countSelection.clear(); renderSelection(); }), button("Undo last edit", () => undoLastEdit()));
+    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => { state.selected.add(item.id); state.countSelection.delete(item.id); }); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); state.countSelection.clear(); renderSelection(); }), button("Undo last edit", () => undoLastEdit())];
+    controls.append(ui.filter, ...ui.registerExtraControls);
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
@@ -289,12 +312,12 @@
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls);
-    drawingPane.append(viewer, ui.sourceDocuments, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
+    drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(headingControls, ui.physicalTabs, ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
-    ui.viewport.addEventListener("contextmenu", event => { if (state.points.length || !["select", "pan"].includes(state.tool)) { event.preventDefault(); cancelTrace(); } });
+    ui.viewport.addEventListener("contextmenu", planContextMenu);
     ui.overlay.addEventListener("pointermove", tracePointerMove);
     ui.viewport.addEventListener("pointermove", event => { state.pastePointer = { key: pageDisplayKey(), client: [event.clientX, event.clientY] }; });
     ui.viewport.addEventListener("pointerleave", () => { state.pastePointer = null; });
@@ -336,23 +359,26 @@
     state.ui.physicalTabs.hidden = !physical; for (const tab of state.ui.physicalTabs.querySelectorAll("button")) tab.setAttribute("aria-selected", String(tab.dataset.physicalScope === state.physicalScope));
     if (physical) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     renderPhysicalDetails();
-    state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = !physical; state.ui.register.hidden = physical;
+    state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = true; state.ui.register.hidden = physical;
     state.ui.workspace.classList.toggle("beside", !physical && state.ui.registerLayout.value === "beside");
     state.ui.registerLayout.disabled = physical;
     // Page/view scales are shared source metadata, even in the physical draft.
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
       for (const tool of ["trace", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
-      state.ui.tools.count.hidden = false; state.ui.scaleAnchor.after(state.ui.tools.count);
+      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; state.ui.scaleAnchor.after(state.ui.countAnchor);
+      state.ui.tools.count.setAttribute("aria-expanded", String(state.physicalScope === "defect_reports" && !state.ui.countControls.hidden));
+      state.ui.tools.count.setAttribute("aria-controls", "takeoff-count-controls");
       ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
-    state.ui.tools.trace.after(state.ui.tools.count);
+    toggleCountControls(false); state.ui.tools.trace.after(state.ui.countAnchor);
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
+    for (const control of state.ui.registerExtraControls || []) control.hidden = state.mode === "duct";
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
     state.ui.tools.trace.hidden = area;
-    state.ui.tools.count.hidden = state.mode !== "steel";
+    state.ui.tools.count.hidden = state.mode !== "steel"; state.ui.countAnchor.hidden = state.mode !== "steel";
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
@@ -477,8 +503,9 @@
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
       export: exportPhysical, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
-      selection: async (ids, reference, focus) => { state.physicalSelected = new Set(ids); if (ids.length && state.mode === "physical") setPhysicalDetailsOpen(true); if (reference && focus) await physicalSource(reference); else renderOverlay(); },
+      selection: async (ids, reference, focus) => { state.physicalSelected = new Set(ids); if (ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
+      placeMarker: id => armPhysicalMarker(id),
       viewChanged: (ids, selected) => { state.physicalVisible = new Set(ids); state.physicalSelected = new Set(selected); if (state.mode === "physical" && state.physicalUI) renderOverlay(); },
     });
   }
@@ -489,8 +516,48 @@
   }
   function inViewport(point, region) { return point[0] >= region[0] && point[1] >= region[1] && point[0] <= region[0] + region[2] && point[1] <= region[1] + region[3]; }
   function toggleScaleControls(open = state.ui.scaleControls.hidden) {
+    if (open) toggleCountControls(false);
     state.ui.scaleControls.hidden = !open; state.ui.scaleToggle.setAttribute("aria-expanded", String(open)); state.ui.scaleToggle.classList.toggle("takeoff-tool-active", open);
     if (open) state.ui.calibration.focus();
+  }
+  function toggleCountControls(open = state.ui?.countControls?.hidden) {
+    if (!state.ui?.countControls) return;
+    open = !!open && state.mode === "physical" && state.physicalScope === "defect_reports";
+    state.ui.countControls.hidden = !open;
+    state.ui.tools.count.setAttribute("aria-expanded", String(open));
+    state.ui.tools.count.classList.toggle("takeoff-tool-active", open || state.tool === "count");
+    if (open) { toggleScaleControls(false); state.ui.countControls.querySelector("button")?.focus(); }
+  }
+  function activateCountTool() {
+    if (state.busy || state.physicalPlacing) return;
+    if (state.mode === "physical" && state.physicalScope === "defect_reports") {
+      if (state.modal) throw new Error("Finish the current dialog first.");
+      toggleCountControls();
+    } else setTool("count");
+  }
+  async function addPhysicalCountRecord(kind) {
+    if (state.mode !== "physical" || state.physicalScope !== "defect_reports" || state.busy) return;
+    requireFinishedEdits(); ensurePhysicalUI(); toggleCountControls(false);
+    const controller = state.physicalUI, sessionId = state.session?.session_id, scope = state.physicalScope;
+    const id = await controller.createFromSelection(kind);
+    if (!id || state.mode !== "physical" || state.physicalScope !== scope || state.physicalUI !== controller || state.session?.session_id !== sessionId) return;
+    setPhysicalDetailsOpen(true);
+    if (kind === "barrier" && state.viewport) {
+      await armPhysicalMarker(id);
+    }
+  }
+  async function armPhysicalMarker(id) {
+    if (state.mode !== "physical") throw new Error("Open the Penetrations workspace before placing a barrier marker.");
+    requireFinishedEdits(); ensurePhysicalUI();
+    if (!state.viewport) throw new Error("Open a successfully rendered PDF page before placing the marker.");
+    const controller = state.physicalUI, sessionId = state.session?.session_id, scope = state.physicalScope;
+    const barrier = physicalGraph()?.barriers?.find(value => value.id === id && !value.deleted);
+    if (!barrier || barrier.marker) throw new Error("Choose an active barrier without a count marker.");
+    await controller.select(id, false, false);
+    if (state.mode !== "physical" || scope !== state.physicalScope || controller !== state.physicalUI || sessionId !== state.session?.session_id) return;
+    setTool("count");
+    state.physicalPlacementTarget = { id, sessionId, documentId: state.document, page: state.page, controller };
+    message("Click the PDF to place this barrier's count marker, or choose Select to leave it unplaced.");
   }
   function renderCalibrations() {
     const calibrations = activePageCalibrations();
@@ -803,9 +870,9 @@
     if (visible && docId === state.document && page === state.page && state.ui) {
       const notice = `This page could not be rendered completely. Review and confirmation are blocked. ${error.message}`;
       state.pageError = { document_id: docId, page, notice };
-      cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false;
+      clearPdfTextLayer(); cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false;
       state.ui.empty.replaceChildren(node("strong", "", "Drawing unavailable"), node("p", "", error.message));
-      state.ui.progress.textContent = `Page ${page} blocked: ${error.message}`;
+      setProgress(`Page ${page} blocked: ${error.message}`);
       message(notice, true);
     }
     await command("record_render", { document_id: docId, page, success: false, warnings: [...documentWarnings(docId), error.message] }, guard).catch(() => {});
@@ -888,7 +955,7 @@
     while (state.pdfs.size > 2) { const oldest = [...state.pdfs.keys()].find(candidate => candidate !== key && candidate !== `${sessionId}/${state.document}`); if (!oldest) break; const evicted = state.pdfs.get(oldest); state.pdfs.delete(oldest); void evicted.destroy(); }
     try { const pdf = await entry.promise; entry.document = pdf; return pdf; } catch (error) { if (state.pdfs.get(key) === entry) state.pdfs.delete(key); entry.destroy(); throw error; }
   }
-  async function releaseDocuments() { cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; const tasks = [...state.pdfs.values()]; state.pdfs.clear(); state.pdfLoads.clear(); for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear(); state.thumbnailPages.clear(); state.pdfWarnings.clear(); state.consoleRestore?.(); await Promise.allSettled(tasks.map(task => task.destroy())); }
+  async function releaseDocuments() { clearPdfTextLayer(); cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; const tasks = [...state.pdfs.values()]; state.pdfs.clear(); state.pdfLoads.clear(); for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear(); state.thumbnailPages.clear(); state.pdfWarnings.clear(); state.consoleRestore?.(); await Promise.allSettled(tasks.map(task => task.destroy())); }
   async function autoCalibratePage(docId, page, sessionId, renderId) {
     const key = JSON.stringify([sessionId, docId, page]);
     state.autoScalePages ||= new Set();
@@ -926,20 +993,74 @@
     state.ui.canvas.style.width = `${viewport.width}px`; state.ui.canvas.style.height = `${viewport.height}px`;
     state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`);
     state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
+    positionPdfTextLayer(viewport);
     if (anchor) { const point = G.transform(anchor.point, viewport.transform); positionPage(anchor.offset[0] - point[0], anchor.offset[1] - point[1]); }
     else positionPage(Math.max(24, (state.ui.viewport.clientWidth - viewport.width) / 2), Math.max(24, (state.ui.viewport.clientHeight - viewport.height) / 2));
     state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; renderOverlay();
   }
+  function clearPdfTextSelection() {
+    const selection = window.getSelection?.(), container = state.pdfText?.container;
+    if (container && (container.contains(selection?.anchorNode) || container.contains(selection?.focusNode))) selection.removeAllRanges();
+  }
+  function clearPdfTextLayer() {
+    clearPdfTextSelection(); state.pdfTextGeneration = (state.pdfTextGeneration || 0) + 1;
+    state.pdfText?.task?.cancel(); state.pdfText?.container?.remove(); state.pdfText = null;
+  }
+  function positionPdfTextLayer(viewport = state.viewport) {
+    const text = state.pdfText;
+    if (!text?.container || !viewport || text.key !== state.displayKey) return;
+    // PDF.js text spans use unrotated, top-left page coordinates. Compose that
+    // basis with the exact bitmap transform, including CropBox and UserUnit.
+    // Scaling this one container keeps native selections intact during zoom.
+    const { pageX, pageY, pageWidth, pageHeight } = text.dims, [a, b, c, d, e, f] = viewport.transform;
+    text.container.style.width = `${pageWidth}px`; text.container.style.height = `${pageHeight}px`;
+    text.container.style.transform = `matrix(${a},${b},${-c},${-d},${a * pageX + c * (pageY + pageHeight) + e},${b * pageX + d * (pageY + pageHeight) + f})`;
+  }
+  function pdfTextProgress() {
+    if (state.tool !== "text") return;
+    const text = state.pdfText;
+    setProgress(text?.status === "empty" ? "This page has no selectable PDF text. Image-only pages cannot be copied as text."
+      : text?.status === "error" ? "PDF text selection is unavailable on this page. The original drawing remains visible."
+      : text?.status === "ready" ? "Drag over PDF text to select it, then press Ctrl+C to copy (⌘C on Mac)."
+      : "Loading selectable PDF text…");
+  }
+  async function ensurePdfTextLayer() {
+    if (!state.ui || !state.displayPage || !state.viewport || state.displayKey !== pageDisplayKey()) return;
+    const key = state.displayKey;
+    if (state.pdfText?.key === key) { positionPdfTextLayer(); pdfTextProgress(); return state.pdfText.promise; }
+    clearPdfTextLayer();
+    const generation = state.pdfTextGeneration, page = state.displayPage;
+    const text = state.pdfText = { key, status: "loading", dims: page.getViewport({ scale: 1, rotation: 0 }).rawDims };
+    const current = () => generation === state.pdfTextGeneration && state.pdfText === text && key === state.displayKey && key === pageDisplayKey();
+    pdfTextProgress();
+    text.promise = (async () => {
+      try {
+        const lib = await pdfLibrary(); if (!current()) return;
+        const content = await boundedPdf(page.getTextContent(), "Reading selectable PDF text", () => text.task?.cancel());
+        if (!current()) return;
+        const container = text.container = node("div", "takeoff-text-layer"); container.setAttribute("aria-label", "Original PDF text");
+        const task = text.task = new lib.TextLayer({ textContentSource: content, container, viewport: page.getViewport({ scale: 1, rotation: 0 }) });
+        await boundedPdf(task.render(), "Preparing selectable PDF text", () => task.cancel());
+        if (!current()) { task.cancel(); return; }
+        text.status = content.items.some(item => item.str?.trim()) ? "ready" : "empty";
+        container.dataset.textState = text.status; positionPdfTextLayer(); state.ui.pageWrap.append(container); pdfTextProgress();
+      } catch (error) {
+        if (!current()) return;
+        text.task?.cancel(); text.container?.remove(); text.container = null; text.status = "error"; pdfTextProgress();
+      }
+    })();
+    return text.promise;
+  }
   async function renderPage(anchor = null, { refine = false } = {}) {
     cancelQueuedZoom();
-    if (!state.ui || !state.document) { ++state.renderId; state.pending?.cancel?.(); state.pending = null; state.displayPage = null; state.displayKey = null; state.viewport = null; if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
+    if (!state.ui || !state.document) { clearPdfTextLayer(); ++state.renderId; state.pending?.cancel?.(); state.pending = null; state.displayPage = null; state.displayKey = null; state.viewport = null; if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
     const contextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode]);
     if (state.planContextKey !== contextKey) { resetPlanInteraction(); state.planContextKey = contextKey; }
     const renderId = ++state.renderId, docId = state.document, pageNumber = state.page, sessionId = state.session.session_id, displayKey = pageDisplayKey(), zoom = state.zoom;
     const retainDisplay = refine && state.displayKey === displayKey && !!state.viewport;
-    state.ui.page.value = String(pageNumber); state.ui.pageCount.textContent = `/ ${currentDocument().pages.length}`; state.ui.progress.textContent = `Rendering ${currentDocument().name}, page ${pageNumber}…`;
+    state.ui.page.value = String(pageNumber); state.ui.pageCount.textContent = `/ ${currentDocument().pages.length}`; setProgress(`Rendering ${currentDocument().name}, page ${pageNumber}…`);
     state.zoomAnchor = anchor;
-    if (!retainDisplay) { state.viewport = null; state.displayPage = null; state.displayKey = null; if (!anchor) state.ui.pageWrap.hidden = true; state.ui.overlay.replaceChildren(); }
+    if (!retainDisplay) { clearPdfTextLayer(); state.viewport = null; state.displayPage = null; state.displayKey = null; if (!anchor) state.ui.pageWrap.hidden = true; state.ui.overlay.replaceChildren(); }
     state.ui.empty.hidden = true;
     state.pending?.cancel?.(); state.pending = null;
     for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear();
@@ -954,6 +1075,7 @@
       await boundedPdf(render.promise, `Rendering PDF page ${pageNumber}`, () => { render.cancel(); discardPdf(docId, sessionId, pdf); }); if (renderId !== state.renderId || sessionId !== state.session?.session_id) return;
       state.ui.canvas.replaceWith(canvas); state.ui.canvas = canvas; state.viewport = viewport; state.displayPage = page; state.displayKey = displayKey; state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`); state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
       state.ui.pageWrap.hidden = false;
+      positionPdfTextLayer(viewport);
       if (retainDisplay) {
         // Panning/scrolling while the new bitmap renders must not snap back to
         // the position at which that render started. Its CSS size is unchanged.
@@ -961,7 +1083,7 @@
         const position = G.transform(anchor.point, viewport.transform);
         positionPage(anchor.offset[0] - position[0], anchor.offset[1] - position[1]);
       } else positionPage(Math.max(24, (state.ui.viewport.clientWidth - viewport.width) / 2), Math.max(24, (state.ui.viewport.clientHeight - viewport.height) / 2));
-      state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; state.ui.progress.textContent = `${currentDocument().name} · Page ${pageNumber} · Original source`; renderOverlay();
+      state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; setProgress(`${currentDocument().name} · Page ${pageNumber} · Original source`); renderOverlay();
       const warnings = documentWarnings(docId);
       const previous = snapshot()?.render_checks?.find(check => check.document_id === docId && check.page === pageNumber);
       const alreadyVerified = retainDisplay && !warnings.length && previous?.success === true && !previous.warnings.length && previous.sha256 === documentById(docId)?.sha256;
@@ -969,6 +1091,7 @@
       if (warnings.length) message(`PDF content could not be verified. Review and confirmation are blocked. ${warnings.join(" ")}`, true);
       else if (state.pageError?.document_id === docId && state.pageError.page === pageNumber) { if (state.ui.message.textContent === state.pageError.notice) message(); state.pageError = null; }
       if (!warnings.length) await autoCalibratePage(docId, pageNumber, sessionId, renderId);
+      if (renderId === state.renderId && state.tool === "text") void ensurePdfTextLayer();
       void renderThumbnails(pdf, renderId, docId);
     } catch (error) {
       if (renderId !== state.renderId || error.name === "RenderingCancelledException") return;
@@ -1048,24 +1171,26 @@
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
     if (!state.viewport && tool !== "select" && tool !== "pan") throw new Error("Open a successfully rendered page first.");
     if (state.points.length) throw new Error("Finish or cancel the current trace first.");
-    if (state.mode === "physical" && !["select", "pan", "calibrate", "viewport", "count"].includes(tool)) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
+    if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count"].includes(tool)) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
-    if (!["select", "pan"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
+    if (!["select", "pan", "text"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
     if (["trace", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
     if (state.pendingViewport && tool !== "calibrate") throw new Error("Calibrate or cancel the unfinished viewport first.");
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null; state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
-    state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
+    if (tool !== "text") clearPdfTextSelection();
+    state.physicalPlacementTarget = null; state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
     if (tool === "calibrate" && state.ui.scaleControls) toggleScaleControls(false);
     if (tool === "count") { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     // Select-only handles must not intercept the first pan or trace pointer.
     renderOverlay();
     state.ui.viewport.focus();
-    state.ui.progress.textContent = ({ count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool];
-    if (tool === "count" && state.mode === "physical") state.ui.progress.textContent = "Click the drawing to place one barrier marker. Enter or select its substrate details, then add its services in Item Details. Each marker's callout updates from those records; drawing scale does not change service quantities.";
+    setProgress(({ count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool] || "");
+    if (tool === "count" && state.mode === "physical") setProgress("Click the drawing to place one barrier marker. Enter or select its substrate details, then add its services in Item Details. Each marker's callout updates from those records; drawing scale does not change service quantities.");
+    if (tool === "text") void ensurePdfTextLayer();
   }
-  function cancelTrace() { cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
+  function cancelTrace() { clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
   function resetCountDraft() {
     for (const entry of state.countEntries) clearTimeout(entry.timer);
     state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
@@ -1245,6 +1370,7 @@
     document.addEventListener("focusin", outside, { signal: controller.signal });
   }
   function resetPlanInteraction() {
+    toggleCountControls(false); state.physicalPlacementTarget = null;
     state.panCleanup?.();
     if (state.countContinuation) cancelTrace();
     deactivatePlan(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null;
@@ -1417,6 +1543,9 @@
     if (!reply) return;
     state.selected = new Set(reply.created_item_ids); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.settingsEditor = null; renderSelection();
     message(`Pasted ${reply.created_item_ids.length} new unconfirmed Length markup${reply.created_item_ids.length === 1 ? "" : "s"}. The register now uses the destination drawing scale.`);
+  }
+  function planContextMenu(event) {
+    if (state.points.length || !["select", "pan", "text"].includes(state.tool)) { event.preventDefault(); cancelTrace(); }
   }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
@@ -1924,14 +2053,16 @@
     state.physicalPlacing = true; working(state.busy);
     try {
       const selected = controller.selectedBarrier(), selectedDefect = physicalGraph()?.defects?.find(entity => state.physicalSelected.has(entity.id) && !entity.deleted);
-      let reuse = false;
-      if (selected && !selected.marker) {
+      const placement = state.physicalPlacementTarget;
+      const explicitTarget = placement?.controller === controller && placement.sessionId === sessionId && placement.documentId === state.document && placement.page === state.page && selected?.id === placement.id && !selected.marker;
+      let reuse = explicitTarget;
+      if (!explicitTarget && selected && !selected.marker) {
         const choice = await ask("Place barrier marker", [["barrier", "Barrier", [["existing", `Use selected ${selected.display_id}`], ["new", "Create a new substrate"]], "existing", true]], "One marker locates one barrier and its services. Reusing a barrier does not create additional services or quantities.", "Continue");
         if (!choice) return; current(); reuse = choice.barrier === "existing";
       }
       current();
       const id = reuse ? await controller.setMarker(selected.id, marker) && selected.id : await controller.create("barrier", selected?.defect_id || selectedDefect?.id, marker);
-      if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); await controller.select(id, false, false); setPhysicalDetailsOpen(true); renderOverlay(); }
+      if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); await controller.selectDrawing(id, false, false); setPhysicalDetailsOpen(true); renderOverlay(); }
     } finally { state.physicalPlacing = false; working(state.busy); window.CeasefireProject?.changed?.(); }
   }
   function physicalMarkerReference(entity) {
@@ -1959,7 +2090,7 @@
       const valid = current(); try { if (valid) move(next); } finally { state.gesture = null; gesture.cleanup(); }
       next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
       if (!valid) { renderOverlay(); message("The barrier marker changed during the drag. Select it again.", true); return; }
-      if (!gesture.moved) { void safely(() => state.physicalUI.select(entity.id, next.ctrlKey || next.metaKey || next.shiftKey, false)); return; }
+      if (!gesture.moved) { void safely(() => state.physicalUI.selectDrawing(entity.id, next.ctrlKey || next.metaKey || next.shiftKey, false)); return; }
       void safely(async () => {
         requireFinishedEdits(); const currentEntity = physicalMarkerTarget(reference), point = currentEntity.marker.point.map((value, axis) => value + gesture.delta[axis]);
         const view = pageMetadata()?.view;
@@ -2001,7 +2132,7 @@
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + 6 * scale, y: y + (index + 1) * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
     const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: "#b90a15", stroke: selected ? "#fff" : "#b90a15", "stroke-width": Math.max(1, 2 * markerScale), "pointer-events": "none" });
     const hit = svg("circle", { cx: point[0], cy: point[1], r: Math.max(radius, 9), class: "takeoff-physical-marker-hit", fill: "transparent", stroke: "none", "pointer-events": "all", role: "button", tabindex: 0, "aria-label": `Count marker ${entity.display_id} · ${summary}`, "aria-pressed": String(selected), "data-physical-id": entity.id });
-    const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); if (Date.now() < (state.suppressSelectionClickUntil || 0)) return; void safely(() => state.physicalUI.select(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); };
+    const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); if (Date.now() < (state.suppressSelectionClickUntil || 0)) return; void safely(() => state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); };
     for (const target of [hit, callout]) {
       target.addEventListener("click", choose);
       target.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
@@ -2032,8 +2163,8 @@
       const path = G.polygonPath({ kind: "polygon", points: reference.region, exclusions: [] }, state.viewport.transform), first = G.transform(reference.region[0], state.viewport.transform);
       const shape = svg("path", { d: path, class: `takeoff-shape takeoff-physical-shape${state.physicalSelected.has(entity.id) ? " selected" : ""}${state.physicalHovered === entity.id ? " hovered" : ""}` });
       const hit = svg("path", { d: path, class: "takeoff-hit takeoff-area-hit", role: "button", tabindex: 0, "aria-label": `${kind}: ${entity.fields.label || entity.id} · unapproved draft evidence` }); hit.dataset.physicalId = entity.id;
-      hit.addEventListener("click", event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => state.physicalUI.select(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
-      hit.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(() => state.physicalUI.select(entity.id, event.ctrlKey || event.metaKey, false)); } });
+      hit.addEventListener("click", event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
+      hit.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(() => state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey, false)); } });
       hit.addEventListener("pointerenter", () => state.physicalUI?.hover(entity.id)); hit.addEventListener("pointerleave", () => state.physicalUI?.hover(null));
       const label = svg("text", { x: first[0] + 6, y: first[1] - 7, class: "takeoff-label" }); label.textContent = `${kind}: ${entity.fields.label || entity.id.slice(0, 8)}`; overlay.append(shape, hit, label);
     }
@@ -2050,13 +2181,84 @@
     return item.state === "confirmed" && !issues.length ? { key: "confirmed", label: "Confirmed" } : { key: "unconfirmed", label: "Unconfirmed" };
   }
   function issueText(value) { return typeof value === "string" ? value : value?.message || value?.detail || value?.code || JSON.stringify(value); }
+  const ductFilterColumns = { confirmation: "Confirmation", mark: "Duct ID", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" };
+  function ductFilters() {
+    const sessionId = state.session?.session_id || null;
+    if (state.ductFilterSession !== sessionId) { state.ductColumnFilters.clear(); state.ductFilterSession = sessionId; }
+    return state.ductColumnFilters;
+  }
+  function ductFilterValue(item, key) {
+    return String(key === "confirmation" ? reviewStatus(item).label : key === "duct_size" ? formatDuctSize(item.fields || {}) : item.fields?.[key] ?? "").trim();
+  }
+  function ductColumnValues(key) {
+    // Stable choices across other column filters and register searches; selected
+    // values remain available to clear even after an item is edited or deleted.
+    return [...new Set([...items().filter(item => item.mode === "duct").map(item => ductFilterValue(item, key)), ...(ductFilters().get(key) || [])])]
+      .sort((a, b) => a.localeCompare(b, "en-AU", { numeric: true }));
+  }
+  function setDuctColumnFilter(key, selected, allValues = ductColumnValues(key)) {
+    if (!Object.hasOwn(ductFilterColumns, key)) return;
+    const filters = ductFilters();
+    if (selected === null || allValues.length > 0 && allValues.every(value => selected.has(value))) filters.delete(key);
+    else filters.set(key, new Set(selected));
+    state.offset = 0; renderRegister(); renderOverlay();
+  }
+  async function openDuctColumnFilter(key, anchor) {
+    if (state.modal || state.mode !== "duct" || !Object.hasOwn(ductFilterColumns, key)) return;
+    const sessionId = state.session?.session_id, values = ductColumnValues(key), selected = new Set(ductFilters().get(key) ?? values);
+    const label = ductFilterColumns[key], dialog = node("dialog", "takeoff-column-filter"), heading = node("h2", "", `Filter ${label}`);
+    heading.id = `takeoff-column-filter-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id);
+    const search = node("input"); search.type = "search"; search.placeholder = "Search values…"; search.setAttribute("aria-label", `Search ${label} values`);
+    const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; all.setAttribute("aria-label", "Select all values"); allLabel.append(all, node("span", "", "Select all"));
+    const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); choices.setAttribute("aria-label", `${label} values`);
+    let matching = values;
+    const updateAll = () => { const count = matching.filter(value => selected.has(value)).length; all.checked = !!matching.length && count === matching.length; all.indeterminate = count > 0 && count < matching.length; all.disabled = !matching.length; };
+    const renderChoices = () => {
+      const query = search.value.trim().toLowerCase(); matching = values.filter(value => (value || "(Blanks)").toLowerCase().includes(query)); choices.replaceChildren();
+      for (const value of matching) {
+        const choice = node("label", "takeoff-column-filter-choice"), check = node("input"); check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
+        check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); });
+        choice.append(check, node("span", "", value || "(Blanks)")); choices.append(choice);
+      }
+      if (!matching.length) choices.append(node("p", "takeoff-column-filter-empty", "No matching values"));
+      updateAll();
+    };
+    search.addEventListener("input", renderChoices);
+    all.addEventListener("change", () => { for (const value of matching) all.checked ? selected.add(value) : selected.delete(value); renderChoices(); });
+    const actions = node("div", "takeoff-column-filter-actions");
+    actions.append(button("Apply filter", () => dialog.close("apply"), "button primary"), button("Reset filter", () => dialog.close("reset")), button("Cancel", () => dialog.close("cancel")));
+    dialog.append(heading, search, allLabel, choices, actions); renderChoices();
+    state.modal = true; anchor.setAttribute("aria-expanded", "true"); document.body.append(dialog);
+    try {
+      const result = await new Promise(resolve => {
+        dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true }); dialog.showModal();
+        const bounds = anchor.getBoundingClientRect(), box = dialog.getBoundingClientRect();
+        dialog.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - box.width - 8))}px`;
+        dialog.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - box.height - 8))}px`;
+        search.focus();
+      });
+      if (["apply", "reset"].includes(result) && sessionId === state.session?.session_id && state.mode === "duct") setDuctColumnFilter(key, result === "reset" ? null : selected, values);
+    } finally { state.modal = false; anchor.setAttribute("aria-expanded", "false"); dialog.remove(); }
+  }
+  function ductColumnFilterButton(key) {
+    const active = ductFilters().has(key), label = ductFilterColumns[key];
+    const control = button(`Filter ${label}`, () => openDuctColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`);
+    const icon = svg("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", class: "takeoff-column-filter-icon" }); icon.append(svg("path", { d: "M3 5h18l-7 8v6l-4 2v-8z", fill: active ? "currentColor" : "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linejoin": "round" }));
+    control.replaceChildren(icon); control.setAttribute("aria-label", `Filter ${label}`); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`;
+    return control;
+  }
   function visibleItems() {
     const result = items().filter(item => item.mode === state.mode && (!state.filter || [item.id, ...Object.values(item.fields || {})].join(" ").toLowerCase().includes(state.filter)));
+    if (state.mode === "duct") {
+      const filters = ductFilters();
+      return result.filter(item => [...filters].every(([key, values]) => values.has(ductFilterValue(item, key))))
+        .sort((a, b) => String(a.fields?.mark || "").localeCompare(String(b.fields?.mark || ""), "en-AU", { numeric: true }));
+    }
     const filter = state.ui?.statusFilter.value;
     return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => ["length", "area"].includes(state.sort) ? (itemResult(a)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) - (itemResult(b)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) : String(state.sort === "state" ? reviewStatus(a).label : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? reviewStatus(b).label : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
   }
-  function itemGroup(item) { return state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
-  function groupedItems(list = visibleItems()) { return state.group ? [...list].sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : list; }
+  function itemGroup(item) { return state.mode !== "duct" && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
+  function groupedItems(list = visibleItems()) { return state.mode !== "duct" && state.group ? [...list].sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : list; }
   async function selectItem(id, multiple = false, focus = true) {
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
@@ -2124,6 +2326,7 @@
     const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), "Evidence / issues"];
     for (const title of headings) {
       const cell = node("th", "", title);
+      if (state.mode === "duct") { const key = Object.keys(ductFilterColumns).find(key => ductFilterColumns[key] === title); if (key) cell.append(ductColumnFilterButton(key)); }
       if (title === "Select" || title === "Hide") {
         const input = node("input"), set = title === "Select" ? state.selected : state.hidden, count = list.filter(item => set.has(item.id)).length; input.type = "checkbox"; input.checked = !!list.length && count === list.length; input.indeterminate = count > 0 && count < list.length; input.disabled = !list.length || state.busy; input.setAttribute("aria-label", title === "Select" ? "Select all matching items" : "Hide all matching items"); input.title = `${title} all ${list.length} matching items across register pages`;
         input.addEventListener("change", () => void safely(async () => { const checked = input.checked; if (title === "Select" && !await discardEditor()) { renderRegister(); return; } for (const item of list) { checked ? set.add(item.id) : set.delete(item.id); if (title === "Select") state.countSelection.delete(item.id); } renderSelection(); })); cell.append(input);
@@ -2137,7 +2340,7 @@
     state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((grouped.length - 1) / 100) * 100)));
     for (const item of grouped.slice(state.offset, state.offset + 100)) {
       const group = itemGroup(item);
-      if (state.group && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = headings.length; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
+      if (group !== null && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = headings.length; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
       if (group && state.collapsed.has(group)) continue;
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.addEventListener("pointerenter", () => hover(item.id)); row.addEventListener("pointerleave", () => hover(null));
       const checkCell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = state.selected.has(item.id); check.setAttribute("aria-label", `Select ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { await selectItem(item.id, true, false); check.checked = state.selected.has(item.id); })); checkCell.append(check);
@@ -2455,11 +2658,11 @@
         const initialized = await api(`/sessions/${sessionId}/uploads`, { filename: file.name, size: file.size }); const uploadId = initialized.upload_id;
         if (!uploadId) throw new Error("The server did not create an upload session.");
         for (let offset = 0; offset < file.size; offset += 8 * 1024 * 1024) {
-          state.ui.progress.textContent = `Uploading ${file.name}: ${Math.round(offset / file.size * 100)}% (${done + 1}/${files.length})`;
+          setProgress(`Uploading ${file.name}: ${Math.round(offset / file.size * 100)}% (${done + 1}/${files.length})`);
           const response = await fetch(`/api/takeoffs/sessions/${sessionId}/uploads/${uploadId}?offset=${offset}`, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: file.slice(offset, offset + 8 * 1024 * 1024) });
           if (!response.ok) { const error = await response.json(); throw new Error(error.error || "Upload chunk failed."); }
         }
-        state.ui.progress.textContent = `Checking original PDF and page metadata: ${file.name}…`;
+        setProgress(`Checking original PDF and page metadata: ${file.name}…`);
         const reply = await api(`/sessions/${sessionId}/uploads/${uploadId}/complete`, { expected_revision: state.session.revision }); accept(reply); done++; renderData();
       }
       message(`${done} original PDF${done === 1 ? "" : "s"} retained. Save the project to preserve its document bundle.`);
@@ -2477,12 +2680,12 @@
         let page, timedOut = false;
         try { page = await pdfPage(pdf, doc.id, metadata.page, sessionId); const content = await boundedPdf(page.getTextContent(), `Searching PDF page ${metadata.page}`, () => discardPdf(doc.id, sessionId, pdf)); if (run !== state.searchId || sessionId !== state.session?.session_id) return; checked++; if (!content.items.some(item => item.str?.trim())) empty++; for (const text of content.items) if (text.str?.toLocaleLowerCase().includes(query)) { const x = text.transform[4], y = text.transform[5], height = Math.max(1, text.height || Math.hypot(text.transform[2], text.transform[3])); const hit = { document_id: doc.id, page: metadata.page, points: [[x, y], [x + text.width, y + height]], text: text.str }; state.searchHits.push(hit); const el = button(`${doc.name} · p${metadata.page}: ${text.str}`, async () => { await navigateDocument(doc.id, metadata.page); renderOverlay(); focusGeometry({ geometry: { points: hit.points } }); }, "takeoff-search-result"); state.ui.searchResults.append(el); if (state.searchHits.length >= 500) break; } } catch (error) { if (run !== state.searchId || sessionId !== state.session?.session_id) return; failed++; if (error.name === "PdfTimeoutError") { timedOut = true; failed += doc.pages.length - metadata.page; await recordPdfFailure(doc.id, metadata.page, error, sessionId, false, () => run === state.searchId); } }
         finally { if (page && !(doc.id === state.document && metadata.page === state.page) && ![...state.thumbnailPages.values()].some(active => active.document_id === doc.id && active.page === metadata.page)) page.cleanup(); }
-        state.ui.progress.textContent = `Text search: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed`;
+        setProgress(`Text search: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed`);
         if (timedOut) break;
-        if (state.searchHits.length >= 500) { state.ui.progress.textContent += " · Stopped at 500 matches; coverage is incomplete."; renderOverlay(); return; }
+        if (state.searchHits.length >= 500) { setProgress(state.ui.progress.textContent + " · Stopped at 500 matches; coverage is incomplete."); renderOverlay(); return; }
       }
     }
-    state.ui.progress.textContent = `Text search complete: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed. Scanned pages require visual inspection.`; renderOverlay();
+    setProgress(`Text search complete: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed. Scanned pages require visual inspection.`); renderOverlay();
   }
   async function transfer(updateLinked) {
     await flushSettings();

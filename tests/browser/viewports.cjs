@@ -157,7 +157,14 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const calibrate = page.locator('#takeoff-scale-controls [data-tool="calibrate"]');
   await expect(calibrate.locator('svg')).toHaveCount(0);
   assert.deepEqual(await calibrate.evaluate(el => [el.previousElementSibling.id, el.nextElementSibling.textContent]), ['takeoff-calibration', 'Edit calibration']);
-  assert.equal(await page.getByRole('group', { name: 'Drawing downloads', exact: true }).evaluate(el => el.previousElementSibling.getAttribute('aria-label')), 'Takeoff modes');
+  assert.deepEqual(await page.getByRole('group', { name: 'Drawing downloads', exact: true }).evaluate(el => {
+    const panel = el.previousElementSibling;
+    return { grouped: panel.classList.contains('takeoff-tab-panel'), lists: [...panel.children].map(list => ({ role: list.getAttribute('role'), label: list.getAttribute('aria-label') })) };
+  }), { grouped: true, lists: [{ role: 'tablist', label: 'Takeoff modes' }, { role: 'tablist', label: 'Penetration workspaces' }] });
+  const modeTabs = page.getByRole('tablist', { name: 'Takeoff modes', exact: true });
+  await expect(modeTabs).toBeVisible(); await expect(modeTabs.getByRole('tab')).toHaveText(['STEEL', 'DUCT', 'PENETRATIONS', 'WALLS', 'SLABS']);
+  await expect(modeTabs.getByRole('tab', { name: 'STEEL', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.takeoff-tab-panel > .takeoff-physical-tabs')).toBeHidden();
   await scaleToggle.click(); await expect(scaleToggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeFocused();
   await page.getByLabel('Drawing calibration', { exact: true }).press('Escape');
@@ -350,7 +357,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   // Rectangular duct default, and a cited drop is added once per physical run.
   await page.locator('[data-mode="duct"]').click();
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await draw([[400, 450], [600, 450]], true);
-  state = await command(() => dialog('Add duct object', { 'Duct ID': 'DUCT-DROP', 'Count/QTY': 2 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Item': 'DUCT-DROP', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const ductId = state.snapshot.items.find(item => item.mode === 'duct').id;
   assert.equal(state.snapshot.items.find(item => item.id === ductId).fields.shape, 'rectangular');
   await expect(page.locator('#takeoff-markup-settings').getByLabel('Shape', { exact: true })).toHaveCount(0);

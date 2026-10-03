@@ -94,7 +94,7 @@ function assertCopy(original, copy, response, point, length) {
 }
 async function assertRow(copy, response) {
   await expect(row(copy.id)).toBeVisible(); await expect(row(copy.id).getByRole('checkbox', { name: /^Select / })).toBeChecked();
-  await expect(row(copy.id).getByLabel(copy.mode === 'steel' ? 'Member mark' : 'Duct ID', { exact: true })).toHaveValue(copy.fields.mark);
+  await expect(row(copy.id).getByLabel(copy.mode === 'steel' ? 'Member mark' : 'Item', { exact: true })).toHaveValue(copy.fields.mark);
   await expect(row(copy.id).getByLabel('Level', { exact: true })).toHaveValue(copy.fields.level);
   await expect(row(copy.id).getByLabel('Quantity', { exact: true })).toHaveValue(String(copy.quantity));
   const length = response.item_results.find(value => value.id === copy.id).length_m;
@@ -164,14 +164,14 @@ async function saveLoad(info) {
   reply = await paste([220, 320]); const crossPage = reply.snapshot.items.find(item => item.id === reply.created_item_ids[0]), currentSteel = reply.snapshot.items.find(item => item.id === steel.id);
   assertCopy(currentSteel, crossPage, reply, [220, 320], length / 4); assert.equal(crossPage.geometry.page, 1); await assertRow(crossPage, reply);
   evidence.crossPageScale = { from: length, to: length / 4, sourceUserUnit: 2, destinationUserUnit: 1 };
-  const duct = await create('duct', [[200, 250], [380, 250]], { 'Duct ID': 'COPY-DUCT', 'Level': 'L01', 'WxH (mm)': '600x400', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 2, 'Floor penetrations': 1, 'Count/QTY': 3 });
+  const duct = await create('duct', [[200, 250], [380, 250]], { 'Item': 'COPY-DUCT', 'Level': 'L01', 'WxH (mm)': '600x400', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 2, 'Floor penetrations': 1, 'Count/QTY': 3 });
   await page.unroute('**/commands');
   await copy(duct.id); reply = await paste([420, 330]); const copiedDuct = reply.snapshot.items.find(item => item.id === reply.created_item_ids[0]);
   const ductLength = reply.item_results.find(item => item.id === duct.id).length_m;
   assertCopy(duct, copiedDuct, reply, [420, 330], ductLength); await assertRow(copiedDuct, reply);
   console.log('Steel/Duct paste, repeated identities, cross-page scale, native text clipboard and stale-source rejection passed.');
   await page.locator('[data-mode="steel"]').click();
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([550, 220]));
+  await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await page.mouse.click(...await screen([550, 220]));
   await dialog('Counted member length', { 'Length per member (m)': 4.25 }, 'Place marker');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.waitForFunction(() => { const value = JSON.parse(window.CeasefireTakeoffs.projectFingerprint()); return !value.modal && value.countEntries.length === 1 && value.countEntries[0].length_m === 4.25; });

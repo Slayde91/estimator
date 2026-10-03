@@ -21,7 +21,7 @@
   const surfaceHelp = "Trace one actual treatment surface in true projection. A wall plan footprint is not its wall-face surface. No height, second face or multiplier is inferred. Use elevations for wall faces and a stated soffit/top view for slabs. Distorted or perspective views cannot establish calibrated surface areas.";
   const fields = {
     steel: [["mark", "Member mark"], ["level", "Level"], ["member_type", "Member type", ["Beam", "Column"]], ["section", "Steel section"], ["product", "Product", []], ["fire_period_min", "Fire period (min)", []], ["sides", "Exposed sides", "number"], ["critical_temperature", "Crit. Temp (°C)", []], ["exposure", "Exposure", []], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
-    duct: [["mark", "Duct ID"], ["level", "Level"], ["duct_size", "WxH (mm)"], ["product", "Product", []], ["exposure", "Exposure", []], ["frl", "FRL", []], ["orientation", "Orientation", ["Horizontal", "Vertical", "Both"]], ["wall_penetrations", "Wall penetrations", "number"], ["floor_penetrations", "Floor penetrations", "number"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
+    duct: [["mark", "Item"], ["level", "Level"], ["duct_size", "WxH (mm)"], ["product", "Product", []], ["exposure", "Exposure", []], ["frl", "FRL", []], ["orientation", "Orientation", ["Horizontal", "Vertical", "Both"]], ["wall_penetrations", "Wall penetrations", "number"], ["floor_penetrations", "Floor penetrations", "number"], ["zone", "Zone"], ["group", "Group"], ["notes", "Notes"]],
     wall: [["mark", "Wall ID"], ["surface_basis", "Surface basis", [["wall-face", "Wall face (true elevation)"]]], ...areaFields],
     slab: [["mark", "Slab / zone ID"], ["surface_basis", "Surface basis", [["slab-soffit", "Slab soffit"], ["slab-top", "Slab top"]]], ...areaFields],
   };
@@ -46,12 +46,27 @@
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
   const selectedItems = () => items().filter(item => state.selected.has(item.id) && item.mode === state.mode);
   const editableFields = (mode, calculator = state.ui?.target?.value) => (fields[mode] || []).filter(([key]) => !["zone", "group", "notes"].includes(key) && (key !== "sides" || calculator === "steel_board"));
-  const isCount = item => item?.geometry?.kind === "count";
+  const isStandalone = item => ["count-only", "length-only"].includes(item?.purpose);
+  const isSurface = item => isArea(item?.mode) && !isStandalone(item);
+  const isCount = item => ["count", "count-only"].includes(item?.geometry?.kind);
+  const standaloneFields = [["mark", "Item"], ["level", "Level"], ["duct_size", "WxH (mm)"], ["frl", "FRL", []], ["orientation", "Orientation", ["Horizontal", "Vertical", "Both"]]];
+  const itemFields = item => isStandalone(item) ? standaloneFields : editableFields(item.mode, "steel_board");
   // Register selection covers the complete row; drawing selection may cover
   // only named physical members of that row. Length groups are not move groups.
   const selectedCountMemberIds = item => !isCount(item) || !state.selected.has(item.id) ? [] : item.member_ids.filter(id => !state.countSelection.has(item.id) || state.countSelection.get(item.id).has(id));
-  const countBatchItems = item => items().filter(value => isCount(value) && value.count_id === item.count_id);
-  const settingsSelectedItems = () => { const selected = [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean); const batches = new Set(selected.filter(isCount).map(item => item.count_id)); return selected.concat(items().filter(item => !selected.includes(item) && isCount(item) && batches.has(item.count_id))); };
+  const countBatchItems = item => isStandalone(item) ? [item] : items().filter(value => isCount(value) && !isStandalone(value) && value.count_id === item.count_id);
+  const settingsSelectedItems = () => { const selected = [...state.selected].map(id => items().find(item => item.id === id && item.mode === state.mode)).filter(Boolean); const batches = new Set(selected.filter(item => isCount(item) && !isStandalone(item)).map(item => item.count_id)); return selected.concat(items().filter(item => !selected.includes(item) && isCount(item) && batches.has(item.count_id))); };
+  function bulkSelectionFields(selected = settingsSelectedItems()) {
+    const definitions = item => isStandalone(item) ? standaloneFields : editableFields(item.mode);
+    const choices = selected.length ? definitions(selected[0]).filter(([key]) => selected.every(item => definitions(item).some(([name]) => name === key))) : editableFields(state.mode);
+    return [...(!isArea() && !selected.some(isStandalone) ? [["quantity", "Quantity", "number"]] : []), ...choices];
+  }
+  function syncBulkFields() {
+    const control = state.ui?.bulkField; if (!control?.replaceChildren) return;
+    const previous = control.value, choices = bulkSelectionFields();
+    control.replaceChildren(...choices.map(([key, label]) => option(key, label)));
+    control.value = choices.some(([key]) => key === previous) ? previous : choices[0]?.[0] || "";
+  }
   const appearanceOf = item => ({ stroke_color: "#FF0000", fill_enabled: item.geometry?.kind === "polygon" || isCount(item), fill_color: "#FF0000", stroke_width: 2, opacity: 1, marker_shape: "circle", marker_size: 12, ...item.appearance });
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
@@ -70,6 +85,8 @@
     "Re-trace geometry": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
     "Delete item": "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
     "Count": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
+    "Count steel lengths": "M5 3v18M10 3v18M15 3v18M20 3v18M2 7l21 10",
+    "Length": "M1 6v12M23 6v12M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
     "Trace surface": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Add exclusion": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Scale": "M2 7h20v10H2zM6 7v5M10 7v3M14 7v5M18 7v3",
@@ -227,8 +244,16 @@
     const controls = definitions.map(def => { const field = formField(def, def[3]); if (def[4]) field.control.required = true; form.append(field.wrapper); return field; });
     const actions = node("div", "actions"), cancel = node("button", "button secondary", "Cancel"), apply = node("button", "button primary", action); cancel.type = "button"; cancel.addEventListener("click", () => dialog.close("cancel")); apply.type = "submit"; apply.value = "confirm"; actions.append(cancel, apply); form.append(actions); dialog.append(form); document.body.append(dialog);
     try {
-      if (setup) await setup(controls);
-      const accepted = await new Promise(resolve => { dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true }); dialog.showModal(); });
+      // Show the form immediately. Exact calculator choices load separately;
+      // submission stays disabled until their current request has completed.
+      let setupError = null, readinessManaged = false;
+      apply.disabled = !!setup;
+      const accepted = await new Promise(resolve => {
+        dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+        dialog.showModal();
+        if (setup) Promise.resolve().then(() => setup(controls, ready => { readinessManaged = true; if (dialog.open) apply.disabled = !ready; })).then(() => { if (dialog.open && !readinessManaged) apply.disabled = false; }).catch(error => { if (dialog.open) { setupError = error; dialog.close("setup-error"); } });
+      });
+      if (setupError) throw setupError;
       const result = accepted ? Object.fromEntries(controls.map(field => [field.control.name, field.read()])) : null;
       if (result && sessionId !== state.session?.session_id) throw new Error("The project changed during review. Repeat the action.");
       return result;
@@ -255,7 +280,7 @@
     ui.upload.addEventListener("change", () => { const files = [...ui.upload.files]; ui.upload.value = ""; void safely(() => upload(files)); });
     toolbar.append(button("Upload PDFs", () => { if (!state.busy) ui.upload.click(); }, "button primary"), ui.upload);
     ui.tools = {};
-    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
+    for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? setTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
     ui.countControls = node("div", "takeoff-toolbar takeoff-count-controls"); ui.countControls.id = "takeoff-count-controls"; ui.countControls.hidden = true; ui.countControls.setAttribute("role", "group"); ui.countControls.setAttribute("aria-label", "Defect report count");
     for (const [kind, label] of [["defect", "Add Defect"], ["barrier", "Add Barrier"], ["service", "Add Services"]]) ui.countControls.append(button(label, () => addPhysicalCountRecord(kind)));
@@ -313,7 +338,8 @@
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(headingControls, ui.physicalTabs, ui.message, workspace, ui.physicalContainer);
+    const tabPanel = node("div", "takeoff-tab-panel"); tabPanel.append(modes, ui.physicalTabs); headingControls.replaceChildren(tabPanel, drawingDownloads);
+    workspace.append(layout, register); root.append(headingControls, ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
@@ -350,11 +376,12 @@
     else state.ui.tools.settings.setAttribute("aria-controls", "takeoff-markup-settings");
   }
   function requireFinishedEdits() { if (physicalUnfinished() || state.physicalPlacing) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport) throw new Error("Apply or discard the unfinished item/settings edits and finish or cancel the current drawing operation first."); if (state.calibrationTarget) cancelTrace(); }
-  async function discardEditor() { await flushSettings(); if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.settingsDirty && !state.gesture && !state.points.length && !state.pendingViewport) { if (state.retraceId || state.exclusionItemId || state.calibrationTarget) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form, settings or current drawing has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; state.settingsDirty = false; state.settingsEditor = null; cancelTrace(); return true; }
+  async function discardEditor() { await state.physicalUI?.completePendingEdits?.(); await flushSettings(); if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits and finish their review first."); if (!state.formDirty && !state.settingsDirty && !state.gesture && !state.points.length && !state.pendingViewport) { if (state.retraceId || state.exclusionItemId || state.calibrationTarget) cancelTrace(); return true; } if (!await confirm("Discard unfinished edits?", "The item form, settings or current drawing has unapplied changes. Saved takeoff items are retained.", "Discard edits")) return false; state.formDirty = false; state.settingsDirty = false; state.settingsEditor = null; cancelTrace(); return true; }
   function renderData() {
     if (!state.ui) return;
     for (const el of state.ui.root.querySelectorAll("[data-mode]")) el.setAttribute("aria-selected", String(el.dataset.mode === state.mode));
     const physical = state.mode === "physical";
+    state.ui.tools.count.dataset.tool = physical ? "count" : "count-only";
     if (state.ui.tools.settings) state.ui.tools.settings.hidden = false; for (const [index, control] of (state.ui.drawingDownloads || []).entries()) control.hidden = physical && index === 0;
     state.ui.physicalTabs.hidden = !physical; for (const tab of state.ui.physicalTabs.querySelectorAll("button")) tab.setAttribute("aria-selected", String(tab.dataset.physicalScope === state.physicalScope));
     if (physical) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
@@ -365,7 +392,7 @@
     // Page/view scales are shared source metadata, even in the physical draft.
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
-      for (const tool of ["trace", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
+      for (const tool of ["trace", "countLength", "measure", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
       state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; state.ui.scaleAnchor.after(state.ui.countAnchor);
       state.ui.tools.count.setAttribute("aria-expanded", String(state.physicalScope === "defect_reports" && !state.ui.countControls.hidden));
       state.ui.tools.count.setAttribute("aria-controls", "takeoff-count-controls");
@@ -378,14 +405,14 @@
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
     state.ui.tools.trace.hidden = area;
-    state.ui.tools.count.hidden = state.mode !== "steel"; state.ui.countAnchor.hidden = state.mode !== "steel";
+    state.ui.tools.count.hidden = !["steel", "duct"].includes(state.mode); state.ui.countAnchor.hidden = !["steel", "duct"].includes(state.mode); state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = !area;
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
     state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => option(key, label))); state.ui.sort.value = state.sort;
     const targets = area ? [] : state.mode === "steel" ? [["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]] : [["ductwork", "Ductwork Schedule"]];
     const target = state.ui.target.value; state.ui.target.replaceChildren(...targets.map(([id, label]) => option(id, label))); if (targets.some(([id]) => id === target)) state.ui.target.value = target;
-    const oldBulk = state.ui.bulkField.value; state.ui.bulkField.replaceChildren(...(area ? [] : [option("quantity", "Quantity")]), ...editableFields(state.mode).map(([key, label]) => option(key, label))); if ((!area && oldBulk === "quantity") || editableFields(state.mode).some(([key]) => key === oldBulk)) state.ui.bulkField.value = oldBulk;
+    syncBulkFields();
     renderRail(); renderCalibrations(); renderRegister(); renderSettingsPanel(); renderOverlay(); working(state.busy);
   }
   async function refreshRegisterOptions() {
@@ -453,7 +480,7 @@
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
       ask, confirm, notify: message, changed: () => window.CeasefireProject?.changed?.(), source: physicalSource,
       scope: () => scope, inspectorContainer: state.ui.physicalDetails,
-      selectionChanged: () => { if (state.mode === "physical") setPhysicalDetailsOpen(true); },
+      selectionChanged: ({ selected }) => { if (state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
       fieldOptions: async () => {
         const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
         const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) });
@@ -533,7 +560,7 @@
     if (state.mode === "physical" && state.physicalScope === "defect_reports") {
       if (state.modal) throw new Error("Finish the current dialog first.");
       toggleCountControls();
-    } else setTool("count");
+    } else { setTool(state.mode === "physical" ? "count" : "count-only"); state.ui.tools.count.classList.add("takeoff-tool-active"); }
   }
   async function addPhysicalCountRecord(kind) {
     if (state.mode !== "physical" || state.physicalScope !== "defect_reports" || state.busy) return;
@@ -608,11 +635,11 @@
     if (editor && (editor.touched.size || editor.applying)) await applySettings(editor);
   }
   async function loadSettingsOptions(editor) {
-    const item = settingsSelectedItems()[0]; if (!item || isArea(item.mode)) return;
-    const calculator = state.ui.target.value, request = editor.optionRequest = (editor.optionRequest || 0) + 1;
+    const item = settingsSelectedItems()[0]; if (!item || isSurface(item) || item.purpose === "length-only") return;
+    const calculator = isStandalone(item) ? "ductwork" : state.ui.target.value, request = editor.optionRequest = (editor.optionRequest || 0) + 1;
     const product = editor.fields.find(field => field.control.name === "product")?.control.value || "", member = editor.fields.find(field => field.control.name === "member_type")?.control.value || "";
     const choices = await loadCalculatorOptions(calculator, product, member);
-    if (state.settingsEditor !== editor || request !== editor.optionRequest || calculator !== state.ui.target.value) return;
+    if (state.settingsEditor !== editor || request !== editor.optionRequest || (!isStandalone(item) && calculator !== state.ui.target.value)) return;
     populateCalculatorOptions(editor.fields, choices, calculator);
   }
   function renderSettingsPanel() {
@@ -627,7 +654,9 @@
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", countsOnly ? "Count Settings" : "Settings")); panel.replaceChildren(heading);
     if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); return; }
     if (existing) clearTimeout(existing.timer);
-    const first = selected[0], editor = { key, sessionId: state.session.session_id, revision: state.session.revision, ids: selected.map(item => item.id), touched: new Map(), fields: [], appearance: [], quantity: null, lengths: [] }; state.settingsEditor = editor;
+    const first = selected[0];
+    if (selected.some(item => (item.purpose || "standard") !== (first.purpose || "standard"))) { state.settingsEditor = null; panel.append(node("p", "helper", "Select counts, measurements or calculator items separately to edit their details.")); return; }
+    const editor = { key, sessionId: state.session.session_id, revision: state.session.revision, ids: selected.map(item => item.id), touched: new Map(), fields: [], appearance: [], quantity: null, lengths: [] }; state.settingsEditor = editor;
     const content = node("div", "takeoff-settings-fields"); panel.append(content);
     content.append(node("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
@@ -637,9 +666,9 @@
       if (def[0] === "marker_size") { field.control.min = "2"; field.control.max = "72"; }
     }
     content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
-    editor.fields = editableFields(first.mode, "steel_board").map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
+    editor.fields = itemFields(first).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
-      const counted = selected.filter(isCount);
+      const counted = selected.filter(item => isCount(item) && !isStandalone(item));
       counted.forEach((item, index) => {
         if (counted.length > 1) content.append(node("h4", "", `Length group ${index + 1}`));
         const quantity = formField(["count_quantity", "Count/QTY", "number"], item.quantity), length = formField(["length_m", "Length (m)", "number"], item.measurement.length_m);
@@ -649,7 +678,12 @@
         const row = node("div", "takeoff-count-length"), result = itemResult(item); row.dataset.itemId = item.id;
         row.append(node("p", "helper", `${item.quantity} markers · Manual base: ${formatLength(item.measurement.length_m)} m each${result.additions_length_m ? ` + additions: ${formatLength(result.additions_length_m)} m each` : ""} · Total: ${formatLength(result.total_length_m)} m`), button("Delete item", async () => { await flushSettings(); const current = items().filter(value => isCount(value) && value.member_ids.some(id => entry.memberIds.includes(id))); if (current.some(value => value.member_ids.some(id => !entry.memberIds.includes(id)))) throw new Error("The length groups combined. Select the current group before deleting it."); await deleteItems(current.map(value => value.id)); })); content.append(row);
       });
-    } else if (!isArea(first.mode)) { editor.quantity = formField(["quantity", "Count/QTY", "number"], first.quantity); bindSetting(editor, editor.quantity, "quantity"); content.append(editor.quantity.wrapper); }
+    }
+    if (isStandalone(first)) {
+      const total = selected.reduce((sum, item) => sum + item.quantity, 0), row = node("div", "takeoff-standalone-settings");
+      const quantity = formField(["total_count", first.purpose === "count-only" ? "Total Count/QTY" : "Length (m)", "number"], first.purpose === "count-only" ? total : itemResult(first).length_m); quantity.control.readOnly = true;
+      row.append(quantity.wrapper, node("p", "helper", first.purpose === "count-only" ? "The total counts markers on the PDF. Add or remove a marker to change it." : "Length follows the calibrated source points."), button("Delete item", async () => { await flushSettings(); await deleteItems(selected.map(item => item.id)); })); content.append(row);
+    } else if (!isCount(first) && !isSurface(first)) { editor.quantity = formField(["quantity", "Count/QTY", "number"], first.quantity); bindSetting(editor, editor.quantity, "quantity"); content.append(editor.quantity.wrapper); }
     if (selected.length === 1 && !isCount(first)) renderItemSettingsTools(content, first, editor);
     void safely(() => loadSettingsOptions(editor));
   }
@@ -701,7 +735,7 @@
         state.settingsDirty = editor.touched.size > 0;
         // Preserve controls/focus during ordinary typing. Length regrouping
         // is refreshed after this edit settles so quantities remain truthful.
-        const countRows = settingsSelectedItems().filter(isCount);
+        const countRows = settingsSelectedItems().filter(item => isCount(item) && !isStandalone(item));
         if (countRows.length !== editor.lengths.length || editor.lengths.some(entry => !countRows.some(item => item.id === entry.itemId && JSON.stringify(item.member_ids) === JSON.stringify(entry.memberIds)))) editor.revision = -1;
         else {
           editor.revision = state.session.revision;
@@ -1169,6 +1203,8 @@
   function setTool(tool, target = {}) {
     if (state.busy) return;
     if (state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current count or dialog first.");
+    if (tool === "count-only" && !["steel", "duct"].includes(state.mode)) throw new Error("Count-only items belong to Steel or Duct.");
+    if (tool === "measure" && !isArea()) throw new Error("Length measurements belong to Walls or Slabs.");
     if (tool === "count" && !["steel", "physical"].includes(state.mode)) throw new Error("Count is available for steel members and penetration barriers.");
     if (tool === "count" && state.mode === "physical") { if (physicalGraph()?.version === 1) throw new Error("Legacy physical records remain read-only. Use Service Plans for new barrier markers."); if (physicalUnfinished()) throw new Error("Apply or discard unfinished physical edits before placing a marker."); }
     if (state.gesture) throw new Error("Finish or cancel the current selection or move first.");
@@ -1177,19 +1213,19 @@
     if (state.mode === "physical" && !["select", "pan", "text", "calibrate", "viewport", "count"].includes(tool)) throw new Error("Physical drafts use count markers and retained source regions. Length and area measurement tools belong to the other takeoff modes.");
     if (isArea() && ["trace", "cite"].includes(tool) || !isArea() && ["polygon", "exclusion"].includes(tool)) throw new Error("Choose a drawing tool for the current takeoff mode.");
     if (!["select", "pan", "text"].includes(tool) && (state.formDirty || state.settingsDirty)) throw new Error("Apply or discard the unfinished item edits or settings before using a drawing tool.");
-    if (["trace", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
+    if (["trace", "measure", "polygon"].includes(tool) && !state.calibration && !activePageCalibrations().length) throw new Error("Choose or create the applicable calibration before tracing.");
     if (state.pendingViewport && tool !== "calibrate") throw new Error("Calibrate or cancel the unfinished viewport first.");
     if (tool === "exclusion" && !target.exclusionItemId) throw new Error("Select one surface before adding an exclusion.");
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null; state.retraceId = target.retraceId || null; state.exclusionItemId = target.exclusionItemId || null; state.calibrationTarget = target.viewportId || null;
     if (tool !== "text") clearPdfTextSelection();
     state.physicalPlacementTarget = null; state.tool = tool; state.doubleClickEndpointValid = false; state.ui.viewport.dataset.tool = tool;
     if (tool === "calibrate" && state.ui.scaleControls) toggleScaleControls(false);
-    if (tool === "count") { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
+    if (["count", "count-only"].includes(tool)) { resetCountDraft(); state.settingsOpen = false; state.settingsEditor = null; state.viewportsOpen = false; renderSettingsPanel(); renderViewportPanel(); }
     for (const el of state.ui.root.querySelectorAll("[data-tool]")) if (el.tagName === "BUTTON") el.classList.toggle("takeoff-tool-active", el.dataset.tool === tool);
     // Select-only handles must not intercept the first pan or trace pointer.
     renderOverlay();
     state.ui.viewport.focus();
-    setProgress(({ count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool] || "");
+    setProgress(({ "count-only": "Click once for each item. Double-click or Enter finishes the count. These counts stay in this register.", measure: "Click along the length, then double-click or Enter to finish the measurement.", count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool] || "");
     if (tool === "count" && state.mode === "physical") setProgress("Click the drawing to place one barrier marker. Enter or select its substrate details, then add its services in Item Details. Each marker's callout updates from those records; drawing scale does not change service quantities.");
     if (tool === "text") void ensurePdfTextLayer();
   }
@@ -1199,7 +1235,11 @@
     state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
   }
   function refreshCountDraft() { state.points = state.countEntries.map(entry => entry.point); renderOverlay(); window.CeasefireProject?.changed?.(); }
-  function removePendingCount(entry) { clearTimeout(entry?.timer); state.countEntries = state.countEntries.filter(value => value !== entry); refreshCountDraft(); }
+  function removePendingCount(entry) {
+    clearTimeout(entry?.timer); state.countEntries = state.countEntries.filter(value => value !== entry);
+    if (state.tool === "count-only") { state.countLastClick = null; state.traceCursor = null; state.doubleClickEndpointValid = false; }
+    refreshCountDraft();
+  }
   function currentCountEntry(entry) { return entry.generation === state.countGeneration && state.tool === "count" && entry.sessionId === state.session?.session_id && entry.documentId === state.document && entry.page === state.page && state.countEntries.includes(entry); }
   function queueCountLength(entry) {
     clearTimeout(entry.timer);
@@ -1247,14 +1287,15 @@
     if (state.mode === "physical" && state.tool === "count" && event.detail > 1) return;
     // Re-rendering a hit shape after the first click can suppress the browser's
     // dblclick event. Its second click still carries detail=2 on the overlay.
-    if (["count", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
+    if (["count", "count-only", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
-    if (state.busy || state.modal || state.countFinishing || state.physicalPlacing || !state.viewport || !["calibrate", "trace", "count", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
+    if (state.busy || state.modal || state.countFinishing || state.physicalPlacing || !state.viewport || !["calibrate", "trace", "measure", "count-only", "count", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
     if (state.formDirty || state.settingsDirty) { message("Apply or discard the unfinished item edits or settings before continuing the drawing tool.", true); return; }
     if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
     const view = pageMetadata()?.view; if (view && (p[0] < view[0] || p[1] < view[1] || p[0] > view[2] || p[1] > view[3])) return;
+    if (state.tool === "count-only") { state.points.push(p); state.countEntries.push({ point: [...p] }); state.countLastClick = { timeStamp: event.timeStamp, client: [event.clientX, event.clientY] }; renderOverlay(); window.CeasefireProject?.changed?.(); return; }
     if (state.tool === "count") { void safely(() => state.mode === "physical" ? placePhysicalMarker(p) : stageCountMarker(p, event)); return; }
     if (state.pendingViewport && !inViewport(p, state.pendingViewport.region)) { message("Both calibration points must be inside the viewport.", true); return; }
     if (state.calibrationTarget) { const target = activePageCalibrations().find(value => value.id === state.calibrationTarget); if (!target?.region || !inViewport(p, target.region)) { message("Both calibration points must be inside the selected viewport.", true); return; } }
@@ -1263,7 +1304,7 @@
       state.doubleClickEndpointValid = true; state.traceCursor = null;
       renderOverlay(); window.CeasefireProject?.changed?.(); return;
     }
-    if (["trace", "polygon"].includes(state.tool) && !state.points.length && !state.retraceId) {
+    if (["trace", "measure", "polygon"].includes(state.tool) && !state.points.length && !state.retraceId) {
       const calibrations = activePageCalibrations(), scoped = calibrations.filter(value => value.region && inViewport(p, value.region));
       if (scoped.length > 1) { message("This point is on more than one viewport boundary. Start clearly inside one viewport.", true); return; }
       if (scoped.length) state.calibration = scoped[0].id;
@@ -1274,7 +1315,7 @@
       }
       renderCalibrations();
     }
-    if (["trace", "polygon", "exclusion"].includes(state.tool)) {
+    if (["trace", "measure", "polygon", "exclusion"].includes(state.tool)) {
       const calibration = (snapshot()?.calibrations || []).find(value => value.id === state.calibration);
       if (calibration?.region && !inViewport(p, calibration.region)) { message("This trace cannot leave its viewport. Split the object at the scale boundary.", true); return; }
       state.doubleClickEndpointValid = true;
@@ -1286,13 +1327,18 @@
   }
   async function finishTraceFromDoubleClick(event) {
     if (state.mode === "physical" && state.tool === "count") return;
+    if (state.tool === "count-only") {
+      event.preventDefault(); if (state.busy || state.modal || state.countFinishing) return;
+      const entry = state.countLastClick; if (entry && event.timeStamp - entry.timeStamp <= 700 && Math.hypot(event.clientX - entry.client[0], event.clientY - entry.client[1]) < 5) { state.points.pop(); state.countEntries.pop(); }
+      state.countLastClick = null; await finishStandaloneCount(); return;
+    }
     if (state.tool === "count") {
       event.preventDefault(); if (state.busy || state.modal || state.countFinishing) return;
       const entry = state.countLastClick;
       if (entry && currentCountEntry(entry) && event.timeStamp - entry.timeStamp <= 700 && Math.hypot(event.clientX - entry.client[0], event.clientY - entry.client[1]) < 5) removePendingCount(entry);
       state.countLastClick = null; await finishCount(); return;
     }
-    if (!["trace", "polygon", "exclusion", "viewport"].includes(state.tool)) return;
+    if (!["trace", "measure", "polygon", "exclusion", "viewport"].includes(state.tool)) return;
     event.preventDefault();
     if (!state.doubleClickEndpointValid || state.busy || state.modal || !state.viewport) return;
     state.doubleClickEndpointValid = false;
@@ -1322,13 +1368,13 @@
     state.panCleanup = done; element.addEventListener("pointermove", move); element.addEventListener("pointerup", done); element.addEventListener("pointercancel", done); element.addEventListener("lostpointercapture", done); element.setPointerCapture(event.pointerId);
   }
   function drawableItems() {
-    return visibleItems().filter(item => item.geometry && item.measurement && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
+    return visibleItems().filter(item => item.geometry && (item.measurement || item.purpose === "count-only") && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
   }
   async function clearDrawingSelection() {
     if (state.tool !== "select" || state.busy || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size)) return;
     if (!await discardEditor()) return;
     state.selected.clear(); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
-    if (state.mode === "physical") { state.physicalUI?.clearSelection(); state.physicalHovered = null; }
+    if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
     renderSelection();
   }
   function drawingPoint(event) {
@@ -1336,7 +1382,7 @@
     return G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
   }
   function tracePointerMove(event) {
-    if (!state.viewport || state.busy || state.modal || state.gesture || !state.points.length || !["polygon", "exclusion", "trace", "viewport"].includes(state.tool)) return;
+    if (!state.viewport || state.busy || state.modal || state.gesture || !state.points.length || !["polygon", "exclusion", "trace", "measure", "viewport"].includes(state.tool)) return;
     const point = drawingPoint(event), view = pageMetadata()?.view;
     if (view && (point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3])) { if (state.tool === "viewport") { state.traceCursor = null; renderOverlay(); } return; }
     const calibration = (snapshot()?.calibrations || []).find(value => value.id === state.calibration);
@@ -1509,8 +1555,8 @@
     if (state.busy || state.modal) throw new Error("Finish the current operation before continuing a count.");
     requireFinishedEdits(); const item = markupTarget(reference);
     if (!isCount(item) || item.member_ids[reference.index] !== memberId) throw new Error("This marker changed. Open its menu again.");
-    setTool("count"); state.countContinuation = { ...reference, countId: item.count_id, batch: JSON.stringify(countBatchItems(item)) };
-    message("Continue this Count by placing additional markers. Enter their lengths manually; the existing Count details apply. Double-click or Enter finishes; right-click cancels the new markers.");
+    setTool(isStandalone(item) ? "count-only" : "count"); state.countContinuation = { ...reference, countId: item.count_id, batch: JSON.stringify(countBatchItems(item)) };
+    message(isStandalone(item) ? "Continue this count by placing more markers. Double-click or Enter finishes; right-click cancels the new markers." : "Continue this Count by placing additional markers. Enter their lengths manually; the existing Count details apply. Double-click or Enter finishes; right-click cancels the new markers.");
   }
   function continuationTarget(reference) {
     // Re-rendering on zoom records render evidence and advances the revision.
@@ -1565,7 +1611,7 @@
       event.preventDefault();
       if (state.points.length) {
         if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
-        if (state.tool === "count") { removePendingCount(state.countEntries.at(-1)); return; }
+        if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; }
         state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); return;
       }
       if (state.tool !== "select" || state.mode === "physical") return;
@@ -1575,8 +1621,8 @@
       if (!reference) { if (selected.length > 1) message("Choose one control point before deleting from multiple selected markups."); return; }
       void safely(() => removeControlPoint(reference)); return;
     }
-    if (event.key === "Enter" && ["trace", "count", "polygon", "exclusion", "viewport"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
-    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (state.tool === "count") { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
+    if (event.key === "Enter" && ["trace", "measure", "count-only", "count", "polygon", "exclusion", "viewport"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
+    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
   }
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;
@@ -1658,6 +1704,35 @@
     }
     cancelTrace(); renderCalibrations();
   }
+  async function finishStandaloneCount() {
+    if (state.countFinishing || state.busy || state.modal || state.tool !== "count-only") return;
+    if (!state.points.length) return cancelTrace();
+    const markers = state.points.map(point => ({ point: [...point] })), continuation = state.countContinuation;
+    if (continuation) continuationTarget(continuation);
+    state.countFinishing = true;
+    try {
+      const details = continuation ? null : await ask("Add count", [...standaloneFields.map(def => [def[0], def[1], def[2] || "text", "", def[0] === "mark"])], "Count/QTY is the number of markers on this page.", "Add count", (controls, ready) => configureSteelCreation(controls, "ductwork", ready));
+      if (!continuation && !details) return cancelTrace();
+      const values = details ? { ...details, ...parseDuctSize(details.duct_size) } : null; if (values) delete values.duct_size;
+      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_standalone_count", { mode: state.mode, document_id: state.document, page: state.page, markers, fields: values, appearance: {} });
+      const ids = continuation ? [continuation.itemId] : reply.created_item_ids; cancelTrace(); state.selected = new Set(ids); state.settingsOpen = true; state.settingsEditor = null; renderSelection();
+    } finally { state.countFinishing = false; }
+  }
+  function renderStandaloneRegister(list, container) {
+    const table = node("table", "takeoff-standalone-register"), head = node("thead"), heading = node("tr"), body = node("tbody");
+    for (const label of ["Select", "Hide", "View/Edit", "Confirmation", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY"]) heading.append(node("th", "", label));
+    head.append(heading); table.append(head, body);
+    for (const item of list) {
+      const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.dataset.purpose = item.purpose;
+      for (const [label, set] of [["Select", state.selected], ["Hide", state.hidden]]) { const cell = node("td"), check = node("input"); check.type = "checkbox"; check.checked = set.has(item.id); check.setAttribute("aria-label", `${label} ${item.fields.mark || item.id}`); check.addEventListener("change", () => void safely(async () => { if (label === "Select") await selectItem(item.id, true, false); else { check.checked ? set.add(item.id) : set.delete(item.id); renderSelection(); } })); cell.append(check); row.append(cell); }
+      const actions = node("td"); actions.append(button("View", () => viewItem(item), "takeoff-row-link"), button("Edit item", () => openItemSettings(item), "text-button")); row.append(actions, node("td", "", reviewStatus(item).label));
+      const controls = [];
+      for (const def of standaloneFields) { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(item.fields) : item.fields[def[0]]); controls.push(field); field.control.addEventListener("change", () => void safely(async () => { await flushSettings(); requireFinishedEdits(); await command("update_item", { item_id: item.id, changes: { fields: def[0] === "duct_size" ? parseDuctSize(field.read()) : { [def[0]]: field.read() } } }); })); const cell = node("td"); cell.append(field.control); row.append(cell); }
+      row.append(node("td", "", item.purpose === "count-only" ? String(item.quantity) : formatLength(itemResult(item).length_m))); body.append(row);
+      const sessionId = state.session?.session_id; void loadCalculatorOptions("ductwork").then(choices => { if (table.isConnected && sessionId === state.session?.session_id) populateCalculatorOptions(controls, choices, "ductwork"); }).catch(error => { if (table.isConnected) message(error.message, true); });
+    }
+    container.append(node("h3", "", isArea() ? "Length measurements" : "Counts"), table);
+  }
   async function createDrawnItem(measurement, geometry, evidence = []) {
     if (isArea()) {
       const mode = state.mode;
@@ -1670,7 +1745,7 @@
       state.selected = new Set([id]); cancelTrace(); renderSelection(); return;
     }
     const mode = state.mode, calculator = state.ui.target.value;
-    const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", controls => configureSteelCreation(controls, calculator));
+    const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", (controls, ready) => configureSteelCreation(controls, calculator, ready));
     if (!details) return cancelTrace(); if (!Number.isInteger(details.quantity) || details.quantity < 1) throw new Error("Enter an explicit positive whole quantity.");
     const { quantity, duct_size, ...enteredFields } = details;
     if (mode === "duct") Object.assign(enteredFields, parseDuctSize(duct_size));
@@ -1703,13 +1778,14 @@
       else { let list = field.wrapper.querySelector("datalist"); if (!list) { list = node("datalist"); list.id = `takeoff-choices-${uuid()}`; field.wrapper.append(list); field.control.setAttribute("list", list.id); } list.replaceChildren(...values.map(value => option(value))); }
     }
   }
-  async function configureSteelCreation(controls, calculator) {
+  async function configureSteelCreation(controls, calculator, ready = () => {}) {
     const sessionId = state.session?.session_id; let request = 0;
     const refresh = async () => {
       const id = ++request, product = controls.find(field => field.control.name === "product")?.control.value || "", member = controls.find(field => field.control.name === "member_type")?.control.value || "";
+      ready(false);
       const choices = await loadCalculatorOptions(calculator, product, member);
       if (id !== request || sessionId !== state.session?.session_id) return;
-      populateCalculatorOptions(controls, choices, calculator);
+      populateCalculatorOptions(controls, choices, calculator); ready(true);
     };
     for (const key of ["product", "member_type"]) controls.find(field => field.control.name === key)?.control.addEventListener("change", () => void safely(refresh));
     await refresh();
@@ -1717,20 +1793,24 @@
   async function finishTrace() {
     if (state.mode === "physical" && state.tool === "count") { cancelTrace(); return; }
     if (state.formDirty || state.settingsDirty) throw new Error("Apply or discard the unfinished item edits or settings before completing the trace.");
+    if (state.tool === "count-only") return finishStandaloneCount();
     if (state.tool === "count") return finishCount();
     if (state.tool === "viewport") return createViewport();
     if (["polygon", "exclusion"].includes(state.tool)) return finishAreaTrace();
-    if (state.tool !== "trace" || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
+    if (!["trace", "measure"].includes(state.tool) || state.points.length < 2 || !G.length(state.points)) throw new Error("Trace at least two distinct points along one object.");
     if (!state.calibration) throw new Error("Choose the correct calibration.");
     const measurement = { method: "calibrated", calibration_id: state.calibration }, geometry = { document_id: state.document, page: state.page, points: clone(state.points) };
     if (state.retraceId) { const id = state.retraceId; await command("update_item", { item_id: id, changes: { geometry, measurement } }); cancelTrace(); state.selected = new Set([id]); renderSelection(); }
-    else await createDrawnItem(measurement, geometry);
+    else if (state.tool === "measure") {
+      const details = await ask("Add length measurement", [["mark", "Item", "text", "", true], ["level", "Level", "text", ""]], "Measured length follows this page's calibration.", "Add measurement");
+      if (!details) return cancelTrace(); const id = uuid(); await command("create_item", { item: { id, mode: state.mode, purpose: "length-only", geometry, measurement, quantity: 1, fields: details } }); state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection();
+    } else await createDrawnItem(measurement, geometry);
   }
   async function finishAreaTrace() {
     G.ring(state.points);
     if (state.tool === "exclusion") {
       const item = items().find(value => value.id === state.exclusionItemId);
-      if (!item || !isArea(item.mode) || !item.geometry || item.geometry.document_id !== state.document || item.geometry.page !== state.page) throw new Error("The surface changed. Cancel this trace and select the surface again.");
+      if (!item || !isSurface(item) || !item.geometry || item.geometry.document_id !== state.document || item.geometry.page !== state.page) throw new Error("The surface changed. Cancel this trace and select the surface again.");
       const details = await ask("Add excluded opening", [["note", "Exclusion source / reason", "textarea", "", true]], "This opening is subtracted once from the selected treatment surface. The server checks its geometry. Review and confirmation will be invalidated.", "Add exclusion");
       if (!details) return cancelTrace();
       const geometry = clone(item.geometry); geometry.exclusions.push({ id: uuid(), points: clone(state.points), note: details.note });
@@ -1743,16 +1823,19 @@
     const geometry = { kind: "polygon", document_id: state.document, page: state.page, points: clone(state.points), exclusions: previous?.geometry ? clone(previous.geometry.exclusions) : [] };
     if (previous?.geometry && (previous.geometry.document_id !== state.document || previous.geometry.page !== state.page) && geometry.exclusions.length) throw new Error("Remove existing exclusions before replacing the source page. Their coordinates cannot be moved to another drawing automatically.");
     if (previous) { await command("update_item", { item_id: previous.id, changes: { geometry, measurement } }); cancelTrace(); state.selected = new Set([previous.id]); renderSelection(); }
-    else await createDrawnItem(measurement, geometry);
+    else if (state.tool === "measure") {
+      const details = await ask("Add length measurement", [["mark", "Item", "text", "", true], ["level", "Level", "text", ""]], "Measured length follows this page's calibration.", "Add measurement");
+      if (!details) return cancelTrace(); const id = uuid(); await command("create_item", { item: { id, mode: state.mode, purpose: "length-only", geometry, measurement, quantity: 1, fields: details } }); state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection();
+    } else await createDrawnItem(measurement, geometry);
   }
   function areaTraceLimit() {
     const item = items().find(value => value.id === (state.tool === "exclusion" ? state.exclusionItemId : state.retraceId));
-    if (!item?.geometry || !isArea(item.mode)) return 1000;
+    if (!item?.geometry || !isSurface(item)) return 1000;
     return 1000 - item.geometry.exclusions.reduce((total, exclusion) => total + exclusion.points.length, 0) - (state.tool === "exclusion" ? item.geometry.points.length : 0);
   }
   async function startExclusion() {
     requireFinishedEdits(); const selected = selectedItems();
-    if (selected.length !== 1 || !isArea(selected[0].mode)) throw new Error("Select one wall or slab surface to add an exclusion.");
+    if (selected.length !== 1 || !isSurface(selected[0])) throw new Error("Select one wall or slab surface to add an exclusion.");
     const item = selected[0];
     if (!item.geometry) throw new Error("This surface has no source boundary. Use Attach source on current page before adding exclusions.");
     if (item.geometry.exclusions.length >= 64) throw new Error("A surface supports up to 64 exclusions.");
@@ -1868,7 +1951,7 @@
         const attrs = { x: point[0] - radius, y: point[1] - radius, width: radius * 2, height: radius * 2, rx: 3, "pointer-events": "none", "aria-hidden": "true" };
         overlay.append(svg("rect", { ...attrs, class: "takeoff-count-selection-underlay" }), svg("rect", { ...attrs, class: "takeoff-count-selection", "data-selected-member-id": memberId }));
       }
-      const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-pressed": String(chosen), "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id} · ${formatLength(item.measurement.length_m)} m` });
+      const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-pressed": String(chosen), "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id}${isStandalone(item) ? "" : ` · ${formatLength(item.measurement.length_m)} m`}` });
       hit.dataset.itemId = item.id; hit.dataset.countItemId = item.id; hit.dataset.countMemberId = memberId;
       hit.addEventListener("pointerdown", event => void safely(() => beginCountMarkerDrag(event, item, index, memberId)));
       hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectCountMarker(item.id, memberId, event.ctrlKey || event.metaKey || event.shiftKey)); });
@@ -2020,9 +2103,9 @@
   }
   function renderPendingTrace(overlay) {
     if (!state.points.length) return;
-    if (state.tool === "count") {
+    if (["count", "count-only"].includes(state.tool)) {
       const appearance = appearanceOf({ geometry: { kind: "count" } });
-      for (const entry of state.countEntries) overlay.append(countSymbol(G.transform(entry.point, state.viewport.transform), appearance, { class: "takeoff-count-pending", stroke: entry.length_m == null ? "#b46812" : appearance.stroke_color, "stroke-width": 2, fill: entry.length_m == null ? "#fff" : appearance.fill_color, opacity: 0.65 }));
+      for (const entry of state.countEntries) overlay.append(countSymbol(G.transform(entry.point, state.viewport.transform), appearance, { class: "takeoff-count-pending", stroke: state.tool !== "count-only" && entry.length_m == null ? "#b46812" : appearance.stroke_color, "stroke-width": 2, fill: state.tool !== "count-only" && entry.length_m == null ? "#fff" : appearance.fill_color, opacity: 0.65 }));
       return;
     }
     if (state.tool === "viewport") {
@@ -2036,7 +2119,7 @@
       return;
     }
     const sourcePoints = [...state.points];
-    if (state.traceCursor && ["trace", "polygon", "exclusion"].includes(state.tool) && sourcePoints.length < (state.tool === "trace" ? 10000 : areaTraceLimit()) && Math.hypot(state.traceCursor[0] - sourcePoints.at(-1)[0], state.traceCursor[1] - sourcePoints.at(-1)[1]) > 1e-8) sourcePoints.push(state.traceCursor);
+    if (state.traceCursor && ["trace", "measure", "polygon", "exclusion"].includes(state.tool) && sourcePoints.length < (state.tool === "trace" ? 10000 : areaTraceLimit()) && Math.hypot(state.traceCursor[0] - sourcePoints.at(-1)[0], state.traceCursor[1] - sourcePoints.at(-1)[1]) > 1e-8) sourcePoints.push(state.traceCursor);
     const points = sourcePoints.map(point => G.transform(point, state.viewport.transform));
     if (state.tool === "cite" && points.length === 2) {
       const box = G.region(...points); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2], height: box[3], class: "takeoff-pending" }));
@@ -2076,73 +2159,148 @@
     if (!entity?.marker || state.mode !== "physical" || reference.sessionId !== state.session?.session_id || reference.scope !== state.physicalScope || reference.documentId !== state.document || reference.page !== state.page || reference.revision !== entity.revision || reference.marker !== JSON.stringify(entity.marker)) throw new Error("The barrier marker or drawing changed. Select the current marker again.");
     return entity;
   }
-  function beginPhysicalMarkerDrag(event, entity) {
-    if (event.button !== 0 || state.tool !== "select") return;
-    event.stopPropagation(); if (state.busy || state.modal || state.gesture || !state.viewport) return;
-    requireFinishedEdits(); const reference = physicalMarkerReference(entity), initial = drawingPoint(event), element = state.ui.viewport;
-    physicalMarkerTarget(reference);
-    const gesture = { kind: "physical-marker", id: entity.id, reference, initial, current: initial, delta: [0, 0], startClient: [event.clientX, event.clientY], pointerId: event.pointerId, moved: false };
-    const current = () => { if (state.gesture !== gesture || state.tool !== "select") return false; try { physicalMarkerTarget(reference); return true; } catch { return false; } };
-    const move = next => {
-      if (next.pointerId !== gesture.pointerId || !current()) return;
-      if (!gesture.moved && Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]) < 4) return;
-      gesture.current = drawingPoint(next); gesture.delta = gesture.current.map((value, axis) => value - initial[axis]); gesture.moved = true; next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
-    };
-    const finish = next => {
-      if (next.pointerId !== gesture.pointerId) return;
-      const valid = current(); try { if (valid) move(next); } finally { state.gesture = null; gesture.cleanup(); }
-      next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
-      if (!valid) { renderOverlay(); message("The barrier marker changed during the drag. Select it again.", true); return; }
-      if (!gesture.moved) { void safely(() => state.physicalUI.selectDrawing(entity.id, next.ctrlKey || next.metaKey || next.shiftKey, false)); return; }
-      void safely(async () => {
-        requireFinishedEdits(); const currentEntity = physicalMarkerTarget(reference), point = currentEntity.marker.point.map((value, axis) => value + gesture.delta[axis]);
-        const view = pageMetadata()?.view;
-        if (!view || point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3]) throw new Error("Keep the barrier marker inside its original PDF page.");
-        if (gesture.delta.some(value => value !== 0)) await state.physicalUI.setMarker(entity.id, { ...currentEntity.marker, point });
-      }).finally(() => { renderOverlay(); window.CeasefireProject?.changed?.(); });
-    };
-    const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
-    gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
-    state.gesture = gesture; element.addEventListener("pointermove", move); element.addEventListener("pointerup", finish); element.addEventListener("pointercancel", cancel); element.addEventListener("lostpointercapture", cancel); element.setPointerCapture(event.pointerId); event.preventDefault();
+  async function choosePhysicalDrawing(entity, event, toggle = false) {
+    await state.physicalUI?.completePendingEdits?.();
+    if (toggle && state.physicalSelected.has(entity.id) && state.physicalDetailsOpen && !(event.ctrlKey || event.metaKey || event.shiftKey)) {
+      await state.physicalUI.clearSelection(); setPhysicalDetailsOpen(false);
+    } else { await state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false); setPhysicalDetailsOpen(true); }
+    renderOverlay();
   }
-  function physicalCalloutLines(summary) {
-    const lines = [];
+  function physicalCalloutLines(summary, width, fontSize = 9) {
+    const context = (state.calloutMeasure ||= document.createElement("canvas").getContext("2d")), lines = [];
     for (const paragraph of String(summary).split(/\r?\n/).filter(Boolean)) {
-      let line = "";
+      let line = ""; context.font = `${lines.length ? "400" : "700"} ${fontSize}px Arial`;
       for (const word of paragraph.split(/\s+/)) {
-        if (line && line.length + word.length + 1 > 42) { lines.push(line); line = ""; }
-        for (let offset = 0; offset < word.length; offset += 42) { const part = word.slice(offset, offset + 42); if (offset) { if (line) lines.push(line); line = part; } else line += `${line ? " " : ""}${part}`; }
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && context.measureText(candidate).width > width) { lines.push(line); line = ""; context.font = `400 ${fontSize}px Arial`; }
+        let part = "";
+        for (const character of word) {
+          if (part && context.measureText(part + character).width > width) { if (line) { lines.push(line); line = ""; } lines.push(part); part = ""; }
+          part += character;
+        }
+        line += `${line ? " " : ""}${part}`;
       }
       if (line) lines.push(line);
     }
-    return lines.length > 9 ? [...lines.slice(0, 8), `+ ${lines.length - 8} more lines in Item Details`] : lines;
+    return lines;
+  }
+  function physicalCalloutBox(entity, point, scale, markerScale) {
+    const stored = entity.marker.callout;
+    if (stored) {
+      const anchor = G.transform(entity.marker.point.map((value, axis) => value + stored.offset[axis]), state.viewport.transform);
+      return { x: anchor[0], y: anchor[1], width: stored.width * markerScale, height: stored.height * markerScale };
+    }
+    const width = 238 * scale, lines = physicalCalloutLines(state.physicalUI.summary(entity.id), width - 12 * scale, 9 * scale), height = (Math.min(lines.length, 30) * 12 + 12) * scale;
+    const x = Math.max(0, Math.min(point[0] + 17 * scale, state.viewport.width - width)), below = point[1] + 18 * scale;
+    return { x, y: below + height <= state.viewport.height ? below : Math.max(0, point[1] - 18 * scale - height), width, height };
+  }
+  async function beginPhysicalDrag(event, entity, kind, box, corner) {
+    if (event.button !== 0 || state.tool !== "select") return;
+    event.stopPropagation(); if (state.busy && !state.physicalUI?.isAutoApplying?.() || state.modal || state.gesture || !state.viewport) return;
+    entity = physicalGraph()?.barriers?.find(value => value.id === entity.id && !value.deleted);
+    if (!entity?.marker) return;
+    let reference = physicalMarkerReference(entity), preparing = true, ready;
+    const controller = state.physicalUI, initial = drawingPoint(event), element = state.ui.viewport, viewport = JSON.stringify([state.viewport.width, state.viewport.height, state.viewport.transform]);
+    physicalMarkerTarget(reference);
+    const gesture = { kind, id: entity.id, reference, initial, current: initial, delta: [0, 0], box: box && { ...box }, originalBox: box && { ...box }, corner, startClient: [event.clientX, event.clientY], pointerId: event.pointerId, moved: false };
+    const current = () => {
+      if (state.gesture !== gesture || state.tool !== "select" || state.physicalUI !== controller || !state.viewport || viewport !== JSON.stringify([state.viewport.width, state.viewport.height, state.viewport.transform])) return false;
+      try {
+        // Routine field saves may advance the barrier revision, but must never
+        // replace this gesture's source identity or original marker geometry.
+        const revision = preparing ? physicalGraph()?.barriers?.find(value => value.id === entity.id)?.revision : reference.revision;
+        physicalMarkerTarget({ ...reference, revision }); return true;
+      } catch { return false; }
+    };
+    const move = next => {
+      if (gesture.released || next.pointerId !== gesture.pointerId || !current()) return;
+      if (!gesture.moved && Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]) < 4) return;
+      gesture.current = drawingPoint(next); gesture.delta = gesture.current.map((value, axis) => value - initial[axis]); gesture.moved = true;
+      if (box) {
+        const start = G.transform(initial, state.viewport.transform), end = G.transform(gesture.current, state.viewport.transform), dx = end[0] - start[0], dy = end[1] - start[1];
+        if (kind === "physical-callout") gesture.box = { ...box, x: box.x + dx, y: box.y + dy };
+        else {
+          const left = corner.includes("w") ? Math.min(box.x + dx, box.x + box.width - 48) : box.x, right = corner.includes("e") ? Math.max(box.x + box.width + dx, box.x + 48) : box.x + box.width;
+          const top = corner.includes("n") ? Math.min(box.y + dy, box.y + box.height - 28) : box.y, bottom = corner.includes("s") ? Math.max(box.y + box.height + dy, box.y + 28) : box.y + box.height;
+          gesture.box = { x: left, y: top, width: right - left, height: bottom - top };
+        }
+      }
+      next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
+    };
+    const finish = next => {
+      if (next.pointerId !== gesture.pointerId) return;
+      const valid = current(); try { if (valid) move(next); } finally { gesture.released = true; gesture.cleanup(); }
+      next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
+      if (!valid) { cancelSelectionGesture(); message("The barrier or drawing changed during the drag. Select it again.", true); return; }
+      void safely(async () => {
+        // Preserve an already released pointer's intent until the field save
+        // finishes. The gesture preview never changes canonical marker data.
+        if (!await ready.catch(() => false) || state.gesture !== gesture) return;
+        if (!current()) throw new Error("The barrier or drawing changed during the drag. Select it again.");
+        state.gesture = null;
+        requireFinishedEdits(); const currentEntity = physicalMarkerTarget(reference), marker = clone(currentEntity.marker);
+        if (!gesture.moved) { await choosePhysicalDrawing(currentEntity, next, kind === "physical-callout"); return; }
+        if (kind === "physical-marker") {
+          marker.point = marker.point.map((value, axis) => value + gesture.delta[axis]); const view = pageMetadata()?.view;
+          if (!view || marker.point[0] < view[0] || marker.point[1] < view[1] || marker.point[0] > view[2] || marker.point[1] > view[3]) throw new Error("Keep the barrier marker inside its original PDF page.");
+        } else {
+          const anchor = G.inverse([gesture.box.x, gesture.box.y], state.viewport.transform), pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
+          marker.callout = { offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
+        }
+        await controller.setMarker(entity.id, marker);
+        await controller.selectDrawing(entity.id, false, false); setPhysicalDetailsOpen(true);
+      }).finally(() => { if (state.gesture === gesture) cancelSelectionGesture(); renderOverlay(); window.CeasefireProject?.changed?.(); });
+    };
+    const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
+    gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
+    // Capture and subscribe before any await: a fast release must not disappear
+    // while a blur-triggered or already running automatic save is in flight.
+    state.gesture = gesture; element.addEventListener("pointermove", move); element.addEventListener("pointerup", finish); element.addEventListener("pointercancel", cancel); element.addEventListener("lostpointercapture", cancel); event.preventDefault();
+    try { element.setPointerCapture(event.pointerId); } catch { cancelSelectionGesture(); return; }
+    ready = (async () => {
+      await controller.completePendingEdits();
+      if (state.gesture !== gesture) return false;
+      if (!current()) throw new Error("The barrier or drawing changed during the drag. Select it again.");
+      // Check other unfinished work without mistaking this reserved gesture
+      // for an unrelated drawing operation; this guard is synchronous.
+      state.gesture = null; try { requireFinishedEdits(); } finally { state.gesture = gesture; }
+      entity = physicalGraph().barriers.find(value => value.id === entity.id && !value.deleted);
+      reference = physicalMarkerReference(entity); gesture.reference = reference; preparing = false; return true;
+    })();
+    try { await ready; } catch (error) { if (state.gesture === gesture) cancelSelectionGesture(); throw error; }
   }
   function renderPhysicalMarker(overlay, entity, selectedIds) {
-    const selected = selectedIds.has(entity.id);
-    const moved = state.gesture?.kind === "physical-marker" && state.gesture.id === entity.id && state.gesture.moved;
-    const sourcePoint = entity.marker.point.map((value, axis) => value + (moved ? state.gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
-    const markerScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]) / (pageMetadata()?.user_unit || 1), radius = Math.max(4, 6 * markerScale);
-    // Keep screen callouts readable at fit-to-page zoom without changing source coordinates or PDF export sizing.
-    const scale = Math.max(markerScale, 1.2);
-    const summary = state.physicalUI.summary(entity.id), lines = physicalCalloutLines(summary), boxWidth = 238 * scale, lineHeight = 12 * scale, boxHeight = (lines.length * 12 + 12) * scale;
-    const x = Math.max(2 * scale, Math.min(point[0] + 17 * scale, state.viewport.width - boxWidth - 2 * scale));
-    const below = point[1] + radius + 12 * scale;
-    const y = below + boxHeight + 2 * scale <= state.viewport.height ? below : Math.max(2 * scale, point[1] - radius - 12 * scale - boxHeight);
-    const leader = svg("path", { d: `M${point[0]} ${point[1]}L${x} ${y + 12 * scale}`, stroke: "#b90a15", "stroke-width": scale, fill: "none", "pointer-events": "none" });
-    const callout = svg("g", { class: "takeoff-physical-callout", "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-label": `Item Details ${entity.display_id} · ${summary}` });
-    callout.append(svg("rect", { x, y, width: boxWidth, height: boxHeight, rx: 3 * scale, fill: "#fff", "fill-opacity": 0.94, stroke: selected ? "#b90a15" : "#696166", "stroke-width": scale }));
-    const text = svg("text", { x: x + 6 * scale, y: y + 12 * scale, fill: "#30282b", "font-family": "Arial, sans-serif", "font-size": 9 * scale });
-    lines.forEach((line, index) => { const span = svg("tspan", { x: x + 6 * scale, y: y + (index + 1) * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
+    const selected = selectedIds.has(entity.id), gesture = state.gesture?.id === entity.id ? state.gesture : null, moved = gesture?.kind === "physical-marker" && gesture.moved;
+    const sourcePoint = entity.marker.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
+    const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, 6 * markerScale), scale = Math.max(markerScale, 1.2);
+    const summary = state.physicalUI.summary(entity.id);
+    let box = physicalCalloutBox(entity, point, scale, pdfScale);
+    if (moved && entity.marker.callout) { const old = G.transform(entity.marker.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
+    if (gesture?.box && gesture.moved) box = gesture.box;
+    const { x, y, width, height } = box, padding = Math.min(6 * scale, width / 12, height / 8);
+    let fontSize = 9 * scale, lines = physicalCalloutLines(summary, width - 2 * padding, fontSize);
+    for (let step = 0; step < 30 && lines.length * fontSize * 1.3 > height - 2 * padding; step++) { fontSize *= 0.9; lines = physicalCalloutLines(summary, width - 2 * padding, fontSize); }
+    const lineHeight = fontSize * 1.3;
+    const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: "#b90a15", "stroke-width": scale, fill: "none", "pointer-events": "none" });
+    const callout = svg("g", { class: `takeoff-physical-callout${selected ? " selected" : ""}`, "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-pressed": String(selected), "aria-label": `Item Details ${entity.display_id} · ${summary}` });
+    callout.append(svg("rect", { class: "takeoff-physical-callout-frame", x, y, width, height, rx: 3 * scale, fill: "#fff", "fill-opacity": 0.94, stroke: selected ? "#b90a15" : "#696166", "stroke-width": scale }));
+    const text = svg("text", { fill: "#30282b", "font-family": "Arial, sans-serif", "font-size": fontSize });
+    lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
     const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: "#b90a15", stroke: selected ? "#fff" : "#b90a15", "stroke-width": Math.max(1, 2 * markerScale), "pointer-events": "none" });
     const hit = svg("circle", { cx: point[0], cy: point[1], r: Math.max(radius, 9), class: "takeoff-physical-marker-hit", fill: "transparent", stroke: "none", "pointer-events": "all", role: "button", tabindex: 0, "aria-label": `Count marker ${entity.display_id} · ${summary}`, "aria-pressed": String(selected), "data-physical-id": entity.id });
-    const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); if (Date.now() < (state.suppressSelectionClickUntil || 0)) return; void safely(() => state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); };
     for (const target of [hit, callout]) {
+      const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); if (event.type === "click" && Date.now() < (state.suppressSelectionClickUntil || 0)) return; void safely(() => choosePhysicalDrawing(entity, event, target === callout)); };
       target.addEventListener("click", choose);
       target.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
-      target.addEventListener("contextmenu", event => { if (state.tool !== "select") return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = physicalMarkerReference(entity); physicalMarkerTarget(reference); state.markupMenu = { physical: true, reference, point: G.transform(entity.marker.point, state.viewport.transform) }; renderOverlay(); }); });
+      target.addEventListener("contextmenu", event => { if (state.tool !== "select") return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = physicalMarkerReference(entity); physicalMarkerTarget(reference); state.markupMenu = { physical: true, reference, point }; renderOverlay(); }); });
     }
-    hit.addEventListener("pointerdown", event => void safely(() => beginPhysicalMarkerDrag(event, entity)));
+    hit.addEventListener("pointerdown", event => void safely(() => beginPhysicalDrag(event, entity, "physical-marker")));
+    callout.addEventListener("pointerdown", event => void safely(() => beginPhysicalDrag(event, entity, "physical-callout", box)));
     overlay.append(leader, callout, shape, hit);
+    if (selected && state.tool === "select") for (const [corner, cx, cy] of [["nw", x, y], ["ne", x + width, y], ["sw", x, y + height], ["se", x + width, y + height]]) {
+      const handle = svg("rect", { x: cx - 5, y: cy - 5, width: 10, height: 10, class: "takeoff-physical-callout-handle", "data-corner": corner, role: "button", tabindex: 0, "aria-label": `Resize callout ${corner}` });
+      handle.addEventListener("pointerdown", event => void safely(() => beginPhysicalDrag(event, entity, "physical-resize", box, corner))); overlay.append(handle);
+    }
   }
   function renderPhysicalMarkerMenu(overlay) {
     if (!state.markupMenu?.physical || state.gesture) return;
@@ -2184,7 +2342,7 @@
     return item.state === "confirmed" && !issues.length ? { key: "confirmed", label: "Confirmed" } : { key: "unconfirmed", label: "Unconfirmed" };
   }
   function issueText(value) { return typeof value === "string" ? value : value?.message || value?.detail || value?.code || JSON.stringify(value); }
-  const ductFilterColumns = { confirmation: "Confirmation", mark: "Duct ID", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" };
+  const ductFilterColumns = { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" };
   function ductFilters() {
     const sessionId = state.session?.session_id || null;
     if (state.ductFilterSession !== sessionId) { state.ductColumnFilters.clear(); state.ductFilterSession = sessionId; }
@@ -2260,13 +2418,13 @@
     const filter = state.ui?.statusFilter.value;
     return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => ["length", "area"].includes(state.sort) ? (itemResult(a)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) - (itemResult(b)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) : String(state.sort === "state" ? reviewStatus(a).label : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? reviewStatus(b).label : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
   }
-  function itemGroup(item) { return state.mode !== "duct" && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
-  function groupedItems(list = visibleItems()) { return state.mode !== "duct" && state.group ? [...list].sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : list; }
+  function itemGroup(item) { if (isStandalone(item)) return null; return state.mode !== "duct" && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
+  function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(state.mode !== "duct" && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
   async function selectItem(id, multiple = false, focus = true) {
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
-    if (isCount(item)) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
+    if (isCount(item) || isStandalone(item)) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
     const modeChanged = state.mode !== item.mode;
     state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
     if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));
@@ -2313,8 +2471,9 @@
     revealDrawingPanel(state.ui.settingsPanel, true);
   }
   function renderRegister() {
-    if (!state.ui) return;
+    if (!state.ui || state.mode === "physical") return;
     const list = visibleItems(), selected = selectedItems();
+    syncBulkFields();
     const individualMeasuredDuct = selected.length && selected.every(item => item.mode === "duct" && item.quantity === 1 && item.measurement?.method === "calibrated" && !item.length_additions?.length);
     const steelGroups = selected.length && selected.every(item => item.mode === "steel" && !isCount(item) && Number.isInteger(item.quantity) && item.quantity > 0);
     const quantityOption = state.ui.bulkField.querySelector('option[value="quantity"]');
@@ -2341,7 +2500,7 @@
     const optionRequests = new Map(), calculator = state.ui.target?.value, sessionId = state.session?.session_id;
     const grouped = groupedItems(list);
     state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((grouped.length - 1) / 100) * 100)));
-    for (const item of grouped.slice(state.offset, state.offset + 100)) {
+    for (const item of grouped.slice(state.offset, state.offset + 100).filter(item => !isStandalone(item))) {
       const group = itemGroup(item);
       if (group !== null && group !== lastGroup) { const row = node("tr", "takeoff-group-row"), cell = node("td"); cell.colSpan = headings.length; cell.append(button(`${state.collapsed.has(group) ? "▸" : "▾"} ${group}`, () => { state.collapsed.has(group) ? state.collapsed.delete(group) : state.collapsed.add(group); renderRegister(); }, "takeoff-group-toggle")); row.append(cell); body.append(row); lastGroup = group; }
       if (group && state.collapsed.has(group)) continue;
@@ -2368,7 +2527,10 @@
       }
     }
     state.ui.pagination.replaceChildren(button("Previous 100", () => { state.offset = Math.max(0, state.offset - 100); renderRegister(); }), node("span", "helper", `${list.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, list.length)} of ${list.length} matching items`), button("Next 100", () => { if (state.offset + 100 < list.length) state.offset += 100; renderRegister(); }));
-    state.ui.tableWrap.replaceChildren(table); if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", area ? `No matching surfaces. Calibrate the applicable drawing scale, then Trace surface. ${surfaceHelp}` : "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
+    state.ui.tableWrap.replaceChildren(table);
+    const standaloneRows = grouped.slice(state.offset, state.offset + 100).filter(isStandalone);
+    if (standaloneRows.length) renderStandaloneRegister(standaloneRows, state.ui.tableWrap);
+    if (!list.length) state.ui.tableWrap.append(node("p", "takeoff-register-empty", area ? `No matching surfaces. Calibrate the applicable drawing scale, then Trace surface. ${surfaceHelp}` : "No matching items. Calibrate and trace a member/run, or cite a source-stated length."));
   }
   function renderItemSettingsTools(content, item, editor) {
     editor.tools = node("section", "takeoff-settings-tools"); content.append(editor.tools);
@@ -2380,10 +2542,16 @@
     renderItemSettingsActions(editor.tools, selected[0]); editor.toolsRevision = state.session.revision;
   }
   function renderItemSettingsActions(panel, item) {
-    const result = itemResult(item), area = isArea(item.mode);
+    const result = itemResult(item), area = isSurface(item);
     panel.replaceChildren(node("h3", "", `ITEM DETAILS · ${item.fields.mark || item.id.slice(0, 8)}`), node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} ${area ? "surface area" : "length"}`));
     const sessionId = state.session?.session_id;
     const currentAction = action => async () => { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); const current = items().find(value => value.id === item.id); if (!current) throw new Error("This item is no longer available."); return action(current); };
+    if (item.purpose === "length-only") {
+      panel.append(node("p", "takeoff-calibration-summary", `Length: ${formatLength(result.length_m)} m · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`),
+        button(item.measurement ? "Change length calibration" : "Attach length calibration", currentAction(changeLength)));
+      for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
+      return;
+    }
     if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked."));
     if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
     if (item.mode === "steel") panel.append(button("Find steel section", currentAction(findProfile), "text-button"));
@@ -2480,7 +2648,27 @@
     return all.filter(value => value.document_id === item.geometry.document_id && value.page === item.geometry.page && !value.deleted && !superseded.has(value.id));
   }
   async function changeLength(item) {
+    if (item.purpose === "count-only") throw new Error("Count-only items derive their quantity from markers and have no length basis.");
     if (isCount(item)) return changeCountLength(item);
+    if (item.purpose === "length-only") {
+      const sessionId = state.session?.session_id, geometry = JSON.stringify(item.geometry), version = item.version;
+      const current = () => {
+        requireFinishedEdits();
+        if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the measurement again.");
+        const retained = items().find(value => value.id === item.id);
+        if (!retained || retained.purpose !== "length-only" || retained.version !== version || JSON.stringify(retained.geometry) !== geometry) throw new Error("This measurement changed. Inspect it and choose its calibration again.");
+        return retained;
+      };
+      const retained = current(), calibrations = itemCalibrations(retained);
+      if (!calibrations.length) throw new Error("Create a current calibration on this measurement's source page first.");
+      const selected = calibrations.some(value => value.id === retained.measurement?.calibration_id) ? retained.measurement.calibration_id : "";
+      const data = await ask("Change length calibration", [["calibration_id", "Source page calibration", calibrations.map(value => [value.id, value.name]), selected, true]], "The existing source line and item identity are retained. Its length is recalculated from this source-page scale and confirmation is cleared.", "Apply calibration");
+      if (!data) return;
+      const validate = () => { if (!itemCalibrations(current()).some(value => value.id === data.calibration_id)) throw new Error("Choose a current calibration on this measurement's source page."); return true; };
+      validate();
+      await command("update_item", { item_id: retained.id, changes: { measurement: { method: "calibrated", calibration_id: data.calibration_id } } }, validate);
+      return;
+    }
     requireFinishedEdits(); const calibrations = itemCalibrations(item), current = calibrations.some(value => value.id === item.measurement?.calibration_id) ? item.measurement.calibration_id : "";
     const data = await ask("Change length basis", [["method", "Length basis", ["calibrated", "cited"], item.measurement?.method, true], ["calibration_id", "Page calibration (for measured geometry)", calibrations.map(value => [value.id, value.name]), current], ["length_m", "Cited length (metres)", "number", item.measurement?.length_m || ""], ["citation", "Source citation", "textarea", item.measurement?.citation || ""]], "This makes the item unconfirmed. Only current calibrations on this item's source page are available. A cited region cannot become a measured run: re-trace its geometry first.");
     if (!data) return;
@@ -2496,17 +2684,17 @@
     if (!calibrations.some(value => value.id === changed.calibration_id)) throw new Error("Choose a current calibration on this item's source page.");
     await command("update_item", { item_id: item.id, changes: { measurement: { method: "calibrated", calibration_id: changed.calibration_id } } });
   }
-  async function retrace(item) { if (isCount(item)) throw new Error("Count markers retain manually entered lengths. Start a new count for different source evidence."); if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isArea(item.mode) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then double-click the final point or press Enter. The same item ID is retained and its confirmation is invalidated.${isArea(item.mode) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
+  async function retrace(item) { if (isCount(item)) throw new Error("Count markers retain manually entered lengths. Start a new count for different source evidence."); if (!await discardEditor()) return; await selectItem(item.id); if (!state.calibration) { state.calibration = item.measurement?.calibration_id || ""; renderCalibrations(); } if (!state.calibration) throw new Error("Choose a calibration before re-tracing this item."); setTool(isSurface(item) ? "polygon" : "trace", { retraceId: item.id }); message(`Trace the replacement geometry, then double-click the final point or press Enter. The same item ID is retained and its confirmation is invalidated.${isSurface(item) ? " Existing exclusions keep their source coordinates and must still lie strictly inside the new boundary." : ""}`); }
   async function replaceSource(item) {
     if (isCount(item)) throw new Error("Start a new count on the replacement source page.");
     requireFinishedEdits(); if (!state.viewport) throw new Error("Open the revised source document page first.");
-    if (isArea(item.mode) && item.geometry?.exclusions.length && (item.geometry.document_id !== state.document || item.geometry.page !== state.page)) throw new Error("Remove the existing exclusions before moving this surface to a revised source page. Exclusion coordinates cannot be mapped between drawings automatically; the old boundaries remain in audit history.");
-    const choice = await ask("Replace this object's primary source", [["method", isArea(item.mode) ? "Replacement surface basis" : "Replacement length basis", isArea(item.mode) ? ["calibrated"] : ["calibrated", "cited"], "", true]], `The current page is ${currentDocument().name}, page ${state.page}. The same physical item ID is retained; its old references remain in evidence and history. The new geometry and measurement will invalidate review, confirmation and linked transfers. Upload revised drawings as new documents first.`, "Mark replacement source");
+    if (isSurface(item) && item.geometry?.exclusions.length && (item.geometry.document_id !== state.document || item.geometry.page !== state.page)) throw new Error("Remove the existing exclusions before moving this surface to a revised source page. Exclusion coordinates cannot be mapped between drawings automatically; the old boundaries remain in audit history.");
+    const choice = await ask("Replace this object's primary source", [["method", isSurface(item) ? "Replacement surface basis" : "Replacement length basis", isSurface(item) ? ["calibrated"] : ["calibrated", "cited"], "", true]], `The current page is ${currentDocument().name}, page ${state.page}. The same physical item ID is retained; its old references remain in evidence and history. The new geometry and measurement will invalidate review, confirmation and linked transfers. Upload revised drawings as new documents first.`, "Mark replacement source");
     if (!choice) return; if (choice.method === "calibrated" && !state.calibration) throw new Error("Select a calibration on the replacement page first.");
-    setTool(isArea(item.mode) ? "polygon" : choice.method === "calibrated" ? "trace" : "cite", { retraceId: item.id });
+    setTool(isSurface(item) ? "polygon" : choice.method === "calibrated" ? "trace" : "cite", { retraceId: item.id });
   }
-  async function addEvidence(item) { requireFinishedEdits(); const data = await ask("Link supporting source evidence", [["document_id", "Source document", documents().map(value => [value.id, value.name]), state.document, true], ["page", "Page", "number", state.page, true], ["field", "Source field (blank applies to the whole object)", [["quantity", "Physical quantity"], ...(isArea(item.mode) ? [["net_area_m2", "Surface area basis"]] : [["length_m", "Length basis"]]), ...fields[item.mode].map(value => [value[0], value[1]])], ""], ["note", "Evidence note / exact reference", "textarea", "", true]], "Supporting evidence does not create another physical object or add quantities. Use the cited page to corroborate this object's fields."); if (data) await command("update_item", { item_id: item.id, changes: { evidence: [...item.evidence, { document_id: data.document_id, page: data.page, note: data.note, ...(data.field ? { fields: data.field === "duct_size" ? ["width_mm", "height_mm"] : [data.field] } : {}) }] } }); }
-  async function bulkEdit() { requireFinishedEdits(); const selected = settingsSelectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value; if (key === "quantity" && selected.some(isCount)) throw new Error("Count quantities come from markers and cannot be edited manually."); if (isArea() && key === "quantity") throw new Error("Each surface is one physical object. Create separate evidenced items for other surfaces."); const definition = key === "quantity" ? [key, "Quantity", "number"] : fields[state.mode].find(value => value[0] === key); if (!definition) throw new Error("Choose a bulk edit field."); const raw = state.ui.bulkValue.value.trim(), dimensions = key === "duct_size" ? parseDuctSize(raw) : null, value = definition[2] === "number" || numericOptionFields.has(key) ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: dimensions || { [key]: value } } }); }
+  async function addEvidence(item) { requireFinishedEdits(); const data = await ask("Link supporting source evidence", [["document_id", "Source document", documents().map(value => [value.id, value.name]), state.document, true], ["page", "Page", "number", state.page, true], ["field", "Source field (blank applies to the whole object)", [["quantity", "Physical quantity"], ...(isSurface(item) ? [["net_area_m2", "Surface area basis"]] : [["length_m", "Length basis"]]), ...fields[item.mode].map(value => [value[0], value[1]])], ""], ["note", "Evidence note / exact reference", "textarea", "", true]], "Supporting evidence does not create another physical object or add quantities. Use the cited page to corroborate this object's fields."); if (data) await command("update_item", { item_id: item.id, changes: { evidence: [...item.evidence, { document_id: data.document_id, page: data.page, note: data.note, ...(data.field ? { fields: data.field === "duct_size" ? ["width_mm", "height_mm"] : [data.field] } : {}) }] } }); }
+  async function bulkEdit() { requireFinishedEdits(); const selected = settingsSelectedItems(); if (!selected.length) return; const key = state.ui.bulkField.value; if (key === "quantity" && selected.some(isCount)) throw new Error("Count quantities come from markers and cannot be edited manually."); if (isArea() && key === "quantity") throw new Error("Each surface is one physical object. Create separate evidenced items for other surfaces."); const definition = bulkSelectionFields(selected).find(value => value[0] === key); if (!definition) throw new Error("Choose a bulk edit field supported by every selected item."); const raw = state.ui.bulkValue.value.trim(), dimensions = key === "duct_size" ? parseDuctSize(raw) : null, value = definition[2] === "number" || numericOptionFields.has(key) ? raw === "" ? null : Number(raw) : raw; if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Enter a finite number."); if (!await confirm(`Change ${selected.length} items?`, `${definition[1]} will become ${raw || "blank"} for all selected items, including filtered-out selections. Review and confirmation are invalidated. Undo can restore this edit.`, "Apply bulk change")) return; await command("bulk_update", { item_ids: selected.map(item => item.id), changes: key === "quantity" ? { quantity: value } : { fields: dimensions || { [key]: value } } }); }
   async function selectedCommand(op) { await flushSettings(); requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select at least one item."); await command(op, { item_ids: selected.map(item => item.id) }); }
   async function confirmSelected() { await flushSettings(); requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select items to confirm."); const areaDetail = "Inspect the original true-surface view, every boundary and excluded opening, calibration, gross/excluded/net m², substrate, treatment and fire rating. A wall footprint never establishes wall-face area; no second face or height is inferred. Confirmation permits register export only and does not certify technical suitability."; if (!await confirm(`Confirm ${selected.length} items?`, isArea() ? areaDetail : "Confirm only after inspecting the original drawings, physical quantities, base length, every riser/drop addition, dimensions, fire requirements and source references. Additions apply to each member/run. Deterministic checks must pass. Confirmation does not certify technical suitability.", "Confirm items")) return; await selectedCommand("confirm_items"); }
   async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; return deleteItems(selected.map(item => item.id), { title: `Delete ${selected.length} objects?`, action: "Delete objects" }); }
@@ -2692,8 +2880,9 @@
   }
   async function transfer(updateLinked) {
     await flushSettings();
-    if (isArea()) throw new Error("Area records export as m² and cannot transfer to the existing steel or duct calculators.");
+    if (isArea() && !selectedItems().some(isStandalone)) throw new Error("Area records export as m² and cannot transfer to the existing steel or duct calculators.");
     requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select confirmed items to transfer.");
+    if (selected.some(isStandalone)) throw new Error("Count-only and length-only measurements cannot transfer to any calculator. Select calculator items separately.");
     const calculatorId = state.ui.target.value, sessionId = state.session.session_id, revision = state.session.revision;
     const current = () => { requireFinishedEdits(); if (sessionId !== state.session?.session_id || revision !== state.session.revision || calculatorId !== state.ui.target.value) throw new Error("Takeoffs or the destination changed during transfer review. Preview again."); };
     const target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId); current();

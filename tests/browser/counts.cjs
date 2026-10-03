@@ -199,12 +199,12 @@ function pythonJson(script, ...args) {
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   const original = await snapshot(), source = original.documents[0], calculatorBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   assert.equal(original.calibrations.length, 0); assert.equal(source.pages[2].rotation, 90); assert.equal(source.pages[2].user_unit, 2); assert.deepEqual(source.pages[2].view, [20, 30, 800, 570]);
-  const countBox = await page.getByRole('button', { name: 'Count', exact: true }).boundingBox(), traceBox = await page.getByRole('button', { name: 'Trace length', exact: true }).boundingBox(); assert.ok(countBox.y > traceBox.y);
+  const countBox = await page.getByRole('button', { name: 'Count steel lengths', exact: true }).boundingBox(), traceBox = await page.getByRole('button', { name: 'Trace length', exact: true }).boundingBox(); assert.ok(countBox.y > traceBox.y);
 
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await place([100, 300], 1, true, 1);
+  await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await place([100, 300], 1, true, 1);
   await page.mouse.click(...await screen([180, 300]), { button: 'right' }); await expect(page.locator('.takeoff-count-pending')).toHaveCount(0);
   assert.equal(countItems(await snapshot()).length, 0, 'Right-click cancels pending Count markers without creating physical identities');
-  await page.getByRole('button', { name: 'Count', exact: true }).click();
+  await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click();
   await place([150, 140], 3.125, false, 1);
   await place([250, 140], 4.5, true, 2);
   await place([350, 140], null, true, 3);
@@ -275,7 +275,7 @@ function pythonJson(script, ...args) {
   evidence.continueCount = { sameCountId: countId, originalIdsRetained: true, equalLengthGrouped: true, newLengthSeparated: true, cancelNoMutation: true, zoomFitBeforePlacement: true, undoExact: true };
 
   // A new Count is a distinct physical group even with the same entered length.
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await place([550, 320], 4.5, false, 1);
+  await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await place([550, 320], 4.5, false, 1);
   // Finish over an existing saved marker; its hit target must not add a member.
   reply = await finishCount([150, 140]); state = reply.snapshot;
   const secondCount = countItems(state).filter(item => item.count_id !== countId); assert.equal(secondCount.length, 1); const secondId = secondCount[0].id;

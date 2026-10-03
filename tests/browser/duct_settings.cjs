@@ -75,6 +75,7 @@ async function retainedFixture(id, fields) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
@@ -98,7 +99,7 @@ async function retainedFixture(id, fields) {
   }
   await page.locator('#takeoff-viewport').press('Enter');
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Add duct object', exact: true })).toBeVisible();
-  const values = { 'Duct ID': 'DUCT-CREATE-QA', 'Level': 'L02', 'WxH (mm)': '600x', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 2, 'Floor penetrations': 0, 'Count/QTY': 1 };
+  const values = { 'Item': 'DUCT-CREATE-QA', 'Level': 'L02', 'WxH (mm)': '600x', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 2, 'Floor penetrations': 0, 'Count/QTY': 1 };
   for (const label of Object.keys(values)) await expect(modal.getByLabel(label, { exact: true })).toHaveCount(1);
   for (const label of ['Run ID', 'Width (mm)', 'Height (mm)', 'Mechanical system', 'Duct application / exposure']) await expect(modal.getByLabel(label, { exact: true })).toHaveCount(0);
   for (const [label, column] of [['Product', 'C'], ['Exposure', 'H'], ['FRL', 'E']]) await nativeChoices(modal, label, optionsFor(column));
@@ -156,7 +157,7 @@ async function retainedFixture(id, fields) {
   evidence.editScroll = await revealFromRegister(id, 'Edit item', panel);
   await expect(panel).toHaveJSProperty('scrollTop', 0);
   await page.screenshot({ path: path.join(output, 'duct-settings-pane.png') });
-  await panel.getByLabel('Duct ID', { exact: true }).scrollIntoViewIfNeeded();
+  await panel.getByLabel('Item', { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'duct-settings-item-details.png') });
   console.log('Invalid dimensions remain atomic; retained hidden values and outer View/Edit scrolling passed.');
 

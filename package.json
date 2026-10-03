@@ -27,7 +27,10 @@
     "test:takeoffs-length-copy": "node tests/browser/length_copy.cjs",
     "test:takeoffs-pdf-text": "node tests/browser/pdf_text_selection.cjs",
     "test:physical-navigation": "node tests/browser/physical_navigation.cjs",
-    "test:takeoffs-duct-filters": "node tests/browser/duct_filters.cjs"
+    "test:takeoffs-duct-filters": "node tests/browser/duct_filters.cjs",
+    "test:takeoffs-standalone": "node tests/browser/standalone_measurements.cjs",
+    "test:physical-interactions": "node tests/browser/physical_interactions.cjs",
+    "test:physical-filters": "node tests/browser/physical_filters.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

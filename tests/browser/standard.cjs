@@ -50,6 +50,10 @@ async function worksheetReady(title, label) {
   assert.equal(await page.evaluate(() => typeof window.CeasefireTakeoffs), 'undefined');
   const bootstrap = await page.request.get(`http://127.0.0.1:${info.port}/api/bootstrap`);
   assert.equal((await bootstrap.json()).features.takeoffs, false);
+  // Project tools are published before the default Firestopping workspace has
+  // necessarily finished initializing; wait for its public idle signal before
+  // native Load captures the draft stamp.
+  await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; });
   await load('legacy');
   const original = JSON.parse(fs.readFileSync(path.join(output,'legacy-v1.json')));
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());

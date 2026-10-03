@@ -65,6 +65,7 @@ def export_physical_pdf(snapshot, request, documents):
             'appearance': {'stroke_color': '#C00000', 'fill_color': '#C00000', 'fill_enabled': True,
                            'stroke_width': 2, 'opacity': 1, 'marker_shape': 'circle', 'marker_size': 12},
             'mark': barrier['display_id'], 'physical_summary': barrier_summary(graph, barrier),
+            'callout': marker.get('callout'),
             'confirmed': False})
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, [], {}, {}, {}, documents, project_id=snapshot['project_id'],

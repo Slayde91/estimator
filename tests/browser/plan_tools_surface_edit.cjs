@@ -122,7 +122,7 @@ async function layout(width) {
     areaRecords.push(item(state, area.id));
   }
   await page.locator('[data-mode="duct"]').click(); await fit(); await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await points([[150, 200], [300, 200]]); await finish();
-  state = await command(() => dialog('Add duct object', { 'Duct ID': 'DRAG-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item'); const duct = state.snapshot.items.find(value => value.mode === 'duct'); await select(duct.id);
+  state = await command(() => dialog('Add duct object', { 'Item': 'DRAG-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item'); const duct = state.snapshot.items.find(value => value.mode === 'duct'); await select(duct.id);
   state = await command(() => drag(duct.id, 1, [350, 225]), 'update_item'); assert.equal(item(state, duct.id).fields.shape, 'rectangular'); assert.deepEqual(item(state, duct.id).geometry.points[0], duct.geometry.points[0]);
   await page.locator('[data-mode="wall"]').click(); await select(areaRecords[0].id); await fit();
   for (const width of [1600, 900, 620]) { await layout(width); await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180)); await page.screenshot({ path: path.join(output, `layout-${width}.png`) }); }

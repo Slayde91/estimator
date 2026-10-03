@@ -22,6 +22,7 @@ function harness() {
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'addPhysicalCountRecord,armPhysicalMarker,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'bulkSelectionFields,syncBulkFields,renderItemSettingsActions,drawableItems,renderCountMarkers,askDialog:ask,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -895,9 +896,9 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     state.mode='physical';const work=h.audit.armPhysicalMarker('barrier');await flush();state.physicalScope='service_plans';pending.resolve();await work;
     assert.equal(armed,0);assert.equal(state.physicalPlacementTarget,undefined);
   });
-  await check('Callouts wrap long tokens and disclose overflow without altering the generated summary',()=>{
+  await check('Callouts wrap by measured width and preserve every generated summary line',()=>{
     const h=harness(), summary=['Barrier B-0001 '+ 'Z'.repeat(110),...Array.from({length:20},(_,i)=>`S-${i} electrical cable 1 x 100 mm`)].join('\n');
-    const lines=copy(h.audit.physicalCalloutLines(summary));assert.equal(lines.length,9);assert.match(lines[8],/more lines in Item Details/);assert.ok(lines.slice(0,8).every(line=>line.length<=42));assert.match(summary,/S-19/);
+    h.context.document.createElement=()=>({getContext:()=>({font:'',measureText:value=>({width:value.length*5})})}); const lines=copy(h.audit.physicalCalloutLines(summary,120,9)); assert.ok(lines.every(line=>line.length<=24)); assert.ok(lines.join(' ').includes('S-19')); const wider=copy(h.audit.physicalCalloutLines(summary,240,9)); assert.ok(wider.length<lines.length); assert.match(summary,/S-19/);
   });
   await check('Physical source focus waits for successful navigation and rejects replacement scope or source',async()=>{
     const h=harness(), doc={id:'doc',sha256:'a'.repeat(64),pages:[{}]}, ref={document_id:'doc',document_sha256:doc.sha256,page:1,point:[12.5,23.75]};
@@ -912,6 +913,42 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Scope mounting defers marker rendering until the new controller exists',()=>{
     const h=harness();h.audit.accept(response({...blank(),physical:{barriers:[{id:'barrier',marker:{document_id:'doc',page:1,point:[2,3]}}]}}));Object.assign(h.audit.state,{document:'doc',page:1,physicalUI:null});
     assert.doesNotThrow(()=>h.audit.renderPhysicalOverlay(null));
+  });
+  await check('Standalone bulk fields include count dimensions and ratings while mixed selections expose only common fields',async()=>{
+    const h=countHarness(),count={...countItem('count','unused',0,[[10,20]]),purpose:'count-only',geometry:{kind:'count-only',document_id:'doc',page:1,points:[[10,20]]},measurement:null},standard={id:'standard',mode:'steel',quantity:2,fields:{mark:'B1',section:'100UC15'}};
+    delete count.count_id;h.audit.state.session.snapshot.items=[count,standard];h.audit.state.tool='select';h.audit.state.selected=new Set(['count']);
+    const dom=h.dom;dom.ui.bulkField=dom.element('select');dom.ui.bulkValue={value:'125.123456789 x 250.987654321'};h.audit.syncBulkFields();
+    assert.deepEqual(dom.ui.bulkField.children.map(option=>option.value),['mark','level','duct_size','frl','orientation']);assert.equal(dom.ui.bulkField.children[0].textContent,'Item');
+    const sent=[],before=copy(h.audit.state.session.snapshot);h.audit.setAsk(async()=>({}));h.audit.setCommand(async(op,body)=>sent.push({op,...copy(body)}));
+    dom.ui.bulkField.value='duct_size';await h.audit.bulkEdit();assert.deepEqual(sent[0],{op:'bulk_update',item_ids:['count'],changes:{fields:{width_mm:125.123456789,height_mm:250.987654321}}});
+    dom.ui.bulkField.value='section';await assert.rejects(h.audit.bulkEdit(),/supported by every selected item/);dom.ui.bulkField.value='quantity';await assert.rejects(h.audit.bulkEdit(),/derived|come from markers/);assert.equal(sent.length,1);
+    h.audit.state.selected.add('standard');h.audit.syncBulkFields();assert.deepEqual(dom.ui.bulkField.children.map(option=>option.value),['mark','level']);
+    dom.ui.bulkField.value='frl';await assert.rejects(h.audit.bulkEdit(),/supported by every selected item/);dom.ui.bulkField.value='level';dom.ui.bulkValue.value='L2';await h.audit.bulkEdit();assert.deepEqual(new Set(sent[1].item_ids),new Set(['count','standard']));assert.deepEqual(sent[1].changes,{fields:{level:'L2'}});assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+  });
+  await check('Length measurements repair missing calibration with the existing identity and only current source-page scales',async()=>{
+    const h=harness(),value=blank(),item={id:'length',version:1,state:'draft',mode:'wall',purpose:'length-only',quantity:1,fields:{mark:'Edge'},member_ids:['member'],geometry:{document_id:'source',page:2,points:[[10.123456789,20],[110.987654321,20]]},measurement:null,evidence:[]};
+    value.items=[item];value.calibrations=[{id:'old',document_id:'source',page:2,name:'Old'},{id:'current',supersedes_id:'old',document_id:'source',page:2,name:'Current'},{id:'other',document_id:'source',page:1,name:'Other page'}];h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.selected.add(item.id);h.audit.state.document='displayed';h.audit.state.page=1;
+    const dom=attachSettings(h);h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();const controls=dom.all(dom.ui.settingsPanel),repair=controls.find(control=>control.tagName==='BUTTON'&&control.textContent==='Attach length calibration');assert.ok(repair);assert.ok(!controls.some(control=>['Change length basis','Re-trace geometry','Add excluded opening','Riser/Drop'].includes(control.textContent)));
+    let sent,asks=0;h.audit.setAsk(async(title,definitions)=>{asks++;assert.equal(title,'Change length calibration');assert.deepEqual(copy(definitions.map(def=>def[0])),['calibration_id']);assert.deepEqual(copy(definitions[0][2]),[['current','Current']]);assert.equal(definitions[0][4],true);return{calibration_id:'current'};});h.audit.setCommand(async(op,body,guard)=>{assert.equal(guard(),true);sent={op,...copy(body)};});
+    const before=copy(h.audit.state.session.snapshot);await h.audit.changeLength(item);assert.equal(asks,1);assert.deepEqual(sent,{op:'update_item',item_id:'length',changes:{measurement:{method:'calibrated',calibration_id:'current'}}});assert.deepEqual(copy(h.audit.state.session.snapshot),before);
+    for(const reason of ['project','item','scale']){const stale=harness();stale.audit.accept(response(value));stale.audit.setCommand(async()=>assert.fail('A stale repair must not send a command'));stale.audit.setAsk(async()=>{if(reason==='project')stale.audit.state.session.session_id='replacement';if(reason==='item')stale.audit.state.session.snapshot.items[0].version++;if(reason==='scale')stale.audit.state.session.snapshot.calibrations.find(scale=>scale.id==='current').deleted=true;return{calibration_id:'current'};});await assert.rejects(stale.audit.changeLength(item),/changed|current calibration/);}
+  });
+  await check('Count-only markers with null measurements are drawable without admitting unrelated or incomplete length markups',()=>{
+    const h=countHarness(),count={...countItem('count','unused',0,[[10,20]]),purpose:'count-only',geometry:{kind:'count-only',document_id:'doc',page:1,points:[[10,20]]},measurement:null};delete count.count_id;
+    const other={...copy(count),id:'other',geometry:{...count.geometry,page:2}},incomplete={id:'length',mode:'steel',fields:{mark:'No basis'},geometry:{document_id:'doc',page:1,points:[[20,20],[30,30]]},measurement:null};h.audit.state.session.snapshot.items=[count,other,incomplete];h.audit.state.tool='select';h.audit.state.selected.add(count.id);
+    assert.deepEqual(copy(h.audit.drawableItems()).map(item=>item.id),['count']);const overlay=h.dom.element();assert.doesNotThrow(()=>h.audit.renderCountMarkers(overlay,count,count.geometry));const hit=overlay.children.find(control=>control.attributes.role==='button');assert.equal(hit.attributes['aria-label'],'Count marker 1 · unused');h.audit.state.hidden.add(count.id);assert.equal(h.audit.drawableItems().length,0);
+  });
+  await check('A stale setup completion cannot enable a dialog while a newer choices request still reports loading',async()=>{
+    const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h),create=h.context.document.createElement;h.context.document.body=dom.element('body');
+    h.context.document.createElement=tag=>{const control=create(tag);if(tag==='dialog'){control.showModal=()=>{control.open=true;};control.close=value=>{control.returnValue=value;control.open=false;control.events.close();};control.remove=()=>{control.parentNode.children.splice(control.parentNode.children.indexOf(control),1);};}return control;};
+    const initial=deferred();let ready;const pending=h.audit.askDialog('Choices',[],'','Apply',(_,report)=>{ready=report;ready(false);return initial.promise;});await flush();const dialog=h.context.document.body.children[0],apply=dom.all(dialog).find(control=>control.tagName==='BUTTON'&&control.textContent==='Apply');assert.equal(dialog.open,true);assert.equal(apply.disabled,true);
+    ready(true);assert.equal(apply.disabled,false);ready(false);initial.resolve();await flush();assert.equal(apply.disabled,true,'Finishing the older setup must not override the newer loading state');ready(true);assert.equal(apply.disabled,false);dialog.close('cancel');assert.equal(await pending,null);assert.equal(h.audit.state.modal,false);assert.equal(h.context.document.body.children.length,0);
+  });
+  await check('Standalone and mixed selections reject every calculator transfer before capturing a calculator draft',async()=>{
+    for(const [mode,purpose] of [['steel','count-only'],['duct','count-only'],['wall','length-only'],['slab','length-only']]){
+      const h=harness(),value=blank();value.items=[{id:'only',mode,purpose,fields:{mark:'Only'}},{id:'regular',mode,fields:{mark:'Regular'}}];h.audit.accept(response(value));h.audit.state.mode=mode;h.audit.state.selected=new Set(['only','regular']);let captures=0,requests=0;h.context.window.CeasefireCalculators={captureTakeoffTarget(){captures++;throw new Error('Must not capture');}};h.audit.setApi(async()=>{requests++;throw new Error('Must not request');});
+      await assert.rejects(h.audit.transfer(false),/cannot transfer to any calculator/);await assert.rejects(h.audit.transfer(true),/cannot transfer to any calculator/);assert.equal(captures,0);assert.equal(requests,0);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
+    }
   });
   console.log(`${passed} takeoff UI and geometry checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

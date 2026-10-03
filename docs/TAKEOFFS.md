@@ -125,7 +125,7 @@ records, confirmation or quantities and are cleared when another project opens.
 
 ## Count steel members
 
-Choose **Count** below **Trace length**, then click once for each physical member.
+Choose **Count steel lengths**, then click once for each physical member.
 Each marker requires a manually entered length in metres; no drawing calibration
 is required or used to infer that length. **Use this length for additional counts**
 reuses the entered value for the rest of this Count. Otherwise, each marker opens
@@ -153,6 +153,24 @@ suitability. Saved projects and exports retain Count/member identities, original
 PDF coordinates and the full manual length precision. Marked PDFs draw independent
 symbols without connecting lines. Existing Steel calculator transfer mappings
 remain unchanged: each row supplies its per-member length and marker-derived Qty.
+
+## Standalone counts and lengths
+
+In Steel and Duct, **Count** below **Trace length** counts markers without a
+length or calibration. Enter Item, Level and WxH (mm), and choose FRL and
+Orientation. **Total Count/QTY** comes from the retained markers and cannot be
+typed independently. Continuing a count retains its member identities; deleting
+a marker reduces only that count.
+
+In Walls and Slabs, **Length** below **Add exclusion** measures a calibrated
+polyline in metres. Enter its Item and Level. If its calibration is removed,
+attach a current calibration to calculate the length again.
+
+Standalone rows appear below ordinary calculator items in the register. They
+are saved with their source geometry and included in register and drawing
+exports. Every calculator transfer path rejects them. They do not change
+existing counted steel lengths or surface measurements. Duct's visible **Item**
+label retains the same stored identifier field used by earlier projects.
 
 In Select mode, selected measured markups show control points at their original PDF vertices.
 Click a point to choose it, then use Ctrl/Cmd+Z while the drawing has focus, or
@@ -317,17 +335,27 @@ The **Settings** button also opens that pane. Barrier Item Details includes an
 **Add service** action, and Defect Item Details can add a child barrier.
 The former inspector below the
 register is removed; reviewed changes, source associations and retained-image
-actions are available through Item Details.
+actions are available through Item Details. Ordinary field edits validate and
+apply automatically after a short typing pause or when leaving the field. There
+is no Preview physical edits button. Invalid input is retained for correction,
+and edits made during a save are applied in order. These changes remain drafts;
+creation, reparenting and cascade deletion retain their existing review dialogs.
 
 Marker positions use the original page coordinates and retained source hash.
-Moving a marker is a reviewed change. **Remove count marker** removes only its
+In Select mode, drag the marker to move its position or drag its callout to move
+the description. Clicking the callout opens Item Details; clicking it again
+clears selection and hides the pane. A selected callout has four corner handles
+for resizing. Its text wraps to the available width and adjusts to fit its
+height. Marker and callout movement use server validation and retain their source
+identity. **Remove count marker** removes only its
 position: the barrier, services and evidence remain. Deleting a barrier uses the
 existing reviewed cascade choice and retains its marker in the tombstone for
 restoration. Drawing PDF downloads include the selected sub-tab's markers and
 derived descriptions; original PDF bytes are preserved.
 
-The red **+**, trash and discard icons sit together directly below the register,
-above pagination. Selection and clear-selection use checked and unchecked box
+The red **+** and trash icons sit directly below the register, above pagination.
+In Item Details, Add service is a compact red **+**, and discard sits beside
+trash at the bottom of the pane. Selection and clear-selection use checked and unchecked box
 icons; the bulk-edit icon opens the existing same-type edit review. CSV and XLSX
 use the standard dark download buttons. Icon-only actions retain accessible
 names and hover descriptions.
@@ -341,7 +369,11 @@ shown as context rather than copied into children.
 Selecting a row opens its cited source page/region; supported evidence overlays
 and register rows share selection and hover. Unknown dimensions and properties
 remain blank. The hierarchical register can filter and page records while
-retaining their parent context. Bulk edits preview all affected IDs and form
+retaining their parent context. Column filters support multiple values, blanks
+and value search for State / uncertainty, Location, FRL, Substrate, Orientation,
+Category and Service type. Different columns combine to narrow the results; the
+register search searches those filtered results. Required ancestor rows remain
+visible as context. Bulk edits preview all affected IDs and form
 one undoable operation. Reparenting and cascade deletion require explicit
 preview. Deleted records retain their identities, fields and evidence and can
 be restored. A restore does not silently revive descendants deleted earlier.

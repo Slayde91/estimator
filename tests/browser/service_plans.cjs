@@ -21,7 +21,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const errors = [], previews = [], evidence = {};
+const errors = [], caughtErrors = [], previews = [], evidence = {};
 const details = () => page.getByRole('complementary', { name: 'Item Details', exact: true });
 const row = id => page.locator(`tr[data-physical-id="${id}"]`);
 const marker = id => page.locator(`.takeoff-physical-marker-hit[data-physical-id="${id}"]`);
@@ -139,6 +139,10 @@ async function controls() {
   const info = await ready; assert.notEqual(info.port, 8765, 'Use disposable fixture storage, never the live server'); origin = `http://127.0.0.1:${info.port}`;
   const sourceBefore = sha(info.fixture); browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 1 }); page.setDefaultTimeout(30000);
+  const debuggerSession = await page.context().newCDPSession(page), scripts = new Map();
+  debuggerSession.on('Debugger.scriptParsed', event => scripts.set(event.scriptId, event.url));
+  await debuggerSession.send('Debugger.enable'); await debuggerSession.send('Debugger.setPauseOnExceptions', { state: 'all' });
+  debuggerSession.on('Debugger.paused', event => { if (event.data && !event.callFrames.every(frame => scripts.get(frame.location.scriptId)?.includes('/vendor/'))) { caughtErrors.push({ reason: event.reason, data: event.data, stack: event.callFrames.map(frame => ({ name: frame.functionName, url: scripts.get(frame.location.scriptId) || frame.url, location: frame.location })) }); fs.writeFileSync(path.join(output, 'caught-errors.json'), JSON.stringify(caughtErrors, null, 2)); } void debuggerSession.send('Debugger.resume').catch(() => {}); });
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) previews.push(request.postDataJSON()); });
   await page.addInitScript(() => {
     window.qaCsp = []; window.qaDrawingEvents = [];
@@ -180,8 +184,15 @@ async function controls() {
   console.log('Independent hierarchies, barrier FRL and register controls passed.');
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
-  await select(barrier); await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([240, 170]));
-  await response(() => dialog('Place barrier marker', { 'Barrier': 'existing' }, 'Continue'), '/physical/preview'); await apply('Review barrier count marker');
+  // A blank drawing click clears physical selection without rendering a steel/duct register.
+  // A queued ordinary-register options refresh must also be harmless after switching scopes.
+  await page.getByLabel('Destination schedule', { exact: true }).evaluate(el => el.dispatchEvent(new Event('change', { bubbles: true })));
+  await select(barrier); await page.getByRole('button', { name: 'Select', exact: true }).click(); await page.mouse.click(...await screen([240,170]));
+  await expect(details()).toBeHidden(); await expect(row(barrier).getByRole('checkbox')).not.toBeChecked();
+  await expect(page.getByRole('alert').filter({ hasText: "Cannot read properties of undefined (reading 'find')" })).toHaveCount(0);
+  evidence.blankDrawingSelection = true;
+  await select(barrier); await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([240,170]));
+  await response(() => dialog('Place barrier marker', { 'Barrier': 'existing' }, 'Continue'), '/physical/apply'); await snapshot();
   await expect(marker(barrier)).toBeVisible(); await expect(details()).toBeVisible();
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
   const originalMarker = structuredClone(entity(barrier).marker); assert.equal(originalMarker.page, 3); assert.equal(originalMarker.document_sha256, sourceBefore);
@@ -218,22 +229,20 @@ async function controls() {
   await expect(page.getByRole('tab', { name: 'Service Plans', exact: true })).toBeInViewport();
   await page.screenshot({ path: path.join(output, 'service-plan-marker-item-details.png') });
 
-  await select(service); await fill(details(), { 'Explicit service quantity': 5, 'Service Size (mm)': '50', 'Width x Height (mm)': '120x90' });
-  // A scope switch cannot strand unreviewed form edits in the other register.
-  await page.getByRole('tab', { name: 'Defect Reports', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'Service Plans', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(details().getByLabel('Explicit service quantity', { exact: true })).toHaveValue('5');
-  await response(() => details().getByRole('button', { name: 'Preview physical edits', exact: true }).click(), '/physical/preview'); await apply('Review physical field changes');
-  for (const text of ['5 ×', '50', '120 x 90 mm']) await summaryContains(barrier, text);
+  await select(service);
+  for (const [label,value] of Object.entries({'Explicit service quantity':5,'Service Size (mm)':'50','Width x Height (mm)':'120x90'})) { await response(async()=>{const control=details().getByLabel(label,{exact:true});await control.fill(String(value));await control.press('Tab');},'/physical/apply');await idle();await snapshot(); }
+  // A scope switch flushes input without an extra field-review dialog.
+  await tab('Defect Reports'); await expect(page.getByRole('tab',{name:'Defect Reports',exact:true})).toHaveAttribute('aria-selected','true'); await tab('Service Plans');
+  for (const text of ['5 \u00d7', '50', '120 x 90 mm']) await summaryContains(barrier, text);
   await expect(callout(barrier)).not.toContainText('2 ×'); assert.deepEqual(entity(barrier).marker, originalMarker); assert.deepEqual(state.physical, reportBefore);
   evidence.derivedSummaryUpdates = true;
 
-  // Drag only the marker, then inspect the reviewed source coordinates. No
+  // Drag only the marker, then inspect the validated source coordinates. No
   // quantity, dimensions, parent link or original source evidence can change.
   await marker(barrier).click(); const beforeMove = structuredClone(entity(barrier)), serviceBeforeMove = structuredClone(entity(service));
   const start = await screen(originalMarker.point), finish = await screen([290, 220]);
-  await response(async () => { await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(...finish, { steps: 8 }); await page.mouse.up(); }, '/physical/preview');
-  await apply('Review barrier count marker'); const movedMarker = structuredClone(entity(barrier).marker);
+  await response(async () => { await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(...finish, { steps: 8 }); await page.mouse.up(); }, '/physical/apply'); await snapshot();
+  const movedMarker = structuredClone(entity(barrier).marker);
   assert.deepEqual(entity(barrier).fields, beforeMove.fields); assert.deepEqual(entity(barrier).evidence, beforeMove.evidence); assert.deepEqual(entity(service), serviceBeforeMove);
   const dragEvents = await page.evaluate(() => window.qaDrawingEvents.filter(event => event.type !== 'click').slice(-2));
   assert.deepEqual(dragEvents.map(event => event.type), ['pointerdown', 'pointerup']); const dragStart = sourcePoint(dragEvents[0]), dragEnd = sourcePoint(dragEvents[1]);
@@ -247,12 +256,12 @@ async function controls() {
   await apply('Create one draft barrier?'); const secondBarrier = secondPreview.changed_ids[0];
   assert.equal(entity(secondBarrier).display_id, 'B-0002'); assert.equal(state.service_plans.services.length, 1); await summaryContains(secondBarrier, '0 services');
   assert.deepEqual(state.physical, reportBefore); evidence.countCreatesIndependentBarrier = secondBarrier;
-  console.log('Reviewed field changes, exact marker movement and independent Count creation passed.');
+  console.log('Automatic field changes, exact marker movement and independent Count creation passed.');
 
   await tab('Defect Reports'); await expect(row(defect)).toBeVisible(); await expect(row(barrier)).toHaveCount(0); await expect(marker(barrier)).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'Defect ID', exact: true })).toBeVisible(); await snapshot(); assert.deepEqual(state.physical, reportBefore);
   await select(reportBarrier); await details().getByRole('button', { name: 'Place count marker', exact: true }).click();
-  await response(async () => page.mouse.click(...await screen([330, 320])), '/physical/preview'); await apply('Review barrier count marker');
+  await response(async () => page.mouse.click(...await screen([330, 320])), '/physical/apply'); await snapshot();
   await summaryContains(reportBarrier, 'FRL -/120/120'); await summaryContains(reportBarrier, '3 ×');
   const savedReport = structuredClone(state.physical); await tab('Service Plans');
   await expect(marker(reportBarrier)).toHaveCount(0); await expect(marker(barrier)).toBeVisible(); await expect(marker(secondBarrier)).toBeVisible();
@@ -292,7 +301,7 @@ async function controls() {
   assert.equal(entity(secondBarrier).deleted, false); assert.deepEqual(entity(secondBarrier).marker, secondBeforeDelete.marker); await expect(marker(secondBarrier)).toBeVisible();
   assert.deepEqual(state.physical, savedReport); evidence.markerRemovalAndRecoverableDeletion = true;
   const removedRoundtrip = await saveAndLoad(info); await snapshot(); assert.equal(state.service_plans.barriers.find(item => item.id === barrier).marker, null); assert.deepEqual(state.service_plans, removedRoundtrip.takeoffs.service_plans);
-  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBefore); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.equal(sha(info.fixture), sourceBefore);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBefore); assert.deepEqual(errors, []); assert.equal(caughtErrors.some(error => /Cannot read properties of undefined \(reading 'find'\)/.test(error.data?.description || '')), false); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.equal(sha(info.fixture), sourceBefore);
   await tab('Service Plans'); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-physical-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'service-plan-register-764.png'), fullPage: true });
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
@@ -301,7 +310,7 @@ async function controls() {
   await page.locator('.takeoff-drawing-layout').evaluate(el => { const header = document.querySelector('header').getBoundingClientRect(); window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12); });
   await page.screenshot({ path: path.join(output, 'service-plan-item-details-764.png') });
   assert.ok(previews.some(value => value.scope === 'service_plans')); assert.ok(previews.some(value => !value.scope || value.scope === 'defect_reports'));
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, previews, errors }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, previews, errors, caughtErrors }, null, 2));
   console.log(`PASS: independent penetration sub-tabs, barrier FRL, Count markers and live callouts, Item Details, movement/removal/restoration, save/reopen and scoped exports. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-6000));

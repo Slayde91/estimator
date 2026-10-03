@@ -223,7 +223,7 @@ function clearedExpected(original, bindings) {
   // The last marker represents its entire Count item. Its context menu must
   // use the same coupled deletion, rather than leaving its schedule quantity.
   await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite');
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([300, 200]));
+  await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await page.mouse.click(...await screen([300, 200]));
   await dialog('Counted member length', { 'Length per member (m)': 2.3456789 }, 'Place marker');
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(1);
   reply = await command(async () => page.mouse.dblclick(...await screen([450, 200])), 'add_count_items');

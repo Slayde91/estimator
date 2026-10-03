@@ -67,6 +67,7 @@ jobs:
       - run: npm run test:takeoffs-length-copy
       - run: npm run test:takeoffs-pdf-text
       - run: npm run test:takeoffs-duct-filters
+      - run: npm run test:takeoffs-standalone
       - run: npm run test:takeoffs-markups
       - run: npm run test:takeoffs-control-points
       - run: npm run test:takeoffs-plan-tools
@@ -75,6 +76,8 @@ jobs:
       - run: npm run test:physical-register
       - run: npm run test:service-plans
       - run: npm run test:physical-navigation
+      - run: npm run test:physical-interactions
+      - run: npm run test:physical-filters
       - run: npm run test:project-library-drafts
       - run: npm run test:takeoffs-counts
       - run: npm run test:takeoffs-item-actions

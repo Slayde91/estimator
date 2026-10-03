@@ -14,7 +14,8 @@ from uuid import uuid4
 
 from .catalog import ValidationError
 from .takeoff_area import AREA_MODES
-from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, is_count_item, item_digest, item_result,
+from .takeoff_model import (MAX_ITEMS, audit_affected, audit_state_digest, digest, identity, is_count_item,
+                           is_area_item, is_marker_item, is_standalone_count, is_standalone_length, is_standalone_item, item_digest, item_result,
     new_snapshot, object_fields, page_metadata, text, validate_calibration, validate_item, validate_snapshot)
 from .takeoff_model import (active_calibrations, item_references, markup_appearance, number, preset_distance, validate_appearance,
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
@@ -160,10 +161,12 @@ class TakeoffService:
     def _receipt(self, snapshot, item, session_id):
         result = item_result(item, snapshot)
         measurements = ({key: result[key] for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
-                        if item['mode'] in AREA_MODES else {key: result[key] for key in ('length_m', 'total_length_m')})
+                        if is_area_item(item) else {'total_count': result['total_count']} if is_standalone_count(item)
+                        else {key: result[key] for key in ('length_m', 'total_length_m')})
         return {'id': str(uuid4()), 'digest': item_digest(item, snapshot), 'at': timestamp(),
                 'actor': {'kind': 'local-session', 'session_id': session_id},
-                'checks': {'engine': 'takeoffs-area-v1' if item['mode'] in AREA_MODES else 'takeoffs-v1',
+                'checks': {'engine': ('takeoffs-area-v1' if is_area_item(item) else 'takeoffs-count-v1' if is_standalone_count(item)
+                                     else 'takeoffs-length-v1' if is_standalone_length(item) else 'takeoffs-v1'),
                            'quantity': item['quantity'], **measurements,
                            'evidence_verified': True, 'issues': deepcopy(result['issues'])}}
 
@@ -718,9 +721,11 @@ class TakeoffService:
                     self._invalidate(after, item)
 
     def _create_item(self, snapshot, proposed, predecessors=None, *, allow_count=False, copied_from=None):
-        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance', 'count_id'}, 'New takeoff item', {'mode'})
-        if is_count_item(proposed) and not allow_count:
+        object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance', 'count_id', 'purpose'}, 'New takeoff item', {'mode'})
+        if is_marker_item(proposed) and not allow_count:
             raise ValidationError('Create Steel count markers with the controlled count operation.')
+        if is_standalone_length(proposed) and not proposed.get('measurement'):
+            raise ValidationError('Choose a calibration before creating a standalone length measurement.')
         item = {'id': proposed.get('id', str(uuid4())), 'version': 1, 'mode': proposed['mode'], 'state': 'draft',
                 'geometry': deepcopy(proposed.get('geometry')), 'measurement': deepcopy(proposed.get('measurement')),
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
@@ -735,6 +740,8 @@ class TakeoffService:
             item['appearance'] = deepcopy(proposed['appearance'])
         if 'count_id' in proposed:
             item['count_id'] = proposed['count_id']
+        if 'purpose' in proposed:
+            item['purpose'] = proposed['purpose']
         if 'member_ids' not in proposed:
             self._resize_members(item)
         if any(i['id'] == item['id'] for i in snapshot['items']):
@@ -807,7 +814,7 @@ class TakeoffService:
         return sorted({identifier for item in originals for identifier in (item['id'], *item.get('predecessor_ids', []))})
 
     def _steel_group(self, item):
-        if is_count_item(item):
+        if is_marker_item(item):
             raise ValidationError('Count groups retain marker identities. Edit or delete their individual markers instead of splitting or merging quantities.')
         if item['mode'] != 'steel' or type(item['quantity']) is not int or item['quantity'] <= 0:
             raise ValidationError('Choose steel groups with explicit positive physical quantities.')
@@ -815,7 +822,7 @@ class TakeoffService:
             raise ValidationError('Steel groups must retain one distinct identity for every physical member.')
 
     def _group_proposal(self, original):
-        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions', 'appearance') if key in original}
+        return {key: deepcopy(original[key]) for key in ('mode', 'quantity', 'fields', 'geometry', 'measurement', 'evidence', 'member_ids', 'length_additions', 'appearance', 'purpose') if key in original}
 
     def _assert_eligible(self, snapshot, items, *, confirmed=False, session_id=None, require_review=True):
         self.documents.assert_documents(snapshot['documents'], owner=session_id)
@@ -839,6 +846,8 @@ class TakeoffService:
             specs = {'create_item': {'item'}, 'update_item': {'item_id', 'changes'},
                      'duplicate_items': {'sources', 'document_id', 'page', 'point', 'calibration_id'},
                      'add_count_items': {'document_id', 'page', 'markers', 'fields', 'appearance'},
+                     'add_standalone_count': {'mode', 'document_id', 'page', 'markers', 'fields', 'appearance'},
+                     'continue_standalone_count': {'item_id', 'markers'},
                      'continue_count': {'item_id', 'markers'},
                      'update_count_lengths': {'groups'},
                      'move_count_markers': {'markers', 'delta_pdf'},
@@ -868,6 +877,39 @@ class TakeoffService:
                                                  if document['id'] in source_ids], owner=session_id)
                 created_item_ids = [self._create_item(after, proposed, copied_from=source)['id']
                                     for proposed, source in proposals]
+            elif op in ('add_standalone_count', 'continue_standalone_count'):
+                if op == 'continue_standalone_count':
+                    item = self._items(after, [request['item_id']])[0]
+                    if not is_standalone_count(item):
+                        raise ValidationError('Choose an existing count-only item to continue.')
+                    geometry = item['geometry']
+                    document_id, page_number = geometry['document_id'], geometry['page']
+                else:
+                    if request['mode'] not in ('steel', 'duct'):
+                        raise ValidationError('Count-only items belong to Steel or Duct.')
+                    document_id, page_number = request['document_id'], request['page']
+                _, page = page_metadata(after, document_id, page_number)
+                markers = request['markers']
+                if not isinstance(markers, list) or not 1 <= len(markers) <= MAX_ITEMS:
+                    raise ValidationError('Place a bounded nonempty list of count-only markers.')
+                locations = []
+                for marker in markers:
+                    object_fields(marker, {'point'}, 'Standalone count marker', {'point'})
+                    locations.extend(points([marker['point']], 'Count-only marker', page, maximum=1))
+                if sum(len(value['member_ids']) for value in after['items']) + len(locations) > MAX_ITEMS:
+                    raise ValidationError(f'A takeoff project may retain at most {MAX_ITEMS} physical member identities.')
+                if op == 'add_standalone_count':
+                    item = self._create_item(after, {'mode': request['mode'], 'purpose': 'count-only',
+                        'geometry': {'kind': 'count-only', 'document_id': document_id, 'page': page_number, 'points': locations},
+                        'measurement': None, 'quantity': len(locations), 'fields': request['fields'], 'appearance': request['appearance']}, allow_count=True)
+                    created_item_ids = [item['id']]
+                else:
+                    item['geometry']['points'].extend(locations)
+                    item['member_ids'].extend(str(uuid4()) for _ in locations)
+                    item['quantity'] += len(locations)
+                    self._invalidate(after, item)
+                    validate_item(item, after, copy_result=False)
+                    created_item_ids = []
             elif op == 'add_count_items':
                 # One batch has common fields, appearance and source. Partition
                 # only by exact entered length, preserving first-seen order.
@@ -984,7 +1026,7 @@ class TakeoffService:
                         raise ValidationError('Select each count marker only once.')
                     seen.add((item_id, member_id))
                     item = mapping.get(item_id)
-                    if item is None or not is_count_item(item):
+                    if item is None or not is_marker_item(item):
                         raise ValidationError('A selected count marker no longer exists.')
                     if item_id not in member_indexes:
                         member_indexes[item_id] = {member: index for index, member in enumerate(item['member_ids'])}
@@ -1005,7 +1047,7 @@ class TakeoffService:
                     validate_measurement_scope(item, after)
             elif op == 'delete_count_marker':
                 item = self._items(after, [request['item_id']])[0]
-                if not is_count_item(item):
+                if not is_marker_item(item):
                     raise ValidationError('Choose a Steel count marker to delete.')
                 member_id = identity(request['member_id'], 'Count member ID')
                 if member_id not in item['member_ids']:
@@ -1047,14 +1089,14 @@ class TakeoffService:
                                                for other in after['items']):
                         raise ValidationError('Select every row of this count to change its shared details or appearance. Start a different count for different details.')
                 for item in selected:
-                    count_item = is_count_item(item)
+                    count_item = is_marker_item(item)
                     if count_item:
                         for key in ('quantity', 'member_ids'):
                             if key in changes and changes[key] != item[key]:
                                 raise ValidationError('Count quantity and member identities are derived from its markers. Delete the selected marker instead.')
                     if 'geometry' in changes:
                         proposed_geometry = changes['geometry']
-                        proposed_count = isinstance(proposed_geometry, dict) and proposed_geometry.get('kind') == 'count'
+                        proposed_count = isinstance(proposed_geometry, dict) and proposed_geometry.get('kind') in ('count', 'count-only')
                         if count_item != proposed_count:
                             raise ValidationError('Count markers cannot be converted to or from traced geometry.')
                         if count_item and (not isinstance(proposed_geometry.get('points'), list)
@@ -1084,7 +1126,7 @@ class TakeoffService:
                         self._invalidate(after, item)
                     validate_item(item, after, copy_result=False)
                     if ('geometry' in changes and item['geometry'] is not None
-                            and item['geometry'] != original_geometry and item['mode'] not in AREA_MODES and not count_item):
+                            and item['geometry'] != original_geometry and not is_area_item(item) and not count_item):
                         # Editing control points must keep a usable line/region.
                         # Keep legacy draft loading and unrelated field/style
                         # edits compatible with their existing stored geometry.
@@ -1301,6 +1343,8 @@ class TakeoffService:
                         self._invalidate(after, item)
             elif op == 'split_item':
                 original = self._items(after, [request['item_id']])[0]
+                if is_standalone_item(original):
+                    raise ValidationError('Standalone measurements cannot be converted into calculator runs.')
                 if original['mode'] in AREA_MODES:
                     raise ValidationError('Surface split is unavailable until exact coverage and exclusion preservation can be verified. Edit its polygon or group separate surfaces explicitly.')
                 parts = request['parts']
@@ -1317,7 +1361,7 @@ class TakeoffService:
                 self._remove(after, [original])
             elif op == 'merge_items':
                 originals = self._items(after, request['item_ids'])
-                if any(is_count_item(item) for item in originals):
+                if any(is_marker_item(item) or is_standalone_item(item) for item in originals):
                     raise ValidationError('Count groups retain marker identities and cannot use traced-run merge.')
                 if any(item['mode'] in AREA_MODES for item in originals):
                     raise ValidationError('Surface merge is unavailable until exact coverage and exclusion preservation can be verified. Group separate surfaces without changing their identities.')

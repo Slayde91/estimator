@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from .catalog import ValidationError
 from .schedule_rows import blank_schedule_defaults, normalize_schedule_rows, populated_schedule_rows
-from .takeoff_model import digest, item_digest, measured_length, object_fields
+from .takeoff_model import digest, item_digest, measured_length, object_fields, is_standalone_item
 from .workbook_calculators import (source_model, calculator_session,
                                   validate_calculator_edits, validation_options)
 from .ductwork_policy import application_frl
@@ -57,6 +57,8 @@ def _required(fields, keys):
 
 
 def mapped_values(item, snapshot, calculator_id, row):
+    if is_standalone_item(item):
+        raise ValidationError('Count-only and length-only measurements cannot be transferred to any calculator.')
     fields = item['fields']
     expected_mode = {'steel_vermiculite': 'steel', 'steel_board': 'steel', 'ductwork': 'duct'}.get(calculator_id)
     if item['mode'] in ('wall', 'slab'):

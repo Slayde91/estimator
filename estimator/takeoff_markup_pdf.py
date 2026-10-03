@@ -29,7 +29,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
         for item in items:
             geometry = item['geometry']; fields = item['fields']; result = results[item['id']]
             vertices += len(geometry['points']) + sum(len(value['points']) for value in geometry.get('exclusions', []))
-            rows.append({'id': item['id'], 'mode': item['mode'], 'geometry': geometry,
+            rows.append({'id': item['id'], 'mode': item['mode'], 'purpose': item.get('purpose'), 'geometry': geometry,
                          'cited_region': bool(item['measurement'] and item['measurement']['method'] == 'cited'),
                          'appearance': markup_appearance(item), 'mark': fields.get('mark') or item['id'][:8],
                          'section': fields.get('section'), 'shape': fields.get('shape'),

@@ -38,7 +38,10 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await page.goto(`http://127.0.0.1:${info.port}/`);
+  // Bootstrap selects its initial view; navigate only after it has completed.
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await page.waitForFunction(() => { try { return window.CeasefireTakeoffs.projectSnapshot().render_checks.some(check => check.page === 1 && check.success); } catch { return false; } });
   // The fixture uses only validated public commands. All ordinary interaction

@@ -64,6 +64,9 @@ async function openProjectCopy() {
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible();
+  // Bootstrap exposes project tools before the initial Firestopping draft has
+  // finished loading. Let it settle before capturing the first Load revision.
+  await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; });
   await load(true);
   const retained = await independentDrafts(), seed = JSON.parse(fs.readFileSync(info.seed, 'utf8'));
   assert.equal(retained.penetration.composer.rows[0].inputs.T, 'Unscheduled composer retained');

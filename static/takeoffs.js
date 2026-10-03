@@ -1897,7 +1897,9 @@
     // Keep screen callouts readable at fit-to-page zoom without changing source coordinates or PDF export sizing.
     const scale = Math.max(markerScale, 1.2);
     const summary = state.physicalUI.summary(entity.id), lines = physicalCalloutLines(summary), boxWidth = 238 * scale, lineHeight = 12 * scale, boxHeight = (lines.length * 12 + 12) * scale;
-    const x = Math.max(2 * scale, Math.min(point[0] + 17 * scale, state.viewport.width - boxWidth - 2 * scale)), y = Math.max(2 * scale, Math.min(point[1] - 18 * scale, state.viewport.height - boxHeight - 2 * scale));
+    const x = Math.max(2 * scale, Math.min(point[0] + 17 * scale, state.viewport.width - boxWidth - 2 * scale));
+    const below = point[1] + radius + 12 * scale;
+    const y = below + boxHeight + 2 * scale <= state.viewport.height ? below : Math.max(2 * scale, point[1] - radius - 12 * scale - boxHeight);
     const leader = svg("path", { d: `M${point[0]} ${point[1]}L${x} ${y + 12 * scale}`, stroke: "#b90a15", "stroke-width": scale, fill: "none", "pointer-events": "none" });
     const callout = svg("g", { class: "takeoff-physical-callout", "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-label": `Item Details ${entity.display_id} · ${summary}` });
     callout.append(svg("rect", { x, y, width: boxWidth, height: boxHeight, rx: 3 * scale, fill: "#fff", "fill-opacity": 0.94, stroke: selected ? "#b90a15" : "#696166", "stroke-width": scale }));

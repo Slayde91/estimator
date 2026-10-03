@@ -187,6 +187,16 @@ async function controls() {
   for (let axis = 0; axis < 2; axis++) assert.ok(Math.abs(originalMarker.point[axis] - exactPlacedPoint[axis]) < 1e-7, `Placed source coordinates ${originalMarker.point} from ${JSON.stringify(placedClick)}`);
   for (const text of ['B-0001', 'PLAN-A', 'Concrete/masonry wall', 'FRL -/90/90', 'S-0001', '2 ×', '100 x 80 mm']) await summaryContains(barrier, text);
   assert.ok(await callout(barrier).locator('text').evaluate(el => parseFloat(getComputedStyle(el).fontSize)) >= 10, 'The fitted-page callout must remain readable on screen');
+  const calloutPlacement = await callout(barrier).evaluate(el => {
+    const hit = [...el.parentElement.querySelectorAll('.takeoff-physical-marker-hit')].find(candidate => candidate.dataset.physicalId === el.dataset.physicalId);
+    const shape = hit.previousElementSibling, box = el.querySelector('rect');
+    return { point: [Number(shape.getAttribute('cx')), Number(shape.getAttribute('cy'))], radius: Number(shape.getAttribute('r')), box: ['x', 'y', 'width', 'height'].map(key => Number(box.getAttribute(key))) };
+  });
+  const [markerX, markerY] = calloutPlacement.point, [boxX, boxY, boxWidth, boxHeight] = calloutPlacement.box;
+  assert.ok(markerX < boxX || markerX > boxX + boxWidth || markerY < boxY || markerY > boxY + boxHeight, `The fitted-page callout must not cover its marker centre: ${JSON.stringify(calloutPlacement)}`);
+  const dx = Math.max(boxX - markerX, 0, markerX - boxX - boxWidth), dy = Math.max(boxY - markerY, 0, markerY - boxY - boxHeight);
+  assert.ok(Math.hypot(dx, dy) > calloutPlacement.radius, 'The complete red marker must remain clear of callout text');
+  evidence.calloutPlacement = calloutPlacement;
   assert.equal(state.calibrations.length, 0, 'A barrier Count marker requires no scale'); assert.equal(state.items.length, 0, 'Barrier counts must not create steel/duct quantity rows');
   const detailBox = await page.locator('.takeoff-physical-details').boundingBox(), drawingBox = await page.locator('.takeoff-viewport').boundingBox();
   assert.ok(detailBox.x + detailBox.width <= drawingBox.x + 2, 'Item Details sits left of the PDF page');

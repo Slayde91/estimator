@@ -21,7 +21,8 @@
     "test:takeoffs-auto-scale": "node tests/browser/auto_scale.cjs",
     "test:takeoffs-duct-settings": "node tests/browser/duct_settings.cjs",
     "test:physical-register": "node tests/browser/physical_register.cjs",
-    "test:project-library-drafts": "node tests/browser/project_library_drafts.cjs"
+    "test:project-library-drafts": "node tests/browser/project_library_drafts.cjs",
+    "test:service-plans": "node tests/browser/service_plans.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

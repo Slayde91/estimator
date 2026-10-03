@@ -21,7 +21,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
-from .takeoff_physical import graph_collections, graph_parents, graph_digest, validate_graph
+from .takeoff_physical import entity_references, graph_collections, graph_parents, graph_digest, validate_graph
 
 STATUS = 'UNAPPROVED DRAFT'
 SOURCE_STATUS = 'UNVERIFIED ASSERTIONS'
@@ -44,6 +44,7 @@ DETAIL_HEADERS = ('fields_json', 'evidence_json', 'source_names_json',
 CSV_HEADERS = COMMON_HEADERS + FIELD_HEADERS + DETAIL_HEADERS
 V2_COMMON_HEADERS = COMMON_HEADERS[:-4] + ('display_id', 'defect_id', 'barrier_id',
     'service_id', 'defect_uuid', 'barrier_uuid', 'service_uuid')
+V3_COMMON_HEADERS = tuple(key for key in V2_COMMON_HEADERS if key not in ('defect_id', 'defect_uuid'))
 V2_FIELD_HEADERS = tuple(field for field in FIELD_HEADERS
                         if field not in ('opening_type', 'opening_size', 'shape', 'depth_mm'))
 KIND_FIELDS = {
@@ -91,8 +92,8 @@ def _names(value):
 
 def _rows(graph, names):
     collections, parents = graph_collections(graph), graph_parents(graph)
-    current = graph['version'] == 2
-    common_headers = V2_COMMON_HEADERS if current else COMMON_HEADERS
+    current = graph['version'] in (2, 3)
+    common_headers = {1: COMMON_HEADERS, 2: V2_COMMON_HEADERS, 3: V3_COMMON_HEADERS}[graph['version']]
     index = {entity['id']: (kind, entity) for kind, collection in collections.items()
              for entity in graph[collection]}
     fingerprint = graph_digest(graph)
@@ -117,15 +118,18 @@ def _rows(graph, names):
                 if ancestor_kind not in parents:
                     break
                 ancestor_kind, ancestor = index[ancestor[parents[ancestor_kind][1]]]
-            # Columns contain only this entity's facts. Ancestor IDs provide
-            # joins; substrate, FRL and other parent facts are not inferred.
+            # Exact own fields remain lossless. Service Plans additionally
+            # displays the FRL recorded by its explicit current barrier parent.
             for key, value in entity['fields'].items():
                 row[f'{kind}_size' if key == 'size' else key] = value
             if kind == 'service':
                 row['quantity'] = entity['quantity']
+                if graph['version'] == 3:
+                    row['frl'] = index[entity['barrier_id']][1]['fields'].get('frl')
+            row['marker_json'] = _json(entity.get('marker'))
             row.update(fields_json=_json(entity['fields']), evidence_json=_json(entity['evidence']),
                 source_names_json=_json({reference['document_id']: names[reference['document_id']]
-                    for reference in entity['evidence'] if reference['document_id'] in names}),
+                    for reference in entity_references(entity) if reference['document_id'] in names}),
                 uncertainty_state=entity['uncertainty']['state'], uncertainty_note=entity['uncertainty']['note'],
                 uncertainty_json=_json(entity['uncertainty']))
             entities.append(row)
@@ -216,13 +220,15 @@ def export_physical_graph(graph, format, source_names=None):
     if not isinstance(format, str) or format not in ('csv', 'xlsx'):
         raise ValidationError('Choose CSV or XLSX draft physical export.')
     graph = validate_graph(graph)
-    current = graph['version'] == 2
-    common_headers = V2_COMMON_HEADERS if current else COMMON_HEADERS
-    csv_headers = common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + DETAIL_HEADERS
+    current = graph['version'] in (2, 3)
+    common_headers = {1: COMMON_HEADERS, 2: V2_COMMON_HEADERS, 3: V3_COMMON_HEADERS}[graph['version']]
+    details_headers = DETAIL_HEADERS + (('marker_json',) if graph['version'] == 3 or any('marker' in entry for entry in graph['barriers']) else ())
+    csv_headers = common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + details_headers
     evidence_headers = common_headers + EVIDENCE_HEADERS[len(COMMON_HEADERS):]
     names = _names(source_names)
     rows, associations, fingerprint = _rows(graph, names)
-    filename = f'CEASEFIRE-Physical-UNAPPROVED-DRAFT.{format}'
+    label = 'Service-Plans' if graph['version'] == 3 else 'Physical'
+    filename = f'CEASEFIRE-{label}-UNAPPROVED-DRAFT.{format}'
     if format == 'csv':
         output = StringIO(newline='')
         writer = csv.writer(output)
@@ -239,7 +245,8 @@ def export_physical_graph(graph, format, source_names=None):
     details = []
     try:
         for kind, collection in graph_collections(graph).items():
-            _sheet(workbook, collection.title(), common_headers + KIND_FIELDS[kind] + DETAIL_HEADERS,
+            own_fields = KIND_FIELDS[kind] + (('frl',) if graph['version'] == 3 else ())
+            _sheet(workbook, collection.title(), common_headers + own_fields + details_headers,
                    [row for row in rows if row['entity_type'] == kind and not row['deleted']], details)
         _sheet(workbook, 'Evidence', evidence_headers, associations, details, record_key='association_key')
         _sheet(workbook, 'Historical Entities', csv_headers, [row for row in rows if row['deleted']], details)
@@ -253,9 +260,9 @@ def export_physical_graph(graph, format, source_names=None):
             ('Project ID', graph['project_id']), ('Physical graph ID', graph['id']),
             ('Physical graph revision', graph['revision']), ('Physical graph SHA-256', fingerprint),
             ('State', 'draft'),
-            ('Hierarchy', ('Defect -> Barrier -> Service. Numbered IDs are project-local display IDs; entity_id, parent_id and *_uuid retain exact UUID links.' if current else
+            ('Hierarchy', ('Barrier -> Service. FRL belongs to the Barrier; service FRL is displayed from its current parent.' if graph['version'] == 3 else 'Defect -> Barrier -> Service. Numbered IDs are project-local display IDs; entity_id, parent_id and *_uuid retain exact UUID links.' if current else
                            'Barrier -> Defect -> Opening -> Service. Typed parent and ancestor IDs are explicit links.')),
-            ('Facts', 'Field columns contain only the entity\'s own recorded facts. Parent facts are not copied into child fields. Exact typed fields remain in fields_json.'),
+            ('Facts', 'Exact entity facts remain in fields_json. Service Plans displays service FRL from its current Barrier; this does not copy FRL into service fields.' if graph['version'] == 3 else 'Field columns contain only the entity\'s own recorded facts. Parent facts are not copied into child fields. Exact typed fields remain in fields_json.'),
             ('Quantity', ('Only services carry explicit positive quantities. Empty barriers have no service row or quantity. Images and repeated views never create counts.' if current else
                           'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.')),
             ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.'),

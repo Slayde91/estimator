@@ -9,18 +9,28 @@ from uuid import UUID, uuid5
 
 from .catalog import ValidationError
 from .takeoff_model import digest, page_metadata, points
-from .takeoff_physical import (apply_change, graph_collections, graph_parents,
+from .takeoff_physical import (apply_change, entity_references, graph_collections, graph_parents,
                                graph_digest, new_graph, preview_change, validate_graph)
 
 MAX_PHYSICAL_COMMANDS = 100
 
 
-def current_graph(snapshot):
-    graph = snapshot.get('physical')
+def scope_key(scope='defect_reports'):
+    if not isinstance(scope, str) or scope not in ('defect_reports', 'service_plans'):
+        raise ValidationError('Choose Defect Reports or Service Plans.')
+    return 'physical' if scope == 'defect_reports' else 'service_plans'
+
+
+def current_graph(snapshot, scope='defect_reports'):
+    key = scope_key(scope)
+    graph = snapshot.get(key)
     if graph is None:
         return new_graph(snapshot['project_id'],
-                         str(uuid5(UUID(snapshot['project_id']), 'physical-graph-v2')), version=2)
+                         str(uuid5(UUID(snapshot['project_id']), 'physical-graph-v2' if key == 'physical' else 'service-plans-graph-v3')),
+                         version=2 if key == 'physical' else 3)
     validate_graph(graph, copy_result=False)
+    if graph['version'] not in ((1, 2) if key == 'physical' else (3,)):
+        raise ValidationError('The physical hierarchy does not match its workspace scope.')
     if graph['project_id'] != snapshot['project_id']:
         raise ValidationError('The physical graph belongs to another project.')
     return deepcopy(graph)
@@ -36,10 +46,12 @@ def validate_source_links(graph, snapshot, image_check=None):
         for entity in graph[collection]:
             if entity['deleted']:
                 continue
-            for ref in entity['evidence']:
+            for ref in entity_references(entity):
                 doc, page = page_metadata(snapshot, ref['document_id'], ref['page'])
                 if ref['document_sha256'] != doc['sha256']:
                     raise ValidationError('Physical evidence refers to changed source document bytes.')
+                if 'point' in ref:
+                    points([ref['point']], 'Barrier marker', page, 1, 1)
                 if 'region' in ref:
                     points(ref['region'], 'Physical evidence region', page, 3, 64)
                 if 'image_id' in ref:
@@ -53,11 +65,11 @@ def _entities(graph):
             for entity in graph[collection]}
 
 
-def prepare_changes(snapshot, commands, image_check=None):
+def prepare_changes(snapshot, commands, image_check=None, *, scope='defect_reports'):
     """Preview all commands against one frozen graph; errors leave it unchanged."""
     if not isinstance(commands, list) or not 1 <= len(commands) <= MAX_PHYSICAL_COMMANDS:
         raise ValidationError(f'Choose one to {MAX_PHYSICAL_COMMANDS} explicit physical edits per batch.')
-    before = current_graph(snapshot)
+    before = current_graph(snapshot, scope)
     after = before
     affected, changed, descendants = set(), set(), set()
     for command in commands:
@@ -80,9 +92,9 @@ def prepare_changes(snapshot, commands, image_check=None):
             'parent_after': entity.get(parent),
             'deleted_before': prior[1]['deleted'] if prior else None,
             'deleted_after': entity['deleted']})
-        if after['version'] == 2:
+        if after['version'] in (2, 3):
             relationships[-1]['display_id'] = entity['display_id']
-    summary = {'version': 1, 'graph_id': before['id'], 'project_id': before['project_id'],
+    summary = {'version': 1, 'scope': scope, 'graph_id': before['id'], 'project_id': before['project_id'],
         'base_revision': before['revision'], 'base_digest': graph_digest(before),
         'commands': deepcopy(commands), 'command_count': len(commands),
         'affected_ids': sorted(affected), 'changed_ids': sorted(changed),

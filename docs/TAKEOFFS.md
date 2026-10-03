@@ -241,9 +241,10 @@ Each surface supports at most 1,000 total vertices and 64 exclusions. Invalid,
 self-crossing, degenerate or out-of-page geometry is rejected without changing
 the current item. Multiple page scales must be separately calibrated.
 
-## Penetrations: manual physical draft
+## Penetrations: Defect Reports and Service Plans
 
-The active hierarchy is **Defect → Barrier → Service**. Use **Add defect** to
+**Defect Reports** retains the existing **Defect → Barrier → Service** hierarchy.
+Use **Add defect** to
 create a root row. On that row, the **+** in the Barrier ID column creates a
 child barrier; on a barrier row, the **+** in the Service ID column creates a
 child service. A defect may have several barriers, and a barrier may have
@@ -253,9 +254,42 @@ services. Existing services require
 an explicit positive integer quantity. No quantity is inferred from photographs,
 image occurrences or missing inputs.
 
+**Service Plans** is a separate **Barrier → Service** register in the same
+project. It has no defect record or Defect ID column. **Add substrate** opens
+the barrier form; a barrier's **+** creates a child service. FRL is stored on
+the barrier, uses the Firestopping Estimator choices, and is displayed as
+inherited context for its services. Switching sub-tabs never copies, merges or
+reparents records between these two hierarchies. Both retain their own numbered
+identities and are saved in the project.
+
+In either sub-tab, **Count** below **Scale** places one barrier marker on the
+original PDF page. An existing unmarked barrier can be chosen, or a new barrier
+can be created at that point. Each marker has an automatic callout derived from
+the barrier fields and its active services. Editing those records updates the
+description; the marker does not infer or multiply service quantities. Selecting
+a marker or register record opens **Item Details** on the left of the PDF.
+The **Settings** button also opens that pane. Barrier Item Details includes an
+**Add service** action, and Defect Item Details can add a child barrier.
+The former inspector below the
+register is removed; reviewed changes, source associations and retained-image
+actions are available through Item Details.
+
+Marker positions use the original page coordinates and retained source hash.
+Moving a marker is a reviewed change. **Remove count marker** removes only its
+position: the barrier, services and evidence remain. Deleting a barrier uses the
+existing reviewed cascade choice and retains its marker in the tombstone for
+restoration. Drawing PDF downloads include the selected sub-tab's markers and
+derived descriptions; original PDF bytes are preserved.
+
+The red **+**, trash and discard icons sit together directly below the register,
+above pagination. Selection and clear-selection use checked and unchecked box
+icons; the bulk-edit icon opens the existing same-type edit review. CSV and XLSX
+use the standard dark download buttons. Icon-only actions retain accessible
+names and hover descriptions.
+
 Each record retains a UUID and receives a visible sequential ID: **D-0001**,
 **B-0001** or **S-0001**. The server assigns each type's sequence independently
-within the project. IDs remain unchanged through edits, reparenting, deletion,
+within each workspace. IDs remain unchanged through edits, reparenting, deletion,
 Undo, save and reopen; deleted or undone IDs are never reused. Each record has
 its own typed fields, uncertainty and source references. Parent fields are
 shown as context rather than copied into children.
@@ -295,8 +329,10 @@ All physical records in this increment are **UNAPPROVED DRAFT**. CSV and
 values-only XLSX exports retain the hierarchy, source/image hashes, quantities
 asserted by the user, uncertainty and tombstone history with that label. They
 include the visible Defect, Barrier and Service IDs alongside the exact UUID
-links. Version 2 XLSX exports have Defects, Barriers and Services sheets, with
-no Opening sheet or fields; legacy exports retain their original format. They
+links. Defect Reports version 2 XLSX exports have Defects, Barriers and Services
+sheets, with no Opening sheet or fields. Service Plans version 3 exports contain
+Barriers and Services, with barrier FRL and no defect relationships. Each export
+contains only its selected sub-tab. Legacy exports retain their original format. They
 cannot represent approved quantities, create calculator rows or advance a priced
 quote. Independent image validation and a verified Physical Model Lock are
 required by the later approval workflow.
@@ -359,9 +395,12 @@ remains retained.
 The nested takeoff snapshot remains schema version 1 for existing measurement
 projects. The first physical edit or image extraction records an explicit
 upgrade to nested schema version 2. Old audit files retain their original hashes.
-The physical graph has its own version: new graphs use version 2 for
-Defect → Barrier → Service, while saved version 1 physical graphs remain
-unchanged and read-only. Both are retained inside the nested version 2 takeoff
+The physical graph has its own version: new Defect Reports graphs use version 2
+for Defect → Barrier → Service, while saved version 1 physical graphs remain
+unchanged and read-only. The optional `service_plans` graph uses version 3 for
+Barrier → Service. Old projects without that graph continue to open without
+creating a synthetic defect or modifying their original graph. These graphs are
+retained inside the nested version 2 takeoff
 snapshot. Numbered identities and their sequence are checked against retained
 audit history, including tombstones, so save/reopen does not reset numbering.
 Image manifests, original streams and display derivatives live in the companion
@@ -473,8 +512,10 @@ page. These failures leave the original and the Takeoffs project unchanged.
 - `takeoff_area.py` validates bounded polygon topology and computes true-surface
   areas and exclusions with the square of the retained page calibration.
 - `takeoff_physical.py` and `takeoff_physical_operations.py` validate the separate
-  versioned draft graph and atomic previews. Version 2 enforces Defect → Barrier
-  → Service and server-assigned display IDs; version 1 validation preserves the
+  versioned draft graphs and scoped atomic previews. Version 2 enforces Defect →
+  Barrier → Service; version 3 enforces Barrier → Service without defect links.
+  Both use server-assigned display IDs and validate marker source bindings.
+  Version 1 validation preserves the
   original four-level graph. The workspace blocks version 1 physical mutations.
   There are at most 10,000 entities including tombstones, 32 references per
   entity and 100 commands per bulk operation.
@@ -547,6 +588,9 @@ CSV/XLSX export while checking that calculator state is unchanged.
 retained images, evidence associations, bulk edit/undo, source navigation and
 draft export through Save As/reopen. `node tests/test_takeoff_physical_ui.cjs`
 checks the physical module's controlled-edit and stale-review contracts.
+`npm run test:service-plans` covers independent penetration sub-tabs, barrier FRL,
+Count placement on a rotated/cropped source, marker selection and Item Details,
+automatic callouts, movement and removal, scoped exports and project reopening.
 
 The rendered tests never connect to the user's running server. CI also runs the
 complete existing Python/JavaScript regression suites and distribution build.

@@ -54,6 +54,18 @@ def _legend_rows(items, width, style):
     from reportlab.platypus import Paragraph
     rows = []
     for item in items:
+        if item['mode'] == 'penetrations':
+            lines = item['physical_summary']
+            for line_index, line in enumerate(lines):
+                # Bound each paragraph so long descriptions use continuation
+                # rows rather than clipping source facts or overflowing a page.
+                for start in range(0, len(line), 600):
+                    prefix = (f"<b>{item['legend_number']}. {_text(item['mark'])} - Unapproved draft</b>"
+                              + f"<br/><font size='6'>{item['id']}</font><br/>") if line_index == 0 and start == 0 else ''
+                    paragraph = Paragraph(prefix + _text(line[start:start+600]), style)
+                    _, height = paragraph.wrap(width-48, 1000)
+                    rows.append((item, paragraph, height+12))
+            continue
         if item['mode'] == 'steel': detail = item.get('section') or 'Section unavailable'
         elif item['mode'] == 'duct':
             if item.get('shape') == 'circular': detail = f"Circular duct, diameter {item.get('diameter_mm') or 'unavailable'} mm"
@@ -201,7 +213,29 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
                 center = transform(point, matrix)
                 _paint_count_marker(pdf, center, style)
                 pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
-                pdf.drawString(center[0]+style['marker_size']/2+3, center[1]+3, str(item['legend_number']))
+                if item['mode'] == 'penetrations':
+                    from reportlab.pdfbase.pdfmetrics import stringWidth
+                    summary = item['physical_summary']
+                    labels = [f"{item['legend_number']}. " + line for line in summary[:3]]
+                    if len(summary) > 3:
+                        labels.append(f"+ {len(summary)-3} more services (see legend)")
+                    # Full descriptions remain in the legend. Keep the drawing
+                    # callout inside the original drawing's visible bounds.
+                    left, bottom, right, top = drawing_bounds
+                    available = max(20, min(240, right-left-12))
+                    fitted = []
+                    for label in labels:
+                        while label and stringWidth(label, 'ExportVera', 7) > available:
+                            label = label[:-1]
+                        fitted.append(label)
+                    label_x = max(left+4, min(center[0]+12, right-available-4))
+                    label_y = max(bottom+10*len(fitted), min(center[1]+12, top-12))
+                    pdf.line(center[0], center[1], label_x, label_y)
+                    pdf.setFont('ExportVera', 7)
+                    for line_index, label in enumerate(fitted):
+                        pdf.drawString(label_x, label_y-10*line_index, label)
+                else:
+                    pdf.drawString(center[0]+style['marker_size']/2+3, center[1]+3, str(item['legend_number']))
                 pdf.setFillColor(HexColor(style['fill_color']))
             pdf.restoreState()
             continue

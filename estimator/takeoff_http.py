@@ -155,9 +155,9 @@ class TakeoffHTTP:
         elif action == 'images/extract':
             result = self.service.extract_images(session_id, body)
         elif action in {'physical/export/csv', 'physical/export/xlsx'}:
-            if body:
-                raise ValidationError('Draft physical export does not accept approval or filtering options.')
-            payload, kind, filename = self.service.export_physical(session_id, action.rsplit('/', 1)[1])
+            if not isinstance(body, dict) or set(body) - {'scope'}:
+                raise ValidationError('Draft physical export accepts only a workspace scope.')
+            payload, kind, filename = self.service.export_physical(session_id, action.rsplit('/', 1)[1], body.get('scope', 'defect_reports'))
             handler.send_download(payload, kind, filename)
             return True
         elif action == 'transfer-preview':

@@ -340,6 +340,11 @@ def export_workspace(snapshot, request, format, *, documents, store):
     """Read-only current-register/drawing exports after service evidence gates."""
     if format not in ('schedule-xlsx', 'marked-pdf'):
         raise ValidationError('Choose the current schedule XLSX or marked drawing PDF export.')
+    if request.get('mode') == 'penetrations' and format == 'marked-pdf':
+        if type(request.get('expected_revision')) is not int or request['expected_revision'] != snapshot['revision']:
+            raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
+        from .takeoff_physical_markers import export_physical_pdf
+        return export_physical_pdf(snapshot, request, documents)
     allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id'} if format == 'marked-pdf' else set())
     required = {'expected_revision', 'mode'} | ({'document_id', 'item_ids'} if format == 'marked-pdf' else set())
     object_fields(request, allowed, 'Current Takeoffs export', required)

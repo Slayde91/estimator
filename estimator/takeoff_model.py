@@ -148,12 +148,14 @@ def audit_affected(before, after):
     affected['documents'] = sorted(set(affected['documents']) | {document for document, _ in renders})
     if before.get('version') == 2 or after.get('version') == 2:
         affected['image_extractions'] = sorted(changed(entries(before, 'image_extractions', 2000), entries(after, 'image_extractions', 2000)))
-        def physical_entries(state):
+        def physical_entries(state, key='physical'):
             from .takeoff_physical import graph_collections
-            graph = state.get('physical')
+            graph = state.get(key)
             return entries({'physical': [entity for kind in graph_collections(graph).values()
                                          for entity in graph[kind]] if graph else []}, 'physical', 10000)
         affected['physical'] = sorted(changed(physical_entries(before), physical_entries(after)))
+        if 'service_plans' in before or 'service_plans' in after:
+            affected['service_plans'] = sorted(changed(physical_entries(before, 'service_plans'), physical_entries(after, 'service_plans')))
     return affected
 
 
@@ -204,10 +206,10 @@ def upgrade_snapshot(snapshot):
 def validate_physical_extension(snapshot):
     """Validate portable draft structure without granting image or lock authority."""
     if snapshot['version'] == 1:
-        if 'physical' in snapshot or 'image_extractions' in snapshot:
+        if 'physical' in snapshot or 'image_extractions' in snapshot or 'service_plans' in snapshot:
             raise ValidationError('Physical evidence requires takeoff schema version two.')
         return
-    from .takeoff_physical import graph_collections, validate_graph
+    from .takeoff_physical import entity_references, graph_collections, validate_graph
     from .takeoff_image_evidence import validate_descriptor, MAX_IMAGE_DESCRIPTORS, MAX_IMAGE_PROJECT_BYTES
     if not {'physical', 'image_extractions'} <= snapshot.keys():
         raise ValidationError('Physical takeoff state is incomplete.')
@@ -226,20 +228,31 @@ def validate_physical_extension(snapshot):
                 raise ValidationError('An image extraction must retain its exact source PDF revision.')
     if total > MAX_IMAGE_PROJECT_BYTES:
         raise ValidationError('The retained image evidence exceeds the project byte limit.')
-    graph = snapshot['physical']
-    if graph is None:
-        return
-    validate_graph(graph, copy_result=False)
-    if graph['project_id'] != snapshot['project_id']:
-        raise ValidationError('The physical draft belongs to another project.')
-    for kind in graph_collections(graph).values():
-        for entity in graph[kind]:
-            for ref in entity['evidence']:
-                document, page = page_metadata(snapshot, ref['document_id'], ref['page'])
-                if document['sha256'] != ref['document_sha256']:
-                    raise ValidationError('Physical evidence must identify its exact retained PDF revision.')
-                if 'region' in ref:
-                    points(ref['region'], 'Physical source region', page, minimum=3, maximum=64)
+    retained_ids = set()
+    graph_ids = set()
+    for key, versions in (('physical', (1, 2)), ('service_plans', (3,))):
+        graph = snapshot.get(key)
+        if graph is None:
+            continue
+        validate_graph(graph, copy_result=False)
+        if graph['project_id'] != snapshot['project_id'] or graph['version'] not in versions:
+            raise ValidationError('The physical draft belongs to another project or workspace scope.')
+        if graph['id'] in graph_ids:
+            raise ValidationError('Physical workspace graph identities must be distinct.')
+        graph_ids.add(graph['id'])
+        for kind in graph_collections(graph).values():
+            for entity in graph[kind]:
+                if entity['id'] in retained_ids:
+                    raise ValidationError('Physical entity identities must be distinct across workspace scopes.')
+                retained_ids.add(entity['id'])
+                for ref in entity_references(entity):
+                    document, page = page_metadata(snapshot, ref['document_id'], ref['page'])
+                    if document['sha256'] != ref['document_sha256']:
+                        raise ValidationError('Physical evidence must identify its exact retained PDF revision.')
+                    if 'region' in ref:
+                        points(ref['region'], 'Physical source region', page, minimum=3, maximum=64)
+                    if 'point' in ref:
+                        points([ref['point']], 'Barrier marker', page, minimum=1, maximum=1)
 
 
 def page_metadata(snapshot, document_id, page):
@@ -728,7 +741,8 @@ def validate_snapshot(value, *, copy_result=True):
     keys = set(new_snapshot())
     if isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 2:
         keys.update(('physical', 'image_extractions'))
-    object_fields(value, {*keys, 'companion_folder'}, 'Takeoff snapshot', keys)
+    optional = {'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set()
+    object_fields(value, {*keys, 'companion_folder', *optional}, 'Takeoff snapshot', keys)
     if 'companion_folder' in value:
         text(value['companion_folder'], 'Evidence companion folder', 255)
     if type(value['version']) is not int or value['version'] not in (1, 2):

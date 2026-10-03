@@ -20,8 +20,8 @@ from .takeoff_model import (active_calibrations, item_references, markup_appeara
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview, transfer_selection
 from .takeoff_linked_delete import prepare_delete as prepare_linked_delete, prepare_undo as prepare_linked_undo
-from .takeoff_physical import graph_collections, validate_graph
-from .takeoff_physical_operations import current_graph, prepare_changes, validate_source_links
+from .takeoff_physical import entity_references, graph_collections, validate_graph
+from .takeoff_physical_operations import current_graph, prepare_changes, scope_key, validate_source_links
 
 SESSION_CACHE_BYTES = 4 * 1_048_576
 PROCESS_CACHE_BYTES = 16 * 1_048_576
@@ -219,7 +219,7 @@ class TakeoffService:
             if source_path is not None:
                 persistent_issues.extend(self.documents.restore(value, source_path, owner=session_id))
             elif snapshot is not None and (value['documents'] or value['items'] or value['audit_head']
-                                           or value.get('physical') or value.get('image_extractions')):
+                                           or value.get('physical') or value.get('service_plans') or value.get('image_extractions')):
                 persistent_issues.append({'code': 'EVIDENCE_BUNDLE_UNAVAILABLE', 'message': 'Open the original project with its evidence companion folder to verify its retained source files. An uploaded snapshot cannot recover source or approval authority from cached files.'})
             try:
                 self._verify_audit_head(value, owner=session_id)
@@ -286,7 +286,7 @@ class TakeoffService:
         head = snapshot['audit_head']
         if head is None:
             if (snapshot['revision'] != 0 or any(snapshot[key] for key in ('documents', 'calibrations', 'items', 'transfers', 'render_checks'))
-                    or snapshot.get('physical') or snapshot.get('image_extractions')):
+                    or snapshot.get('physical') or snapshot.get('service_plans') or snapshot.get('image_extractions')):
                 raise ValidationError('The takeoff state has no matching retained audit history.')
             return
         self.documents.validate_audit(snapshot, owner=owner)
@@ -312,7 +312,13 @@ class TakeoffService:
         return manager
 
     def _validate_physical_links(self, session_id, snapshot):
-        graph = snapshot.get('physical')
+        from .takeoff_model import validate_physical_extension
+        validate_physical_extension(snapshot)
+        for key in ('physical', 'service_plans'):
+            self._validate_physical_graph_links(session_id, snapshot, key)
+
+    def _validate_physical_graph_links(self, session_id, snapshot, key):
+        graph = snapshot.get(key)
         if graph is None:
             return
         needed = set()
@@ -321,7 +327,7 @@ class TakeoffService:
                                                         'image_id', 'image_sha256', 'occurrence_id')))
         validate_source_links(graph, snapshot, collect)
         source_ids = {ref['document_id'] for collection in graph_collections(graph).values()
-                      for entity in graph[collection] if not entity['deleted'] for ref in entity['evidence']}
+                      for entity in graph[collection] if not entity['deleted'] for ref in entity_references(entity)}
         documents = {document['id']: document for document in snapshot['documents']}
         self.documents.assert_documents([documents[identifier] for identifier in source_ids], owner=session_id)
         if not needed:
@@ -353,14 +359,16 @@ class TakeoffService:
 
     def preview_physical(self, session_id, request):
         with self._lock:
-            object_fields(request, {'expected_revision', 'commands'}, 'Physical preview', {'expected_revision', 'commands'})
+            object_fields(request, {'expected_revision', 'commands', 'scope'}, 'Physical preview', {'expected_revision', 'commands'})
+            scope = request.get('scope', 'defect_reports'); key = scope_key(scope)
             session = self._session(session_id); snapshot = session['snapshot']
             if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
                 raise ValidationError('The takeoff draft changed before physical preview.')
-            self._physical_editable(snapshot)
+            self._physical_editable(snapshot, scope)
             self._physical_gate(session_id, snapshot, links=False)
-            prepared = prepare_changes(snapshot, request['commands'], lambda reference: None)
-            self._validate_physical_links(session_id, {**snapshot, 'physical': prepared['graph']})
+            prepared = prepare_changes(snapshot, request['commands'], lambda reference: None, scope=scope)
+            from .takeoff_model import upgrade_snapshot
+            self._validate_physical_links(session_id, {**upgrade_snapshot(snapshot), key: prepared['graph']})
             preview_id = str(uuid4())
             self._cache_payload(session_id, 'previews', preview_id,
                 {'kind': 'physical', 'revision': snapshot['revision'], 'summary': prepared['summary']})
@@ -371,10 +379,11 @@ class TakeoffService:
     def apply_physical(self, session_id, request):
         from .takeoff_model import upgrade_snapshot
         with self._lock:
-            object_fields(request, {'expected_revision', 'request_id', 'preview_id'}, 'Physical apply',
+            object_fields(request, {'expected_revision', 'request_id', 'preview_id', 'scope'}, 'Physical apply',
                           {'expected_revision', 'request_id', 'preview_id'})
+            scope = request.get('scope', 'defect_reports'); key = scope_key(scope)
             actual = {**request, 'op': 'apply_physical'}
-            self._physical_editable(self._session(session_id)['snapshot'])
+            self._physical_editable(self._session(session_id)['snapshot'], scope)
             session, prior = self._start(session_id, actual)
             if prior:
                 self._physical_gate(session_id, session['snapshot'])
@@ -383,14 +392,16 @@ class TakeoffService:
             cached = session['previews'].get(request['preview_id'], {}).get('payload')
             if not cached or cached.get('kind') != 'physical' or cached['revision'] != session['snapshot']['revision']:
                 raise ValidationError('This physical preview expired. Review a new preview.')
+            if cached['summary'].get('scope', 'defect_reports') != scope:
+                raise ValidationError('This physical preview belongs to another workspace scope.')
             before = session['snapshot']
             self._physical_gate(session_id, before, links=False)
-            prepared = prepare_changes(before, cached['summary']['commands'], lambda reference: None)
-            self._validate_physical_links(session_id, {**before, 'physical': prepared['graph']})
+            prepared = prepare_changes(before, cached['summary']['commands'], lambda reference: None, scope=scope)
+            self._validate_physical_links(session_id, {**upgrade_snapshot(before), key: prepared['graph']})
             if prepared['summary']['digest'] != cached['summary']['digest']:
                 raise ValidationError('The physical graph or evidence changed. Review a fresh preview.')
             after = upgrade_snapshot(before)
-            after['physical'] = prepared['graph']
+            after[key] = prepared['graph']
             return self._commit(session_id, actual, before, after)
 
     def extract_images(self, session_id, request):
@@ -514,19 +525,19 @@ class TakeoffService:
             self.documents.assert_documents([document], owner=session_id)
             return self._images().rendition(descriptor, document, asset_id, owner=session_id)
 
-    def export_physical(self, session_id, format):
+    def export_physical(self, session_id, format, scope='defect_reports'):
         from .takeoff_physical_exports import export_physical_graph
         with self._lock:
             snapshot = self._session(session_id)['snapshot']
             self._physical_gate(session_id, snapshot)
             if hasattr(self.documents, 'assert_image_evidence'):
                 self.documents.assert_image_evidence(snapshot, owner=session_id)
-            return export_physical_graph(current_graph(snapshot), format,
+            return export_physical_graph(current_graph(snapshot, scope), format,
                                          {document['id']: document['name'] for document in snapshot['documents']})
 
     @staticmethod
-    def _physical_editable(snapshot):
-        graph = snapshot.get('physical')
+    def _physical_editable(snapshot, scope='defect_reports'):
+        graph = snapshot.get(scope_key(scope))
         if graph is not None and graph['version'] == 1:
             raise ValidationError('This legacy penetration hierarchy is read-only until its new relationships are assigned.')
 
@@ -534,36 +545,41 @@ class TakeoffService:
         from .takeoff_model import upgrade_snapshot
         after = upgrade_snapshot(after)
         after['image_extractions'] = deepcopy(before.get('image_extractions', []))
-        current = before.get('physical')
-        if current is None:
-            after['physical'] = None
-            return after
-        if current['version'] == 1:
-            if after.get('physical') != current:
-                self._physical_editable(before)
-            return after
-        target = current_graph(after)
-        if target['version'] != current['version']:
-            raise ValidationError('Physical undo cannot change the stored hierarchy version.')
-        restored = deepcopy(current)
-        changed = False
-        next_revision = current['revision'] + 1
-        for collection in graph_collections(current).values():
-            previous = {value['id']: value for value in target[collection]}
-            for index, entity in enumerate(restored[collection]):
-                desired = deepcopy(previous.get(entity['id'], entity))
-                if entity['id'] not in previous:
-                    desired.update(deleted=True, deleted_at_revision=next_revision)
-                if digest({k: v for k, v in desired.items() if k != 'revision'}) != digest({k: v for k, v in entity.items() if k != 'revision'}):
-                    if desired['deleted'] and not entity['deleted']:
-                        desired['deleted_at_revision'] = next_revision
-                    desired['revision'] = entity['revision'] + 1
-                    restored[collection][index] = desired
-                    changed = True
-        if changed:
-            restored['revision'] = next_revision
-        validate_graph(restored, copy_result=False)
-        after['physical'] = restored
+        for scope in ('defect_reports', 'service_plans'):
+            key = scope_key(scope)
+            current = before.get(key)
+            if current is None:
+                if key == 'physical' or key in before:
+                    after[key] = None
+                else:
+                    after.pop(key, None)
+                continue
+            if current['version'] == 1:
+                if after.get(key) != current:
+                    self._physical_editable(before, scope)
+                continue
+            target = current_graph(after, scope)
+            if target['version'] != current['version']:
+                raise ValidationError('Physical undo cannot change the stored hierarchy version.')
+            restored = deepcopy(current)
+            changed = False
+            next_revision = current['revision'] + 1
+            for collection in graph_collections(current).values():
+                previous = {value['id']: value for value in target[collection]}
+                for index, entity in enumerate(restored[collection]):
+                    desired = deepcopy(previous.get(entity['id'], entity))
+                    if entity['id'] not in previous:
+                        desired.update(deleted=True, deleted_at_revision=next_revision)
+                    if digest({k: v for k, v in desired.items() if k != 'revision'}) != digest({k: v for k, v in entity.items() if k != 'revision'}):
+                        if desired['deleted'] and not entity['deleted']:
+                            desired['deleted_at_revision'] = next_revision
+                        desired['revision'] = entity['revision'] + 1
+                        restored[collection][index] = desired
+                        changed = True
+            if changed:
+                restored['revision'] = next_revision
+            validate_graph(restored, copy_result=False)
+            after[key] = restored
         self._validate_physical_links(session_id, after)
         return after
 
@@ -1231,9 +1247,10 @@ class TakeoffService:
                         raise ValidationError('Remove or reassign all linked items before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
                     raise ValidationError('A source document with retained image extraction history cannot be deleted.')
-                if after.get('physical') and any(reference['document_id'] == document_id
-                        for collection in graph_collections(after['physical']).values() for entity in after['physical'][collection]
-                        for reference in entity['evidence']):
+                if any(reference['document_id'] == document_id
+                        for key in ('physical', 'service_plans') for graph in [after.get(key)] if graph
+                        for collection in graph_collections(graph).values() for entity in graph[collection]
+                        for reference in entity_references(entity)):
                     raise ValidationError('A source document referenced by physical records or tombstones cannot be deleted.')
                 after['documents'] = [d for d in after['documents'] if d['id'] != document_id]
                 after['calibrations'] = [c for c in after['calibrations'] if c['document_id'] != document_id]
@@ -1617,4 +1634,6 @@ class TakeoffService:
             self._session_evidence(session_id)
             self.documents.assert_documents(snapshot['documents'], owner=session_id)
             self._verify_audit_head(snapshot, owner=session_id)
+            if request.get('mode') == 'penetrations':
+                self._validate_physical_links(session_id, snapshot)
             return export_workspace(snapshot, request, format, documents=self.documents, store=self.store)

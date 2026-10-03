@@ -22,7 +22,9 @@
     "test:takeoffs-duct-settings": "node tests/browser/duct_settings.cjs",
     "test:physical-register": "node tests/browser/physical_register.cjs",
     "test:project-library-drafts": "node tests/browser/project_library_drafts.cjs",
-    "test:service-plans": "node tests/browser/service_plans.cjs"
+    "test:service-plans": "node tests/browser/service_plans.cjs",
+    "test:takeoffs-smooth-zoom": "node tests/browser/smooth_zoom.cjs",
+    "test:takeoffs-length-copy": "node tests/browser/length_copy.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

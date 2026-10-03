@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
 const { chromium, expect } = require('@playwright/test');
@@ -176,7 +177,7 @@ async function controls() {
   evidence.hierarchy = { defect, reportBarrier, reportService, barrier, service, independentSequences: true, barrierFrl: true };
   console.log('Independent hierarchies, barrier FRL and register controls passed.');
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
-  await renderedPage(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await select(barrier); await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([240, 170]));
   await response(() => dialog('Place barrier marker', { 'Barrier': 'existing' }, 'Continue'), '/physical/preview'); await apply('Review barrier count marker');
   await expect(marker(barrier)).toBeVisible(); await expect(details()).toBeVisible();
@@ -292,7 +293,7 @@ async function controls() {
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorBefore); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.equal(sha(info.fixture), sourceBefore);
   await tab('Service Plans'); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-physical-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'service-plan-register-764.png'), fullPage: true });
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
-  await renderedPage(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await marker(secondBarrier).click(); await expect(details()).toBeVisible(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60');
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = 0; });
   await page.locator('.takeoff-drawing-layout').evaluate(el => { const header = document.querySelector('header').getBoundingClientRect(); window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12); });

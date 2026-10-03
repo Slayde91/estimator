@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -101,7 +102,7 @@ async function fitCurrentDrawing(name) {
   }, name);
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
   await workspaceIdle();
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
 }
 async function boardJourney(info) {

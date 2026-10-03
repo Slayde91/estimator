@@ -382,18 +382,25 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     }
     assert.equal(calls,0);
   });
-  await check('Missing surface geometry remains selectable and editable while geometry tools explain the missing source',async()=>{
+  await check('Missing surface geometry remains inspectable with a trash-only action group and confirmation warning',async()=>{
     for(const mode of ['wall','slab']){
       const h=harness(),value=blank(),item={id:'diagnostic-surface',mode,version:1,state:'draft',quantity:1,fields:{mark:'Missing source'},geometry:null,measurement:null,evidence:[],member_ids:[]};value.items=[item];
       h.audit.accept({...response(value),item_results:[{id:item.id,issues:[{code:'MISSING_GEOMETRY',message:'Source geometry required.'}]}]});h.audit.state.mode=mode;
       const dom=attachSettings(h);await h.audit.openItemSettings(item);
       assert.ok(h.audit.state.selected.has(item.id));assert.ok(dom.ui.tableWrap.textContent.includes('Source markup missing'));assert.ok(dom.ui.settingsPanel.textContent.includes('Source markup is missing'));
       const buttons=dom.all(dom.ui.settingsPanel).filter(node=>node.tagName==='BUTTON');
-      for(const label of ['Change surface calibration','Re-trace geometry','Edit surface vertices','Add excluded opening']){const control=buttons.find(button=>button.textContent===label);assert.equal(control.disabled,true,label);assert.match(control.title,/Attach source geometry/);}
-      for(const label of ['Attach source on current page','Delete item'])assert.ok(!buttons.find(button=>button.textContent===label).disabled,label);
-      for(const label of ['Change length basis','Replace source on current page','Add evidence reference','Riser/Drop'])assert.ok(!buttons.some(button=>button.textContent===label),label);
+      assert.ok(!buttons.find(button=>button.attributes['aria-label']==='Delete item').disabled);
+      for(const label of ['Change surface calibration','Re-trace geometry','Edit surface vertices','Add excluded opening','Attach source on current page','Change length basis','Replace source on current page','Add evidence reference','Riser/Drop'])assert.ok(!buttons.some(button=>button.textContent===label),label);
+      assert.match(dom.ui.settingsPanel.textContent,/review and confirmation remain blocked/);
       await assert.rejects(h.audit.startExclusion(),/no source boundary/);await assert.rejects(h.audit.editAreaBoundary(item),/Attach source geometry/);await assert.rejects(h.audit.changeAreaCalibration(item),/Attach source geometry/);
       h.audit.state.retraceId=item.id;assert.equal(h.audit.areaTraceLimit(),1000);
+    }
+  });
+  await check('Every traced item keeps only the labelled trash icon in its Item Details action group',async()=>{
+    for(const mode of ['steel','duct','wall','slab']){
+      const h=harness(),value=blank(),item={id:'traced-item',mode,version:1,state:'draft',quantity:1,fields:{mark:'A1',...(mode==='duct'?{shape:'rectangular'}:{})},geometry:{document_id:'doc',page:1,points:[[0,0],[50,0],[50,50]],...(mode==='wall'||mode==='slab'?{kind:'polygon',exclusions:[]}:{})},measurement:{method:'calibrated',calibration_id:'scale'},evidence:[]};value.items=[item];h.audit.accept(response(value));h.audit.state.mode=mode;
+      const dom=attachSettings(h);await h.audit.openItemSettings(item);const actions=h.audit.state.settingsEditor.tools.children.find(node=>node.classList.contains('actions'));
+      assert.equal(actions.children.length,1,mode);const control=actions.children[0];assert.equal(control.attributes['aria-label'],'Delete item');assert.equal(control.title,'Delete item');assert.ok(control.classList.contains('icon-only'));assert.equal(dom.all(control).filter(node=>node.tagName==='SVG').length,1);
     }
   });
   await check('Legacy traces with an omitted default geometry kind offer Rise/Drop from their control-point menu',()=>{
@@ -464,7 +471,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       if(action==='delete')await h.audit.openItemSettings(item);else h.audit.renderRegister();
       const pending=deferred();h.audit.setFlushSettings(()=>pending.promise);let commands=0,dialogs=0;h.audit.setCommand(async()=>{commands++;});h.audit.setAsk(async()=>{dialogs++;return {};});let operation;
       if(action==='register'){const field=dom.all(dom.ui.tableWrap).find(node=>node.attributes['aria-label']==='WxH (mm)');field.value='150x250';field.events.change();}
-      else if(action==='delete')dom.all(dom.ui.settingsPanel).find(node=>(node.attributes['aria-label']||node.textContent)==='Delete item').events.click();
+      else if(action==='delete')dom.all(dom.ui.settingsPanel).find(node=>node.tagName==='BUTTON'&&(node.attributes['aria-label']||node.textContent)==='Delete item').events.click();
       else operation=action==='view'?h.audit.viewItem(item):h.audit.openItemSettings(item);
       await flush();const replacement=blank();replacement.items=[{...copy(item),fields:{...item.fields,mark:'Replacement'}}];h.audit.accept(response(replacement,'replacement-session'));pending.resolve();
       if(operation)await assert.rejects(operation,/project changed/);else{await flush();assert.match(dom.ui.message.textContent,/project changed/);}
@@ -654,6 +661,24 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const dom=attachMinimalDom(h);dom.ui.target={value:'ductwork'};dom.ui.viewport={dataset:{}};h.audit.state.mode='duct';let created;
     h.audit.setAsk(async()=>({mark:'D1',quantity:1}));h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});
     await h.audit.createDrawnItem({method:'cited',length_m:2,citation:'Dimension'},null,[]);assert.equal(created.fields.shape,'rectangular');assert.equal(created.quantity,1);assert.equal(created.fields.diameter_mm,undefined);
+  });
+  await check('Wall and slab creation retain all entered Item Details with exact source geometry and single-surface evidence',async()=>{
+    for(const mode of ['wall','slab']){
+      const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.viewport={dataset:{}};h.audit.state.mode=mode;
+      const entered={mark:mode==='wall'?'W-02':'S-04',surface_basis:mode==='wall'?'wall-face':'slab-soffit',level:'L03',substrate:'Concrete 180 mm',treatment:'Fire protection',system:'Specified system',product:'Specified product',frl:'-/120/120',surface_citation:'Elevation A-301, true projection'},geometry={kind:'polygon',document_id:'original-doc',page:3,points:[[1.123456789,2],[20,2],[20,30]],exclusions:[]},measurement={method:'calibrated',calibration_id:'retained-scale'},evidence=[{document_id:'original-doc',page:3,note:'Retained source citation'}];let created;
+      h.audit.setAsk(async(title,definitions,detail,submit)=>{
+        assert.equal(title,`Add ${mode} surface`);assert.equal(submit,'Add surface');assert.match(detail,/true projection/);assert.match(detail,/No height, second face or multiplier is inferred/);
+        assert.deepEqual(copy(definitions.map(field=>field[0])),[...Object.keys(entered),'quantity']);
+        for(const key of ['mark','surface_basis','surface_citation','quantity'])assert.equal(definitions.find(field=>field[0]===key)[4],true,key);
+        for(const key of ['level','substrate','treatment','system','product','frl'])assert.equal(definitions.find(field=>field[0]===key)[4],false,key);
+        assert.deepEqual(copy(definitions.find(field=>field[0]==='quantity').slice(2)),[[['1','One physical treatment surface']],'',true]);
+        assert.deepEqual(copy(definitions.find(field=>field[0]==='surface_basis')[2]),mode==='wall'?[['wall-face','Wall face (true elevation)']]:[['slab-soffit','Slab soffit'],['slab-top','Slab top']]);
+        return {...entered,quantity:'1'};
+      });
+      h.audit.setCommand(async(op,payload)=>{assert.equal(op,'create_item');created=copy(payload.item);});await h.audit.createDrawnItem(measurement,geometry,evidence);
+      assert.deepEqual(created.fields,entered);assert.equal(created.mode,mode);assert.equal(created.quantity,1);assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.ok(h.audit.state.selected.has(created.id));
+      for(const quantity of ['',null,1,'2']){h.audit.setAsk(async()=>({...entered,quantity}));h.audit.setCommand(async()=>{throw new Error('Invalid physical quantity must not create an item');});await assert.rejects(h.audit.createDrawnItem(measurement,geometry,evidence),/Identify one physical treatment surface/);}
+    }
   });
   await check('Steel creation reloads exact calculator options for chosen product/member and never rewrites entered profile',async()=>{
     const h=harness();h.audit.accept(response(blank()));const controls=['product','member_type','section'].map(name=>({control:{name,value:name==='member_type'?'Beam':name==='section'?'Explicit profile':'',isConnected:false,events:{},addEventListener(event,fn){this.events[event]=fn;}}})),calls=[];

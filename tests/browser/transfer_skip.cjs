@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real Add-to-schedule review with existing links and manual calculator edits.
 const { chromium, expect } = require('@playwright/test');
 const { editSettings } = require('./settings_helpers.cjs');
@@ -82,7 +83,7 @@ function assertSkipped(preview, binding) {
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await page.getByRole('button', { name: 'Scale', exact: true }).click(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100');
   await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');
   const a = await trace('LINKED-A', 350); await select([a.id]); await confirmSelected(1); await preview();

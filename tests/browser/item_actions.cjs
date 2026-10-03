@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real item actions, calculator leases and saved Undo on disposable source data.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings } = require('./settings_helpers.cjs');
@@ -35,7 +36,7 @@ async function dialog(title, values, action) {
 async function pageNumber(number) {
   return command(async () => { await fill(page, 'Page number', number); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
 }
-const fit = () => command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+const fit = () => renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
 // Opening Takeoffs with a retained PDF renders it asynchronously. aria-busy
 // becomes true only when its render observation is recorded, so a click plus
 // an immediate idle check can race that command before a snapshot or edit.

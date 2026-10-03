@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real pointer/keyboard area workflow on synthetic drawings and a disposable server.
 const { chromium, expect } = require('@playwright/test');
 const { editSettings } = require('./settings_helpers.cjs');
@@ -32,15 +33,24 @@ async function dialog(title, values, submit) {
   // Wait for that cleanup before taking a synchronous project snapshot.
   await expect(page.locator('dialog.takeoff-dialog')).toHaveCount(0);
 }
-async function fit() { await idle(); await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render'); }
+async function fit() { await idle(); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click()); }
 async function draw(points, rotated = false, doubleFinish = false) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
-  const box = await overlay.boundingBox(); assert.ok(box && box.width > 0);
+  // Draw at enough CSS pixels per source unit that mouse-event quantization
+  // cannot overwhelm the nominal-area tolerance, including on the rotated page.
+  for (let step = 0; step < 10 && (await overlay.boundingBox()).width / (rotated ? 540 : 842) < 1.5; step++) await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
+  await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
   for (const [index, [x, y]] of points.entries()) {
     const [u, v] = rotated ? [(y - 30) / 540, (x - 20) / 780] : [x / 842, 1 - y / 595];
-    // Chromium click coordinates are integers. Choose the nearest CSS pixel
-    // explicitly rather than letting fractional targets truncate in one direction.
-    const client = [Math.round(box.x + u * box.width), Math.round(box.y + v * box.height)];
+    await page.locator('.takeoff-viewport').evaluate((frame, [u, v]) => {
+      const paper = frame.querySelector('.takeoff-overlay').getBoundingClientRect(), bounds = frame.getBoundingClientRect();
+      frame.scrollLeft += paper.left + u * paper.width - (bounds.left + frame.clientWidth / 2);
+      frame.scrollTop += paper.top + v * paper.height - (bounds.top + frame.clientHeight / 2);
+    }, [u, v]);
+    const box = await overlay.boundingBox(); assert.ok(box && box.width > 0);
+    // Keep the subpixel coordinates at fitted zoom; rounding each calibration
+    // endpoint independently can bias the squared area conversion.
+    const client = [box.x + u * box.width, box.y + v * box.height];
     if (doubleFinish && index === points.length - 1) await page.mouse.dblclick(...client);
     else await page.mouse.click(...client);
   }
@@ -66,6 +76,7 @@ function checkArea(state, id, expected = 56) {
 }
 async function surface(mode, rotated = false) {
   await page.locator(`[data-mode="${mode}"]`).click();
+  if (await page.getByRole('button', { name: 'Close settings', exact: true }).isVisible()) await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await fit();
   await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Cite length', exact: true })).toBeHidden();
@@ -78,9 +89,16 @@ async function surface(mode, rotated = false) {
   let state = await command(() => dialog(`Add ${mode} surface`, {
     [mode === 'wall' ? 'Wall ID' : 'Slab / zone ID']: `${mode.toUpperCase()}-01`,
     'Explicit physical quantity': '1', 'Surface basis': mode === 'wall' ? 'wall-face' : 'slab-soffit',
+    'Level': 'L01', 'Substrate': 'Concrete', 'Treatment': 'Nominated surface treatment',
+    'Protection system': 'Synthetic evidenced system', 'Protection product': 'Synthetic evidenced product', 'FRL / fire rating': '90/90/90',
     'True-surface source citation': `Synthetic ${mode} true-plane view, one surface, 10 x 6 m`,
   }, 'Add surface'), 'create_item');
   const id = state.snapshot.items.find(item => item.mode === mode).id;
+  assert.deepEqual(state.snapshot.items.find(item => item.id === id).fields, {
+    mark: `${mode.toUpperCase()}-01`, surface_basis: mode === 'wall' ? 'wall-face' : 'slab-soffit',
+    level: 'L01', substrate: 'Concrete', treatment: 'Nominated surface treatment', system: 'Synthetic evidenced system',
+    product: 'Synthetic evidenced product', frl: '90/90/90', surface_citation: `Synthetic ${mode} true-plane view, one surface, 10 x 6 m`,
+  }, 'Every surface detail entered at creation is retained in the authoritative record');
   assert.equal(state.snapshot.items.find(item => item.id === id).geometry.points.length, 4, 'Polygon double-click preserves exactly four distinct vertices');
   // Adding a hole focuses the object; fit only after entering the exclusion tool.
   await page.getByRole('button', { name: 'Add exclusion', exact: true }).click();
@@ -90,6 +108,8 @@ async function surface(mode, rotated = false) {
   assert.equal(state.snapshot.items.find(item => item.id === id).geometry.exclusions[0].points.length, 4, 'Exclusion double-click preserves exactly four distinct vertices');
   checkArea(state, id);
   state = await edit({ 'Level': 'L02', 'Substrate': 'Concrete', 'Treatment': 'Nominated board treatment', 'FRL / fire rating': '120/120/120' });
+  const actions = page.locator('#takeoff-markup-settings .takeoff-settings-tools > .actions');
+  await expect(actions.getByRole('button')).toHaveCount(1); await expect(actions.getByRole('button', { name: 'Delete item', exact: true })).toBeVisible();
   assert.equal(state.snapshot.items.find(item => item.id === id).quantity, 1);
   assert.equal(state.snapshot.items.find(item => item.id === id).member_ids.length, 1);
   await expect(page.getByRole('button', { name: 'Split', exact: true })).toBeDisabled();
@@ -132,9 +152,10 @@ async function surface(mode, rotated = false) {
   state = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
   assert.deepEqual(state.snapshot.items.find(item => item.id === wall.id).geometry, wall.geometry);
   await page.locator(`tr[data-item-id="${wall.id}"] .takeoff-row-link`).click();
-  // Abandoning a retrace must not turn a later new-surface gesture into replacement.
-  await page.getByRole('button', { name: 'Re-trace geometry', exact: true }).click();
-  await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'polygon');
+  // Abandoning an exclusion must not attach a later new-surface gesture to its old target.
+  await expect(page.getByRole('button', { name: 'Re-trace geometry', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add exclusion', exact: true }).click();
+  await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'exclusion');
   await page.getByRole('button', { name: 'Select', exact: true }).click();
   await fit();
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();

@@ -80,7 +80,7 @@
 .takeoff-viewport[data-tool=select] .takeoff-hit{cursor:move}
 @media(max-width:1050px){.takeoff-workspace-split.beside>.takeoff-register{height:auto;resize:none}}
 .takeoff-toolbar .button[hidden],.takeoff-register-controls .button[hidden],.takeoff-toolbar select[hidden],.takeoff-register-controls select[hidden]{display:none}
-.takeoff-viewport{overscroll-behavior:auto}
+.takeoff-viewport{overscroll-behavior:auto;overflow-anchor:none;scrollbar-gutter:stable}
 .takeoff-viewport:not([data-scroll-active=true]){overflow:hidden}
 .takeoff-viewport[data-scroll-active=true]{overflow:auto;outline:2px solid #6abbe7;outline-offset:1px}
 .takeoff-overlay .takeoff-control-point{fill:#f8fcff;stroke:#1687b5;stroke-width:1.6;vector-effect:non-scaling-stroke;pointer-events:all;cursor:grab}

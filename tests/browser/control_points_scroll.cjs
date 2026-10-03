@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real keyboard/control-point editing and nested scroll focus on disposable drawings.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -28,7 +29,7 @@ async function renderedPage(action,number,detectScale=false){
 }
 async function dialog(title,values,action){const modal=page.getByRole('dialog');await expect(modal.getByRole('heading',{name:title,exact:true})).toBeVisible({timeout:30000});for(const[label,value]of Object.entries(values)){const field=modal.getByLabel(label,{exact:true});if(await field.evaluate(el=>el.tagName)==='SELECT')await field.selectOption(String(value));else await field.fill(String(value));}await modal.getByRole('button',{name:action,exact:true}).click();}
 const snapshot=async()=>{await idle();let value;await expect.poll(async()=>{try{value=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());return true;}catch{return false;}}).toBe(true);return value;};
-const fit=()=>command(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),'record_render');
+const fit=()=>renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
 async function screen([x,y]){
   const overlay=page.locator('.takeoff-overlay');await overlay.scrollIntoViewIfNeeded();
   // Native scrollIntoView does not account for the sticky app header. Keep the
@@ -41,7 +42,7 @@ async function draw(points){for(const point of points)await page.mouse.click(...
 async function select(ids){const all=page.getByRole('checkbox',{name:'Select all matching items',exact:true});await all.check();await all.uncheck();for(const id of ids)await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox',{name:/^Select /}).check();}
 const handles=id=>page.locator(`.takeoff-control-point[data-control-item-id="${id}"]`);
 const handle=(id,index)=>page.locator(`.takeoff-control-point[data-control-item-id="${id}"][data-point-index="${index}"][data-exclusion-id=""]`);
-async function planFocus(){await page.locator('.takeoff-viewport').click({position:{x:12,y:300}});await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','true');}
+async function planFocus(){await page.getByLabel('Filter register',{exact:true}).focus();await page.locator('.takeoff-viewport').focus();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','true');}
 async function geometryEqual(id,points){assert.deepEqual((await snapshot()).items.find(item=>item.id===id).geometry.points,points);}
 async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await page.getByRole('button',{name:'Save As',exact:true}).click();assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
 async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await page.getByRole('button',{name:'Load',exact:true}).click();assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
@@ -62,7 +63,7 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   await renderedPage(()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1,true);
   await expect(page.locator('.takeoff-document')).toHaveCount(1);
   await renderedPage(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},3,true);
-  await renderedPage(()=>page.getByRole('button',{name:'Fit page',exact:true}).click(),3);
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   evidence.sourcePageBeforeTracing={page:3,status:await page.locator('.takeoff-progress').innerText()};
   await page.getByRole('button',{name:'Scale',exact:true}).click();await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
   const shapes=[['CP-PRIMARY',[[100,120],[200,120],[200,220],[300,220]]],['CP-SECONDARY',[[400,350],[500,350],[550,450]]]];
@@ -105,18 +106,18 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   await page.getByRole('button',{name:'Select',exact:true}).click();const holePoint=page.locator(`.takeoff-control-point[data-control-item-id="${wall.id}"][data-exclusion-id="${hole.id}"][data-point-index="1"]`);await holePoint.focus();await expect(holePoint).toHaveAttribute('aria-pressed','true');state=await command(()=>page.keyboard.press('Control+z'),'update_item');const changedHole=state.snapshot.items.find(item=>item.id===wall.id).geometry.exclusions[0];assert.equal(changedHole.id,hole.id);assert.equal(changedHole.note,hole.note);assert.equal(changedHole.points.length,3);
   await page.getByRole('tab',{name:'STEEL',exact:true}).click();
   // Ordinary wheel belongs to the page until the drawing is explicitly focused.
-  await page.getByRole('button',{name:'Select',exact:true}).click();await select([a.id]);await fit();for(let i=0;i<5;i++)await command(()=>page.getByRole('button',{name:'+',exact:true}).click(),'record_render');
+  await page.getByRole('button',{name:'Select',exact:true}).click();await select([a.id]);await fit();for(let i=0;i<5;i++)await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
   await page.locator('.takeoff-viewport').press('Escape');await page.evaluate(()=>window.scrollTo(0,100));await page.locator('.takeoff-viewport').evaluate(el=>{el.scrollTop=80;});let initial=await scrollState();assert.ok(initial.scrollHeight>initial.height+100);await wheel(250);await expect.poll(async()=>(await scrollState()).outer).toBeGreaterThan(initial.outer+100);assert.equal((await scrollState()).top,initial.top);evidence.unfocusedWheel={before:initial,after:await scrollState()};
   await page.evaluate(()=>window.scrollTo(0,100));await planFocus();initial=await scrollState();await wheel(200);await expect.poll(async()=>(await scrollState()).top).toBeGreaterThan(initial.top+100);assert.ok(Math.abs((await scrollState()).outer-initial.outer)<2);evidence.focusedWheel={before:initial,after:await scrollState()};
   await page.getByRole('heading',{name:'TAKEOFFS',exact:true}).click();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','false');await page.evaluate(()=>window.scrollTo(0,100));initial=await scrollState();await wheel(180);await expect.poll(async()=>(await scrollState()).outer).toBeGreaterThan(initial.outer+80);assert.equal((await scrollState()).top,initial.top);
   // Clamp to the browser's true maximum, not rounded scrollHeight-clientHeight.
   await page.evaluate(()=>window.scrollTo(0,100));await planFocus();await page.locator('.takeoff-viewport').evaluate(el=>{el.scrollTop=el.scrollHeight;});initial=await scrollState();await page.waitForTimeout(350);await wheel(220);evidence.edgeWheel={before:initial,after:await scrollState()};await expect.poll(async()=>(await scrollState()).outer).toBeGreaterThan(initial.outer+100);assert.equal((await scrollState()).top,initial.top);evidence.edgeWheel.after=await scrollState();
   await page.evaluate(()=>window.scrollTo(0,100));await planFocus();await page.keyboard.press('Escape');await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','false');
-  const beforeZoom=await scrollState();await page.keyboard.down('Control');try{await command(()=>wheel(-120),'record_render');}finally{await page.keyboard.up('Control');}assert.ok((await scrollState()).scrollHeight>beforeZoom.scrollHeight);await geometryEqual(a.id,minimum.items.find(i=>i.id===a.id).geometry.points);
+  const beforeZoom=await scrollState();await page.keyboard.down('Control');try{await renderDrawing(page,()=>wheel(-120));}finally{await page.keyboard.up('Control');}assert.ok((await scrollState()).scrollHeight>beforeZoom.scrollHeight);await geometryEqual(a.id,minimum.items.find(i=>i.id===a.id).geometry.points);
   await select([b.id]);await page.evaluate(()=>window.scrollTo(0,100));await page.locator('.takeoff-viewport').evaluate((el,id)=>{const point=el.querySelector(`[data-control-item-id="${id}"][data-point-index="1"]`),box=point.getBoundingClientRect(),frame=el.getBoundingClientRect();el.scrollTop+=(box.top+box.height/2)-(frame.bottom-16);},b.id);
   await handle(b.id,1).click({button:'right'});const edgeMenu=page.getByRole('menu');await expect(edgeMenu.getByRole('menuitem',{name:'Delete control point',exact:true})).toBeVisible();const menuBox=await edgeMenu.boundingBox(),frameBox=await page.locator('.takeoff-viewport').boundingBox();assert.ok(menuBox.x>=frameBox.x&&menuBox.y>=frameBox.y&&menuBox.x+menuBox.width<=frameBox.x+frameBox.width+1&&menuBox.y+menuBox.height<=frameBox.y+frameBox.height+1,JSON.stringify({menuBox,frameBox}));await page.screenshot({path:path.join(output,'edge-control-menu.png')});await page.keyboard.press('Escape');
   await page.getByLabel('Filter register',{exact:true}).focus();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','false');await page.getByRole('button',{name:'Pan',exact:true}).click();await expect(page.locator('.takeoff-control-point')).toHaveCount(0);
-  await fit(); for(let i=0;i<4;i++) await command(()=>page.getByRole('button',{name:'−',exact:true}).click(),'record_render');
+  await fit(); for(let i=0;i<4;i++) await renderDrawing(page, () => page.getByRole('button', { name: '−', exact: true }).click());
   await page.locator('.takeoff-viewport').evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-180));
   const panBefore=await snapshot(),panBox=await page.locator('.takeoff-viewport').boundingBox();
   async function freeDrag(dx,dy){

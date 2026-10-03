@@ -38,6 +38,7 @@ jobs:
       - run: node tests/test_library_detail_text.cjs
       - run: node tests/test_library_editor_ui.cjs
       - run: node tests/test_takeoffs_ui.cjs
+      - run: node tests/test_takeoff_zoom_ui.cjs
       - run: node tests/test_takeoff_physical_ui.cjs
       - run: python scripts/build.py
   takeoff-browser:
@@ -60,6 +61,8 @@ jobs:
       - run: npm run test:takeoffs-capacity
       - run: npm run test:takeoffs-timeouts
       - run: npm run test:takeoffs-viewports
+      - run: npm run test:takeoffs-smooth-zoom
+      - run: npm run test:takeoffs-length-copy
       - run: npm run test:takeoffs-markups
       - run: npm run test:takeoffs-control-points
       - run: npm run test:takeoffs-plan-tools

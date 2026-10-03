@@ -40,10 +40,19 @@ async function sourcePoint([x, y]) {
 }
 async function assertErrorVisible() {
   const notice = page.locator('#takeoffs-workspace [role="alert"]'); await expect(notice).toBeVisible();
-  const bounds = await notice.boundingBox(), header = await page.locator('.app-header').boundingBox(), viewport = page.viewportSize();
-  assert.ok(bounds.y >= header.y + header.height + 10, 'Error is below the sticky header');
-  assert.ok(bounds.y + bounds.height <= viewport.height, 'Error is visible in the browser window');
-  return bounds;
+  let position;
+  // Tab can scroll the next focused control after the alert is rendered. The
+  // app reveals it again on the next animation frame; rendered visibility
+  // alone does not establish that the error has cleared the sticky header.
+  await expect.poll(async () => {
+    position = await notice.evaluate(el => {
+      const box = el.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
+      return { bounds: { x: box.x, y: box.y, width: box.width, height: box.height }, headerBottom: header.bottom, viewportHeight: window.innerHeight };
+    });
+    return { belowHeader: position.bounds.y >= position.headerBottom + 10,
+      insideWindow: position.bounds.y + position.bounds.height <= position.viewportHeight };
+  }, { timeout: 5000, message: 'Error clears the sticky header and remains fully visible after Tab focus scrolling' }).toEqual({ belowHeader: true, insideWindow: true });
+  return position.bounds;
 }
 async function inspectLeftPanel(width, registerPosition = 'below') {
   await page.setViewportSize({ width, height: 1000 });
@@ -74,6 +83,65 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   assert.deepEqual(after, before, 'Scrolling settings does not scroll the drawing or page');
   await page.screenshot({ path: path.join(output, `left-settings-${width}-${registerPosition}.png`) });
   evidence[`settings${width}-${registerPosition}`] = metrics;
+}
+async function fitPageMatrix() {
+  const protectedBefore = await snapshot();
+  const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  const fit = page.getByRole('button', { name: 'Fit page', exact: true });
+  const settings = page.getByRole('button', { name: 'Settings', exact: true });
+  const metrics = () => page.evaluate(() => {
+    const frame = document.querySelector('.takeoff-viewport'), canvas = frame.querySelector('canvas');
+    const bounds = frame.getBoundingClientRect(), paper = canvas.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
+    return { top: bounds.top, headerBottom: header.bottom, scrollY: window.scrollY,
+      frame: { width: frame.clientWidth, height: frame.clientHeight },
+      paper: { x: paper.left - bounds.left - frame.clientLeft, y: paper.top - bounds.top - frame.clientTop, width: paper.width, height: paper.height },
+      page: document.querySelector('.takeoff-page-input').value,
+      detailsOpen: document.querySelector('.takeoff-tool-rail [aria-controls="takeoff-markup-settings"], .takeoff-tool-rail [aria-controls="takeoff-physical-details"]').getAttribute('aria-expanded') };
+  });
+  evidence.fitPage = [];
+  // Page 3 is a true portrait viewport after its retained rotation, crop and
+  // UserUnit are applied; page 1 is landscape. Both use the uploaded original.
+  for (const [mode, scope] of [['STEEL'], ['DUCT'], ['WALLS'], ['SLABS'], ['PENETRATIONS', 'Defect Reports'], ['PENETRATIONS', 'Service Plans']]) {
+    await page.getByRole('tab', { name: mode, exact: true }).click(); await settingsSettled(page);
+    if (scope) { await page.getByRole('tab', { name: scope, exact: true }).click(); await settingsSettled(page); }
+    for (const width of [1146, 764]) {
+      await page.setViewportSize({ width, height: 764 });
+      for (const [orientation, number, aspect] of [['landscape', 1, 842 / 595], ['portrait-rotated-crop-UserUnit2', 3, 540 / 780]]) {
+        if (await settings.getAttribute('aria-expanded') === 'true') await settings.click();
+        if (Number(await page.getByLabel('Page number', { exact: true }).inputValue()) !== number) {
+          await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill(String(number)); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, number);
+        }
+        for (const detailsOpen of [false, true]) {
+          if ((await settings.getAttribute('aria-expanded') === 'true') !== detailsOpen) await settings.click();
+          await settingsSettled(page);
+          // Start away from the viewer. Clicking the real bottom-toolbar button
+          // also exercises browser focus/scrolling before Fit applies its snap.
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await renderDrawing(page, () => fit.click(), number);
+          const first = await metrics(), label = `${scope || mode}/${width}/${orientation}/${detailsOpen ? 'details' : 'closed'}`;
+          assert.ok(Math.abs(first.top - first.headerBottom) <= 1, `${label}: Fit aligns the viewer immediately below the actual sticky header: ${JSON.stringify(first)}`);
+          assert.equal(first.detailsOpen, String(detailsOpen), `${label}: Fit preserves the open details pane`);
+          assert.equal(first.page, String(number));
+          assert.ok(first.paper.x >= -1 && first.paper.y >= -1 && first.paper.x + first.paper.width <= first.frame.width + 1 && first.paper.y + first.paper.height <= first.frame.height + 1, `${label}: the entire PDF stays fitted inside its viewport`);
+          assert.ok(Math.abs(first.paper.width / first.paper.height - aspect) < .001, `${label}: source page aspect is retained`);
+          await renderDrawing(page, () => fit.click(), number);
+          const second = await metrics();
+          for (const key of ['top', 'headerBottom', 'scrollY']) assert.ok(Math.abs(first[key] - second[key]) <= 1, `${label}: repeat Fit keeps ${key} stable`);
+          for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(first.paper[key] - second.paper[key]) <= .1, `${label}: repeat Fit preserves PDF ${key}`);
+          assert.equal(second.detailsOpen, first.detailsOpen);
+          evidence.fitPage.push({ label, ...second });
+          if (mode === 'STEEL' && detailsOpen && ((width === 1146 && number === 3) || (width === 764 && number === 1))) {
+            await page.screenshot({ path: path.join(output, `fit-page-${width}-${orientation}.png`) });
+          }
+        }
+        if (await settings.getAttribute('aria-expanded') === 'true') await settings.click();
+      }
+    }
+  }
+  const protectedAfter = await snapshot();
+  for (const key of ['documents', 'items', 'calibrations', 'viewports', 'physical', 'service_plans']) assert.deepEqual(protectedAfter[key], protectedBefore[key], `Fit preserves ${key}`);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorsBefore, 'Fit preserves every calculator');
+  assert.equal(evidence.fitPage.length, 48);
 }
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
@@ -178,10 +246,11 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
     await navigation.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, `page-controls-${width}.png`) });
     evidence[`width${width}`] = { layout, errorBounds };
   }
+  await fitPageMatrix();
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   const final = await snapshot(); assert.deepEqual(final.items, beforeDirty.items); assert.deepEqual(final.calibrations, beforeDirty.calibrations);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, item: final.items[0], sourceHash: final.documents[0].sha256 }, null, 2));
-  console.log(`PASS: Scale calibration, first/last page controls, View/Edit navigation, automatic settings, visible errors and responsive toolbar. Evidence: ${output}`);
+  console.log(`PASS: Scale calibration, first/last page controls, View/Edit navigation, automatic settings, visible errors, responsive toolbar and 48 explicit/repeated Fit page combinations. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

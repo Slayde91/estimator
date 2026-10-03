@@ -10,8 +10,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from .catalog import ValidationError
-from .takeoff_area import AREA_MODES, measured_area
-from .takeoff_model import (base_length, item_digest, length_additions, measured_length,
+from .takeoff_area import measured_area
+from .takeoff_model import (base_length, item_digest, length_additions, measured_length, is_area_item, is_standalone_count,
                            validate_measurement_scope, digest, item_result, object_fields)
 from .pricing_workbook import _serialize_exact
 
@@ -25,13 +25,13 @@ HEADERS = ('Item ID', 'Item version', 'Mode', 'Mark / run', 'Level', 'Zone', 'Gr
            'Confirmation digest', 'Confirmed at', 'Transfer references', 'Notes', 'Physical member IDs',
            'Confirmation checks', 'Confirmed by', 'Gross area m2', 'Excluded area m2', 'Net area m2',
            'Treatment', 'Substrate', 'Surface basis', 'Surface citation', 'Area exclusions',
-           'Base length per item m', 'Riser/drop additions per item m', 'Riser/drop source dimensions', 'Count ID')
+           'Base length per item m', 'Riser/drop additions per item m', 'Riser/drop source dimensions', 'Count ID', 'Purpose')
 
 
 def register_rows(snapshot, items):
     documents = {d['id']: d for d in snapshot['documents']}
     rows = []
-    for item in items:
+    for item in sorted(items, key=is_standalone_count):
         if item['state'] != 'confirmed' or not item['confirmation'] or item['confirmation']['digest'] != item_digest(item, snapshot):
             raise ValidationError('Only unchanged confirmed takeoff records can be exported.')
         fields, geometry, receipt = item['fields'], item['geometry'], item['confirmation']
@@ -39,9 +39,9 @@ def register_rows(snapshot, items):
             raise ValidationError('Export requires source geometry and explicit physical quantities.')
         doc = documents[geometry['document_id']]
         validate_measurement_scope(item, snapshot)
-        area = measured_area(item, snapshot) if item['mode'] in AREA_MODES else None
-        length = None if area is not None else measured_length(item, snapshot)
-        basis = dict(item['measurement'])
+        area = measured_area(item, snapshot) if is_area_item(item) else None
+        length = None if area is not None or is_standalone_count(item) else measured_length(item, snapshot)
+        basis = dict(item['measurement']) if item['measurement'] else {'method': 'count', 'quantity': item['quantity']}
         if basis['method'] == 'calibrated':
             basis['calibration'] = next(c for c in snapshot['calibrations'] if c['id'] == basis['calibration_id'])
         refs = [{**ref, 'document_sha256': documents[ref['document_id']]['sha256'],
@@ -66,10 +66,10 @@ def register_rows(snapshot, items):
         additions = [{**addition, 'document_sha256': documents[addition['document_id']]['sha256'],
                       'document_name': documents[addition['document_id']]['name']}
                      for addition in item.get('length_additions', [])]
-        row.extend([base_length(item, snapshot) if area is None else None,
-                    length_additions(item, snapshot) if area is None else None,
+        row.extend([base_length(item, snapshot) if area is None and not is_standalone_count(item) else None,
+                    length_additions(item, snapshot) if area is None and not is_standalone_count(item) else None,
                     json.dumps(additions, ensure_ascii=False, sort_keys=True) if area is None else None,
-                    item.get('count_id')])
+                    item.get('count_id'), item.get('purpose')])
         rows.append(row)
     return rows
 
@@ -274,7 +274,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
                'Exposure', 'Orientation', 'Level', 'Zone', 'Group', 'Notes', 'Source document', 'Source page',
                'Source SHA-256', 'Linked calculator result', 'Issues', 'Confirmation ID', 'Confirmation digest',
                'Geometry', 'Measurement basis', 'All item properties', 'Supporting evidence', 'Riser/drop additions',
-               'Calculator result provenance', 'Appearance', 'Physical member IDs', 'Source page metadata', 'Confirmation receipt', 'Count ID']
+               'Calculator result provenance', 'Appearance', 'Physical member IDs', 'Source page metadata', 'Confirmation receipt', 'Count ID', 'Purpose']
     workbook = Workbook(); sheet = workbook.active; sheet.title = 'Current Takeoffs'
     sheet.append(headers); details = []
     for item in selected:
@@ -302,7 +302,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked):
                    for value in (geometry, basis, field, evidence, additions,
                                  linked[item['id']], item.get('appearance'), item['member_ids'],
                                  doc['pages'][geometry['page']-1] if doc else None, confirmation))
-        row.append(item.get('count_id'))
+        row.extend([item.get('count_id'), item.get('purpose')])
         for index, value in enumerate(row):
             if isinstance(value, str) and len(value.encode('utf-16-le')) > 60000:
                 parts = [value[start:start+15000] for start in range(0, len(value), 15000)]
@@ -352,7 +352,7 @@ def export_workspace(snapshot, request, format, *, documents, store):
         raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
     if request['mode'] not in ('steel', 'duct', 'wall', 'slab'):
         raise ValidationError('Choose the active Steel, Duct, Walls or Slabs register.')
-    active = [item for item in snapshot['items'] if item['mode'] == request['mode']]
+    active = sorted((item for item in snapshot['items'] if item['mode'] == request['mode']), key=is_standalone_count)
     ids = request.get('item_ids', [item['id'] for item in active])
     if (not isinstance(ids, list) or len(ids) > 10000 or any(not isinstance(value, str) for value in ids)
             or len(ids) != len(set(ids)) or set(ids) - {item['id'] for item in active}):

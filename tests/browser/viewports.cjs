@@ -350,7 +350,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   // Rectangular duct default, and a cited drop is added once per physical run.
   await page.locator('[data-mode="duct"]').click();
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await draw([[400, 450], [600, 450]], true);
-  state = await command(() => dialog('Add duct object', { 'Duct ID': 'DUCT-DROP', 'Count/QTY': 2 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Item': 'DUCT-DROP', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const ductId = state.snapshot.items.find(item => item.mode === 'duct').id;
   assert.equal(state.snapshot.items.find(item => item.id === ductId).fields.shape, 'rectangular');
   await expect(page.locator('#takeoff-markup-settings').getByLabel('Shape', { exact: true })).toHaveCount(0);

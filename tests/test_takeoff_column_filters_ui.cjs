@@ -44,7 +44,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Only the six requested Duct columns have accessible filter buttons and active state', () => {
     const h = harness(); h.audit.renderRegister();
     const buttons = h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button'));
-    assert.deepEqual(buttons.map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Duct ID', 'Filter Level', 'Filter WxH (mm)', 'Filter FRL', 'Filter Orientation']);
+    assert.deepEqual(buttons.map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Item', 'Filter Level', 'Filter WxH (mm)', 'Filter FRL', 'Filter Orientation']);
     assert.ok(buttons.every(el => el.attributes['aria-pressed'] === 'false' && el.attributes['aria-haspopup'] === 'dialog'));
     h.audit.ductFilters().set('level', new Set(['L1']));
     const active = h.audit.ductColumnFilterButton('level'); assert.equal(active.attributes['aria-pressed'], 'true'); assert.match(active.className, /active/); assert.match(active.title, /filter applied/);

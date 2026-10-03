@@ -66,7 +66,9 @@ def _legend_rows(items, width, style):
                     _, height = paragraph.wrap(width-48, 1000)
                     rows.append((item, paragraph, height+12))
             continue
-        if item['mode'] == 'steel': detail = item.get('section') or 'Section unavailable'
+        if item.get('purpose') == 'count-only': detail = 'Count-only item; no calculator transfer'
+        elif item.get('purpose') == 'length-only': detail = 'Length measurement; no calculator transfer'
+        elif item['mode'] == 'steel': detail = item.get('section') or 'Section unavailable'
         elif item['mode'] == 'duct':
             if item.get('shape') == 'circular': detail = f"Circular duct, diameter {item.get('diameter_mm') or 'unavailable'} mm"
             else: detail = f"Duct {item.get('width_mm') or 'unavailable'} x {item.get('height_mm') or 'unavailable'} mm"
@@ -80,7 +82,9 @@ def _legend_rows(items, width, style):
             if isinstance(additions, (int, float)) and additions > 0 and isinstance(length, (int, float)):
                 entered = f'{length:.2f} m manual base + {additions:.2f} m explicit additions each'
             quantity = f"{item['quantity']} markers x {entered}; {quantity}"
-        if item['mode'] in ('wall', 'slab'):
+        if item.get('purpose') == 'count-only':
+            quantity = f"{item['quantity']} markers counted"
+        if item['mode'] in ('wall', 'slab') and item.get('purpose') != 'length-only':
             value = item.get('net_area_m2'); quantity = f'{value:.2f} m2 net' if isinstance(value, (int, float)) and math.isfinite(value) else 'Net area unavailable'
         text = (f"<b>{item['legend_number']}. {_text(item['mark'])}</b> | {_text(detail)} | {quantity} | "
                 + ('Confirmed' if item['confirmed'] else '<b>Unconfirmed</b>')
@@ -207,7 +211,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
         pdf.saveState(); pdf.setStrokeColor(HexColor(style['stroke_color'])); pdf.setFillColor(HexColor(style['fill_color']))
         pdf.setLineWidth(style['stroke_width']); pdf.setLineCap(1); pdf.setLineJoin(1)
         pdf.setStrokeAlpha(style['opacity']); pdf.setFillAlpha(style['opacity']*.12)
-        if geometry.get('kind') == 'count':
+        if geometry.get('kind') in ('count', 'count-only'):
             pdf.setFillAlpha(style['opacity'])
             for point in points:
                 center = transform(point, matrix)
@@ -219,6 +223,39 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
                     labels = [f"{item['legend_number']}. " + line for line in summary[:3]]
                     if len(summary) > 3:
                         labels.append(f"+ {len(summary)-3} more services (see legend)")
+                    layout = item.get('callout')
+                    if layout:
+                        from reportlab.platypus import Paragraph
+                        from reportlab.lib.styles import ParagraphStyle
+                        offset = layout['offset']
+                        anchor = transform([point[0]+offset[0], point[1]+offset[1]], matrix)
+                        # The box stays upright, as it does in the viewer. Its
+                        # stored dimensions are visual axes in PDF units;
+                        # rotation affects the source anchor, not these axes.
+                        source_scale = math.hypot(matrix[0], matrix[1])
+                        width = source_scale*layout['width']
+                        height = source_scale*layout['height']
+                        left, bottom, right, top = drawing_bounds
+                        width, height = min(width, right-left), min(height, top-bottom)
+                        x = max(left, min(anchor[0], right-width))
+                        y = max(bottom, min(anchor[1]-height, top-height))
+                        padding = min(5, width/8, height/8)
+                        font_size = 7
+                        for _ in range(20):
+                            paragraph = Paragraph('<br/>'.join(_text(label) for label in labels),
+                                ParagraphStyle('PhysicalCallout', fontName='ExportVera', fontSize=font_size,
+                                    leading=font_size*1.25, textColor=HexColor(style['stroke_color'])))
+                            _, needed = paragraph.wrap(max(.1, width-2*padding), max(.1, height-2*padding))
+                            if needed <= height-2*padding:
+                                break
+                            font_size *= .75
+                        pdf.setFillColor(HexColor('#FFFFFF')); pdf.setFillAlpha(.92)
+                        pdf.roundRect(x, y, width, height, min(3, width/8, height/8), stroke=1, fill=1)
+                        pdf.setFillAlpha(style['opacity'])
+                        pdf.line(center[0], center[1], x, y+height)
+                        paragraph.drawOn(pdf, x+padding, y+height-padding-needed)
+                        pdf.setFillColor(HexColor(style['fill_color']))
+                        continue
                     # Full descriptions remain in the legend. Keep the drawing
                     # callout inside the original drawing's visible bounds.
                     left, bottom, right, top = drawing_bounds

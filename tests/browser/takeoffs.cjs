@@ -284,7 +284,7 @@ async function boardJourney(info) {
   await draw([[100 / 842, 1 - 245 / 595], [600 / 842, 1 - 220 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
   const ductCreation=page.getByRole('dialog');
-  const ductValues={'Duct ID':'D-001','Level':'L02','WxH (mm)':'600x400','Product':'FyreWrap','Exposure':'Internal','FRL':'120/120/120','Orientation':'Horizontal','Wall penetrations':0,'Floor penetrations':0,'Count/QTY':1};
+  const ductValues={'Item':'D-001','Level':'L02','WxH (mm)':'600x400','Product':'FyreWrap','Exposure':'Internal','FRL':'120/120/120','Orientation':'Horizontal','Wall penetrations':0,'Floor penetrations':0,'Count/QTY':1};
   for(const label of Object.keys(ductValues))await expect(ductCreation.getByLabel(label,{exact:true})).toBeVisible();
   for(const label of ['Product','Exposure','FRL'])assert.equal(await ductCreation.getByLabel(label,{exact:true}).evaluate(el=>el.tagName),'SELECT');
   for(const label of ['Run ID','Width (mm)','Height (mm)','Mechanical system','Duct application / exposure'])await expect(ductCreation.getByLabel(label,{exact:true})).toHaveCount(0);
@@ -309,7 +309,7 @@ async function boardJourney(info) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  let extra = await command(() => dialog('Add duct object', { 'Duct ID': 'QA-SPLIT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
+  let extra = await command(() => dialog('Add duct object', { 'Item': 'QA-SPLIT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
   const originalRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT').id;
   await page.getByRole('button', { name: 'Split', exact: true }).click();
   extra = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');

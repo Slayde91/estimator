@@ -112,7 +112,7 @@
 .takeoff-search-controls input{flex:1;min-width:80px;width:0;max-width:none}
 .takeoff-search-controls select{max-width:130px}
 .takeoff-source-documents{border:1px solid var(--line);border-radius:9px;background:#fff;padding:12px;min-width:0}
-.takeoff-drawing-layout>.takeoff-source-documents{grid-column:2/-1;grid-row:1}
+.takeoff-drawing-layout>.takeoff-source-documents{grid-column:1/-1;grid-row:1}
 .takeoff-progress.sr-only{position:absolute;width:1px;height:1px;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .takeoff-source-documents h3{font-size:12px;margin:0 0 8px}
 .takeoff-source-document-list{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto}
@@ -123,6 +123,14 @@
 .takeoff-source-document:focus-visible{outline:2px solid #0879bb;outline-offset:2px}
 .takeoff-heading-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .takeoff-heading-controls>.takeoff-modes{margin:0}
+.takeoff-tab-panel{display:flex;flex:1 1 480px;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden}
+.takeoff-tab-panel>.takeoff-modes{gap:0;flex-wrap:nowrap;min-width:0;margin:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#d5c2c8 transparent}
+.takeoff-tab-panel .takeoff-mode{flex:0 0 auto;padding:16px 18px 13px;border:0;border-bottom:4px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:#66565f;font-size:12px;font-weight:750;text-transform:uppercase;white-space:nowrap}
+.takeoff-tab-panel .takeoff-mode:hover:not(:disabled){background:#fff8f3;color:var(--accent-dark)}
+.takeoff-tab-panel .takeoff-mode[aria-selected=true]{background:#fff5ee;color:var(--accent-dark);border-bottom-color:#ef3028}
+.takeoff-tab-panel .takeoff-mode:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+.takeoff-tab-panel>.takeoff-physical-tabs{padding:0;border:0;border-top:1px solid var(--line)}
+.takeoff-tab-panel>.takeoff-physical-tabs .takeoff-mode{padding:12px 18px 10px;font-size:11px;text-transform:none}
 .takeoff-drawing-downloads{padding:0;margin:0;border:0;background:transparent;gap:6px}
 .takeoff-scale-anchor{position:relative;display:flex}
 .takeoff-scale-controls{position:absolute;left:calc(100% + 18px);top:0;z-index:12;width:min(310px,calc(100vw - 120px));margin:0;box-shadow:0 4px 18px #0003;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
@@ -189,6 +197,8 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 /* Physical register and Item Details actions retain compact accessible icons. */
 .takeoff-physical-add-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;min-height:38px}
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
+.takeoff-physical-register .takeoff-physical-add-row .takeoff-physical-add-defect,.takeoff-physical-details .takeoff-physical-inspector .takeoff-physical-add-defect{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;min-width:38px;height:38px;padding:0;border:1px solid var(--accent);border-radius:9px;background:var(--accent);color:#fff;font-size:22px;line-height:1;text-decoration:none;box-shadow:none}
+.takeoff-physical-inspector-actions{display:flex;grid-column:1/-1;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
 .takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
 .takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
 .takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected,.takeoff-physical-register .takeoff-physical-icon-action,.takeoff-physical-details .takeoff-physical-discard,.takeoff-physical-details .takeoff-physical-delete-selected{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
@@ -226,6 +236,15 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-overlay .takeoff-physical-marker-hit{cursor:pointer;pointer-events:all}
 .takeoff-overlay .takeoff-physical-marker-hit:focus-visible{outline:2px solid #0068dc;outline-offset:4px}
 .takeoff-overlay .takeoff-physical-callout{cursor:pointer}
+.takeoff-viewport[data-tool=select] .takeoff-physical-callout{cursor:move;touch-action:none}
+.takeoff-overlay .takeoff-physical-callout.dragging{cursor:grabbing}
+.takeoff-overlay .takeoff-physical-callout text{pointer-events:none;user-select:none}
+.takeoff-overlay .takeoff-physical-callout.selected .takeoff-physical-callout-frame{stroke:#1687b5;stroke-width:1.8;vector-effect:non-scaling-stroke}
+.takeoff-overlay .takeoff-physical-callout-handle{fill:#f8fcff;stroke:#1687b5;stroke-width:1.6;vector-effect:non-scaling-stroke;pointer-events:all;touch-action:none}
+.takeoff-overlay .takeoff-physical-callout-handle[data-corner=nw],.takeoff-overlay .takeoff-physical-callout-handle[data-corner=se]{cursor:nwse-resize}
+.takeoff-overlay .takeoff-physical-callout-handle[data-corner=ne],.takeoff-overlay .takeoff-physical-callout-handle[data-corner=sw]{cursor:nesw-resize}
+.takeoff-overlay .takeoff-physical-callout-handle:hover,.takeoff-overlay .takeoff-physical-callout-handle:focus-visible{fill:#d4efff;stroke:#004e7c;stroke-width:2.4;outline:none}
+.takeoff-overlay .takeoff-physical-callout:focus-visible .takeoff-physical-callout-frame{stroke:#004e7c;stroke-width:2.4;vector-effect:non-scaling-stroke}
 @container(max-width:700px){
   .takeoff-drawing-layout.with-physical-details>.takeoff-drawing-pane{grid-column:2/-1}
   .takeoff-drawing-layout>.takeoff-physical-details{position:absolute;left:66px;top:0;z-index:8;width:min(300px,calc(100% - 66px));grid-column:1/-1;grid-row:2;box-shadow:3px 3px 12px #0003}

@@ -8,7 +8,8 @@ import unittest
 from uuid import uuid4
 
 from openpyxl import load_workbook
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import RectangleObject
 
 from estimator.catalog import ValidationError
 from estimator.takeoff_model import audit_affected, new_snapshot, upgrade_snapshot, validate_snapshot
@@ -19,6 +20,7 @@ from estimator.takeoff_physical_operations import current_graph, prepare_changes
 from tests import test_takeoff_physical_v2 as v2
 from tests import test_takeoff_workspace as fixtures
 from tests import test_takeoff_project as project_fixtures
+from tests.test_takeoff_marked_exports import drawing_fixture
 
 
 def create(kind='barrier', parent=None, *, marker=None, quantity=1, **fields):
@@ -104,6 +106,22 @@ class ServicePlansModelTests(unittest.TestCase):
         self.assertEqual(graph['barriers'][0]['marker'], self.marker)
         self.assertEqual(graph['services'][0]['quantity'], 4)
 
+    def test_callout_layout_is_optional_source_space_and_never_changes_service_facts(self):
+        graph = self.graph(); identifier = self.barrier['entity']['id']
+        layout = {'offset': [-30.123456789, 12.987654321], 'width': 140.123456789, 'height': 50.987654321}
+        updated = v2.apply(graph, {'op': 'update', 'entity_id': identifier,
+            'changes': {'marker': {**self.marker, 'callout': layout}}})
+        self.assertEqual(updated['barriers'][0]['marker']['callout'], layout)
+        self.assertEqual(updated['barriers'][0]['marker']['point'], self.marker['point'])
+        self.assertEqual(updated['services'], graph['services'])
+        self.assertEqual(barrier_summary(updated, updated['barriers'][0]), barrier_summary(graph, graph['barriers'][0]))
+        for patch in ({'offset': [0]}, {'offset': [True, 2]}, {'offset': [float('inf'), 2]},
+                      {'offset': [-10001, 2]}, {'offset': [2, 10001]}, {'width': 0}, {'height': 10001},
+                      {'width': True}, {'height': float('nan')}, {'text': 'Approved'}):
+            with self.subTest(patch=patch), self.assertRaises(ValidationError):
+                v2.apply(graph, {'op': 'update', 'entity_id': identifier,
+                    'changes': {'marker': {**self.marker, 'callout': {**layout, **patch}}}})
+
     def test_numbered_defect_report_barrier_marker_is_additive(self):
         defect = v2.create('defect', frl='-/90/90')
         barrier = v2.create('barrier', defect['entity']['id'], substrate='Concrete')
@@ -188,6 +206,18 @@ class ServicePlansWorkspaceTests(unittest.TestCase):
         self.assertFalse(restored['snapshot']['service_plans']['barriers'][0]['deleted'])
         self.assertEqual(restored['snapshot']['service_plans']['barriers'][0]['marker'], self.marker)
 
+    def test_callout_layout_applies_with_stale_guards_and_undo_preserves_marker_and_other_scope(self):
+        self.apply([v2.create('defect', label='Report kept')], 'defect_reports')
+        self.apply([self.barrier]); before = self.state()['snapshot']
+        marker = {**self.marker, 'callout': {'offset': [23.125, -11.875], 'width': 130, 'height': 45}}
+        result, request = self.apply([{'op': 'update', 'entity_id': self.barrier['entity']['id'], 'changes': {'marker': marker}}])
+        self.assertEqual(result['snapshot']['service_plans']['barriers'][0]['marker'], marker)
+        self.assertEqual(result, self.service.apply_physical(self.sid, request))
+        self.assertEqual(result['snapshot']['physical'], before['physical'])
+        undo = self.service.command(self.sid, {'op': 'undo', 'expected_revision': result['revision'], 'request_id': str(uuid4())})
+        self.assertEqual(undo['snapshot']['service_plans']['barriers'][0]['marker'], self.marker)
+        self.assertEqual(undo['snapshot']['physical'], before['physical'])
+
     def test_wrong_scope_entity_ids_and_cross_scope_duplicates_are_rejected_in_preview(self):
         self.apply([self.barrier])
         before = self.state()
@@ -270,6 +300,73 @@ class ServicePlansProjectTests(unittest.TestCase):
         self.apply([{'op': 'update', 'entity_id': self.pipe['entity']['id'], 'changes': {'fields': {'service': 'Cable'}}}])
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(self.export()[0])).pages)
         self.assertIn('Cable', text); self.assertNotIn('Diameter 50 mm', text)
+
+    def test_resized_positioned_callout_survives_pdf_export_save_and_reopen(self):
+        case = self.case
+        marker = deepcopy(case.session['snapshot']['service_plans']['barriers'][0]['marker'])
+        marker['callout'] = {'offset': [60.125, -35.875], 'width': 180.25, 'height': 65.75}
+        self.apply([{'op': 'update', 'entity_id': self.barrier['entity']['id'], 'changes': {'marker': marker}}])
+        before = deepcopy(case.session['snapshot']); source = case.documents.document_path(self.doc).read_bytes()
+        payload = self.export()[0]; reader = PdfReader(BytesIO(payload))
+        text = '\n'.join(page.extract_text() for page in reader.pages)
+        for expected in ('B-0001', 'Plan barrier', 'Concrete', 'Qty 3', 'Diameter 50 mm'): self.assertIn(expected, text)
+        self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
+        self.assertEqual(case.documents.document_path(self.doc).read_bytes(), source)
+        request = {**deepcopy(case.base), 'takeoffs': before, 'takeoffs_session_id': case.session['session_id']}
+        case.library.save_as(request); case.dialogs.opened = str(case.target)
+        reopened = case.library.open_file()
+        self.assertEqual(reopened['takeoffs']['service_plans']['barriers'][0]['marker'], marker)
+        self.assertEqual(reopened['takeoffs_issues'], [])
+        saved = json.loads(case.target.read_bytes())
+        for key in ('estimate', 'calculators'): self.assertEqual(saved[key], json.loads(case.legacy)[key])
+
+    def test_upright_callout_dimensions_export_consistently_at_every_rotation_and_user_unit(self):
+        # Enough visible space for this box at all rotations avoids confusing
+        # dimension preservation with the intentional page-edge clamping.
+        writer = PdfWriter()
+        for page in PdfReader(BytesIO(drawing_fixture())).pages:
+            page.mediabox = RectangleObject([0, 0, 600, 400])
+            page.cropbox = RectangleObject([10, 20, 590, 380])
+            writer.add_page(page)
+        source_pdf = BytesIO(); writer.write(source_pdf)
+        case = project_fixtures.TakeoffProjectTests(); case.pdf = source_pdf.getvalue(); case.setUp()
+        self.addCleanup(case.doCleanups)
+        document = case.session['snapshot']['documents'][0]
+        layout = {'offset': [15.125, -20.875], 'width': 180.25, 'height': 65.75}
+        barriers = [create(marker={'document_id': document['id'], 'document_sha256': document['sha256'],
+            'page': page, 'point': [120, 180], 'callout': layout}, label=f'Rotation {90*(page-1)}')
+            for page in range(1, 5)]
+        preview = case.service.preview_physical(case.session['session_id'], {
+            'expected_revision': case.session['revision'], 'scope': 'service_plans', 'commands': barriers})
+        case.session = case.service.apply_physical(case.session['session_id'], {
+            'expected_revision': case.session['revision'], 'scope': 'service_plans',
+            'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
+        before = deepcopy(case.session['snapshot'])
+        payload = case.service.export_workspace(case.session['session_id'], 'marked-pdf', {
+            'expected_revision': case.session['revision'], 'mode': 'penetrations', 'physical_scope': 'service_plans',
+            'document_id': document['id'], 'item_ids': [barrier['entity']['id'] for barrier in barriers]})[0]
+        pages = PdfReader(BytesIO(payload)).pages
+        self.assertEqual(len(pages), 4)
+        for index, page in enumerate(pages):
+            # Inspect the actual painted rounded box in the exported PDF, not
+            # an intermediate spec that could still be drawn with swapped axes.
+            painted_boxes, path = [], []
+            for values, operator in page.get_contents().operations:
+                if operator == b'n': path = []
+                elif operator in (b'm', b'l', b'c'):
+                    path.extend(zip(map(float, values[::2]), map(float, values[1::2])))
+                elif operator in (b'B', b'B*', b'b', b'b*'):
+                    if path:
+                        xs, ys = zip(*path)
+                        painted_boxes.append((max(xs)-min(xs), max(ys)-min(ys)))
+                    path = []
+                elif operator in (b'S', b's', b'f', b'F', b'f*'): path = []
+            with self.subTest(rotation=90*index):
+                self.assertTrue(any(abs(width-360.5) < 1e-5 and abs(height-131.5) < 1e-5
+                    for width, height in painted_boxes), painted_boxes)
+                self.assertIn(f'Rotation {90*index}', page.extract_text())
+        self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
+        self.assertEqual(case.documents.document_path(document).read_bytes(), source_pdf.getvalue())
 
     def test_marked_pdf_rejects_scope_other_entity_and_client_summary_injection(self):
         for changes in ({'physical_scope': 'defect_reports'}, {'item_ids': [self.pipe['entity']['id']]},

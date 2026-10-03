@@ -60,8 +60,7 @@ async function screen([x, y]) {
 async function place(id, point, explicit = false) {
   if (explicit) await details().getByRole('button', { name: 'Place count marker', exact: true }).click();
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
-  await response(async () => page.mouse.click(...await screen(point)), '/physical/preview');
-  await apply('Review barrier count marker'); await expect(marker(id)).toBeVisible(); await expect(marker(id)).toHaveAttribute('aria-pressed', 'true');
+  await response(async () => page.mouse.click(...await screen(point)), '/physical/apply'); await snapshot(); await expect(marker(id)).toBeVisible(); await expect(marker(id)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
 }
 async function layout(width) {
@@ -120,9 +119,7 @@ async function layout(width) {
   assert.deepEqual(await navigation.getByRole('columnheader').allTextContents(), ['Defect', 'Barrier', 'Service']);
   for (const [kind, expected] of [['Defect', [defect, otherDefect]], ['Barrier', [barrier, otherBarrier, newBarrier]], ['Service', [service, otherService, newService]]]) assert.deepEqual(await navigation.getByLabel(`${kind} ID in Item Details`, { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), expected);
   const previews = requests.length; await details().getByLabel('Notes', { exact: true }).fill('Retain unfinished Defect edit');
-  await navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service); await expect(page.locator('#takeoffs-workspace .message')).toContainText('unfinished physical');
-  await expect(details().getByLabel('Notes', { exact: true })).toHaveValue('Retain unfinished Defect edit'); await expect(navigation.getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(''); assert.equal(requests.length, previews);
-  await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click();
+  await response(()=>navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service),'/physical/apply'); await idle(); await snapshot(); assert.equal(state.physical.defects.find(entry=>entry.id===defect).fields.notes,'Retain unfinished Defect edit'); await expect(details().getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(service); assert.equal(requests.length, previews+1);
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).click();
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;

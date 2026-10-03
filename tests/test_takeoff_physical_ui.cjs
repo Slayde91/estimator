@@ -5,7 +5,7 @@ const physical = require('../static/takeoff-physical.js');
 const uuid = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const copy = value => JSON.parse(JSON.stringify(value));
 const defer = () => { let resolve; const promise=new Promise(done=>resolve=done); return {promise,resolve}; };
-const flush = async () => { for(let i=0;i<80;i++)await Promise.resolve(); };
+const flush = async () => { for(let i=0;i<80;i++)await Promise.resolve();await new Promise(resolve=>setTimeout(resolve,0));for(let i=0;i<80;i++)await Promise.resolve(); };
 const make = (id,fields={},more={}) => ({id:uuid(id),revision:1,deleted:false,deleted_at_revision:null,fields,evidence:[],uncertainty:{state:'not_assessed',note:''},...more});
 const legacyGraph = () => ({version:1,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',barriers:[make(1,{label:'Wall A',substrate:'Concrete'})],defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{barrier_id:uuid(1)})],openings:[make(3,{label:'Core A',opening_type:'Corehole'},{defect_id:uuid(2)}),make(4,{label:'Empty core'},{defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{opening_id:uuid(3),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{opening_id:uuid(3),quantity:3})]});
 const graph = () => ({version:2,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{display_id:'D-0001'})],barriers:[make(1,{label:'Wall A',substrate:'Concrete'},{display_id:'B-0001',defect_id:uuid(2)}),make(4,{label:'Empty barrier'},{display_id:'B-0002',defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{display_id:'S-0001',barrier_id:uuid(1),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{display_id:'S-0002',barrier_id:uuid(1),quantity:3})]});
@@ -17,7 +17,7 @@ const definitionOptions = definition => definition[2].map(option=>Array.isArray(
 function documentHarness(){
   let doc;
   class Element {
-    constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes={};this.events={};this.className='';this._text='';this.value='';this.ownerDocument=doc;this.disabled=false;this.checked=false;
+    constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes={};this.events={};this.className='';this._text='';this.value='';this.style={};this.ownerDocument=doc;this.disabled=false;this.checked=false;
       this.classList={toggle:(value,on)=>{const set=new Set(this.className.split(/\s+/).filter(Boolean));on?set.add(value):set.delete(value);this.className=[...set].join(' ');},contains:value=>this.className.split(/\s+/).includes(value)};
     }
     get textContent(){return this._text+this.children.map(child=>child.textContent).join('');}
@@ -27,10 +27,15 @@ function documentHarness(){
     remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(child=>child!==this);this.parentElement=null;}
     setAttribute(key,value){this.attributes[key]=String(value);}
     addEventListener(name,listener){(this.events[name]||=[]).push(listener);}
+    getBoundingClientRect(){return {left:10,bottom:20,width:260,height:300};}
+    focus(){doc.activeElement=this;}
+    contains(element){return element===this||this.children.some(child=>child.contains(element));}
+    showModal(){this.open=true;}
+    close(value){this.returnValue=value;this.open=false;this.emit('close');}
     emit(name){for(const listener of this.events[name]||[])listener({target:this});}
     querySelectorAll(selector){const matches=element=>selector.split(',').some(part=>part.startsWith('[data-')?Object.hasOwn(element.dataset,part.slice(6,-1).replace(/-([a-z])/g,(_,char)=>char.toUpperCase())):element.tagName===part.toUpperCase());return this.children.flatMap(child=>[...(matches(child)?[child]:[]),...child.querySelectorAll(selector)]);}
   }
-  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};
+  doc={createElement:tag=>new Element(tag),createElementNS:(_namespace,tag)=>new Element(tag)};doc.body=new Element('body');
   return {container:new Element('div'),all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 function component(initial=graph(),extra={}){
@@ -56,7 +61,7 @@ function component(initial=graph(),extra={}){
     notify(text,error){calls.notifications.push({text,error});},source(ref){calls.sources.push(ref);},images:async()=>[],imageUrl:()=>'/api/takeoffs/local/images/asset',extract:async()=>({snapshot:copy(current)}),export:async format=>calls.exports.push(format),undo:async()=>({snapshot:copy(current)}),changed(){calls.changed++;},...extra,
   };
   controller=physical.mount(dom.container,bridge);controller.render(copy(current));
-  const all=()=>[...dom.all(dom.container),...(dom.inspectorHost?dom.all(dom.inspectorHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
+  const all=()=>[...dom.all(dom.container),...dom.all(dom.container.ownerDocument.body),...(dom.inspectorHost?dom.all(dom.inspectorHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
   return {dom,controller,calls,answers,current,bridge,all,button,async click(label){button(label).emit('click');await flush();},async select(id){const row=all().find(element=>element.dataset.physicalId===uuid(id));assert.ok(row);row.children[0].children[0].emit('change');await flush();},input(label){const control=all().find(element=>element.attributes['aria-label']===label);assert.ok(control,`Missing field: ${label}`);return control;}};
 }
 let passed=0;
@@ -106,7 +111,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const value=graph();value.defects[0].fields.frl=' Historic FRL ';const h=component(value);await flush();
     await h.click('Add defect');const definitions=h.calls.asks.at(-1).definitions;assert.equal(definitions.find(([key])=>key==='label')[1],'Defect Ref.');assert.deepEqual(definitionOptions(definitions.find(([key])=>key==='frl')),fieldChoices.frl);
     await h.select(2);assert.equal(h.input('FRL').tagName,'SELECT');assert.equal(h.input('FRL for Defect 01').tagName,'SELECT');assert.equal(h.input('FRL').value,' Historic FRL ');assert.deepEqual(optionsOf(h.input('FRL')),[...fieldChoices.frl,' Historic FRL ']);
-    h.input('Notes').value='Retain prior choice';h.input('Notes').emit('input');await h.click('Preview physical edits');assert.equal(h.current.physical.defects[0].fields.frl,' Historic FRL ');
+    h.input('Notes').value='Retain prior choice';h.input('Notes').emit('input');await h.controller.completePendingEdits();assert.equal(h.current.physical.defects[0].fields.frl,' Historic FRL ');
     h.answers.push({field:'frl'},{value:'-/90/90'});await h.click('Bulk edit same-type records');assert.deepEqual(definitionOptions(h.calls.asks.at(-1).definitions[0]),[...fieldChoices.frl,' Historic FRL ']);assert.equal(h.current.physical.defects[0].fields.frl,'-/90/90');h.controller.destroy();
   });
   await check('Service creation and inspector expose one combined dimension field and Overall Diameter',async()=>{
@@ -122,17 +127,17 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const disclosure=h.button('Collapse D-0001');assert.equal(disclosure.textContent,'<');assert.equal(disclosure.attributes['aria-expanded'],'true');await h.click('Collapse D-0001');assert.equal(h.button('Expand D-0001').textContent,'>');assert.equal(h.button('Expand D-0001').attributes['aria-expanded'],'false');
     for(const label of ['Discard unfinished physical edits','Delete selected records','Select filtered records','Clear physical selection','Bulk edit same-type records']){const button=h.button(label);assert.equal(button.textContent,'');assert.equal(button.children[0].tagName,'SVG');assert.equal(button.children[0].attributes['aria-hidden'],'true');assert.equal(button.attributes['aria-label'],label);}
     assert.deepEqual(siblings[index+1].children,[h.button('Add defect'),h.button('Delete selected records')]);
-    assert.equal(h.button('Discard unfinished physical edits').parentElement.attributes['aria-label'],'Item Details');
+    assert.equal(h.button('Discard unfinished physical edits').parentElement.className,'takeoff-physical-inspector-actions');
     for(const format of ['CSV','XLSX']){const download=h.button(`Export draft ${format}`);assert.ok(download.className.includes('takeoff-download-button'));assert.equal(download.textContent,`⇩${format}`);}
     h.controller.destroy();
   });
   await check('Item Details retains Discard without an inspected record and Delete uses the accessible trash icon',async()=>{
     const h=component(graph(),{inspectorContainer:true});await flush();const discard=h.button('Discard unfinished physical edits'),original=copy(h.current.physical);
-    assert.equal(discard.parentElement.attributes['aria-label'],'Item Details');assert.equal(discard.disabled,false);
+    assert.equal(discard.parentElement.className,'takeoff-physical-inspector-actions');assert.equal(discard.disabled,false);
     const location=h.input('Location for Wall A');location.value='Unfinished table value';location.emit('input');assert.equal(h.controller.inspectedId(),null);await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);assert.deepEqual(h.current.physical,original);assert.equal(h.button('Discard unfinished physical edits'),discard);
-    await h.controller.select(uuid(5));const remove=h.button('Delete draft record');assert.equal(remove.parentElement.attributes['aria-label'],'Item Details');assert.equal(remove.textContent,'');assert.equal(remove.title,'Delete draft record');assert.equal(remove.children[0].tagName,'SVG');assert.equal(remove.children[0].attributes['aria-hidden'],'true');assert.equal(remove.children[0].children[0].attributes.d,h.button('Delete selected records').children[0].children[0].attributes.d);
-    await h.controller.select(uuid(1),true);assert.equal(h.controller.inspectedId(),null);assert.equal(h.button('Discard unfinished physical edits'),discard);assert.equal(discard.parentElement.attributes['aria-label'],'Item Details');
-    h.controller.clearSelection();const deleted=copy(h.current);deleted.physical.services[0].deleted=true;h.controller.render(deleted);await h.controller.select(uuid(5));assert.equal(h.button('Discard unfinished physical edits'),discard);assert.ok(!h.all().some(control=>control.attributes['aria-label']==='Delete draft record'));h.controller.destroy();
+    await h.controller.select(uuid(5));const remove=h.button('Delete draft record');assert.equal(remove.parentElement.className,'takeoff-physical-inspector-actions');assert.equal(remove.parentElement.children[1],discard);assert.equal(remove.textContent,'');assert.equal(remove.title,'Delete draft record');assert.equal(remove.children[0].tagName,'SVG');assert.equal(remove.children[0].attributes['aria-hidden'],'true');assert.equal(remove.children[0].children[0].attributes.d,h.button('Delete selected records').children[0].children[0].attributes.d);
+    await h.controller.select(uuid(1),true);assert.equal(h.controller.inspectedId(),null);assert.equal(h.button('Discard unfinished physical edits'),discard);assert.equal(discard.parentElement.className,'takeoff-physical-inspector-actions');
+    await h.controller.clearSelection();const deleted=copy(h.current);deleted.physical.services[0].deleted=true;h.controller.render(deleted);await h.controller.select(uuid(5));assert.equal(h.button('Discard unfinished physical edits'),discard);assert.ok(!h.all().some(control=>control.attributes['aria-label']==='Delete draft record'));h.controller.destroy();
   });
   await check('Select-all spans collapsed pages, excludes deleted and ancestor-context rows, and preserves other selections',async()=>{
     const value=graph();value.services=Array.from({length:205},(_,index)=>make(100+index,{service:index<2?'Needle':'Other'},{display_id:`S-${String(index+1).padStart(4,'0')}`,barrier_id:uuid(1),quantity:1}));value.services[204].deleted=true;value.services[204].deleted_at_revision=1;
@@ -154,15 +159,15 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.throws(()=>physical.deletionPlan(leaves,index),/at most 100 independent/);assert.equal(physical.deletionPlan(leaves.slice(0,100),index).commands.length,100);
     const complete=[index.get(uuid(1)),...leaves];assert.deepEqual(physical.deletionPlan(complete,index).commands,[{op:'delete',entity_id:uuid(1),cascade:true}]);assert.deepEqual(physical.deletionPlan(complete.slice(0,-1),index).additional.map(entry=>entry.entity.id),[uuid(200)]);assert.deepEqual(physical.deletionPlan(complete.slice(0,-1),index).commands,[]);
   });
-  await check('Save completion applies pending inspector values through existing reviewed commands',async()=>{
+  await check('Save completion validates and automatically applies pending inspector values',async()=>{
     const h=component();await flush();await h.select(5);const size=h.input('Width x Height (mm)'),notes=h.input('Notes');size.value='100x';size.emit('input');notes.value='Keep pending note';notes.emit('input');
     await assert.rejects(h.controller.completePendingEdits(),/Width x Height/);assert.equal(h.calls.previews.length,0);assert.equal(size.value,'100x');assert.equal(notes.value,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),true);
-    size.value='100x200';size.emit('input');await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations[0].title,'Review physical field changes');assert.equal(h.current.physical.services[0].fields.width_mm,100);assert.equal(h.current.physical.services[0].fields.height_mm,200);assert.equal(h.current.physical.services[0].fields.notes,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    size.value='100x200';size.emit('input');await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.current.physical.services[0].fields.width_mm,100);assert.equal(h.current.physical.services[0].fields.height_mm,200);assert.equal(h.current.physical.services[0].fields.notes,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
   });
-  await check('Cancelled or failed save reviews preserve pending inspector and table values',async()=>{
+  await check('Routine inspector and table edits need no confirmation while failed validation preserves unfinished input',async()=>{
     for(const mode of ['inspector','table']){
       const h=component(graph(),{confirm:async()=>false});await flush();if(mode==='inspector')await h.select(1);const control=h.input(mode==='inspector'?'Notes':'Location for Wall A');control.value='Unsaved value';control.emit('input');
-      await assert.rejects(h.controller.completePendingEdits(),/review was cancelled/);assert.equal(control.value,'Unsaved value');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.equal(h.calls.applied.length,0);h.bridge.confirm=async()=>true;await h.controller.completePendingEdits();assert.equal(h.calls.applied.length,1);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+      await h.controller.completePendingEdits();assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
     }
     const h=component(graph(),{preview:async()=>{throw new Error('Preview unavailable');}});await flush();await h.select(1);const notes=h.input('Notes');notes.value='Keep on outage';notes.emit('input');await assert.rejects(h.controller.completePendingEdits(),/Preview unavailable/);assert.equal(notes.value,'Keep on outage');assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();
   });
@@ -201,10 +206,10 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const barrierBefore=copy(value.barriers[0].fields),serviceBefore=copy(value.services[0].fields);
     const h=component(value);await flush();await h.select(1);
     for(const [label,retained] of [['Barrier type','Historic barrier'],['Substrate',' Historic substrate '],['Substrate orientation','Historic orientation']]){const control=h.input(label);assert.equal(control.value,retained);assert.ok(optionsOf(control).includes(retained));assert.ok(control.children.some(option=>option.value===retained&&option.textContent.includes('retained')));}
-    const location=h.input('Location');location.value='New location';location.emit('input');await h.click('Preview physical edits');
+    const location=h.input('Location');location.value='New location';location.emit('input');await h.controller.completePendingEdits();
     assert.deepEqual(h.current.physical.barriers[0].fields,{...barrierBefore,location:'New location'});assert.equal(h.current.physical.barriers[0].defect_id,uuid(2));
     await h.click('Clear physical selection');await h.select(5);for(const [label,retained] of [['Category','Historic category'],['Service type','Historic type']]){const control=h.input(label);assert.equal(control.value,retained);assert.ok(optionsOf(control).includes(retained));}
-    const size=h.input('Service Size (mm)');size.value='32';size.emit('input');await h.click('Preview physical edits');
+    const size=h.input('Service Size (mm)');size.value='32';size.emit('input');await h.controller.completePendingEdits();
     assert.deepEqual(h.current.physical.services[0].fields,{...serviceBefore,size:'32'});assert.equal(h.current.physical.services[0].quantity,1);assert.equal(h.current.physical.services[0].barrier_id,uuid(1));
     const retained=physical.fieldsFromValues('barrier',{location:'',notes:''},barrierBefore);assert.equal(retained.label,'Wall A');assert.equal(retained.thickness_mm,175);assert.equal(retained.future_property,'retained barrier data');assert.equal(retained.location,undefined);
     h.controller.destroy();
@@ -280,7 +285,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const label of ['Undo physical / takeoff edit','Physical / takeoff audit history'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&element.textContent===label));
     await h.select(3);const inspector=h.all().find(element=>element.tagName==='ASIDE');assert.deepEqual(inspector.querySelectorAll('input,select,textarea').map(control=>control.attributes['aria-label']),['Defect ID in Item Details','Barrier ID in Item Details','Service ID in Item Details']);assert.ok(inspector.textContent.includes('Opening type: Corehole'));assert.ok(inspector.textContent.includes('Legacy opening evidence'));
     for(const label of ['Preview physical edits','Delete draft record','Change physical parent','Remove source association'])assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label)));
-    assert.equal(h.button('Discard unfinished physical edits').parentElement,inspector);assert.equal(h.button('Discard unfinished physical edits').disabled,false);
+    assert.equal(h.button('Discard unfinished physical edits').parentElement.parentElement,inspector);assert.equal(h.button('Discard unfinished physical edits').disabled,false);
     // Even a programmatically delivered event on a disabled mutation button cannot reach the bridge.
     await h.click('Add defect');assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('read-only'));
     h.answers.push({});await h.click('Export draft CSV');assert.deepEqual(h.calls.exports,['csv']);assert.deepEqual(h.current.physical,original);h.controller.destroy();
@@ -298,9 +303,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       h.controller.destroy();
     }
   });
-  await check('Inline editing previews authoritative commands and restores an untouched value when review is cancelled',async()=>{
+  await check('Inline editing validates then applies automatically without a review dialog',async()=>{
     const h=component(graph(),{confirm:async()=>false});await flush();const control=h.input('Substrate for Wall A');control.value='Masonry';control.emit('input');assert.equal(h.controller.hasUnfinishedChanges(),true);control.emit('change');await flush();
-    assert.equal(h.calls.previews.length,1);assert.equal(h.calls.previews[0][0].changes.fields.substrate,'Masonry');assert.equal(h.calls.applied.length,0);assert.equal(h.input('Substrate for Wall A').value,'Concrete');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    assert.equal(h.calls.previews.length,1);assert.equal(h.calls.previews[0][0].changes.fields.substrate,'Masonry');assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.input('Substrate for Wall A').value,'Masonry');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
   });
   await check('Draft changes during preview cannot apply a stale review receipt',async()=>{
     const pending=defer(),h=component(graph(),{preview:()=>pending.promise});await flush();const control=h.input('Substrate for Wall A');control.value='Masonry';control.emit('input');control.emit('change');await flush();
@@ -308,7 +313,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Inline table edits cannot discard unrelated unfinished inspector values',async()=>{
     const h=component();await flush();await h.select(1);const inspector=h.input('Substrate');inspector.value='Unfinished masonry inspection';inspector.emit('input');const table=h.input('Location for Wall A');table.value='New location';table.emit('input');table.emit('change');await flush();
-    assert.equal(h.calls.previews.length,0);assert.equal(inspector.value,'Unfinished masonry inspection');assert.equal(table.value,'');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.ok(h.calls.notifications.at(-1).text.includes('Those edits have been preserved'));await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    assert.equal(h.calls.previews.length,0);assert.equal(inspector.value,'Unfinished masonry inspection');assert.equal(table.value,'New location');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.ok(h.calls.notifications.at(-1).text.includes('separate physical field edits'));await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
   });
   await check('Each later unfinished keystroke advances the project race fingerprint',async()=>{
     const h=component();await flush();await h.select(1);const notes=h.input('Notes'),before=h.controller.editRevision();notes.value='First unfinished note';notes.emit('input');const first=h.controller.editRevision();notes.value='Later unfinished note';notes.emit('input');assert.ok(first>before);assert.ok(h.controller.editRevision()>first);assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();
@@ -329,14 +334,14 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     h.answers.push({mode:'selected',entity_ids:`${uuid(1)}\n${uuid(2)}`});await h.click('Restore draft record');assert.deepEqual(h.calls.previews[0],[{op:'restore',entity_id:uuid(1),mode:'selected',entity_ids:[uuid(1),uuid(2)]}]);h.controller.destroy();
   });
   await check('Unchanged inspector values avoid a no-op command and image inventory cannot leak across replacement projects',async()=>{
-    const first=defer(),second=defer();let count=0;const h=component(graph(),{images:()=>++count===1?first.promise:second.promise});await h.select(1);await h.click('Preview physical edits');assert.equal(h.calls.previews.length,0);
+    const first=defer(),second=defer();let count=0;const h=component(graph(),{images:()=>++count===1?first.promise:second.promise});await h.select(1);await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,0);
     const next=copy(h.current);next.project_id=uuid(500);h.controller.render(next);first.resolve([{name:'Old project image'}]);second.resolve([]);await flush();assert.ok(!h.dom.container.textContent.includes('Old project image'));assert.ok(h.dom.container.textContent.includes('0 selected'));h.controller.destroy();
   });
   await check('Closing a component while evidence inventory is pending prevents late rendering',async()=>{
     const pending=defer(),h=component(graph(),{images:()=>pending.promise});h.controller.destroy();pending.resolve([{name:'Late evidence'}]);await flush();assert.equal(h.dom.container.children.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);
   });
-  await check('Closing a component during a modal review prevents application and clears unfinished state',async()=>{
-    const pending=defer(),h=component(graph(),{confirm:()=>pending.promise});await flush();const control=h.input('Substrate for Wall A');control.value='Masonry';control.emit('input');control.emit('change');await flush();assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();pending.resolve(true);await flush();assert.equal(h.calls.applied.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);assert.equal(h.dom.container.children.length,0);
+  await check('Closing a component during automatic validation prevents application and clears unfinished state',async()=>{
+    const pending=defer(),h=component(graph(),{preview:()=>pending.promise});await flush();const control=h.input('Substrate for Wall A');control.value='Masonry';control.emit('input');control.emit('change');await flush();assert.equal(h.controller.hasUnfinishedChanges(),true);h.controller.destroy();pending.resolve({preview_id:'closed',affected_ids:[],changed_ids:[],relationships:[]});await flush();assert.equal(h.calls.applied.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);assert.equal(h.dom.container.children.length,0);
   });
   await check('Actual image gallery rejects arbitrary remote URLs before creating an image element',async()=>{
     const prior=global.location;global.location={href:'http://127.0.0.1:8765/',origin:'http://127.0.0.1:8765'};
@@ -376,12 +381,12 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const pending=defer(),preview=h.bridge.preview;h.bridge.preview=async commands=>{const result=await preview(commands);await pending.promise;return result;};const marking=h.controller.setMarker(uuid(1),{document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[10,20]});await flush();assert.equal(h.input('Notes').disabled,true);assert.equal(h.input('FRL').disabled,true);assert.equal(h.button('Discard unfinished physical edits').disabled,true);assert.equal(h.button('Delete draft record').disabled,true);await h.click('Discard unfinished physical edits');assert.ok(h.calls.notifications.at(-1).text.includes('Finish the current review first'));pending.resolve();await marking;assert.equal(h.input('Notes').disabled,false);assert.equal(h.button('Discard unfinished physical edits').disabled,false);assert.equal(h.button('Delete draft record').disabled,false);
     h.controller.destroy();assert.deepEqual(h.dom.inspectorHost.children,[h.dom.closeButton]);
   });
-  await check('Count creation and marker movement share reviewed atomic commands and never apply on cancellation',async()=>{
+  await check('Count creation stays reviewed while marker movement applies automatically and flushes pending fields',async()=>{
     const marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[150,225]},selections=[],h=component(null,{scope:()=> 'service_plans',selection:(ids,reference,focus)=>selections.push({ids,reference,focus})});await flush();
     h.answers.push({substrate:'Concrete',frl:'-/120/120',uncertainty_state:'not_assessed'});const id=await h.controller.create('barrier',undefined,marker);assert.deepEqual(h.current.physical.barriers[0].marker,marker);assert.equal(h.calls.previews.length,1);assert.ok(h.calls.confirmations[0].text.includes('p2 · (150, 225)'));assert.equal(h.controller.selectedBarrier().id,id);assert.deepEqual(selections.at(-1),{ids:[id],reference:marker,focus:false});
-    const moved={...marker,point:[300,350]};h.bridge.confirm=async()=>false;assert.equal(await h.controller.setMarker(id,moved),false);assert.deepEqual(h.current.physical.barriers[0].marker,marker);
-    h.bridge.confirm=async()=>true;assert.equal(await h.controller.setMarker(id,moved),true);assert.deepEqual(h.current.physical.barriers[0].marker,moved);assert.equal(await h.controller.setMarker(id,moved),false);assert.equal(await h.controller.setMarker(id,null),true);assert.equal(h.current.physical.barriers[0].marker,null);
-    const notes=h.input('Notes');notes.value='Pending';notes.emit('input');await assert.rejects(h.controller.setMarker(id,marker),/unfinished/);assert.equal(h.current.physical.barriers[0].marker,null);h.controller.destroy();
+    const moved={...marker,point:[300,350]};h.bridge.confirm=async()=>false;assert.equal(await h.controller.setMarker(id,moved),true);assert.deepEqual(h.current.physical.barriers[0].marker,moved);
+    h.bridge.confirm=async()=>true;assert.equal(await h.controller.setMarker(id,moved),false);assert.deepEqual(h.current.physical.barriers[0].marker,moved);assert.equal(await h.controller.setMarker(id,moved),false);assert.equal(await h.controller.setMarker(id,null),true);assert.equal(h.current.physical.barriers[0].marker,null);
+    const notes=h.input('Notes');notes.value='Pending';notes.emit('input');await h.controller.setMarker(id,marker);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending');assert.deepEqual(h.current.physical.barriers[0].marker,marker);h.controller.destroy();
     const cancelled=component(null,{scope:()=> 'service_plans',confirm:async()=>false});await flush();cancelled.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});assert.equal(await cancelled.controller.create('barrier',undefined,marker),undefined);assert.equal(cancelled.current.physical,null);assert.equal(cancelled.calls.applied.length,0);cancelled.controller.destroy();
   });
   await check('Callout summaries use the linked Barrier and active Services and refresh only from applied values',async()=>{
@@ -392,9 +397,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const type=h.input('Service type');type.value='Custom library service';type.emit('input');assert.equal(h.controller.summary(uuid(1)),summary);await h.controller.completePendingEdits();assert.ok(h.controller.summary(uuid(1)).includes('Custom library service'));assert.equal(changes.length,1);assert.equal(h.controller.summary(uuid(4)).split('\n').at(-1),'0 services');await assert.rejects(h.controller.setMarker(uuid(5),null),/active barrier/);h.controller.destroy();
     const defects=component(graph());await flush();assert.ok(defects.controller.summary(uuid(1)).includes('FRL -/120/120'));assert.ok(defects.controller.summary(uuid(1)).startsWith('B-0001 · D-0001 · Wall A'));defects.controller.destroy();
   });
-  await check('Item Details creates children under its selected parent and retains unfinished fields before creation',async()=>{
+  await check('Item Details creates children under its selected parent after flushing its fields',async()=>{
     const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));assert.equal(h.button('Add service in Item Details').title,'Add service to B-0001');
-    const notes=h.input('Notes');notes.value='Pending barrier details';notes.emit('input');await h.click('Add service in Item Details');assert.equal(h.calls.asks.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('unfinished physical'));assert.equal(notes.value,'Pending barrier details');
+    const notes=h.input('Notes');notes.value='Pending barrier details';notes.emit('input');await h.click('Add service in Item Details');assert.equal(h.calls.asks.length,1);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');assert.equal(h.button('Add service in Item Details').textContent,'+');
     await h.controller.completePendingEdits();h.answers.push({service:'Mechanical',service_type:'Copper pipe',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service in Item Details');const command=h.calls.previews.at(-1)[0];assert.equal(command.kind,'service');assert.equal(command.entity.barrier_id,uuid(1));assert.equal(command.entity.quantity,2);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');h.controller.destroy();
     const defect=component();await flush();await defect.controller.select(uuid(2));assert.equal(defect.button('Add barrier in Item Details').title,'Add barrier to D-0001');defect.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});await defect.click('Add barrier in Item Details');assert.equal(defect.calls.previews.at(-1)[0].entity.defect_id,uuid(2));defect.controller.destroy();
   });
@@ -410,16 +415,16 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Detail navigation retains unfinished input and rejects stale dropdowns after a changed graph',async()=>{
     const h=component();await flush();await h.controller.select(uuid(1));const notes=h.input('Notes'),control=h.input('Service ID in Item Details');notes.value='Keep this edit';notes.emit('input');control.value=uuid(5);control.emit('change');await flush();
-    assert.equal(control.value,'');assert.equal(notes.value,'Keep this edit');assert.deepEqual(h.controller.selection(),[uuid(1)]);assert.equal(h.controller.inspectedId(),uuid(1));assert.ok(h.calls.notifications.at(-1).text.includes('unfinished physical'));assert.equal(h.calls.previews.length,0);
-    await h.click('Discard unfinished physical edits');const stale=h.input('Service ID in Item Details'),next=copy(h.current);next.physical.revision++;next.physical.services[0].deleted=true;h.controller.render(next);stale.value=uuid(5);stale.emit('change');await flush();assert.equal(h.controller.inspectedId(),uuid(1));assert.ok(h.calls.notifications.at(-1).text.includes('physical draft changed'));assert.ok(!optionsOf(h.input('Service ID in Item Details')).includes(uuid(5)));h.controller.destroy();
+    assert.equal(control.value,'');assert.equal(h.current.physical.barriers[0].fields.notes,'Keep this edit');assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(h.controller.inspectedId(),uuid(5));assert.equal(h.calls.previews.length,1);
+    await h.click('Discard unfinished physical edits');const stale=h.input('Service ID in Item Details'),next=copy(h.current);next.physical.revision++;next.physical.services[1].deleted=true;h.controller.render(next);stale.value=uuid(6);stale.emit('change');await flush();assert.equal(h.controller.inspectedId(),uuid(5));assert.ok(h.calls.notifications.at(-1).text.includes('physical draft changed'));assert.ok(!optionsOf(h.input('Service ID in Item Details')).includes(uuid(6)));h.controller.destroy();
   });
   await check('Drawing selection opens Defect details while retaining the exact Barrier marker selection and edit target',async()=>{
     const value=graph(),marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[150,225]};value.barriers[0].marker=marker;
     const selected=[],changes=[],h=component(value,{selection:(ids,reference,focus)=>selected.push({ids,reference,focus}),selectionChanged:change=>changes.push(change)});await flush();await h.controller.selectDrawing(uuid(1));
     assert.deepEqual(h.controller.selection(),[uuid(1)]);assert.equal(h.controller.selectedBarrier().id,uuid(1));assert.equal(h.controller.inspectedId(),uuid(2));assert.equal(changes.at(-1).inspectedId,uuid(2));assert.deepEqual(selected.at(-1),{ids:[uuid(1)],reference:marker,focus:false});assert.equal(h.input('Defect ID in Item Details').value,uuid(2));assert.equal(h.input('Barrier ID in Item Details').value,'');assert.equal(h.input('Defect Ref.').value,'Defect 01');
-    const notes=h.input('Notes');notes.value='Defect detail from marker';notes.emit('input');assert.throws(()=>h.controller.selectDrawing(uuid(4)),/unfinished/);assert.deepEqual(h.controller.selection(),[uuid(1)]);await h.controller.completePendingEdits();assert.equal(h.calls.previews.at(-1)[0].entity_id,uuid(2));assert.equal(h.current.physical.defects[0].fields.notes,'Defect detail from marker');assert.deepEqual(h.current.physical.barriers[0].marker,marker);assert.equal(h.current.physical.barriers[0].fields.notes,undefined);
+    const notes=h.input('Notes');notes.value='Defect detail from marker';notes.emit('input');await h.controller.selectDrawing(uuid(4));assert.deepEqual(h.controller.selection(),[uuid(4)]);await h.controller.completePendingEdits();assert.equal(h.calls.previews.at(-1)[0].entity_id,uuid(2));assert.equal(h.current.physical.defects[0].fields.notes,'Defect detail from marker');assert.deepEqual(h.current.physical.barriers[0].marker,marker);assert.equal(h.current.physical.barriers[0].fields.notes,undefined);
     const barrier=h.input('Barrier ID in Item Details');barrier.value=uuid(1);barrier.emit('change');await flush();assert.equal(h.controller.inspectedId(),uuid(1));assert.equal(h.input('Substrate').value,'Concrete');
-    await h.controller.selectDrawing(uuid(5));assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(h.controller.inspectedId(),uuid(2));await h.controller.selectDrawing(uuid(6),true,false);assert.deepEqual(h.controller.selection(),[uuid(5),uuid(6)]);assert.equal(h.controller.inspectedId(),null);await h.controller.selectDrawing(uuid(6),true,false);assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(h.controller.inspectedId(),uuid(2));h.controller.clearSelection();assert.equal(h.controller.inspectedId(),null);
+    await h.controller.selectDrawing(uuid(5));assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(h.controller.inspectedId(),uuid(2));await h.controller.selectDrawing(uuid(6),true,false);assert.deepEqual(h.controller.selection(),[uuid(5),uuid(6)]);assert.equal(h.controller.inspectedId(),null);await h.controller.selectDrawing(uuid(6),true,false);assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(h.controller.inspectedId(),uuid(2));await h.controller.clearSelection();assert.equal(h.controller.inspectedId(),null);
     const next=copy(h.current);next.physical.barriers[0].deleted=true;h.controller.render(next);assert.throws(()=>h.controller.selectDrawing(uuid(1)),/no longer available/);assert.deepEqual(h.controller.selection(),[]);h.controller.destroy();
   });
   await check('Service Plans detail navigation remains Barrier and Service only and drawing selection inspects the actual record',async()=>{
@@ -434,15 +439,84 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     h.answers.push({label:'Second defect',uncertainty_state:'not_assessed'});const defectId=await h.controller.createFromSelection('defect');assert.equal(h.current.physical.defects.at(-1).id,defectId);assert.equal(h.calls.previews.at(-1)[0].entity.defect_id,undefined);assert.equal(h.calls.asks.length,3);h.controller.destroy();
   });
   await check('Count creation preserves pending input, cancelled parent choice and project replacement guards',async()=>{
-    const h=component();await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.value='Unfinished';notes.emit('input');assert.throws(()=>h.controller.createFromSelection('service'),/unfinished/);assert.equal(h.calls.asks.length,0);assert.equal(notes.value,'Unfinished');await h.click('Discard unfinished physical edits');h.controller.clearSelection();assert.equal(await h.controller.createFromSelection('service'),undefined);assert.equal(h.calls.asks.at(-1).title,'Choose parent barrier');assert.equal(h.calls.previews.length,0);
+    const h=component();await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.value='Unfinished';notes.emit('input');assert.throws(()=>h.controller.createFromSelection('service'),/unfinished/);assert.equal(h.calls.asks.length,0);assert.equal(notes.value,'Unfinished');await h.click('Discard unfinished physical edits');await h.controller.clearSelection();assert.equal(await h.controller.createFromSelection('service'),undefined);assert.equal(h.calls.asks.at(-1).title,'Choose parent barrier');assert.equal(h.calls.previews.length,0);
     await h.controller.select(uuid(1));const creating=h.controller.createFromSelection('service'),replacement=copy(h.current);replacement.project_id=uuid(500);replacement.physical.project_id=uuid(500);replacement.physical.id=uuid(501);h.controller.render(replacement);await assert.rejects(creating,/draft changed/);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.equal(h.controller.inspectedId(),null);h.controller.destroy();
   });
   await check('Unplaced Barrier actions guard pending and stale edits before arming an existing marker',async()=>{
     for(const value of [graph(),servicePlanGraph()]){
-      const calls=[],h=component(value,{placeMarker:id=>calls.push(id)});await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.value='Retained pending';notes.emit('input');await h.click('Place count marker');assert.deepEqual(calls,[]);assert.equal(notes.value,'Retained pending');await h.click('Discard unfinished physical edits');await h.click('Place count marker');assert.deepEqual(calls,[uuid(1)]);assert.equal(h.calls.previews.length,0);
+      const calls=[],h=component(value,{placeMarker:id=>calls.push(id)});await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.value='Retained pending';notes.emit('input');await h.click('Place count marker');assert.deepEqual(calls,[uuid(1)]);assert.equal(h.current.physical.barriers[0].fields.notes,'Retained pending');assert.equal(h.calls.previews.length,1);
       const old=h.button('Place count marker'),next=copy(h.current);next.physical.revision++;h.controller.render(next);old.emit('click');await flush();assert.deepEqual(calls,[uuid(1)]);assert.ok(h.calls.notifications.at(-1).text.includes('draft changed'));
       next.physical.barriers[0].marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[10,20]};h.controller.render(next);assert.ok(!h.all().some(node=>node.tagName==='BUTTON'&&node.textContent==='Place count marker'));h.controller.destroy();
     }
+  });
+  await check('Finished inspector and table edits apply automatically while unfinished typing remains intact',async()=>{
+    for(const mode of ['inspector','table']){
+      const h=component(graph(),{confirm:async()=>{throw new Error('Routine edits must not request confirmation');}});await flush();if(mode==='inspector')await h.controller.select(uuid(1));
+      assert.ok(!h.all().some(control=>control.tagName==='BUTTON'&&control.textContent==='Preview physical edits'));
+      const control=h.input(mode==='inspector'?'Location':'Location for Wall A');control.value='L05';control.emit('input');await flush();assert.equal(h.calls.previews.length,0);assert.equal(control.value,'L05');
+      control.emit('change');await flush();assert.equal(h.current.physical.barriers[0].fields.location,'L05');assert.equal(h.current.physical.state,'draft');assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    }
+  });
+  await check('Save and drawing navigation join one automatic apply instead of creating overlapping previews',async()=>{
+    const pending=defer(),h=component();await flush();await h.controller.select(uuid(1));const preview=h.bridge.preview;
+    h.bridge.preview=async commands=>{const reply=await preview(commands);await pending.promise;return reply;};
+    const notes=h.input('Notes');notes.value='Saved while validation is running';notes.emit('input');notes.emit('change');await flush();assert.equal(notes.disabled,false);assert.equal(h.controller.isAutoApplying(),true);assert.equal(h.controller.hasUnfinishedChanges(),true);
+    const saving=h.controller.completePendingEdits(),navigation=h.controller.selectDrawing(uuid(4));await flush();assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,0);pending.resolve();await Promise.all([saving,navigation]);
+    assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.current.physical.barriers[0].fields.notes,'Saved while validation is running');assert.deepEqual(h.controller.selection(),[uuid(4)]);h.controller.destroy();
+  });
+  await check('Invalid automatic input and preview outages preserve input until corrected or discarded',async()=>{
+    const h=component();await flush();await h.controller.select(uuid(5));const dimensions=h.input('Width x Height (mm)');dimensions.value='100x';dimensions.emit('input');dimensions.emit('change');await flush();
+    assert.equal(h.calls.previews.length,0);assert.equal(dimensions.value,'100x');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.ok(h.calls.notifications.at(-1).text.includes('Width x Height'));
+    dimensions.value='100x200';dimensions.emit('input');dimensions.emit('change');await flush();assert.equal(h.current.physical.services[0].fields.height_mm,200);assert.equal(h.controller.hasUnfinishedChanges(),false);
+    h.bridge.preview=async()=>{throw new Error('Validation temporarily unavailable');};const notes=h.input('Notes');notes.value='Retain this unsent edit';notes.emit('input');notes.emit('change');await flush();
+    assert.equal(notes.value,'Retain this unsent edit');assert.equal(notes.disabled,false);assert.equal(h.controller.hasUnfinishedChanges(),true);await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);assert.equal(h.current.physical.services[0].fields.notes,undefined);h.controller.destroy();
+  });
+  await check('Typing during automatic validation queues the later value and drains it without losing input',async()=>{
+    const pending=defer(),h=component();await flush();await h.controller.select(uuid(1));const preview=h.bridge.preview;
+    h.bridge.preview=async commands=>{const reply=await preview(commands);await pending.promise;return reply;};const notes=h.input('Notes');notes.value='First';notes.emit('input');notes.emit('change');await flush();
+    notes.value='Later';notes.emit('input');pending.resolve();await flush();await h.controller.completePendingEdits();assert.equal(h.current.physical.barriers[0].fields.notes,'Later');assert.equal(h.calls.applied.length,2);assert.equal(h.calls.previews[0][0].changes.fields.notes,'First');assert.equal(h.calls.previews[1][0].changes.fields.notes,'Later');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+  });
+  await check('Returning a field to its former value during an in-flight apply remains an explicit queued change',async()=>{
+    for(const mode of ['inspector','table']){
+      const pending=defer(),h=component();await flush();if(mode==='inspector')await h.controller.select(uuid(1));const preview=h.bridge.preview;
+      h.bridge.preview=async commands=>{const reply=await preview(commands);await pending.promise;return reply;};const control=h.input(mode==='inspector'?'Location':'Location for Wall A');control.value='Temporary';control.emit('input');control.emit('change');await flush();
+      control.value='';control.emit('input');pending.resolve();await flush();await h.controller.completePendingEdits();assert.equal(h.current.physical.barriers[0].fields.location,undefined);assert.equal(h.calls.applied.length,2);assert.equal(h.calls.previews[0][0].changes.fields.location,'Temporary');assert.equal(h.calls.previews[1][0].changes.fields.location,undefined);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    }
+  });
+  await check('Focused typing controls survive automatic responses and the 350ms debounce applies without a click',async()=>{
+    const h=component();await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.focus();notes.value='Automatic after a pause';notes.emit('input');await new Promise(resolve=>setTimeout(resolve,370));await flush();
+    assert.equal(h.current.physical.barriers[0].fields.notes,'Automatic after a pause');assert.equal(h.input('Notes'),notes);assert.equal(h.dom.container.ownerDocument.activeElement,notes);assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+  });
+  await check('A pointer click on Discard cancels automatic blur application while Add service flushes on its first click',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans'});await flush();await h.controller.select(uuid(1));let notes=h.input('Notes');notes.value='Discard me';notes.emit('input');h.button('Discard unfinished physical edits').emit('pointerdown');notes.emit('change');await h.click('Discard unfinished physical edits');assert.equal(h.calls.previews.length,0);assert.equal(h.controller.hasUnfinishedChanges(),false);
+    notes=h.input('Notes');notes.value='Before adding child';notes.emit('input');h.button('Add service in Item Details').emit('pointerdown');notes.emit('change');await h.click('Add service in Item Details');assert.equal(h.current.physical.barriers[0].fields.notes,'Before adding child');assert.equal(h.calls.asks.at(-1).title,'Create draft service');assert.equal(h.calls.confirmations.length,0);h.controller.destroy();
+  });
+  await check('Physical column filters use inherited displayed values, intersect columns and retain only required ancestors',()=>{
+    for(const value of [graph(),servicePlanGraph()]){
+      Object.assign(value.barriers[0].fields,{location:'L01',substrate:'Concrete',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe'});Object.assign(value.services[1].fields,{service:'Electrical & Communications',service_type:'Cable bundle'});value.services[1].uncertainty.state='missing';
+      const index=physical.indexGraph(value),entry=index.get(uuid(5));assert.equal(physical.columnValue(entry,'location',index),'L01');assert.equal(physical.columnValue(entry,'frl',index),value.version===3?'-/90/90':'-/120/120');assert.equal(physical.columnValue(entry,'substrate',index),'Concrete');
+      const filters=new Map([['location',new Set(['L01'])],['orientation',new Set(['Vertical'])],['service',new Set(['Mechanical'])]]),rows=physical.hierarchyRows(value,{columnFilters:filters,collapsed:new Set([uuid(1),uuid(2)])});
+      assert.deepEqual(rows.map(row=>row.entity.id),value.version===3?[uuid(1),uuid(5)]:[uuid(2),uuid(1),uuid(5)]);assert.deepEqual(rows.filter(row=>!row.context).map(row=>row.entity.id),[uuid(5)]);
+      assert.deepEqual(physical.hierarchyRows(value,{columnFilters:filters,filter:'L01'}).map(row=>row.entity.id),rows.map(row=>row.entity.id));assert.equal(physical.hierarchyRows(value,{columnFilters:filters,filter:'Cable bundle'}).length,0);
+      const blank=physical.hierarchyRows(value,{columnFilters:new Map([['service',new Set([''])],['substrate',new Set([''])]])});assert.ok(blank.some(row=>row.entity.id===uuid(4)));assert.ok(!blank.some(row=>row.kind==='service'));
+      const state=physical.hierarchyRows(value,{columnFilters:new Map([['state',new Set(['Unapproved draft · Missing evidence'])]])});assert.deepEqual(state.filter(row=>!row.context).map(row=>row.entity.id),[uuid(6)]);
+    }
+  });
+  await check('Column filter dialogs search values, keep choices from other filters, support cancel/reset and select matching rows only',async()=>{
+    const value=servicePlanGraph();value.barriers[0].fields.location='L01';value.barriers[1].fields.location='L02';value.services[0].fields.service='Mechanical';value.services[1].fields.service='Electrical & Communications';const h=component(value,{scope:()=> 'service_plans'});await flush();
+    for(const label of ['State / uncertainty','Location','FRL','Substrate','Orientation','Category','Service type'])assert.equal(h.button(`Filter ${label}`).attributes['aria-haspopup'],'dialog');
+    await h.click('Filter Category');const all=h.input('Select all values');all.checked=false;all.emit('change');const mechanical=h.input('Mechanical');mechanical.checked=true;mechanical.emit('change');await h.click('Apply filter');
+    assert.deepEqual(h.all().filter(node=>node.dataset.physicalId).map(node=>node.dataset.physicalId),[uuid(1),uuid(5)]);assert.equal(h.button('Filter Category').attributes['aria-pressed'],'true');const header=h.input('Select all matching physical records');header.checked=true;header.emit('change');await flush();assert.deepEqual(h.controller.selection(),[uuid(5)]);
+    await h.click('Filter Location');assert.ok(h.input('L02'));const search=h.input('Search Location values');search.value='L02';search.emit('input');assert.ok(!h.all().some(node=>node.attributes['aria-label']==='L01'));assert.equal(h.input('Select all values').checked,true);await h.click('Cancel');assert.equal(h.button('Filter Location').attributes['aria-pressed'],'false');
+    await h.click('Filter Category');await h.click('Reset filter');assert.equal(h.button('Filter Category').attributes['aria-pressed'],'false');assert.equal(h.all().filter(node=>node.dataset.physicalId).length,4);assert.deepEqual(h.controller.selection(),[uuid(5)]);h.controller.destroy();
+  });
+  await check('Open column filters cannot apply to a replacement project and are closed on destruction',async()=>{
+    const h=component();await flush();await h.click('Filter Location');const dialog=h.all().find(node=>node.tagName==='DIALOG');assert.ok(dialog.open);const replacement=copy(h.current);replacement.project_id=uuid(500);replacement.physical.project_id=uuid(500);h.controller.render(replacement);await flush();assert.equal(h.all().filter(node=>node.tagName==='DIALOG').length,0);assert.equal(h.button('Filter Location').attributes['aria-pressed'],'false');
+    await h.click('Filter FRL');h.controller.destroy();await flush();assert.equal(h.all().filter(node=>node.tagName==='DIALOG').length,0);
+  });
+  await check('Clearing a callout selection flushes input and emits an empty selection for hiding Item Details',async()=>{
+    const selections=[],h=component(servicePlanGraph(),{scope:()=> 'service_plans',selectionChanged:change=>selections.push(change)});await flush();await h.controller.selectDrawing(uuid(1));const notes=h.input('Notes');notes.value='Before closing';notes.emit('input');await h.controller.clearSelection();
+    assert.equal(h.current.physical.barriers[0].fields.notes,'Before closing');assert.deepEqual(h.controller.selection(),[]);assert.deepEqual(selections.at(-1),{selected:[],barrierId:null,entry:null,inspectedId:null,focus:false});h.controller.destroy();
   });
   console.log(`${passed} physical draft UI checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

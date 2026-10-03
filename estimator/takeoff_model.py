@@ -51,11 +51,32 @@ for _mode in AREA_MODES:
 HASH = re.compile(r'^[0-9a-f]{64}$')
 APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'stroke_width', 'opacity',
                              'marker_shape', 'marker_size'))
+STANDALONE_FIELDS = frozenset(('mark', 'level', 'width_mm', 'height_mm', 'frl', 'orientation', 'notes'))
 
 
 def is_count_item(item):
     """Count markers retain one ordered source point per physical member ID."""
     return isinstance(item.get('geometry'), dict) and item['geometry'].get('kind') == 'count'
+
+
+def is_standalone_count(item):
+    return item.get('purpose') == 'count-only'
+
+
+def is_standalone_length(item):
+    return item.get('purpose') == 'length-only'
+
+
+def is_standalone_item(item):
+    return is_standalone_count(item) or is_standalone_length(item)
+
+
+def is_marker_item(item):
+    return is_count_item(item) or is_standalone_count(item)
+
+
+def is_area_item(item):
+    return item['mode'] in AREA_MODES and not is_standalone_length(item)
 
 
 def validate_appearance(value):
@@ -78,9 +99,9 @@ def validate_appearance(value):
 
 def markup_appearance(item):
     """Shared physical-PDF-point defaults for browser and drawing exports."""
-    return {'stroke_color': '#FF0000', 'fill_enabled': item['mode'] in AREA_MODES or is_count_item(item),
+    return {'stroke_color': '#FF0000', 'fill_enabled': is_area_item(item) or is_marker_item(item),
             'fill_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
-            **({'marker_shape': 'circle', 'marker_size': 12} if is_count_item(item) else {}),
+            **({'marker_shape': 'circle', 'marker_size': 12} if is_marker_item(item) else {}),
             **validate_appearance(item.get('appearance', {}))}
 
 
@@ -404,7 +425,7 @@ def validate_measurement_scope(item, snapshot):
         if any(inside(point) for point in vertices):
             return True
         edges = list(zip(vertices, vertices[1:]))
-        if item['mode'] in AREA_MODES:
+        if is_area_item(item):
             edges.append((vertices[-1], vertices[0]))
         # Slab clipping against a convex axis-aligned rectangle detects a
         # crossing even when both endpoints lie outside. A bounding box alone
@@ -422,7 +443,7 @@ def validate_measurement_scope(item, snapshot):
                     lower, upper = max(lower, entry), min(upper, leave)
             if lower <= upper:
                 return True
-        if item['mode'] in AREA_MODES:
+        if is_area_item(item):
             from .takeoff_area import _inside
             return any(_inside(point, vertices) for point in ((x, y), (x+width, y), (x+width, y+height), (x, y+height)))
         return False
@@ -441,7 +462,7 @@ def length_additions(item, snapshot):
     additions = item.get('length_additions', [])
     if not isinstance(additions, list) or len(additions) > MAX_LENGTH_ADDITIONS:
         raise ValidationError(f'An item supports at most {MAX_LENGTH_ADDITIONS} explicit riser/drop additions.')
-    if additions and item['mode'] in AREA_MODES:
+    if additions and (item['mode'] in AREA_MODES or is_standalone_item(item)):
         raise ValidationError('Riser/drop lengths apply only to linear Steel or Duct items.')
     identifiers = set()
     for addition in additions:
@@ -480,9 +501,14 @@ def item_references(item):
 
 def validate_item(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields',
-                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance', 'count_id', 'copied_from'}, 'Takeoff item',
+                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance', 'count_id', 'copied_from', 'purpose'}, 'Takeoff item',
                   {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'review', 'confirmation', 'member_ids'})
     identity(value['id'], 'Item ID')
+    if 'purpose' in value and value['purpose'] not in ('count-only', 'length-only'):
+        raise ValidationError('Choose a supported standalone count or length purpose.')
+    if (is_standalone_count(value) and value['mode'] not in ('steel', 'duct')
+            or is_standalone_length(value) and value['mode'] not in AREA_MODES):
+        raise ValidationError('Standalone counts belong to Steel or Duct; length measurements belong to Walls or Slabs.')
     if 'copied_from' in value:
         source = object_fields(value['copied_from'], {'item_id', 'version'}, 'Copied source', {'item_id', 'version'})
         if identity(source['item_id'], 'Copied item ID') == value['id']:
@@ -510,6 +536,8 @@ def validate_item(value, snapshot, *, copy_result=True):
     if 'appearance' in value:
         validate_appearance(value['appearance'])
     object_fields(value['fields'], FIELDS, 'Takeoff fields')
+    if is_standalone_item(value):
+        object_fields(value['fields'], STANDALONE_FIELDS, 'Standalone item fields')
     for key, field in value['fields'].items():
         if field is None:
             continue
@@ -525,15 +553,18 @@ def validate_item(value, snapshot, *, copy_result=True):
         if not isinstance(geometry, dict) or not {'document_id', 'page'} <= geometry.keys():
             raise ValidationError('Markup geometry requires its source document and page.')
         _, page = page_metadata(snapshot, geometry['document_id'], geometry['page'])
-        if is_count_item(value):
+        if is_marker_item(value):
             object_fields(geometry, {'kind', 'document_id', 'page', 'points'}, 'Count geometry',
                           {'kind', 'document_id', 'page', 'points'})
-            if value['mode'] != 'steel':
+            if is_count_item(value) and value['mode'] != 'steel':
                 raise ValidationError('Count markers are supported only for Steel.')
+            expected_kind = 'count-only' if is_standalone_count(value) else 'count'
+            if geometry['kind'] != expected_kind:
+                raise ValidationError('Count-only geometry must retain its distinct standalone purpose.')
             points(geometry['points'], 'Count markers', page, maximum=MAX_ITEMS)
             if value['quantity'] != len(geometry['points']):
                 raise ValidationError('Count quantity must equal its physical marker count.')
-        elif value['mode'] in AREA_MODES:
+        elif is_area_item(value):
             validate_polygon(geometry, page)
         else:
             object_fields(geometry, {'document_id', 'page', 'points'}, 'Markup geometry', {'document_id', 'page', 'points'})
@@ -563,6 +594,13 @@ def validate_item(value, snapshot, *, copy_result=True):
             raise ValidationError('Choose calibrated or source-cited measurement.')
     if is_count_item(value) and (not measurement or measurement.get('method') != 'manual'):
         raise ValidationError('Every Steel count marker requires an explicit manual length per member.')
+    if is_standalone_count(value) and (geometry is None or measurement is not None):
+        raise ValidationError('Count-only items require retained markers and have no length or area measurement.')
+    if is_standalone_length(value):
+        if not geometry or measurement is not None and measurement.get('method') != 'calibrated':
+            raise ValidationError('Standalone length measurements require a calibrated source line.')
+        points(geometry['points'], 'Length measurement', page, minimum=2)
+        polyline_length(geometry['points'])
     if not isinstance(value['evidence'], list) or len(value['evidence']) > 100:
         raise ValidationError('An item may retain up to 100 evidence references.')
     for reference in value['evidence']:
@@ -570,8 +608,10 @@ def validate_item(value, snapshot, *, copy_result=True):
         _, page = page_metadata(snapshot, reference['document_id'], reference['page'])
         text(reference.get('note', ''), 'Evidence note')
         supported_fields = reference.get('fields', [])
+        evidence_fields = (STANDALONE_FIELDS | {'quantity'} | ({'length_m'} if is_standalone_length(value) else set())
+                           if is_standalone_item(value) else EVIDENCE_FIELDS[value['mode']])
         if (not isinstance(supported_fields, list) or len(supported_fields) > 32
-                or any(not isinstance(field, str) or field not in EVIDENCE_FIELDS[value['mode']] for field in supported_fields)
+                or any(not isinstance(field, str) or field not in evidence_fields for field in supported_fields)
                 or len(set(supported_fields)) != len(supported_fields)):
             raise ValidationError('Evidence fields must name up to 32 distinct supported fields for this takeoff mode.')
         if 'region' in reference:
@@ -602,22 +642,27 @@ def validate_item(value, snapshot, *, copy_result=True):
                 if actor['kind'] != 'local-session':
                     raise ValidationError('Receipt actor must identify its local review session.')
                 identity(actor['session_id'], 'Receipt actor session ID')
-                area = value['mode'] in AREA_MODES
-                measurement_fields = ('gross_area_m2', 'excluded_area_m2', 'net_area_m2') if area else ('length_m', 'total_length_m')
+                area, count = is_area_item(value), is_standalone_count(value)
+                measurement_fields = (('gross_area_m2', 'excluded_area_m2', 'net_area_m2') if area else
+                                      ('total_count',) if count else ('length_m', 'total_length_m'))
                 fields = {'engine', 'quantity', *measurement_fields, 'evidence_verified', 'issues'}
                 checks = object_fields(receipt.get('checks'), fields, 'Receipt checks', fields)
-                if checks['engine'] != ('takeoffs-area-v1' if area else 'takeoffs-v1') or checks['evidence_verified'] is not True:
+                engine = ('takeoffs-area-v1' if area else 'takeoffs-count-v1' if count else
+                          'takeoffs-length-v1' if is_standalone_length(value) else 'takeoffs-v1')
+                if checks['engine'] != engine or checks['evidence_verified'] is not True:
                     raise ValidationError('Receipt checks must identify verified takeoff evidence and the check engine.')
-                for field in ('quantity',) if area else ('quantity', 'length_m'):
+                for field in ('quantity',) if area or count else ('quantity', 'length_m'):
                     if checks[field] is not None:
                         number(checks[field], 'Receipt '+field, positive=True, integer=field == 'quantity')
                 if area and checks['quantity'] != 1:
                     raise ValidationError('Area receipt quantity must identify one treatment surface.')
-                for field in measurement_fields if area else ('total_length_m',):
+                for field in measurement_fields if area or count else ('total_length_m',):
                     total = checks[field]
                     if total is not None and (type(total) not in (int, float) or not 0 <= total <= 1e16 or not math.isfinite(total)
                                               or total == 0 and field != 'excluded_area_m2'):
                         raise ValidationError('Receipt measurements must be bounded positive values; excluded area may be zero.')
+                if count and checks['total_count'] != checks['quantity']:
+                    raise ValidationError('Count receipt must retain its exact marker quantity.')
                 if area and all(checks[field] is not None for field in measurement_fields):
                     if checks['net_area_m2'] != checks['gross_area_m2'] - checks['excluded_area_m2']:
                         raise ValidationError('Area receipt net area must exactly equal gross area less exclusions.')
@@ -654,7 +699,7 @@ def item_digest(item, snapshot):
 
 
 def base_length(item, snapshot):
-    if item['mode'] in AREA_MODES:
+    if is_area_item(item):
         raise ValidationError('Wall and slab surfaces have area measurements, not transferable linear lengths.')
     measurement = item['measurement']
     if not measurement:
@@ -684,9 +729,11 @@ def item_result(item, snapshot):
     base = added = None
     area = {key: None for key in ('gross_area_m2', 'excluded_area_m2', 'net_area_m2')}
     try:
-        if item['mode'] in AREA_MODES:
+        if is_area_item(item):
             validate_measurement_scope(item, snapshot)
             area = measured_area(item, snapshot)
+        elif is_standalone_count(item):
+            pass
         else:
             base = base_length(item, snapshot)
             added = length_additions(item, snapshot)
@@ -707,19 +754,23 @@ def item_result(item, snapshot):
         if not render or render['sha256'] != doc['sha256'] or not render['success'] or render['warnings']:
             add('PAGE_REVIEW_BLOCKED', 'Render and visually inspect every supporting page without unresolved rendering warnings.')
     fields = item['fields']
-    required = (('mark', 'treatment', 'substrate', 'frl', 'surface_basis', 'surface_citation') if item['mode'] in AREA_MODES
+    if is_standalone_item(item):
+        for name in ('width_mm', 'height_mm'):
+            if fields.get(name) is not None and fields[name] <= 0:
+                add('INVALID_DIMENSION', f'Enter a positive {name.replace("_", " ")} or leave it blank.')
+    required = (() if is_standalone_item(item) else ('mark', 'treatment', 'substrate', 'frl', 'surface_basis', 'surface_citation') if is_area_item(item)
                 else ('section', 'member_type', 'exposure', 'fire_period_min') if item['mode'] == 'steel'
                 else ('shape', 'frl', 'orientation'))
     for name in required:
         if fields.get(name) in (None, '') or item['mode'] in AREA_MODES and isinstance(fields.get(name), str) and not fields[name].strip():
             add('MISSING_FIELD', f'Enter {name.replace("_", " ")}.')
-    if item['mode'] in AREA_MODES:
+    if is_area_item(item):
         bases = ('wall-face',) if item['mode'] == 'wall' else ('slab-soffit', 'slab-top')
         if fields.get('surface_basis') not in bases:
             add('INVALID_SURFACE_BASIS', 'Identify the actual treated surface. A wall footprint is not a wall-face area.')
     if item['mode'] == 'steel' and fields.get('fire_period_min') is not None and fields['fire_period_min'] <= 0:
         add('INVALID_FRL', 'Fire period must be positive.')
-    if item['mode'] == 'duct':
+    if item['mode'] == 'duct' and not is_standalone_item(item):
         shape = fields.get('shape')
         if shape not in ('rectangular', 'circular'):
             add('INVALID_SHAPE', 'Choose rectangular or circular duct.')
@@ -727,13 +778,15 @@ def item_result(item, snapshot):
         for name in dimensions:
             if fields.get(name) is None or fields[name] <= 0:
                 add('MISSING_DIMENSION', f'Enter a positive {name.replace("_", " ")}.')
-    if item['mode'] == 'duct' or item['mode'] in AREA_MODES:
+    if item['mode'] == 'duct' or item['mode'] in AREA_MODES or is_standalone_item(item):
         rating = fields.get('frl')
         if rating and (not re.fullmatch(r'(?:-|\d{1,4})/(?:-|\d{1,4})/(?:-|\d{1,4})', rating)
                        or not any(component != '-' and int(component) > 0 for component in rating.split('/'))):
             add('INVALID_FRL', 'FRL must retain its three explicit fire-rating components.')
-    if item['mode'] in AREA_MODES:
+    if is_area_item(item):
         return {'id': item['id'], **area, 'issues': issues}
+    if is_standalone_count(item):
+        return {'id': item['id'], 'total_count': item['quantity'], 'length_m': None, 'total_length_m': None, 'issues': issues}
     return {'id': item['id'],
             **({'base_length_m': base, 'additions_length_m': added} if 'length_additions' in item else {}),
             'length_m': length,
@@ -842,11 +895,14 @@ def validate_snapshot(value, *, copy_result=True):
         for warning in render['warnings']:
             text(warning, 'Render warning')
     transfer_ids, targets, linked_items = set(), set(), set()
+    standalone_ids = {item['id'] for item in value['items'] if is_standalone_item(item)}
     for transfer in value['transfers']:
         allowed = {'id', 'item_id', 'item_version', 'item_digest', 'calculator_id', 'sheet', 'row', 'source_sha256', 'input_hash', 'values', 'status'}
         object_fields(transfer, allowed, 'Transfer binding', allowed)
         for name in ('id', 'item_id'):
             identity(transfer[name], 'Transfer '+name)
+        if transfer['item_id'] in standalone_ids:
+            raise ValidationError('Standalone counts and lengths cannot retain calculator transfer bindings.')
         number(transfer['item_version'], 'Transfer item version', positive=True, integer=True)
         number(transfer['row'], 'Transfer row', positive=True, integer=True)
         if transfer['calculator_id'] not in ('steel_vermiculite', 'steel_board', 'ductwork') or transfer['status'] not in ('current', 'stale', 'conflict', 'deleted'):

@@ -57,12 +57,23 @@
     }
     return result;
   }
-  function hierarchyRows(graph, { filter = "", collapsed = new Set(), showDeleted = false } = {}) {
+  const filterColumns = { state: "State / uncertainty", location: "Location", frl: "FRL", substrate: "Substrate", orientation: "Orientation", service: "Category", service_type: "Service type" };
+  function columnValue(entry, key, index) {
+    const lineage = [...ancestors(entry, index), entry], find = kind => lineage.find(value => value.kind === kind), barrier = find("barrier"), defect = find("defect");
+    const fields = entry.entity.fields;
+    if (key === "state") return `${entry.entity.deleted ? "Deleted draft" : entry.legacy ? "Legacy read-only" : "Unapproved draft"} · ${uncertainty.find(([value]) => value === entry.entity.uncertainty.state)?.[1] || "Not assessed"}`;
+    if (key === "location") return String((entry.kind === "barrier" || entry.kind === "defect" ? fields.location : entry.legacy ? defect?.entity.fields.location ?? barrier?.entity.fields.location : barrier?.entity.fields.location ?? defect?.entity.fields.location) ?? "").trim();
+    if (key === "frl") return String((entry.servicePlans ? barrier : defect)?.entity.fields.frl ?? "").trim();
+    if (key === "substrate" || key === "orientation") return String(barrier?.entity.fields[key] ?? "").trim();
+    return String(entry.kind === "service" ? fields[key] ?? "" : "").trim();
+  }
+  function hierarchyRows(graph, { filter = "", collapsed = new Set(), showDeleted = false, columnFilters = new Map() } = {}) {
     const index = indexGraph(graph), included = new Set(), matching = new Set(), query = filter.toLocaleLowerCase().trim();
     for (const [id, entry] of index) {
       if (entry.entity.deleted && !showDeleted) continue;
-      const searchable = [entry.kind, id, entry.entity.display_id, ...Object.values(entry.entity.fields), entry.entity.uncertainty?.state, entry.entity.uncertainty?.note].join(" ").toLocaleLowerCase();
+      const searchable = [entry.kind, id, entry.entity.display_id, ...Object.values(entry.entity.fields), ...Object.keys(filterColumns).map(key => columnValue(entry, key, index)), entry.entity.uncertainty?.state, entry.entity.uncertainty?.note].join(" ").toLocaleLowerCase();
       if (query && !searchable.includes(query)) continue;
+      if (![...columnFilters].every(([key, values]) => values.has(columnValue(entry, key, index)))) continue;
       included.add(id); matching.add(id);
       for (const parent of ancestors(entry, index)) included.add(parent.entity.id);
     }
@@ -74,7 +85,7 @@
     const rows = [];
     function visit(entry, depth) {
       rows.push({ ...entry, depth, context: !matching.has(entry.entity.id), hasChildren: !!children.get(entry.entity.id)?.length });
-      if (query || !collapsed.has(entry.entity.id)) for (const child of children.get(entry.entity.id) || []) visit(child, depth + 1);
+      if (query || columnFilters.size || !collapsed.has(entry.entity.id)) for (const child of children.get(entry.entity.id) || []) visit(child, depth + 1);
     }
     for (const entry of children.get(null) || []) visit(entry, 0);
     return rows;
@@ -197,7 +208,7 @@
   function mount(container, bridge) {
     if (!container || !bridge) throw new Error("A physical register container and application bridge are required.");
     const document = container.ownerDocument || root.document;
-    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), inspectedId: null, collapsed: new Set(), filter: "", offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), pendingApply: new WeakMap(), inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
+    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), inspectedId: null, collapsed: new Set(), filter: "", columnFilters: new Map(), filterDialog: null, offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), bindings: new WeakMap(), pendingApply: new WeakMap(), autoApplyPromise: null, autoRoutine: false, autoTimer: null, pointerAction: null, inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
     const ui = {};
     const changed = () => bridge.changed?.();
     const graph = () => state.snapshot?.physical || null;
@@ -212,10 +223,22 @@
     const choice = (value, label = value) => { const element = node("option", "", label); element.value = value; return element; };
     function report(error) { bridge.notify(error.message || String(error), true); }
     async function safe(action) { try { await action(); } catch (error) { if (!state.destroyed) report(error); } }
-    function button(label, action, className = "button secondary") { const control = node("button", className, label); control.type = "button"; control.addEventListener("click", () => void safe(action)); return control; }
-    function mutationButton(label, action, className) { const control = button(label, () => { ensureEditable(); return action(); }, className); control.dataset.physicalMutation = "true"; control.disabled = state.busy || legacyReadOnly(); return control; }
+    function button(label, action, className = "button secondary") {
+      const control = node("button", className, label); control.type = "button";
+      control.addEventListener("pointerdown", () => { state.pointerAction = control; cancelAutomatic(); });
+      for (const event of ["pointercancel", "pointerleave"]) control.addEventListener(event, () => { if (state.pointerAction === control) state.pointerAction = null; });
+      control.addEventListener("click", () => void safe(async () => {
+        const identity = `${scope()}/${state.snapshot?.project_id || ""}`;
+        state.pointerAction = null;
+        const flushed = control !== ui.discard && !!(state.pending.size || state.autoApplyPromise);
+        if (flushed) await completePendingEdits();
+        if (state.destroyed || identity !== `${scope()}/${state.snapshot?.project_id || ""}`) throw new Error("The physical workspace changed before this action. Use the current workspace.");
+        return action(flushed);
+      })); return control;
+    }
+    function mutationButton(label, action, className) { const control = button(label, flushed => { ensureEditable(); return action(flushed); }, className); control.dataset.physicalMutation = "true"; control.disabled = state.busy && !state.autoRoutine || legacyReadOnly(); return control; }
     const controlsInWorkspace = selector => [...ui.root.querySelectorAll(selector), ...(bridge.inspectorContainer ? ui.inspector.querySelectorAll(selector) : [])];
-    function setBusy(value) { state.busy = value; ui.root.setAttribute("aria-busy", String(value)); ui.inspector?.setAttribute("aria-busy", String(value)); for (const control of controlsInWorkspace("button,input,select,textarea")) control.disabled = value || control.dataset.locked === "true" || legacyReadOnly() && control.dataset.physicalMutation === "true"; changed(); }
+    function setBusy(value) { state.busy = value; ui.root.setAttribute("aria-busy", String(value)); ui.inspector?.setAttribute("aria-busy", String(value)); for (const control of controlsInWorkspace("button,input,select,textarea")) control.disabled = value && !state.autoRoutine || control.dataset.locked === "true" || legacyReadOnly() && control.dataset.physicalMutation === "true"; changed(); }
     function ensureAvailable(allowPending = false) { if (state.destroyed) throw new Error("The physical workspace was closed."); if (state.busy) throw new Error("Finish the current physical edit first."); if (!allowPending && state.pending.size) throw new Error("Apply or discard unfinished physical field edits first."); }
     function requireCurrent(entry) { const current = state.index.get(entry.entity.id); if (!current || current.kind !== entry.kind || current.entity.revision !== entry.entity.revision || current.entity.deleted !== entry.entity.deleted) throw new Error("This physical record changed. Discard the unfinished form and inspect the current draft."); }
     function selectEntries() { return [...state.selected].map(id => state.index.get(id)).filter(Boolean); }
@@ -225,8 +248,15 @@
     }
     function matchingActiveRows() { return hierarchyRows(graph(), { ...state, collapsed: new Set() }).filter(row => !row.context && !row.entity.deleted); }
     function descendants(entry) { const found = []; for (const candidate of state.index.values()) if (ancestors(candidate, state.index).some(parent => parent.entity.id === entry.entity.id)) found.push(candidate); return found; }
-    function resetPending() { for (const [control, original] of state.pending) control.value = original; state.pending.clear(); changed(); }
-    function track(control, original) { control.addEventListener("input", () => { state.editRevision++; control.value === String(original ?? "") ? state.pending.delete(control) : state.pending.set(control, String(original ?? "")); changed(); }); }
+    function cancelAutomatic() { if (state.autoTimer !== null) root.clearTimeout(state.autoTimer); state.autoTimer = null; }
+    function scheduleAutomatic(delay = 0) { cancelAutomatic(); if (state.destroyed || state.pointerAction || !state.pending.size) return; state.autoTimer = root.setTimeout(() => { state.autoTimer = null; void safe(completePendingEdits); }, delay); }
+    function resetPending() { cancelAutomatic(); for (const [control, original] of state.pending) control.value = original; state.pending.clear(); changed(); }
+    function track(control, original, entry, key) {
+      const binding = { original: String(original ?? ""), entry, key, revision: state.editRevision }; state.bindings.set(control, binding); control.dataset.physicalField = key;
+      const update = () => { binding.revision = ++state.editRevision; String(control.value) === binding.original ? state.pending.delete(control) : state.pending.set(control, binding.original); changed(); };
+      control.addEventListener("input", () => { update(); scheduleAutomatic(350); });
+      control.addEventListener("change", () => { update(); scheduleAutomatic(); });
+    }
     function displayReply(reply) { const value = reply?.snapshot || (reply?.documents && "physical" in reply ? reply : null); if (value) render(value); }
     function fieldType(kind, key) {
       if (sharedOptionKeys.has(key)) return (state.fieldOptions?.[key] || []).map(value => [value, value]);
@@ -279,17 +309,34 @@
         offset = Math.max(0, Math.min(Math.max(0, preview.relationships.length - 1), offset + (answer.action === "previous" ? -100 : 100)));
       }
     }
-    async function perform(commands, title, allowPending = false) {
-      ensureEditable(); ensureAvailable(allowPending); const key = graphKey(); setBusy(true);
+    async function perform(commands, title, allowPending = false, review = true) {
+      ensureEditable(); ensureAvailable(allowPending); const key = graphKey(), identity = `${scope()}/${state.snapshot?.project_id || ""}`, captured = new Map(controlsInWorkspace("[data-physical-field]").map(control => [control, { value: String(control.value), revision: state.bindings.get(control)?.revision }])); setBusy(true);
       try {
         const preview = await bridge.preview(commands);
         if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed before review. Preview the edit again.");
         previewText(preview, state.index);
-        if (!await reviewPreview(title, preview, commands)) return false;
+        if (review && !await reviewPreview(title, preview, commands)) return false;
         if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed during review. Preview the edit again.");
-        const reply = await bridge.apply(preview.preview_id); resetPending(); if (!state.destroyed) { displayReply(reply); bridge.notify("Draft physical change applied. The physical model remains unapproved.", false); }
+        const reply = await bridge.apply(preview.preview_id);
+        if (state.destroyed || identity !== `${scope()}/${state.snapshot?.project_id || ""}`) throw new Error("The physical workspace changed while the validated change was applying. The new workspace has been preserved.");
+        if (!state.destroyed) {
+          displayReply(reply);
+          if (allowPending && !review) rebaseInputs(captured); else resetPending();
+          bridge.notify("Draft physical change applied. The physical model remains unapproved.", false);
+        }
         return true;
       } finally { if (!state.destroyed) { setBusy(false); if (!state.pending.size) renderData(); } }
+    }
+    function rebaseInputs(captured) {
+      for (const control of controlsInWorkspace("[data-physical-field]")) {
+        const binding = state.bindings.get(control), current = binding && state.index.get(binding.entry.entity.id); if (!current) continue;
+        const { key } = binding, canonical = key === "uncertainty_state" ? current.entity.uncertainty.state : key === "uncertainty_note" ? current.entity.uncertainty.note : key === "quantity" ? current.entity.quantity : fieldDisplay(current.entity.fields, key);
+        const original = String(canonical ?? ""); binding.entry = current; binding.original = original;
+        if (!captured.has(control) || binding.revision === captured.get(control).revision) { if (String(control.value) !== original) control.value = canonical ?? ""; state.pending.delete(control); }
+        else if (String(control.value) === original) state.pending.delete(control); else state.pending.set(control, original);
+      }
+      if (state.inspectorEdit) { state.inspectorEdit.entry = state.index.get(state.inspectorEdit.entry.entity.id); state.inspectorEdit.key = graphKey(); }
+      changed();
     }
     async function ask(title, fields, explanation, submit) {
       ensureAvailable(); const key = graphKey(); setBusy(true);
@@ -339,6 +386,7 @@
       return create(kind, parent?.entity.id, marker);
     }
     function selectEntity(id, multiple = false, focus = !multiple, inspectDefect = false) {
+      if (state.pending.size || state.autoApplyPromise) return completePendingEdits().then(() => selectEntity(id, multiple, focus, inspectDefect));
       ensureAvailable(); const entry = state.index.get(id); if (!entry) return;
       if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
       const selected = selectEntries(); let inspected = selected.length === 1 ? selected[0] : null;
@@ -350,6 +398,7 @@
       return bridge.selection?.([...state.selected], entry.entity.evidence[0] || selectedBarrier()?.marker || null, focus);
     }
     function selectDrawing(id, multiple = false, focus = false) {
+      if (state.pending.size || state.autoApplyPromise) return completePendingEdits().then(() => selectDrawing(id, multiple, focus));
       ensureAvailable(); const entry = state.index.get(id);
       if (!entry || entry.entity.deleted) throw new Error("This drawing record is no longer available. Select a current record.");
       return selectEntity(id, multiple, focus, true);
@@ -368,20 +417,20 @@
       return [line([displayId(barrier), defect ? displayId(defect) : "", fields.label, fields.location, fields.barrier_type, fields.substrate, fields.orientation, fields.thickness_mm != null ? `${fields.thickness_mm} mm thick` : "", frl ? `FRL ${frl}` : ""]), ...services.map(child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type, value.size, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); }), ...(!services.length ? ["0 services"] : [])].join("\n");
     }
     async function setMarker(id, marker) {
+      await completePendingEdits();
       ensureEditable(); ensureAvailable(); const entry = state.index.get(id);
       if (!entry || entry.kind !== "barrier" || entry.entity.deleted) throw new Error("Select an active barrier for this count marker.");
       requireCurrent(entry); if (sameValue(entry.entity.marker ?? null, marker)) return false;
-      return perform([{ op: "update", entity_id: id, changes: { marker: copy(marker) } }], marker ? "Review barrier count marker" : "Remove barrier count marker?");
+      return perform([{ op: "update", entity_id: id, changes: { marker: copy(marker) } }], marker ? "Move barrier count marker" : "Remove barrier count marker?", false, marker === null);
     }
-    async function editField(entry, key, control, preservePending = false) {
+    async function editField(entry, key, control) {
       ensureAvailable(true); requireCurrent(entry);
       if ([...state.pending.keys()].some(pending => pending !== control)) {
         control.value = state.pending.get(control) ?? control.value; state.pending.delete(control); changed();
         throw new Error("Apply or discard the other unfinished physical field edits before changing a table cell. Those edits have been preserved.");
       }
-      let applied = false;
-      try { const batch = bulkCommands([entry], key, control.value); applied = !batch.commands.length || await perform(batch.commands, `Change ${titles[entry.kind].toLowerCase()} ${key}?`, true); if (preservePending && !applied) throw new Error("Save stopped because the physical edit review was cancelled. Your unfinished input is preserved."); }
-      finally { if (!preservePending || applied) state.pending.delete(control); changed(); if (!state.destroyed && !state.pending.size) renderData(); }
+      try { const batch = bulkCommands([entry], key, control.value); if (!batch.commands.length) { control.value = state.bindings.get(control).original; state.pending.delete(control); } else await perform(batch.commands, `Change ${titles[entry.kind].toLowerCase()} ${key}`, true, false); }
+      finally { changed(); if (!state.destroyed && !state.pending.size) renderData(); }
     }
     async function bulkEdit() {
       ensureAvailable(); const selected = selectEntries();
@@ -457,22 +506,62 @@
       const type = fieldType(entry.kind, key), cell = node("td"), control = node(Array.isArray(type) ? "select" : "input"), value = key === "quantity" ? entry.entity.quantity : fieldDisplay(entry.entity.fields, key);
       if (Array.isArray(type)) { populateSelect(control, type, value); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); }
       else { control.type = type === "number" ? "number" : "text"; control.value = value ?? ""; if (control.type === "number") control.step = key === "quantity" ? "1" : "any"; }
-      control.setAttribute("aria-label", `${fieldsFor(entry.kind, scope()).find(definition => definition[0] === key)?.[1] || "Service quantity"} for ${entityName(entry)}`); control.placeholder = "Unknown"; track(control, value);
-      state.pendingApply.set(control, () => editField(entry, key, control, true));
-      control.addEventListener("change", () => { if (control.value === String(value ?? "")) return; void safe(() => editField(entry, key, control)); }); cell.append(control); return cell;
+      control.setAttribute("aria-label", `${fieldsFor(entry.kind, scope()).find(definition => definition[0] === key)?.[1] || "Service quantity"} for ${entityName(entry)}`); control.placeholder = "Unknown"; track(control, value, entry, key);
+      state.pendingApply.set(control, () => editField(state.bindings.get(control).entry, key, control));
+      cell.append(control); return cell;
     }
     function relationCells(entry) {
       const lineage = [...ancestors(entry, state.index), entry], find = kind => lineage.find(candidate => candidate.kind === kind);
       return { lineage, barrier: find("barrier"), defect: find("defect"), opening: find("opening"), service: find("service") };
     }
     function hover(id) { for (const row of ui.table.querySelectorAll("[data-physical-id]")) row.classList.toggle("hovered", row.dataset.physicalId === id); bridge.hover?.(id); }
+    function columnValues(key) {
+      return [...new Set([...state.index.values()].filter(entry => state.showDeleted || !entry.entity.deleted).map(entry => columnValue(entry, key, state.index)).concat([...(state.columnFilters.get(key) || [])]))].sort((a, b) => a.localeCompare(b, "en-AU", { numeric: true }));
+    }
+    async function openColumnFilter(key, anchor) {
+      if (state.filterDialog || !Object.hasOwn(filterColumns, key)) return;
+      await completePendingEdits(); ensureAvailable();
+      const identity = `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}`, values = columnValues(key), selected = new Set(state.columnFilters.get(key) ?? values), label = filterColumns[key];
+      const dialog = node("dialog", "takeoff-column-filter"), heading = node("h2", "", `Filter ${label}`); heading.id = `takeoff-physical-filter-${root.crypto.randomUUID()}`; dialog.setAttribute("aria-labelledby", heading.id);
+      const search = node("input"); search.type = "search"; search.placeholder = "Search values…"; search.setAttribute("aria-label", `Search ${label} values`);
+      const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; all.setAttribute("aria-label", "Select all values"); allLabel.append(all, node("span", "", "Select all"));
+      const choices = node("div", "takeoff-column-filter-values"); choices.setAttribute("role", "group"); choices.setAttribute("aria-label", `${label} values`);
+      let matching = values;
+      const updateAll = () => { const count = matching.filter(value => selected.has(value)).length; all.checked = !!matching.length && count === matching.length; all.indeterminate = count > 0 && count < matching.length; all.disabled = !matching.length; };
+      const renderChoices = () => {
+        const query = search.value.trim().toLowerCase(); matching = values.filter(value => (value || "(Blanks)").toLowerCase().includes(query)); choices.replaceChildren();
+        for (const value of matching) {
+          const wrapper = node("label", "takeoff-column-filter-choice"), check = node("input"); check.type = "checkbox"; check.checked = selected.has(value); check.setAttribute("aria-label", value || "(Blanks)");
+          check.addEventListener("change", () => { check.checked ? selected.add(value) : selected.delete(value); updateAll(); }); wrapper.append(check, node("span", "", value || "(Blanks)")); choices.append(wrapper);
+        }
+        if (!matching.length) choices.append(node("p", "takeoff-column-filter-empty", "No matching values")); updateAll();
+      };
+      search.addEventListener("input", renderChoices); all.addEventListener("change", () => { for (const value of matching) all.checked ? selected.add(value) : selected.delete(value); renderChoices(); });
+      const actions = node("div", "takeoff-column-filter-actions"); actions.append(button("Apply filter", () => dialog.close("apply"), "button primary"), button("Reset filter", () => dialog.close("reset")), button("Cancel", () => dialog.close("cancel"))); dialog.append(heading, search, allLabel, choices, actions); renderChoices();
+      state.filterDialog = dialog; anchor.setAttribute("aria-expanded", "true"); document.body.append(dialog);
+      try {
+        const result = await new Promise(resolve => {
+          dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true }); dialog.showModal();
+          const bounds = anchor.getBoundingClientRect(), box = dialog.getBoundingClientRect(); dialog.style.left = `${Math.max(8, Math.min(bounds.left, root.innerWidth - box.width - 8))}px`; dialog.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, root.innerHeight - box.height - 8))}px`; search.focus();
+        });
+        if (!state.destroyed && identity === `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}` && ["apply", "reset"].includes(result)) {
+          if (result === "reset" || values.length > 0 && values.every(value => selected.has(value))) state.columnFilters.delete(key); else state.columnFilters.set(key, selected);
+          state.offset = 0; renderTable();
+        }
+      } finally { state.filterDialog = null; anchor.setAttribute("aria-expanded", "false"); dialog.remove(); }
+    }
+    function columnFilterButton(key) {
+      const active = state.columnFilters.has(key), label = filterColumns[key], control = button(`Filter ${label}`, () => openColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`), icon = actionIcon(["M3 5h18l-7 8v6l-4 2v-8z"]);
+      icon.classList.add?.("takeoff-column-filter-icon"); icon.setAttribute("class", "takeoff-column-filter-icon"); icon.setAttribute("fill", active ? "currentColor" : "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linejoin", "round"); control.replaceChildren(icon); control.setAttribute("aria-label", `Filter ${label}`); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`; return control;
+    }
     function renderTable() {
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
       const headings = ["Select", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "State / uncertainty", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence"];
       for (const label of headings) {
-        const cell = node("th", "", label);
+        const cell = node("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
+        if (filterKey) cell.append(columnFilterButton(filterKey));
         if (label === "Select") {
           const matches = matchingActiveRows(), selected = matches.filter(row => state.selected.has(row.entity.id)).length, selectAll = node("input");
           selectAll.type = "checkbox"; selectAll.checked = !!matches.length && selected === matches.length; selectAll.indeterminate = selected > 0 && selected < matches.length;
@@ -538,9 +627,11 @@
         control.addEventListener("change", () => void safe(async () => {
           const id = control.value; control.value = current;
           if (!id || id === current && inspectedEntry()?.entity.id === id) return;
+          const hadPending = !!state.pending.size || !!state.autoApplyPromise;
+          if (hadPending) await completePendingEdits();
           ensureAvailable();
           const entry = state.index.get(id);
-          if (graphKey() !== editorKey || !entry || entry.kind !== kind || entry.entity.deleted) throw new Error("The physical draft changed. Choose a current record in Item Details.");
+          if (!hadPending && graphKey() !== editorKey || !entry || entry.kind !== kind || entry.entity.deleted) throw new Error("The physical draft changed. Choose a current record in Item Details.");
           await selectEntity(id);
         }));
         cell.append(control); cells.append(cell);
@@ -549,46 +640,47 @@
     }
     function renderInspector() {
       state.inspectorEdit = null;
-      ui.inspector.replaceChildren(node("h3", "", "Item Details"), ui.discard); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
+      ui.inspector.replaceChildren(node("h3", "", "Item Details")); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       renderDetailNavigation();
-      if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); return; }
+      if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty."), inspectorActions()); return; }
       const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey(); ui.inspector.append(node("p", "takeoff-identity", displayId(entry)), node("p", "helper", `${titles[entry.kind]} · Revision ${entity.revision} · ${entity.deleted ? "Deleted draft" : "Unapproved draft"}`));
       const callout = summary(entity.id); if (callout) { const details = node("details", "takeoff-physical-summary"); details.append(node("summary", "", "Automatic callout"), node("p", "helper", callout)); ui.inspector.append(details); }
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", `Explicit service quantity: ${entity.quantity}`));
-        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); renderAssociations(entry); return;
+        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`), inspectorActions()); renderAssociations(entry); return;
       }
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
         if (Array.isArray(type)) { populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
-        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial); wrapper.append(control); ui.inspector.append(wrapper); return control;
+        control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
       });
-      const submit = async () => { ensureAvailable(true); await ensureFieldOptions(entry.kind, true); ensureAvailable(true); if (editorKey !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be reviewed. Inspect the current record and try again."); requireCurrent(entry); const values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(entry.kind, values, entity.fields, scope()), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(entry.kind === "service" ? { quantity: fieldValue(entry.kind, "quantity", values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); bridge.notify("No physical values changed.", false); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Review physical field changes", true); };
-      state.inspectorEdit = { controls, submit };
-      ui.inspector.append(button("Preview physical edits", submit, "button primary"));
+      const editor = { controls, entry, key: editorKey };
+      editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(editor.entry.kind === "service" ? { quantity: fieldValue(editor.entry.kind, "quantity", values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
+      state.inspectorEdit = editor;
       const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
       if (childKind) {
-        const addChild = mutationButton(`Add ${childKind}`, () => create(childKind, entity.id));
+        const addChild = mutationButton(childKind === "service" ? "+" : `Add ${childKind}`, async () => { await completePendingEdits(); return create(childKind, entity.id); }, childKind === "service" ? "button secondary takeoff-physical-add-child takeoff-physical-add-defect takeoff-physical-add-service" : undefined);
         addChild.setAttribute("aria-label", `Add ${childKind} in Item Details`); addChild.title = `Add ${childKind} to ${displayId(entry)}`; ui.inspector.append(addChild);
       }
-      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", () => reparent(entry)));
+      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));
       if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
-      if (entry.kind === "barrier" && !entity.marker && typeof bridge.placeMarker === "function") ui.inspector.append(mutationButton("Place count marker", () => {
-        ensureAvailable(); requireCurrent(entry);
-        if (graphKey() !== editorKey) throw new Error("The physical draft changed. Select the current barrier before placing its marker.");
+      if (entry.kind === "barrier" && !entity.marker && typeof bridge.placeMarker === "function") ui.inspector.append(mutationButton("Place count marker", flushed => {
+        ensureAvailable(); requireCurrent(flushed ? state.index.get(entity.id) : entry);
+        if (!flushed && graphKey() !== editorKey) throw new Error("The physical draft changed. Select the current barrier before placing its marker.");
         return bridge.placeMarker(entity.id);
       }));
-      const remove = button("Delete draft record", () => deleteEntity(entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
-      ui.inspector.append(button("Link original source page", () => linkDocument(entry)), remove);
+      const remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
+      ui.inspector.append(button("Link original source page", flushed => linkDocument(flushed ? state.index.get(entity.id) : entry)), inspectorActions(remove));
       renderAssociations(entry);
     }
+    function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {
       const entity = entry.entity;
       ui.inspector.append(node("h3", "", "SOURCE ASSOCIATIONS"));
       for (const [position, evidence] of entity.evidence.entries()) {
-        const card = node("div", "takeoff-exclusion"), doc = state.snapshot.documents.find(value => value.id === evidence.document_id);
+        const card = node("div", "takeoff-exclusion"), doc = (state.snapshot?.documents || []).find(value => value.id === evidence.document_id);
         card.append(button(`${doc?.name || evidence.document_id} · p${evidence.page}`, () => bridge.source(copy(evidence)), "text-button"), node("p", "helper", evidence.note || "No interpretation note recorded."), node("p", "takeoff-identity", `Document SHA-256: ${evidence.document_sha256}`));
         if (evidence.image_id) card.append(node("p", "takeoff-identity", `Image ID: ${evidence.image_id}\nRetained display rendition SHA-256: ${evidence.image_sha256}\nOccurrence: ${evidence.occurrence_id}`));
         if (!legacyReadOnly() && !entity.deleted) card.append(button("Remove source association", () => removeEvidence(entry, position), "text-button")); ui.inspector.append(card);
@@ -605,7 +697,7 @@
       const selector = node("select"); selector.setAttribute("aria-label", "Retained image extraction");
       selector.append(choice("", "Choose a retained extraction"));
       for (const extraction of [...(state.snapshot?.image_extractions || [])].reverse()) {
-        const source = state.snapshot.documents.find(doc => doc.id === extraction.document_id), pages = extraction.pages || [];
+        const source = (state.snapshot?.documents || []).find(doc => doc.id === extraction.document_id), pages = extraction.pages || [];
         selector.append(choice(extraction.id, `${source?.name || "Source PDF"} · pages ${pages.join(", ") || "unknown"} · ${extraction.id.slice(0, 8)}`));
       }
       selector.value = state.extractionId; selector.disabled = state.busy;
@@ -640,7 +732,7 @@
       }
       ui.gallery.append(button("Previous 12 image records", () => { state.imageOffset = Math.max(0, state.imageOffset - 12); renderGallery(); }), node("span", "helper", ` ${state.images.length ? state.imageOffset + 1 : 0}–${Math.min(state.imageOffset + 12, state.images.length)} of ${state.images.length} image and coverage records `), button("Next 12 image records", () => { if (state.imageOffset + 12 < state.images.length) state.imageOffset += 12; renderGallery(); }));
     }
-    function renderData() { if (state.destroyed) return; renderTable(); renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
+    function renderData() { if (state.destroyed) return; const focused = state.autoRoutine && state.bindings.has(document.activeElement); if (!focused || !ui.table.contains(document.activeElement)) renderTable(); if (!focused || !ui.inspector.contains(document.activeElement)) renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
     function render(snapshot) {
       if (state.destroyed) return; const oldKey = graphKey(), oldProject = state.snapshot?.project_id, oldScope = state.scope; state.snapshot = snapshot; state.scope = scope(); state.index = indexGraph(snapshot?.physical); state.selected = new Set([...state.selected].filter(id => state.index.has(id)));
       state.servicesByBarrier = new Map();
@@ -651,10 +743,10 @@
       for (const entries of state.servicesByBarrier.values()) entries.sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }));
       const context = bridge.imageContext?.() || {}, descriptors = snapshot?.image_extractions || [];
       const inventoryKey = `${snapshot?.project_id || ""}/${context.document_id || ""}/${context.page || ""}/${JSON.stringify(descriptors)}`;
-      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { ++state.imageGeneration; state.selected.clear(); state.inspectedId = null; state.collapsed.clear(); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageInventoryKey = ""; state.imageState = "Not loaded"; resetPending(); }
+      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { ++state.imageGeneration; state.selected.clear(); state.inspectedId = null; state.collapsed.clear(); state.columnFilters.clear(); state.filterDialog?.close("cancel"); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageInventoryKey = ""; state.imageState = "Not loaded"; resetPending(); }
       if (state.imageInventoryKey !== inventoryKey) { state.imageInventoryKey = inventoryKey; const newest = [...descriptors].reverse(); state.extractionId = (newest.find(value => value.document_id === context.document_id && value.pages?.includes(context.page)) || newest[0])?.id || ""; state.images = []; state.imageOffset = 0; void refreshImages(true); }
       if (state.pending.size && !state.busy && oldKey !== graphKey()) { bridge.notify("The physical draft changed while fields were unfinished. Applying will recheck the record revision; discard unfinished edits to show the current draft.", true); return; }
-      if (!state.pending.size) renderData();
+      if (!state.pending.size && !state.autoRoutine) renderData();
     }
     async function runBridge(action, confirmation) {
       ensureAvailable(); if (confirmation && !await ask(confirmation.title, [], confirmation.text, confirmation.button)) return; setBusy(true);
@@ -662,14 +754,24 @@
       finally { if (!state.destroyed) { setBusy(false); renderData(); } }
     }
     async function completePendingEdits() {
+      cancelAutomatic();
+      if (state.autoApplyPromise) return state.autoApplyPromise;
       ensureAvailable(true); if (!state.pending.size) return;
-      const pending = [...state.pending.keys()], inspector = state.inspectorEdit;
-      if (inspector && pending.every(control => inspector.controls.includes(control))) {
-        if (!await inspector.submit()) throw new Error("Save stopped because the physical edit review was cancelled. Your unfinished input is preserved.");
-      } else if (pending.length === 1 && state.pendingApply.has(pending[0])) await state.pendingApply.get(pending[0])();
-      else throw new Error("Finish the separate physical field edits before saving. Your unfinished input is preserved.");
-      if (state.destroyed || state.pending.size) throw new Error("The physical workspace changed before saving. Review the unfinished physical edits and save again.");
+      const initialKey = graphKey(); state.autoRoutine = true;
+      const applying = Promise.resolve().then(async () => {
+        if (state.destroyed || initialKey !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Your input is preserved.");
+        while (state.pending.size) {
+          ensureAvailable(true); const pending = [...state.pending.keys()], inspector = state.inspectorEdit;
+          if (inspector && pending.every(control => inspector.controls.includes(control))) await inspector.submit();
+          else if (pending.length === 1 && state.pendingApply.has(pending[0])) await state.pendingApply.get(pending[0])();
+          else throw new Error("Finish the separate physical field edits before saving. Your unfinished input is preserved.");
+          if (state.destroyed) throw new Error("The physical workspace changed before saving. Review the unfinished physical edits and save again.");
+        }
+      });
+      state.autoApplyPromise = applying;
+      try { await applying; } finally { if (state.autoApplyPromise === applying) { state.autoApplyPromise = null; state.autoRoutine = false; } changed(); }
     }
+    async function clearSelection() { await completePendingEdits(); ensureAvailable(); state.selected.clear(); state.inspectedId = null; renderData(); bridge.selectionChanged?.({ selected: [], barrierId: null, entry: null, inspectedId: null, focus: false }); await bridge.selection?.([], null, false); }
     function discardIcon() {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
       const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle"); circle.setAttribute("cx", "12"); circle.setAttribute("cy", "12"); circle.setAttribute("r", "9");
@@ -707,9 +809,9 @@
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, selectDrawing, clearSelection() { ensureAvailable(); state.selected.clear(); state.inspectedId = null; renderData(); }, create, createFromSelection, setMarker, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
-  const api = { mount, indexGraph, hierarchyRows, hierarchyPage, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };
+  const api = { mount, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.CeasefireTakeoffPhysical = api;
 })(globalThis);

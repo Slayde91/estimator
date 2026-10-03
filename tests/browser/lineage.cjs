@@ -143,7 +143,7 @@ async function fitCurrentDrawing(name) {
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
-  state = await command(() => dialog('Add duct object', { 'Duct ID': 'LINEAGE-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
+  state = await command(() => dialog('Add duct object', { 'Item': 'LINEAGE-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item');
   const originalRun = state.snapshot.items.find(item => item.mode === 'duct').id;
   await fillInspector({ 'Level': 'SYNTHETIC', 'WxH (mm)': '600x400', 'Product': 'FyreWrap', 'Exposure': 'Internal', 'FRL': '120/120/120', 'Orientation': 'Horizontal', 'Wall penetrations': 0, 'Floor penetrations': 0 });
   await reviewConfirm(); let transferred = await transfer(); const ancestorBinding = transferred.state.snapshot.transfers[0];

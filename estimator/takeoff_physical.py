@@ -155,7 +155,7 @@ def _marker(value):
     if value is None:
         return
     keys = {'document_id', 'document_sha256', 'page', 'point'}
-    _object(value, keys, keys, 'Barrier marker')
+    _object(value, keys | {'callout'}, keys, 'Barrier marker')
     _id(value['document_id'], 'Marker document ID')
     _hash(value['document_sha256'], 'Marker document hash')
     _number(value['page'], 'Marker page', minimum=1, integer=True)
@@ -163,6 +163,19 @@ def _marker(value):
         raise ValidationError('Barrier marker requires one PDF coordinate pair.')
     for coordinate in value['point']:
         _number(coordinate, 'Marker coordinate')
+    if 'callout' in value:
+        layout = value['callout']
+        _object(layout, {'offset', 'width', 'height'}, {'offset', 'width', 'height'}, 'Barrier callout layout')
+        if not isinstance(layout['offset'], list) or len(layout['offset']) != 2:
+            raise ValidationError('Callout offset requires a PDF x/y coordinate pair.')
+        for coordinate in layout['offset']:
+            _number(coordinate, 'Callout offset', minimum=-10000)
+            if coordinate > 10000:
+                raise ValidationError('Callout offset exceeds the supported PDF bounds.')
+        for key in ('width', 'height'):
+            _number(layout[key], 'Callout '+key, minimum=1)
+            if layout[key] > 10000:
+                raise ValidationError('Callout dimensions exceed the supported PDF bounds.')
 
 
 def _evidence(value, kind, parents):

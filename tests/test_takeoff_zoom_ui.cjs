@@ -112,6 +112,24 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     await h.audit.zoomBy(2, client); h.frame(); near(h.point(client)[0], before[0]); near(h.point(client)[1], before[1]); assert.deepEqual(copy(h.state.session.snapshot), snapshot);
     h.timer(120); await flush(); await h.finish(); near(h.point(client)[0], before[0]); near(h.point(client)[1], before[1]);
   });
+  await check('Quantized browser scroll offsets preserve fractional page positions and sequential zoom anchors without source writes', async () => {
+    const h = harness(), snapshot = copy(h.state.session.snapshot), originalViewport = h.state.viewport;
+    for (const name of ['scrollLeft', 'scrollTop']) {
+      let value = Math.round(h.ui.viewport[name]);
+      Object.defineProperty(h.ui.viewport, name, { get() { return value; }, set(next) { value = Math.max(0, Math.round(next)); } });
+    }
+    for (const [left, top] of [[24.35, 18.65], [-330.45, -220.55], [600.125, 420.875], [-.123456789, -.987654321]]) {
+      h.audit.positionPage(left, top); const paper = h.ui.pageWrap.getBoundingClientRect(), frame = h.ui.viewport.getBoundingClientRect();
+      near(paper.left - frame.left - h.ui.viewport.clientLeft, left); near(paper.top - frame.top - h.ui.viewport.clientTop, top);
+      assert.equal(h.state.viewport, originalViewport); assert.equal(h.state.zoom, 1);
+    }
+    const cursor = [223.125, 185.375], source = copy(h.point(cursor));
+    for (const factor of [...Array(12).fill(1.03), ...Array(12).fill(1 / 1.03)]) {
+      await h.audit.zoomBy(factor, cursor); h.frame(); near(h.point(cursor)[0], source[0]); near(h.point(cursor)[1], source[1]);
+    }
+    near(h.state.zoom, 1); assert.deepEqual(copy(h.state.session.snapshot), snapshot); assert.equal(h.commands.length, 0); assert.equal(h.renders.length, 0);
+    h.audit.cancelQueuedZoom();
+  });
   await check('Very wide, tall and large-area PDF bitmaps respect dimension and pixel budgets without changing display coordinates', async () => {
     for (const [width, height] of [[30000, 800], [800, 30000], [20000, 20000]]) {
       const h = harness(); h.context.window.devicePixelRatio = 2;

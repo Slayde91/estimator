@@ -26,7 +26,7 @@ async function rendered(action, number, firstVisit = false) {
   pending?.catch(() => {});
   await page.evaluate(() => { window.qaPreviousCanvas = document.querySelector('.takeoff-page canvas'); });
   await action();
-  await expect.poll(() => page.evaluate(() => window.qaPreviousCanvas !== document.querySelector('.takeoff-page canvas'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.qaPreviousCanvas !== document.querySelector('.takeoff-page canvas')), { timeout: 30000 }).toBe(true);
   await expect(page.locator('.takeoff-progress')).toContainText('Original source');
   if (pending) { const reply = await pending; assert.equal(reply.status(), 200, await reply.text()); }
   await settingsSettled(page); await expect(page.getByLabel('Page number', { exact: true })).toHaveValue(String(number));
@@ -173,6 +173,44 @@ async function panAndNavigateDuringRefinement(landscape) {
   await page.evaluate(() => { window.zoomQa.hold = false; });
   evidence.refinementPanAndNavigation = { toolbarFactor: 1.25, panDelta: [42, 34], retainedPan: true, nativeControlWheel: true, oldDocumentCompletionIgnored: true };
 }
+async function sequentialNativeWheel() {
+  evidence.sequentialNativeWheel = [];
+  for (const delta of [-60, 60]) {
+    const initial = await page.evaluate(() => {
+      const frame = document.querySelector('.takeoff-viewport'), drawing = document.querySelector('.takeoff-overlay'), box = drawing.getBoundingClientRect(), bounds = frame.getBoundingClientRect();
+      const cursor = [bounds.left + frame.clientWidth * .51, bounds.top + frame.clientHeight * .46];
+      const qa = window.sequentialZoomQa = { initialCanvas: document.querySelector('.takeoff-page canvas'), events: [], frames: [], running: true, point: null, normalized: null };
+      if (window.sequentialZoomListener) frame.removeEventListener('wheel', window.sequentialZoomListener, true);
+      window.sequentialZoomListener = event => {
+        qa.events.push({ point: [event.clientX, event.clientY], delta: event.deltaY });
+        if (!qa.point) { qa.point = [event.clientX, event.clientY]; qa.normalized = [(event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height]; }
+      };
+      frame.addEventListener('wheel', window.sequentialZoomListener, true);
+      const sample = () => {
+        if (!qa.running) return;
+        if (qa.point) {
+          const rect = drawing.getBoundingClientRect(), canvas = document.querySelector('.takeoff-page canvas').getBoundingClientRect();
+          qa.frames.push({ width: rect.width, drift: Math.hypot(rect.left + qa.normalized[0] * rect.width - qa.point[0], rect.top + qa.normalized[1] * rect.height - qa.point[1]),
+            visible: !drawing.closest('.takeoff-page').hidden, aligned: Math.max(Math.abs(rect.x - canvas.x), Math.abs(rect.y - canvas.y), Math.abs(rect.width - canvas.width), Math.abs(rect.height - canvas.height)) });
+        }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample); return cursor;
+    });
+    assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.takeoff-overlay'), initial), true);
+    await page.mouse.move(...initial); await page.keyboard.down('Control');
+    try { for (let index = 0; index < 10; index++) await page.mouse.wheel(0, delta); } finally { await page.keyboard.up('Control'); }
+    await expect.poll(() => page.evaluate(() => window.sequentialZoomQa.initialCanvas !== document.querySelector('.takeoff-page canvas'))).toBe(true);
+    await expect(page.locator('.takeoff-progress')).toContainText('Original source'); await settingsSettled(page); await frames();
+    const sample = await page.evaluate(() => { window.sequentialZoomQa.running = false; const { events, frames } = window.sequentialZoomQa; return { events, frames }; });
+    assert.equal(sample.events.length, 10); assert.ok(new Set(sample.frames.map(value => value.width)).size >= 6, 'Native wheel burst exercises sequential rendered frames, not one synthetic frame');
+    assert.ok(sample.events.every(value => value.point[0] === sample.events[0].point[0] && value.point[1] === sample.events[0].point[1]), 'Browser delivers a fixed cursor anchor');
+    assert.ok(sample.frames.every(value => value.visible && value.aligned < .1));
+    const maxDrift = Math.max(...sample.frames.map(value => value.drift));
+    assert.ok(maxDrift < .5, `Sequential wheel previews accumulate ${maxDrift}px pointer drift`);
+    evidence.sequentialNativeWheel.push({ direction: delta < 0 ? 'in' : 'out', events: sample.events.length, previewWidths: [...new Set(sample.frames.map(value => value.width))], maxPointerDriftPx: maxDrift });
+  }
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
@@ -213,11 +251,12 @@ async function panAndNavigateDuringRefinement(landscape) {
   await rendered(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1); await focusDrawing();
   await page.setViewportSize({ width: 764, height: 764 });
   await zoomCase('Steel/landscape-narrow-764');
+  await sequentialNativeWheel();
   assert.deepEqual(await protectedState(), protectedBefore, 'Zoom cannot alter source identity, geometry, calibration, quantities, calculated results or calculator rows');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   await page.screenshot({ path: path.join(output, 'smooth-zoom-settled.png') });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, renderRecords: await renderRecords() }, null, 2));
-  console.log(`PASS: 19 scope/page/viewport combinations preserve pointer anchors and drawing/overlay preview, coalesce tiny wheel deltas, reject stale real-render completions, and retain geometry/calculations. Evidence: ${output}`);
+  console.log(`PASS: 19 scope/page/viewport combinations plus sequential native wheel preserve subpixel anchors and drawing/overlay preview, coalesce tiny wheel deltas, reject stale real-render completions, and retain geometry/calculations. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

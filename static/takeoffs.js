@@ -1180,6 +1180,9 @@
     panSpace.style.height = `${Math.max(y + state.viewport.height + frame.clientHeight, y - top + frame.clientHeight * 2)}px`;
     pageWrap.style.left = `${x}px`; pageWrap.style.top = `${y}px`;
     frame.scrollLeft = x - left; frame.scrollTop = y - top;
+    // Browsers can quantize scroll offsets. Absorb the actual scroll remainder
+    // in the paper position so sequential zoom frames retain the cursor anchor.
+    pageWrap.style.left = `${left + frame.scrollLeft}px`; pageWrap.style.top = `${top + frame.scrollTop}px`;
   }
   function beginPan(event) {
     if (state.tool !== "pan" || event.button !== 0 || !state.viewport) return;

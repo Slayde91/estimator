@@ -480,9 +480,14 @@ def item_references(item):
 
 def validate_item(value, snapshot, *, copy_result=True):
     object_fields(value, {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields',
-                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance', 'count_id'}, 'Takeoff item',
+                        'evidence', 'review', 'confirmation', 'predecessor_ids', 'member_ids', 'length_additions', 'appearance', 'count_id', 'copied_from'}, 'Takeoff item',
                   {'id', 'version', 'mode', 'state', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'review', 'confirmation', 'member_ids'})
     identity(value['id'], 'Item ID')
+    if 'copied_from' in value:
+        source = object_fields(value['copied_from'], {'item_id', 'version'}, 'Copied source', {'item_id', 'version'})
+        if identity(source['item_id'], 'Copied item ID') == value['id']:
+            raise ValidationError('A copied item must have a new identity.')
+        number(source['version'], 'Copied item version', positive=True, integer=True)
     if is_count_item(value):
         identity(value.get('count_id'), 'Count ID')
     elif 'count_id' in value:

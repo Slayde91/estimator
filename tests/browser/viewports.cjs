@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered scale/viewport and per-member vertical-dimension acceptance on disposable data.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -33,7 +34,7 @@ async function dialog(title, values, button) {
   await modal.getByRole('button', { name: button, exact: true }).click();
 }
 async function snapshot() { await idle(); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
-async function fit() { return command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render'); }
+async function fit() { return renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click()); }
 async function assertAutoHeight(layout) {
   const sizes = {};
   for (const selector of ['.takeoff-register', '.takeoff-register-table']) {
@@ -337,13 +338,13 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   assert.match(rejected.error, /viewport/i); await cancelAt([400, 450]); assert.equal((await snapshot()).items.length, 2);
   // Zoom anchor is measured from rendered geometry, not the frontend's private state.
   await fit();
-  for (let i = 0; i < 6; i++) await command(() => page.getByRole('button', { name: '+', exact: true }).click(), 'record_render');
+  for (let i = 0; i < 6; i++) await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
   await page.locator('.takeoff-viewport').evaluate(el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; el.scrollTop = (el.scrollHeight - el.clientHeight) / 2; });
-  const centerBefore = await sourceAt(); await command(() => page.getByRole('button', { name: '+', exact: true }).click(), 'record_render');
+  const centerBefore = await sourceAt(); await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
   const centerAfter = await sourceAt(); closePoint(centerAfter.point, centerBefore.point, 1.5);
   const frame = await page.locator('.takeoff-viewport').boundingBox(), cursor = [frame.x + frame.width * .64, frame.y + frame.height * .43];
   const cursorBefore = await sourceAt(cursor);
-  await command(async () => { await page.mouse.move(...cursor); await page.keyboard.down('Control'); await page.mouse.wheel(0, -150); await page.keyboard.up('Control'); }, 'record_render');
+  await renderDrawing(page, async () => { await page.mouse.move(...cursor); await page.keyboard.down('Control'); await page.mouse.wheel(0, -150); await page.keyboard.up('Control'); });
   const cursorAfter = await sourceAt(cursor); closePoint(cursorAfter.point, cursorBefore.point, 1.5);
   evidence.zoom = { centerBefore, centerAfter, cursorBefore, cursorAfter }; await fit();
   // Rectangular duct default, and a cited drop is added once per physical run.

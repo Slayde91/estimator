@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual topology and retained-image workflow. All sources and storage are disposable.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -117,7 +118,7 @@ async function showImage() {
   await apply('Link retained image to draft record?'); const evidence = activeGraph().services.find(entity => entity.id === cable).evidence[0]; assert.match(evidence.image_sha256, /^[a-f0-9]{64}$/); assert.equal(evidence.document_sha256, state.snapshot.documents[0].sha256); assert.equal(evidence.region.length, 4);
   await select(cable); await expect(page.locator(`.takeoff-hit[data-physical-id="${cable}"]`)).toHaveCount(1);
   await page.locator(`tr[data-physical-id="${cable}"] .takeoff-row-link`).hover(); await expect(page.locator('.takeoff-physical-shape')).toHaveClass(/hovered/);
-  state = await response(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), '/commands'); await idle();
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click()); await idle();
   await page.locator(`.takeoff-hit[data-physical-id="${cable}"]`).hover(); await expect(page.locator(`tr[data-physical-id="${cable}"]`)).toHaveClass(/hovered/);
   await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-0002'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
   const notes = page.getByRole('complementary', { name: 'Item Details' }).getByLabel('Notes', { exact: true });

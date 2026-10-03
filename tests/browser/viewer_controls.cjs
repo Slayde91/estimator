@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Toolbar acceptance against a disposable server and original synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
 const { editSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -99,7 +100,7 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   await command(() => page.getByRole('button', { name: 'Last page', exact: true }).click(), 'record_render');
   await command(() => page.getByRole('button', { name: '‹ Page', exact: true }).click(), 'record_render');
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('3');
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   evidence.firstLastNavigation = true;
 
   const scale = page.getByRole('button', { name: 'Scale', exact: true }), popup = page.getByRole('group', { name: 'Drawing scale', exact: true }), calibrate = popup.getByRole('button', { name: 'Calibrate', exact: true });

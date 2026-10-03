@@ -296,9 +296,14 @@
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
     ui.viewport.addEventListener("contextmenu", event => { if (state.points.length || !["select", "pan"].includes(state.tool)) { event.preventDefault(); cancelTrace(); } });
     ui.overlay.addEventListener("pointermove", tracePointerMove);
+    ui.viewport.addEventListener("pointermove", event => { state.pastePointer = { key: pageDisplayKey(), client: [event.clientX, event.clientY] }; });
+    ui.viewport.addEventListener("pointerleave", () => { state.pastePointer = null; });
     ui.overlay.addEventListener("pointerleave", () => { if (state.traceCursor && !state.gesture) { state.traceCursor = null; renderOverlay(); } });
-    ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); void safely(() => zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15, [event.clientX, event.clientY])); } else handoffPlanWheel(event); }, { passive: false });
+    ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? ui.viewport.clientHeight : 1); if (Number.isFinite(delta) && delta) void safely(() => zoomBy(Math.exp(-Math.max(-300, Math.min(300, delta)) * 0.002), [event.clientX, event.clientY])); } else handoffPlanWheel(event); }, { passive: false });
     ui.viewport.addEventListener("keydown", planKeydown);
+    ui.viewport.addEventListener("click", event => {
+      if ([ui.viewport, ui.panSpace, ui.pageWrap, ui.canvas, ui.overlay].includes(event.target) && !event.ctrlKey && !event.metaKey && !event.shiftKey && Date.now() >= (state.suppressSelectionClickUntil || 0)) void safely(clearDrawingSelection);
+    });
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); if (state.document) await renderPage(); }
   async function changeMode(mode) { if (!labels[mode] || state.busy || state.physicalPlacing) return; if (!await discardEditor()) return; state.mode = mode; resetPlanInteraction(); state.offset = 0; state.selected.clear(); cancelTrace(); renderData(); }
@@ -798,7 +803,7 @@
     if (visible && docId === state.document && page === state.page && state.ui) {
       const notice = `This page could not be rendered completely. Review and confirmation are blocked. ${error.message}`;
       state.pageError = { document_id: docId, page, notice };
-      state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false;
+      cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; state.viewport = null; state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false;
       state.ui.empty.replaceChildren(node("strong", "", "Drawing unavailable"), node("p", "", error.message));
       state.ui.progress.textContent = `Page ${page} blocked: ${error.message}`;
       message(notice, true);
@@ -883,7 +888,7 @@
     while (state.pdfs.size > 2) { const oldest = [...state.pdfs.keys()].find(candidate => candidate !== key && candidate !== `${sessionId}/${state.document}`); if (!oldest) break; const evicted = state.pdfs.get(oldest); state.pdfs.delete(oldest); void evicted.destroy(); }
     try { const pdf = await entry.promise; entry.document = pdf; return pdf; } catch (error) { if (state.pdfs.get(key) === entry) state.pdfs.delete(key); entry.destroy(); throw error; }
   }
-  async function releaseDocuments() { const tasks = [...state.pdfs.values()]; state.pdfs.clear(); state.pdfLoads.clear(); for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear(); state.thumbnailPages.clear(); state.pdfWarnings.clear(); state.consoleRestore?.(); await Promise.allSettled(tasks.map(task => task.destroy())); }
+  async function releaseDocuments() { cancelQueuedZoom(); state.displayPage = null; state.displayKey = null; const tasks = [...state.pdfs.values()]; state.pdfs.clear(); state.pdfLoads.clear(); for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear(); state.thumbnailPages.clear(); state.pdfWarnings.clear(); state.consoleRestore?.(); await Promise.allSettled(tasks.map(task => task.destroy())); }
   async function autoCalibratePage(docId, page, sessionId, renderId) {
     const key = JSON.stringify([sessionId, docId, page]);
     state.autoScalePages ||= new Set();
@@ -909,34 +914,58 @@
       if (sessionId === state.session?.session_id && renderId === state.renderId) message(`Automatic scale could not be set. Use Scale to calibrate this page. ${error.message}`, true);
     }
   }
-  async function renderPage(anchor = null) {
-    if (!state.ui || !state.document) { if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
+  function pageDisplayKey() { return JSON.stringify([state.session?.session_id, state.document, state.page]); }
+  function cancelQueuedZoom() {
+    if (state.zoomFrame != null) { if (window.cancelAnimationFrame) window.cancelAnimationFrame(state.zoomFrame); else clearTimeout(state.zoomFrame); }
+    clearTimeout(state.zoomTimer); state.zoomFrame = null; state.zoomTimer = null;
+  }
+  function displayViewport(viewport, anchor) {
+    state.viewport = viewport;
+    // Keep the last verified bitmap visible while PDF.js refines its resolution.
+    // The paper and overlay always use the same displayed PDF transform.
+    state.ui.canvas.style.width = `${viewport.width}px`; state.ui.canvas.style.height = `${viewport.height}px`;
+    state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`);
+    state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
+    if (anchor) { const point = G.transform(anchor.point, viewport.transform); positionPage(anchor.offset[0] - point[0], anchor.offset[1] - point[1]); }
+    else positionPage(Math.max(24, (state.ui.viewport.clientWidth - viewport.width) / 2), Math.max(24, (state.ui.viewport.clientHeight - viewport.height) / 2));
+    state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; renderOverlay();
+  }
+  async function renderPage(anchor = null, { refine = false } = {}) {
+    cancelQueuedZoom();
+    if (!state.ui || !state.document) { ++state.renderId; state.pending?.cancel?.(); state.pending = null; state.displayPage = null; state.displayKey = null; state.viewport = null; if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
     const contextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode]);
     if (state.planContextKey !== contextKey) { resetPlanInteraction(); state.planContextKey = contextKey; }
-    const renderId = ++state.renderId, docId = state.document, pageNumber = state.page, sessionId = state.session.session_id;
+    const renderId = ++state.renderId, docId = state.document, pageNumber = state.page, sessionId = state.session.session_id, displayKey = pageDisplayKey(), zoom = state.zoom;
+    const retainDisplay = refine && state.displayKey === displayKey && !!state.viewport;
     state.ui.page.value = String(pageNumber); state.ui.pageCount.textContent = `/ ${currentDocument().pages.length}`; state.ui.progress.textContent = `Rendering ${currentDocument().name}, page ${pageNumber}…`;
     state.zoomAnchor = anchor;
-    state.viewport = null; if (!anchor) state.ui.pageWrap.hidden = true; state.ui.empty.hidden = true; state.ui.overlay.replaceChildren();
+    if (!retainDisplay) { state.viewport = null; state.displayPage = null; state.displayKey = null; if (!anchor) state.ui.pageWrap.hidden = true; state.ui.overlay.replaceChildren(); }
+    state.ui.empty.hidden = true;
     state.pending?.cancel?.(); state.pending = null;
     for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear();
     try {
       const pdf = await pdfDocument(docId), page = await pdfPage(pdf, docId, pageNumber, sessionId);
       if (renderId !== state.renderId) return;
-      const viewport = page.getViewport({ scale: state.zoom });
-      const ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(16000000 / (viewport.width * viewport.height)));
+      const viewport = page.getViewport({ scale: zoom });
+      const ratio = Math.min(window.devicePixelRatio || 1, 2, 16384 / Math.max(viewport.width, viewport.height), Math.sqrt(16000000 / (viewport.width * viewport.height)));
       if (!(ratio > 0) || viewport.width > 40000 || viewport.height > 40000) throw new Error("This zoom is too large to display safely. Use Fit page.");
       const canvas = node("canvas"); canvas.width = Math.max(1, Math.floor(viewport.width * ratio)); canvas.height = Math.max(1, Math.floor(viewport.height * ratio)); canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`; canvas.setAttribute("aria-label", "Original PDF page");
       const render = page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0] }); state.pending = render;
       await boundedPdf(render.promise, `Rendering PDF page ${pageNumber}`, () => { render.cancel(); discardPdf(docId, sessionId, pdf); }); if (renderId !== state.renderId || sessionId !== state.session?.session_id) return;
-      state.ui.canvas.replaceWith(canvas); state.ui.canvas = canvas; state.viewport = viewport; state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`); state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
+      state.ui.canvas.replaceWith(canvas); state.ui.canvas = canvas; state.viewport = viewport; state.displayPage = page; state.displayKey = displayKey; state.ui.overlay.setAttribute("viewBox", `0 0 ${viewport.width} ${viewport.height}`); state.ui.overlay.setAttribute("width", String(viewport.width)); state.ui.overlay.setAttribute("height", String(viewport.height));
       state.ui.pageWrap.hidden = false;
-      if (anchor) {
+      if (retainDisplay) {
+        // Panning/scrolling while the new bitmap renders must not snap back to
+        // the position at which that render started. Its CSS size is unchanged.
+      } else if (anchor) {
         const position = G.transform(anchor.point, viewport.transform);
         positionPage(anchor.offset[0] - position[0], anchor.offset[1] - position[1]);
       } else positionPage(Math.max(24, (state.ui.viewport.clientWidth - viewport.width) / 2), Math.max(24, (state.ui.viewport.clientHeight - viewport.height) / 2));
       state.ui.zoom.textContent = `${Math.round(state.zoom * 100)}%`; state.ui.progress.textContent = `${currentDocument().name} · Page ${pageNumber} · Original source`; renderOverlay();
       const warnings = documentWarnings(docId);
-      await command("record_render", { document_id: docId, page: pageNumber, success: warnings.length === 0, warnings }, () => renderId === state.renderId);
+      const previous = snapshot()?.render_checks?.find(check => check.document_id === docId && check.page === pageNumber);
+      const alreadyVerified = retainDisplay && !warnings.length && previous?.success === true && !previous.warnings.length && previous.sha256 === documentById(docId)?.sha256;
+      if (!alreadyVerified) await command("record_render", { document_id: docId, page: pageNumber, success: warnings.length === 0, warnings }, () => renderId === state.renderId);
       if (warnings.length) message(`PDF content could not be verified. Review and confirmation are blocked. ${warnings.join(" ")}`, true);
       else if (state.pageError?.document_id === docId && state.pageError.page === pageNumber) { if (state.ui.message.textContent === state.pageError.notice) message(); state.pageError = null; }
       if (!warnings.length) await autoCalibratePage(docId, pageNumber, sessionId, renderId);
@@ -976,20 +1005,40 @@
       const pdf = await pdfDocument(docId), page = await pdfPage(pdf, docId, pageNumber, sessionId), viewport = page.getViewport({ scale: 1 });
       if (!current() || docId !== state.document || pageNumber !== state.page || sessionId !== state.session?.session_id) return;
       const gutter = Math.max(25, (state.ui.viewerTop?.offsetHeight || 0) + 20, (state.ui.pageControls?.offsetHeight || 0) + 20);
-      state.zoom = Math.max(0.05, Math.min((state.ui.viewport.clientWidth - 50) / viewport.width, Math.max(50, state.ui.viewport.clientHeight - gutter * 2) / viewport.height)); await renderPage();
+      state.zoom = Math.max(0.05, Math.min((state.ui.viewport.clientWidth - 50) / viewport.width, Math.max(50, state.ui.viewport.clientHeight - gutter * 2) / viewport.height));
+      if (state.displayKey === pageDisplayKey() && state.viewport) { cancelQueuedZoom(); displayViewport(page.getViewport({ scale: state.zoom }), null); await renderPage(null, { refine: true }); }
+      else await renderPage();
     } catch (error) { await recordPdfFailure(docId, pageNumber, error, sessionId, true, current); }
   }
   async function zoomBy(factor, cursor) {
     if (state.gesture) return;
-    if (!state.document) return;
+    if (!state.document || !Number.isFinite(factor) || factor <= 0) return;
     let anchor = state.zoomAnchor;
     if (state.viewport) {
-      const frame = state.ui.viewport.getBoundingClientRect(), drawing = state.ui.overlay.getBoundingClientRect();
+      const frame = state.ui.viewport.getBoundingClientRect();
       const screen = cursor || [frame.left + state.ui.viewport.clientWidth / 2, frame.top + state.ui.viewport.clientHeight / 2];
-      anchor = { point: G.inverse([screen[0] - drawing.left, screen[1] - drawing.top], state.viewport.transform), offset: [screen[0] - frame.left - (state.ui.viewport.clientLeft || 0), screen[1] - frame.top - (state.ui.viewport.clientTop || 0)] };
+      anchor = { point: drawingPoint({ clientX: screen[0], clientY: screen[1] }), offset: [screen[0] - frame.left - (state.ui.viewport.clientLeft || 0), screen[1] - frame.top - (state.ui.viewport.clientTop || 0)] };
     }
     if (!anchor) return;
-    state.zoom = Math.max(0.05, Math.min(8, state.zoom * factor)); await renderPage(anchor);
+    const zoom = Math.max(0.05, Math.min(8, state.zoom * factor));
+    if (zoom === state.zoom) return;
+    state.panCleanup?.();
+    if (!state.displayPage || state.displayKey !== pageDisplayKey()) { state.zoom = zoom; await renderPage(anchor); return; }
+    const viewport = state.displayPage.getViewport({ scale: zoom });
+    if (![viewport.width, viewport.height].every(value => Number.isFinite(value) && value > 0 && value <= 40000)) return;
+    state.zoom = zoom; state.zoomAnchor = anchor;
+    // Invalidate an older refinement immediately, before the next animation
+    // frame. Rapid wheel/pinch events share one preview and one settled render.
+    ++state.renderId; state.pending?.cancel?.(); state.pending = null; clearTimeout(state.zoomTimer);
+    if (state.zoomFrame != null) return;
+    const key = state.displayKey;
+    const preview = () => {
+      state.zoomFrame = null;
+      if (key !== pageDisplayKey() || key !== state.displayKey || !state.displayPage) return;
+      displayViewport(state.displayPage.getViewport({ scale: state.zoom }), state.zoomAnchor); state.zoomAnchor = null;
+      state.zoomTimer = setTimeout(() => { state.zoomTimer = null; if (key === pageDisplayKey() && key === state.displayKey) void safely(() => renderPage(null, { refine: true })); }, 120);
+    };
+    state.zoomFrame = window.requestAnimationFrame ? window.requestAnimationFrame(preview) : setTimeout(preview, 0);
   }
   function setTool(tool, target = {}) {
     if (state.busy) return;
@@ -1131,18 +1180,28 @@
     panSpace.style.height = `${Math.max(y + state.viewport.height + frame.clientHeight, y - top + frame.clientHeight * 2)}px`;
     pageWrap.style.left = `${x}px`; pageWrap.style.top = `${y}px`;
     frame.scrollLeft = x - left; frame.scrollTop = y - top;
+    // Browsers can quantize scroll offsets. Absorb the actual scroll remainder
+    // in the paper position so sequential zoom frames retain the cursor anchor.
+    pageWrap.style.left = `${left + frame.scrollLeft}px`; pageWrap.style.top = `${top + frame.scrollTop}px`;
   }
   function beginPan(event) {
     if (state.tool !== "pan" || event.button !== 0 || !state.viewport) return;
     state.panCleanup?.();
     event.preventDefault(); const element = state.ui.viewport, frame = element.getBoundingClientRect(), page = state.ui.pageWrap.getBoundingClientRect();
-    const initial = [event.clientX, event.clientY, page.left - frame.left - element.clientLeft, page.top - frame.top - element.clientTop], renderId = state.renderId;
-    const move = next => { if (next.pointerId !== event.pointerId || renderId !== state.renderId || state.tool !== "pan") return; next.preventDefault(); positionPage(initial[2] + next.clientX - initial[0], initial[3] + next.clientY - initial[1]); };
+    const initial = [event.clientX, event.clientY, page.left - frame.left - element.clientLeft, page.top - frame.top - element.clientTop], displayKey = pageDisplayKey(), transform = JSON.stringify(state.viewport.transform);
+    const move = next => { if (next.pointerId !== event.pointerId || displayKey !== pageDisplayKey() || transform !== JSON.stringify(state.viewport?.transform) || state.tool !== "pan") return; next.preventDefault(); positionPage(initial[2] + next.clientX - initial[0], initial[3] + next.clientY - initial[1]); };
     const done = next => { if (next && next.pointerId !== event.pointerId) return; element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", done); element.removeEventListener("pointercancel", done); element.removeEventListener("lostpointercapture", done); state.panCleanup = null; if (element.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture(event.pointerId); };
     state.panCleanup = done; element.addEventListener("pointermove", move); element.addEventListener("pointerup", done); element.addEventListener("pointercancel", done); element.addEventListener("lostpointercapture", done); element.setPointerCapture(event.pointerId);
   }
   function drawableItems() {
     return visibleItems().filter(item => item.geometry && item.measurement && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
+  }
+  async function clearDrawingSelection() {
+    if (state.tool !== "select" || state.busy || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size)) return;
+    if (!await discardEditor()) return;
+    state.selected.clear(); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
+    if (state.mode === "physical") { state.physicalUI?.clearSelection(); state.physicalHovered = null; }
+    renderSelection();
   }
   function drawingPoint(event) {
     const rect = state.ui.overlay.getBoundingClientRect();
@@ -1208,7 +1267,7 @@
     try {
       const { item, ring, minimum } = pointTarget(reference);
       if (!reference.exclusionId && item.length_additions?.some(addition => addition.anchor?.point_index === reference.index)) return "Remove the Rise/Drop at this point before deleting the control point. Its additional length must not be lost.";
-      if (item.measurement.method === "cited") return "A cited source region retains its dimension markers. Use Re-trace geometry to replace its source region; its cited length is not inferred from control points.";
+      if (item.measurement.method === "cited") return "A cited source region retains its dimension markers; its cited length is not inferred from control points.";
       if (ring.points.length <= minimum) return `This ${minimum === 3 ? "closed boundary" : "length trace"} needs at least ${minimum} control points. The markup will not be deleted.`;
       return "";
     } catch (error) { return error.message; }
@@ -1331,9 +1390,42 @@
     if (!isCount(item) || item.count_id !== reference.countId || JSON.stringify(countBatchItems(item)) !== reference.batch) throw new Error("This Count changed. Cancel the new markers and choose Continue count again.");
     return item;
   }
+  function copyLengthMarkups() {
+    requireFinishedEdits();
+    const selected = [...state.selected].map(id => items().find(item => item.id === id)).filter(Boolean);
+    if (!selected.length || selected.length > 100 || selected.some(item => item.mode !== state.mode || !["steel", "duct"].includes(item.mode) || !item.geometry || item.geometry.kind != null || item.measurement?.method !== "calibrated")) throw new Error("Select up to 100 calibrated Steel or Duct Length markups to copy.");
+    if (selected.some(item => item.geometry.document_id !== state.document || item.geometry.page !== state.page || state.hidden.has(item.id))) throw new Error("Copy only Length markups on the current drawing page.");
+    state.lengthClipboard = { sessionId: state.session.session_id, mode: state.mode, sources: selected.map(item => ({ item_id: item.id, version: item.version })) };
+    message(`Copied ${selected.length} Length markup${selected.length === 1 ? "" : "s"}. Move the pointer onto the drawing and press Ctrl+V to place the first point there.`);
+  }
+  async function pasteLengthMarkups() {
+    requireFinishedEdits();
+    const copied = state.lengthClipboard, key = pageDisplayKey(), pointer = state.pastePointer;
+    if (!copied || copied.sessionId !== state.session?.session_id || copied.mode !== state.mode) throw new Error("Copy a Length markup in this project's current Steel or Duct tab first.");
+    if (!state.viewport || !pointer || pointer.key !== key) throw new Error("Move the pointer onto the drawing before pasting.");
+    const point = drawingPoint({ clientX: pointer.client[0], clientY: pointer.client[1] });
+    const calibrations = activePageCalibrations(), scoped = calibrations.filter(value => value.region && inViewport(point, value.region));
+    if (scoped.length > 1) throw new Error("Place the copy clearly inside one calibrated viewport.");
+    const pageScales = calibrations.filter(value => !value.region), selectedScale = pageScales.find(value => value.id === state.calibration);
+    const calibration = scoped[0] || selectedScale || (pageScales.length === 1 ? pageScales[0] : null);
+    if (!calibration) throw new Error("Choose the drawing's applicable calibration before pasting.");
+    const reply = await command("duplicate_items", { sources: copied.sources, document_id: state.document, page: state.page, point, calibration_id: calibration.id }, () => {
+      requireFinishedEdits();
+      if (copied !== state.lengthClipboard || key !== pageDisplayKey() || copied.mode !== state.mode) throw new Error("The drawing or copied selection changed before paste. Copy and paste again.");
+      return true;
+    });
+    if (!reply) return;
+    state.selected = new Set(reply.created_item_ids); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.settingsEditor = null; renderSelection();
+    message(`Pasted ${reply.created_item_ids.length} new unconfirmed Length markup${reply.created_item_ids.length === 1 ? "" : "s"}. The register now uses the destination drawing scale.`);
+  }
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
     if (event.key === "Escape") { event.preventDefault(); cancelTrace(); resetPlanInteraction(); renderOverlay(); return; }
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && state.tool === "select" && ["steel", "duct"].includes(state.mode)) {
+      const key = event.key.toLowerCase();
+      if (key === "c" && state.selected.size) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyLengthMarkups); return; }
+      if (key === "v" && state.lengthClipboard) { event.preventDefault(); if (!state.busy && !state.modal) void safely(pasteLengthMarkups); return; }
+    }
     const undoPoint = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "z";
     if (undoPoint) {
       // Native undo can restore an earlier page-number edit even while the
@@ -1391,7 +1483,7 @@
     const finish = next => {
       if (next.pointerId !== gesture.pointerId) return;
       const valid = current(); move(next); state.gesture = null; gesture.cleanup();
-      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (id && valid) { state.suppressSelectionClickUntil = Date.now() + 500; void safely(() => selectItem(id, gesture.additive, false)); } return; }
+      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (valid) { state.suppressSelectionClickUntil = Date.now() + 500; if (id) void safely(() => selectItem(id, gesture.additive, false)); else if (!gesture.additive) void safely(clearDrawingSelection); } return; }
       state.suppressSelectionClickUntil = Date.now() + 500; next.preventDefault();
       void safely(async () => {
         if (!valid || state.busy || state.formDirty || state.settingsDirty) throw new Error("The drawing or item state changed during the gesture. Repeat the selection or move.");
@@ -1436,11 +1528,13 @@
   }
   async function createDrawnItem(measurement, geometry, evidence = []) {
     if (isArea()) {
-      const details = await ask(`Add ${state.mode === "wall" ? "wall" : "slab"} surface`, [["mark", state.mode === "wall" ? "Wall ID" : "Slab / zone ID", "text", "", true], ["quantity", "Explicit physical quantity", [["1", "One physical treatment surface"]], "", true], [...fields[state.mode].find(field => field[0] === "surface_basis"), "", true], ["surface_citation", "True-surface source citation", "textarea", "", true]], surfaceHelp, "Add surface");
+      const mode = state.mode;
+      const details = await ask(`Add ${mode === "wall" ? "wall" : "slab"} surface`, [...editableFields(mode).map(([key, label, type]) => [key, label, type || "text", "", ["mark", "surface_basis", "surface_citation"].includes(key)]), ["quantity", "Explicit physical quantity", [["1", "One physical treatment surface"]], "", true]], surfaceHelp, "Add surface");
       if (!details) return cancelTrace();
       if (details.quantity !== "1") throw new Error("Identify one physical treatment surface. Separate surfaces need separate items.");
+      const { quantity, ...enteredFields } = details;
       const id = uuid();
-      await command("create_item", { item: { id, mode: state.mode, geometry, measurement, quantity: 1, fields: { mark: details.mark, surface_basis: details.surface_basis, surface_citation: details.surface_citation }, evidence } });
+      await command("create_item", { item: { id, mode, geometry, measurement, quantity: 1, fields: enteredFields, evidence } });
       state.selected = new Set([id]); cancelTrace(); renderSelection(); return;
     }
     const mode = state.mode, calculator = state.ui.target.value;
@@ -2084,8 +2178,7 @@
     panel.replaceChildren(node("h3", "", `ITEM DETAILS · ${item.fields.mark || item.id.slice(0, 8)}`), node("p", "takeoff-identity", item.id), node("p", "helper", `${reviewStatus(item).label.toUpperCase()} · Version ${item.version} · ${item.measurement?.method === "cited" ? "Source-stated" : "Calibrated"} ${area ? "surface area" : "length"}`));
     const sessionId = state.session?.session_id;
     const currentAction = action => async () => { await flushSettings(); requireFinishedEdits(); if (sessionId !== state.session?.session_id) throw new Error("The project changed. Choose the item again."); const current = items().find(value => value.id === item.id); if (!current) throw new Error("This item is no longer available."); return action(current); };
-    const geometryAction = (label, action) => { const control = button(label, currentAction(action)); if (!item.geometry) { control.disabled = true; control.title = "Attach source geometry before using this tool."; } return control; };
-    if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked. Open a rendered source page, select its calibration and use Attach source on current page."));
+    if (!item.geometry) panel.append(node("p", "takeoff-warning", "Source markup is missing. You can inspect and edit this draft, but review and confirmation remain blocked."));
     if (area) panel.append(node("p", "helper takeoff-surface-help", surfaceHelp), node("p", "helper", "Quantity: one physical treatment surface. Other faces or levels require separate evidenced items."));
     if (item.mode === "steel") panel.append(button("Find steel section", currentAction(findProfile), "text-button"));
     if (item.mode === "duct") {
@@ -2096,9 +2189,7 @@
     if (item.member_ids?.length) { const members = node("details"); members.append(node("summary", "helper", `${item.member_ids.length} persistent physical member identities`)); for (const id of item.member_ids) members.append(node("p", "takeoff-identity", id)); panel.append(members); }
     const formatArea = key => Number.isFinite(result[key]) ? `${units.format(result[key])} m²` : "Unresolved";
     panel.append(node("p", "takeoff-calibration-summary", `${area ? `Gross: ${formatArea("gross_area_m2")} · Excluded: ${formatArea("excluded_area_m2")} · Net: ${formatArea("net_area_m2")}` : lengthSummary(item, result)}${item.measurement?.method === "cited" ? ` · ${item.measurement?.citation}` : ` · ${snapshot().calibrations.find(value => value.id === item.measurement?.calibration_id)?.name || "Missing calibration"}`}`));
-    const actions = node("div", "actions"); actions.append(geometryAction("Re-trace geometry", retrace), button("Delete item", currentAction(current => deleteItems([current.id]))));
-    if (!item.geometry) actions.append(button("Attach source on current page", currentAction(replaceSource)));
-    if (area) actions.append(geometryAction("Change surface calibration", changeAreaCalibration), geometryAction("Edit surface vertices", editAreaBoundary), geometryAction("Add excluded opening", startExclusion));
+    const actions = node("div", "actions"); actions.append(button("Delete item", currentAction(current => deleteItems([current.id]))));
     panel.append(actions); for (const issue of result.issues || []) panel.append(node("p", "takeoff-warning", issueText(issue)));
     if (!area) renderLengthAdditions(panel, item, currentAction);
     if (area) {
@@ -2519,6 +2610,7 @@
   function applyProject(prepared) {
     const prior = state.session?.session_id;
     resetCountDraft();
+    state.lengthClipboard = null; state.pastePointer = null;
     resetPlanInteraction();
     cancelSelectionGesture(); state.autoScalePages?.clear(); if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsOpen = false; state.settingsDirty = false; state.settingsEditor = null;
     const physical = state.physicalUI; state.physicalUI = null; physical?.destroy(); state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear(); state.physicalScope = "defect_reports"; state.physicalDetailsOpen = false; state.physicalPlacing = false;

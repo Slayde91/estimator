@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Duct creation and settings acceptance at the annotated browser viewport size.
 // All data, native dialog targets and PDFs belong to this disposable fixture.
 const { chromium, expect } = require('@playwright/test');
@@ -78,7 +79,7 @@ async function retainedFixture(id, fields) {
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await page.waitForFunction(() => { try { return window.CeasefireTakeoffs.projectSnapshot().render_checks.some(check => check.page === 1 && check.success); } catch { return false; } });
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await page.locator('[data-mode="duct"]').click();
   await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100');

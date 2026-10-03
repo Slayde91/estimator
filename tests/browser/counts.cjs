@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual Steel counts on original PDF points and a disposable database.
 const { chromium, expect } = require('@playwright/test');
 const { spawn, spawnSync } = require('node:child_process');
@@ -96,7 +97,7 @@ async function saveAndLoad(info) {
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   // Opening a project starts on its first page; return to the counted source page.
   await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   return { saved, reopened: await snapshot() };
 }
 async function deleteMarker(item, memberId) {
@@ -193,7 +194,7 @@ function pythonJson(script, ...args) {
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
   await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   const original = await snapshot(), source = original.documents[0], calculatorBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   assert.equal(original.calibrations.length, 0); assert.equal(source.pages[2].rotation, 90); assert.equal(source.pages[2].user_unit, 2); assert.deepEqual(source.pages[2].view, [20, 30, 800, 570]);
   const countBox = await page.getByRole('button', { name: 'Count', exact: true }).boundingBox(), traceBox = await page.getByRole('button', { name: 'Trace length', exact: true }).boundingBox(); assert.ok(countBox.y > traceBox.y);
@@ -252,8 +253,8 @@ function pythonJson(script, ...args) {
   assert.equal(requests.length, beforeContinuationRequests);
   await page.getByRole('button', { name: 'Select', exact: true }).click();
   await continueCount(continueMember);
-  await command(() => page.getByRole('button', { name: '+', exact: true }).click(), 'record_render');
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
   await place([420, 180], 4.5, false, 1); await place([480, 180], 8.125, true, 2);
   reply = await finishCount([520, 180], 'continue_count'); state = reply.snapshot;
@@ -362,14 +363,14 @@ function pythonJson(script, ...args) {
   }
   const zoomMember = state.items.find(item => item.count_id === countId).member_ids[0];
   const markerBeforeZoom = await markerMetrics(zoomMember);
-  await command(() => page.getByRole('button', { name: '+', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
   await expect.poll(async () => Math.abs((await markerMetrics(zoomMember)).visible.width / markerBeforeZoom.visible.width - 1.25), { message: 'Wait for the zoomed marker to finish rendering' }).toBeLessThan(.03);
   const markerAfterZoom = await markerMetrics(zoomMember);
   evidence.markerZoom = { before: markerBeforeZoom, after: markerAfterZoom };
   fs.writeFileSync(path.join(output, 'zoom.json'), JSON.stringify(evidence.markerZoom, null, 2));
   assert.ok(Math.abs(markerAfterZoom.visible.width / markerBeforeZoom.visible.width - 1.25) < .03, `Visible symbols scale with the rendered PDF: ${JSON.stringify(evidence.markerZoom)}`);
   assert.deepEqual(stable(await snapshot()), originalStable, 'Zoom cannot change count positions, identities, quantities or entered lengths');
-  await command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
 
   // Delete one exact member, a single-member length group, then a whole final Count.
   const deletionBaseline = stable(state), twoMember = state.items.find(item => item.count_id === countId && item.quantity === 2);

@@ -90,7 +90,12 @@ Shared page scales and viewport outlines are available in Penetrations too; they
 do not infer physical service quantities or approve the physical draft.
 
 Zoom buttons retain the drawing point at the viewport centre. Ctrl/Cmd-wheel
-retains the point under the cursor. Double left-click finishes a length/surface
+retains the point under the cursor. Wheel and trackpad movement scales by its
+distance, with a visible preview each animation frame and a sharper PDF bitmap
+after the gesture settles. The page and markups remain together while rendering;
+older renders cannot replace a newer zoom or reset a pan. This shared viewer
+applies to every Takeoffs type, including portrait, landscape and rotated plans.
+Double left-click finishes a length/surface
 trace without duplicating its final vertex; right-click cancels an unfinished
 trace. Enter, Backspace and Escape remain available. The pointer, hand, length,
 viewport, PDF upload, fit-page, search, stop-search,
@@ -148,8 +153,8 @@ silently deletes the entire item. The server validates the new geometry and
 recalculates quantities, invalidates confirmation and marks linked rows stale.
 Calculator inputs stay unchanged. **Undo last edit** restores the prior geometry;
 review and confirm the restored item again before using its quantities.
-Cited dimensions retain their source-region markers; use Re-trace geometry to
-replace that evidence region. A single trace supports all 10,000 permitted
+Cited dimensions retain their source-region markers and source-stated lengths.
+A single trace supports all 10,000 permitted
 vertices. Larger combined selections disclose the 10,000-handle display limit;
 select fewer markups to inspect the remaining points.
 
@@ -188,6 +193,18 @@ are rectangular and have no Shape
 or Diameter input. Older circular records keep their original values and remain
 ineligible for rectangular calculator transfer; opening them never converts them.
 
+With the drawing focused, select calibrated Steel or Duct Length markups and use
+**Ctrl/Cmd+C**, move the pointer onto the drawing, then **Ctrl/Cmd+V**. The first
+copied line's first point lands at the pointer; other selected lines keep their
+relative positions. Copies keep their entered details, explicit quantities,
+appearance and supporting citations, but receive new identities and start
+unconfirmed without calculator links. The destination page/viewport calibration
+recalculates their lengths. A stale copied source, ambiguous scale, out-of-page
+placement or viewport crossing is rejected without creating partial copies.
+Count markers, cited dimensions and surfaces are not Length copies. Text fields
+retain ordinary copy/paste. Clicking empty drawing space clears selection in
+both the drawing and register without deleting any objects.
+
 ## Rise/Drop additions
 
 Select a traced Steel or Duct item, right-click a control point and choose
@@ -219,6 +236,10 @@ Identify the actual treated surface, its source reference, substrate, nominated
 treatment and FRL. A wall polygon must depict a true wall face, such as an
 elevation. A slab polygon explicitly identifies its top or soffit. A wall plan
 footprint does not establish a wall-face area; no height or second face is inferred.
+The Add surface dialog includes Level, FRL, Substrate, Treatment, Protection
+system and Protection product alongside the required surface identity, basis,
+source citation and explicit single-surface quantity. These details are retained
+in Item Details and the register after creation.
 
 Each item represents one distinct physical treatment surface. Use **Add exclusion**
 to trace an opening within the selected boundary and record its source/reason.
@@ -441,7 +462,7 @@ Search and the document selector sit in the viewer's top-centre overlay. Page
 navigation, Select, Pan and zoom controls sit in its bottom-centre overlay.
 The Source documents list below the viewer opens each retained original PDF.
 
-The item editor offers Apply, Discard, the **Re-trace geometry** icon and a
+Item Details saves validated field changes automatically and provides a
 **Delete item** trash icon. Deleting a linked item also clears its linked
 schedule rows. A manually changed linked row blocks the entire deletion.
 **Undo last edit** restores the items and cleared rows together, including after
@@ -460,6 +481,8 @@ can proceed. Each Count length group has **Length per member (m)** beside its
 read-only **Count quantity**. Equal lengths regroup without losing member identities;
 late edits stay pinned to the members originally shown in that field. There are
 no separate Apply/Discard settings controls; committed changes use **Undo last edit**.
+The Item Details action group contains only the trash button. Drawing tools and
+control-point editing remain available from the viewer.
 New markup stroke and fill colours default to red; explicit saved colours are
 retained. Markup
 colour, fill, opacity and line width are presentation settings; changing them is

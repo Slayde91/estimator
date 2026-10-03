@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real plan layout, control-point movement and surface-label acceptance on disposable evidence.
 const { chromium, expect } = require('@playwright/test');
 const { editSettings } = require('./settings_helpers.cjs');
@@ -32,7 +33,7 @@ async function dialog(title, values, submit) {
   for (const [label, value] of Object.entries(values)) { const field = modal.getByLabel(label, { exact: true }); if (await field.evaluate(el => el.tagName) === 'SELECT') await field.selectOption(String(value)); else await field.fill(String(value)); }
   await modal.getByRole('button', { name: submit, exact: true }).click();
 }
-const fit = () => command(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 'record_render');
+const fit = () => renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
 async function screen([x, y]) { const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded(); await overlay.evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180)); const box = await overlay.boundingBox(); return [box.x + (y - 30) / 540 * box.width, box.y + (x - 20) / 780 * box.height]; }
 async function points(vertices) { for (const vertex of vertices) await page.mouse.click(...await screen(vertex)); }
 const finish = () => page.locator('.takeoff-viewport').press('Enter');

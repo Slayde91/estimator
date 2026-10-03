@@ -20,6 +20,7 @@ from .takeoff_model import (active_calibrations, item_references, markup_appeara
                            validate_calibration_revisions, validate_measurement_scope, polyline_length, points)
 from .takeoff_transfer import calculator_options, profiles, transfer_preview, transfer_selection
 from .takeoff_linked_delete import prepare_delete as prepare_linked_delete, prepare_undo as prepare_linked_undo
+from .takeoff_copy import duplicate_length_proposals
 from .takeoff_physical import entity_references, graph_collections, validate_graph
 from .takeoff_physical_operations import current_graph, prepare_changes, scope_key, validate_source_links
 
@@ -716,7 +717,7 @@ class TakeoffService:
                         continue
                     self._invalidate(after, item)
 
-    def _create_item(self, snapshot, proposed, predecessors=None, *, allow_count=False):
+    def _create_item(self, snapshot, proposed, predecessors=None, *, allow_count=False, copied_from=None):
         object_fields(proposed, {'id', 'mode', 'geometry', 'measurement', 'quantity', 'fields', 'evidence', 'member_ids', 'length_additions', 'appearance', 'count_id'}, 'New takeoff item', {'mode'})
         if is_count_item(proposed) and not allow_count:
             raise ValidationError('Create Steel count markers with the controlled count operation.')
@@ -725,6 +726,8 @@ class TakeoffService:
                 'quantity': proposed.get('quantity'), 'fields': deepcopy(proposed.get('fields', {})),
                 'evidence': deepcopy(proposed.get('evidence', [])), 'review': None, 'confirmation': None,
                 'predecessor_ids': deepcopy(predecessors or [])}
+        if copied_from is not None:
+            item['copied_from'] = deepcopy(copied_from)
         item['member_ids'] = deepcopy(proposed.get('member_ids', []))
         if 'length_additions' in proposed:
             item['length_additions'] = deepcopy(proposed['length_additions'])
@@ -834,6 +837,7 @@ class TakeoffService:
             before = session['snapshot']; after = deepcopy(before); approvals = []
             op = request.get('op')
             specs = {'create_item': {'item'}, 'update_item': {'item_id', 'changes'},
+                     'duplicate_items': {'sources', 'document_id', 'page', 'point', 'calibration_id'},
                      'add_count_items': {'document_id', 'page', 'markers', 'fields', 'appearance'},
                      'continue_count': {'item_id', 'markers'},
                      'update_count_lengths': {'groups'},
@@ -858,6 +862,12 @@ class TakeoffService:
             regrouped_item_ids = None
             if op == 'create_item':
                 self._create_item(after, request['item'])
+            elif op == 'duplicate_items':
+                proposals, source_ids = duplicate_length_proposals(after, request)
+                self.documents.assert_documents([document for document in after['documents']
+                                                 if document['id'] in source_ids], owner=session_id)
+                created_item_ids = [self._create_item(after, proposed, copied_from=source)['id']
+                                    for proposed, source in proposals]
             elif op == 'add_count_items':
                 # One batch has common fields, appearance and source. Partition
                 # only by exact entered length, preserving first-seen order.

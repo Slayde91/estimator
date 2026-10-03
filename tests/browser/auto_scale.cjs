@@ -1,3 +1,4 @@
+const { renderDrawing } = require('./viewer_helpers.cjs');
 // Printed-scale acceptance uses only generated PDFs and a disposable server.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -63,7 +64,7 @@ async function saveAndReopen(info) {
   await expect(scale).toHaveAttribute('title', /1:100/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'automatic-footer-scale.png') });
-  await response(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), '/commands', 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   assert.equal(detections.length, 1); assert.equal((await snapshot()).calibrations.length, 1, 'Rerender never creates a duplicate calibration');
 
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
@@ -89,7 +90,7 @@ async function saveAndReopen(info) {
   assert.equal(manual.name, 'Manual correction'); assert.equal(manual.printed_scale_evidence, undefined); assert.equal(manual.scale_denominator, undefined);
   assert.deepEqual(reply.snapshot.calibrations[0], calibration, 'Original extracted scale and evidence stay immutable');
   assert.ok(Math.abs(reply.item_results.find(value => value.id === item.id).length_m - measured*2) < 1e-10);
-  await response(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), '/commands', 'record_render');
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   assert.equal(detections.length, 1); assert.deepEqual((await snapshot()).calibrations[1], manual, 'Rerender preserves the manual correction');
 
   for (const pageNumber of [2, 3]) {

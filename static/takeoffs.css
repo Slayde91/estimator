@@ -159,12 +159,41 @@
 .takeoff-pan-space>.takeoff-page{position:absolute;margin:0}
 
 /* Physical register actions remain compact without losing their accessible names. */
-.takeoff-physical-add-row{display:flex;align-items:center;margin:8px 0 0;min-height:32px}
+.takeoff-physical-add-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;min-height:38px}
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
 .takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
 .takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
-.takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
-.takeoff-physical-discard svg,.takeoff-physical-delete-selected svg{display:block;width:22px;height:22px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected,.takeoff-physical-register .takeoff-physical-icon-action{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
+.takeoff-physical-discard svg,.takeoff-physical-delete-selected svg,.takeoff-physical-icon-action svg{display:block;width:22px;height:22px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .takeoff-physical-register .takeoff-physical-disclosure:focus-visible,.takeoff-physical-add-row .takeoff-physical-add-defect:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-.takeoff-physical-register .takeoff-physical-discard{color:#c01b12;border-color:#f2c6c3;background:#fff3f2}
+/* The physical editor belongs to the drawing, beside the PDF and its count markers. */
+.takeoff-physical-tabs{gap:6px;margin:0 0 16px;padding-left:10px;border-left:3px solid var(--accent)}
+.takeoff-physical-tabs[hidden]{display:none}
+.takeoff-physical-tabs .takeoff-mode{font-size:11px;padding:8px 14px}
+.takeoff-drawing-layout.with-physical-details,.takeoff-workspace-split.beside>.takeoff-drawing-layout.with-physical-details{grid-template-columns:56px 300px minmax(0,1fr)}
+.takeoff-drawing-layout.with-physical-details>.takeoff-drawing-pane{grid-column:3}
+.takeoff-drawing-layout>.takeoff-physical-details{grid-column:2;grid-row:1;min-width:0;max-height:var(--takeoff-viewer-height,680px);overflow:auto;padding:12px;background:#2d2d2d;color:#fff;border:1px solid #777;border-radius:9px;box-sizing:border-box;overscroll-behavior:contain;scrollbar-gutter:stable}
+.takeoff-physical-details[hidden]{display:none}
+.takeoff-physical-details>button{display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:6px;margin:0 0 4px auto;background:transparent;border:0;color:#fff}
+.takeoff-physical-details button:focus-visible,.takeoff-physical-details input:focus-visible,.takeoff-physical-details select:focus-visible,.takeoff-physical-details textarea:focus-visible{outline:2px solid #71c9ff;outline-offset:2px}
+.takeoff-physical-details>.takeoff-physical-inspector{display:grid;grid-template-columns:minmax(0,1fr);max-height:none;margin:0;padding:0;border:0;background:transparent;color:inherit}
+.takeoff-physical-details .takeoff-physical-inspector>.field,.takeoff-physical-details .takeoff-physical-inspector>button{grid-column:1/-1;min-width:0}
+.takeoff-physical-details .takeoff-physical-inspector>.helper,.takeoff-physical-details .takeoff-physical-inspector .helper,.takeoff-physical-details .takeoff-physical-inspector .takeoff-identity{color:#ddd}
+.takeoff-physical-details .takeoff-physical-inspector>.takeoff-warning{color:#ffd6ad}
+.takeoff-physical-details .takeoff-physical-inspector>.text-button,.takeoff-physical-details .takeoff-physical-inspector .text-button{color:#fff}
+.takeoff-physical-details .takeoff-physical-inspector .takeoff-exclusion{background:#393939;color:#fff;border-color:#6d6569;overflow-wrap:anywhere}
+.takeoff-physical-details .takeoff-physical-inspector>h3{margin:8px 0;text-transform:none}
+.takeoff-physical-details .takeoff-physical-inspector .field span{color:inherit}
+.takeoff-physical-details .takeoff-physical-inspector input,.takeoff-physical-details .takeoff-physical-inspector select,.takeoff-physical-details .takeoff-physical-inspector textarea{min-width:0;width:100%;padding:7px;font-size:12px;background:#fff;color:#222}
+.takeoff-physical-details .takeoff-physical-inspector .button{padding:8px;font-size:11px}
+.takeoff-physical-summary{grid-column:1/-1;font-size:12px;overflow-wrap:anywhere}
+.takeoff-physical-summary summary{cursor:pointer}
+.takeoff-physical-summary p{white-space:pre-line}
+.takeoff-overlay .takeoff-physical-marker-hit{cursor:pointer;pointer-events:all}
+.takeoff-overlay .takeoff-physical-marker-hit:focus-visible{outline:2px solid #0068dc;outline-offset:4px}
+.takeoff-overlay .takeoff-physical-callout{cursor:pointer}
+@container(max-width:700px){
+  .takeoff-drawing-layout.with-physical-details>.takeoff-drawing-pane{grid-column:2/-1}
+  .takeoff-drawing-layout>.takeoff-physical-details{position:absolute;left:66px;top:0;z-index:8;width:min(300px,calc(100% - 66px));grid-column:auto;grid-row:auto;box-shadow:3px 3px 12px #0003}
+}

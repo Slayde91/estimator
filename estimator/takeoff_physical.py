@@ -4,6 +4,7 @@ This module owns no persistence, evidence bytes, calculator values, approval or
 Physical Model Lock. Evidence locators and uncertainty are recorded assertions.
 A preview digest prevents applying a different edit or a stale graph; it is not
 an authorization token. UUIDs are supplied by the caller and never recycled.
+Version 3 uses Barrier -> Service for independent service plans.
 Version 2 uses Defect -> Barrier -> Service and assigns immutable display IDs.
 Version 1 remains a lossless legacy Barrier -> Defect -> Opening -> Service graph.
 """
@@ -30,6 +31,8 @@ PARENTS = {'defect': ('barrier', 'barrier_id'),
            'opening': ('defect', 'defect_id'),
            'service': ('opening', 'opening_id')}
 _V2_COLLECTIONS = {'defect': 'defects', 'barrier': 'barriers', 'service': 'services'}
+_V3_COLLECTIONS = {'barrier': 'barriers', 'service': 'services'}
+_V3_PARENTS = {'service': ('barrier', 'barrier_id')}
 _V2_PARENTS = {'barrier': ('defect', 'defect_id'), 'service': ('barrier', 'barrier_id')}
 _DISPLAY_PREFIXES = {'defect': 'D', 'barrier': 'B', 'service': 'S'}
 FIELDS = {
@@ -54,15 +57,15 @@ _GRAPH_BASE_KEYS = frozenset(('version', 'project_id', 'id', 'revision', 'state'
 def graph_collections(graph):
     """Return typed collections without converting either stored hierarchy."""
     version = graph.get('version') if isinstance(graph, dict) else None
-    if type(version) is not int or version not in (1, 2):
-        raise ValidationError('Only version 1 and 2 draft physical graphs are supported.')
-    return dict(COLLECTIONS if version == 1 else _V2_COLLECTIONS)
+    if type(version) is not int or version not in (1, 2, 3):
+        raise ValidationError('Only version 1, 2 and 3 draft physical graphs are supported.')
+    return dict({1: COLLECTIONS, 2: _V2_COLLECTIONS, 3: _V3_COLLECTIONS}[version])
 
 
 def graph_parents(graph):
     """Return the explicit typed parent rules for this stored graph version."""
     graph_collections(graph)
-    return dict(PARENTS if graph['version'] == 1 else _V2_PARENTS)
+    return dict({1: PARENTS, 2: _V2_PARENTS, 3: _V3_PARENTS}[graph['version']])
 
 
 def _display_number(value, kind):
@@ -139,10 +142,33 @@ def _parent(kind, entity, parents):
     return entity[parents[kind][1]] if kind in parents else None
 
 
+def _field_names(kind, parents):
+    return FIELDS[kind] | ({'frl'} if kind == 'barrier' and parents == _V3_PARENTS else set())
+
+
+def entity_references(entity):
+    """All current retained source locators, including one optional count mark."""
+    return [*entity['evidence'], *([entity['marker']] if entity.get('marker') else [])]
+
+
+def _marker(value):
+    if value is None:
+        return
+    keys = {'document_id', 'document_sha256', 'page', 'point'}
+    _object(value, keys, keys, 'Barrier marker')
+    _id(value['document_id'], 'Marker document ID')
+    _hash(value['document_sha256'], 'Marker document hash')
+    _number(value['page'], 'Marker page', minimum=1, integer=True)
+    if not isinstance(value['point'], list) or len(value['point']) != 2:
+        raise ValidationError('Barrier marker requires one PDF coordinate pair.')
+    for coordinate in value['point']:
+        _number(coordinate, 'Marker coordinate')
+
+
 def _evidence(value, kind, parents):
     if not isinstance(value, list) or len(value) > MAX_EVIDENCE:
         raise ValidationError(f'Physical evidence is limited to {MAX_EVIDENCE} associations per entity.')
-    field_names = FIELDS[kind] | {'uncertainty'}
+    field_names = _field_names(kind, parents) | {'uncertainty'}
     if kind in parents:
         field_names |= {parents[kind][1]}
     if kind == 'service':
@@ -183,7 +209,9 @@ def _evidence(value, kind, parents):
 
 
 def _properties(entity, kind, parents):
-    fields = _object(entity['fields'], FIELDS[kind], (), 'Physical fields')
+    fields = _object(entity['fields'], _field_names(kind, parents), (), 'Physical fields')
+    if 'marker' in entity:
+        _marker(entity['marker'])
     for key, value in fields.items():
         if key in DIMENSIONS:
             _number(value, key, minimum=0)
@@ -225,12 +253,13 @@ def validate_graph(graph, *, copy_result=True):
             raise ValidationError('Physical entity collections must be bounded lists.')
         for entity in entries:
             keys = _ENTITY_KEYS | ({parents[kind][1]} if kind in parents else set())
-            if graph['version'] == 2:
+            if graph['version'] in (2, 3):
                 keys |= {'display_id'}
             if kind == 'service':
                 keys |= {'quantity'}
-            _object(entity, keys, keys, 'Physical entity')
-            if graph['version'] == 2:
+            optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else set()
+            _object(entity, keys | optional, keys, 'Physical entity')
+            if graph['version'] in (2, 3):
                 ordinal = _display_number(entity['display_id'], kind)
                 if ordinal in display_ids:
                     raise ValidationError('Physical display IDs must be unique, including tombstones.')
@@ -261,7 +290,7 @@ def validate_graph(graph, *, copy_result=True):
             text_count += len(entity['uncertainty']['note'])
             if evidence_count > MAX_TOTAL_EVIDENCE:
                 raise ValidationError('The physical graph exceeds its total evidence association limit.')
-            for evidence in entity['evidence']:
+            for evidence in entity_references(entity):
                 vertex_count += len(evidence.get('region', []))
                 text_count += len(evidence.get('note', ''))
                 if vertex_count > MAX_TOTAL_REGION_VERTICES:
@@ -353,7 +382,8 @@ def _command(graph, command):
             keys.add(parents[kind][1])
         if kind == 'service':
             keys.add('quantity')
-        source = _object(command['entity'], keys, keys, 'New physical entity')
+        optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else set()
+        source = _object(command['entity'], keys | optional, keys, 'New physical entity')
         identifier = _id(source['id'])
         if kind in parents:
             _id(source[parents[kind][1]], 'Physical parent ID')
@@ -362,7 +392,7 @@ def _command(graph, command):
         if identifier in before:
             raise ValidationError('A physical ID cannot be reused, including a deleted ID.')
         entity.update(revision=1, deleted=False, deleted_at_revision=None)
-        if graph['version'] == 2:
+        if graph['version'] in (2, 3):
             ordinal = max((_display_number(entry['display_id'], kind)
                            for entry in candidate[collections[kind]]), default=0) + 1
             entity['display_id'] = f'{_DISPLAY_PREFIXES[kind]}-{ordinal:04d}'
@@ -379,6 +409,8 @@ def _command(graph, command):
             raise ValidationError('Restore a deleted physical entity before editing it.')
         if op == 'update':
             allowed = {'fields', 'evidence', 'uncertainty'} | ({'quantity'} if kind == 'service' else set())
+            if kind == 'barrier' and graph['version'] in (2, 3):
+                allowed.add('marker')
             changes = _object(command['changes'], allowed, (), 'Physical property changes')
             if not changes:
                 raise ValidationError('A physical update requires explicit changes.')
@@ -451,7 +483,7 @@ def _preview(graph, command):
             'parent_after': _parent(kind, entity, parents),
             'deleted_before': old[1]['deleted'] if old else None,
             'deleted_after': entity['deleted']})
-        if graph['version'] == 2:
+        if graph['version'] in (2, 3):
             relationships[-1]['display_id'] = entity['display_id']
     preview = {'version': 1, 'graph_id': graph['id'], 'project_id': graph['project_id'],
         'base_revision': graph['revision'], 'base_digest': _digest(graph),

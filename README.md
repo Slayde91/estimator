@@ -65,9 +65,12 @@ bundled Montserrat font, so it does not depend on an internet font service.
 **TAKEOFFS** provides manual Steel, Duct, Walls, Slabs and Penetrations workspaces.
 Upload PDFs, calibrate or cite dimensions, confirm measured Steel/Duct items and
 preview their transfer into an existing calculator schedule. Walls and Slabs
-measure true-surface polygons and exclusions in square metres. Penetrations keeps
-an explicit Defect → Barrier → Service hierarchy and retained image
-evidence; its register and exports remain unapproved drafts. Source PDFs, image
+measure true-surface polygons and exclusions in square metres. Penetrations has
+**Defect Reports** (Defect → Barrier → Service) and **Service Plans**
+(Barrier → Service). Service Plans stores FRL on the barrier and requires no
+defect. The Count tool places barrier markers with descriptions derived from
+their barrier and services; selecting a marker opens Item Details beside the
+drawing. Both registers and exports remain unapproved drafts. Source PDFs, image
 originals and immutable history are retained beside the project JSON. See the [takeoff workflow, storage
 and validation contract](docs/TAKEOFFS.md). It uses the normal strict CSP and does
 not require browser annotation compatibility.

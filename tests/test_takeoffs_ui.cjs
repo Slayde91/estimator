@@ -20,6 +20,7 @@ function harness() {
   source=source.replace('setApi(fn){api=fn;}', 'pointGeometry,moveControlPoint,beginControlPointDrag,cancelSelectionGesture,markupTarget,deleteMarkup,surfacePreview,renderSurfaceLabel,renderPendingTrace,tracePointerMove,setSelectionRenderer(fn){renderSelection=fn;},setPointSelector(fn){selectControlPoint=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -825,6 +826,48 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const h=harness(),value=blank();value.physical={revision:1};h.audit.accept(response(value));
     h.audit.setFlushSettings(async()=>{});h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,async completePendingEdits(){throw new Error('Physical review cancelled');}};
     await assert.rejects(h.api.completeProjectSnapshot(),/Physical review cancelled/);assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.audit.state.session.snapshot.physical.revision,1);
+  });
+  await check('Service Plans scope projects only its own graph into the editor without replacing saved Defect Reports',()=>{
+    const h=harness(), value={...blank(),version:2,physical:{version:2,id:'defects',barriers:[{id:'report-barrier'}]},service_plans:{version:3,id:'plans',barriers:[{id:'plan-barrier',fields:{frl:'-/120/120'}}]},image_extractions:[]};
+    h.audit.accept(response(value));assert.equal(h.audit.physicalGraph().id,'defects');
+    h.audit.state.physicalScope='service_plans';const projected=h.audit.physicalSnapshot();assert.equal(projected.physical.id,'plans');assert.equal(h.audit.state.session.snapshot.physical.id,'defects');
+    assert.deepEqual(copy(h.api.projectSnapshot()),value);
+  });
+  await check('Service Plans without drawings or defect records are still included by project Save',()=>{
+    const h=harness(), value={...blank(),version:2,physical:null,service_plans:{version:3,barriers:[{id:'plan-barrier'}],services:[]},image_extractions:[]};h.audit.accept(response(value));
+    assert.deepEqual(copy(h.api.projectSnapshot()),value);h.audit.state.physicalPlacing=true;assert.throws(()=>h.api.projectSnapshot(),/Finish the current/);assert.equal(h.api.hasUnsavedChanges(),true);
+  });
+  await check('Barrier marker references reject wrong scope, stale source, changed markers and deleted records',()=>{
+    const h=harness(), marker={document_id:'doc',document_sha256:'a'.repeat(64),page:3,point:[31.25,47.75]}, entity={id:'barrier',revision:2,deleted:false,marker};
+    h.audit.accept(response({...blank(),version:2,physical:null,service_plans:{version:3,barriers:[entity],services:[]},image_extractions:[]}));Object.assign(h.audit.state,{mode:'physical',physicalScope:'service_plans',document:'doc',page:3});
+    const ref=h.audit.physicalMarkerReference(entity);assert.equal(h.audit.physicalMarkerTarget(ref).id,'barrier');
+    h.audit.state.physicalScope='defect_reports';assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);h.audit.state.physicalScope='service_plans';
+    h.audit.state.page=2;assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);h.audit.state.page=3;
+    const retained=h.audit.physicalGraph().barriers[0];retained.marker.point[0]++;assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);retained.marker.point[0]--;
+    retained.deleted=true;assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);retained.deleted=false;
+    retained.revision++;assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);
+  });
+  await check('Physical workspace switching preserves unfinished forms instead of losing pending edits',async()=>{
+    const h=harness();let destroyed=false;h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,destroy(){destroyed=true;}};
+    await assert.rejects(h.audit.changePhysicalScope('service_plans'),/unfinished physical/);assert.equal(h.audit.state.physicalScope,'defect_reports');assert.equal(destroyed,false);
+  });
+  await check('Callouts wrap long tokens and disclose overflow without altering the generated summary',()=>{
+    const h=harness(), summary=['Barrier B-0001 '+ 'Z'.repeat(110),...Array.from({length:20},(_,i)=>`S-${i} electrical cable 1 x 100 mm`)].join('\n');
+    const lines=copy(h.audit.physicalCalloutLines(summary));assert.equal(lines.length,9);assert.match(lines[8],/more lines in Item Details/);assert.ok(lines.slice(0,8).every(line=>line.length<=42));assert.match(summary,/S-19/);
+  });
+  await check('Physical source focus waits for successful navigation and rejects replacement scope or source',async()=>{
+    const h=harness(), doc={id:'doc',sha256:'a'.repeat(64),pages:[{}]}, ref={document_id:'doc',document_sha256:doc.sha256,page:1,point:[12.5,23.75]};
+    h.audit.accept(response({...blank(),documents:[doc]}));Object.assign(h.audit.state,{document:'doc',page:1,viewport:{transform:[1,0,0,1,0,0]},ui:{viewport:{clientWidth:400,clientHeight:300}}});
+    let focused=0;h.audit.setPositionPage(()=>focused++);h.audit.setOverlayRenderer(()=>{});
+    h.audit.state.busy=true;await assert.rejects(h.audit.physicalSource(ref),/finish loading/);h.audit.state.busy=false;
+    h.audit.setNavigateDocument(async()=>false);await h.audit.physicalSource(ref);assert.equal(focused,0);
+    h.audit.setNavigateDocument(async()=>{h.audit.state.physicalScope='service_plans';return true;});await h.audit.physicalSource(ref);assert.equal(focused,0);
+    h.audit.setNavigateDocument(async()=>{h.audit.state.session.snapshot.documents[0].sha256='b'.repeat(64);return true;});await h.audit.physicalSource(ref);assert.equal(focused,0);
+    h.audit.state.session.snapshot.documents[0].sha256=doc.sha256;h.audit.setNavigateDocument(async()=>true);await h.audit.physicalSource(ref);assert.equal(focused,1);
+  });
+  await check('Scope mounting defers marker rendering until the new controller exists',()=>{
+    const h=harness();h.audit.accept(response({...blank(),physical:{barriers:[{id:'barrier',marker:{document_id:'doc',page:1,point:[2,3]}}]}}));Object.assign(h.audit.state,{document:'doc',page:1,physicalUI:null});
+    assert.doesNotThrow(()=>h.audit.renderPhysicalOverlay(null));
   });
   console.log(`${passed} takeoff UI and geometry checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -7,6 +7,7 @@
   const legacyKinds = ["barrier", "defect", "opening", "service"];
   const collections = { barrier: "barriers", defect: "defects", opening: "openings", service: "services" };
   const parents = { barrier: ["defect", "defect_id"], service: ["barrier", "barrier_id"] };
+  const servicePlanParents = { service: ["barrier", "barrier_id"] };
   const legacyParents = { defect: ["barrier", "barrier_id"], opening: ["defect", "defect_id"], service: ["opening", "opening_id"] };
   const titles = { barrier: "Barrier", defect: "Defect", opening: "Opening", service: "Service" };
   const dimensions = new Set(["thickness_mm", "width_mm", "height_mm", "diameter_mm", "depth_mm", "insulation_mm"]);
@@ -20,6 +21,7 @@
     defect: [["label", "Defect Ref."], ["location", "Location"], ["frl", "FRL"], ["notes", "Notes", "textarea"]],
     service: [["service", "Category"], ["service_type", "Service type"], ["size", "Service Size (mm)"], ["width_height_mm", "Width x Height (mm)"], ["diameter_mm", "Overall Diameter (mm)", "number"], ["insulation_mm", "Insulation (mm)", "number"], ["notes", "Notes", "textarea"]],
   };
+  const fieldsFor = (kind, scope = "defect_reports") => kind === "barrier" && scope === "service_plans" ? [...definitions.barrier.slice(0, 1), ["frl", "FRL"], ...definitions.barrier.slice(1)] : definitions[kind];
   const sharedOptionKeys = new Set(["substrate", "orientation", "service", "service_type", "frl"]);
   const retainedDefinitions = { barrier: [["label", "Barrier label"], ["thickness_mm", "Thickness (mm)"]], service: [["label", "Service label"]] };
   // Original four-level records remain readable, without editable opening fields.
@@ -27,7 +29,7 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const displayId = entry => entry?.entity.display_id || entry?.entity.id || "";
   const entityName = entry => entry.entity.fields.label || displayId(entry);
-  const parentId = entry => { const relation = (entry.legacy ? legacyParents : parents)[entry.kind]; return relation ? entry.entity[relation[1]] : null; };
+  const parentId = entry => { const relation = (entry.legacy ? legacyParents : entry.servicePlans ? servicePlanParents : parents)[entry.kind]; return relation ? entry.entity[relation[1]] : null; };
   const draftWarning = "UNAPPROVED DRAFT. These are recorded physical assertions, not validated or confirmed quantities. Images, repeated photographs and opposite-face views never create or multiply physical objects. Link each service to its actual barrier within a defect. A barrier without services has zero service quantity.";
   function formatDimensions(fields = {}) { return fields.width_mm == null && fields.height_mm == null ? "" : `${fields.width_mm ?? ""} x ${fields.height_mm ?? ""}`; }
   function parseDimensions(value) {
@@ -39,11 +41,13 @@
   }
   const fieldDisplay = (fields, key) => key === "width_height_mm" ? formatDimensions(fields) : fields?.[key];
   const evidenceFields = key => key === "width_height_mm" ? ["width_mm", "height_mm"] : [key];
+  const markerDescription = marker => marker ? `${marker.document_id} · p${marker.page} · (${marker.point?.join(", ")})` : "none";
 
   function indexGraph(graph) {
     const index = new Map();
     const legacy = graph?.version === 1;
-    for (const kind of legacy ? legacyKinds : kinds) for (const entity of graph?.[collections[kind]] || []) index.set(entity.id, { kind, entity, legacy });
+    const servicePlans = graph?.version === 3;
+    for (const kind of legacy ? legacyKinds : servicePlans ? ["barrier", "service"] : kinds) for (const entity of graph?.[collections[kind]] || []) index.set(entity.id, { kind, entity, legacy, servicePlans });
     return index;
   }
   function ancestors(entry, index) {
@@ -85,13 +89,13 @@
     }
     return output;
   }
-  function fieldValue(kind, key, value) {
+  function fieldValue(kind, key, value, scope = "defect_reports") {
     if (key === "quantity") {
       const number = value === "" || value == null ? NaN : Number(value);
       if (!Number.isSafeInteger(number) || number < 1 || number > 1e12) throw new Error("Every service needs an explicit positive whole quantity.");
       return number;
     }
-    if (!definitions[kind]?.some(definition => definition[0] === key)) throw new Error("Choose a field belonging to this entity type.");
+    if (!fieldsFor(kind, scope)?.some(definition => definition[0] === key)) throw new Error("Choose a field belonging to this entity type.");
     if (key === "width_height_mm") return parseDimensions(value);
     if (value === "" || value == null) return undefined;
     if (dimensions.has(key)) {
@@ -103,22 +107,22 @@
     return text || undefined;
   }
   function changedFields(entry, key, value) {
-    const parsed = fieldValue(entry.kind, key, value);
+    const parsed = fieldValue(entry.kind, key, value, entry.servicePlans ? "service_plans" : "defect_reports");
     if (key === "quantity") return { quantity: parsed };
     const fields = { ...entry.entity.fields };
     if (key === "width_height_mm") { delete fields.width_mm; delete fields.height_mm; Object.assign(fields, parsed); }
     else if (parsed === undefined) delete fields[key]; else fields[key] = parsed;
     return { fields };
   }
-  function fieldsFromValues(kind, values, retainedFields = {}) {
+  function fieldsFromValues(kind, values, retainedFields = {}, scope = "defect_reports") {
     const result = copy(retainedFields);
-    for (const [key] of definitions[kind]) {
+    for (const [key] of fieldsFor(kind, scope)) {
       if (key === "width_height_mm") {
         if (!Object.hasOwn(values, key) || String(values[key] ?? "") === formatDimensions(retainedFields)) continue;
         const dimensions = parseDimensions(values[key]); delete result.width_mm; delete result.height_mm; Object.assign(result, dimensions); continue;
       }
       if (Object.hasOwn(retainedFields, key) && String(values[key] ?? "") === String(retainedFields[key] ?? "")) continue;
-      const value = fieldValue(kind, key, values[key]); if (value === undefined) delete result[key]; else result[key] = value;
+      const value = fieldValue(kind, key, values[key], scope); if (value === undefined) delete result[key]; else result[key] = value;
     }
     return result;
   }
@@ -160,16 +164,17 @@
         for (const [key, next] of Object.entries(command.changes)) {
           if (key === "fields") for (const field of new Set([...Object.keys(entry.entity.fields), ...Object.keys(next)])) {
             if (sameValue(entry.entity.fields[field], next[field])) continue;
-            const label = definitions[entry.kind].find(definition => definition[0] === field)?.[1] || field;
+            const label = fieldsFor(entry.kind, entry.servicePlans ? "service_plans" : "defect_reports").find(definition => definition[0] === field)?.[1] || field;
             lines.push(`${label}: ${entry.entity.fields[field] ?? "unknown"} → ${next[field] ?? "unknown"}`);
           }
           else if (key === "evidence") lines.push(`Source associations: ${entry.entity.evidence.length} → ${next.length}; exact retained locators are bound to this preview.`);
+          else if (key === "marker") lines.push(`Count marker: ${markerDescription(entry.entity.marker)} → ${markerDescription(next)}`);
           else if (key === "uncertainty") lines.push(`Uncertainty: ${entry.entity.uncertainty.state} → ${next.state}\nExplanation: ${next.note || "none recorded"}`);
           else lines.push(`${key}: ${entry.entity[key] ?? "unknown"} → ${next}`);
         }
         return `${title}\n${lines.join("\n")}`;
       }
-      if (command.op === "create") return `${title}\n${Object.entries(entity.fields).map(([field, value]) => `${definitions[command.kind].find(definition => definition[0] === field)?.[1] || field}: ${value}`).join("\n")}${command.kind === "service" ? `\nExplicit service quantity: ${entity.quantity}` : ""}\nUncertainty: ${entity.uncertainty.state}`;
+      if (command.op === "create") return `${title}\n${Object.entries(entity.fields).map(([field, value]) => `${definitions[command.kind].find(definition => definition[0] === field)?.[1] || (field === "frl" ? "FRL" : field)}: ${value}`).join("\n")}${command.kind === "service" ? `\nExplicit service quantity: ${entity.quantity}` : ""}${entity.marker ? `\nCount marker: ${markerDescription(entity.marker)}` : ""}\nUncertainty: ${entity.uncertainty.state}`;
       return title;
     }).join("\n\n");
   }
@@ -192,20 +197,25 @@
   function mount(container, bridge) {
     if (!container || !bridge) throw new Error("A physical register container and application bridge are required.");
     const document = container.ownerDocument || root.document;
-    const state = { snapshot: null, index: new Map(), selected: new Set(), collapsed: new Set(), filter: "", offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), pendingApply: new WeakMap(), inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
+    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), collapsed: new Set(), filter: "", offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), pendingApply: new WeakMap(), inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
     const ui = {};
     const changed = () => bridge.changed?.();
     const graph = () => state.snapshot?.physical || null;
+    const scope = () => bridge.scope?.() || (graph()?.version === 3 ? "service_plans" : "defect_reports");
+    const servicePlans = () => scope() === "service_plans";
+    const parentRelations = () => servicePlans() ? servicePlanParents : parents;
+    const warning = () => servicePlans() ? draftWarning.replace(" within a defect", "") : draftWarning;
     const legacyReadOnly = () => graph()?.version === 1;
     function ensureEditable() { if (legacyReadOnly()) throw new Error("This legacy hierarchy is read-only until its relationships are assigned. Its original records and evidence remain available for inspection and export."); }
-    const graphKey = () => `${state.snapshot?.project_id || ""}/${graph()?.id || "new"}/${graph()?.revision ?? -1}`;
+    const graphKey = () => `${scope()}/${state.snapshot?.project_id || ""}/${graph()?.id || "new"}/${graph()?.revision ?? -1}`;
     const node = (tag, className = "", text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = String(text); return element; };
     const choice = (value, label = value) => { const element = node("option", "", label); element.value = value; return element; };
     function report(error) { bridge.notify(error.message || String(error), true); }
     async function safe(action) { try { await action(); } catch (error) { if (!state.destroyed) report(error); } }
     function button(label, action, className = "button secondary") { const control = node("button", className, label); control.type = "button"; control.addEventListener("click", () => void safe(action)); return control; }
     function mutationButton(label, action, className) { const control = button(label, () => { ensureEditable(); return action(); }, className); control.dataset.physicalMutation = "true"; control.disabled = state.busy || legacyReadOnly(); return control; }
-    function setBusy(value) { state.busy = value; ui.root.setAttribute("aria-busy", String(value)); for (const control of ui.root.querySelectorAll("button,input,select,textarea")) control.disabled = value || control.dataset.locked === "true" || legacyReadOnly() && control.dataset.physicalMutation === "true"; changed(); }
+    const controlsInWorkspace = selector => [...ui.root.querySelectorAll(selector), ...(bridge.inspectorContainer ? ui.inspector.querySelectorAll(selector) : [])];
+    function setBusy(value) { state.busy = value; ui.root.setAttribute("aria-busy", String(value)); ui.inspector?.setAttribute("aria-busy", String(value)); for (const control of controlsInWorkspace("button,input,select,textarea")) control.disabled = value || control.dataset.locked === "true" || legacyReadOnly() && control.dataset.physicalMutation === "true"; changed(); }
     function ensureAvailable(allowPending = false) { if (state.destroyed) throw new Error("The physical workspace was closed."); if (state.busy) throw new Error("Finish the current physical edit first."); if (!allowPending && state.pending.size) throw new Error("Apply or discard unfinished physical field edits first."); }
     function requireCurrent(entry) { const current = state.index.get(entry.entity.id); if (!current || current.kind !== entry.kind || current.entity.revision !== entry.entity.revision || current.entity.deleted !== entry.entity.deleted) throw new Error("This physical record changed. Discard the unfinished form and inspect the current draft."); }
     function selectEntries() { return [...state.selected].map(id => state.index.get(id)).filter(Boolean); }
@@ -216,7 +226,7 @@
     function displayReply(reply) { const value = reply?.snapshot || (reply?.documents && "physical" in reply ? reply : null); if (value) render(value); }
     function fieldType(kind, key) {
       if (sharedOptionKeys.has(key)) return (state.fieldOptions?.[key] || []).map(value => [value, value]);
-      const type = key === "quantity" ? "number" : definitions[kind].find(definition => definition[0] === key)?.[2] || "text";
+      const type = key === "quantity" ? "number" : fieldsFor(kind, scope()).find(definition => definition[0] === key)?.[2] || "text";
       return Array.isArray(type) ? copy(type) : type;
     }
     function populateSelect(control, options, initial) {
@@ -240,7 +250,7 @@
           if ([...sharedOptionKeys].some(key => !Array.isArray(options?.[key]) || !options[key].length || options[key].some(value => typeof value !== "string" || !value.trim()))) throw new Error("Firestopping field choices are unavailable. Retry the physical edit to load them again.");
           state.fieldOptions = copy(options);
           // Refresh only dropdowns: a slow choices request must never replace a pending text edit.
-          for (const control of ui.root.querySelectorAll("[data-physical-options]")) {
+          for (const control of controlsInWorkspace("[data-physical-options]")) {
             populateSelect(control, state.fieldOptions[control.dataset.physicalOptions].map(value => [value, value]), control.value);
             control.dataset.locked = "false"; control.disabled = state.busy;
           }
@@ -284,7 +294,7 @@
     }
     function fieldDefinitions(entry, createKind) {
       const kind = entry?.kind || createKind, entity = entry?.entity;
-      return [...definitions[kind].flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", true]] : [])]), ["uncertainty_state", "Uncertainty / review state", uncertainty, entity?.uncertainty.state || "not_assessed", true], ["uncertainty_note", "Uncertainty explanation", "textarea", entity?.uncertainty.note || ""]];
+      return [...fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", true]] : [])]), ["uncertainty_state", "Uncertainty / review state", uncertainty, entity?.uncertainty.state || "not_assessed", true], ["uncertainty_note", "Uncertainty explanation", "textarea", entity?.uncertainty.note || ""]];
     }
     async function chooseEntity(kind, title, candidates) {
       const filter = await ask(title, [["search", `Find ${titles[kind].toLowerCase()} by label, location or ID`, "text", ""]], "Choose an existing physical parent by its persistent identity. A similar label does not establish that two objects are the same.", "Find parents");
@@ -299,26 +309,48 @@
         if (!answer) return null; if (answer.parent_id === "previous") offset -= 100; else if (answer.parent_id === "next") offset += 100; else return answer.parent_id;
       }
     }
-    async function create(kind, chosenParent) {
+    async function create(kind, chosenParent, marker) {
+      if (!kinds.includes(kind) || servicePlans() && kind === "defect") throw new Error("Choose a record type belonging to this workspace.");
+      if (marker !== undefined && kind !== "barrier") throw new Error("A count marker belongs to a barrier.");
       ensureEditable(); ensureAvailable(); await ensureFieldOptions(kind); ensureAvailable(); let parent = chosenParent;
-      if (parents[kind]) {
-        const parentKind = parents[kind][0], selected = selectEntries();
+      if (parentRelations()[kind]) {
+        const parentKind = parentRelations()[kind][0], selected = selectEntries();
         if (!parent && selected.length === 1 && selected[0].kind === parentKind && !selected[0].entity.deleted) parent = selected[0].entity.id;
         if (!parent) parent = await chooseEntity(parentKind, `Choose parent ${parentKind}`, [...state.index.values()].filter(entry => entry.kind === parentKind && !entry.entity.deleted));
         if (!parent) return;
         const entry = state.index.get(parent); if (!entry || entry.kind !== parentKind || entry.entity.deleted) throw new Error("The selected physical parent is unavailable.");
-      }
-      const answer = await ask(`Create draft ${kind}`, fieldDefinitions(null, kind), `${draftWarning}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank. Link retained source evidence after creating the draft.`, "Preview new draft");
+      } else parent = null;
+      const answer = await ask(`Create draft ${kind}`, fieldDefinitions(null, kind), `${warning()}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank. Link retained source evidence after creating the draft.`, "Preview new draft");
       if (!answer) return;
-      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer), evidence: [], uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parents[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}) };
-      if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`)) selectEntity(entity.id);
+      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence: [], uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}) };
+      if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`)) { await selectEntity(entity.id, false, marker === undefined); return entity.id; }
     }
     function selectEntity(id, multiple = false, focus = !multiple) {
       ensureAvailable(); const entry = state.index.get(id); if (!entry) return;
       if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
       for (const parent of ancestors(entry, state.index)) state.collapsed.delete(parent.entity.id);
       const rows = hierarchyRows(graph(), state); state.offset = Math.floor(Math.max(0, rows.findIndex(row => row.entity.id === id)) / 100) * 100; renderData();
-      return bridge.selection?.([...state.selected], entry.entity.evidence[0] || null, focus);
+      bridge.selectionChanged?.({ selected: [...state.selected], barrierId: selectedBarrier()?.id || null, entry: copy(entry), focus });
+      return bridge.selection?.([...state.selected], entry.entity.evidence[0] || selectedBarrier()?.marker || null, focus);
+    }
+    function selectedBarrier() {
+      const selected = selectEntries(); if (selected.length !== 1 || selected[0].entity.deleted) return null;
+      const entry = selected[0], barrier = entry.kind === "barrier" ? entry : ancestors(entry, state.index).find(parent => parent.kind === "barrier");
+      return barrier && !barrier.entity.deleted ? copy(barrier.entity) : null;
+    }
+    function summary(id) {
+      const entry = state.index.get(id); if (!entry || entry.entity.deleted) return "";
+      const barrier = entry.kind === "barrier" ? entry : ancestors(entry, state.index).find(parent => parent.kind === "barrier"); if (!barrier || barrier.entity.deleted) return "";
+      const fields = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? fields.frl : defect?.entity.fields.frl;
+      const line = (values) => values.filter(value => value !== undefined && value !== null && value !== "").map(value => String(value).replace(/[\r\n\t]+/g, " ")).join(" · ");
+      const services = state.servicesByBarrier.get(barrier.entity.id) || [];
+      return [line([displayId(barrier), defect ? displayId(defect) : "", fields.label, fields.location, fields.barrier_type, fields.substrate, fields.orientation, fields.thickness_mm != null ? `${fields.thickness_mm} mm thick` : "", frl ? `FRL ${frl}` : ""]), ...services.map(child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type, value.size, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); }), ...(!services.length ? ["0 services"] : [])].join("\n");
+    }
+    async function setMarker(id, marker) {
+      ensureEditable(); ensureAvailable(); const entry = state.index.get(id);
+      if (!entry || entry.kind !== "barrier" || entry.entity.deleted) throw new Error("Select an active barrier for this count marker.");
+      requireCurrent(entry); if (sameValue(entry.entity.marker ?? null, marker)) return false;
+      return perform([{ op: "update", entity_id: id, changes: { marker: copy(marker) } }], marker ? "Review barrier count marker" : "Remove barrier count marker?");
     }
     async function editField(entry, key, control, preservePending = false) {
       ensureAvailable(true); requireCurrent(entry);
@@ -348,8 +380,8 @@
       await perform(batch.commands, `Change ${batch.commands.length} of ${selected.length} selected records? ${batch.unchanged.length} already match and stay unchanged.`);
     }
     async function reparent(entry) {
-      ensureAvailable(); requireCurrent(entry); const [kind] = parents[entry.kind] || [];
-      if (!kind) throw new Error("Defects have no physical parent.");
+      ensureAvailable(); requireCurrent(entry); const [kind] = parentRelations()[entry.kind] || [];
+      if (!kind) throw new Error("This record has no physical parent.");
       const parent = await chooseEntity(kind, `Change ${entry.kind} parent`, [...state.index.values()].filter(candidate => candidate.kind === kind && !candidate.entity.deleted && candidate.entity.id !== parentId(entry)));
       if (parent) { requireCurrent(entry); await perform([{ op: "reparent", entity_id: entry.entity.id, parent_id: parent }], "Review parent and descendant relationships"); }
     }
@@ -377,7 +409,7 @@
         await perform([{ op: "restore", entity_id: entry.entity.id, mode: answer.mode, ...extra }], "Review retained identities to restore");
       }
     }
-    function evidenceFieldOptions(kind) { return [["", "Whole entity"], ...definitions[kind].map(([key, label]) => [key, label]), ...(kind === "service" ? [["quantity", "Service quantity"]] : []), ...(parents[kind] ? [[parents[kind][1], "Physical parent relationship"]] : []), ["uncertainty", "Uncertainty"]]; }
+    function evidenceFieldOptions(kind) { return [["", "Whole entity"], ...fieldsFor(kind, scope()).map(([key, label]) => [key, label]), ...(kind === "service" ? [["quantity", "Service quantity"]] : []), ...(parentRelations()[kind] ? [[parentRelations()[kind][1], "Physical parent relationship"]] : []), ["uncertainty", "Uncertainty"]]; }
     async function linkImage(entry, image) {
       ensureAvailable(); requireCurrent(entry); imageEvidence(image);
       const issues = (image.issues || []).map(issue => typeof issue === "string" ? issue : issue.message || issue.code).join("\n");
@@ -404,7 +436,7 @@
       const type = fieldType(entry.kind, key), cell = node("td"), control = node(Array.isArray(type) ? "select" : "input"), value = key === "quantity" ? entry.entity.quantity : fieldDisplay(entry.entity.fields, key);
       if (Array.isArray(type)) { populateSelect(control, type, value); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); }
       else { control.type = type === "number" ? "number" : "text"; control.value = value ?? ""; if (control.type === "number") control.step = key === "quantity" ? "1" : "any"; }
-      control.setAttribute("aria-label", `${definitions[entry.kind].find(definition => definition[0] === key)?.[1] || "Service quantity"} for ${entityName(entry)}`); control.placeholder = "Unknown"; track(control, value);
+      control.setAttribute("aria-label", `${fieldsFor(entry.kind, scope()).find(definition => definition[0] === key)?.[1] || "Service quantity"} for ${entityName(entry)}`); control.placeholder = "Unknown"; track(control, value);
       state.pendingApply.set(control, () => editField(entry, key, control, true));
       control.addEventListener("change", () => { if (control.value === String(value ?? "")) return; void safe(() => editField(entry, key, control)); }); cell.append(control); return cell;
     }
@@ -416,7 +448,7 @@
     function renderTable() {
       const rows = hierarchyRows(graph(), state); state.offset = Math.max(0, Math.min(state.offset, Math.max(0, Math.floor((rows.length - 1) / 100) * 100)));
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", "Draft penetration hierarchy register");
-      const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : kinds;
+      const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
       const headings = ["Select", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "State / uncertainty", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Source evidence"];
       for (const label of headings) {
         const cell = node("th", "", label);
@@ -446,7 +478,7 @@
             cell.replaceChildren(); if (row.hasChildren) cell.append(disclosure(row));
             cell.append(button(displayId(row), () => selectEntity(entity.id), "takeoff-row-link"));
             if (entity.fields.label) cell.append(node("small", "takeoff-physical-row-label", entity.fields.label)); contextNote(row, cell);
-            if (kind === "barrier" && ![...state.index.values()].some(candidate => candidate.kind === "service" && parentId(candidate) === entity.id && !candidate.entity.deleted)) cell.append(node("small", "helper", "0 services"));
+            if (kind === "barrier" && !state.servicesByBarrier.get(entity.id)?.length) cell.append(node("small", "helper", "0 services"));
           }
           const childKind = !legacy && !entity.deleted && (kind === "defect" && relationKind === "barrier" ? "barrier" : kind === "barrier" && relationKind === "service" ? "service" : null);
           if (childKind) {
@@ -458,25 +490,26 @@
         const status = node("td"); status.append(node("span", `takeoff-state ${entity.deleted ? "blocked" : "draft"}`, entity.deleted ? "Deleted draft" : legacy ? "Legacy read-only" : "Unapproved draft"), node("p", "helper", uncertainty.find(([key]) => key === entity.uncertainty.state)?.[1] || "Not assessed")); line.append(status);
         const inheritedLocation = legacy ? relation.defect?.entity.fields.location ?? relation.barrier?.entity.fields.location : relation.barrier?.entity.fields.location ?? relation.defect?.entity.fields.location;
         const location = kind === "barrier" || kind === "defect" ? editableCell(row, "location") : textCell(inheritedLocation, "Inherited parent location.");
-        line.append(location, kind === "defect" ? editableCell(row, "frl") : textCell(relation.defect?.entity.fields.frl, "Recorded defect FRL; not a technical approval."));
+        line.append(location, kind === (servicePlans() ? "barrier" : "defect") ? editableCell(row, "frl") : textCell((servicePlans() ? relation.barrier : relation.defect)?.entity.fields.frl, `Recorded ${servicePlans() ? "barrier" : "defect"} FRL; not a technical approval.`));
         if (legacy) line.append(textCell(relation.opening?.entity.fields.opening_type), textCell(relation.opening?.entity.fields.size));
         line.append(kind === "barrier" ? editableCell(row, "substrate") : textCell(relation.barrier?.entity.fields.substrate), kind === "barrier" ? editableCell(row, "orientation") : textCell(relation.barrier?.entity.fields.orientation));
         for (const field of ["service", "service_type", "quantity", "size"]) line.append(kind === "service" ? editableCell(row, field) : textCell(null, "Only a service record has this property."));
         const evidence = node("td"); evidence.append(node("span", "helper", `${entity.evidence.length} source associations`)); if (entity.evidence[0]) evidence.append(button("Open source", () => bridge.source(copy(entity.evidence[0])), "text-button")); line.append(evidence); body.append(line);
       }
-      ui.table.replaceChildren(table); if (!rows.length) ui.table.append(node("p", "takeoff-register-empty", graph() ? "No matching physical records. Adjust the filter or create an explicitly linked draft record." : "Create a defect to begin the physical hierarchy. Uploaded images never create physical records automatically."));
+      ui.table.replaceChildren(table); if (!rows.length) ui.table.append(node("p", "takeoff-register-empty", graph() ? "No matching physical records. Adjust the filter or create an explicitly linked draft record." : `Create ${servicePlans() ? "a substrate" : "a defect"} to begin the physical hierarchy. Uploaded images never create physical records automatically.`));
       ui.pagination.replaceChildren(button("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), node("span", "helper", `${rows.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, rows.length)} of ${rows.length} visible hierarchy records. Ancestor context may repeat across pages.`), button("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
       bridge.viewChanged?.(rows.map(row => row.entity.id), [...state.selected]);
     }
     function renderInspector() {
       state.inspectorEdit = null;
-      ui.inspector.replaceChildren(node("h3", "", "PHYSICAL DRAFT INSPECTOR")); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
+      ui.inspector.replaceChildren(node("h3", "", "Item Details")); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); return; }
       const entry = selected[0], entity = entry.entity, editorKey = graphKey(); ui.inspector.append(node("p", "takeoff-identity", displayId(entry)), node("p", "helper", `${titles[entry.kind]} · Revision ${entity.revision} · ${entity.deleted ? "Deleted draft" : "Unapproved draft"}`));
       for (const parent of ancestors(entry, state.index)) ui.inspector.append(button(`${titles[parent.kind]}: ${entityName(parent)} · ${displayId(parent)}`, () => selectEntity(parent.entity.id), "text-button"));
+      const callout = summary(entity.id); if (callout) { const details = node("details", "takeoff-physical-summary"); details.append(node("summary", "", "Automatic callout"), node("p", "helper", callout)); ui.inspector.append(details); }
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
-        for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...definitions[entry.kind]])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
+        for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", `Explicit service quantity: ${entity.quantity}`));
         ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`)); renderAssociations(entry); return;
       }
@@ -485,10 +518,16 @@
         if (Array.isArray(type)) { populateSelect(control, type, initial); if (sharedOptionKeys.has(key)) bindSharedOptions(control, key); } else if (type !== "textarea") control.type = type === "number" ? "number" : "text";
         control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial); wrapper.append(control); ui.inspector.append(wrapper); return control;
       });
-      const submit = async () => { ensureAvailable(true); await ensureFieldOptions(entry.kind, true); ensureAvailable(true); if (editorKey !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be reviewed. Inspect the current record and try again."); requireCurrent(entry); const values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(entry.kind, values, entity.fields), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(entry.kind === "service" ? { quantity: fieldValue(entry.kind, "quantity", values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); bridge.notify("No physical values changed.", false); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Review physical field changes", true); };
+      const submit = async () => { ensureAvailable(true); await ensureFieldOptions(entry.kind, true); ensureAvailable(true); if (editorKey !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be reviewed. Inspect the current record and try again."); requireCurrent(entry); const values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(entry.kind, values, entity.fields, scope()), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(entry.kind === "service" ? { quantity: fieldValue(entry.kind, "quantity", values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); bridge.notify("No physical values changed.", false); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Review physical field changes", true); };
       state.inspectorEdit = { controls, submit };
       ui.inspector.append(button("Preview physical edits", submit, "button primary"));
-      if (parents[entry.kind]) ui.inspector.append(button("Change physical parent", () => reparent(entry)));
+      const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
+      if (childKind) {
+        const addChild = mutationButton(`Add ${childKind}`, () => create(childKind, entity.id));
+        addChild.setAttribute("aria-label", `Add ${childKind} in Item Details`); addChild.title = `Add ${childKind} to ${displayId(entry)}`; ui.inspector.append(addChild);
+      }
+      if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", () => reparent(entry)));
+      if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
       ui.inspector.append(button("Link original source page", () => linkDocument(entry)), button("Delete draft record", () => deleteEntity(entry)));
       renderAssociations(entry);
     }
@@ -548,12 +587,18 @@
       }
       ui.gallery.append(button("Previous 12 image records", () => { state.imageOffset = Math.max(0, state.imageOffset - 12); renderGallery(); }), node("span", "helper", ` ${state.images.length ? state.imageOffset + 1 : 0}–${Math.min(state.imageOffset + 12, state.images.length)} of ${state.images.length} image and coverage records `), button("Next 12 image records", () => { if (state.imageOffset + 12 < state.images.length) state.imageOffset += 12; renderGallery(); }));
     }
-    function renderData() { if (state.destroyed) return; renderTable(); renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
+    function renderData() { if (state.destroyed) return; renderTable(); renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.warning.textContent = warning(); ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
     function render(snapshot) {
-      if (state.destroyed) return; const oldKey = graphKey(), oldProject = state.snapshot?.project_id; state.snapshot = snapshot; state.index = indexGraph(snapshot?.physical); state.selected = new Set([...state.selected].filter(id => state.index.has(id)));
+      if (state.destroyed) return; const oldKey = graphKey(), oldProject = state.snapshot?.project_id, oldScope = state.scope; state.snapshot = snapshot; state.scope = scope(); state.index = indexGraph(snapshot?.physical); state.selected = new Set([...state.selected].filter(id => state.index.has(id)));
+      state.servicesByBarrier = new Map();
+      for (const entry of state.index.values()) if (entry.kind === "service" && !entry.entity.deleted) {
+        const id = entry.entity.barrier_id || ancestors(entry, state.index).find(parent => parent.kind === "barrier")?.entity.id;
+        if (!state.servicesByBarrier.has(id)) state.servicesByBarrier.set(id, []); state.servicesByBarrier.get(id).push(entry);
+      }
+      for (const entries of state.servicesByBarrier.values()) entries.sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }));
       const context = bridge.imageContext?.() || {}, descriptors = snapshot?.image_extractions || [];
       const inventoryKey = `${snapshot?.project_id || ""}/${context.document_id || ""}/${context.page || ""}/${JSON.stringify(descriptors)}`;
-      if (oldProject !== snapshot?.project_id) { ++state.imageGeneration; state.selected.clear(); state.collapsed.clear(); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageState = "Not loaded"; resetPending(); }
+      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { ++state.imageGeneration; state.selected.clear(); state.collapsed.clear(); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageInventoryKey = ""; state.imageState = "Not loaded"; resetPending(); }
       if (state.imageInventoryKey !== inventoryKey) { state.imageInventoryKey = inventoryKey; const newest = [...descriptors].reverse(); state.extractionId = (newest.find(value => value.document_id === context.document_id && value.pages?.includes(context.page)) || newest[0])?.id || ""; state.images = []; state.imageOffset = 0; void refreshImages(true); }
       if (state.pending.size && !state.busy && oldKey !== graphKey()) { bridge.notify("The physical draft changed while fields were unfinished. Applying will recheck the record revision; discard unfinished edits to show the current draft.", true); return; }
       if (!state.pending.size) renderData();
@@ -581,22 +626,35 @@
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path"); path.setAttribute("d", "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"); svg.append(path); return svg;
     }
+    function actionIcon(paths) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
+      for (const value of paths) { const path = document.createElementNS("http://www.w3.org/2000/svg", "path"); path.setAttribute("d", value); svg.append(path); } return svg;
+    }
+    function iconAction(label, action, paths, mutation = false) {
+      const control = (mutation ? mutationButton : button)(label, action, "button secondary takeoff-physical-icon-action"); control.setAttribute("aria-label", label); control.title = label; control.replaceChildren(actionIcon(paths)); return control;
+    }
     ui.root = node("section", "takeoff-register takeoff-physical-register"); ui.root.setAttribute("aria-label", "Manual draft penetration workspace");
-    const heading = node("div", "section-heading"); heading.append(node("h2", "", "PENETRATIONS — PHYSICAL DRAFT")); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading, node("p", "takeoff-warning", draftWarning));
+    const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.warning = node("p", "takeoff-warning"); ui.root.append(heading, ui.warning);
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls");
     tools.append(mutationButton("Extract images from selected PDF page", () => runBridge(async () => { const reply = await bridge.extract(); displayReply(reply); await refreshImagesAfterExtraction(); return reply; })), button("Refresh retained images", refreshImages));
-    for (const format of ["csv", "xlsx"]) tools.append(button(`Export draft ${format.toUpperCase()}`, () => runBridge(() => bridge.export(format), { title: "Export unapproved physical draft?", text: "The export is explicitly UNAPPROVED DRAFT and retains every parent/child ID. It does not represent approved quantities, a Physical Model Lock, technical suitability or commercial authority.", button: "Export unapproved draft" })));
+    for (const format of ["csv", "xlsx"]) {
+      const label = `Export draft ${format.toUpperCase()}`, download = button(label, () => runBridge(() => bridge.export(format), { title: "Export unapproved physical draft?", text: "The export is explicitly UNAPPROVED DRAFT and retains every parent/child ID. It does not represent approved quantities, a Physical Model Lock, technical suitability or commercial authority.", button: "Export unapproved draft" }), "button icon-only schedule-download-button takeoff-download-button calculator-export-excel");
+      const symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase())); download.replaceChildren(symbol); download.setAttribute("aria-label", label); download.title = label; tools.append(download);
+    }
     ui.root.append(tools); const filters = node("div", "takeoff-register-controls"), search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     const discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); discard.setAttribute("aria-label", "Discard unfinished physical edits"); discard.title = "Discard unfinished physical edits"; discard.replaceChildren(discardIcon());
     const deleteSelection = mutationButton("Delete selected records", deleteSelected, "button secondary takeoff-physical-delete-selected"); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records"; deleteSelection.replaceChildren(deleteIcon());
-    ui.selection = node("strong"); filters.append(search, deleted, ui.selection, button("Select filtered records", () => { ensureAvailable(); for (const row of matchingActiveRows()) state.selected.add(row.entity.id); renderData(); }), button("Clear physical selection", () => { ensureAvailable(); state.selected.clear(); renderData(); }), mutationButton("Bulk edit same-type records", bulkEdit), deleteSelection, discard); ui.root.append(filters);
-    ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"), addDefect = mutationButton("+", () => create("defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addDefect.setAttribute("aria-label", "Add defect"); addDefect.title = "Add defect"; addRow.append(addDefect);
-    ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Physical draft inspector"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination, ui.inspector, ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
+    ui.selection = node("strong"); filters.append(search, deleted, ui.selection,
+      iconAction("Select filtered records", () => { ensureAvailable(); for (const row of matchingActiveRows()) state.selected.add(row.entity.id); renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
+      iconAction("Clear physical selection", () => { ensureAvailable(); state.selected.clear(); renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"]),
+      iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true)); ui.root.append(filters);
+    ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add, deleteSelection, discard);
+    ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, hover, completePendingEdits, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; ++state.imageGeneration; container.replaceChildren(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, create, setMarker, selectedBarrier, selection: () => [...state.selected], summary, hover, completePendingEdits, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, indexGraph, hierarchyRows, hierarchyPage, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

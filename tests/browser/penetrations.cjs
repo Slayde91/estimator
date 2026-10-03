@@ -56,7 +56,7 @@ async function create(kind, values, trigger = `Add ${kind}`) {
   const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:`Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
   if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
   const preview = await response(() => dialog(`Create draft ${kind}`, { ...values, 'Uncertainty / review state': 'human_review_required' }, 'Preview new draft'), '/physical/preview');
-  assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Physical draft inspector'}));return preview.changed_ids[0];
+  assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Item Details'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
 // Undo remains an API compatibility operation after its physical toolbar shortcut is removed.
@@ -120,7 +120,7 @@ async function showImage() {
   state = await response(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), '/commands'); await idle();
   await page.locator(`.takeoff-hit[data-physical-id="${cable}"]`).hover(); await expect(page.locator(`tr[data-physical-id="${cable}"]`)).toHaveClass(/hovered/);
   await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-0002'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
-  const notes = page.getByRole('complementary', { name: 'Physical draft inspector' }).getByLabel('Notes', { exact: true });
+  const notes = page.getByRole('complementary', { name: 'Item Details' }).getByLabel('Notes', { exact: true });
   await notes.fill('Unapplied inspection finding must remain visible'); const frl = page.getByLabel('FRL for D-001', { exact: true }); await frl.selectOption('-/90/90');
   await expect(page.getByRole('alert')).toContainText('Those edits have been preserved'); await expect(notes).toHaveValue('Unapplied inspection finding must remain visible'); await expect(frl).toHaveValue('-/120/120');
   await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue('');
@@ -166,7 +166,7 @@ async function showImage() {
   for (const label of ['Add defect', 'Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await select(legacySaved.takeoffs.physical.services[0].id);
   for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change physical parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
-  const legacyInspector = page.getByRole('complementary', { name: 'Physical draft inspector' }); await expect(legacyInspector.locator('input, textarea, select')).toHaveCount(0);
+  const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }); await expect(legacyInspector.locator('input, textarea, select')).toHaveCount(0);
   await page.getByRole('button', { name: 'Export draft CSV', exact: true }).click(); const legacyDownload = page.waitForEvent('download'); await dialog('Export unapproved physical draft?', {}, 'Export unapproved draft'); const legacyFile = await legacyDownload; const legacyFilename = path.join(output, 'legacy-physical.csv'); await legacyFile.saveAs(legacyFilename);
   const legacyCsv = fs.readFileSync(legacyFilename, 'utf8'); for (const value of ['opening_id', 'LEGACY-OPENING', 'Legacy 100 mm', ...['barriers', 'defects', 'openings', 'services'].flatMap(key => legacySaved.takeoffs.physical[key].map(entity => entity.id))]) assert.ok(legacyCsv.includes(value), value);
   assert.deepEqual(fs.readFileSync(info.legacy_project), legacyBytes); assert.deepEqual(fs.readFileSync(info.project), legacyBytes);

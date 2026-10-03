@@ -18,14 +18,14 @@ PDF_EXPORT_TIMEOUT = 65
 _SLOTS = BoundedSemaphore(1)
 
 
-def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode):
+def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None):
     from .takeoff_exports import linked_result_text
     if not _SLOTS.acquire(blocking=False):
         raise ValidationError('Another marked drawing PDF is being prepared. Retry after it finishes.')
     try:
         source = documents.document_path(document, verify=True)
-        rows = []
-        vertices = 0
+        rows = list(physical_rows or [])
+        vertices = len(rows)
         for item in items:
             geometry = item['geometry']; fields = item['fields']; result = results[item['id']]
             vertices += len(geometry['points']) + sum(len(value['points']) for value in geometry.get('exclusions', []))

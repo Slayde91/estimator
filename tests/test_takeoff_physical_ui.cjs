@@ -9,6 +9,7 @@ const flush = async () => { for(let i=0;i<80;i++)await Promise.resolve(); };
 const make = (id,fields={},more={}) => ({id:uuid(id),revision:1,deleted:false,deleted_at_revision:null,fields,evidence:[],uncertainty:{state:'not_assessed',note:''},...more});
 const legacyGraph = () => ({version:1,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',barriers:[make(1,{label:'Wall A',substrate:'Concrete'})],defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{barrier_id:uuid(1)})],openings:[make(3,{label:'Core A',opening_type:'Corehole'},{defect_id:uuid(2)}),make(4,{label:'Empty core'},{defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{opening_id:uuid(3),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{opening_id:uuid(3),quantity:3})]});
 const graph = () => ({version:2,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{display_id:'D-0001'})],barriers:[make(1,{label:'Wall A',substrate:'Concrete'},{display_id:'B-0001',defect_id:uuid(2)}),make(4,{label:'Empty barrier'},{display_id:'B-0002',defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{display_id:'S-0001',barrier_id:uuid(1),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{display_id:'S-0002',barrier_id:uuid(1),quantity:3})]});
+const servicePlanGraph = () => { const value=graph();value.version=3;value.id=uuid(97);delete value.defects;for(const barrier of value.barriers){delete barrier.defect_id;barrier.fields.frl='-/90/90';}return value; };
 const snapshot = value => ({version:1,project_id:uuid(98),revision:1,documents:[{id:uuid(80),sha256:'d'.repeat(64),name:'Inspection.pdf',pages:[{page:1},{page:2}]}],physical:value,image_extractions:[{id:uuid(90),document_id:uuid(80),pages:[1]}]});
 const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service'],frl:['N/A','-/60/60','-/90/90','-/120/120','-/180/180','-/240/240']};
 const optionsOf = control => control.children.filter(child=>child.tagName==='OPTION').map(child=>child.value).filter(value=>value!=='');
@@ -23,6 +24,7 @@ function documentHarness(){
     set textContent(value){this._text=String(value);this.children=[];}
     append(...values){for(const value of values){value.parentElement=this;this.children.push(value);}}
     replaceChildren(...values){this.children=[];this._text='';this.append(...values);}
+    remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(child=>child!==this);this.parentElement=null;}
     setAttribute(key,value){this.attributes[key]=String(value);}
     addEventListener(name,listener){(this.events[name]||=[]).push(listener);}
     emit(name){for(const listener of this.events[name]||[])listener({target:this});}
@@ -33,6 +35,7 @@ function documentHarness(){
 }
 function component(initial=graph(),extra={}){
   const dom=documentHarness(),calls={previews:[],applied:[],notifications:[],asks:[],confirmations:[],sources:[],exports:[],changed:0},answers=[],current=snapshot(initial);let controller,preview;
+  if(extra.inspectorContainer===true){extra={...extra,inspectorContainer:dom.container.ownerDocument.createElement('div')};dom.inspectorHost=extra.inspectorContainer;dom.closeButton=dom.container.ownerDocument.createElement('button');dom.closeButton.textContent='Close Item Details';dom.inspectorHost.append(dom.closeButton);}
   const bridge={
     fieldOptions:async()=>copy(fieldChoices),
     async ask(title,definitions,text,button){calls.asks.push({title,definitions,text,button});return answers.shift()??null;},
@@ -46,14 +49,14 @@ function component(initial=graph(),extra={}){
       }
       return {preview_id:'opaque-preview',affected_ids:commands.map(command=>command.entity_id||command.entity.id),changed_ids:commands.map(command=>command.entity_id||command.entity.id),relationships:preview.map(command=>({id:command.entity_id||command.entity.id,kind:command.kind||physical.indexGraph(current.physical).get(command.entity_id).kind,display_id:command.entity?.display_id||physical.indexGraph(current.physical).get(command.entity_id).entity.display_id,parent_before:null,parent_after:command.parent_id||command.entity?.defect_id||command.entity?.barrier_id||null,deleted_before:command.op==='create'?null:false,deleted_after:command.op==='delete'}))};
     },
-    async apply(id){calls.applied.push(id);if(!current.physical)current.physical={...graph(),barriers:[],defects:[],services:[]};const collections={barrier:'barriers',defect:'defects',service:'services'};
+    async apply(id){calls.applied.push(id);if(!current.physical)current.physical=extra.scope?.()==='service_plans'?{...servicePlanGraph(),barriers:[],services:[]}:{...graph(),barriers:[],defects:[],services:[]};const collections={barrier:'barriers',defect:'defects',service:'services'};
       for(const command of preview){current.physical.revision++;if(command.op==='create')current.physical[collections[command.kind]].push({...copy(command.entity),revision:1,deleted:false,deleted_at_revision:null});else if(command.op==='update'){const entry=physical.indexGraph(current.physical).get(command.entity_id);Object.assign(entry.entity,copy(command.changes));entry.entity.revision++;}}
       current.revision++;controller.render(copy(current));return {snapshot:copy(current)};
     },
     notify(text,error){calls.notifications.push({text,error});},source(ref){calls.sources.push(ref);},images:async()=>[],imageUrl:()=>'/api/takeoffs/local/images/asset',extract:async()=>({snapshot:copy(current)}),export:async format=>calls.exports.push(format),undo:async()=>({snapshot:copy(current)}),changed(){calls.changed++;},...extra,
   };
   controller=physical.mount(dom.container,bridge);controller.render(copy(current));
-  const all=()=>dom.all(dom.container),button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
+  const all=()=>[...dom.all(dom.container),...(dom.inspectorHost?dom.all(dom.inspectorHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
   return {dom,controller,calls,answers,current,bridge,all,button,async click(label){button(label).emit('click');await flush();},async select(id){const row=all().find(element=>element.dataset.physicalId===uuid(id));assert.ok(row);row.children[0].children[0].emit('change');await flush();},input(label){const control=all().find(element=>element.attributes['aria-label']===label);assert.ok(control,`Missing field: ${label}`);return control;}};
 }
 let passed=0;
@@ -117,7 +120,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const label of ['Undo physical / takeoff edit','Physical / takeoff audit history'])assert.ok(!h.all().some(node=>node.tagName==='BUTTON'&&node.textContent===label));
     const table=h.all().find(node=>node.className==='takeoff-register-table'),siblings=table.parentElement.children,index=siblings.indexOf(table);assert.equal(siblings[index+1].className,'takeoff-physical-add-row');assert.equal(siblings[index+1].children[0],h.button('Add defect'));assert.ok(h.button('Add defect').className.includes('takeoff-physical-add-child'));assert.equal(h.button('Add defect').textContent,'+');assert.equal(h.button('Add defect').attributes['aria-label'],'Add defect');assert.equal(h.button('Add defect').title,'Add defect');assert.equal(siblings[index+2].className,'takeoff-register-controls');
     const disclosure=h.button('Collapse D-0001');assert.equal(disclosure.textContent,'<');assert.equal(disclosure.attributes['aria-expanded'],'true');await h.click('Collapse D-0001');assert.equal(h.button('Expand D-0001').textContent,'>');assert.equal(h.button('Expand D-0001').attributes['aria-expanded'],'false');
-    for(const label of ['Discard unfinished physical edits','Delete selected records']){const button=h.button(label);assert.equal(button.textContent,'');assert.equal(button.children[0].tagName,'SVG');assert.equal(button.children[0].attributes['aria-hidden'],'true');assert.equal(button.attributes['aria-label'],label);}
+    for(const label of ['Discard unfinished physical edits','Delete selected records','Select filtered records','Clear physical selection','Bulk edit same-type records']){const button=h.button(label);assert.equal(button.textContent,'');assert.equal(button.children[0].tagName,'SVG');assert.equal(button.children[0].attributes['aria-hidden'],'true');assert.equal(button.attributes['aria-label'],label);}
+    assert.deepEqual(siblings[index+1].children,[h.button('Add defect'),h.button('Delete selected records'),h.button('Discard unfinished physical edits')]);
+    for(const format of ['CSV','XLSX']){const download=h.button(`Export draft ${format}`);assert.ok(download.className.includes('takeoff-download-button'));assert.equal(download.textContent,`⇩${format}`);}
     h.controller.destroy();
   });
   await check('Select-all spans collapsed pages, excludes deleted and ancestor-context rows, and preserves other selections',async()=>{
@@ -338,6 +343,49 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Gallery displays twelve records at a time and refuses oversized extraction inventories',async()=>{
     const images=Array.from({length:512},(_,index)=>({name:`Source ${index}`,occurrence_id:uuid(1000+index)})),h=component(graph(),{images:async()=>images});await flush();assert.equal(h.all().filter(node=>node.tagName==='DETAILS').length,12);await h.click('Next 12 image records');assert.ok(h.dom.container.textContent.includes('Source 12'));assert.ok(!h.dom.container.textContent.includes('Source 0 ·'));
     h.bridge.images=async()=>[...images,{name:'Excess'}];await h.click('Refresh retained images');assert.ok(h.calls.notifications.at(-1).text.includes('512-occurrence'));h.controller.destroy();
+  });
+  await check('Service Plans starts at Barrier with no defect columns, root parents or defect create flow',async()=>{
+    const value=servicePlanGraph(),original=copy(value),rows=physical.hierarchyRows(value),index=physical.indexGraph(value);
+    assert.deepEqual(rows.map(row=>[row.kind,row.depth]),[['barrier',0],['service',1],['service',1],['barrier',0]]);
+    assert.deepEqual(physical.hierarchyRows(value,{filter:'Cable bundle',collapsed:new Set([uuid(1)])}).map(row=>row.entity.id),[uuid(1),uuid(6)]);
+    assert.deepEqual(physical.deletionPlan([...index.values()],index).commands,[{op:'delete',entity_id:uuid(1),cascade:true},{op:'delete',entity_id:uuid(4),cascade:false}]);assert.deepEqual(value,original);
+    const h=component(value,{scope:()=> 'service_plans'});await flush();assert.ok(!h.all().some(node=>node.tagName==='TH'&&node.textContent==='Defect ID'));assert.ok(h.dom.container.textContent.includes('SERVICE PLANS'));
+    await h.click('Add substrate');assert.equal(h.calls.asks.at(-1).title,'Create draft barrier');assert.ok(!h.calls.asks.at(-1).definitions.some(([key])=>key==='defect_id'));assert.deepEqual(definitionOptions(h.calls.asks.at(-1).definitions.find(([key])=>key==='frl')),fieldChoices.frl);
+    await h.controller.select(uuid(1));assert.ok(!h.all().some(node=>node.tagName==='BUTTON'&&node.textContent==='Change physical parent'));await assert.rejects(h.controller.create('defect'),/record type/);h.controller.destroy();
+  });
+  await check('Service Plan Barrier owns FRL through create, inspector, table and bulk with exact shared choices',async()=>{
+    const h=component(null,{scope:()=> 'service_plans'});await flush();h.answers.push({location:'L03',frl:'-/120/120',substrate:'Concrete',uncertainty_state:'not_assessed'});const id=await h.controller.create('barrier');
+    assert.equal(h.current.physical.version,3);assert.equal(h.current.physical.defects,undefined);const barrier=h.current.physical.barriers[0];assert.equal(barrier.id,id);assert.equal(barrier.defect_id,undefined);assert.equal(barrier.fields.frl,'-/120/120');assert.equal(h.input('FRL').tagName,'SELECT');assert.equal(h.input('FRL for B-0001').tagName,'SELECT');
+    h.input('FRL').value='-/180/180';h.input('FRL').emit('input');await h.controller.completePendingEdits();assert.equal(barrier.fields.frl,'-/180/180');h.answers.push({field:'frl'},{value:'-/90/90'});await h.click('Bulk edit same-type records');assert.equal(barrier.fields.frl,'-/90/90');assert.deepEqual(definitionOptions(h.calls.asks.at(-1).definitions[0]),fieldChoices.frl);h.controller.destroy();
+  });
+  await check('External Item Details owns pending fields, survives option loading, and leaves the pane Close button intact',async()=>{
+    const choices=defer(),h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true,fieldOptions:()=>choices.promise});await h.controller.select(uuid(1));
+    assert.ok(!h.dom.all(h.dom.container).some(node=>node.attributes['aria-label']==='Item Details'));assert.equal(h.dom.inspectorHost.children[0],h.dom.closeButton);const notes=h.input('Notes');notes.value='Kept beside drawing';notes.emit('input');assert.equal(h.controller.hasUnfinishedChanges(),true);
+    choices.resolve(copy(fieldChoices));await flush();assert.equal(notes.value,'Kept beside drawing');assert.deepEqual(optionsOf(h.input('FRL')),fieldChoices.frl);await h.controller.completePendingEdits();assert.equal(h.current.physical.barriers[0].fields.notes,'Kept beside drawing');assert.equal(h.controller.hasUnfinishedChanges(),false);
+    const pending=defer(),preview=h.bridge.preview;h.bridge.preview=async commands=>{const result=await preview(commands);await pending.promise;return result;};const marking=h.controller.setMarker(uuid(1),{document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[10,20]});await flush();assert.equal(h.input('Notes').disabled,true);assert.equal(h.input('FRL').disabled,true);pending.resolve();await marking;assert.equal(h.input('Notes').disabled,false);
+    h.controller.destroy();assert.deepEqual(h.dom.inspectorHost.children,[h.dom.closeButton]);
+  });
+  await check('Count creation and marker movement share reviewed atomic commands and never apply on cancellation',async()=>{
+    const marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[150,225]},selections=[],h=component(null,{scope:()=> 'service_plans',selection:(ids,reference,focus)=>selections.push({ids,reference,focus})});await flush();
+    h.answers.push({substrate:'Concrete',frl:'-/120/120',uncertainty_state:'not_assessed'});const id=await h.controller.create('barrier',undefined,marker);assert.deepEqual(h.current.physical.barriers[0].marker,marker);assert.equal(h.calls.previews.length,1);assert.ok(h.calls.confirmations[0].text.includes('p2 · (150, 225)'));assert.equal(h.controller.selectedBarrier().id,id);assert.deepEqual(selections.at(-1),{ids:[id],reference:marker,focus:false});
+    const moved={...marker,point:[300,350]};h.bridge.confirm=async()=>false;assert.equal(await h.controller.setMarker(id,moved),false);assert.deepEqual(h.current.physical.barriers[0].marker,marker);
+    h.bridge.confirm=async()=>true;assert.equal(await h.controller.setMarker(id,moved),true);assert.deepEqual(h.current.physical.barriers[0].marker,moved);assert.equal(await h.controller.setMarker(id,moved),false);assert.equal(await h.controller.setMarker(id,null),true);assert.equal(h.current.physical.barriers[0].marker,null);
+    const notes=h.input('Notes');notes.value='Pending';notes.emit('input');await assert.rejects(h.controller.setMarker(id,marker),/unfinished/);assert.equal(h.current.physical.barriers[0].marker,null);h.controller.destroy();
+    const cancelled=component(null,{scope:()=> 'service_plans',confirm:async()=>false});await flush();cancelled.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});assert.equal(await cancelled.controller.create('barrier',undefined,marker),undefined);assert.equal(cancelled.current.physical,null);assert.equal(cancelled.calls.applied.length,0);cancelled.controller.destroy();
+  });
+  await check('Callout summaries use the linked Barrier and active Services and refresh only from applied values',async()=>{
+    const value=servicePlanGraph();Object.assign(value.barriers[0].fields,{location:'L02',orientation:'Vertical',thickness_mm:120});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe',width_mm:100,height_mm:80,diameter_mm:25,insulation_mm:0});value.services[1].deleted=true;
+    const marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[150,225]};value.barriers[0].marker=marker;
+    const changes=[],selections=[],h=component(value,{scope:()=> 'service_plans',selectionChanged:change=>changes.push(change),selection:(ids,reference,focus)=>selections.push({ids,reference,focus})});await flush();await h.controller.select(uuid(5));assert.equal(h.controller.selectedBarrier().id,uuid(1));assert.deepEqual(h.controller.selection(),[uuid(5)]);assert.equal(changes.at(-1).barrierId,uuid(1));assert.equal(changes.length,1);assert.deepEqual(selections.at(-1),{ids:[uuid(5)],reference:marker,focus:true});
+    const summary=h.controller.summary(uuid(5));assert.ok(summary.includes('B-0001 · Wall A · L02 · Concrete · Vertical · 120 mm thick · FRL -/90/90'));assert.ok(summary.includes('S-0001 · 1 × · Pipe · Mechanical · Copper pipe · 25 mm · 100 x 80 mm · Ø 25 mm · Insulation 0 mm'));assert.ok(!summary.includes('S-0002'));
+    const type=h.input('Service type');type.value='Custom library service';type.emit('input');assert.equal(h.controller.summary(uuid(1)),summary);await h.controller.completePendingEdits();assert.ok(h.controller.summary(uuid(1)).includes('Custom library service'));assert.equal(changes.length,1);assert.equal(h.controller.summary(uuid(4)).split('\n').at(-1),'0 services');await assert.rejects(h.controller.setMarker(uuid(5),null),/active barrier/);h.controller.destroy();
+    const defects=component(graph());await flush();assert.ok(defects.controller.summary(uuid(1)).includes('FRL -/120/120'));assert.ok(defects.controller.summary(uuid(1)).startsWith('B-0001 · D-0001 · Wall A'));defects.controller.destroy();
+  });
+  await check('Item Details creates children under its selected parent and retains unfinished fields before creation',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));assert.equal(h.button('Add service in Item Details').title,'Add service to B-0001');
+    const notes=h.input('Notes');notes.value='Pending barrier details';notes.emit('input');await h.click('Add service in Item Details');assert.equal(h.calls.asks.length,0);assert.ok(h.calls.notifications.at(-1).text.includes('unfinished physical'));assert.equal(notes.value,'Pending barrier details');
+    await h.controller.completePendingEdits();h.answers.push({service:'Mechanical',service_type:'Copper pipe',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service in Item Details');const command=h.calls.previews.at(-1)[0];assert.equal(command.kind,'service');assert.equal(command.entity.barrier_id,uuid(1));assert.equal(command.entity.quantity,2);assert.equal(h.current.physical.barriers[0].fields.notes,'Pending barrier details');h.controller.destroy();
+    const defect=component();await flush();await defect.controller.select(uuid(2));assert.equal(defect.button('Add barrier in Item Details').title,'Add barrier to D-0001');defect.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});await defect.click('Add barrier in Item Details');assert.equal(defect.calls.previews.at(-1)[0].entity.defect_id,uuid(2));defect.controller.destroy();
   });
   console.log(`${passed} physical draft UI checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

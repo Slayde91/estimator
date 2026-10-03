@@ -66,6 +66,7 @@ jobs:
       - run: npm run test:takeoffs-areas
       - run: npm run test:takeoffs-penetrations
       - run: npm run test:physical-register
+      - run: npm run test:service-plans
       - run: npm run test:project-library-drafts
       - run: npm run test:takeoffs-counts
       - run: npm run test:takeoffs-item-actions

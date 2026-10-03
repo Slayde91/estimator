@@ -153,8 +153,8 @@ silently deletes the entire item. The server validates the new geometry and
 recalculates quantities, invalidates confirmation and marks linked rows stale.
 Calculator inputs stay unchanged. **Undo last edit** restores the prior geometry;
 review and confirm the restored item again before using its quantities.
-Cited dimensions retain their source-region markers; use Re-trace geometry to
-replace that evidence region. A single trace supports all 10,000 permitted
+Cited dimensions retain their source-region markers and source-stated lengths.
+A single trace supports all 10,000 permitted
 vertices. Larger combined selections disclose the 10,000-handle display limit;
 select fewer markups to inspect the remaining points.
 
@@ -462,7 +462,7 @@ Search and the document selector sit in the viewer's top-centre overlay. Page
 navigation, Select, Pan and zoom controls sit in its bottom-centre overlay.
 The Source documents list below the viewer opens each retained original PDF.
 
-The item editor offers Apply, Discard, the **Re-trace geometry** icon and a
+Item Details saves validated field changes automatically and provides a
 **Delete item** trash icon. Deleting a linked item also clears its linked
 schedule rows. A manually changed linked row blocks the entire deletion.
 **Undo last edit** restores the items and cleared rows together, including after

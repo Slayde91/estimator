@@ -1267,7 +1267,7 @@
     try {
       const { item, ring, minimum } = pointTarget(reference);
       if (!reference.exclusionId && item.length_additions?.some(addition => addition.anchor?.point_index === reference.index)) return "Remove the Rise/Drop at this point before deleting the control point. Its additional length must not be lost.";
-      if (item.measurement.method === "cited") return "A cited source region retains its dimension markers. Use Re-trace geometry to replace its source region; its cited length is not inferred from control points.";
+      if (item.measurement.method === "cited") return "A cited source region retains its dimension markers; its cited length is not inferred from control points.";
       if (ring.points.length <= minimum) return `This ${minimum === 3 ? "closed boundary" : "length trace"} needs at least ${minimum} control points. The markup will not be deleted.`;
       return "";
     } catch (error) { return error.message; }

@@ -6,7 +6,7 @@
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
     zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
-    ductColumnFilters: new Map(), ductFilterSession: null,
+    registerColumnFilters: new Map(), registerFilterSession: null,
     renderId: 0, searchId: 0, viewport: null, pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
     physicalUI: null, physicalScope: "defect_reports", physicalDetailsOpen: false, physicalPlacing: false, physicalSelected: new Set(), physicalVisible: new Set(), physicalHovered: null, physicalPreviews: new Map() };
@@ -96,7 +96,9 @@
     "Remove document": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
     "Close viewports": "M6 9l6 6 6-6",
     "Update linked rows": "M3 11a9 9 0 1 1 3 8M3 17l3 2-3 2M12 6v6h5",
-    "Detach links": "M9 8H7a4 4 0 0 0 0 8h3M15 8h2a4 4 0 0 1 0 8h-3M8 12h8",
+    "Detach links": "M9 8H7a4 4 0 0 0 0 8h3M15 8h2a4 4 0 0 1 0 8h-3M8 12h8M8 7l8 10M16 7l-8 10",
+    "Select filtered items": "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z M7 12l3 3 7-7",
+    "Clear selection": "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z",
     "Export CSV": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
     "Export XLSX": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
     "Fit page": "M9 9L3 3m0 5V3h5M15 9l6-6m-5 0h5v5M9 15l-6 6m0-5v5h5M15 15l6 6m-5 0h5v-5",
@@ -330,7 +332,7 @@
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
-    ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected), button("Linked calculator rows", () => manageLinkedRows())];
+    ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
@@ -401,6 +403,7 @@
     toggleCountControls(false); state.ui.tools.trace.after(state.ui.countAnchor);
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
     for (const control of state.ui.registerExtraControls || []) control.hidden = state.mode === "duct";
+    for (const control of [state.ui.statusFilter, state.ui.sort, state.ui.group]) control.hidden = usesColumnFilters();
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
@@ -480,7 +483,7 @@
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
       ask, confirm, notify: message, changed: () => window.CeasefireProject?.changed?.(), source: physicalSource,
       scope: () => scope, inspectorContainer: state.ui.physicalDetails,
-      selectionChanged: ({ selected }) => { if (state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
+      selectionChanged: ({ selected, openDetails = true }) => { if (openDetails && state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
       fieldOptions: async () => {
         const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
         const response = await fetch("/api/penetration/definition", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configuration }) });
@@ -530,7 +533,7 @@
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
       export: exportPhysical, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
-      selection: async (ids, reference, focus) => { state.physicalSelected = new Set(ids); if (ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
+      selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),
       viewChanged: (ids, selected) => { state.physicalVisible = new Set(ids); state.physicalSelected = new Set(selected); if (state.mode === "physical" && state.physicalUI) renderOverlay(); },
@@ -2159,11 +2162,15 @@
     if (!entity?.marker || state.mode !== "physical" || reference.sessionId !== state.session?.session_id || reference.scope !== state.physicalScope || reference.documentId !== state.document || reference.page !== state.page || reference.revision !== entity.revision || reference.marker !== JSON.stringify(entity.marker)) throw new Error("The barrier marker or drawing changed. Select the current marker again.");
     return entity;
   }
-  async function choosePhysicalDrawing(entity, event, toggle = false) {
+  async function choosePhysicalDrawing(entity, event, callout = false) {
     await state.physicalUI?.completePendingEdits?.();
-    if (toggle && state.physicalSelected.has(entity.id) && state.physicalDetailsOpen && !(event.ctrlKey || event.metaKey || event.shiftKey)) {
+    const multiple = event.ctrlKey || event.metaKey || event.shiftKey;
+    if (!callout && state.physicalSelected.has(entity.id) && state.physicalDetailsOpen && !multiple) {
       await state.physicalUI.clearSelection(); setPhysicalDetailsOpen(false);
-    } else { await state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false); setPhysicalDetailsOpen(true); }
+    } else {
+      await state.physicalUI.selectDrawing(entity.id, multiple, false, !callout);
+      if (!callout) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
+    }
     renderOverlay();
   }
   function physicalCalloutLines(summary, width, fontSize = 9) {
@@ -2239,7 +2246,7 @@
         if (!current()) throw new Error("The barrier or drawing changed during the drag. Select it again.");
         state.gesture = null;
         requireFinishedEdits(); const currentEntity = physicalMarkerTarget(reference), marker = clone(currentEntity.marker);
-        if (!gesture.moved) { await choosePhysicalDrawing(currentEntity, next, kind === "physical-callout"); return; }
+        if (!gesture.moved) { await choosePhysicalDrawing(currentEntity, next, kind !== "physical-marker"); return; }
         if (kind === "physical-marker") {
           marker.point = marker.point.map((value, axis) => value + gesture.delta[axis]); const view = pageMetadata()?.view;
           if (!view || marker.point[0] < view[0] || marker.point[1] < view[1] || marker.point[0] > view[2] || marker.point[1] > view[3]) throw new Error("Keep the barrier marker inside its original PDF page.");
@@ -2248,7 +2255,8 @@
           marker.callout = { offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
         }
         await controller.setMarker(entity.id, marker);
-        await controller.selectDrawing(entity.id, false, false); setPhysicalDetailsOpen(true);
+        await controller.selectDrawing(entity.id, false, false, kind === "physical-marker");
+        if (kind === "physical-marker") setPhysicalDetailsOpen(true);
       }).finally(() => { if (state.gesture === gesture) cancelSelectionGesture(); renderOverlay(); window.CeasefireProject?.changed?.(); });
     };
     const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
@@ -2282,7 +2290,7 @@
     for (let step = 0; step < 30 && lines.length * fontSize * 1.3 > height - 2 * padding; step++) { fontSize *= 0.9; lines = physicalCalloutLines(summary, width - 2 * padding, fontSize); }
     const lineHeight = fontSize * 1.3;
     const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: "#b90a15", "stroke-width": scale, fill: "none", "pointer-events": "none" });
-    const callout = svg("g", { class: `takeoff-physical-callout${selected ? " selected" : ""}`, "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-pressed": String(selected), "aria-label": `Item Details ${entity.display_id} · ${summary}` });
+    const callout = svg("g", { class: `takeoff-physical-callout${selected ? " selected" : ""}`, "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-pressed": String(selected), "aria-label": `Callout ${entity.display_id} · ${summary}` });
     callout.append(svg("rect", { class: "takeoff-physical-callout-frame", x, y, width, height, rx: 3 * scale, fill: "#fff", "fill-opacity": 0.94, stroke: selected ? "#b90a15" : "#696166", "stroke-width": scale }));
     const text = svg("text", { fill: "#30282b", "font-family": "Arial, sans-serif", "font-size": fontSize });
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
@@ -2342,32 +2350,37 @@
     return item.state === "confirmed" && !issues.length ? { key: "confirmed", label: "Confirmed" } : { key: "unconfirmed", label: "Unconfirmed" };
   }
   function issueText(value) { return typeof value === "string" ? value : value?.message || value?.detail || value?.code || JSON.stringify(value); }
-  const ductFilterColumns = { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" };
-  function ductFilters() {
+  const registerFilterColumns = {
+    steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", fire_period_min: "Fire period (min)" },
+    duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" },
+  };
+  const usesColumnFilters = () => Object.hasOwn(registerFilterColumns, state.mode);
+  function registerFilters() {
     const sessionId = state.session?.session_id || null;
-    if (state.ductFilterSession !== sessionId) { state.ductColumnFilters.clear(); state.ductFilterSession = sessionId; }
-    return state.ductColumnFilters;
+    if (state.registerFilterSession !== sessionId) { state.registerColumnFilters.clear(); state.registerFilterSession = sessionId; }
+    if (!state.registerColumnFilters.has(state.mode)) state.registerColumnFilters.set(state.mode, new Map());
+    return state.registerColumnFilters.get(state.mode);
   }
-  function ductFilterValue(item, key) {
+  function registerFilterValue(item, key) {
     return String(key === "confirmation" ? reviewStatus(item).label : key === "duct_size" ? formatDuctSize(item.fields || {}) : item.fields?.[key] ?? "").trim();
   }
-  function ductColumnValues(key) {
+  function registerColumnValues(key) {
     // Stable choices across other column filters and register searches; selected
     // values remain available to clear even after an item is edited or deleted.
-    return [...new Set([...items().filter(item => item.mode === "duct").map(item => ductFilterValue(item, key)), ...(ductFilters().get(key) || [])])]
+    return [...new Set([...items().filter(item => item.mode === state.mode).map(item => registerFilterValue(item, key)), ...(registerFilters().get(key) || [])])]
       .sort((a, b) => a.localeCompare(b, "en-AU", { numeric: true }));
   }
-  function setDuctColumnFilter(key, selected, allValues = ductColumnValues(key)) {
-    if (!Object.hasOwn(ductFilterColumns, key)) return;
-    const filters = ductFilters();
+  function setRegisterColumnFilter(key, selected, allValues = registerColumnValues(key)) {
+    if (!usesColumnFilters() || !Object.hasOwn(registerFilterColumns[state.mode], key)) return;
+    const filters = registerFilters();
     if (selected === null || allValues.length > 0 && allValues.every(value => selected.has(value))) filters.delete(key);
     else filters.set(key, new Set(selected));
     state.offset = 0; renderRegister(); renderOverlay();
   }
-  async function openDuctColumnFilter(key, anchor) {
-    if (state.modal || state.mode !== "duct" || !Object.hasOwn(ductFilterColumns, key)) return;
-    const sessionId = state.session?.session_id, values = ductColumnValues(key), selected = new Set(ductFilters().get(key) ?? values);
-    const label = ductFilterColumns[key], dialog = node("dialog", "takeoff-column-filter"), heading = node("h2", "", `Filter ${label}`);
+  async function openRegisterColumnFilter(key, anchor) {
+    if (state.modal || !usesColumnFilters() || !Object.hasOwn(registerFilterColumns[state.mode], key)) return;
+    const sessionId = state.session?.session_id, mode = state.mode, values = registerColumnValues(key), selected = new Set(registerFilters().get(key) ?? values);
+    const label = registerFilterColumns[mode][key], dialog = node("dialog", "takeoff-column-filter"), heading = node("h2", "", `Filter ${label}`);
     heading.id = `takeoff-column-filter-${uuid()}`; dialog.setAttribute("aria-labelledby", heading.id);
     const search = node("input"); search.type = "search"; search.placeholder = "Search values…"; search.setAttribute("aria-label", `Search ${label} values`);
     const allLabel = node("label", "takeoff-column-filter-choice"), all = node("input"); all.type = "checkbox"; all.setAttribute("aria-label", "Select all values"); allLabel.append(all, node("span", "", "Select all"));
@@ -2398,28 +2411,28 @@
         dialog.style.top = `${Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - box.height - 8))}px`;
         search.focus();
       });
-      if (["apply", "reset"].includes(result) && sessionId === state.session?.session_id && state.mode === "duct") setDuctColumnFilter(key, result === "reset" ? null : selected, values);
+      if (["apply", "reset"].includes(result) && sessionId === state.session?.session_id && state.mode === mode) setRegisterColumnFilter(key, result === "reset" ? null : selected, values);
     } finally { state.modal = false; anchor.setAttribute("aria-expanded", "false"); dialog.remove(); }
   }
-  function ductColumnFilterButton(key) {
-    const active = ductFilters().has(key), label = ductFilterColumns[key];
-    const control = button(`Filter ${label}`, () => openDuctColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`);
+  function registerColumnFilterButton(key) {
+    const active = registerFilters().has(key), label = registerFilterColumns[state.mode][key];
+    const control = button(`Filter ${label}`, () => openRegisterColumnFilter(key, control), `takeoff-column-filter-button${active ? " active" : ""}`);
     const icon = svg("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", class: "takeoff-column-filter-icon" }); icon.append(svg("path", { d: "M3 5h18l-7 8v6l-4 2v-8z", fill: active ? "currentColor" : "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linejoin": "round" }));
     control.replaceChildren(icon); control.setAttribute("aria-label", `Filter ${label}`); control.setAttribute("aria-haspopup", "dialog"); control.setAttribute("aria-expanded", "false"); control.setAttribute("aria-pressed", String(active)); control.title = active ? `${label}: filter applied` : `Filter ${label}`;
     return control;
   }
   function visibleItems() {
     const result = items().filter(item => item.mode === state.mode && (!state.filter || [item.id, ...Object.values(item.fields || {})].join(" ").toLowerCase().includes(state.filter)));
-    if (state.mode === "duct") {
-      const filters = ductFilters();
-      return result.filter(item => [...filters].every(([key, values]) => values.has(ductFilterValue(item, key))))
+    if (usesColumnFilters()) {
+      const filters = registerFilters();
+      return result.filter(item => [...filters].every(([key, values]) => values.has(registerFilterValue(item, key))))
         .sort((a, b) => String(a.fields?.mark || "").localeCompare(String(b.fields?.mark || ""), "en-AU", { numeric: true }));
     }
     const filter = state.ui?.statusFilter.value;
     return result.filter(item => !filter || reviewStatus(item).key === filter).sort((a, b) => ["length", "area"].includes(state.sort) ? (itemResult(a)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) - (itemResult(b)[state.sort === "area" ? "net_area_m2" : "length_m"] || 0) : String(state.sort === "state" ? reviewStatus(a).label : a.fields[state.sort] || "").localeCompare(String(state.sort === "state" ? reviewStatus(b).label : b.fields[state.sort] || ""), "en-AU", { numeric: true }));
   }
-  function itemGroup(item) { if (isStandalone(item)) return null; return state.mode !== "duct" && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
-  function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(state.mode !== "duct" && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
+  function itemGroup(item) { if (isStandalone(item)) return null; return !usesColumnFilters() && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
+  function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(!usesColumnFilters() && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
   async function selectItem(id, multiple = false, focus = true) {
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
@@ -2488,7 +2501,7 @@
     const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), "Evidence / issues"];
     for (const title of headings) {
       const cell = node("th", "", title);
-      if (state.mode === "duct") { const key = Object.keys(ductFilterColumns).find(key => ductFilterColumns[key] === title); if (key) cell.append(ductColumnFilterButton(key)); }
+      if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
       if (title === "Select" || title === "Hide") {
         const input = node("input"), set = title === "Select" ? state.selected : state.hidden, count = list.filter(item => set.has(item.id)).length; input.type = "checkbox"; input.checked = !!list.length && count === list.length; input.indeterminate = count > 0 && count < list.length; input.disabled = !list.length || state.busy; input.setAttribute("aria-label", title === "Select" ? "Select all matching items" : "Hide all matching items"); input.title = `${title} all ${list.length} matching items across register pages`;
         input.addEventListener("change", () => void safely(async () => { const checked = input.checked; if (title === "Select" && !await discardEditor()) { renderRegister(); return; } for (const item of list) { checked ? set.add(item.id) : set.delete(item.id); if (title === "Select") state.countSelection.delete(item.id); } renderSelection(); })); cell.append(input);

@@ -109,7 +109,7 @@ async function showImage() {
   await select(otherDefect);
   const occupied = await create('barrier', barrierFields, 'Add barrier to D-0001'); await identifier(occupied, 'B-0002');
   assert.equal(record(occupied).defect_id, defect); assert.equal(record(empty).defect_id, defect);
-  const serviceFields = { 'Category': 'Plumbing & Hydraulic', 'Service type': 'Unlagged Pipes', 'Service Size (mm)': '25', 'Explicit service quantity': 1 };
+  const serviceFields = { 'Category': 'Plumbing & Hydraulic', 'Service type': 'Copper Pipes', 'Service Size (mm)': '25', 'Explicit service quantity': 1 };
   const pipe = await create('service', serviceFields, 'Add service to B-0002'); await identifier(pipe, 'S-0001');
   assert.equal(Object.hasOwn(record(pipe).fields,'label'),false);await dropdown(page.getByLabel('Category for S-0001',{exact:true}),physicalChoices.service);await dropdown(page.getByLabel('Service type for S-0001',{exact:true}),physicalChoices.service_type);
   await select(empty);

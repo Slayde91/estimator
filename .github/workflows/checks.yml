@@ -30,6 +30,7 @@ jobs:
       - run: node --check scripts/ocr_trafalgar_documents.cjs
       - run: node --test tests/test_trafalgar_ocr.cjs
       - run: node tests/test_ui.cjs
+      - run: node tests/test_header_tagline_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_downloads_ui.cjs
@@ -67,6 +68,9 @@ jobs:
       - run: npm run test:takeoffs-length-copy
       - run: npm run test:takeoffs-pdf-text
       - run: npm run test:takeoffs-duct-filters
+      - run: npm run test:takeoffs-steel-filters
+      - run: npm run test:header-tagline
+      - run: npm run test:services-choices
       - run: npm run test:takeoffs-standalone
       - run: npm run test:takeoffs-markups
       - run: npm run test:takeoffs-control-points

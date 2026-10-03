@@ -11,6 +11,9 @@ from unittest.mock import patch
 
 from estimator.catalog import FIRESTOPPING_GROUPS, ValidationError, baseline, configuration_catalog, effective_catalog
 from estimator.excel_engine import FormulaError, column_number, coordinates
+from estimator.library_facets import (LAGGED_PIPE_TYPES, PLASTIC_PIPE_TYPES,
+                                      UNLAGGED_PIPE_TYPES)
+from tests.test_library_facets import REQUESTED_SERVICES
 from estimator.penetration_calculator import (
     FRL_OPTIONS, GLOBAL_DEFAULTS, ROW_COLUMNS, WASTE_SETTINGS, PenetrationEngine, _copy_row_formula,
     calculate, definition, engine_for_draft, inventory_lists, normalize_draft, pricing_usage_metadata, source_model,
@@ -258,7 +261,8 @@ class PenetrationCalculationTests(unittest.TestCase):
                             and settings[key]['help'].startswith('Applies to ')
                             for key in settings if key.startswith('waste_')))
         self.assertEqual(fields['K']['type'], 'select')
-        self.assertIn('Saved custom service', fields['K']['options'])
+        self.assertNotIn('Saved custom service', fields['K']['options'])
+        self.assertEqual(fields['K']['options'], REQUESTED_SERVICES)
         self.assertIn('Cable Trays', fields['K']['options'])
         self.assertEqual(fields['V']['options'], ['Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix'])
         self.assertEqual(fields['J']['label'], 'Category')
@@ -287,8 +291,8 @@ class PenetrationCalculationTests(unittest.TestCase):
             self.assertIn(service, spec['group_visibility']['Cabletrays']['values'])
         self.assertNotIn('Plastic Pipes', spec['group_visibility']['Cabletrays']['values'])
         self.assertIn('Plastic Pipes', spec['group_visibility']['Plastic Pipes']['values'])
-        self.assertEqual(spec['group_visibility']['Unlagged Pipes']['values'], ['Unlagged Pipes'])
-        self.assertEqual(spec['group_visibility']['Lagged Pipes']['values'], ['Lagged Pipes'])
+        self.assertEqual(spec['group_visibility']['Unlagged Pipes']['values'], ['Unlagged Pipes', *UNLAGGED_PIPE_TYPES])
+        self.assertEqual(spec['group_visibility']['Lagged Pipes']['values'], ['Lagged Pipes', *LAGGED_PIPE_TYPES])
         self.assertEqual(spec['group_visibility']['Unlagged Pipes']['route_key'], 'Unlagged Pipes')
         self.assertEqual(spec['group_visibility']['Lagged Pipes']['route_key'], 'Lagged Pipes')
         self.assertIn('Cable Bundles', spec['group_visibility']['Cables/Bundles']['values'])
@@ -424,6 +428,70 @@ class PenetrationCalculationTests(unittest.TestCase):
         self.assertEqual([row['inputs']['AH'] for row in normalized['rows'][2:]], [.25, 0, .25, .25])
         self.assertEqual(draft, before)
 
+    def test_precise_services_reuse_groups_and_outputs_without_rewriting_saved_routes(self):
+        source = source_example()
+        routes = definition()['defaults']['globals']['service_routes']
+        self.assertEqual(list(routes), ['Unlagged Pipes', 'Lagged Pipes', 'Plastic Pipes',
+                                       'Cables/Bundles', 'Cabletrays', 'Substrate'])
+        for legacy, descriptions in [('Unlagged Pipes', UNLAGGED_PIPE_TYPES),
+                                     ('Lagged Pipes', LAGGED_PIPE_TYPES),
+                                     ('Plastic Pipes', PLASTIC_PIPE_TYPES),
+                                     ('Data Cable Bundles', ('Data Cables',)),
+                                     ('TPS & Fire Alarm Cable Bundles', ('TPS & Fire Alarm Cables',))]:
+            original = deepcopy(source)
+            original['rows'][0]['inputs'].update(K=legacy, AL=50, AN=1, AH=0)
+            for index, key in enumerate(WASTE_SETTINGS, 1):
+                original['globals'][key] = index / 100
+            expected = calculate(original)
+            for service in descriptions:
+                with self.subTest(service=service):
+                    changed = deepcopy(original)
+                    changed['rows'][0]['inputs']['K'] = service
+                    before = deepcopy(changed)
+                    result = calculate(changed)
+                    self.assertEqual(result['rows'][0]['outputs'], expected['rows'][0]['outputs'])
+                    self.assertEqual(result['summary'], expected['summary'])
+                    self.assertEqual(result['rows'][0]['errors'], expected['rows'][0]['errors'])
+                    self.assertEqual(result['draft']['rows'][0]['inputs']['K'], service)
+                    self.assertEqual(changed, before)
+        # No Additional Labour is equivalent whether explicitly zero or blank.
+        for allowance in (0, None):
+            original = deepcopy(source)
+            original['rows'][0]['inputs'].update(K='Plastic Pipes', AL=50, AN=1, AH=allowance)
+            precise = deepcopy(original)
+            precise['rows'][0]['inputs']['K'] = 'HDPE pipe'
+            self.assertEqual(calculate(precise)['rows'][0]['outputs'], calculate(original)['rows'][0]['outputs'])
+        # Explicit configurations remain authoritative, including exclusions.
+        saved_routes = {key: [key] for key in routes}
+        saved_routes['Plastic Pipes'] += ['Conduits', 'Saved custom service']
+        inputs = {'rows': [{'id': 'saved', 'inputs': {'K': 'Saved custom service'}}],
+                  'globals': {'service_routes': saved_routes}}
+        self.assertEqual(normalize_draft(inputs)['globals']['service_routes'], saved_routes)
+        for legacy in ('Plastic Pipes', 'Lagged Pipes', 'Unlagged Pipes',
+                       'Data Cable Bundles', 'TPS & Fire Alarm Cable Bundles'):
+            saved = {'rows': [{'id': 'saved', 'inputs': {'K': legacy}}]}
+            self.assertEqual(normalize_draft(saved)['rows'][0]['inputs']['K'], legacy)
+
+    def test_new_plastic_descriptions_preserve_explicit_additional_labour(self):
+        cases = [
+            {'Y': 'Collar', 'AL': 50, 'AH': .25},
+            {'Y': 'Collar', 'AL': None, 'pipe_labour_hours': .375, 'AH': 1},
+            {'Y': 'Collar', 'AL': None, 'pipe_labour_hours': 0, 'AH': .25},
+            {'Y': 'Collar', 'AL': 50, 'AH': 0},
+            {'Y': None, 'AL': 50, 'AH': .25},
+        ]
+        for values in cases:
+            # These labels could already exist as historical custom choices.
+            # Only exact legacy Plastic Pipes source rows had the duplicate AH
+            # correction; a description change must not erase explicit labour.
+            expected = normalize_draft({'rows': [{'id': 'saved', 'inputs': {'K': 'Saved custom plastic', **values}}]})
+            for service in PLASTIC_PIPE_TYPES:
+                with self.subTest(service=service, values=values):
+                    result = normalize_draft({'rows': [{'id': 'saved', 'inputs': {'K': service, **values}}]})
+                    expected['rows'][0]['inputs']['K'] = service
+                    self.assertEqual(result, expected)
+                    self.assertEqual(result['rows'][0]['inputs']['AH'], values['AH'])
+
     def test_summary_never_hides_row_calculation_error(self):
         original = PenetrationEngine.cell
         def failing(engine, sheet, row, column):
@@ -465,7 +533,7 @@ class PenetrationCalculationTests(unittest.TestCase):
         source = source_example()
         original = calculate(source)
         normalized = normalize_draft(source)
-        self.assertEqual(normalized['globals']['service_routes']['Lagged Pipes'], ['Lagged Pipes'])
+        self.assertEqual(normalized['globals']['service_routes']['Lagged Pipes'], ['Lagged Pipes', *LAGGED_PIPE_TYPES])
         self.assertNotIn('Lagged Pipes', normalized['globals']['service_routes']['Unlagged Pipes'])
         normalized['globals']['service_routes']['Lagged Pipes'] = ['Lagged Pipes', 'Saved custom lagged service']
         normalized['globals']['labour_bands'].update({

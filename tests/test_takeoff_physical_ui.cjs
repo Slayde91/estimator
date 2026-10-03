@@ -518,5 +518,15 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const selections=[],h=component(servicePlanGraph(),{scope:()=> 'service_plans',selectionChanged:change=>selections.push(change)});await flush();await h.controller.selectDrawing(uuid(1));const notes=h.input('Notes');notes.value='Before closing';notes.emit('input');await h.controller.clearSelection();
     assert.equal(h.current.physical.barriers[0].fields.notes,'Before closing');assert.deepEqual(h.controller.selection(),[]);assert.deepEqual(selections.at(-1),{selected:[],barrierId:null,entry:null,inspectedId:null,focus:false});h.controller.destroy();
   });
+  await check('Callout drawing selection retains its pane option through automatic edits and both selection callbacks',async()=>{
+    for(const servicePlans of [false,true]){
+      const changes=[],selections=[],h=component(servicePlans?servicePlanGraph():graph(),{scope:()=>servicePlans?'service_plans':'defect_reports',selectionChanged:change=>changes.push(change),selection:(...args)=>selections.push(args)});await flush();await h.controller.select(uuid(1));const before=copy(h.current.physical);const notes=h.input('Notes');notes.value='Saved before callout selection';notes.emit('input');await h.controller.selectDrawing(uuid(1),false,false,false);
+      assert.equal(h.current.physical.barriers[0].fields.notes,'Saved before callout selection');assert.equal(changes.at(-1).openDetails,false);assert.equal(selections.at(-1)[3],false);assert.deepEqual(h.controller.selection(),[uuid(1)]);assert.equal(h.controller.inspectedId(),servicePlans?uuid(1):uuid(2));assert.deepEqual(h.current.physical.services,before.services);assert.equal(h.calls.confirmations.length,0);
+      await h.controller.selectDrawing(uuid(1));assert.equal(changes.at(-1).openDetails,true);assert.equal(selections.at(-1)[3],true);h.controller.destroy();
+    }
+  });
+  await check('Item Details Add service shares the compact register Add Substrate button class',async()=>{
+    const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));const service=h.button('Add service in Item Details'),substrate=h.button('Add substrate');assert.equal(service.textContent,'+');assert.equal(substrate.textContent,'+');for(const name of substrate.className.split(/\s+/))assert.ok(service.className.split(/\s+/).includes(name));assert.equal(service.title,'Add service to B-0001');h.controller.destroy();
+  });
   console.log(`${passed} physical draft UI checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

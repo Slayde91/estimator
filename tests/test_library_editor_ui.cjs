@@ -311,5 +311,14 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
       const current=h.control('V');current.value=raw;await current.emit('change');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);current.value='Trafalgar';await current.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.V,'Trafalgar');
     }
   });
+  await check('Retired service choices survive presentation and unrelated library calculations',async h=>{
+    const options=['uPVC pipe','uPVC floorwaste','PEX pipe','HDPE pipe','Copper Pipes','Steel Pipes','Data Cables','TPS & Fire Alarm Cables'];
+    for(const raw of ['Plastic Pipes','Lagged Pipes','Unlagged Pipes','Data Cable Bundles','TPS & Fire Alarm Cable Bundles','Saved custom service']){
+      const item=fixture();item.definition.row_fields.push({column:'K',label:'Service Type',type:'select',group:'Penetration',format:'text',options,default:null});item.draft.rows[0].inputs.K=raw;h.api.present(item);
+      const control=h.control('K'),saved=control.children.find(option=>option.value===raw);assert.equal(control.value,raw);assert.equal(saved.disabled,true);assert.equal(h.api.hasUnsavedChanges(),false);assert.deepEqual(copy(h.audit.state.draft),item.draft);
+      h.control('T').value='Independent description';await h.control('T').emit('input');let captured;h.audit.setRequest(async(id,action,payload)=>{captured=copy(payload.draft);return fixture(payload.draft,{definition:item.definition});});await h.audit.calculate();assert.equal(captured.rows[0].inputs.K,raw);assert.equal(h.audit.state.draft.rows[0].inputs.K,raw);
+      const current=h.control('K');current.value='HDPE pipe';await current.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.K,'HDPE pipe');
+    }
+  });
   console.log(`${passed} library editor UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

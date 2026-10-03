@@ -385,8 +385,8 @@
       const parent = lineage.find(entry => entry.kind === parentKind && !entry.entity.deleted);
       return create(kind, parent?.entity.id, marker);
     }
-    function selectEntity(id, multiple = false, focus = !multiple, inspectDefect = false) {
-      if (state.pending.size || state.autoApplyPromise) return completePendingEdits().then(() => selectEntity(id, multiple, focus, inspectDefect));
+    function selectEntity(id, multiple = false, focus = !multiple, inspectDefect = false, openDetails = true) {
+      if (state.pending.size || state.autoApplyPromise) return completePendingEdits().then(() => selectEntity(id, multiple, focus, inspectDefect, openDetails));
       ensureAvailable(); const entry = state.index.get(id); if (!entry) return;
       if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
       const selected = selectEntries(); let inspected = selected.length === 1 ? selected[0] : null;
@@ -394,14 +394,14 @@
       state.inspectedId = inspected?.entity.id || null;
       for (const parent of ancestors(entry, state.index)) state.collapsed.delete(parent.entity.id);
       const rows = hierarchyRows(graph(), state); state.offset = Math.floor(Math.max(0, rows.findIndex(row => row.entity.id === id)) / 100) * 100; renderData();
-      bridge.selectionChanged?.({ selected: [...state.selected], barrierId: selectedBarrier()?.id || null, entry: copy(entry), inspectedId: state.inspectedId, focus });
-      return bridge.selection?.([...state.selected], entry.entity.evidence[0] || selectedBarrier()?.marker || null, focus);
+      bridge.selectionChanged?.({ selected: [...state.selected], barrierId: selectedBarrier()?.id || null, entry: copy(entry), inspectedId: state.inspectedId, focus, openDetails });
+      return bridge.selection?.([...state.selected], entry.entity.evidence[0] || selectedBarrier()?.marker || null, focus, openDetails);
     }
-    function selectDrawing(id, multiple = false, focus = false) {
-      if (state.pending.size || state.autoApplyPromise) return completePendingEdits().then(() => selectDrawing(id, multiple, focus));
+    function selectDrawing(id, multiple = false, focus = false, openDetails = true) {
+      if (state.pending.size || state.autoApplyPromise) return completePendingEdits().then(() => selectDrawing(id, multiple, focus, openDetails));
       ensureAvailable(); const entry = state.index.get(id);
       if (!entry || entry.entity.deleted) throw new Error("This drawing record is no longer available. Select a current record.");
-      return selectEntity(id, multiple, focus, true);
+      return selectEntity(id, multiple, focus, true, openDetails);
     }
     function selectedBarrier() {
       const selected = selectEntries(); if (selected.length !== 1 || selected[0].entity.deleted) return null;

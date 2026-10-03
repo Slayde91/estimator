@@ -12,17 +12,123 @@ def record(**values):
     return {'fields': [{'label': k.replace('_', ' '), 'value': v} for k, v in values.items()]}
 
 
+REQUESTED_SERVICES = [
+    'Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
+    'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables',
+    'D2 Comms Cables', 'Data Cables', 'Downlights', 'Fibre Optic',
+    'Fire Dampers', 'Fire Resistant Cables', 'Flexible Ducts', 'Junction Box',
+    'Lagged Copper Pipes', 'Lagged Steel Pipes', 'Linear Joints',
+    'Mixed Services', 'Movement Joints', 'Pair Coils', 'uPVC pipe',
+    'uPVC floorwaste', 'PEX pipe', 'HDPE pipe', 'Power Cables', 'Single Cables',
+    'TPS & Fire Alarm Cables', 'Copper Pipes', 'Steel Pipes',
+    'Air Transfer Grilles', 'Communications Cables', 'Structural Steel',
+    'Structural Timber', 'Wall Sockets',
+]
+
+
 class LibraryFacetTests(unittest.TestCase):
     def test_requested_options_remain_available_in_requested_order(self):
-        for key, expected in [('category', CATEGORIES), ('services', SERVICES), ('frl', FRLS)]:
+        for key, expected in [('category', CATEGORIES), ('frl', FRLS)]:
             self.assertEqual(facet_options(key, []), list(expected))
             self.assertEqual(facet_options(key, ['extra']), list(expected) + ['extra'])
+        self.assertEqual(list(SERVICES), REQUESTED_SERVICES)
+        self.assertEqual(facet_options('services', ['Plastic Pipes', 'Saved custom service',
+                                                   'Data Cable Bundles']), REQUESTED_SERVICES)
 
     def test_cable_ties_and_supporting_steel_do_not_classify_pipe_service(self):
         item = record(Service='Copper pipe', Installation_Details='Fix wrap with steel cable ties',
                       Barrier_Construction='Steel framed wall FRL -/180/180', FRL='-/120/120')
-        self.assertEqual(classify_facets(item), {'services': ['Unlagged Pipes'],
+        self.assertEqual(classify_facets(item), {'services': ['Copper Pipes', 'Unlagged Pipes'],
                          'category': ['Plumbing & Hydraulic'], 'frl': ['-/120/120']})
+
+    def test_material_filters_require_scoped_explicit_material_evidence(self):
+        cases = [
+            ('uPVC pipe', 'uPVC pipe', 'Plastic Pipes'),
+            ('PVC-U floor waste', 'uPVC floorwaste', 'Plastic Pipes'),
+            ('uPVC floorwaste', 'uPVC floorwaste', 'Plastic Pipes'),
+            ('PEX pipe', 'PEX pipe', 'Plastic Pipes'),
+            ('PE-X pipe', 'PEX pipe', 'Plastic Pipes'),
+            ('HDPE pipe', 'HDPE pipe', 'Plastic Pipes'),
+            ('Copper pipe', 'Copper Pipes', 'Unlagged Pipes'),
+            ('Unlagged copper pipe', 'Copper Pipes', 'Lagged Pipes'),
+            ('Pipes - Steel', 'Steel Pipes', 'Unlagged Pipes'),
+            ('Lagged copper pipe', 'Lagged Copper Pipes', 'Lagged Pipes'),
+            ('Steel pipe with 25mm pipe insulation', 'Lagged Steel Pipes', 'Lagged Pipes'),
+        ]
+        for source, exact, legacy in cases:
+            with self.subTest(source=source):
+                item = record(Service=source)
+                before = deepcopy(item)
+                result = classify_facets(item)
+                self.assertIn(exact, result['services'])
+                self.assertIn(legacy, result['services'])
+                self.assertEqual(result['category'], ['Plumbing & Hydraulic'])
+                self.assertEqual(item, before)
+        precise = set(REQUESTED_SERVICES[16:18] + REQUESTED_SERVICES[22:26]
+                      + ['Copper Pipes', 'Steel Pipes'])
+        for source in ('Plastic pipes', 'Lagged pipes', 'Unlagged pipes',
+                       'PVC pipe', 'LDPE pipe', 'Pair coil with copper pipe'):
+            with self.subTest(source=source):
+                self.assertFalse(precise.intersection(service_values(record(Service=source))))
+        broad = {'fields': [], 'filter_values': {'services': ['Plastic Pipes', 'Lagged Pipes']}}
+        self.assertFalse(precise.intersection(classify_facets(broad)['services']))
+        self.assertNotIn('Steel Pipes', service_values(record(Service='Copper pipe',
+                          Installation_Details='Steel pipes support the assembly')))
+        ambiguous = record(Service='Mixed copper pipe and steel pipe bundle',
+                           **{'Service Size / Configuration': 'Pipe insulation shown for one service'})
+        self.assertNotIn('Lagged Copper Pipes', service_values(ambiguous))
+        self.assertNotIn('Lagged Steel Pipes', service_values(ambiguous))
+
+    def test_mixed_service_materials_do_not_borrow_another_pipe_or_floorwaste_identity(self):
+        cases = [
+            ('uPVC conduits and copper pipes', [], ['uPVC pipe', 'uPVC floorwaste']),
+            ('uPVC pipe and HDPE cable conduits', ['uPVC pipe'], ['HDPE pipe']),
+            ('uPVC pipe and copper floor waste', ['uPVC pipe'], ['uPVC floorwaste']),
+            ('PEX cable conduit and steel pipe', ['Steel Pipes'], ['PEX pipe']),
+            ('HDPE pipe and uPVC floor waste', ['HDPE pipe', 'uPVC floorwaste'], ['uPVC pipe']),
+            ('Copper pipe and HDPE pipe with pipe insulation', ['HDPE pipe'], ['Lagged Copper Pipes']),
+        ]
+        for source, present, absent in cases:
+            with self.subTest(source=source):
+                values = service_values(record(Service=source))
+                for value in present: self.assertIn(value, values)
+                for value in absent: self.assertNotIn(value, values)
+
+    def test_new_cable_labels_retain_historical_matching_tokens(self):
+        data = service_values(record(Service='Bundle of CAT6 data cables'))
+        self.assertIn('Data Cables', data)
+        self.assertIn('Data Cable Bundles', data)
+        self.assertIn('Cable Bundles', data)
+        alarm = service_values(record(Service='TPS and fire alarm cable bundles'))
+        self.assertIn('TPS & Fire Alarm Cables', alarm)
+        self.assertIn('TPS & Fire Alarm Cable Bundles', alarm)
+        for source in ('Data pipes and power cables', 'Data duct with power cable',
+                       'CAT6 pipes beside coaxial cables', 'Data pipes and power cable bundles'):
+            with self.subTest(source=source):
+                self.assertNotIn('Data Cables', service_values(record(Service=source)))
+                self.assertNotIn('Data Cables', classify_facets(record(Service=source))['services'])
+        for source in ('TPS pipes and coaxial cables', 'Fire alarm pipe and power cable'):
+            with self.subTest(source=source):
+                self.assertNotIn('TPS & Fire Alarm Cables', service_values(record(Service=source)))
+                self.assertNotIn('TPS & Fire Alarm Cables', classify_facets(record(Service=source))['services'])
+        for source in ('TPS cable', 'Fire alarm cable', 'Cables - TPS', 'TPS & Fire Alarm Cables'):
+            with self.subTest(source=source):
+                self.assertIn('TPS & Fire Alarm Cables', service_values(record(Service=source)))
+
+    def test_explicit_historical_bundle_tokens_gain_general_discovery_without_renaming(self):
+        for legacy, general in [('Data Cable Bundles', 'Data Cables'),
+                                ('Power Cable Bundles', 'Power Cables'),
+                                ('TPS & Fire Alarm Cable Bundles', 'TPS & Fire Alarm Cables')]:
+            with self.subTest(legacy=legacy):
+                item = {'fields': [], 'filter_values': {'services': [legacy]}}
+                before = deepcopy(item)
+                self.assertEqual(classify_facets(item)['services'], sorted([legacy, general]))
+                self.assertEqual(item, before)
+                literal = record(Service=legacy)
+                self.assertIn(general, classify_facets(literal)['services'])
+                self.assertEqual(literal['fields'][0]['value'], legacy)
+        for legacy in ('Plastic Pipes', 'Lagged Pipes', 'Unlagged Pipes', 'Cable Bundles'):
+            self.assertEqual(classify_facets({'fields': [], 'filter_values': {'services': [legacy]}})['services'], [legacy])
 
     def test_metal_pipe_insulation_is_not_cable_insulation(self):
         item = record(Service='Steel pipe', **{'Service Size / Configuration': 'PVC insulated power cables in adjacent source are not service details'})
@@ -148,6 +254,52 @@ class LibraryFacetTests(unittest.TestCase):
 class FacetIntegrationTests(unittest.TestCase):
     setUp = fixtures.ReferenceLibraryTests.setUp
     write = fixtures.ReferenceLibraryTests.write
+
+    def test_precisely_typed_legacy_bundle_queries_and_new_labels_find_the_same_source(self):
+        original = self.data['libraries']['technical']['items'][0]
+        self.data['libraries']['technical']['filters'].append({'key': 'services', 'label': 'Services'})
+        pairs = [('Data Cable Bundles', 'Data Cables'), ('Power Cable Bundles', 'Power Cables'),
+                 ('TPS & Fire Alarm Cable Bundles', 'TPS & Fire Alarm Cables')]
+        items = []
+        for n, (legacy, _) in enumerate(pairs):
+            item = deepcopy(original)
+            item['id'] = original['id'] if n == 0 else f'cable-{n}'
+            item.setdefault('filter_values', {})['services'] = [legacy]
+            items.append(item)
+        self.data['libraries']['technical']['items'] = items
+        self.write(self.data)
+        source_bytes = (self.root / 'library.json').read_bytes()
+        for n, (legacy, general) in enumerate(pairs):
+            self.assertEqual(self.library.listing('technical', services=legacy)['items'][0]['id'], items[n]['id'])
+            self.assertEqual(self.library.listing('technical', services=general)['items'][0]['id'], items[n]['id'])
+            self.assertEqual(self.library.listing('technical', services=general)['total'], 1)
+        self.assertEqual((self.root / 'library.json').read_bytes(), source_bytes)
+
+    def test_exact_choices_find_specific_records_without_expanding_broad_legacy_types(self):
+        original = self.data['libraries']['technical']['items'][0]
+        self.data['libraries']['technical']['filters'].append({'key': 'services', 'label': 'Services'})
+        items = []
+        for n, (source, legacy) in enumerate([
+                ('uPVC floor waste', None), ('HDPE pipe', None),
+                ('Copper pipe', None), ('Lagged steel pipe', None),
+                ('', 'Plastic Pipes'), ('', 'Lagged Pipes')]):
+            item = deepcopy(original)
+            item['id'] = original['id'] if n == 0 else f'service-{n}'
+            item['fields'].append({'label': 'Service', 'value': source})
+            if legacy: item.setdefault('filter_values', {})['services'] = [legacy]
+            items.append(item)
+        self.data['libraries']['technical']['items'] = items
+        self.write(self.data)
+        source_bytes = (self.root / 'library.json').read_bytes()
+        for label in ('uPVC floorwaste', 'HDPE pipe', 'Copper Pipes', 'Lagged Steel Pipes'):
+            self.assertEqual(self.library.listing('technical', services=label)['total'], 1)
+        self.assertEqual(self.library.listing('technical', services='PEX pipe')['total'], 0)
+        self.assertEqual(self.library.listing('technical', services='Plastic Pipes')['total'], 3)
+        self.assertEqual(self.library.listing('technical', services='Lagged Pipes')['total'], 2)
+        choices = next(entry['options'] for entry in self.library.listing('technical')['filters']
+                       if entry['key'] == 'services')
+        self.assertEqual([entry['value'] for entry in choices], REQUESTED_SERVICES)
+        self.assertEqual((self.root / 'library.json').read_bytes(), source_bytes)
 
     def test_canonical_filter_finds_records_imported_with_each_alias(self):
         original = self.data['libraries']['technical']['items'][0]

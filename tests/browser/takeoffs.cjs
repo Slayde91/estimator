@@ -259,8 +259,10 @@ async function boardJourney(info) {
   state = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
   assert.equal(state.snapshot.items[0].id, steelId); assert.equal(state.snapshot.items[0].fields.level, 'L02');
   await page.getByLabel('Filter register', { exact: true }).fill('B17');
-  await page.getByLabel('Sort register', { exact: true }).selectOption('level');
-  await page.getByLabel('Group register', { exact: true }).selectOption('level');
+  for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Filter Level', exact: true }).click();
+  await page.locator('.takeoff-column-filter').getByRole('button', { name: 'Apply filter', exact: true }).click();
+  await page.locator('.takeoff-column-filter').waitFor({ state: 'detached' });
   await expect(page.locator(`tr[data-item-id="${steelId}"]`)).toHaveCount(1);
   await page.locator(`tr[data-item-id="${steelId}"]`).hover();
   await expect(page.locator('.takeoff-markup.hovered')).toHaveCount(1);
@@ -268,7 +270,6 @@ async function boardJourney(info) {
   await expect(page.locator(`.takeoff-hit[data-item-id="${steelId}"]`)).toHaveCount(0);
   await page.getByLabel('Hide B17 on drawing', { exact: true }).uncheck();
   await page.getByLabel('Filter register', { exact: true }).fill('');
-  await page.getByLabel('Group register', { exact: true }).selectOption('');
   await reviewConfirm();
   let transferred = await transfer();
   assert.equal(transferred.preview.inputs.SCHEDULE.I10, 2); assert.ok(Math.abs(transferred.preview.inputs.SCHEDULE.J10 - 10) < 0.02);

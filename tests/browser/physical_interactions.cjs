@@ -99,6 +99,43 @@ async function automaticField(id, label, value) {
   await expect(page.getByRole('dialog')).toHaveCount(0); await snapshot();
   assert.equal(entity(currentScope, id).fields[label === 'Location' ? 'location' : 'notes'], value);
 }
+async function selectDrawingBehavior(scope, barrier, defect) {
+  await closeDetails(); await fit();
+  for (const input of ['pointer', 'Enter', ' ']) {
+    if (input === 'pointer') await frame(barrier).click(); else await callout(barrier).press(input);
+    await expect(details()).not.toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
+  }
+  await page.getByRole('button', { name: 'Resize callout se', exact: true }).click(); await expect(details()).not.toBeVisible();
+  await marker(barrier).click(); await expect(details()).toBeVisible();
+  if (defect) await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(defect);
+  for (const input of ['pointer', 'Enter', ' ']) {
+    if (input === 'pointer') await frame(barrier).click(); else await callout(barrier).press(input);
+    await expect(details()).toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'true');
+  }
+  await callout(barrier).press('Control+Enter'); await expect(details()).toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'false');
+  await callout(barrier).press('Enter'); await expect(details()).toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: path.join(output, `${scope}-callout-selected-pane-open.png`), fullPage: true });
+  await marker(barrier).click(); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
+  await marker(barrier).press('Enter'); await expect(details()).toBeVisible();
+  await marker(barrier).press(' '); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
+  await marker(barrier).press('Enter'); await expect(details()).toBeVisible();
+  // The existing post-drag guard ignores pointer-release echo clicks for500ms;
+  // keyboard actions above are intentionally exercised inside that interval.
+  await page.waitForTimeout(550);
+  await page.mouse.click(...await drawingPoint(scope === 'service_plans' ? [80, 470] : [550, 500], scope === 'service_plans' ? 3 : 1));
+  await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
+  (evidence.selection ||= []).push({ scope, calloutPointerAndKeyboardPreservePane: true, calloutModifierDeselectionPreservesOpenPane: true, resizeHandleClickPreservesClosedPane: true, markerPointerAndKeyboardTogglePane: true, blankPageClearsSelection: true });
+}
+async function compareAddServiceStyle(scope) {
+  const measured = await details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => {
+    const substrate = document.querySelector('.takeoff-physical-add-row .takeoff-physical-add-defect');
+    const read = el => { const css = getComputedStyle(el), rect = el.getBoundingClientRect(); return { text: el.textContent, width: rect.width, height: rect.height, ...Object.fromEntries(['display','alignItems','justifyContent','color','backgroundColor','fontSize','fontWeight','lineHeight','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopStyle','borderTopColor','borderRadius','boxShadow'].map(key => [key, css[key]])) }; };
+    return { service: read(service), substrate: read(substrate), sharedClasses: [...substrate.classList].every(value => service.classList.contains(value)) };
+  });
+  assert.equal(measured.sharedClasses, true); assert.deepEqual(measured.service, measured.substrate, 'Add service and the register red plus have identical size, glyph, padding, border and colour');
+  assert.equal(measured.service.fontSize, '22px'); (evidence.addServiceStyle ||= []).push({ scope, ...measured });
+}
 async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
   const cases = [];
   for (const [kind, savingFirst, canceled, clickOnly] of [['marker', false, false, false], ['callout', true, false, false], ['resize', true, false, false], ['marker', true, true, false], ['callout', true, false, true]]) {
@@ -153,6 +190,7 @@ async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
         else assert.notDeepEqual(next.callout?.offset, original.callout?.offset, 'The delayed callout drag persists its offset');
       }
       await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(details()).toBeVisible();
       cases.push({ kind, savingFirst, canceled, clickOnly, pageNumber, pointerReleasedBeforeSave: true, fieldRetained: true, geometryBefore: original, geometryAfter: next });
     } finally { release(); await Promise.all([...activeRoutes]); await page.unroute('**/physical/apply', intercept); }
   }
@@ -214,6 +252,7 @@ let currentScope = 'defect_reports';
     let defect;
     if (scope === 'defect_reports') defect = await create('defect', { 'Defect Ref.': 'INTERACTION-A', FRL: '-/120/120' }, () => page.getByRole('button', { name: 'Add defect', exact: true }).click());
     const barrier = await create('barrier', { Location: 'North plant room', 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { FRL: '-/90/90' } : {}) }, () => page.getByRole('button', { name: scope === 'service_plans' ? 'Add substrate' : 'Add barrier to D-0001', exact: true }).click());
+    await compareAddServiceStyle(scope);
     const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click());
     await selectBarrier(barrier);
     if (layoutReview) {
@@ -222,10 +261,7 @@ let currentScope = 'defect_reports';
       await details().getByRole('button', { name: 'Place count marker', exact: true }).click(); await closeDetails(); await fit();
       await response(async () => page.mouse.click(...await drawingPoint(pageNumber === 3 ? [410, 470] : [550, 330], pageNumber)), '/physical/apply'); await snapshot();
       await reviewAlignment(scope, barrier); await closeDetails(); await fit();
-      await frame(barrier).click(); await expect(details()).toBeVisible();
-      await callout(barrier).press('Enter'); await expect(details()).not.toBeVisible();
-      await callout(barrier).press('Enter'); await expect(details()).toBeVisible();
-      if (defect) await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(defect);
+      await selectDrawingBehavior(scope, barrier, defect);
       evidence.scopes.push({ scope, pageNumber, rapidKeyboardAfterPointer: true });
       console.log(`PASS: ${scope} full-width source documents, grouped Firestopping tabs and rapid keyboard regression.`);
       continue;
@@ -249,11 +285,13 @@ let currentScope = 'defect_reports';
     assert.equal(placed.page, pageNumber); assert.equal(placed.document_sha256, sourceBefore);
     await closeDetails(); await fit();
     await response(() => drag(marker(barrier), -18, 14), '/physical/apply'); await snapshot();
+    await expect(details()).toBeVisible();
     const moved = structuredClone(entity(scope, barrier).marker); assert.notDeepEqual(moved.point, placed.point);
     const withoutPoint = value => { const copy = structuredClone(value); delete copy.point; return copy; };
     assert.deepEqual(withoutPoint(moved), withoutPoint(placed), 'Marker drag changes only its source point'); assert.deepEqual(entity(scope, service), serviceBefore);
     await closeDetails(); await fit(); const beforeCallout = await frameBox(barrier);
     await response(() => drag(frame(barrier), -24, -20), '/physical/apply'); await snapshot();
+    await expect(details()).not.toBeVisible();
     const layout = structuredClone(entity(scope, barrier).marker.callout); assert.ok(layout?.offset.every(Number.isFinite)); assert.deepEqual(entity(scope, barrier).marker.point, moved.point);
     await closeDetails(); await fit(); const draggedCallout = await frameBox(barrier);
     assert.ok(Math.abs(draggedCallout.x - beforeCallout.x + 24) < 2 && Math.abs(draggedCallout.y - beforeCallout.y + 20) < 2, 'Callout drag persists its screen-equivalent source offset');
@@ -262,16 +300,12 @@ let currentScope = 'defect_reports';
       await closeDetails(); await fit(); await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
       const prior = structuredClone(entity(scope, barrier).marker.callout), handle = page.getByRole('button', { name: `Resize callout ${corner}`, exact: true });
       await response(() => drag(handle, dx, dy), '/physical/apply'); await snapshot();
+      await expect(details()).not.toBeVisible();
       const next = structuredClone(entity(scope, barrier).marker.callout); assert.ok(next.width > prior.width && next.height > prior.height, `${corner} corner enlarges both callout dimensions`);
       assert.deepEqual(entity(scope, barrier).marker.point, moved.point); assert.deepEqual(entity(scope, service), serviceBefore); corners.push({ corner, before: prior, after: next });
     }
     await closeDetails(); await fit(); const text = await textFits(barrier);
-    await frame(barrier).click(); await expect(details()).toBeVisible();
-    await frame(barrier).click(); await expect(details()).not.toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'false');
-    await frame(barrier).click(); await expect(details()).toBeVisible();
-    await callout(barrier).press('Enter'); await expect(details()).not.toBeVisible();
-    await callout(barrier).press('Enter'); await expect(details()).toBeVisible();
-    if (scope === 'defect_reports') await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(defect);
+    await selectDrawingBehavior(scope, barrier, defect);
     await reviewAlignment(scope, barrier);
     await closeDetails(); await fit(); await page.screenshot({ path: path.join(output, `${scope}-1146.png`), fullPage: true });
     for (const width of [764, 1146]) {
@@ -282,7 +316,7 @@ let currentScope = 'defect_reports';
       await fit(); await page.screenshot({ path: path.join(output, `${scope}-${width}-zoom.png`), fullPage: true }); evidence.responsive.push({ scope, width, pageNumber, zoomRetainsMarkerAndCallout: true });
     }
     retained.push({ scope, barrier, service, marker: structuredClone(entity(scope, barrier).marker) });
-    evidence.scopes.push({ scope, barrier, service, defect, pageNumber, automaticEdits: true, markerDrag: true, calloutDrag: layout, corners, measuredText: text, repeatedCalloutSelectionClosesPane: true, rapidKeyboardAfterPointer: true });
+    evidence.scopes.push({ scope, barrier, service, defect, pageNumber, automaticEdits: true, markerDragOpensPane: true, calloutDragPreservesClosedPane: true, calloutDrag: layout, corners, measuredText: text, calloutSelectionPreservesPane: true, markerSelectionTogglesPane: true, rapidKeyboardAfterPointer: true });
     console.log(`PASS: ${scope} automatic edits, marker/callout drag, four corners, measured text and responsive zoom.`);
   }
   if (layoutReview) {

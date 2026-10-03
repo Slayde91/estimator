@@ -553,5 +553,12 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.deepEqual(links.map(n=>n.textContent),['FIRST','LAST']);
     assert(nodes.some(n=>n.tagName==='p'&&n.textContent==='UNMATCHED'));
   });
+  await check('A previously selected legacy Services filter stays usable beside the new choices',async h=>{
+    const choices=['uPVC pipe','uPVC floorwaste','PEX pipe','HDPE pipe','Copper Pipes','Steel Pipes'];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),filters:[{key:'services',label:'Services',options:choices.map(value=>({value,label:value}))}]}));
+    const pane=h.pane('technical');pane.filters.services='Plastic Pipes';await h.api.open('technical');
+    const control=walk(pane.filterControls).find(el=>el.tagName==='select');assert.equal(control.value,'Plastic Pipes');assert.deepEqual(control.children.slice(1,-1).map(el=>el.value),choices);assert.equal(control.children.at(-1).value,'Plastic Pipes');assert.match(h.calls.at(-1).path,/services=Plastic\+Pipes/);
+    control.value='HDPE pipe';await control.emit('change');await flush();assert.equal(pane.filters.services,'HDPE pipe');assert.match(h.calls.at(-1).path,/services=HDPE\+pipe/);
+  });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

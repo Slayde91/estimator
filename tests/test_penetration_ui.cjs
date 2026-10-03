@@ -532,5 +532,15 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
       control.value=raw;await control.emit('change');assert.match(h.api.inputProblem(),/invalid/);assert.equal(h.audit.state.draft.rows[0].inputs.V,raw);control.value='Firefly';await control.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.audit.state.draft.rows[0].inputs.V,'Firefly');
     }
   });
+  await check('Retired service labels remain literal saved selections through unrelated edits and calculation',async h=>{
+    const options=['uPVC pipe','uPVC floorwaste','PEX pipe','HDPE pipe','Copper Pipes','Steel Pipes','Data Cables','TPS & Fire Alarm Cables'];
+    const metadata=definition();metadata.row_fields.push({column:'K',label:'Service Type',type:'select',group:'Penetration',format:'text',options,default:null});
+    for(const raw of ['Plastic Pipes','Lagged Pipes','Unlagged Pipes','Data Cable Bundles','TPS & Fire Alarm Cable Bundles','Saved custom service']){
+      h.audit.state.definition=copy(metadata);h.audit.state.draft.rows[0].inputs.K=raw;const stamp=h.api.projectFingerprint();h.audit.renderFields();
+      const control=h.control('K'),saved=control.children.find(option=>option.value===raw);assert.equal(control.value,raw);assert.equal(saved.disabled,true);assert.match(saved.textContent,/Saved value:/);assert.equal(h.api.projectFingerprint(),stamp);assert.deepEqual(copy(metadata.row_fields.at(-1).options),options);
+      h.control('T').value='Independent description';await h.control('T').emit('input');let captured;h.audit.setRequest(async(path,payload)=>{captured=copy(payload.draft);return result(payload.draft,metadata);});await h.audit.calculate();assert.equal(captured.rows[0].inputs.K,raw);assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.K,raw);
+      const current=h.control('K');current.value='HDPE pipe';await current.emit('change');assert.equal(h.api.inputProblem(),'');assert.equal(h.api.projectSnapshot().composer.rows[0].inputs.K,'HDPE pipe');
+    }
+  });
   console.log(`${passed} penetration UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

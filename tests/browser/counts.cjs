@@ -194,9 +194,13 @@ function pythonJson(script, ...args) {
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
-  await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
-  await command(async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
-  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
+  // A document tile precedes upload's asynchronous page-one fit. Wait for its
+  // actual bitmap before editing the page input, then bind navigation to page 3
+  // rather than accepting an unrelated record_render response from page 1.
+  await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
+  await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
+  await renderDrawing(page, async () => { await fill(page, 'Page number', 3); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
   const original = await snapshot(), source = original.documents[0], calculatorBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   assert.equal(original.calibrations.length, 0); assert.equal(source.pages[2].rotation, 90); assert.equal(source.pages[2].user_unit, 2); assert.deepEqual(source.pages[2].view, [20, 30, 800, 570]);
   const countBox = await page.getByRole('button', { name: 'Count steel lengths', exact: true }).boundingBox(), traceBox = await page.getByRole('button', { name: 'Trace length', exact: true }).boundingBox(); assert.ok(countBox.y > traceBox.y);

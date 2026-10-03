@@ -22,6 +22,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const copy = value => JSON.parse(JSON.stringify(value));
 async function options(control, legacy) {
   await expect(control).toBeVisible();
+  await expect(control).toBeEnabled();
   const actual = await control.locator('option').evaluateAll(rows => rows.filter(row => row.value).map(row => ({ value: row.value, disabled: row.disabled, label: row.textContent })));
   assert.deepEqual(actual.filter(row => row.value !== legacy).map(row => row.value), services);
   if (legacy) { assert.equal(actual.at(-1).value, legacy); await expect(control).toHaveValue(legacy); }
@@ -110,7 +111,24 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await page.screenshot({ path: path.join(output, 'takeoff-saved-service.png') });
   await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.penetration.composer.rows[0].inputs.K, 'Plastic Pipes'); assert.equal(saved.takeoffs.physical.services[0].fields.service_type, 'Plastic Pipes'); assert.equal(saved.takeoffs.physical.services[0].id, ids.service); assert.equal(saved.takeoffs.physical.services[0].quantity, 1); assert.equal(saved.takeoffs.physical.services[0].fields.width_mm, 12.3456789012345);
-  await load(false); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode=physical]').click(); await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes');
+  // Reopening mounts a fresh inspector before its asynchronous shared choices
+  // arrive. Retained values stay visible but locked until the definition loads.
+  let definitionHeld = false, releaseDefinition;
+  const definitionGate = new Promise(resolve => { releaseDefinition = resolve; });
+  const heldDefinition = async route => { definitionHeld = true; await definitionGate; await route.continue(); };
+  await page.route('**/api/penetration/definition', heldDefinition);
+  try {
+    await load(false); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode=physical]').click(); await physicalIdle();
+    await expect.poll(() => definitionHeld).toBe(true);
+    await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click();
+    const reopenedService = details.getByLabel('Service type', { exact: true });
+    await expect(reopenedService).toBeVisible(); await expect(reopenedService).toBeDisabled(); await expect(reopenedService).toHaveValue('Plastic Pipes');
+    const pendingOptions = await reopenedService.locator('option').evaluateAll(rows => rows.filter(row => row.value && row.value !== 'Plastic Pipes').map(row => row.value));
+    assert.deepEqual(pendingOptions, []); assert.deepEqual((await takeoffSnapshot()).physical.services[0], saved.takeoffs.physical.services[0]);
+    await page.screenshot({ path: path.join(output, 'takeoff-reopened-choices-pending.png') });
+    releaseDefinition(); evidence.takeoffReopenedOptions = await options(reopenedService, 'Plastic Pipes');
+    evidence.reopenedChoiceReadiness = { definition_response_held: true, retained_value_visible_and_disabled: true, pending_general_options: pendingOptions, saved_service_unchanged: true, enabled_after_definition: true };
+  } finally { releaseDefinition(); await page.unroute('**/api/penetration/definition', heldDefinition); }
   await details.getByLabel('Service type', { exact: true }).selectOption('HDPE pipe'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.service_type).toBe('HDPE pipe'); assert.equal((await takeoffSnapshot()).physical.services[0].id, ids.service);
   assert.deepEqual(protectedDatabase(), databaseBefore); assert.deepEqual(await api(`/api/libraries/penetration/${info.item_id}/edit`), sharedBefore); assert.deepEqual(fs.readFileSync(sourcePath), sourceBefore); assert.deepEqual(fs.readFileSync(info.diagram), sourceImageBefore); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, exactServices: services, ...evidence, ids, legacy_save_reopen_precise_identity: true, broad_type_not_expanded_to_subtypes: true, shared_database_preserved: true, shared_library_preserved: true, source_sha256: sha(sourceBefore), image_sha256: sha(sourceImageBefore), errors, csp: [] }, null, 2));

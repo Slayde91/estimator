@@ -13,7 +13,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', data => { stdout += data; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch (error) { reject(error); } } });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const errors = [], inventoryRequests = [];
+const errors = [], inventoryRequests = [], physicalRequests = [], automaticFieldChecks = {};
 const activeGraph = () => state.snapshot.physical;
 const records = () => ['defects', 'barriers', 'services'].flatMap(kind => activeGraph()[kind]);
 const record = id => records().find(entity => entity.id === id);
@@ -23,6 +23,10 @@ async function identifier(id, display) {
   await expect(page.locator(`tr[data-physical-id="${id}"]`)).toContainText(display);
 }
 async function idle() { await expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true'); await expect(page.locator('.takeoff-physical-register')).not.toHaveAttribute('aria-busy', 'true'); }
+async function canonicalState() {
+  const reply = await page.request.get(await page.evaluate(() => `${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`));
+  assert.equal(reply.status(), 200); return reply.json();
+}
 async function response(action, suffix) {
   const pending = page.waitForResponse(r => new URL(r.url()).pathname.endsWith(suffix)); pending.catch(() => {}); await action();
   const reply = await pending, result = await reply.json(); assert.equal(reply.status(), 200, JSON.stringify(result)); return result;
@@ -78,7 +82,7 @@ async function showImage() {
   const info = await ready; assert.notEqual(info.port, 8765, 'Browser QA must use disposable storage and a random port'); browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { const url = new URL(request.url()); if (url.pathname.endsWith('/images') && request.method() === 'GET') inventoryRequests.push({ extraction: url.searchParams.get('extraction_id'), limit: url.searchParams.get('limit') }); });
+  page.on('request', request => { const url = new URL(request.url()); if (url.pathname.endsWith('/images') && request.method() === 'GET') inventoryRequests.push({ extraction: url.searchParams.get('extraction_id'), limit: url.searchParams.get('limit') }); if (/\/physical\/(preview|apply)$/.test(url.pathname)) physicalRequests.push({ path: url.pathname, body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect(page.locator('#project-tools')).toBeVisible(); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
@@ -122,10 +126,24 @@ async function showImage() {
   await page.locator(`.takeoff-hit[data-physical-id="${cable}"]`).hover(); await expect(page.locator(`tr[data-physical-id="${cable}"]`)).toHaveClass(/hovered/);
   await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('S-0002'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(3); await expect(page.locator(`tr[data-physical-id="${defect}"]`)).toContainText('Ancestor context'); await page.getByLabel('Filter physical hierarchy', { exact: true }).fill('');
   const notes = page.getByRole('complementary', { name: 'Item Details' }).getByLabel('Notes', { exact: true });
-  await notes.fill('Unapplied inspection finding must remain visible'); const frl = page.getByLabel('FRL for D-001', { exact: true }); await frl.selectOption('-/90/90');
-  await expect(page.getByRole('alert')).toContainText('Those edits have been preserved'); await expect(notes).toHaveValue('Unapplied inspection finding must remain visible'); await expect(frl).toHaveValue('-/120/120');
-  await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue('');
-  await frl.selectOption('-/90/90'); await apply('Change defect frl?'); assert.equal(activeGraph().defects[0].fields.frl, '-/90/90'); await undo(); assert.equal(activeGraph().defects[0].fields.frl, '-/120/120');
+  const frl = page.getByLabel('FRL for D-001', { exact: true }), beforePending = await canonicalState(), requestsBeforePending = physicalRequests.length;
+  // Stage separate inspector/table inputs in one browser task so a slow runner
+  // cannot save the first field before this conservative mixed-edit guard runs.
+  await page.evaluate(({ notes, frl }) => {
+    notes.value = 'Unapplied inspection finding must remain visible'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+    frl.value = '-/90/90'; frl.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { notes: await notes.elementHandle(), frl: await frl.elementHandle() });
+  await expect(page.getByRole('alert')).toHaveText('Finish the separate physical field edits before saving. Your unfinished input is preserved.');
+  await expect(notes).toHaveValue('Unapplied inspection finding must remain visible'); await expect(frl).toHaveValue('-/90/90');
+  assert.deepEqual((await canonicalState()).snapshot.physical, beforePending.snapshot.physical, 'Mixed unfinished inputs cannot change canonical fields, identities, quantities or evidence');
+  assert.equal(physicalRequests.length, requestsBeforePending, 'The mixed-edit guard sends no preview or apply request');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click(); await expect(notes).toHaveValue(''); await expect(frl).toHaveValue('-/120/120');
+  assert.deepEqual((await canonicalState()).snapshot.physical, beforePending.snapshot.physical); assert.equal(physicalRequests.length, requestsBeforePending);
+  state = await response(() => frl.selectOption('-/90/90'), '/physical/apply'); await idle(); await expect(page.getByRole('dialog')).toHaveCount(0);
+  assert.equal(record(defect).fields.frl, '-/90/90'); assert.deepEqual(activeGraph().services, beforePending.snapshot.physical.services);
+  await undo(); assert.equal(record(defect).fields.frl, '-/120/120');
+  Object.assign(automaticFieldChecks, { mixedInputsRetained: true, mixedCanonicalUnchanged: true, mixedRequestsBlocked: true, discardRestoresBoth: true, routineFrlAutoAppliedWithoutReview: true, undoRestoresFrl: true });
   await page.getByRole('button', { name: 'Clear physical selection', exact: true }).click(); await page.getByLabel('Select Service S-0001', { exact: true }).check(); await page.getByLabel('Select Service S-0002', { exact: true }).check();
   await page.getByRole('button', { name: 'Bulk edit same-type records', exact: true }).click();await dialog('Choose field for 2 draft records',{'Field to change':'notes'},'Continue');const bulk = await response(() => dialog('Edit 2 draft service records', { 'Notes': 'One reviewed draft edit batch' }, 'Preview bulk edit'), '/physical/preview'); assert.equal(bulk.changed_ids.length, 2);
   await apply('Change 2 of 2 selected records? 0 already match and stay unchanged.'); assert.ok(activeGraph().services.every(entity => entity.fields.notes === 'One reviewed draft edit batch')); await undo(); assert.ok(activeGraph().services.every(entity => !entity.fields.notes)); assert.deepEqual(activeGraph().services.find(entity => entity.id === cable).evidence[0], evidence);
@@ -143,11 +161,40 @@ async function showImage() {
   await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
   const save = await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
   // A later keystroke in an already-dirty form must defeat a delayed native load.
-  await select(cable); await notes.fill('First pending note'); let releaseRead, readReady;
+  await select(cable); let releaseRead, readReady;
   const holdRead = new Promise(resolve => { releaseRead = resolve; }), reachedRead = new Promise(resolve => { readReady = resolve; });
-  await page.route('**/api/project/open', async route => { const reply = await route.fetch(); readReady(); await holdRead; await route.fulfill({ response: reply }); });
-  await page.getByRole('button', { name: 'Load', exact: true }).click(); await reachedRead; await notes.fill('Later pending note must survive the load race'); releaseRead();
-  await expect(page.getByText('Project was not loaded. Your draft changed while reading the file. Load it again when ready.', { exact: true })).toBeVisible(); await expect(notes).toHaveValue('Later pending note must survive the load race'); await page.unroute('**/api/project/open'); await page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true }).click();
+  const activeRoutes = new Set(), quantity = page.getByRole('complementary', { name: 'Item Details' }).getByLabel('Explicit service quantity', { exact: true }), requestsBeforeRace = physicalRequests.length;
+  const trackRoute = action => { activeRoutes.add(action); return action.finally(() => activeRoutes.delete(action)); };
+  const delayRead = route => trackRoute((async () => { const reply = await route.fetch(); readReady(); await holdRead; await route.fulfill({ response: reply }); })());
+  await page.route('**/api/project/open', delayRead);
+  try {
+    // An invalid quantity keeps both fields unfinished through local validation,
+    // without an in-flight operation masking the native Load's draft-stamp guard.
+    await page.evaluate(({ notes, quantity }) => {
+      notes.value = 'First pending note'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+      quantity.value = '0'; quantity.dispatchEvent(new Event('change', { bubbles: true }));
+    }, { notes: await notes.elementHandle(), quantity: await quantity.elementHandle() });
+    await expect(page.getByRole('alert')).toHaveText('Every service needs an explicit positive whole quantity.'); await idle();
+    await expect(notes).toHaveValue('First pending note'); await expect(quantity).toHaveValue('0'); assert.equal(physicalRequests.length, requestsBeforeRace);
+    await page.getByRole('button', { name: 'Load', exact: true }).click(); await reachedRead;
+    const beforeLater = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
+    assert.equal(beforeLater.busy, false); assert.equal(beforeLater.physicalUnfinished, true);
+    await notes.fill('Later pending note must survive the load race');
+    const afterLater = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
+    const { physicalEditRevision: beforeRevision, ...beforeStable } = beforeLater, { physicalEditRevision: afterRevision, ...afterStable } = afterLater;
+    assert.deepEqual(afterStable, beforeStable, 'Only the already-dirty field revision changes while the native read waits');
+    assert.ok(afterRevision > beforeRevision, 'Later typing advances the already-dirty field revision while canonical state stays unchanged');
+    releaseRead();
+    await expect(page.getByText('Project was not loaded. Your draft changed while reading the file. Load it again when ready.', { exact: true })).toBeVisible();
+    await expect(notes).toHaveValue('Later pending note must survive the load race'); await expect(quantity).toHaveValue('0'); await expect(page.getByRole('dialog')).toHaveCount(0);
+    assert.deepEqual((await canonicalState()).snapshot.physical, beforeLater.snapshot.physical, 'A rejected native Load cannot replace the pending physical hierarchy');
+    assert.equal(physicalRequests.length, requestsBeforeRace, 'Invalid pending fields and rejected Load send no physical preview or apply request');
+    const originalQuantity = beforeLater.snapshot.physical.services.find(entity => entity.id === cable).quantity;
+    state = await response(() => quantity.fill(String(originalQuantity)), '/physical/apply'); await idle();
+    assert.equal(record(cable).quantity, originalQuantity); assert.equal(record(cable).fields.notes, 'Later pending note must survive the load race');
+    await expect(notes).toHaveValue('Later pending note must survive the load race'); await expect(page.getByRole('dialog')).toHaveCount(0);
+    Object.assign(automaticFieldChecks, { delayedLoadRejectsLaterDirtyRevision: true, invalidQuantityPreservesCanonical: true, latestInvalidPendingNoteRetained: true, correctedQuantityAutoSavesLatestNoteWithoutReview: true });
+  } finally { releaseRead(); await Promise.all([...activeRoutes]); await page.unroute('**/api/project/open', delayRead); }
   const reopened = await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); assert.deepEqual(reopened.takeoffs.physical, saved.takeoffs.physical);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6); await select(cable); await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
   const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
@@ -180,7 +227,7 @@ async function showImage() {
   const legacyCsv = fs.readFileSync(legacyFilename, 'utf8'); for (const value of ['opening_id', 'LEGACY-OPENING', 'Legacy 100 mm', ...['barriers', 'defects', 'openings', 'services'].flatMap(key => legacySaved.takeoffs.physical[key].map(entity => entity.id))]) assert.ok(legacyCsv.includes(value), value);
   assert.deepEqual(fs.readFileSync(info.legacy_project), legacyBytes); assert.deepEqual(fs.readFileSync(info.project), legacyBytes);
   await page.screenshot({ path: path.join(output, 'legacy-read-only.png'), fullPage: true }); await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).screenshot({ path: path.join(output, 'legacy-table.png') }); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ids: { defect, otherDefect, empty, occupied, pipe, cable, undone, deleted, afterReopen }, savedIdentities, evidence, firstExtraction, emptyExtraction, inventoryRequests, errors, csp: [], contextual_child_creation: true, stable_serials_after_undo_delete_reopen: true, legacy_read_only_preserved: true, unfinished_edit_preserved: true, delayed_load_race_rejected: true }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ids: { defect, otherDefect, empty, occupied, pipe, cable, undone, deleted, afterReopen }, savedIdentities, evidence, firstExtraction, emptyExtraction, inventoryRequests, physicalRequests, automaticFieldChecks, errors, csp: [], contextual_child_creation: true, stable_serials_after_undo_delete_reopen: true, legacy_read_only_preserved: true, unfinished_edit_preserved: true, delayed_load_race_rejected: true }, null, 2));
   console.log(`PASS: numbered Defect → Barrier → Service hierarchy, contextual child creation, serials preserved across Undo/deletion/reopen, legacy v1 read-only/export, retained repeated bitmap, exact evidence, hover/filter, bulk/undo, cascade/restore, Save As/reopen and unapproved CSV/XLSX; calculators unchanged. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-5000)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

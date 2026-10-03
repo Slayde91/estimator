@@ -167,7 +167,15 @@ async function showImage() {
   for (const label of ['Add defect', 'Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await select(legacySaved.takeoffs.physical.services[0].id);
   for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change physical parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
-  const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }); await expect(legacyInspector.locator('input, textarea, select')).toHaveCount(0);
+  const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }), legacyNavigation = legacyInspector.getByRole('table', { name: 'Item Details navigation' });
+  await expect(legacyNavigation.locator('select')).toHaveCount(3);
+  // Navigation remains available on a legacy record; it must never expose editable fields or rewrite the retained hierarchy.
+  for (const [kind, label] of [['defects', 'Defect'], ['barriers', 'Barrier'], ['services', 'Service']]) {
+    const target = legacySaved.takeoffs.physical[kind][0].id, control = legacyNavigation.getByLabel(`${label} ID in Item Details`, { exact: true });
+    await control.selectOption(target); await idle(); await expect(control).toHaveValue(target);
+    await expect(legacyInspector.locator('input, textarea, select:not(.takeoff-physical-navigation select)')).toHaveCount(0);
+    assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot().physical), legacySaved.takeoffs.physical);
+  }
   await page.getByRole('button', { name: 'Export draft CSV', exact: true }).click(); const legacyDownload = page.waitForEvent('download'); await dialog('Export unapproved physical draft?', {}, 'Export unapproved draft'); const legacyFile = await legacyDownload; const legacyFilename = path.join(output, 'legacy-physical.csv'); await legacyFile.saveAs(legacyFilename);
   const legacyCsv = fs.readFileSync(legacyFilename, 'utf8'); for (const value of ['opening_id', 'LEGACY-OPENING', 'Legacy 100 mm', ...['barriers', 'defects', 'openings', 'services'].flatMap(key => legacySaved.takeoffs.physical[key].map(entity => entity.id))]) assert.ok(legacyCsv.includes(value), value);
   assert.deepEqual(fs.readFileSync(info.legacy_project), legacyBytes); assert.deepEqual(fs.readFileSync(info.project), legacyBytes);

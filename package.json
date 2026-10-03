@@ -24,7 +24,10 @@
     "test:project-library-drafts": "node tests/browser/project_library_drafts.cjs",
     "test:service-plans": "node tests/browser/service_plans.cjs",
     "test:takeoffs-smooth-zoom": "node tests/browser/smooth_zoom.cjs",
-    "test:takeoffs-length-copy": "node tests/browser/length_copy.cjs"
+    "test:takeoffs-length-copy": "node tests/browser/length_copy.cjs",
+    "test:takeoffs-pdf-text": "node tests/browser/pdf_text_selection.cjs",
+    "test:physical-navigation": "node tests/browser/physical_navigation.cjs",
+    "test:takeoffs-duct-filters": "node tests/browser/duct_filters.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

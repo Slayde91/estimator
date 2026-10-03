@@ -68,7 +68,8 @@ async function finishCount(point, op = 'add_count_items') {
   return result;
 }
 async function selectedCount(ids) {
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).uncheck();
   for (const id of ids) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
   const panel = page.locator('.takeoff-markup-settings');
   if (!await panel.isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -113,7 +114,8 @@ async function continueCount(memberId) {
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
 }
 async function selectMarkers(memberIds) {
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).uncheck();
   for (let index = 0; index < memberIds.length; index++) {
     const marker = page.locator(`.takeoff-count-hit[data-count-member-id="${memberIds[index]}"]`); await marker.scrollIntoViewIfNeeded();
     await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
@@ -386,7 +388,8 @@ function pythonJson(script, ...args) {
   console.log('Count zoom and exact-member delete/undo passed.');
 
   // Normal confirmation and transfer use exactly quantity and entered metres per member.
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).uncheck();
   for (const item of countItems(state)) await page.locator(`tr[data-item-id="${item.id}"]`).getByRole('checkbox', { name: /^Select / }).check();
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   reply = await command(() => dialog('Confirm 3 items?', {}, 'Confirm items'), 'confirm_items');

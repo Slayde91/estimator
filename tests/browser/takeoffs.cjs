@@ -315,15 +315,19 @@ async function boardJourney(info) {
   extra = await command(() => dialog('Split this physical run', { 'Split position (% of traced length)': 50 }, 'Split run'), 'split_item');
   const splitRuns = extra.snapshot.items.filter(i => i.predecessor_ids.includes(originalRun)); assert.equal(splitRuns.length, 2);
   await page.getByLabel('Filter register', { exact: true }).fill('QA-SPLIT');
-  await page.getByRole('button', { name: 'Select filtered items', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all matching items', exact: true }).check();
   await page.getByRole('button', { name: 'Merge', exact: true }).click();
   extra = await command(() => dialog('Merge one physical object?', {}, 'Merge segments'), 'merge_items');
   const mergedRun = extra.snapshot.items.find(i => i.fields.mark === 'QA-SPLIT'); assert.deepEqual(new Set(mergedRun.predecessor_ids), new Set([originalRun, ...splitRuns.map(i => i.id)]));
   await page.locator(`tr[data-item-id=\"${mergedRun.id}\"] .takeoff-row-link`).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');
+  // Duct has no redundant Undo toolbar button. The shared workspace history
+  // remains accessible from Steel and restores the exact deleted identity.
+  await page.locator('[data-mode="steel"]').click();
   extra = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
   assert.ok(extra.snapshot.items.some(i => i.id === mergedRun.id));
+  await page.locator('[data-mode="duct"]').click();
   await page.locator(`tr[data-item-id=\"${mergedRun.id}\"] .takeoff-row-link`).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');

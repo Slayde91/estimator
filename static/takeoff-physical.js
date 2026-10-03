@@ -197,7 +197,7 @@
   function mount(container, bridge) {
     if (!container || !bridge) throw new Error("A physical register container and application bridge are required.");
     const document = container.ownerDocument || root.document;
-    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), collapsed: new Set(), filter: "", offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), pendingApply: new WeakMap(), inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
+    const state = { snapshot: null, index: new Map(), servicesByBarrier: new Map(), selected: new Set(), inspectedId: null, collapsed: new Set(), filter: "", offset: 0, showDeleted: false, busy: false, destroyed: false, editRevision: 0, pending: new Map(), pendingApply: new WeakMap(), inspectorEdit: null, fieldOptions: null, fieldOptionsPromise: null, images: [], extractionId: "", imageOffset: 0, imageGeneration: 0, imageInventoryKey: "", imageState: "Not loaded", imageFailures: new Set() };
     const ui = {};
     const changed = () => bridge.changed?.();
     const graph = () => state.snapshot?.physical || null;
@@ -219,6 +219,10 @@
     function ensureAvailable(allowPending = false) { if (state.destroyed) throw new Error("The physical workspace was closed."); if (state.busy) throw new Error("Finish the current physical edit first."); if (!allowPending && state.pending.size) throw new Error("Apply or discard unfinished physical field edits first."); }
     function requireCurrent(entry) { const current = state.index.get(entry.entity.id); if (!current || current.kind !== entry.kind || current.entity.revision !== entry.entity.revision || current.entity.deleted !== entry.entity.deleted) throw new Error("This physical record changed. Discard the unfinished form and inspect the current draft."); }
     function selectEntries() { return [...state.selected].map(id => state.index.get(id)).filter(Boolean); }
+    function inspectedEntry() {
+      const selected = selectEntries(); if (selected.length !== 1) return null;
+      return [...ancestors(selected[0], state.index), selected[0]].find(entry => entry.entity.id === state.inspectedId) || selected[0];
+    }
     function matchingActiveRows() { return hierarchyRows(graph(), { ...state, collapsed: new Set() }).filter(row => !row.context && !row.entity.deleted); }
     function descendants(entry) { const found = []; for (const candidate of state.index.values()) if (ancestors(candidate, state.index).some(parent => parent.entity.id === entry.entity.id)) found.push(candidate); return found; }
     function resetPending() { for (const [control, original] of state.pending) control.value = original; state.pending.clear(); changed(); }
@@ -312,7 +316,9 @@
     async function create(kind, chosenParent, marker) {
       if (!kinds.includes(kind) || servicePlans() && kind === "defect") throw new Error("Choose a record type belonging to this workspace.");
       if (marker !== undefined && kind !== "barrier") throw new Error("A count marker belongs to a barrier.");
-      ensureEditable(); ensureAvailable(); await ensureFieldOptions(kind); ensureAvailable(); let parent = chosenParent;
+      ensureEditable(); ensureAvailable(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable();
+      if (graphKey() !== key) throw new Error("The physical draft changed before this form opened. Repeat the edit.");
+      let parent = chosenParent;
       if (parentRelations()[kind]) {
         const parentKind = parentRelations()[kind][0], selected = selectEntries();
         if (!parent && selected.length === 1 && selected[0].kind === parentKind && !selected[0].entity.deleted) parent = selected[0].entity.id;
@@ -325,13 +331,28 @@
       const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence: [], uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}) };
       if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`)) { await selectEntity(entity.id, false, marker === undefined); return entity.id; }
     }
-    function selectEntity(id, multiple = false, focus = !multiple) {
+    function createFromSelection(kind, marker) {
+      ensureEditable(); ensureAvailable();
+      const parentKind = parentRelations()[kind]?.[0], selected = selectEntries();
+      const lineage = selected.length === 1 && !selected[0].entity.deleted ? [...ancestors(selected[0], state.index), selected[0]] : [];
+      const parent = lineage.find(entry => entry.kind === parentKind && !entry.entity.deleted);
+      return create(kind, parent?.entity.id, marker);
+    }
+    function selectEntity(id, multiple = false, focus = !multiple, inspectDefect = false) {
       ensureAvailable(); const entry = state.index.get(id); if (!entry) return;
       if (!multiple) state.selected.clear(); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+      const selected = selectEntries(); let inspected = selected.length === 1 ? selected[0] : null;
+      if (inspected && inspectDefect && !servicePlans()) inspected = [...ancestors(inspected, state.index), inspected].find(value => value.kind === "defect") || inspected;
+      state.inspectedId = inspected?.entity.id || null;
       for (const parent of ancestors(entry, state.index)) state.collapsed.delete(parent.entity.id);
       const rows = hierarchyRows(graph(), state); state.offset = Math.floor(Math.max(0, rows.findIndex(row => row.entity.id === id)) / 100) * 100; renderData();
-      bridge.selectionChanged?.({ selected: [...state.selected], barrierId: selectedBarrier()?.id || null, entry: copy(entry), focus });
+      bridge.selectionChanged?.({ selected: [...state.selected], barrierId: selectedBarrier()?.id || null, entry: copy(entry), inspectedId: state.inspectedId, focus });
       return bridge.selection?.([...state.selected], entry.entity.evidence[0] || selectedBarrier()?.marker || null, focus);
+    }
+    function selectDrawing(id, multiple = false, focus = false) {
+      ensureAvailable(); const entry = state.index.get(id);
+      if (!entry || entry.entity.deleted) throw new Error("This drawing record is no longer available. Select a current record.");
+      return selectEntity(id, multiple, focus, true);
     }
     function selectedBarrier() {
       const selected = selectEntries(); if (selected.length !== 1 || selected[0].entity.deleted) return null;
@@ -457,7 +478,7 @@
           selectAll.type = "checkbox"; selectAll.checked = !!matches.length && selected === matches.length; selectAll.indeterminate = selected > 0 && selected < matches.length;
           selectAll.dataset.locked = String(!matches.length); selectAll.disabled = state.busy || !matches.length;
           selectAll.setAttribute("aria-label", "Select all matching physical records"); selectAll.title = `Select all ${matches.length} matching active records across register pages`;
-          selectAll.addEventListener("change", () => void safe(() => { try { ensureAvailable(); } catch (error) { selectAll.checked = !!matches.length && selected === matches.length; throw error; } for (const row of matches) selectAll.checked ? state.selected.add(row.entity.id) : state.selected.delete(row.entity.id); renderData(); })); cell.append(selectAll);
+          selectAll.addEventListener("change", () => void safe(() => { try { ensureAvailable(); } catch (error) { selectAll.checked = !!matches.length && selected === matches.length; throw error; } for (const row of matches) selectAll.checked ? state.selected.add(row.entity.id) : state.selected.delete(row.entity.id); state.inspectedId = null; renderData(); })); cell.append(selectAll);
         }
         header.append(cell);
       }
@@ -500,12 +521,38 @@
       ui.pagination.replaceChildren(button("Previous 100 records", () => { ensureAvailable(); state.offset = Math.max(0, state.offset - 100); renderTable(); }), node("span", "helper", `${rows.length ? state.offset + 1 : 0}–${Math.min(state.offset + 100, rows.length)} of ${rows.length} visible hierarchy records. Ancestor context may repeat across pages.`), button("Next 100 records", () => { ensureAvailable(); if (state.offset + 100 < rows.length) state.offset += 100; renderTable(); }));
       bridge.viewChanged?.(rows.map(row => row.entity.id), [...state.selected]);
     }
+    function renderDetailNavigation() {
+      const table = node("table", "takeoff-physical-navigation"), head = node("thead"), headers = node("tr"), body = node("tbody"), cells = node("tr");
+      table.setAttribute("aria-label", "Item Details navigation");
+      const inspected = inspectedEntry(), lineage = inspected ? [...ancestors(inspected, state.index), inspected] : [];
+      const editorKey = graphKey();
+      for (const kind of servicePlans() ? ["barrier", "service"] : kinds) {
+        const header = node("th", "", titles[kind]); header.setAttribute("scope", "col"); headers.append(header);
+        const cell = node("td"), control = node("select"); control.setAttribute("aria-label", `${titles[kind]} ID in Item Details`);
+        const entries = [...state.index.values()].filter(entry => entry.kind === kind && !entry.entity.deleted).sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }) || a.entity.id.localeCompare(b.entity.id));
+        const related = lineage.find(entry => entry.kind === kind && !entry.entity.deleted);
+        const current = related && related.entity.id === inspected?.entity.id ? related.entity.id : "";
+        populateSelect(control, entries.map(entry => [entry.entity.id, displayId(entry)]), current);
+        if (related && !current) control.children[0].textContent = `View ${displayId(related)}`;
+        control.dataset.locked = String(!entries.length); control.disabled = state.busy || !entries.length;
+        control.addEventListener("change", () => void safe(async () => {
+          const id = control.value; control.value = current;
+          if (!id || id === current && inspectedEntry()?.entity.id === id) return;
+          ensureAvailable();
+          const entry = state.index.get(id);
+          if (graphKey() !== editorKey || !entry || entry.kind !== kind || entry.entity.deleted) throw new Error("The physical draft changed. Choose a current record in Item Details.");
+          await selectEntity(id);
+        }));
+        cell.append(control); cells.append(cell);
+      }
+      head.append(headers); body.append(cells); table.append(head, body); ui.inspector.append(table);
+    }
     function renderInspector() {
       state.inspectorEdit = null;
       ui.inspector.replaceChildren(node("h3", "", "Item Details")); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
+      renderDetailNavigation();
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty.")); return; }
-      const entry = selected[0], entity = entry.entity, editorKey = graphKey(); ui.inspector.append(node("p", "takeoff-identity", displayId(entry)), node("p", "helper", `${titles[entry.kind]} · Revision ${entity.revision} · ${entity.deleted ? "Deleted draft" : "Unapproved draft"}`));
-      for (const parent of ancestors(entry, state.index)) ui.inspector.append(button(`${titles[parent.kind]}: ${entityName(parent)} · ${displayId(parent)}`, () => selectEntity(parent.entity.id), "text-button"));
+      const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey(); ui.inspector.append(node("p", "takeoff-identity", displayId(entry)), node("p", "helper", `${titles[entry.kind]} · Revision ${entity.revision} · ${entity.deleted ? "Deleted draft" : "Unapproved draft"}`));
       const callout = summary(entity.id); if (callout) { const details = node("details", "takeoff-physical-summary"); details.append(node("summary", "", "Automatic callout"), node("p", "helper", callout)); ui.inspector.append(details); }
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
@@ -528,6 +575,11 @@
       }
       if (parentRelations()[entry.kind]) ui.inspector.append(button("Change physical parent", () => reparent(entry)));
       if (entry.kind === "barrier" && entity.marker) ui.inspector.append(button("Open count marker", () => bridge.source(copy(entity.marker))), button("Remove count marker", () => setMarker(entity.id, null)));
+      if (entry.kind === "barrier" && !entity.marker && typeof bridge.placeMarker === "function") ui.inspector.append(mutationButton("Place count marker", () => {
+        ensureAvailable(); requireCurrent(entry);
+        if (graphKey() !== editorKey) throw new Error("The physical draft changed. Select the current barrier before placing its marker.");
+        return bridge.placeMarker(entity.id);
+      }));
       ui.inspector.append(button("Link original source page", () => linkDocument(entry)), button("Delete draft record", () => deleteEntity(entry)));
       renderAssociations(entry);
     }
@@ -587,7 +639,7 @@
       }
       ui.gallery.append(button("Previous 12 image records", () => { state.imageOffset = Math.max(0, state.imageOffset - 12); renderGallery(); }), node("span", "helper", ` ${state.images.length ? state.imageOffset + 1 : 0}–${Math.min(state.imageOffset + 12, state.images.length)} of ${state.images.length} image and coverage records `), button("Next 12 image records", () => { if (state.imageOffset + 12 < state.images.length) state.imageOffset += 12; renderGallery(); }));
     }
-    function renderData() { if (state.destroyed) return; renderTable(); renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.warning.textContent = warning(); ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
+    function renderData() { if (state.destroyed) return; renderTable(); renderInspector(); ui.readOnlyNotice.hidden = !legacyReadOnly(); ui.heading.textContent = `${servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"} — PHYSICAL DRAFT`; ui.add.setAttribute("aria-label", servicePlans() ? "Add substrate" : "Add defect"); ui.add.title = servicePlans() ? "Add substrate" : "Add defect"; ui.status.textContent = `Physical revision ${graph()?.revision ?? 0} · ${state.index.size} retained identities · ${legacyReadOnly() ? "Legacy read-only" : "Unapproved draft"}`; setBusy(state.busy); }
     function render(snapshot) {
       if (state.destroyed) return; const oldKey = graphKey(), oldProject = state.snapshot?.project_id, oldScope = state.scope; state.snapshot = snapshot; state.scope = scope(); state.index = indexGraph(snapshot?.physical); state.selected = new Set([...state.selected].filter(id => state.index.has(id)));
       state.servicesByBarrier = new Map();
@@ -598,7 +650,7 @@
       for (const entries of state.servicesByBarrier.values()) entries.sort((a, b) => displayId(a).localeCompare(displayId(b), "en-AU", { numeric: true }));
       const context = bridge.imageContext?.() || {}, descriptors = snapshot?.image_extractions || [];
       const inventoryKey = `${snapshot?.project_id || ""}/${context.document_id || ""}/${context.page || ""}/${JSON.stringify(descriptors)}`;
-      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { ++state.imageGeneration; state.selected.clear(); state.collapsed.clear(); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageInventoryKey = ""; state.imageState = "Not loaded"; resetPending(); }
+      if (oldProject !== snapshot?.project_id || oldScope !== state.scope) { ++state.imageGeneration; state.selected.clear(); state.inspectedId = null; state.collapsed.clear(); state.offset = 0; state.images = []; state.imageFailures.clear(); state.imageOffset = 0; state.imageInventoryKey = ""; state.imageState = "Not loaded"; resetPending(); }
       if (state.imageInventoryKey !== inventoryKey) { state.imageInventoryKey = inventoryKey; const newest = [...descriptors].reverse(); state.extractionId = (newest.find(value => value.document_id === context.document_id && value.pages?.includes(context.page)) || newest[0])?.id || ""; state.images = []; state.imageOffset = 0; void refreshImages(true); }
       if (state.pending.size && !state.busy && oldKey !== graphKey()) { bridge.notify("The physical draft changed while fields were unfinished. Applying will recheck the record revision; discard unfinished edits to show the current draft.", true); return; }
       if (!state.pending.size) renderData();
@@ -634,7 +686,7 @@
       const control = (mutation ? mutationButton : button)(label, action, "button secondary takeoff-physical-icon-action"); control.setAttribute("aria-label", label); control.title = label; control.replaceChildren(actionIcon(paths)); return control;
     }
     ui.root = node("section", "takeoff-register takeoff-physical-register"); ui.root.setAttribute("aria-label", "Manual draft penetration workspace");
-    const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.warning = node("p", "takeoff-warning"); ui.root.append(heading, ui.warning);
+    const heading = node("div", "section-heading"); ui.heading = node("h2"); heading.append(ui.heading); ui.status = node("span", "status-label"); heading.append(ui.status); ui.root.append(heading);
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls");
     tools.append(mutationButton("Extract images from selected PDF page", () => runBridge(async () => { const reply = await bridge.extract(); displayReply(reply); await refreshImagesAfterExtraction(); return reply; })), button("Refresh retained images", refreshImages));
@@ -647,14 +699,14 @@
     const discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); discard.setAttribute("aria-label", "Discard unfinished physical edits"); discard.title = "Discard unfinished physical edits"; discard.replaceChildren(discardIcon());
     const deleteSelection = mutationButton("Delete selected records", deleteSelected, "button secondary takeoff-physical-delete-selected"); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records"; deleteSelection.replaceChildren(deleteIcon());
     ui.selection = node("strong"); filters.append(search, deleted, ui.selection,
-      iconAction("Select filtered records", () => { ensureAvailable(); for (const row of matchingActiveRows()) state.selected.add(row.entity.id); renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      iconAction("Clear physical selection", () => { ensureAvailable(); state.selected.clear(); renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"]),
+      iconAction("Select filtered records", () => { ensureAvailable(); for (const row of matchingActiveRows()) state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
+      iconAction("Clear physical selection", () => { ensureAvailable(); state.selected.clear(); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"]),
       iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true)); ui.root.append(filters);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add, deleteSelection, discard);
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, clearSelection() { ensureAvailable(); state.selected.clear(); renderData(); }, create, setMarker, selectedBarrier, selection: () => [...state.selected], summary, hover, completePendingEdits, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, selectDrawing, clearSelection() { ensureAvailable(); state.selected.clear(); state.inspectedId = null; renderData(); }, create, createFromSelection, setMarker, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, indexGraph, hierarchyRows, hierarchyPage, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

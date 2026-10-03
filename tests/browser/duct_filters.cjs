@@ -19,12 +19,19 @@ const rows = () => register().locator('tbody tr[data-item-id]');
 const rowMarks = () => rows().getByLabel('Duct ID', { exact: true }).evaluateAll(fields => fields.map(field => field.value));
 const panel = () => page.locator('.takeoff-column-filter');
 async function menu(label) { await register().getByRole('button', { name: `Filter ${label}`, exact: true }).click(); await expect(panel()).toBeVisible(); return panel(); }
+async function finishMenu(dialog, action) {
+  if (action === 'Escape') await dialog.press('Escape');
+  else await dialog.getByRole('button', { name: action, exact: true }).click();
+  // Native dialog.close() queues a close event. Its handler commits the filter
+  // before removing the dialog; a completed click or hidden dialog is too early.
+  await dialog.waitFor({ state: 'detached' });
+}
 async function filter(label, values) {
   const dialog = await menu(label); await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck();
   for (const value of values) await dialog.getByRole('checkbox', { name: value, exact: true }).check();
-  await dialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); await expect(dialog).toHaveCount(0);
+  await finishMenu(dialog, 'Apply filter');
 }
-async function reset(label) { const dialog = await menu(label); await dialog.getByRole('button', { name: 'Reset filter', exact: true }).click(); await expect(dialog).toHaveCount(0); }
+async function reset(label) { await finishMenu(await menu(label), 'Reset filter'); }
 
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
@@ -90,8 +97,8 @@ async function reset(label) { const dialog = await menu(label); await dialog.get
   await expect(dialog.getByRole('group', { name: 'Duct ID values', exact: true }).getByRole('checkbox')).toHaveCount(3);
   await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).check(); await dialog.getByLabel('Search Duct ID values', { exact: true }).fill('');
   await expect(dialog.getByRole('checkbox', { name: 'Select all values', exact: true })).toHaveJSProperty('indeterminate', true);
-  await dialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
-  dialog = await menu('Duct ID'); await dialog.getByRole('checkbox', { name: 'D001', exact: true }).check(); await dialog.press('Escape'); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
+  await finishMenu(dialog, 'Apply filter'); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
+  dialog = await menu('Duct ID'); await dialog.getByRole('checkbox', { name: 'D001', exact: true }).check(); await finishMenu(dialog, 'Escape'); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
   await page.getByRole('tab', { name: 'STEEL', exact: true }).click();
   for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
   await expect(page.getByLabel('Group register', { exact: true })).toHaveValue('state'); await expect(page.getByLabel('Filter confirmation state', { exact: true })).toHaveValue('unconfirmed');
@@ -99,11 +106,11 @@ async function reset(label) { const dialog = await menu(label); await dialog.get
   await page.getByRole('tab', { name: 'DUCT', exact: true }).click(); assert.deepEqual(await rowMarks(), ['D100', 'D101', 'D102']);
   await page.setViewportSize({ width: 764, height: 764 }); dialog = await menu('Duct ID');
   const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 764 && box.y + box.height <= 764);
-  await page.screenshot({ path: path.join(output, 'duct-filter-menu-narrow.png') }); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.screenshot({ path: path.join(output, 'duct-filter-menu-narrow.png') }); await finishMenu(dialog, 'Cancel');
   await page.setViewportSize({ width: 1146, height: 764 }); await register().scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'duct-filter-active-register.png') });
   assert.equal(commands.length, baselineCommands, 'Filters, search, pagination and export sent no item or calibration command');
   assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()), seeded.snapshot, 'Snapshot and calculation inputs remain unchanged');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  Object.assign(evidence, { passed: true, itemCount: 102, allSixColumns: true, paginationReset: true, andOrBlankSearch: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
+  Object.assign(evidence, { passed: true, itemCount: 102, allSixColumns: true, paginationReset: true, andOrBlankSearch: true, nativeDialogCompletionVerified: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2)); console.log(JSON.stringify({ output, ...evidence }, null, 2));
 })().catch(async error => { console.error(error); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); fs.writeFileSync(path.join(output, 'server.log'), logs); });

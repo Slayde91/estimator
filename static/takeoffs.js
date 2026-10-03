@@ -1235,7 +1235,11 @@
     state.countGeneration++; state.countEntries = []; state.countDefaultLength = null; state.countLastClick = null; state.countFinishing = false; state.countQueue = Promise.resolve(); state.countContinuation = null;
   }
   function refreshCountDraft() { state.points = state.countEntries.map(entry => entry.point); renderOverlay(); window.CeasefireProject?.changed?.(); }
-  function removePendingCount(entry) { clearTimeout(entry?.timer); state.countEntries = state.countEntries.filter(value => value !== entry); refreshCountDraft(); }
+  function removePendingCount(entry) {
+    clearTimeout(entry?.timer); state.countEntries = state.countEntries.filter(value => value !== entry);
+    if (state.tool === "count-only") { state.countLastClick = null; state.traceCursor = null; state.doubleClickEndpointValid = false; }
+    refreshCountDraft();
+  }
   function currentCountEntry(entry) { return entry.generation === state.countGeneration && state.tool === "count" && entry.sessionId === state.session?.session_id && entry.documentId === state.document && entry.page === state.page && state.countEntries.includes(entry); }
   function queueCountLength(entry) {
     clearTimeout(entry.timer);
@@ -1607,7 +1611,7 @@
       event.preventDefault();
       if (state.points.length) {
         if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
-        if (state.tool === "count") { removePendingCount(state.countEntries.at(-1)); return; }
+        if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; }
         state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); return;
       }
       if (state.tool !== "select" || state.mode === "physical") return;
@@ -1618,7 +1622,7 @@
       void safely(() => removeControlPoint(reference)); return;
     }
     if (event.key === "Enter" && ["trace", "measure", "count-only", "count", "polygon", "exclusion", "viewport"].includes(state.tool)) { event.preventDefault(); void safely(finishTrace); }
-    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (state.tool === "count") { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
+    if (event.key === "Backspace" && state.points.length) { event.preventDefault(); if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) return; if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; } state.points.pop(); state.traceCursor = null; state.doubleClickEndpointValid = false; renderOverlay(); window.CeasefireProject?.changed?.(); }
   }
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;

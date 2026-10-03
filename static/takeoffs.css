@@ -186,12 +186,12 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-column-filter-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px}
 .takeoff-column-filter-actions .button{font-size:11px;padding:7px 9px}
 
-/* Physical register actions remain compact without losing their accessible names. */
+/* Physical register and Item Details actions retain compact accessible icons. */
 .takeoff-physical-add-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;min-height:38px}
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
 .takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
 .takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
-.takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected,.takeoff-physical-register .takeoff-physical-icon-action{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
+.takeoff-physical-register .takeoff-physical-discard,.takeoff-physical-register .takeoff-physical-delete-selected,.takeoff-physical-register .takeoff-physical-icon-action,.takeoff-physical-details .takeoff-physical-discard,.takeoff-physical-details .takeoff-physical-delete-selected{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none}
 .takeoff-physical-discard svg,.takeoff-physical-delete-selected svg,.takeoff-physical-icon-action svg{display:block;width:22px;height:22px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .takeoff-physical-register .takeoff-physical-disclosure:focus-visible,.takeoff-physical-add-row .takeoff-physical-add-defect:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -207,6 +207,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-details button:focus-visible,.takeoff-physical-details input:focus-visible,.takeoff-physical-details select:focus-visible,.takeoff-physical-details textarea:focus-visible{outline:2px solid #71c9ff;outline-offset:2px}
 .takeoff-physical-details>.takeoff-physical-inspector{display:grid;grid-template-columns:minmax(0,1fr);max-height:none;margin:0;padding:0;border:0;background:transparent;color:inherit}
 .takeoff-physical-details .takeoff-physical-inspector>.field,.takeoff-physical-details .takeoff-physical-inspector>button{grid-column:1/-1;min-width:0}
+.takeoff-physical-details .takeoff-physical-inspector>.takeoff-physical-discard,.takeoff-physical-details .takeoff-physical-inspector>.takeoff-physical-delete-selected{min-width:38px;justify-self:start}
 .takeoff-physical-details .takeoff-physical-inspector>.helper,.takeoff-physical-details .takeoff-physical-inspector .helper,.takeoff-physical-details .takeoff-physical-inspector .takeoff-identity{color:#ddd}
 .takeoff-physical-details .takeoff-physical-inspector>.takeoff-warning{color:#ffd6ad}
 .takeoff-physical-details .takeoff-physical-inspector>.text-button,.takeoff-physical-details .takeoff-physical-inspector .text-button{color:#fff}

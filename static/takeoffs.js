@@ -276,7 +276,7 @@
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
     ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
     ui.tools.text = button("Select PDF text", () => setTool("text")); ui.tools.text.dataset.tool = "text";
-    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", fitPage));
+    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", () => fitPage(true)));
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; setProgress(state.ui.progress.textContent + " · Search cancelled; coverage is incomplete."); }));
@@ -1120,8 +1120,11 @@
       } finally { if (canvas && state.thumbnailTasks.get(canvas) === render) state.thumbnailTasks.delete(canvas); if (canvas) state.thumbnailPages.delete(canvas); }
     }
   }
-  async function fitPage() {
+  async function fitPage(snapToHeader = false) {
     if (state.gesture) throw new Error("Finish or cancel the current selection or move before fitting the page.");
+    // Only the explicit Fit page action scrolls the browser. Automatic fits
+    // after uploads keep the user's current position in the workspace.
+    if (snapToHeader) revealDrawingPanel(state.ui.viewport, false, 0);
     if (!state.document) return; const docId = state.document, pageNumber = state.page, sessionId = state.session?.session_id, renderId = state.renderId, fitId = state.fitId = (state.fitId || 0) + 1;
     const current = () => fitId === state.fitId && renderId === state.renderId;
     try {
@@ -2282,10 +2285,10 @@
   }
   function hover(id) { state.hovered = id; for (const row of state.ui?.tableWrap.querySelectorAll("[data-item-id]") || []) row.classList.toggle("hovered", row.dataset.itemId === id); for (const hit of state.ui?.overlay.querySelectorAll("[data-item-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.itemId === id); }
   function renderSelection() { renderRegister(); renderSettingsPanel(); renderOverlay(); }
-  function revealDrawingPanel(panel, focus) {
+  function revealDrawingPanel(panel, focus, gap = 12) {
     if (!panel || panel.hidden) return;
     const bounds = panel.getBoundingClientRect?.(), header = document.querySelector?.(".app-header")?.getBoundingClientRect?.();
-    if (bounds && window.scrollBy) window.scrollBy({ top: bounds.top - Math.max(0, header?.bottom || 0) - 12, behavior: "auto" });
+    if (bounds && window.scrollBy) window.scrollBy({ top: bounds.top - Math.max(0, header?.bottom || 0) - gap, behavior: "auto" });
     if (focus) panel.focus?.({ preventScroll: true });
   }
   async function viewItem(item) {

@@ -113,8 +113,10 @@ async function controls() {
     names: [...el.querySelectorAll('button')].map(button => button.getAttribute('aria-label') || button.textContent),
   }));
   assert.ok(controls.previous.includes('takeoff-register-table')); assert.ok(controls.next.includes('takeoff-register-controls'));
-  assert.deepEqual(controls.names, ['Add substrate', 'Delete selected records', 'Discard unfinished physical edits']);
-  const trash = page.getByRole('button', { name: 'Delete selected records', exact: true }), discard = page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true });
+  assert.deepEqual(controls.names, ['Add substrate', 'Delete selected records']);
+  const trash = page.getByRole('button', { name: 'Delete selected records', exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true });
+  await expect(discard).toHaveCount(1); await expect(page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(1);
+  await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
   const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, border: css.borderColor }; });
   assert.deepEqual(await style(trash), await style(discard));
   for (const name of ['Select filtered records', 'Clear physical selection', 'Bulk edit same-type records']) {

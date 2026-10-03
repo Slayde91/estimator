@@ -14,12 +14,19 @@ CATEGORIES = ('Electrical & Communications', 'Mechanical', 'HVAC',
               'Blank Seal', 'Bulkheads')
 SERVICES = ('Access Panel', 'Blank Seal', 'Busbar Trunking', 'Cable Bundles',
             'Cable Trays', 'Coaxial Cables', 'Conduits', 'D1 Power Cables',
-            'D2 Comms Cables', 'Data Cable Bundles',
+            'D2 Comms Cables', 'Data Cables',
             'Downlights', 'Fibre Optic', 'Fire Dampers', 'Fire Resistant Cables',
-            'Flexible Ducts', 'Junction Box', 'Lagged Pipes', 'Linear Joints',
-            'Mixed Services', 'Movement Joints', 'Pair Coils',
-            'Plastic Pipes', 'Power Cable Bundles', 'Power Cables',
-            'Single Cables', 'TPS & Fire Alarm Cable Bundles', 'Unlagged Pipes')
+            'Flexible Ducts', 'Junction Box', 'Lagged Copper Pipes',
+            'Lagged Steel Pipes', 'Linear Joints', 'Mixed Services',
+            'Movement Joints', 'Pair Coils', 'uPVC pipe', 'uPVC floorwaste',
+            'PEX pipe', 'HDPE pipe', 'Power Cables', 'Single Cables',
+            'TPS & Fire Alarm Cables', 'Copper Pipes', 'Steel Pipes',
+            'Air Transfer Grilles', 'Communications Cables',
+            'Structural Steel', 'Structural Timber', 'Wall Sockets')
+# Descriptive subtypes share existing calculator groups, never source approval.
+PLASTIC_PIPE_TYPES = ('uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe')
+UNLAGGED_PIPE_TYPES = ('Copper Pipes', 'Steel Pipes')
+LAGGED_PIPE_TYPES = ('Lagged Copper Pipes', 'Lagged Steel Pipes')
 FRLS = ('-/60/60', '-/90/90', '-/120/120', '-/180/180', '-/240/240')
 HIDDEN_FRLS = {'-/120/0', '-/180/80', 'N/A', 'Not specified'}
 SERVICE_ALIASES = {'mixed service bundle': 'Mixed Services',
@@ -28,6 +35,13 @@ SERVICE_ALIASES = {'mixed service bundle': 'Mixed Services',
                    'pair coil bundle': 'Pair Coils',
                    'pair coil bundles': 'Pair Coils',
                    'pair coils': 'Pair Coils'}
+# Directional discovery only: these explicitly typed historic bundles fit the
+# new general cable labels. Keep their original tokens, text and calculator K.
+SERVICE_DISCOVERY_GENERALIZATIONS = {
+    'data cable bundles': 'Data Cables',
+    'power cable bundles': 'Power Cables',
+    'tps & fire alarm cable bundles': 'TPS & Fire Alarm Cables',
+}
 HIDDEN_SERVICES = {'Floor/Deck Boxes', 'Downlight Box'}
 FACETS = {'category': ('Category', CATEGORIES), 'services': ('Services', SERVICES),
           'frl': ('FRL', FRLS)}
@@ -218,6 +232,8 @@ def service_values(item):
     power = has(r'power|electri(?:c|cal)|aluminium cable|cables - aluminium|\btps\b|twin and earth|\b[234]c\s*\+\s*e')
     cable = has(r'\bcables?\b|\bcat\s?[5-7]|\brg6\b')
     if cable:
+        if has(r'\b(?:data|communications?|comms|cat\s?[5-7][a-z]?)\s+cables?(?:\s+bundles?)?\b|\bcables?\s*[-,:]\s*(?:data|communications?|comms)\b'):
+            result.add('Data Cables')
         if bundle:
             result.add('Cable Bundles')
             if data: result.add('Data Cable Bundles')
@@ -226,6 +242,8 @@ def service_values(item):
         if data and not bundle and not has(r'\bd2\b') and has(r'data|\bcat\s?[5-7]|communication cables'):
             result.add('Communications Cables')
         if has(r'\btps\b|fire alarm|alarm / fire|alarm cable'):
+            if has(r'\b(?:tps|fire[- ]alarm|alarm)\s+cables?(?:\s+bundles?)?\b|\bcables?\s*[-,:]\s*(?:tps|fire[- ]alarm|alarm)\b'):
+                result.add('TPS & Fire Alarm Cables')
             result.add('TPS & Fire Alarm Cable Bundles' if bundle or has(r'cables\b') else 'Single Cables')
         if has(r'\bsingle cable|\b1\s*[×x]\s.*cable|\b1 of,|\bone of,'):
             result.add('Single Cables')
@@ -234,13 +252,41 @@ def service_values(item):
                                    'TPS & Fire Alarm Cable Bundles', 'Single Cables'}):
             result.add('Communications Cables' if data else 'Single Cables')
     plastic = has(r'plastic pipe|\b[uc]?pvc\b|pvc-u|\b[hc]dpe\b|\bpe[x-]|\bpp(?:-md)?\b|raupiano|dblue|polybutylene|pu air line')
-    pipe = has(r'\bpipes?\b|metal, (?:copper|steel)|beverage python|drinks python|beer line|gas line|pu air line|floor waste|pe/al/pex')
+    pipe = has(r'\bpipes?\b|metal, (?:copper|steel)|beverage python|drinks python|beer line|gas line|pu air line|floor\s*waste|pe/al/pex')
     if plastic and pipe: result.add('Plastic Pipes')
     if pipe and not pair:
         # Cable insulation and fire-protection wrap do not mean a lagged pipe.
         lagged = has(r'lagged|lagging|pipes - insulated|insulated (?:beer|gas|pipe)|nitrile|(?:rubber|foam) insulation|pipe insulation|insulation.*pipe')
         if lagged: result.add('Lagged Pipes')
         elif not plastic: result.add('Unlagged Pipes')
+    # Keep historical broad tokens searchable. A broad imported Plastic Pipes
+    # or Lagged Pipes token cannot establish a material or insulation subtype.
+    # Read only the already-scoped service/configuration source text above.
+    if has(r'\b(?:upvc|pvc-u)\s+floor\s*waste\b|\bfloor\s*waste\s*[-,:]\s*(?:upvc|pvc-u)\b'):
+        result.add('uPVC floorwaste')
+    for material, label in ((r'(?:upvc|pvc-u)', 'uPVC pipe'),
+                            (r'(?:pex|pe-x)', 'PEX pipe'), ('hdpe', 'HDPE pipe')):
+        if has(rf'\b{material}\s+pipes?\b|\bpipes?\s*[-,:]\s*{material}\b'):
+            result.add(label)
+    if pipe and not pair:
+        for material, plain, insulated in (
+                ('copper', 'Copper Pipes', 'Lagged Copper Pipes'),
+                ('steel', 'Steel Pipes', 'Lagged Steel Pipes')):
+            # Pair a material with its pipe identity, not adjacent cables,
+            # supporting steel, or another component of a mixed service.
+            material_pipe = rf'\b{material}\s+pipes?\b|\bpipes?\s*-?\s*{material}\b|\bmetal,\s*{material}\b'
+            if has(material_pipe):
+                if has(rf'\b(?:lagged|insulated)\s+{material}\s+pipes?\b'):
+                    result.add(insulated)
+                elif not lagged or has(rf'\b(?:unlagged|uninsulated)\s+{material}\s+pipes?\b'):
+                    result.add(plain)
+                elif (not enumerate_services and not has(r'mixed|multi.service|\bcables?\b')
+                      and not has(r'\bunlagged\b|\buninsulated\b|without (?:pipe )?insulation')
+                      and not has(r'\b(?:plastic|upvc|pvc-u|hdpe|pex|pe-x)\s+pipes?\b|\bconduits?\b|\bfloor\s*waste\b')
+                      and not has(rf'\b{"steel" if material == "copper" else "copper"}\b')):
+                    # A single pipe's explicitly described insulation can be
+                    # in its size/configuration field rather than its name.
+                    result.add(insulated)
     add('Structural Steel', r'structural elements - steel|steel.*beam|\bub beam|\bpurlin|threaded rod|steel plate')
     add('Structural Timber', r'timber (?:joist|post)|glulam|structural elements - timber')
     if has(r'timber purlin'):
@@ -267,7 +313,8 @@ def category_values(item, services):
         if service in {'Access Panel', 'Structural Steel', 'Structural Timber'}: result.add(service)
         elif service in {'Blank Seal', 'Linear Joints', 'Movement Joints'}: result.add('Blank Seal')
         elif service in {'Pair Coil Bundle', 'Pair Coils', 'Fire Dampers', 'Flexible Ducts', 'Air Transfer Grilles'}: result.add('HVAC')
-        elif service in {'Lagged Pipes', 'Unlagged Pipes', 'Plastic Pipes'}: result.add('Plumbing & Hydraulic')
+        elif service in {'Lagged Pipes', 'Unlagged Pipes', 'Plastic Pipes',
+                         *PLASTIC_PIPE_TYPES, *UNLAGGED_PIPE_TYPES, *LAGGED_PIPE_TYPES}: result.add('Plumbing & Hydraulic')
         elif service in {'Mixed Services', 'Mixed Service Bundle', 'Multi-service Bundle'}:
             result.update(('Electrical & Communications', 'Mechanical', 'Plumbing & Hydraulic'))
         else: result.add('Electrical & Communications')
@@ -282,7 +329,10 @@ def classify_facets(item):
     # Explicit imported selections cover source-reviewed continuation rows whose
     # service cell is merged across a page break. These are existing facet data,
     # not a guess based on neighbouring record identifiers.
-    services = canonical_services(service_values(item) + item.get('filter_values', {}).get('services', []))
+    imported = item.get('filter_values', {}).get('services', [])
+    services = canonical_services(service_values(item) + imported)
+    services = sorted(set(services) | {SERVICE_DISCOVERY_GENERALIZATIONS[_key(value)]
+                       for value in imported if _key(value) in SERVICE_DISCOVERY_GENERALIZATIONS})
     return {'category': category_values(item, services), 'services': services, 'frl': frl_values(item)}
 
 
@@ -296,6 +346,7 @@ def facet_options(key, observed):
     if key == 'frl':
         observed = set(observed) - HIDDEN_FRLS
     elif key == 'services':
-        preferred = tuple(value for value in preferred if value not in HIDDEN_SERVICES)
-        observed = set(canonical_services(observed)) - HIDDEN_SERVICES
+        # New selections use the reviewed ordered list. Historical/custom
+        # tokens remain on records and loaded controls supply saved fallbacks.
+        return list(preferred)
     return list(preferred) + sorted(set(observed) - set(preferred), key=str.casefold)

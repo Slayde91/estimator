@@ -28,6 +28,9 @@
     "test:takeoffs-pdf-text": "node tests/browser/pdf_text_selection.cjs",
     "test:physical-navigation": "node tests/browser/physical_navigation.cjs",
     "test:takeoffs-duct-filters": "node tests/browser/duct_filters.cjs",
+    "test:takeoffs-steel-filters": "node tests/browser/duct_filters.cjs steel",
+    "test:header-tagline": "node tests/browser/header_tagline.cjs",
+    "test:services-choices": "node tests/browser/services_choices.cjs",
     "test:takeoffs-standalone": "node tests/browser/standalone_measurements.cjs",
     "test:physical-interactions": "node tests/browser/physical_interactions.cjs",
     "test:physical-filters": "node tests/browser/physical_filters.cjs"

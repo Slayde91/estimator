@@ -160,7 +160,7 @@ async function fitCurrentDrawing(name) {
   await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText('unresolved predecessor rows');
   assert.deepEqual(await page.evaluate(() => ({ takeoffs: window.CeasefireTakeoffs.projectSnapshot(), calculators: window.CeasefireCalculators.projectSnapshot() })), before);
   await screenshot('successor-transfer-blocked.png');
-  await expect(page.getByRole('button', { name: 'Linked calculator rows', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Linked calculator rows', exact: true })).toHaveCount(0);
   // The source button on a preserved calculator row resolves its now-historical source.
   await page.locator('.nav-button[data-view="calculators"]').click();
   await page.locator('.calculator-choice').filter({ hasText: 'Ductwork (spray/wrap)' }).click();

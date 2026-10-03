@@ -1,5 +1,59 @@
 "use strict";
 
+// HEADER_TAGLINE:START
+// Presentation only: selecting and typing a launch phrase never changes a project.
+(() => {
+  const label = document.getElementById("header-tagline-label");
+  const sizer = document.getElementById("header-tagline-sizer");
+  const typed = document.getElementById("header-tagline-typed");
+  if (!label || !sizer || !typed) return;
+  const phrases = [
+    "Built on caffeine and the audacity of 'Do your best, mastic the rest.'",
+    "Made for deadlines and the belief that 'There’s a tested system for that… probably.'",
+    "I'm an expert at reading plans and looking at photos - a site visit would just be a waste of my time.",
+    "Every penetration has a story, and most of them end in mastic.",
+    "The tested detail looked great right up until installation.",
+    "Some call it non-compliant; we call it 'pending clarification.'",
+    "Every defect starts with 'It was like that when we got here.'",
+    "The wall was fire-rated before the services arrived.",
+    "Built to the drawing, adjusted to reality.",
+    "The services were coordinated perfectly, just not with the wall.",
+    "Behind every neat firestop is an opening that nearly ruined someone’s day.",
+    "A tested system exists for everything except what we found on site.",
+    "Measure twice, discover the drawing is wrong anyway.",
+    "The architect drew the wall; the services drew their own conclusions.",
+    "The drawing said “typical,” which was optimistic.",
+  ];
+  const storageKey = "ceasefire.headerTagline.last";
+  let previous;
+  try { previous = window.localStorage.getItem(storageKey); } catch { /* Storage may be unavailable. */ }
+  const choices = phrases.filter(phrase => phrase !== previous);
+  const phrase = choices[Math.floor(Math.random() * choices.length)];
+  try { window.localStorage.setItem(storageKey, phrase); } catch { /* The phrase still works without storage. */ }
+  label.textContent = phrase;
+  // The complete hidden line reserves exactly the final wrapping and height.
+  sizer.textContent = phrase + "_";
+  const characters = Array.from(phrase);
+  const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  let timer = null, count = 0;
+  function finish() {
+    clearTimeout(timer);
+    timer = null;
+    typed.textContent = phrase;
+  }
+  function typeNext() {
+    typed.textContent = characters.slice(0, ++count).join("");
+    if (count < characters.length) timer = setTimeout(typeNext, 35);
+    else timer = null;
+  }
+  typed.textContent = "";
+  if (motion?.matches) finish();
+  else typeNext();
+  motion?.addEventListener?.("change", event => { if (event.matches) finish(); });
+  window.addEventListener?.("pagehide", finish, { once: true });
+})();
+// HEADER_TAGLINE:END
+
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = {

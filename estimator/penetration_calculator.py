@@ -14,7 +14,8 @@ from pathlib import Path
 import re
 
 from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
-from .library_facets import facet_options
+from .library_facets import (LAGGED_PIPE_TYPES, PLASTIC_PIPE_TYPES, SERVICES,
+                             UNLAGGED_PIPE_TYPES, facet_options)
 from .excel_engine import (WorkbookEngine, CellRange, FormulaError, column_name,
                            column_number, coordinates, comparison, numeric, scalar)
 from .penetration_labour import (APP_INPUT_FIELDS, LEGACY_APP_INPUT_FIELDS,
@@ -52,17 +53,7 @@ EFFECTIVE_GLOBALS = {'J': 'No', 'K': 0, 'L': 0, 'M': 0}
 CALCULATION_POLICY_VERSION = 'service-tab-waste-settings-v8'
 ROW_DEFAULTS = {}
 # Descriptive choices only: these do not select products or alter workbook rules.
-SERVICE_TYPES = (
-    'Access Panel', 'Blank Seal', 'Cable Bundles', 'Coaxial Cables', 'Conduits',
-    'D1 Power Cables', 'D2 Comms Cables', 'Data Cable Bundles',
-    'Downlight Box', 'Downlights', 'Fibre Optic', 'Fire Resistant Cables',
-    'Junction Box', 'Lagged Pipes', 'Mixed Service Bundle', 'Mixed Services',
-    'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils', 'Plastic Pipes',
-    'Power Cable Bundles', 'Power Cables', 'Single Cables',
-    'TPS & Fire Alarm Cable Bundles', 'Unlagged Pipes', 'Cable Trays',
-    'Busbar Trunking', 'Fire Dampers', 'Flexible Ducts', 'Linear Joints',
-    'Movement Joints',
-)
+SERVICE_TYPES = SERVICES
 MANUFACTURERS = ('Promat', 'Trafalgar', 'Boss', 'Firefly', 'Hilti', 'Snap', 'Fendix')
 GROUP_COLUMNS = {
     'Penetration': 'J K L M N O P Q R T U V'.split(),
@@ -74,15 +65,16 @@ GROUP_COLUMNS = {
     'Bulkhead': 'BB BC BD BE BF BG'.split(),
 }
 PIPE_DISPLAY_GROUPS = {
-    'Unlagged Pipes': ('Unlagged Pipes',),
-    'Lagged Pipes': ('Lagged Pipes',),
-    'Plastic Pipes': ('Plastic Pipes', 'Conduits'),
+    'Unlagged Pipes': ('Unlagged Pipes', *UNLAGGED_PIPE_TYPES),
+    'Lagged Pipes': ('Lagged Pipes', *LAGGED_PIPE_TYPES),
+    'Plastic Pipes': ('Plastic Pipes', 'Conduits', *PLASTIC_PIPE_TYPES),
     'Cables/Bundles': (
         'Cable Bundles', 'Coaxial Cables', 'D1 Power Cables', 'D2 Comms Cables',
         'Data Cable Bundles', 'Fire Resistant Cables', 'Mixed Service Bundle',
         'Mixed Services', 'Multi-service Bundle', 'Pair Coil Bundle', 'Pair Coils',
         'Power Cable Bundles', 'Power Cables', 'Single Cables',
-        'TPS & Fire Alarm Cable Bundles',
+        'TPS & Fire Alarm Cable Bundles', 'Data Cables',
+        'TPS & Fire Alarm Cables', 'Communications Cables',
     ),
 }
 SERVICE_TYPE_ALIASES = {'conduit': 'Conduits', 'conduits': 'Conduits'}

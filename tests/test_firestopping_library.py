@@ -19,6 +19,7 @@ from estimator.catalog import ValidationError, configuration_catalog, validate_c
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.reference_library import ReferenceNotFound
 from estimator.penetration_calculator import definition, source_model
+from tests.test_library_facets import REQUESTED_SERVICES
 from estimator.server import create_server
 from estimator.storage import Store
 from test_reference_library import sample_library
@@ -50,6 +51,7 @@ class FirestoppingLibraryTests(unittest.TestCase):
         listing = self.library.listing('technical')
         expected = next(field['options'] for field in listing['filters'] if field['key'] == 'services')
         choices = self.library.service_types()
+        self.assertEqual(choices, REQUESTED_SERVICES)
         self.assertEqual(choices, [entry['value'] for entry in expected])
         field = next(field for field in definition(service_types=choices)['row_fields'] if field['column'] == 'K')
         self.assertEqual(field['options'], choices)
@@ -89,6 +91,27 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(self.protected(), before)
         self.assertEqual(self.library.edits.stamp(), (0, 0))
         self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+
+    def test_legacy_service_survives_unrelated_save_reopen_with_frozen_price_and_source(self):
+        edit = self.library.edit('pkb-001')
+        self.assertEqual(edit['draft']['rows'][0]['inputs']['K'], 'Copper service')
+        self.assertEqual(next(field['options'] for field in edit['definition']['row_fields']
+                              if field['column'] == 'K'), REQUESTED_SERVICES)
+        before = deepcopy(edit['result']['rows'][0]['outputs'])
+        protected = self.protected()
+        body = self.body(edit)
+        body['draft']['rows'][0]['inputs']['T'] = 'Unrelated descriptive edit'
+        saved = self.library.action('pkb-001', 'save', body)
+        reopened = FirestoppingLibrary(self.root / 'library', self.store).edit('pkb-001')
+        self.assertEqual(reopened['draft']['rows'][0]['inputs']['K'], 'Copper service')
+        self.assertEqual(reopened['draft']['rows'][0]['inputs']['T'], 'Unrelated descriptive edit')
+        self.assertEqual(reopened['result']['rows'][0]['outputs'], before)
+        self.assertEqual(reopened['pricing_token'], edit['pricing_token'])
+        self.assertEqual(reopened['source_price'], edit['source_price'])
+        self.assertEqual(reopened['revision'], saved['revision'])
+        self.assertEqual(self.protected(), protected)
+        self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+        self.assertEqual((self.root / 'library/images/diagram-a.png').read_bytes(), self.source_image_bytes)
 
     def test_unreadable_optional_library_does_not_disable_estimator_service_types(self):
         with patch('estimator.reference_library.Path.stat', side_effect=PermissionError('denied')):

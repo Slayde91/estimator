@@ -197,7 +197,6 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 /* Physical register and Item Details actions retain compact accessible icons. */
 .takeoff-physical-add-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;min-height:38px}
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
-.takeoff-physical-register .takeoff-physical-add-row .takeoff-physical-add-defect,.takeoff-physical-details .takeoff-physical-inspector .takeoff-physical-add-defect{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;min-width:38px;height:38px;padding:0;border:1px solid var(--accent);border-radius:9px;background:var(--accent);color:#fff;font-size:22px;line-height:1;text-decoration:none;box-shadow:none}
 .takeoff-physical-inspector-actions{display:flex;grid-column:1/-1;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
 .takeoff-physical-register .takeoff-physical-disclosure{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:28px;padding:0;margin-right:4px;font-size:18px;font-weight:600;text-decoration:none}
 .takeoff-physical-register th input[type=checkbox]{display:block;width:16px;height:16px;min-width:16px;margin:0;accent-color:var(--accent)}
@@ -226,6 +225,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-details .takeoff-physical-inspector .field span{color:inherit}
 .takeoff-physical-details .takeoff-physical-inspector input,.takeoff-physical-details .takeoff-physical-inspector select,.takeoff-physical-details .takeoff-physical-inspector textarea{min-width:0;width:100%;padding:7px;font-size:12px;background:#fff;color:#222}
 .takeoff-physical-details .takeoff-physical-inspector .button{padding:8px;font-size:11px}
+.takeoff-physical-register .takeoff-physical-add-row .takeoff-physical-add-defect,.takeoff-physical-details .takeoff-physical-inspector .takeoff-physical-add-defect{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;min-width:38px;height:38px;padding:0;border:1px solid var(--accent);border-radius:9px;background:var(--accent);color:#fff;font-size:22px;line-height:1;text-decoration:none;box-shadow:none}
 .takeoff-physical-summary{grid-column:1/-1;font-size:12px;overflow-wrap:anywhere}
 .takeoff-physical-navigation{grid-column:1/-1;width:100%;table-layout:fixed;border-collapse:collapse;margin:6px 0 12px;font-size:11px}
 .takeoff-physical-navigation th,.takeoff-physical-navigation td{padding:4px;text-align:left;border:1px solid #696166}

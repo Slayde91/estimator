@@ -116,12 +116,19 @@ selectable text unless the original PDF already includes a text layer; this
 tool does not perform OCR. Switch to **Select** to edit markups or **Pan** to
 move the drawing.
 
-The Duct register filters from the six column headings: **Confirmation**, **Duct
-ID**, **Level**, **WxH (mm)**, **FRL** and **Orientation**. Each filter has a value
+The Steel register filters from **Confirmation**, **Member mark**, **Level**,
+**Member type**, **Steel section** and **Fire period (min)**. The Duct register
+filters from **Confirmation**, **Item**, **Level**, **WxH (mm)**, **FRL** and
+**Orientation**. Each filter has a value
 search, checkboxes, **Apply filter** and **Reset filter**. Multiple selected values
 within one column are alternatives; filters across columns must all match.
 The register search further narrows those results. Filters do not change saved
 records, confirmation or quantities and are cleared when another project opens.
+Steel and Duct retain separate filter selections. Their old confirmation, sort
+and grouping dropdowns are replaced by these column filters. Steel's checked
+square selects all matching items; its empty square clears the selection.
+**Detach links** retains manual calculator values. Historical links are still
+accessible through the calculator row's **Open takeoff** action.
 
 ## Count steel members
 
@@ -325,7 +332,8 @@ places an existing or new barrier directly on the original PDF page.
 Each marker has an automatic callout derived from
 the barrier fields and its active services. Editing those records updates the
 description; the marker does not infer or multiply service quantities. Selecting
-a marker opens **Item Details** on the left of the PDF. In Defect Reports it
+a marker opens **Item Details** on the left of the PDF; deselecting it closes
+the pane. In Defect Reports it
 opens the parent Defect first while keeping the actual marker selected for
 drawing actions. A compact **Defect | Barrier | Service** dropdown table lists
 all active IDs and switches the details pane to the chosen record. Service
@@ -343,8 +351,8 @@ creation, reparenting and cascade deletion retain their existing review dialogs.
 
 Marker positions use the original page coordinates and retained source hash.
 In Select mode, drag the marker to move its position or drag its callout to move
-the description. Clicking the callout opens Item Details; clicking it again
-clears selection and hides the pane. A selected callout has four corner handles
+the description. Clicking or keyboard-selecting a callout selects it for moving
+or resizing and leaves Item Details open or closed as it was. A selected callout has four corner handles
 for resizing. Its text wraps to the available width and adjusts to fit its
 height. Marker and callout movement use server validation and retain their source
 identity. **Remove count marker** removes only its
@@ -354,7 +362,8 @@ restoration. Drawing PDF downloads include the selected sub-tab's markers and
 derived descriptions; original PDF bytes are preserved.
 
 The red **+** and trash icons sit directly below the register, above pagination.
-In Item Details, Add service is a compact red **+**, and discard sits beside
+In Item Details, Add service uses the same compact red **+** button class and
+styling as Add Substrate beneath the register, and discard sits beside
 trash at the bottom of the pane. Selection and clear-selection use checked and unchecked box
 icons; the bulk-edit icon opens the existing same-type edit review. CSV and XLSX
 use the standard dark download buttons. Icon-only actions retain accessible

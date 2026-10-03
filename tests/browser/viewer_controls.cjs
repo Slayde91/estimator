@@ -40,10 +40,19 @@ async function sourcePoint([x, y]) {
 }
 async function assertErrorVisible() {
   const notice = page.locator('#takeoffs-workspace [role="alert"]'); await expect(notice).toBeVisible();
-  const bounds = await notice.boundingBox(), header = await page.locator('.app-header').boundingBox(), viewport = page.viewportSize();
-  assert.ok(bounds.y >= header.y + header.height + 10, 'Error is below the sticky header');
-  assert.ok(bounds.y + bounds.height <= viewport.height, 'Error is visible in the browser window');
-  return bounds;
+  let position;
+  // Tab can scroll the next focused control after the alert is rendered. The
+  // app reveals it again on the next animation frame; rendered visibility
+  // alone does not establish that the error has cleared the sticky header.
+  await expect.poll(async () => {
+    position = await notice.evaluate(el => {
+      const box = el.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
+      return { bounds: { x: box.x, y: box.y, width: box.width, height: box.height }, headerBottom: header.bottom, viewportHeight: window.innerHeight };
+    });
+    return { belowHeader: position.bounds.y >= position.headerBottom + 10,
+      insideWindow: position.bounds.y + position.bounds.height <= position.viewportHeight };
+  }, { timeout: 5000, message: 'Error clears the sticky header and remains fully visible after Tab focus scrolling' }).toEqual({ belowHeader: true, insideWindow: true });
+  return position.bounds;
 }
 async function inspectLeftPanel(width, registerPosition = 'below') {
   await page.setViewportSize({ width, height: 1000 });

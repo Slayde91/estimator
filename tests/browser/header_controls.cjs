@@ -94,7 +94,7 @@ const box = locator => locator.boundingBox();
   evidence.pricingGuard = true;
   const touch = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); const mobile = await touch.newPage(); await mobile.goto(`http://127.0.0.1:${info.port}/`); await idle(mobile);
   for (const [id, choice, view] of [['library', 'Technical Library', '#library-technical'], ['takeoff', 'Service Plans', '.takeoff-physical-register']]) {
-    await mobile.locator(`#${id}-navigation-toggle`).tap(); const menu = mobile.locator(`#${id}-navigation-menu`); await expect(menu).toBeVisible();
+    await mobile.locator(`#${id}-navigation-toggle`).tap(); await idle(mobile); const menu = mobile.locator(`#${id}-navigation-menu`); await expect(menu).toBeVisible();
     await menu.getByRole('button', { name: choice, exact: true }).tap(); await expect(mobile.locator(view)).toBeVisible(); await expect(menu).toBeHidden();
   }
   evidence.touch = true; await touch.close(); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

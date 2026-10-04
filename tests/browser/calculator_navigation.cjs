@@ -88,7 +88,7 @@ async function workbook(title) {
     const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `Dropdown escaped viewport at ${width}: ${JSON.stringify(bounds)}`);
     await expect(menu.getByRole('button', { name: 'Ductwork (spray/wrap)', exact: true })).toBeVisible();
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `calculator-menu-${width}.png`), fullPage: true });
-    await page.getByRole('heading', { name: 'What would you like to do?', exact: true }).click(); await expect(menu).toBeHidden();
+    await page.getByRole('button', { name: 'Home', exact: true }).click(); await expect(menu).toBeHidden();
   }
   evidence.viewports = [1600, 1146, 825, 570, 390];
   const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

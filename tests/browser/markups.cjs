@@ -46,15 +46,22 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
   const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
-  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await page.locator('#takeoff-upload').setInputFiles(info.fixture);await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
-  await command(async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');},'record_render');
-  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
+  await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
+  await expect(page.locator('.takeoff-document')).toHaveCount(1,{timeout:60000});await idle();
+  // Upload can still refine its initial page after its document row appears.
+  // Finish that render before editing the page number, then wait for the actual
+  // requested canvas rather than an unrelated record_render response.
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
+  await renderDrawing(page, async()=>{await page.getByLabel('Page number',{exact:true}).fill('3');await page.getByLabel('Page number',{exact:true}).press('Tab');}, 3);
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
   await page.getByRole('button',{name:'Scale',exact:true}).click();await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');await command(()=>dialog('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');
   // Test-only retained metadata represents imported legacy fields that no longer have editing controls.
   await page.route('**/commands',route=>{const body=route.request().postDataJSON();if(body.op==='create_item'){Object.assign(body.item.fields,{zone:`Retained zone ${body.item.fields.mark}`,group:'Retained group',notes:`=Retained notes ${body.item.fields.mark}`});return route.continue({postData:JSON.stringify(body)});}return route.continue();});
   let state;const definitions=[['QA-MATCH-FIRST','L01',120,1,[[100,150],[200,150]]],['QA-MATCH-SECOND','L02',90,2,[[100,250],[250,250]]],['QA-OTHER-THIRD','L03',60,3,[[400,500],[600,500]]]];
   for(const[mark,level,period,quantity,points]of definitions){await page.getByRole('button',{name:'Trace length',exact:true}).click();await draw(points);state=await command(()=>dialog('Add steel object',{'Member mark':mark,'Level':level,'Member type':'Beam','Steel section':'100UC15','Product':'CAFCO 300','Fire period (min)':period,'Crit. Temp (\u00b0C)':550,'Exposure':'Re-entrant - 3 sides','Count/QTY':quantity},'Add item'),'create_item');}
   await page.unroute('**/commands');const[a,b,c]=definitions.map(([mark])=>state.snapshot.items.find(item=>item.fields.mark===mark));
+  for(const item of[a,b,c])assert.equal(item.geometry.page,3,'The movement fixture must use the requested rotated crop page');
   const before=JSON.parse(JSON.stringify(state.snapshot.items)),lengths=Object.fromEntries(state.item_results.map(item=>[item.id,item.length_m]));
   await expect(page.locator('.takeoff-register-editor')).toHaveCount(0);
   const selectAll=page.getByRole('checkbox',{name:'Select all matching items',exact:true}),hideAll=page.getByRole('checkbox',{name:'Hide all matching items',exact:true});

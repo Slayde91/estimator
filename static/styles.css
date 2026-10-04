@@ -92,7 +92,8 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .button.project-attachment-zone[aria-busy=true]::after{position:absolute;margin:0}
 .project-tools .actions .button{height:48px;min-height:48px}
 .header-project-actions{margin-left:auto;flex-shrink:0;align-self:flex-start;justify-content:flex-end}
-.header-project-actions[hidden]{display:none}
+/* Keep the header geometry stable while bootstrap makes these actions ready. */
+.header-project-actions[hidden]{display:flex!important;visibility:hidden}
 .header-project-actions .button,.project-workspace-actions .button{height:48px;min-height:48px}
 .header-project-actions .project-save-actions{gap:9px}
 .project-tools{grid-template-columns:minmax(0,1fr)}

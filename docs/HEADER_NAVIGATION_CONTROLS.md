@@ -18,6 +18,9 @@ with template export, reset and recalculate. Each takeoff marked-drawing PDF
 control follows the XLSX control in the applicable register, including both
 unapproved physical-draft workspaces.
 
+The draft XLSX download also moves into the regular register and still includes
+all current records of its takeoff type, independently of confirmed-item exports.
+
 Save, Save As and Project files are global header actions. New and Load appear
 beside Link Project Folder and Refresh on Projects, with matching control height.
 Project metadata remains on Projects. The same unique element IDs and event

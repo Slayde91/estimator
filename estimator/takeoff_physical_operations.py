@@ -51,7 +51,7 @@ def validate_source_links(graph, snapshot, image_check=None):
                 if ref['document_sha256'] != doc['sha256']:
                     raise ValidationError('Physical evidence refers to changed source document bytes.')
                 if 'point' in ref:
-                    points([ref['point']], 'Barrier marker', page, 1, 1)
+                    points([ref['point']], 'Physical source marker or annotation', page, 1, 1)
                 if 'region' in ref:
                     points(ref['region'], 'Physical evidence region', page, 3, 64)
                 if 'image_id' in ref:

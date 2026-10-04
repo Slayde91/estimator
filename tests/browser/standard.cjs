@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Real rendered standard-edition acceptance. All files and state are synthetic.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -21,7 +22,7 @@ async function reply(action, suffix) {
 }
 async function load(mode) {
   choose({ open: mode });
-  const response = await reply(() => page.getByRole('button', {name:'Load', exact:true}).click(), '/api/project/open');
+  const response = await reply(() => clickProjectControl(page, 'Load'), '/api/project/open');
   assert.equal(response.status, 200, JSON.stringify(response.body));
   await page.getByRole('dialog').getByRole('button', {name:'Load Project', exact:true}).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
@@ -45,7 +46,7 @@ async function worksheetReady(title, label) {
   await page.addInitScript(() => { window.qaCsp=[]; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({directive:event.effectiveDirective, blocked:event.blockedURI})); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await expect(page.getByRole('button', {name:'Takeoffs', exact:true})).toHaveCount(0);
   assert.equal(await page.evaluate(() => typeof window.CeasefireTakeoffs), 'undefined');
   const bootstrap = await page.request.get(`http://127.0.0.1:${info.port}/api/bootstrap`);
@@ -60,7 +61,7 @@ async function worksheetReady(title, label) {
   await page.getByLabel('Project No.', {exact:true}).fill('STANDARD-SAVED');
   await page.getByLabel('Client', {exact:true}).fill('Offline Windows acceptance');
   choose({});
-  const savedReply = await reply(() => page.getByRole('button', {name:'Save As',exact:true}).click(), '/api/project/save-as');
+  const savedReply = await reply(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
   assert.equal(savedReply.status,200,JSON.stringify(savedReply.body));
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(path.join(output,'standard-project.json')));
@@ -74,12 +75,13 @@ async function worksheetReady(title, label) {
   await page.screenshot({path:path.join(output,'saved-legacy-project.png'),fullPage:true});
   const protectedBefore = fs.readFileSync(path.join(output,'protected-v2.json'));
   choose({open:'takeoffs'});
-  const rejected = await reply(() => page.getByRole('button', {name:'Load',exact:true}).click(),'/api/project/open');
+  const rejected = await reply(() => clickProjectControl(page, 'Load'),'/api/project/open');
   assert.equal(rejected.status,400); assert.match(JSON.stringify(rejected.body), /TAKEOFFS/i);
+  await page.getByRole('button', { name: 'Quote', exact: true }).click();
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveValue('STANDARD-SAVED');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   choose({save:'takeoffs'});
-  const overwrite = await reply(() => page.getByRole('button', {name:'Save As',exact:true}).click(),'/api/project/save-as');
+  const overwrite = await reply(() => clickProjectControl(page, 'Save As'),'/api/project/save-as');
   assert.equal(overwrite.status,400); assert.match(JSON.stringify(overwrite.body), /TAKEOFFS/i);
   assert.deepEqual(fs.readFileSync(path.join(output,'protected-v2.json')),protectedBefore);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output,'standard-project.json'))),saved);
@@ -96,7 +98,7 @@ async function worksheetReady(title, label) {
   const listGate=new Promise(resolve=>{releaseList=resolve;}),definitionGate=new Promise(resolve=>{releaseDefinition=resolve;});
   await page.route('**/api/calculators',async route=>{await listGate;await route.continue();});
   await page.route('**/api/calculators/steel_vermiculite',async route=>{await definitionGate;await route.continue();});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await expect(page.locator('#project-tools')).toBeVisible();
+  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   const calculatorsButton=page.getByRole('button',{name:'Calculators',exact:true});
   await calculatorsButton.click();await calculatorsButton.click();
   const count=pathname=>navigationRequests.filter(value=>value===pathname).length;

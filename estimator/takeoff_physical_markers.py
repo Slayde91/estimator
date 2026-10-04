@@ -1,4 +1,4 @@
-"""Derived barrier callouts: one source locator, independently entered services."""
+"""Derived draft callouts with independent source annotations and quantities."""
 from .catalog import ValidationError
 from .takeoff_model import object_fields, points, page_metadata
 from .takeoff_physical_operations import current_graph
@@ -40,6 +40,32 @@ def barrier_summary(graph, barrier):
     return [' | '.join(parts), *(service_lines or ['No services recorded'])]
 
 
+def defect_annotation(defect, document_id):
+    """Read old source regions without rewriting their evidence or graph."""
+    if 'annotation' in defect:
+        return defect['annotation']
+    reference = next((value for value in defect['evidence']
+                      if value['document_id'] == document_id and value.get('region')), None)
+    if not reference:
+        return None
+    return {key: reference[key] for key in ('document_id', 'document_sha256', 'page')} | {
+        'point': [sum(vertex[axis] for vertex in reference['region']) / len(reference['region'])
+                  for axis in (0, 1)]}
+
+
+def defect_summary(graph, defect):
+    """Only explicit defect facts and counts of current related records."""
+    fields = defect['fields']; parts = [defect['display_id']]
+    parts.extend(str(fields[key]) for key in ('label', 'location') if fields.get(key))
+    if fields.get('frl'):
+        parts.append('FRL ' + fields['frl'])
+    barriers = {value['id'] for value in graph['barriers']
+                if not value['deleted'] and value['defect_id'] == defect['id']}
+    services = [value for value in graph['services']
+                if not value['deleted'] and value['barrier_id'] in barriers]
+    return [' | '.join(parts), f'{len(barriers)} substrates | {len(services)} services']
+
+
 def export_physical_pdf(snapshot, request, documents):
     required = {'expected_revision', 'mode', 'physical_scope', 'document_id', 'item_ids'}
     object_fields(request, required, 'Penetration drawing export', required)
@@ -48,23 +74,28 @@ def export_physical_pdf(snapshot, request, documents):
         raise ValidationError('Legacy physical hierarchies cannot have barrier count markers.')
     document, _ = page_metadata(snapshot, request['document_id'], 1)
     identifiers = request['item_ids']
-    barriers = {value['id']: value for value in graph['barriers'] if not value['deleted'] and value.get('marker')}
+    callouts = {value['id']: (value, value['marker'], barrier_summary) for value in graph['barriers'] if not value['deleted'] and value.get('marker')}
+    if graph['version'] == 2:
+        for value in graph['defects']:
+            annotation = defect_annotation(value, document['id'])
+            if not value['deleted'] and annotation:
+                callouts[value['id']] = (value, annotation, defect_summary)
     if (not isinstance(identifiers, list) or len(identifiers) > 10000
             or any(not isinstance(value, str) for value in identifiers)
-            or len(identifiers) != len(set(identifiers)) or set(identifiers) - barriers.keys()):
-        raise ValidationError('Choose distinct active marked barriers in this physical workspace.')
+            or len(identifiers) != len(set(identifiers)) or set(identifiers) - callouts.keys()):
+        raise ValidationError('Choose distinct active source annotations or marked barriers in this physical workspace.')
     rows = []
     for identifier in identifiers:
-        barrier = barriers[identifier]; marker = barrier['marker']
+        entity, marker, summary = callouts[identifier]
         if marker['document_id'] != document['id'] or marker['document_sha256'] != document['sha256']:
-            raise ValidationError('Every exported barrier marker must belong to the exact selected source PDF.')
+            raise ValidationError('Every exported annotation or marker must belong to the exact selected source PDF.')
         _, metadata = page_metadata(snapshot, document['id'], marker['page'])
-        points([marker['point']], 'Barrier marker', metadata, 1, 1)
+        points([marker['point']], 'Physical source annotation or marker', metadata, 1, 1)
         rows.append({'id': identifier, 'mode': 'penetrations',
             'geometry': {'kind': 'count', 'document_id': document['id'], 'page': marker['page'], 'points': [marker['point']]},
             'appearance': {'stroke_color': '#C00000', 'fill_color': '#C00000', 'fill_enabled': True,
                            'stroke_width': 2, 'opacity': 1, 'marker_shape': 'circle', 'marker_size': 12},
-            'mark': barrier['display_id'], 'physical_summary': barrier_summary(graph, barrier),
+            'mark': entity['display_id'], 'physical_summary': summary(graph, entity),
             'callout': marker.get('callout'),
             'confirmed': False})
     from .takeoff_markup_pdf import export_marked_pdf

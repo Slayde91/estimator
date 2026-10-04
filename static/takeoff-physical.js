@@ -363,15 +363,18 @@
         if (!answer) return null; if (answer.parent_id === "previous") offset -= 100; else if (answer.parent_id === "next") offset += 100; else return answer.parent_id;
       }
     }
-    async function create(kind, chosenParent, marker, sourceEvidence, requirePlacement) {
+    async function create(kind, chosenParent, marker, sourceEvidence, requirePlacement, annotation) {
       if (!kinds.includes(kind) || servicePlans() && kind === "defect") throw new Error("Choose a record type belonging to this workspace.");
       if (marker !== undefined && kind !== "barrier") throw new Error("A count marker belongs to a barrier.");
+      if (annotation !== undefined && kind !== "defect") throw new Error("A source annotation belongs to a defect.");
+      if (annotation !== undefined) annotation = copy(annotation);
       const evidence = sourceEvidence === undefined ? [] : [copy(sourceEvidence)];
       const requireSource = () => {
         requirePlacement?.();
         if (!evidence.length) return;
         const reference = evidence[0], source = state.snapshot?.documents?.find(value => value.id === reference.document_id), context = bridge.imageContext?.();
         if (kind !== "defect" || !source || source.sha256 !== reference.document_sha256 || !Number.isInteger(reference.page) || reference.page < 1 || reference.page > source.pages.length || context && (context.document_id !== source.id || context.page !== reference.page)) throw new Error("The defect source location changed. Select Count on the current drawing again.");
+        if (annotation && (annotation.document_id !== reference.document_id || annotation.document_sha256 !== reference.document_sha256 || annotation.page !== reference.page)) throw new Error("The defect annotation belongs to a different source page.");
       };
       ensureEditable(); ensureAvailable(); requireSource(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable(); requireSource();
       if (graphKey() !== key) throw new Error("The physical draft changed before this form opened. Repeat the edit.");
@@ -386,7 +389,7 @@
       const answer = await ask(evidence.length ? "Add Defect" : `Create draft ${kind}`, fieldDefinitions(null, kind), `${warning()}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank.${evidence.length ? `\n\nSource page ${evidence[0].page}: ${evidence[0].note}` : " Link retained source evidence after creating the draft."}`, "Preview new draft");
       if (!answer) return;
       requireSource();
-      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}) };
+      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
       if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`, false, true, requireSource)) { await selectEntity(entity.id, false, marker === undefined && !evidence.length); return entity.id; }
     }
     function createFromSelection(kind, marker) {
@@ -421,9 +424,14 @@
     }
     function summary(id) {
       const entry = state.index.get(id); if (!entry || entry.entity.deleted) return "";
+      const line = (values) => values.filter(value => value !== undefined && value !== null && value !== "").map(value => String(value).replace(/[\r\n\t]+/g, " ")).join(" · ");
+      if (entry.kind === "defect" && graph().version === 2) {
+        const fields = entry.entity.fields, barriers = [...state.index.values()].filter(value => value.kind === "barrier" && !value.entity.deleted && value.entity.defect_id === id), ids = new Set(barriers.map(value => value.entity.id));
+        const services = [...state.index.values()].filter(value => value.kind === "service" && !value.entity.deleted && ids.has(value.entity.barrier_id));
+        return [line([displayId(entry), fields.label, fields.location, fields.frl ? `FRL ${fields.frl}` : ""]), `${barriers.length} substrates · ${services.length} services`].join("\n");
+      }
       const barrier = entry.kind === "barrier" ? entry : ancestors(entry, state.index).find(parent => parent.kind === "barrier"); if (!barrier || barrier.entity.deleted) return "";
       const fields = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? fields.frl : defect?.entity.fields.frl;
-      const line = (values) => values.filter(value => value !== undefined && value !== null && value !== "").map(value => String(value).replace(/[\r\n\t]+/g, " ")).join(" · ");
       const services = state.servicesByBarrier.get(barrier.entity.id) || [];
       return [line([displayId(barrier), defect ? displayId(defect) : "", fields.label, fields.location, fields.barrier_type, fields.substrate, fields.orientation, fields.thickness_mm != null ? `${fields.thickness_mm} mm thick` : "", frl ? `FRL ${frl}` : ""]), ...services.map(child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type, value.size, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); }), ...(!services.length ? ["0 services"] : [])].join("\n");
     }
@@ -433,6 +441,13 @@
       if (!entry || entry.kind !== "barrier" || entry.entity.deleted) throw new Error("Select an active barrier for this count marker.");
       requireCurrent(entry); if (sameValue(entry.entity.marker ?? null, marker)) return false;
       return perform([{ op: "update", entity_id: id, changes: { marker: copy(marker) } }], marker ? "Move barrier count marker" : "Remove barrier count marker?", false, marker === null);
+    }
+    async function setAnnotation(id, annotation) {
+      await completePendingEdits();
+      ensureEditable(); ensureAvailable(); const entry = state.index.get(id);
+      if (!entry || entry.kind !== "defect" || graph().version !== 2 || entry.entity.deleted) throw new Error("Select an active defect for this source annotation.");
+      requireCurrent(entry); if (Object.hasOwn(entry.entity, "annotation") && sameValue(entry.entity.annotation, annotation)) return false;
+      return perform([{ op: "update", entity_id: id, changes: { annotation: copy(annotation) } }], annotation ? "Move defect source annotation" : "Remove defect source annotation?", false, annotation === null);
     }
     async function editField(entry, key, control) {
       ensureAvailable(true); requireCurrent(entry);
@@ -820,7 +835,7 @@
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

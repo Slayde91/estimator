@@ -2,6 +2,9 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:project-controls": "node tests/browser/project_controls.cjs",
+    "test:markup-selection-defaults": "node tests/browser/markup_selection_defaults.cjs",
+    "test:defect-callouts": "node tests/browser/defect_callouts.cjs",
     "test:takeoffs-browser": "node tests/browser/takeoffs.cjs",
     "test:takeoffs-lineage": "node tests/browser/lineage.cjs",
     "test:takeoffs-capacity": "node tests/browser/capacity.cjs",

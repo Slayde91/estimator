@@ -127,6 +127,7 @@ def _rows(graph, names):
                 if graph['version'] == 3:
                     row['frl'] = index[entity['barrier_id']][1]['fields'].get('frl')
             row['marker_json'] = _json(entity.get('marker'))
+            row['annotation_json'] = _json(entity.get('annotation'))
             row.update(fields_json=_json(entity['fields']), evidence_json=_json(entity['evidence']),
                 source_names_json=_json({reference['document_id']: names[reference['document_id']]
                     for reference in entity_references(entity) if reference['document_id'] in names}),
@@ -223,6 +224,8 @@ def export_physical_graph(graph, format, source_names=None):
     current = graph['version'] in (2, 3)
     common_headers = {1: COMMON_HEADERS, 2: V2_COMMON_HEADERS, 3: V3_COMMON_HEADERS}[graph['version']]
     details_headers = DETAIL_HEADERS + (('marker_json',) if graph['version'] == 3 or any('marker' in entry for entry in graph['barriers']) else ())
+    if graph['version'] == 2 and any('annotation' in entry for entry in graph['defects']):
+        details_headers += ('annotation_json',)
     csv_headers = common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + details_headers
     evidence_headers = common_headers + EVIDENCE_HEADERS[len(COMMON_HEADERS):]
     names = _names(source_names)

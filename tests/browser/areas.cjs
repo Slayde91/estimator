@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real pointer/keyboard area workflow on synthetic drawings and a disposable server.
 const { chromium, expect } = require('@playwright/test');
@@ -129,7 +130,7 @@ async function surface(mode, rotated = false) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
@@ -209,13 +210,13 @@ async function surface(mode, rotated = false) {
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('2');
   await page.screenshot({ path: path.join(output, 'slab-rotated-confirmed.png'), fullPage: true });
   const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
-  await page.getByRole('button', { name: 'Save As', exact: true }).click();
+  await clickProjectControl(page, 'Save As');
   assert.equal((await save).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
   assert.equal(saved.version, 2); assert.equal(saved.takeoffs.items.length, 2);
   const load = page.waitForResponse(r => r.url().endsWith('/api/project/open'));
-  await page.getByRole('button', { name: 'Load', exact: true }).click(); assert.equal((await load).status(), 200);
+  await clickProjectControl(page, 'Load'); assert.equal((await load).status(), 200);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();

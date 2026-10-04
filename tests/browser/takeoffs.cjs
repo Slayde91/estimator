@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
@@ -231,7 +232,7 @@ async function boardJourney(info) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Upload PDFs', exact: true })).toBeVisible();
@@ -340,7 +341,7 @@ async function boardJourney(info) {
   await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   // Project Save As commits the companion bundle before the complete JSON.
   const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
-  await page.getByRole('button', { name: 'Save As', exact: true }).click();
+  await clickProjectControl(page, 'Save As');
   const saved = await savedResponse; assert.equal(saved.status(), 200, await saved.text());
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const savedJson = JSON.parse(fs.readFileSync(info.project));
@@ -348,7 +349,7 @@ async function boardJourney(info) {
   assert.equal(savedJson.takeoffs.transfers.filter(binding => binding.calculator_id === 'steel_board').length, 2);
   assert.ok(fs.existsSync(path.join(output, savedJson.takeoffs.companion_folder)));
   const loadedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/open'));
-  await page.getByRole('button', { name: 'Load', exact: true }).click();
+  await clickProjectControl(page, 'Load');
   const loaded = await loadedResponse; assert.equal(loaded.status(), 200, await loaded.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');

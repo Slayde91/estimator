@@ -88,7 +88,7 @@ async function run() {
   });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Upload PDFs', exact: true })).toBeVisible();
   await expect(page.getByLabel('Text search scope', { exact: true })).toHaveValue('document');

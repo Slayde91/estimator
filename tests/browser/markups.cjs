@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real selection, appearance, movement and draft drawing/report exports on disposable sources.
 const { chromium, expect } = require('@playwright/test');
@@ -18,7 +19,7 @@ async function screen([x,y]){const overlay=page.locator('.takeoff-overlay');awai
 async function draw(points){for(const point of points)await page.mouse.click(...await screen(point));await page.locator('.takeoff-viewport').press('Enter');}
 async function drag(from,to){await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded();const box=await page.locator('.takeoff-overlay').boundingBox(),at=([x,y])=>[box.x+(y-30)/540*box.width,box.y+(x-20)/780*box.height],a=at(from),b=at(to);await page.mouse.move(...a);await page.mouse.down();const start=await page.locator('.takeoff-overlay').boundingBox();await page.mouse.move(...b,{steps:12});const end=await page.locator('.takeoff-overlay').boundingBox();await page.mouse.up();(evidence.drags||=[]).push({from,to,box,start,end,a,b});fs.writeFileSync(path.join(output,'drags.json'),JSON.stringify(evidence.drags,null,2));}
 async function selectIds(ids){await page.getByRole('checkbox',{name:'Select all matching items',exact:true}).check();await page.getByRole('checkbox',{name:'Select all matching items',exact:true}).uncheck();for(const id of ids)await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox',{name:/^Select /}).check();}
-async function settings(){await page.getByRole('button',{name:'Settings',exact:true}).click();const panel=page.locator('.takeoff-markup-settings');await expect(panel).toBeVisible();return panel;}
+async function settings(){const panel=page.locator('.takeoff-markup-settings');if(!await panel.isVisible())await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(panel).toBeVisible();return panel;}
 async function applySettings(panel){await page.keyboard.press('Tab');await expect.poll(async()=>{try{await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());return true;}catch{return false;}}).toBe(true);return page.evaluate(async()=>(await fetch('/api/takeoffs/sessions/'+window.CeasefireTakeoffs.sessionId())).json());}
 async function confirm(count){await page.getByRole('button',{name:'Confirm',exact:true}).click();return command(()=>dialog(`Confirm ${count} items?`,{},'Confirm items'),'confirm_items');}
 async function download(label){
@@ -37,8 +38,8 @@ async function focusRow(item,document){
   await idle();await expect(page.locator('.takeoff-page')).toBeVisible();
 }
 
-async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await page.getByRole('button',{name:'Save As',exact:true}).click();assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
-async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await page.getByRole('button',{name:'Load',exact:true}).click();assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
+async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await clickProjectControl(page, 'Save As');assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
+async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await clickProjectControl(page, 'Load');assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
 (async()=>{
   const info=await ready;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100},deviceScaleFactor:2});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/commands'))requests.push(request.postDataJSON());});

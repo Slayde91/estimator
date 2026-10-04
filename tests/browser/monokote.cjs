@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Rendered manual-input regression. Default evidence is wholly synthetic.
 const {chromium, expect} = require('@playwright/test');
 const {spawn, spawnSync} = require('node:child_process');
@@ -49,7 +50,7 @@ async function screenshot(name,fixture) {
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100}});page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
-  const initial=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));await expect(page.locator('#project-tools')).toBeVisible();
+  const initial=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Quote',exact:true}).click();
   await page.getByLabel('Project No.',{exact:true}).fill(fixture.synthetic?'SYNTHETIC-MONOKOTE-QA':'PRIVATE-MONOKOTE-QA');
   await page.getByRole('button',{name:'Calculators',exact:true}).click();
@@ -150,12 +151,12 @@ async function screenshot(name,fixture) {
   await expect(rendered('L262')).toContainText('no generic factor table');
   await screenshot('monokote-coverage.png',fixture);
   console.log('Verified all six order products, Z106 alignment, hollow coverage and named-only PFC coverage.');
-  await apiReply(()=>page.getByRole('button',{name:'Save As',exact:true}).click(),'/api/project/save-as');
+  await apiReply(()=>clickProjectControl(page, 'Save As'),'/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved=JSON.parse(fs.readFileSync(path.join(output,'standard-project.json'),'utf8'));
   const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
   fs.writeFileSync(path.join(output,'dialog-mode.json'),JSON.stringify({open:'saved'}));
-  await apiReply(()=>page.getByRole('button',{name:'Load',exact:true}).click(),'/api/project/open');
+  await apiReply(()=>clickProjectControl(page, 'Load'),'/api/project/open');
   await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);

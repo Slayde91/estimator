@@ -98,7 +98,7 @@ async function fitCurrentDrawing(name) {
   page.on('response', response => { if (response.status() >= 400) requests.push({ url: response.url(), status: response.status() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   await page.goto(`http://127.0.0.1:${info.port}/`);
-  await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await page.locator('#takeoff-upload').setInputFiles(info.fixture);

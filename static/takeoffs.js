@@ -68,6 +68,19 @@
     control.value = choices.some(([key]) => key === previous) ? previous : choices[0]?.[0] || "";
   }
   const appearanceOf = item => ({ stroke_color: "#FF0000", fill_enabled: item.geometry?.kind === "polygon" || isCount(item), fill_color: "#FF0000", stroke_width: 2, opacity: 1, marker_shape: "circle", marker_size: 12, ...item.appearance });
+  const markupDefaultsKey = "ceasefire.takeoff-markup-defaults.v1";
+  const markupDefaultFields = ["stroke_color", "stroke_width", "fill_color", "fill_enabled", "opacity"];
+  function validatedMarkupDefaults(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    if (!["stroke_color", "fill_color"].every(key => typeof value[key] === "string" && /^#[0-9a-f]{6}$/i.test(value[key]))) return null;
+    if (typeof value.fill_enabled !== "boolean" || !Number.isFinite(value.stroke_width) || value.stroke_width < 0.25 || value.stroke_width > 20 || !Number.isFinite(value.opacity) || value.opacity < 0 || value.opacity > 1) return null;
+    return Object.fromEntries(markupDefaultFields.map(key => [key, key.endsWith("color") ? value[key].toUpperCase() : value[key]]));
+  }
+  function readMarkupDefaults() {
+    try { const saved = JSON.parse(window.localStorage?.getItem(markupDefaultsKey) || "null"); return saved?.version === 1 ? validatedMarkupDefaults(saved.appearance) : null; } catch { return null; }
+  }
+  let markupDefaults = readMarkupDefaults();
+  const newMarkupAppearance = () => markupDefaults ? { ...markupDefaults } : {};
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -643,6 +656,7 @@
       bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field); content.append(field.wrapper);
       if (def[0] === "marker_size") { field.control.min = "2"; field.control.max = "72"; }
     }
+    content.append(button("Set as default", () => setMarkupDefaults(editor)));
     content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
     editor.fields = itemFields(first).map(def => { const field = formField(def, def[0] === "duct_size" ? formatDuctSize(first.fields) : first.fields[def[0]]); bindSetting(editor, field, `fields:${def[0]}`); if (def[0] === "sides") field.wrapper.hidden = state.ui.target.value !== "steel_board"; if (["product", "member_type"].includes(def[0])) field.control.addEventListener("change", () => void safely(() => loadSettingsOptions(editor))); content.append(field.wrapper); return field; });
     if (selected.some(isCount)) {
@@ -664,6 +678,20 @@
     } else if (!isCount(first) && !isSurface(first)) { editor.quantity = formField(["quantity", "Count/QTY", "number"], first.quantity); bindSetting(editor, editor.quantity, "quantity"); content.append(editor.quantity.wrapper); }
     if (selected.length === 1 && !isCount(first)) renderItemSettingsTools(content, first, editor);
     void safely(() => loadSettingsOptions(editor));
+  }
+  async function setMarkupDefaults(editor) {
+    const key = editor?.key, sessionId = editor?.sessionId;
+    if (!editor || state.settingsEditor !== editor) throw new Error("Open the current markup settings before setting a default.");
+    await flushSettings();
+    const current = state.settingsEditor;
+    if (!current || current.key !== key || current.sessionId !== sessionId || sessionId !== state.session?.session_id || key !== settingsSelectionKey()) throw new Error("The project or selection changed. Set the default from its current settings.");
+    const values = Object.fromEntries(current.appearance.filter(field => markupDefaultFields.includes(field.control.name)).map(field => [field.control.name, field.read()]));
+    const appearance = validatedMarkupDefaults(values);
+    if (!appearance) throw new Error("Choose valid stroke and fill colours, stroke width from 0.25 to 20, and opacity from 0 to 1.");
+    markupDefaults = appearance;
+    let stored = false;
+    try { window.localStorage.setItem(markupDefaultsKey, JSON.stringify({ version: 1, appearance })); stored = true; } catch { /* This launch still uses the chosen visual default. */ }
+    message(stored ? "Default appearance saved for new measurements." : "Default appearance set for new measurements in this window. Browser storage is unavailable.");
   }
   async function applySettings(editor) {
     if (!editor || state.settingsEditor !== editor) return;
@@ -1256,7 +1284,7 @@
       if (continuation) continuationTarget(continuation);
       const reply = continuation
         ? await command("continue_count", { item_id: continuation.itemId, markers }, () => { if (state.formDirty || state.settingsDirty || generation !== state.countGeneration) throw new Error("The count changed before it could finish."); continuationTarget(continuation); return true; })
-        : await command("add_count_items", { document_id: state.document, page: state.page, markers, fields: {}, appearance: {} });
+        : await command("add_count_items", { document_id: state.document, page: state.page, markers, fields: {}, appearance: newMarkupAppearance() });
       cancelTrace(); state.countSelection.clear(); state.selected = new Set(reply.regrouped_item_ids || reply.created_item_ids); state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
       message(continuation ? "Count continued with the same details. Added markers are grouped by their manually entered lengths. Confirm changed rows before updating their linked schedules." : "Count recorded. Set the shared steel and fire-protection details in the panel. Different lengths have separate rows; marker quantity cannot be typed.");
     } finally { if (generation === state.countGeneration) state.countFinishing = false; }
@@ -1349,8 +1377,8 @@
     return visibleItems().filter(item => item.geometry && (item.measurement || item.purpose === "count-only") && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
   }
   async function clearDrawingSelection() {
-    const savingSurfaceSettings = isArea() && state.settingsEditor?.applying;
-    if (state.tool !== "select" || state.busy && !savingSurfaceSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size)) return;
+    const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
+    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.settingsOpen)) return;
     if (!await discardEditor()) return;
     state.selected.clear(); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
@@ -1477,7 +1505,7 @@
       if (!gesture.moved) {
         if (gesture.countSelectionBefore) {
           state.selected = gesture.countSelectionBefore;
-          if (valid) void safely(() => selectItem(reference.itemId, event.ctrlKey || event.metaKey || event.shiftKey, false)); else renderOverlay();
+          if (valid) void safely(() => selectItem(reference.itemId, event.ctrlKey || event.metaKey || event.shiftKey, false, false, false)); else renderOverlay();
         } else if (valid) selectControlPoint(reference); else renderOverlay();
         window.CeasefireProject?.changed?.(); return;
       }
@@ -1618,9 +1646,9 @@
     const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
     // An unselected markup retains ordinary click-to-select behavior.
     if (id && !state.selected.has(id)) return;
-    // Let a surface click flush its pending auto-settings before changing selection.
+    // Let a markup click flush its pending auto-settings before changing selection.
     // A move cannot start until that edit has finished.
-    if (isArea() && state.settingsDirty && !state.formDirty && !state.points.length && !state.pendingViewport) return;
+    if (state.settingsDirty && !state.formDirty && !state.points.length && !state.pendingViewport) return;
     if (state.formDirty || state.settingsDirty || state.points.length || state.pendingViewport) {
       event.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
       throw new Error("Apply or discard unfinished item/settings edits before selecting or moving markups.");
@@ -1696,7 +1724,7 @@
       const details = continuation ? null : await ask("Add count", [...standaloneFields.map(def => [def[0], def[1], def[2] || "text", "", def[0] === "mark"])], "Count/QTY is the number of markers on this page.", "Add count", (controls, ready) => configureSteelCreation(controls, "ductwork", ready));
       if (!continuation && !details) return cancelTrace();
       const values = details ? { ...details, ...parseDuctSize(details.duct_size) } : null; if (values) delete values.duct_size;
-      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_standalone_count", { mode: state.mode, document_id: state.document, page: state.page, markers, fields: values, appearance: {} });
+      const reply = continuation ? await command("continue_standalone_count", { item_id: continuation.itemId, markers }, () => !!continuationTarget(continuation)) : await command("add_standalone_count", { mode: state.mode, document_id: state.document, page: state.page, markers, fields: values, appearance: newMarkupAppearance() });
       const ids = continuation ? [continuation.itemId] : reply.created_item_ids; cancelTrace(); state.selected = new Set(ids); state.settingsOpen = true; state.settingsEditor = null; renderSelection();
     } finally { state.countFinishing = false; }
   }
@@ -1723,15 +1751,15 @@
       if (details.quantity !== "1") throw new Error("Identify one physical treatment surface. Separate surfaces need separate items.");
       const { quantity, ...enteredFields } = details;
       const id = uuid();
-      await command("create_item", { item: { id, mode, geometry, measurement, quantity: 1, fields: enteredFields, evidence } });
-      state.selected = new Set([id]); cancelTrace(); renderSelection(); return;
+      await command("create_item", { item: { id, mode, geometry, measurement, quantity: 1, fields: enteredFields, evidence, appearance: newMarkupAppearance() } });
+      state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection(); return;
     }
     const mode = state.mode, calculator = state.ui.target.value;
     const details = await ask(`Add ${labels[mode].toLowerCase()} object`, creationFields(mode), `One trace represents one physical object. A repeated quantity must be explicitly supported by the source. New items are unconfirmed. Choices come from ${calculatorName(calculator)}. Unknown properties may stay blank until confirmation; calculator transfer requires exact supported values.${mode === "duct" ? " New duct runs are rectangular." : ""}`, "Add item", (controls, ready) => configureSteelCreation(controls, calculator, ready));
     if (!details) return cancelTrace(); if (!Number.isInteger(details.quantity) || details.quantity < 1) throw new Error("Enter an explicit positive whole quantity.");
     const { quantity, duct_size, ...enteredFields } = details;
     if (mode === "duct") Object.assign(enteredFields, parseDuctSize(duct_size));
-    const id = uuid(); await command("create_item", { item: { id, mode, geometry, measurement, quantity, fields: { ...enteredFields, ...(mode === "duct" ? { shape: "rectangular" } : {}) }, evidence } }); state.selected = new Set([id]); cancelTrace(); renderSelection();
+    const id = uuid(); await command("create_item", { item: { id, mode, geometry, measurement, quantity, fields: { ...enteredFields, ...(mode === "duct" ? { shape: "rectangular" } : {}) }, evidence, appearance: newMarkupAppearance() } }); state.selected = new Set([id]); cancelTrace(); renderSelection();
   }
   function creationFields(mode) {
     if (mode === "duct") return [...editableFields(mode).map(([key, label, type]) => [key, label, type || "text", "", key === "mark"]), ["quantity", "Count/QTY", "number", "", true]];
@@ -1785,7 +1813,7 @@
     if (state.retraceId) { const id = state.retraceId; await command("update_item", { item_id: id, changes: { geometry, measurement } }); cancelTrace(); state.selected = new Set([id]); renderSelection(); }
     else if (state.tool === "measure") {
       const details = await ask("Add length measurement", [["mark", "Item", "text", "", true], ["level", "Level", "text", ""]], "Measured length follows this page's calibration.", "Add measurement");
-      if (!details) return cancelTrace(); const id = uuid(); await command("create_item", { item: { id, mode: state.mode, purpose: "length-only", geometry, measurement, quantity: 1, fields: details } }); state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection();
+      if (!details) return cancelTrace(); const id = uuid(); await command("create_item", { item: { id, mode: state.mode, purpose: "length-only", geometry, measurement, quantity: 1, fields: details, appearance: newMarkupAppearance() } }); state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection();
     } else await createDrawnItem(measurement, geometry);
   }
   async function finishAreaTrace() {
@@ -1807,7 +1835,7 @@
     if (previous) { await command("update_item", { item_id: previous.id, changes: { geometry, measurement } }); cancelTrace(); state.selected = new Set([previous.id]); renderSelection(); }
     else if (state.tool === "measure") {
       const details = await ask("Add length measurement", [["mark", "Item", "text", "", true], ["level", "Level", "text", ""]], "Measured length follows this page's calibration.", "Add measurement");
-      if (!details) return cancelTrace(); const id = uuid(); await command("create_item", { item: { id, mode: state.mode, purpose: "length-only", geometry, measurement, quantity: 1, fields: details } }); state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection();
+      if (!details) return cancelTrace(); const id = uuid(); await command("create_item", { item: { id, mode: state.mode, purpose: "length-only", geometry, measurement, quantity: 1, fields: details, appearance: newMarkupAppearance() } }); state.selected = new Set([id]); cancelTrace(); state.settingsOpen = true; renderSelection();
     } else await createDrawnItem(measurement, geometry);
   }
   function areaTraceLimit() {
@@ -2130,7 +2158,7 @@
       if (placement?.kind === "defect") {
         if (scope !== "defect_reports" || placement.controller !== controller || placement.sessionId !== sessionId || placement.documentId !== marker.document_id || placement.page !== marker.page) throw new Error("The defect placement belongs to a previous drawing. Select Count again.");
         const evidence = defectLocationEvidence(marker); placement.pendingPoint = [...point]; renderOverlay(); current();
-        const id = await controller.create("defect", undefined, undefined, evidence, current);
+        const id = await controller.create("defect", undefined, undefined, evidence, current, marker);
         if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); setPhysicalDetailsOpen(true); renderOverlay(); }
         return;
       }
@@ -2158,12 +2186,24 @@
     if (!(radius > 0) || !Number.isFinite(radius) || right <= left || top <= bottom) throw new Error("The drawing transform cannot locate this defect.");
     return { document_id: marker.document_id, document_sha256: marker.document_sha256, page: marker.page, region: [[left, bottom], [right, bottom], [right, top], [left, top]], note: `Defect source-location annotation at PDF point ${JSON.stringify(point)}. Annotation size does not represent physical size or quantity.` };
   }
+  function physicalDrawingLocator(entity, documentId = state.document) {
+    if (entity.marker) return entity.marker;
+    if (Object.hasOwn(entity, "annotation")) return entity.annotation;
+    if (physicalGraph()?.version !== 2 || !physicalGraph().defects.some(value => value.id === entity.id)) return null;
+    // Older defects retain their source region unchanged. Its centre provides
+    // a display anchor until an explicit annotation/layout edit is saved.
+    const source = (entity.evidence || []).find(reference => reference.document_id === documentId && reference.document_sha256 === documentById(documentId)?.sha256 && reference.region?.length >= 3);
+    if (!source) return null;
+    const point = [0, 1].map(axis => source.region.reduce((total, vertex) => total + vertex[axis], 0) / source.region.length);
+    return { document_id: source.document_id, document_sha256: source.document_sha256, page: source.page, point };
+  }
+  function physicalDrawingEntity(id) { return [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].find(value => value.id === id && !value.deleted); }
   function physicalMarkerReference(entity) {
-    return { id: entity.id, sessionId: state.session?.session_id, scope: state.physicalScope, documentId: state.document, page: state.page, revision: entity.revision, marker: JSON.stringify(entity.marker) };
+    return { id: entity.id, kind: physicalGraph()?.defects?.some(value => value.id === entity.id) ? "defect" : "barrier", sessionId: state.session?.session_id, scope: state.physicalScope, documentId: state.document, page: state.page, revision: entity.revision, marker: JSON.stringify(physicalDrawingLocator(entity)) };
   }
   function physicalMarkerTarget(reference) {
-    const entity = physicalGraph()?.barriers?.find(value => value.id === reference.id && !value.deleted);
-    if (!entity?.marker || state.mode !== "physical" || reference.sessionId !== state.session?.session_id || reference.scope !== state.physicalScope || reference.documentId !== state.document || reference.page !== state.page || reference.revision !== entity.revision || reference.marker !== JSON.stringify(entity.marker)) throw new Error("The barrier marker or drawing changed. Select the current marker again.");
+    const collection = reference.kind === "defect" ? "defects" : "barriers", entity = physicalGraph()?.[collection]?.find(value => value.id === reference.id && !value.deleted), locator = entity && physicalDrawingLocator(entity);
+    if (!locator || state.mode !== "physical" || reference.sessionId !== state.session?.session_id || reference.scope !== state.physicalScope || reference.documentId !== state.document || reference.page !== state.page || reference.revision !== entity.revision || reference.marker !== JSON.stringify(locator)) throw new Error("The source annotation or drawing changed. Select the current marker again.");
     return entity;
   }
   async function choosePhysicalDrawing(entity, event, callout = false) {
@@ -2196,9 +2236,9 @@
     return lines;
   }
   function physicalCalloutBox(entity, point, scale, markerScale) {
-    const stored = entity.marker.callout;
+    const locator = physicalDrawingLocator(entity), stored = locator.callout;
     if (stored) {
-      const anchor = G.transform(entity.marker.point.map((value, axis) => value + stored.offset[axis]), state.viewport.transform);
+      const anchor = G.transform(locator.point.map((value, axis) => value + stored.offset[axis]), state.viewport.transform);
       return { x: anchor[0], y: anchor[1], width: stored.width * markerScale, height: stored.height * markerScale };
     }
     const width = 238 * scale, lines = physicalCalloutLines(state.physicalUI.summary(entity.id), width - 12 * scale, 9 * scale), height = (Math.min(lines.length, 30) * 12 + 12) * scale;
@@ -2208,8 +2248,8 @@
   async function beginPhysicalDrag(event, entity, kind, box, corner) {
     if (event.button !== 0 || state.tool !== "select") return;
     event.stopPropagation(); if (state.busy && !state.physicalUI?.isAutoApplying?.() || state.modal || state.gesture || !state.viewport) return;
-    entity = physicalGraph()?.barriers?.find(value => value.id === entity.id && !value.deleted);
-    if (!entity?.marker) return;
+    entity = physicalDrawingEntity(entity.id);
+    if (!entity || !physicalDrawingLocator(entity)) return;
     let reference = physicalMarkerReference(entity), preparing = true, ready;
     const controller = state.physicalUI, initial = drawingPoint(event), element = state.ui.viewport, viewport = JSON.stringify([state.viewport.width, state.viewport.height, state.viewport.transform]);
     physicalMarkerTarget(reference);
@@ -2219,7 +2259,7 @@
       try {
         // Routine field saves may advance the barrier revision, but must never
         // replace this gesture's source identity or original marker geometry.
-        const revision = preparing ? physicalGraph()?.barriers?.find(value => value.id === entity.id)?.revision : reference.revision;
+        const revision = preparing ? physicalDrawingEntity(entity.id)?.revision : reference.revision;
         physicalMarkerTarget({ ...reference, revision }); return true;
       } catch { return false; }
     };
@@ -2249,16 +2289,16 @@
         if (!await ready.catch(() => false) || state.gesture !== gesture) return;
         if (!current()) throw new Error("The barrier or drawing changed during the drag. Select it again.");
         state.gesture = null;
-        requireFinishedEdits(); const currentEntity = physicalMarkerTarget(reference), marker = clone(currentEntity.marker);
+        requireFinishedEdits(); const currentEntity = physicalMarkerTarget(reference), marker = clone(physicalDrawingLocator(currentEntity));
         if (!gesture.moved) { await choosePhysicalDrawing(currentEntity, next, kind !== "physical-marker"); return; }
         if (kind === "physical-marker") {
           marker.point = marker.point.map((value, axis) => value + gesture.delta[axis]); const view = pageMetadata()?.view;
-          if (!view || marker.point[0] < view[0] || marker.point[1] < view[1] || marker.point[0] > view[2] || marker.point[1] > view[3]) throw new Error("Keep the barrier marker inside its original PDF page.");
+          if (!view || marker.point[0] < view[0] || marker.point[1] < view[1] || marker.point[0] > view[2] || marker.point[1] > view[3]) throw new Error("Keep the source marker inside its original PDF page.");
         } else {
           const anchor = G.inverse([gesture.box.x, gesture.box.y], state.viewport.transform), pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
           marker.callout = { offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
         }
-        await controller.setMarker(entity.id, marker);
+        await (reference.kind === "defect" ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
         await controller.selectDrawing(entity.id, false, false, kind === "physical-marker");
         if (kind === "physical-marker") setPhysicalDetailsOpen(true);
       }).finally(() => { if (state.gesture === gesture) cancelSelectionGesture(); renderOverlay(); window.CeasefireProject?.changed?.(); });
@@ -2276,18 +2316,19 @@
       // Check other unfinished work without mistaking this reserved gesture
       // for an unrelated drawing operation; this guard is synchronous.
       state.gesture = null; try { requireFinishedEdits(); } finally { state.gesture = gesture; }
-      entity = physicalGraph().barriers.find(value => value.id === entity.id && !value.deleted);
+      entity = physicalDrawingEntity(entity.id);
       reference = physicalMarkerReference(entity); gesture.reference = reference; preparing = false; return true;
     })();
     try { await ready; } catch (error) { if (state.gesture === gesture) cancelSelectionGesture(); throw error; }
   }
   function renderPhysicalMarker(overlay, entity, selectedIds) {
+    const locator = physicalDrawingLocator(entity), defect = physicalGraph()?.defects?.some(value => value.id === entity.id);
     const selected = selectedIds.has(entity.id), gesture = state.gesture?.id === entity.id ? state.gesture : null, moved = gesture?.kind === "physical-marker" && gesture.moved;
-    const sourcePoint = entity.marker.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
+    const sourcePoint = locator.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
     const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, 6 * markerScale), scale = Math.max(markerScale, 1.2);
     const summary = state.physicalUI.summary(entity.id);
     let box = physicalCalloutBox(entity, point, scale, pdfScale);
-    if (moved && entity.marker.callout) { const old = G.transform(entity.marker.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
+    if (moved && locator.callout) { const old = G.transform(locator.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
     if (gesture?.box && gesture.moved) box = gesture.box;
     const { x, y, width, height } = box, padding = Math.min(6 * scale, width / 12, height / 8);
     let fontSize = 9 * scale, lines = physicalCalloutLines(summary, width - 2 * padding, fontSize);
@@ -2299,7 +2340,7 @@
     const text = svg("text", { fill: "#30282b", "font-family": "Arial, sans-serif", "font-size": fontSize });
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
     const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: "#b90a15", stroke: selected ? "#fff" : "#b90a15", "stroke-width": Math.max(1, 2 * markerScale), "pointer-events": "none" });
-    const hit = svg("circle", { cx: point[0], cy: point[1], r: Math.max(radius, 9), class: "takeoff-physical-marker-hit", fill: "transparent", stroke: "none", "pointer-events": "all", role: "button", tabindex: 0, "aria-label": `Count marker ${entity.display_id} · ${summary}`, "aria-pressed": String(selected), "data-physical-id": entity.id });
+    const hit = svg("circle", { cx: point[0], cy: point[1], r: Math.max(radius, 9), class: "takeoff-physical-marker-hit", fill: "transparent", stroke: "none", "pointer-events": "all", role: "button", tabindex: 0, "aria-label": `${defect ? "Source annotation" : "Count marker"} ${entity.display_id} · ${summary}`, "aria-pressed": String(selected), "data-physical-id": entity.id });
     for (const target of [hit, callout]) {
       const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); if (event.type === "click" && Date.now() < (state.suppressSelectionClickUntil || 0)) return; void safely(() => choosePhysicalDrawing(entity, event, target === callout)); };
       target.addEventListener("click", choose);
@@ -2318,8 +2359,8 @@
     if (!state.markupMenu?.physical || state.gesture) return;
     const { reference, point } = state.markupMenu;
     try { physicalMarkerTarget(reference); } catch { state.markupMenu = null; return; }
-    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Barrier marker actions");
-    const remove = button("Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await state.physicalUI.setMarker(reference.id, null); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
+    const defect = reference.kind === "defect", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", defect ? "Defect annotation actions" : "Barrier marker actions");
+    const remove = button(defect ? "Remove source annotation" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.setAnnotation(reference.id, null) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
   function renderPhysicalOverlay(overlay) {
     if (!state.physicalUI) return;
@@ -2333,6 +2374,8 @@
     }
     regions.sort((a, b) => Number(state.physicalSelected.has(b.entity.id)) - Number(state.physicalSelected.has(a.entity.id)));
     for (const { entity, kind, reference } of regions.slice(0, 500)) {
+      const annotation = kind === "Defect" && physicalDrawingLocator(entity);
+      if (annotation && annotation.document_id === state.document && annotation.page === state.page) continue;
       const path = G.polygonPath({ kind: "polygon", points: reference.region, exclusions: [] }, state.viewport.transform), first = G.transform(reference.region[0], state.viewport.transform);
       const shape = svg("path", { d: path, class: `takeoff-shape takeoff-physical-shape${state.physicalSelected.has(entity.id) ? " selected" : ""}${state.physicalHovered === entity.id ? " hovered" : ""}` });
       const hit = svg("path", { d: path, class: "takeoff-hit takeoff-area-hit", role: "button", tabindex: 0, "aria-label": `${kind}: ${entity.fields.label || entity.id} · unapproved draft evidence` }); hit.dataset.physicalId = entity.id;
@@ -2342,11 +2385,12 @@
       const label = svg("text", { x: first[0] + 6, y: first[1] - 7, class: "takeoff-label" }); label.textContent = `${kind}: ${entity.fields.label || entity.id.slice(0, 8)}`; overlay.append(shape, hit, label);
     }
     const markers = (physicalGraph()?.barriers || []).filter(entity => !entity.deleted && entity.marker?.document_id === state.document && entity.marker.page === state.page);
+    const annotations = (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
     const selectedIds = new Set(state.physicalSelected); for (const service of physicalGraph()?.services || []) if (state.physicalSelected.has(service.id)) selectedIds.add(service.barrier_id);
     markers.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
-    for (const entity of markers) renderPhysicalMarker(overlay, entity, selectedIds);
+    for (const entity of [...annotations, ...markers]) renderPhysicalMarker(overlay, entity, selectedIds);
     renderPhysicalMarkerMenu(overlay);
-    state.ui.physicalOverlayStatus.textContent = `${markers.length} barrier count markers on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
+    state.ui.physicalOverlayStatus.textContent = `${markers.length} barrier count markers and ${annotations.length} defect source annotations on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
   }
   function itemResult(item) { return state.resultMap.get(item.id) || {}; }
   function reviewStatus(item) {
@@ -2444,20 +2488,20 @@
   function itemGroup(item) { if (isStandalone(item)) return null; return !usesColumnFilters() && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
   function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(!usesColumnFilters() && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
   function syncSurfaceDetailsSelection() {
-    if (!isArea()) return;
-    state.settingsOpen = selectedItems().length > 0;
+    if (state.mode === "physical") return;
+    if (!selectedItems().length) state.settingsOpen = false;
     if (state.settingsOpen) state.viewportsOpen = false;
     else { if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsEditor = null; }
     renderViewportPanel();
   }
-  async function selectItem(id, multiple = false, focus = true, fromDrawing = false) {
+  async function selectItem(id, multiple = false, focus = true, fromDrawing = false, openSettings = true) {
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
-    if (isCount(item) || isStandalone(item)) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
     const modeChanged = state.mode !== item.mode;
-    const deselectSurface = fromDrawing && isSurface(item) && !multiple && state.selected.size === 1 && state.selected.has(id);
+    const deselectSurface = fromDrawing && isSurface(item) && state.settingsOpen && !multiple && state.selected.size === 1 && state.selected.has(id);
     state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (deselectSurface || multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    if (openSettings && state.selected.has(id) && (fromDrawing || isSurface(item) || isCount(item) || isStandalone(item))) state.settingsOpen = true;
     syncSurfaceDetailsSelection();
     if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));
     if (focus && !item.geometry) message("This draft has no source markup yet. Inspect its fields, then attach source geometry before review or confirmation.", true);
@@ -2988,7 +3032,7 @@
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? (physicalGraph()?.barriers || []).filter(entity => !entity.deleted && entity.marker?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    const pdf = format === "marked-pdf", list = mode === "physical" ? [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
     if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
@@ -3007,7 +3051,7 @@
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");
       assertCalculatorDrafts();
       const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${mode === "physical" ? scope === "service_plans" ? "Service-Plans" : "Defect-Reports" : labels[mode]}-${pdf ? "Marked-drawing.pdf" : "Takeoff-schedule.xlsx"}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} barrier markers and current Barrier/Services callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} markups across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded all ${list.length} ${labels[mode].toLowerCase()} items, including hidden and unconfirmed records, with confirmation status.`);
+      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} source annotations and current draft callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} markups across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded all ${list.length} ${labels[mode].toLowerCase()} items, including hidden and unconfirmed records, with confirmation status.`);
     } finally { working(false); }
   }
   async function showAudit() {

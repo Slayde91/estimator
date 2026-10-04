@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual topology and retained-image workflow. All sources and storage are disposable.
 const { chromium, expect } = require('@playwright/test');
@@ -85,7 +86,7 @@ async function showImage() {
   page.on('request', request => { const url = new URL(request.url()); if (url.pathname.endsWith('/images') && request.method() === 'GET') inventoryRequests.push({ extraction: url.searchParams.get('extraction_id'), limit: url.searchParams.get('limit') }); if (/\/physical\/(preview|apply)$/.test(url.pathname)) physicalRequests.push({ path: url.pathname, body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible(); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const definitionReply=await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);
   const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({substrate:'P',orientation:'M',service:'J',service_type:'K',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click();
@@ -159,7 +160,7 @@ async function showImage() {
   await select(cable); for(const label of ['Physical / takeoff audit history','Undo physical / takeoff edit'])await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0); const historyReply=await page.request.post(await page.evaluate(()=>`${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}/history`),{data:{offset:0,limit:100}});assert.equal(historyReply.status(),200);assert.ok(JSON.stringify(await historyReply.json()).includes(occupied),'Audit identity remains available after toolbar removal'); await page.screenshot({ path: path.join(output, 'physical-hierarchy.png'), fullPage: true });
   state = await response(() => page.getByRole('button', { name: 'Page ›', exact: true }).click(), '/commands'); await idle(); const emptyExtraction = await extract(); assert.notEqual(emptyExtraction, firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(0); await expect(page.getByRole('region', { name: 'Retained image gallery' })).toContainText('0 retained image occurrences');
   await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
-  const save = await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
+  const save = await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
   // A later keystroke in an already-dirty form must defeat a delayed native load.
   await select(cable); let releaseRead, readReady;
   const holdRead = new Promise(resolve => { releaseRead = resolve; }), reachedRead = new Promise(resolve => { readReady = resolve; });
@@ -176,7 +177,8 @@ async function showImage() {
     }, { notes: await notes.elementHandle(), quantity: await quantity.elementHandle() });
     await expect(page.getByRole('alert')).toHaveText('Every service needs an explicit positive whole quantity.'); await idle();
     await expect(notes).toHaveValue('First pending note'); await expect(quantity).toHaveValue('0'); assert.equal(physicalRequests.length, requestsBeforeRace);
-    await page.getByRole('button', { name: 'Load', exact: true }).click(); await reachedRead;
+    await clickProjectControl(page, 'Load'); await reachedRead;
+    await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
     const beforeLater = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
     assert.equal(beforeLater.busy, false); assert.equal(beforeLater.physicalUnfinished, true);
     await notes.fill('Later pending note must survive the load race');
@@ -195,7 +197,7 @@ async function showImage() {
     await expect(notes).toHaveValue('Later pending note must survive the load race'); await expect(page.getByRole('dialog')).toHaveCount(0);
     Object.assign(automaticFieldChecks, { delayedLoadRejectsLaterDirtyRevision: true, invalidQuantityPreservesCanonical: true, latestInvalidPendingNoteRetained: true, correctedQuantityAutoSavesLatestNoteWithoutReview: true });
   } finally { releaseRead(); await Promise.all([...activeRoutes]); await page.unroute('**/api/project/open', delayRead); }
-  const reopened = await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); assert.deepEqual(reopened.takeoffs.physical, saved.takeoffs.physical);
+  const reopened = await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); assert.deepEqual(reopened.takeoffs.physical, saved.takeoffs.physical);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6); await select(cable); await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
   const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
   await select(cable); assert.deepEqual(record(cable).evidence[0], evidence);
@@ -208,7 +210,7 @@ async function showImage() {
   // Preserve the v2 saved artifact and open an authentic pre-v2 project through the same native Load path.
   fs.copyFileSync(info.project, path.join(output, 'saved-v2-project.json'));
   const legacyBytes = fs.readFileSync(info.legacy_project), legacySaved = JSON.parse(legacyBytes); fs.writeFileSync(info.project, legacyBytes);
-  const legacy = await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); assert.deepEqual(legacy.takeoffs.physical, legacySaved.takeoffs.physical); assert.equal(legacy.takeoffs.physical.version, 1);
+  const legacy = await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); assert.deepEqual(legacy.takeoffs.physical, legacySaved.takeoffs.physical); assert.equal(legacy.takeoffs.physical.version, 1);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await expect(page.locator('.takeoff-physical-register')).toContainText('Legacy hierarchy');
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
   for (const label of ['Add defect', 'Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();

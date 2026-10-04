@@ -30,7 +30,7 @@ function harness({ penetration = false } = {}) {
   function element(tagName = 'div') {
     const attrs = new Map(), classes = new Set();
     return { tagName, value: '', textContent: '', children: [], options: [], dataset: {}, style: {}, listeners: {}, parts: new Map(), files: [], validity: { badInput: false },
-      classList: { add(...names) { names.forEach(name => classes.add(name)); }, contains(name) { return classes.has(name); }, toggle(name, force) { if (force ?? !classes.has(name)) classes.add(name); else classes.delete(name); } },
+      classList: { add(...names) { names.forEach(name => classes.add(name)); }, remove(...names) { names.forEach(name => classes.delete(name)); }, contains(name) { return classes.has(name); }, toggle(name, force) { if (force ?? !classes.has(name)) classes.add(name); else classes.delete(name); } },
       setAttribute(name, value) { attrs.set(name, value); }, getAttribute(name) { return attrs.get(name); }, removeAttribute(name) { attrs.delete(name); },
       append(...nodes) { this.children.push(...nodes); this.options = this.children; }, replaceChildren(...nodes) { this.children = []; this.append(...nodes); },
       querySelector(selector) { if (!this.parts.has(selector)) this.parts.set(selector, element()); return this.parts.get(selector); }, querySelectorAll() { return []; },
@@ -138,6 +138,35 @@ async function penetrationCheck(name, fn) {
     h.app.state.takeoffsEnabled = false; const view = h.app.state.currentView;
     h.app.showView('takeoffs'); assert.equal(h.app.state.currentView,view);
     assert.match(h.byId('app-message').textContent,/not included/);
+  });
+  await check('Project controls appear only on Projects without changing any draft', async h => {
+    const names = ['home','estimate','calculators','takeoffs','pricing','quotes','help'];
+    const views = names.map(name => Object.assign(h.element(), { id: `view-${name}` }));
+    const buttons = names.map(name => Object.assign(h.element('button'), { dataset: { view: name } }));
+    h.context.document.querySelectorAll = selector => selector === '.view' ? views : selector === '[data-view]' ? buttons : [];
+    h.app.state.takeoffsEnabled = true; h.app.state.libraryKind = 'technical'; h.app.state.estimatorKind = 'penetration';
+    h.context.window.CeasefireCalculators.open = async () => {};
+    h.app.setRequest(async pathname => { assert.equal(pathname,'/api/projects'); return {files:[]}; });
+    const before = h.snapshot();
+    for (const name of ['quotes',...names.filter(name => name !== 'quotes'),'quotes']) {
+      await h.app.showView(name); await flush();
+      assert.equal(h.byId('project-tools').hidden,name !== 'quotes');
+      assert.deepEqual(views.filter(view => !view.hidden).map(view => view.id),[`view-${name}`]);
+      assert.deepEqual(buttons.filter(button => button.getAttribute('aria-current') === 'page').map(button => button.dataset.view),[name]);
+    }
+    h.app.state.takeoffsEnabled = false; h.app.showView('takeoffs');
+    assert.equal(h.app.state.currentView,'quotes'); assert.equal(h.byId('project-tools').hidden,false);
+    assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Project files is an icon button with a separate live status and retained file input', async () => {
+    const html = fs.readFileSync('static/index.html','utf8');
+    const button = html.match(/<button id="project-attachment-zone"[^>]*>([\s\S]*?)<\/button>/);
+    assert.ok(button); assert.match(button[0],/class="button secondary icon-only project-attachment-zone"/);
+    assert.match(button[0],/aria-label="Project files"/); assert.match(button[0],/aria-describedby="project-attachment-status"/);
+    assert.match(button[1],/<svg[^>]*stroke="currentColor"[^>]*aria-hidden="true"[^>]*focusable="false"/);
+    assert.doesNotMatch(button[1],/project-attachment-status|Drop files here|choose files/);
+    assert.match(html,/<\/button><small id="project-attachment-status" class="sr-only" role="status">/);
+    assert.match(html,/<input id="project-attachment-input" type="file" multiple hidden>/);
   });
   await check('Save As captures estimate and every loaded calculator, preserving edits made while the dialog is open', async h => {
     const before = h.snapshot(), pending = deferred(); let sent;
@@ -404,6 +433,37 @@ async function penetrationCheck(name, fn) {
     assert.match(h.byId('project-attachment-status').textContent,/2 files saved.*scope\.pdf.*scope \(1\)\.pdf/);
     assert.match(h.byId('app-message').textContent,/2 files saved to the project folder/);
     assert.equal(h.app.state.projectFile.save_token,'opaque-project');
+  });
+  await check('Project icon opens its picker only for a saved project and preserves drafts', async h => {
+    const before = h.snapshot(), button = h.byId('project-attachment-zone'), input = h.byId('project-attachment-input');
+    await button.emit('click',{}); assert.notEqual(input.clicked,true);
+    assert.match(h.byId('project-attachment-status').textContent,/There is no saved project.*Save As/);
+    h.app.state.projectFile = {name:'saved.json',save_token:'opaque-project'};
+    await button.emit('click',{}); assert.equal(input.clicked,true);
+    input.clicked = false; h.app.state.projectBusy = true;
+    await button.emit('click',{}); assert.equal(input.clicked,false);
+    assert.equal(h.calls.length,0); assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Project icon drag/drop uses the saved capability, announces progress and ignores busy drops', async h => {
+    h.app.state.projectFile = {name:'saved.json',save_token:'opaque-project'};
+    const before = h.snapshot(), pending = deferred(), requests = [];
+    h.app.setRequest((pathname,options) => { requests.push({pathname,body:JSON.parse(options.body)}); return pending.promise; });
+    const button = h.byId('project-attachment-zone'), input = h.byId('project-attachment-input');
+    let prevented = 0; const event = {preventDefault(){prevented++;},dataTransfer:{files:[{name:'drawing.pdf',size:4}]}};
+    await button.emit('dragover',event); assert.ok(button.classList.contains('is-dragover'));
+    await button.emit('drop',event); await flush();
+    assert.ok(!button.classList.contains('is-dragover')); assert.equal(prevented,2);
+    assert.equal(requests.length,1); assert.equal(requests[0].pathname,'/api/project/attachment');
+    assert.equal(requests[0].body.project_token,'opaque-project'); assert.equal(requests[0].body.filename,'drawing.pdf');
+    assert.equal(requests[0].body.content_base64,'QUFBQQ==');
+    assert.equal(button.disabled,true); assert.equal(button.getAttribute('aria-busy'),'true'); assert.equal(input.disabled,true);
+    assert.match(h.byId('project-attachment-status').textContent,/Saving 1 of 1: drawing.pdf/);
+    await button.emit('dragover',event); assert.ok(!button.classList.contains('is-dragover'));
+    await button.emit('drop',event); await flush(); assert.equal(requests.length,1);
+    pending.resolve({saved:true,filename:'drawing.pdf'}); await flush();
+    assert.equal(button.disabled,false); assert.equal(input.disabled,false); assert.equal(button.getAttribute('aria-busy'),'false');
+    assert.match(h.byId('project-attachment-status').textContent,/1 file saved.*drawing.pdf/);
+    assert.deepEqual(h.snapshot(),before);
   });
   await check('Project file upload validates size before any write and reports partial batches', async h => {
     h.app.state.projectFile={name:'saved.json',save_token:'opaque-project'};let calls=0;

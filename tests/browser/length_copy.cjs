@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Real keyboard/pointer copy and paste. All sources, saves and server state are disposable.
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -100,11 +101,11 @@ async function assertRow(copy, response) {
 }
 async function saveLoad(info) {
   const saving = page.waitForResponse(reply => reply.url().endsWith('/api/project/save-as')); saving.catch(() => {});
-  await page.getByRole('button', { name: 'Save As', exact: true }).click(); assert.equal((await saving).status(), 200);
+  await clickProjectControl(page, 'Save As'); assert.equal((await saving).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   const opening = page.waitForResponse(reply => reply.url().endsWith('/api/project/open')); opening.catch(() => {});
-  await page.getByRole('button', { name: 'Load', exact: true }).click(); assert.equal((await opening).status(), 200);
+  await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); pageNumber = 1;
@@ -152,7 +153,7 @@ async function saveLoad(info) {
   await filter.fill('native-clipboard'); await filter.press('Control+a'); await filter.press('Control+c'); await filter.fill(''); await filter.press('Control+v');
   await expect(filter).toHaveValue('native-clipboard'); assert.equal((await snapshot()).items.length, countBeforeText); await filter.fill('');
   evidence.nativeTextClipboard = true;
-  await select(steel.id); await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await select(steel.id); if (!await page.locator('.takeoff-markup-settings').isVisible()) await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.locator('.takeoff-markup-settings');
   await command(async () => { await settings.getByLabel('Level', { exact: true }).fill('L-CHANGED'); await settings.getByLabel('Level', { exact: true }).press('Tab'); }, 'bulk_update');
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click();

@@ -228,6 +228,7 @@ async function controls() {
   console.log('Count placement, exact rotated coordinates, automatic callout and Item Details passed.');
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = 0; });
   await page.locator('#takeoff-navigation-toggle').hover();
+  await page.locator('#penetration-navigation-toggle').hover();
   await expect(takeoffChoice(page, 'Defect Reports')).toBeInViewport();
   await expect(takeoffChoice(page, 'Service Plans')).toBeInViewport();
   await page.mouse.move(0, 0);
@@ -291,6 +292,7 @@ async function controls() {
 
   // Removing a marker is independent of physical deletion, and both persist.
   const retainedBarrier = structuredClone(entity(barrier)), retainedService = structuredClone(entity(service));
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await marker(barrier).click({ button: 'right' });
   await response(() => page.getByRole('menuitem', { name: 'Remove count marker', exact: true }).click(), '/physical/preview'); await apply('Remove barrier count marker?');
   assert.equal(entity(barrier).marker, null); assert.equal(entity(barrier).deleted, false); assert.deepEqual(entity(service), retainedService);

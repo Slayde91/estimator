@@ -990,7 +990,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.setPhysicalDetails(open=>{opened.push(open);state.physicalDetailsOpen=open;});
     state.physicalUI={completePendingEdits:async()=>calls.push('flush'),selectDrawing:async(id,multiple,focus,openDetails)=>{calls.push({id,multiple:!!multiple,focus,openDetails});if(!multiple)state.physicalSelected.clear();if(multiple&&state.physicalSelected.has(id))state.physicalSelected.delete(id);else state.physicalSelected.add(id);},clearSelection:async()=>{calls.push('clear');state.physicalSelected.clear();}};
     for(const open of [false,true]){state.physicalDetailsOpen=open;opened.length=0;for(let i=0;i<2;i++)await h.audit.choosePhysicalDrawing(entity,{},true);assert.equal(state.physicalDetailsOpen,open);assert.deepEqual(opened,[]);assert.equal(calls.at(-1).openDetails,false);assert.ok(state.physicalSelected.has(entity.id));}
-    await h.audit.choosePhysicalDrawing(entity,{ctrlKey:true},true);assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,false);
+    await h.audit.choosePhysicalDrawing(entity,{ctrlKey:true},true);assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,true,'Modifier deselection of a callout preserves the open pane');
     let now=1000;h.context.Date={now:()=>now};const click={type:'click',clientX:40,clientY:60};
     state.physicalDetailsOpen=false;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,false);assert.equal(calls.at(-1).openDetails,false);
     now+=150;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,true);assert.equal(calls.at(-1).openDetails,true);

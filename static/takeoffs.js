@@ -2330,7 +2330,7 @@
     const openDetails = !(callout && event.type === "keydown") && drawingClickOpensSettings(event, `physical:${entity.id}:${callout ? "callout" : "marker"}`);
     state.physicalAppearancePart = callout ? "callout" : "marker";
     await controller.selectDrawing(entity.id, multiple, false, openDetails);
-    if (openDetails || !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
+    if (openDetails || !callout && !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
     renderOverlay();
   }
   function renderPhysicalAppearance(container, entity) {

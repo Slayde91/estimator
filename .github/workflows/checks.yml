@@ -65,6 +65,7 @@ jobs:
       - run: npm run test:defect-callouts
       - run: npm run test:takeoffs-count-tools
       - run: npm run test:takeoffs-item-actions
+      - run: npm run test:physical-interactions
       - run: npm run test:takeoffs-browser
       - run: npm run test:takeoffs-lineage
       - run: npm run test:takeoffs-capacity
@@ -88,7 +89,6 @@ jobs:
       - run: npm run test:physical-register
       - run: npm run test:service-plans
       - run: npm run test:physical-navigation
-      - run: npm run test:physical-interactions
       - run: npm run test:physical-filters
       - run: npm run test:project-library-drafts
       - run: npm run test:takeoffs-counts

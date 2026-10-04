@@ -129,11 +129,16 @@ async function selectDrawingBehavior(scope, barrier, defect) {
   (evidence.selection ||= []).push({ scope, calloutPointerAndKeyboardPreservePane: true, calloutModifierDeselectionPreservesOpenPane: true, resizeHandleClickPreservesClosedPane: true, markerPointerAndKeyboardTogglePane: true, blankPageClearsSelection: true });
 }
 async function compareAddServiceStyle(scope) {
-  const measured = await details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => {
+  await page.mouse.move(0, 0);
+  await expect.poll(() => details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => service.matches(':hover') || document.querySelector('.takeoff-physical-add-row .takeoff-physical-add-defect').matches(':hover')), { message: 'Neither compact plus is hovered for the base-style comparison' }).toBe(false);
+  const measure = () => details().getByRole('button', { name: 'Add service in Item Details', exact: true }).evaluate(service => {
     const substrate = document.querySelector('.takeoff-physical-add-row .takeoff-physical-add-defect');
     const read = el => { const css = getComputedStyle(el), rect = el.getBoundingClientRect(); return { text: el.textContent, width: rect.width, height: rect.height, ...Object.fromEntries(['display','alignItems','justifyContent','color','backgroundColor','fontSize','fontWeight','lineHeight','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderTopStyle','borderTopColor','borderRadius','boxShadow'].map(key => [key, css[key]])) }; };
     return { service: read(service), substrate: read(substrate), sharedClasses: [...substrate.classList].every(value => service.classList.contains(value)) };
   });
+  let measured = await measure();
+  // Native pointer position is neutral; retain exact settled computed styles.
+  await expect.poll(async () => { measured = await measure(); return measured.service; }, { message: 'The Add service style settles to the exact register plus style' }).toEqual(measured.substrate);
   assert.equal(measured.sharedClasses, true); assert.deepEqual(measured.service, measured.substrate, 'Add service and the register red plus have identical size, glyph, padding, border and colour');
   assert.equal(measured.service.fontSize, '22px'); (evidence.addServiceStyle ||= []).push({ scope, ...measured });
 }
@@ -204,14 +209,21 @@ async function reviewAlignment(scope, barrier) {
     for (const open of [false, true]) {
       if (open) await selectBarrier(barrier); else await closeDetails();
       await page.evaluate(() => window.scrollTo(0, 0));
-      const measured = await page.evaluate(() => {
+      // Scrolling/resizing can leave the stationary pointer over the selected
+      // tab. Its hover rule differs from the unhovered Firestopping reference.
+      await page.mouse.move(0, 0);
+      await expect.poll(() => page.locator('.takeoff-tab-panel>.takeoff-modes:first-child [aria-selected=true]').evaluate(selected => selected.matches(':hover')), { message: 'The selected tab is unhovered for the base-style comparison' }).toBe(false);
+      const measure = () => page.evaluate(() => {
         const bounds = selector => { const value = document.querySelector(selector).getBoundingClientRect(); return { x: value.x, y: value.y, width: value.width, height: value.height }; };
         const style = element => Object.fromEntries(['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderBottomWidth', 'borderBottomColor', 'borderTopLeftRadius', 'backgroundColor', 'color', 'fontSize', 'fontWeight', 'textTransform'].map(key => [key, getComputedStyle(element)[key]]));
         const selected = document.querySelector('.takeoff-tab-panel>.takeoff-modes:first-child [aria-selected=true]');
         const reference = document.createElement('button'); reference.className = 'penetration-group'; reference.setAttribute('aria-selected', 'true'); document.body.append(reference);
-        const referenceStyle = style(reference); reference.remove();
-        return { documents: bounds('.takeoff-source-documents'), steel: bounds('[data-mode=steel]'), layout: bounds('.takeoff-drawing-layout'), tabsSharePanel: document.querySelector('.takeoff-physical-tabs').parentElement === document.querySelector('[data-mode=steel]').parentElement.parentElement, selectedStyle: style(selected), firestoppingStyle: referenceStyle };
+        const referenceStyle = style(reference), referenceHovered = reference.matches(':hover'); reference.remove();
+        return { documents: bounds('.takeoff-source-documents'), steel: bounds('[data-mode=steel]'), layout: bounds('.takeoff-drawing-layout'), tabsSharePanel: document.querySelector('.takeoff-physical-tabs').parentElement === document.querySelector('[data-mode=steel]').parentElement.parentElement, selectedHovered: selected.matches(':hover'), referenceHovered, selectedStyle: style(selected), firestoppingStyle: referenceStyle };
       });
+      let measured = await measure();
+      await expect.poll(async () => { measured = await measure(); return measured.selectedStyle; }, { message: 'The selected Takeoffs tab settles to the exact Firestopping style' }).toEqual(measured.firestoppingStyle);
+      assert.equal(measured.selectedHovered, false); assert.equal(measured.referenceHovered, false);
       assert.ok(Math.abs(measured.documents.x - measured.steel.x) <= 1.01, `Source documents starts at the far-left Steel tab, allowing the tab panel border: ${JSON.stringify(measured)}`);
       assert.ok(Math.abs(measured.documents.x - measured.layout.x) < 1 && Math.abs(measured.documents.width - measured.layout.width) < 1, 'Source documents spans the full drawing layout with Item Details open or closed');
       assert.equal(measured.tabsSharePanel, true); assert.deepEqual(measured.selectedStyle, measured.firestoppingStyle, 'Takeoffs selected tab preserves the existing Firestopping visual style');

@@ -882,12 +882,33 @@
   function renderSummary(scope = state) {
     const prefix = scope === state ? "penetration" : "penetration-schedule";
     const labels = { materials: "Materials", labour: "Labour", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
+    const errors = scope.result?.errors || [], issues = [];
+    const addIssue = text => { if (!issues.includes(text)) issues.push(text); };
+    for (const error of errors) {
+      const row = scope.draft?.rows.find(value => value.id === error.row_id), inputs = row?.inputs || {};
+      const item = row ? `Item ${scope.draft.rows.indexOf(row) + 1}: ` : "";
+      if (!String(error.message).startsWith("#")) { addIssue(item + String(error.message).replace(/#(?:VALUE!|REF!|NUM!|DIV\/0!|N\/A|NAME\?|NULL!)/g, "an unavailable calculation value")); continue; }
+      // These messages describe the entered state; calculation and saved inputs
+      // retain the workbook's exact values and error codes.
+      if (row && errors.some(value => value.row_id === row.id && !String(value.message).startsWith("#"))) continue;
+      const required = [];
+      if (row && ["X", "Y", "Z", "AA", "AB", "AE"].some(key => inputs[key] != null && inputs[key] !== "") && !(inputs.O > 0)) required.push("Item QTY");
+      if (row && inputs.Y && inputs.pipe_labour_hours == null && !(inputs.AL > 0 && inputs.AL <= 300)) required.push("Diameter for automatic Pipe Labour, or manual Pipe Labour hours");
+      if (row && (inputs.Y || inputs.AA) && !(inputs.AN > 0)) required.push(inputs.Y ? "Collar Multiplier" : "Wrap Multiplier");
+      if (row && !inputs.W) required.push("Teams/Crews");
+      if (required.length) addIssue(item + "Enter " + required.join(", ") + ".");
+    }
+    if (errors.length && !issues.length) {
+      const columns = [...new Set(errors.filter(error => error.row_id).map(error => String(error.cell).replace(/\d+.*$/, "")))];
+      const names = columns.map(column => state.definition.output_fields.find(field => field.column === column)?.label).filter(Boolean);
+      addIssue(`Review ${names.length ? names.join(", ") : "the item inputs and selected pricing options"}; the entered values do not produce a valid calculation.`);
+    }
     $(`${prefix}-summary`).replaceChildren(...Object.entries(labels).map(([key, label]) => {
-      const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", display(scope.result?.summary?.[key], ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
+      const value = scope.result?.summary?.[key], invalid = typeof value === "string" && value.startsWith("#");
+      const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(node("dt", "", label), node("dd", "", invalid ? "Review required inputs below" : display(value, ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
     }));
-    const errors = scope.result?.errors || [], globalErrors = errors.filter(error => !error.row_id).map(error => `${state.definition.row_fields.find(field => field.column === error.cell)?.label || error.cell}: ${error.message}`);
     $(`${prefix}-summary-notes`).textContent = errors.length
-      ? [`${errors.length} calculation ${errors.length === 1 ? "issue" : "issues"}. Review the affected inputs and totals.`, ...globalErrors].join("\n")
+      ? issues.join("\n")
       : scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.";
   }
   function renderBreakdown(scope = state) {

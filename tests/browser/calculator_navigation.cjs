@@ -21,7 +21,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const errors = [], requests = [], evidence = {};
-const destinations = ['Firestopping Estimator', 'Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'];
+const destinations = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)', 'Firestopping Estimator'];
 function monitor(target) {
   target.setDefaultTimeout(60000); target.on('pageerror', error => errors.push(error.message));
   target.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
@@ -55,7 +55,7 @@ async function workbook(title) {
   await page.keyboard.press('Home'); await expect(menu.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(toggle).toHaveAttribute('aria-expanded', 'false'); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshots(), before);
-  await toggle.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+  await toggle.press('ArrowDown'); await page.keyboard.press('ArrowDown');
   await expect(menu.getByRole('button', { name: 'Steel (board)', exact: true })).toBeFocused(); await page.keyboard.press('Enter'); await workbook('Steel (board)');
   assert.deepEqual(await snapshots(), before); evidence.keyboard = { focus: true, arrows: true, homeEnd: true, escapeReturnsFocus: true, enterSelectsCalculator: true, changedDrafts: false };
 

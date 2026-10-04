@@ -67,8 +67,15 @@
     control.replaceChildren(...choices.map(([key, label]) => option(key, label)));
     control.value = choices.some(([key]) => key === previous) ? previous : choices[0]?.[0] || "";
   }
-  const appearanceOf = item => ({ stroke_color: "#FF0000", fill_enabled: item.geometry?.kind === "polygon" || isCount(item), fill_color: "#FF0000", stroke_width: 2, opacity: 1, display_values: false, marker_shape: "circle", marker_size: 12, ...item.appearance });
-  const markupDefaultsKey = "ceasefire.takeoff-markup-defaults.v1";
+  function appearanceOf(item) {
+    const appearance = { stroke_color: "#FF0000", fill_enabled: true, fill_color: "#FF0000", stroke_width: 5, opacity: 1, display_values: false, marker_shape: "circle", marker_size: 25, ...item.appearance };
+    const mode = colourMode(item.geometry?.document_id), original = mode?.originals.find(row => row.item_id === item.id);
+    if (item.mode === "steel" && original?.colour && item.version === original.item_version && nativeDrawingThickness(item, original.calculator_id, true).value === original.thickness_mm) {
+      for (const key of ["stroke_color", "fill_color", "font_color"]) appearance[key] = original.colour;
+    }
+    return appearance;
+  }
+  const markupDefaultsKey = "ceasefire.takeoff-markup-defaults.v2";
   const markupDefaultFields = ["stroke_color", "stroke_width", "fill_color", "fill_enabled", "opacity", "display_values"];
   function validatedMarkupDefaults(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -77,10 +84,15 @@
     return Object.fromEntries(markupDefaultFields.filter(key => value[key] !== undefined).map(key => [key, key.endsWith("color") ? value[key].toUpperCase() : value[key]]));
   }
   function readMarkupDefaults() {
-    try { const saved = JSON.parse(window.localStorage?.getItem(markupDefaultsKey) || "null"); return saved?.version === 1 ? validatedMarkupDefaults(saved.appearance) : null; } catch { return null; }
+    try {
+      const saved = JSON.parse(window.localStorage?.getItem(markupDefaultsKey) || "null");
+      if (saved?.version === 1) return validatedMarkupDefaults(saved.appearance);
+      const legacy = JSON.parse(window.localStorage?.getItem("ceasefire.takeoff-markup-defaults.v1") || "null"), appearance = legacy?.version === 1 && validatedMarkupDefaults(legacy.appearance);
+      return appearance ? { ...appearance, stroke_width: 5, fill_enabled: true, display_values: false } : null;
+    } catch { return null; }
   }
   let markupDefaults = readMarkupDefaults();
-  const newMarkupAppearance = () => markupDefaults ? { ...markupDefaults } : {};
+  const newMarkupAppearance = () => ({ stroke_width: 5, fill_enabled: true, marker_size: 25, ...markupDefaults, display_values: false });
   const uuid = () => crypto.randomUUID();
   const snapshotKey = value => { if (!value) return null; const copy = clone(value); delete copy.companion_folder; return JSON.stringify(copy); };
   function node(tag, className = "", text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; }
@@ -290,6 +302,15 @@
     ui.tools = {};
     for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? setTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
+    for (const [key, title, asset, action] of [["markups", "Markups", "takeoff-colour-wheel.png", toggleThicknessColours], ["legend", "Legend", "takeoff-legend.png", toggleLegend]]) {
+      const control = button(title, action), image = node("img"); image.src = `/icons/${asset}`; image.alt = ""; image.setAttribute("aria-hidden", "true"); image.width = 28; image.height = 28;
+      control.classList.add("icon-only"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
+    }
+    ui.tools.countLength.after(ui.tools.markups, ui.tools.legend);
+    const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(!state.markupsHidden)); renderOverlay(); });
+    const eye = node("img"); eye.src = "/icons/takeoff-visibility.jpg"; eye.alt = ""; eye.width = 32; eye.height = 32;
+    visibility.replaceChildren(eye); visibility.classList.add("icon-only"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups"; visibility.setAttribute("aria-pressed", "true");
+    ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
     ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
@@ -402,6 +423,10 @@
     scheduleLinkedThickness();
     refreshNavigation();
     const physical = state.mode === "physical";
+    state.ui.tools.markups.hidden = state.mode !== "steel";
+    state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);
+    (state.mode === "duct" ? state.ui.countAnchor : state.ui.tools.countLength).after(state.ui.tools.markups, state.ui.tools.legend);
+    updatePresentationTools();
     state.ui.tools.count.dataset.tool = physical ? "count" : "count-only";
     if (state.ui.tools.settings) state.ui.tools.settings.hidden = false;
     if (physical) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
@@ -503,6 +528,7 @@
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
       ask, confirm, notify: message, changed: () => window.CeasefireProject?.changed?.(), source: physicalSource,
       scope: () => scope, inspectorContainer: state.ui.physicalDetails,
+      renderDrawingAppearance: renderPhysicalAppearance,
       selectionChanged: ({ selected, openDetails = true }) => { if (openDetails && state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
       fieldOptions: async () => {
         const configuration = clone(window.CeasefireProject?.configuration?.() || { inventory: {}, rates: {} });
@@ -653,6 +679,7 @@
     panel.hidden = !state.settingsOpen; state.ui.layout.classList.toggle("with-settings", !!state.settingsOpen);
     state.ui.tools.settings.setAttribute("aria-expanded", String(!!state.settingsOpen)); state.ui.tools.settings.classList.toggle("takeoff-tool-active", !!state.settingsOpen);
     if (!state.settingsOpen) return;
+    if (selectedLegend()) { renderLegendSettings(panel); return; }
     const selected = settingsSelectedItems(), key = settingsSelectionKey();
     const existing = state.settingsEditor;
     if (existing?.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; refreshItemSettingsTools(existing); void safely(() => loadSettingsOptions(existing)); return; }
@@ -1421,9 +1448,9 @@
   async function clearDrawingSelection() {
     state.lastDrawingClick = null;
     const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
-    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.settingsOpen)) return;
+    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.settingsOpen)) return;
     if (!await discardEditor()) return;
-    state.selected.clear(); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
+    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
     renderSelection();
   }
@@ -1663,6 +1690,11 @@
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
     if (event.key === "Escape") { event.preventDefault(); cancelTrace(); resetPlanInteraction(); renderOverlay(); return; }
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && state.tool === "select" && state.mode === "physical") {
+      const key = event.key.toLowerCase();
+      if (key === "c" && state.physicalSelected.size) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyPhysicalCallout); return; }
+      if (key === "v" && state.physicalClipboard) { event.preventDefault(); if (!state.busy && !state.modal) void safely(pastePhysicalCallout); return; }
+    }
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && state.tool === "select" && ["steel", "duct"].includes(state.mode)) {
       const key = event.key.toLowerCase();
       if (key === "c" && state.selected.size) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyLengthMarkups); return; }
@@ -1699,7 +1731,7 @@
   }
   function beginSelectionGesture(event) {
     if (state.tool !== "select" || state.mode === "physical" || event.button !== 0 || state.busy || state.modal || !state.viewport || state.gesture) return;
-    if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu,.takeoff-count-hit")) return;
+    if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu,.takeoff-count-hit,.takeoff-drawing-legend,.takeoff-legend-handle")) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
     // An unselected markup retains ordinary click-to-select behavior.
@@ -2071,6 +2103,7 @@
   }
   function renderValueLabel(overlay, point, value, unit, itemId, options = {}) {
     const offset = options.offset || [0, -10], label = svg("text", { x: point[0] + offset[0], y: point[1] + offset[1], class: "takeoff-value-label", "text-anchor": options.anchor || "middle", "data-value-item-id": itemId, "data-value": value, "data-value-kind": options.kind || "segment" });
+    const style = appearanceOf(items().find(item => item.id === itemId) || {}); label.setAttribute("fill", style.font_color || style.stroke_color);
     label.textContent = `${units.format(value)} ${unit}`;
     const title = svg("title", {}); title.textContent = `${value} ${unit}${options.kind === "cited-count" ? " · Cited length per counted member" : " · Calibrated source segment"}`; label.append(title); overlay.append(label);
   }
@@ -2090,6 +2123,7 @@
   function renderOverlay() {
     if (!state.ui || !state.viewport) return;
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
+    if (state.markupsHidden) return;
     renderViewportRegions(overlay);
     // Keep the existing hint and its exact height until pointer capture ends:
     // collapsing it mid-gesture moves the canvas under the pointer.
@@ -2125,6 +2159,7 @@
     if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
     renderControlPoints(overlay);
     renderMarkupMenu(overlay);
+    renderDrawingLegend(overlay);
   }
   function renderLengthAdditionMarkers(overlay, item, geometry) {
     const stacks = new Map();
@@ -2292,11 +2327,50 @@
     if (state.physicalUI !== controller) throw new Error("The physical draft changed. Select its current marker again.");
     entity = physicalMarkerTarget({ ...reference, revision: physicalDrawingEntity(entity.id)?.revision });
     const multiple = event.ctrlKey || event.metaKey || event.shiftKey;
-    const openDetails = !callout && drawingClickOpensSettings(event, `physical:${entity.id}`);
-    if (callout) state.lastDrawingClick = null;
+    const openDetails = !(callout && event.type === "keydown") && drawingClickOpensSettings(event, `physical:${entity.id}:${callout ? "callout" : "marker"}`);
+    state.physicalAppearancePart = callout ? "callout" : "marker";
     await controller.selectDrawing(entity.id, multiple, false, openDetails);
-    if (openDetails || !callout && !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
+    if (openDetails || !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
     renderOverlay();
+  }
+  function renderPhysicalAppearance(container, entity) {
+    const locator = physicalDrawingLocator(entity); if (!locator) return;
+    const sessionId = state.session?.session_id, controller = state.physicalUI, context = pageDisplayKey(), scope = state.physicalScope;
+    const part = state.physicalAppearancePart || "marker", callout = part === "callout";
+    const defaults = callout ? { stroke_color: "#696166", fill_color: "#FFFFFF", font_color: "#30282B", stroke_width: 1, fill_enabled: true, opacity: .94 } : appearanceOf({ appearance: locator.appearance });
+    const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
+    const definitions = [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["opacity", "Opacity", "number"], ...(callout ? [["font_color", "Font Colour", "color"]] : [["marker_size", "Marker Size", "number"]])];
+    for (const def of definitions) {
+      const field = formField(def, appearance[def[0]]); fields.append(field.wrapper);
+      field.control.addEventListener("change", () => void safely(async () => {
+        const value = field.read(); await controller.completePendingEdits(); requireFinishedEdits();
+        if (sessionId !== state.session?.session_id || controller !== state.physicalUI || scope !== state.physicalScope || context !== pageDisplayKey() || !state.physicalSelected.has(entity.id)) throw new Error("Select the current source annotation again.");
+        const current = physicalDrawingEntity(entity.id), marker = clone(physicalDrawingLocator(current)); if (!marker) throw new Error("Select the current source annotation again.");
+        if (callout) {
+          if (!marker.callout) { const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), point = G.transform(marker.point, state.viewport.transform), box = physicalCalloutBox(current, point, Math.max(pdfScale/(pageMetadata()?.user_unit || 1), 1.2), pdfScale); marker.callout = { offset: G.inverse([box.x, box.y], state.viewport.transform).map((number, axis) => number-marker.point[axis]), width: box.width/pdfScale, height: box.height/pdfScale }; }
+          marker.callout.appearance = { ...defaults, ...marker.callout.appearance, [def[0]]: value };
+        } else marker.appearance = { ...defaults, ...marker.appearance, [def[0]]: value };
+        await (physicalGraph().defects?.some(record => record.id === entity.id) ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
+      }));
+    }
+  }
+  async function copyPhysicalCallout() {
+    await state.physicalUI.completePendingEdits(); requireFinishedEdits();
+    if (state.physicalSelected.size !== 1) throw new Error("Select one callout to copy.");
+    const id = [...state.physicalSelected][0], entity = physicalDrawingEntity(id), locator = physicalDrawingLocator(entity);
+    if (!locator) throw new Error("Select a callout with a source marker.");
+    const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), point = G.transform(locator.point, state.viewport.transform), box = physicalCalloutBox(entity, point, Math.max(scale/(pageMetadata()?.user_unit || 1), 1.2), scale);
+    const copied = state.physicalUI.copyDrawing(id), root = copied.records[0].entity;
+    if (!root.marker && !root.annotation) root.annotation = clone(locator);
+    if (!root.marker?.callout && !root.annotation?.callout) (root.marker || root.annotation).callout = { offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]), width: box.width/scale, height: box.height/scale };
+    state.physicalClipboard = { sessionId: state.session.session_id, copied, offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]) };
+    message("Callout and linked records copied. Move the pointer onto the drawing and press Ctrl+V.");
+  }
+  async function pastePhysicalCallout() {
+    const clipboard = state.physicalClipboard, pointer = state.pastePointer;
+    if (!clipboard || clipboard.sessionId !== state.session?.session_id || pointer?.key !== pageDisplayKey()) throw new Error("Copy a callout here and move the pointer onto the drawing first.");
+    const point = drawingPoint({ clientX: pointer.client[0], clientY: pointer.client[1] }).map((value, axis) => value-clipboard.offset[axis]);
+    await state.physicalUI.pasteDrawing(clipboard.copied, { document_id: state.document, document_sha256: currentDocument().sha256, page: state.page, point });
   }
   async function choosePhysicalEvidence(entity, reference, event) {
     const controller = state.physicalUI, source = JSON.stringify(reference);
@@ -2391,7 +2465,7 @@
           if (!view || marker.point[0] < view[0] || marker.point[1] < view[1] || marker.point[0] > view[2] || marker.point[1] > view[3]) throw new Error("Keep the source marker inside its original PDF page.");
         } else {
           const anchor = G.inverse([gesture.box.x, gesture.box.y], state.viewport.transform), pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
-          marker.callout = { offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
+          marker.callout = { ...marker.callout, offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
         }
         await (reference.kind === "defect" ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
         await controller.selectDrawing(entity.id, false, false, false);
@@ -2419,7 +2493,8 @@
     const locator = physicalDrawingLocator(entity), defect = physicalGraph()?.defects?.some(value => value.id === entity.id);
     const selected = selectedIds.has(entity.id), gesture = state.gesture?.id === entity.id ? state.gesture : null, moved = gesture?.kind === "physical-marker" && gesture.moved;
     const sourcePoint = locator.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
-    const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, 6 * markerScale), scale = Math.max(markerScale, 1.2);
+    const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, (locator.appearance?.marker_size || 25) * markerScale / 2), scale = Math.max(markerScale, 1.2);
+    const markerAppearance = appearanceOf({ appearance: locator.appearance }), calloutAppearance = { stroke_color: "#696166", fill_color: "#FFFFFF", font_color: "#30282B", stroke_width: 1, fill_enabled: true, opacity: .94, ...locator.callout?.appearance };
     const summary = state.physicalUI.summary(entity.id);
     let box = physicalCalloutBox(entity, point, scale, pdfScale);
     if (moved && locator.callout) { const old = G.transform(locator.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
@@ -2428,12 +2503,12 @@
     let fontSize = 9 * scale, lines = physicalCalloutLines(summary, width - 2 * padding, fontSize);
     for (let step = 0; step < 30 && lines.length * fontSize * 1.3 > height - 2 * padding; step++) { fontSize *= 0.9; lines = physicalCalloutLines(summary, width - 2 * padding, fontSize); }
     const lineHeight = fontSize * 1.3;
-    const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: "#b90a15", "stroke-width": scale, fill: "none", "pointer-events": "none" });
+    const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: calloutAppearance.stroke_color, "stroke-width": calloutAppearance.stroke_width * markerScale, fill: "none", "pointer-events": "none" });
     const callout = svg("g", { class: `takeoff-physical-callout${selected ? " selected" : ""}`, "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-pressed": String(selected), "aria-label": `Callout ${entity.display_id} · ${summary}` });
-    callout.append(svg("rect", { class: "takeoff-physical-callout-frame", x, y, width, height, rx: 3 * scale, fill: "#fff", "fill-opacity": 0.94, stroke: selected ? "#b90a15" : "#696166", "stroke-width": scale }));
-    const text = svg("text", { fill: "#30282b", "font-family": "Arial, sans-serif", "font-size": fontSize });
+    callout.append(svg("rect", { class: "takeoff-physical-callout-frame", x, y, width, height, rx: 3 * scale, fill: calloutAppearance.fill_enabled ? calloutAppearance.fill_color : "none", "fill-opacity": calloutAppearance.opacity, stroke: calloutAppearance.stroke_color, "stroke-width": calloutAppearance.stroke_width * markerScale }));
+    const text = svg("text", { fill: calloutAppearance.font_color, "font-family": "Arial, sans-serif", "font-size": fontSize });
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
-    const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: "#b90a15", stroke: selected ? "#fff" : "#b90a15", "stroke-width": Math.max(1, 2 * markerScale), "pointer-events": "none" });
+    const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: markerAppearance.fill_enabled ? markerAppearance.fill_color : "none", stroke: markerAppearance.stroke_color, opacity: markerAppearance.opacity, "stroke-width": markerAppearance.stroke_width * markerScale, "pointer-events": "none" });
     if (selected) {
       const halo = { cx: point[0], cy: point[1], r: radius + 5, "pointer-events": "none", "aria-hidden": "true", "data-selected-physical-id": entity.id };
       overlay.append(svg("circle", { ...halo, class: "takeoff-physical-selection-underlay" }), svg("circle", { ...halo, class: "takeoff-physical-selection" }));
@@ -2458,7 +2533,7 @@
     const { reference, point } = state.markupMenu;
     try { physicalMarkerTarget(reference); } catch { state.markupMenu = null; return; }
     const defect = reference.kind === "defect", menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", defect ? "Defect annotation actions" : "Barrier marker actions");
-    const remove = button(defect ? "Remove source annotation" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.setAnnotation(reference.id, null) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
+    const remove = button(defect ? "Delete" : "Remove count marker", async () => { requireFinishedEdits(); physicalMarkerTarget(reference); state.markupMenu = null; await (defect ? state.physicalUI.deleteDrawing(reference.id) : state.physicalUI.setMarker(reference.id, null)); renderOverlay(); }); remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, point, menu);
   }
   function renderPhysicalOverlay(overlay) {
     if (!state.physicalUI) return;
@@ -2492,10 +2567,119 @@
     state.ui.physicalOverlayStatus.textContent = `${markers.length} barrier count markers and ${annotations.length} defect source annotations on this page. ` + (regions.length > 500 ? `Showing 500 of ${regions.length} linked source regions. Select a register record to prioritize its evidence.` : `${regions.length} linked physical source regions.`) + " These are unapproved draft associations; markers do not multiply service quantities.";
   }
   function itemResult(item) { return state.resultMap.get(item.id) || {}; }
+  const presentation = () => snapshot()?.drawing_presentation;
+  const colourMode = (documentId = state.document) => presentation()?.colour_modes.find(value => value.document_id === documentId);
+  const currentLegend = () => presentation()?.legends.find(value => value.document_id === state.document && value.page === state.page && value.mode === state.mode);
+  const selectedLegend = () => { const value = currentLegend(); return value?.visible && value.id === state.legendSelected ? value : null; };
+  function updatePresentationTools() {
+    if (!state.ui?.tools?.markups) return;
+    for (const [name, active] of [["markups", !!colourMode()], ["legend", !!currentLegend()?.visible]]) {
+      state.ui.tools[name].setAttribute("aria-pressed", String(active)); state.ui.tools[name].classList.toggle("takeoff-tool-active", active);
+    }
+  }
+  async function toggleThicknessColours() {
+    requireFinishedEdits(); if (state.mode !== "steel" || !state.document) throw new Error("Open a Steel drawing first.");
+    const sessionId = state.session.session_id, documentId = state.document, calculatorId = state.ui.target.value;
+    const active = colourMode(), drafts = {}; let fingerprint;
+    if (!active) {
+      const draft = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId);
+      drafts[calculatorId] = { inputs: draft.inputs, schedule_rows: draft.schedule_rows };
+      for (const id of ["steel_vermiculite", "steel_board"].filter(id => id !== calculatorId && (snapshot().transfers || []).some(binding => binding.calculator_id === id))) {
+        try { const native = window.CeasefireCalculators.readTakeoffTarget(id); drafts[id] = { inputs: native.inputs, schedule_rows: native.schedule_rows }; } catch { /* Unavailable native drafts remain explicitly missing. */ }
+      }
+      fingerprint = draft.fingerprint;
+      if (draft.fingerprint !== window.CeasefireCalculators.projectFingerprint()) throw new Error("The calculator changed. Click Markups again.");
+    }
+    await command("toggle_thickness_colours", { document_id: documentId, calculator_id: calculatorId, calculator_drafts: drafts }, () => {
+      requireFinishedEdits(); if (sessionId !== state.session?.session_id || documentId !== state.document || state.mode !== "steel" || !active && fingerprint !== window.CeasefireCalculators.projectFingerprint()) throw new Error("The drawing or calculator changed. Click Markups again."); return true;
+    });
+    const missing = colourMode()?.originals.filter(row => row.thickness_mm == null).length || 0;
+    updatePresentationTools(); invalidateLinkedThickness(); scheduleLinkedThickness(true); renderOverlay();
+    message(active ? "Original markup colours restored." : missing ? `Markup is incomplete due to missing thickness values (${missing} markup${missing === 1 ? "" : "s"}). Available thickness colours were applied.` : "Thickness colours applied. Click Markups again to restore the original colours.", missing > 0);
+  }
+  async function toggleLegend() {
+    requireFinishedEdits(); if (!["steel", "duct"].includes(state.mode) || !state.viewport) throw new Error("Open a Steel or Duct drawing first.");
+    const context = pageDisplayKey();
+    const existing = currentLegend(), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
+    const legend = existing ? { ...clone(existing), visible: !existing.visible } : { id: uuid(), mode: state.mode, document_id: state.document, page: state.page,
+      point: G.inverse([Math.min(24, state.viewport.width / 4), Math.min(24, state.viewport.height / 4)], state.viewport.transform), width: Math.max(20, Math.min(460, state.viewport.width*.8)/scale), height: Math.max(20, Math.min(240, state.viewport.height*.5)/scale), visible: true,
+      appearance: { stroke_color: "#404040", fill_color: "#FFFFFF", font_color: "#202020", stroke_width: 1, fill_enabled: true, opacity: .94 } };
+    await command("set_legend", { legend }, () => { requireFinishedEdits(); if (context !== pageDisplayKey()) throw new Error("The drawing changed. Click Legend again."); return true; });
+    if (context !== pageDisplayKey()) return;
+    state.legendSelected = legend.visible ? legend.id : null; updatePresentationTools(); renderOverlay();
+  }
+  function drawingLegendRows(legend) {
+    const groups = new Map();
+    for (const item of items().filter(item => item.mode === legend.mode && item.geometry?.document_id === legend.document_id && item.geometry.page === legend.page)) {
+      const original = colourMode(legend.document_id)?.originals.find(value => value.item_id === item.id);
+      const appearance = appearanceOf(item), thickness = nativeDrawingThickness(item, original?.calculator_id || state.ui?.target?.value, !!original), field = item.fields;
+      let description = field.mark || item.id.slice(0, 8);
+      if (item.mode === "steel") description += ` · ${field.section || "Section missing"}${item.quantity > 1 ? ` · ${item.quantity} members` : ""}`;
+      else description += ` · ${formatDuctSize(field) || "WxH missing"} mm · ${formatLength(itemResult(item).total_length_m)} m`;
+      description += ` · ${thickness.value == null ? "Thickness missing/unavailable" : `${thickness.value} mm`}`;
+      if (!groups.has(appearance.stroke_color)) groups.set(appearance.stroke_color, []); groups.get(appearance.stroke_color).push(description);
+    }
+    return [...groups].map(([colour, texts]) => ({ colour, text: texts.join("; ") }));
+  }
+  function renderDrawingLegend(overlay) {
+    const legend = currentLegend(); if (!legend?.visible || !state.viewport) return;
+    const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), origin = G.transform(legend.point, state.viewport.transform);
+    const original = { x: origin[0], y: origin[1], width: legend.width*scale, height: legend.height*scale }, box = state.gesture?.kind === "legend" ? state.gesture.box : original;
+    const { x, y, width, height } = box, style = legend.appearance, selected = selectedLegend(), rows = drawingLegendRows(legend);
+    const group = svg("g", { class: "takeoff-drawing-legend", role: "button", tabindex: 0, "aria-label": `${labels[legend.mode]} Legend`, "aria-pressed": String(!!selected), "data-legend-id": legend.id });
+    group.append(svg("rect", { x, y, width, height, fill: style.fill_enabled ? style.fill_color : "none", "fill-opacity": style.opacity, stroke: style.stroke_color, "stroke-width": style.stroke_width*scale }));
+    let font = 11*scale, wrapped;
+    for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font) })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
+    const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "Arial, sans-serif", "font-weight": "700", "pointer-events": "none" }); heading.textContent = `${labels[legend.mode]} Legend`; group.append(heading);
+    let lineY = y+8*scale+font*2.5;
+    for (const row of wrapped) {
+      group.append(svg("rect", { x: x+8*scale, y: lineY-font*.8, width: font, height: font, fill: row.colour, "pointer-events": "none" }));
+      for (const line of row.lines) { const text = svg("text", { x: x+12*scale+font, y: lineY, fill: style.font_color || "#202020", "font-size": font, "font-family": "Arial, sans-serif", "pointer-events": "none" }); text.textContent = line; group.append(text); lineY += font*1.3; }
+    }
+    const choose = event => { event.preventDefault(); event.stopPropagation(); if (state.tool !== "select") return; state.selected.clear(); state.countSelection.clear(); state.legendSelected = legend.id; if (event.type === "dblclick") { state.settingsOpen = true; state.settingsEditor = null; renderSettingsPanel(); } renderOverlay(); };
+    group.addEventListener("click", choose); group.addEventListener("dblclick", choose); group.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) choose(event); });
+    group.addEventListener("pointerdown", event => beginLegendDrag(event, legend, box)); overlay.append(group);
+    if (selected && state.tool === "select") for (const [corner, cx, cy] of [["nw", x, y], ["ne", x+width, y], ["sw", x, y+height], ["se", x+width, y+height]]) {
+      const handle = svg("rect", { x: cx-5, y: cy-5, width: 10, height: 10, class: "takeoff-legend-handle takeoff-physical-callout-handle", "data-corner": corner, role: "button", tabindex: 0, "aria-label": `Resize legend ${corner}` });
+      handle.addEventListener("pointerdown", event => beginLegendDrag(event, legend, box, corner)); overlay.append(handle);
+    }
+  }
+  function beginLegendDrag(event, legend, box, corner = "") {
+    if (event.button !== 0 || state.tool !== "select" || state.busy || state.modal || state.gesture) return;
+    event.stopPropagation(); event.preventDefault();
+    void safely(() => {
+      requireFinishedEdits(); state.legendSelected = legend.id; state.selected.clear(); state.countSelection.clear();
+      const key = pageDisplayKey(), revision = state.session.revision, initial = [event.clientX, event.clientY], element = state.ui.viewport;
+      const gesture = { kind: "legend", box: { ...box }, moved: false, pointerId: event.pointerId };
+      const move = next => {
+        if (next.pointerId !== gesture.pointerId) return;
+        const dx = next.clientX-initial[0], dy = next.clientY-initial[1]; if (!gesture.moved && Math.hypot(dx, dy) < 4) return;
+        gesture.moved = true;
+        const left = corner.includes("w") ? Math.min(box.x+dx, box.x+box.width-48) : box.x, top = corner.includes("n") ? Math.min(box.y+dy, box.y+box.height-48) : box.y;
+        const right = corner.includes("e") ? Math.max(box.x+box.width+dx, box.x+48) : box.x+box.width, bottom = corner.includes("s") ? Math.max(box.y+box.height+dy, box.y+48) : box.y+box.height;
+        gesture.box = corner ? { x: left, y: top, width: right-left, height: bottom-top } : { ...box, x: box.x+dx, y: box.y+dy }; renderOverlay();
+      };
+      const finish = next => { if (next.pointerId !== gesture.pointerId) return; move(next); gesture.cleanup(); state.gesture = null; state.suppressSelectionClickUntil = Date.now() + 500;
+        if (gesture.moved) void safely(async () => { if (key !== pageDisplayKey() || revision !== state.session.revision) throw new Error("The drawing changed during the legend drag. Try again."); const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]); await command("set_legend", { legend: { ...clone(legend), point: G.inverse([gesture.box.x, gesture.box.y], state.viewport.transform), width: gesture.box.width/scale, height: gesture.box.height/scale } }); });
+        else if (drawingClickOpensSettings(next, `legend:${legend.id}`)) { state.settingsOpen = true; state.settingsEditor = null; renderSettingsPanel(); }
+        renderOverlay(); };
+      const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
+      gesture.cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", finish); element.removeEventListener("pointercancel", cancel); element.removeEventListener("lostpointercapture", cancel); if (element.hasPointerCapture?.(gesture.pointerId)) element.releasePointerCapture(gesture.pointerId); };
+      state.gesture = gesture; element.addEventListener("pointermove", move); element.addEventListener("pointerup", finish); element.addEventListener("pointercancel", cancel); element.addEventListener("lostpointercapture", cancel); element.setPointerCapture(gesture.pointerId); renderOverlay();
+    });
+  }
+  function renderLegendSettings(panel) {
+    const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Legend Settings")); panel.replaceChildren(heading);
+    const fields = node("div", "takeoff-settings-fields"); panel.append(fields);
+    for (const def of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"]]) {
+      const field = formField(def, legend.appearance[def[0]]); fields.append(field.wrapper);
+      field.control.addEventListener("change", () => void safely(async () => { requireFinishedEdits(); const current = selectedLegend(); if (context !== pageDisplayKey() || !current || current.id !== legend.id) throw new Error("Select the current legend again."); const value = field.read(); await command("set_legend", { legend: { ...clone(current), appearance: { ...current.appearance, [def[0]]: value } } }, () => { if (context !== pageDisplayKey() || selectedLegend()?.id !== legend.id) throw new Error("Select the current legend again."); return true; }); }));
+    }
+  }
   let linkedThickness = null, linkedThicknessTimer = null, linkedThicknessGeneration = 0;
   function thicknessContext() {
     const calculatorId = state.ui?.target?.value, bridge = window.CeasefireCalculators;
-    if (!state.session || !["steel_vermiculite", "steel_board"].includes(calculatorId) || typeof bridge?.projectFingerprint !== "function") return null;
+    if (!state.session || !["steel_vermiculite", "steel_board", "ductwork"].includes(calculatorId) || typeof bridge?.projectFingerprint !== "function") return null;
     const fingerprint = bridge.projectFingerprint(), sessionId = state.session.session_id, revision = state.session.revision;
     return { calculatorId, fingerprint, sessionId, revision, key: JSON.stringify([sessionId, revision, calculatorId, fingerprint]) };
   }
@@ -2503,9 +2687,9 @@
     ++linkedThicknessGeneration; clearTimeout(linkedThicknessTimer); linkedThicknessTimer = null; linkedThickness = null;
   }
   function scheduleLinkedThickness(force = false) {
-    if (state.mode !== "steel" || !state.active || !state.ui || state.ui.root.closest?.("[hidden]") || state.busy || window.CeasefireCalculators?.hasPendingOperation?.()) return;
+    if (!["steel", "duct"].includes(state.mode) || !state.active || !state.ui || state.ui.root.closest?.("[hidden]") || state.busy || window.CeasefireCalculators?.hasPendingOperation?.()) return;
     const context = thicknessContext();
-    if (!context || !items().some(item => item.mode === "steel" && (snapshot().transfers || []).some(binding => binding.item_id === item.id && binding.calculator_id === context.calculatorId))) return;
+    if (!context || !items().some(item => item.mode === state.mode && (snapshot().transfers || []).some(binding => binding.item_id === item.id && (state.mode === "steel" ? ["steel_vermiculite", "steel_board"].includes(binding.calculator_id) : binding.calculator_id === context.calculatorId)))) return;
     if (!force && linkedThickness?.key === context.key) return;
     clearTimeout(linkedThicknessTimer);
     const generation = ++linkedThicknessGeneration;
@@ -2517,8 +2701,12 @@
     try {
       const draft = window.CeasefireCalculators.readTakeoffTarget(context.calculatorId);
       if (!stillCurrent() || draft.fingerprint !== context.fingerprint) return;
+      const drafts = { [context.calculatorId]: { inputs: draft.inputs, schedule_rows: draft.schedule_rows } };
+      if (state.mode === "steel") for (const id of ["steel_vermiculite", "steel_board"].filter(id => id !== context.calculatorId && (snapshot().transfers || []).some(binding => binding.calculator_id === id))) {
+        try { const native = window.CeasefireCalculators.readTakeoffTarget(id); if (native.fingerprint === context.fingerprint) drafts[id] = { inputs: native.inputs, schedule_rows: native.schedule_rows }; } catch { /* Withhold unavailable native results. */ }
+      }
       const response = await api(`/sessions/${context.sessionId}/linked-results`, { expected_revision: context.revision,
-        calculator_drafts: { [context.calculatorId]: { inputs: draft.inputs, schedule_rows: draft.schedule_rows } } });
+        calculator_drafts: drafts });
       if (!stillCurrent()) return;
       if (response.project_id !== snapshot().project_id || response.revision !== context.revision || !response.linked_results || typeof response.linked_results !== "object" || Array.isArray(response.linked_results)) throw new Error("The linked calculator result response is incomplete.");
       linkedThickness = { key: context.key, pending: false, results: response.linked_results };
@@ -2526,13 +2714,22 @@
       if (!stillCurrent()) return;
       linkedThickness = { key: context.key, pending: false, results: {}, error: error.message };
     }
-    if (stillCurrent()) updateLinkedThicknessPresentation();
+    if (stillCurrent()) { updateLinkedThicknessPresentation(); renderOverlay(); updatePresentationTools(); }
   }
   function calculatorDraftChanged() {
     const context = thicknessContext();
     if (!linkedThickness || context?.key === linkedThickness.key) return;
     invalidateLinkedThickness(); scheduleLinkedThickness();
     updateLinkedThicknessPresentation();
+  }
+  function nativeDrawingThickness(item, preferred = state.ui?.target?.value, strict = false) {
+    if (!linkedThickness || linkedThickness.pending || linkedThickness.key !== thicknessContext()?.key) return { value: null };
+    const records = linkedThickness.results[item.id] || [], ids = item.mode === "duct" ? ["ductwork"] : strict ? [preferred] : [...new Set([preferred, "steel_vermiculite", "steel_board"])];
+    for (const id of ids) {
+      const record = records.find(value => value.calculator_id === id && value.status === "Current"), key = { steel_vermiculite: "estimating_thickness_mm", steel_board: "total_thickness_mm", ductwork: "duct_thickness_mm" }[id], value = record?.[key];
+      if (Number.isFinite(value) && value > 0) return { value };
+    }
+    return { value: null };
   }
   function linkedThicknessFor(item) {
     const calculatorId = state.ui?.target?.value, binding = (snapshot()?.transfers || []).find(value => value.item_id === item.id && value.calculator_id === calculatorId);
@@ -2543,18 +2740,18 @@
     if (!context || linkedThickness?.key !== context.key || linkedThickness.pending) return { text: "Checking…", filter: "", detail: "Checking the current calculator draft and source link." };
     if (linkedThickness.error) return unavailable(linkedThickness.error);
     const records = linkedThickness.results[item.id], result = Array.isArray(records) ? records.find(value => value.calculator_id === calculatorId && value.binding_id === binding.id && value.row === binding.row && value.sheet === binding.sheet) : null;
-    const value = calculatorId === "steel_vermiculite" ? result?.estimating_thickness_mm : result?.total_thickness_mm;
+    const value = calculatorId === "steel_vermiculite" ? result?.estimating_thickness_mm : calculatorId === "ductwork" ? result?.duct_thickness_mm : result?.total_thickness_mm;
     if (result?.status !== "Current" || !Number.isFinite(value) || value <= 0 || result.calculator_source_sha256 !== binding.source_sha256 || !/^[0-9a-f]{64}$/.test(result.calculator_draft_sha256 || "")) return unavailable(result?.reason || "The existing calculator has no usable thickness result.");
     // Keep the native numeric result; this is not a new thickness calculation.
-    const basis = calculatorId === "steel_vermiculite" ? `Estimating thickness. Published thickness: ${result.published_thickness_mm ?? "unavailable"} mm.` : `Total board thickness. Stack: ${result.board_stack_mm}; layers: ${result.board_layers ?? "unavailable"}.`;
-    return { text: String(value), filter: String(value), detail: `${calculatorName(calculatorId)} · ${binding.sheet} row ${binding.row}. ${basis} Calculator source SHA-256: ${result.calculator_source_sha256}. Current draft SHA-256: ${result.calculator_draft_sha256}.` };
+    const basis = calculatorId === "steel_vermiculite" ? `Estimating thickness. Published thickness: ${result.published_thickness_mm ?? "unavailable"} mm.` : calculatorId === "ductwork" ? result.duct_thickness_basis : `Total board thickness. Stack: ${result.board_stack_mm}; layers: ${result.board_layers ?? "unavailable"}.`;
+    return { value, text: String(value), filter: String(value), detail: `${calculatorName(calculatorId)} · ${binding.sheet} row ${binding.row}. ${basis} Calculator source SHA-256: ${result.calculator_source_sha256}. Current draft SHA-256: ${result.calculator_draft_sha256}.` };
   }
   function updateLinkedThicknessCell(cell, item) {
     const thickness = linkedThicknessFor(item); cell.textContent = thickness.text; cell.title = thickness.detail;
     cell.setAttribute("aria-label", `Thickness (mm): ${thickness.text}. ${thickness.detail}`);
   }
   function updateLinkedThicknessPresentation() {
-    if (state.mode !== "steel" || !state.ui || state.ui.root.closest?.("[hidden]")) return;
+    if (!["steel", "duct"].includes(state.mode) || !state.ui || state.ui.root.closest?.("[hidden]")) return;
     const active = document.activeElement, editing = ["INPUT", "SELECT", "TEXTAREA"].includes(active?.tagName) && state.ui.tableWrap?.contains?.(active);
     const filtered = registerFilters().has("thickness");
     if (!filtered) state.thicknessFilterNeedsRender = false;
@@ -2581,7 +2778,7 @@
   function issueText(value) { return typeof value === "string" ? value : value?.message || value?.detail || value?.code || JSON.stringify(value); }
   const registerFilterColumns = {
     steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", fire_period_min: "Fire period (min)", thickness: "Thickness (mm)" },
-    duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" },
+    duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation", thickness: "Thickness (mm)" },
     wall: { confirmation: "Confirmation", mark: "Wall ID", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
     slab: { confirmation: "Confirmation", mark: "Slab / zone ID", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
   };
@@ -2699,7 +2896,7 @@
   }
   async function selectItem(id, multiple = false, focus = true, fromDrawing = false, openSettings = true) {
     if (!await discardEditor()) return;
-    state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
+    state.legendSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
     const modeChanged = state.mode !== item.mode;
     state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
@@ -2763,7 +2960,7 @@
     state.ui.bulk.hidden = !selected.length; state.ui.selectionCount.textContent = `${selected.length} selected`;
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); table.setAttribute("aria-label", `${labels[state.mode]} editable takeoff register`);
     const area = isArea(), columns = area ? ["mark", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "fire_period_min", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "orientation"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "steel" ? ["Thickness (mm)"] : []), "Evidence / issues"];
+    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)"] : []), "Evidence / issues"];
     for (const title of headings) {
       const cell = node("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -2797,7 +2994,7 @@
       }
       const result = itemResult(item);
       for (const key of area ? ["gross_area_m2", "excluded_area_m2", "net_area_m2"] : ["length_m", "total_length_m"]) row.append(node("td", "", area ? Number.isFinite(result[key]) ? units.format(result[key]) : "—" : formatLength(result[key])));
-      if (state.mode === "steel") {
+      if (["steel", "duct"].includes(state.mode)) {
         const cell = node("td", "takeoff-linked-thickness"); cell.dataset.thicknessItemId = item.id;
         updateLinkedThicknessCell(cell, item); row.append(cell);
       }

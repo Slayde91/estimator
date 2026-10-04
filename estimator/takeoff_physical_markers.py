@@ -6,8 +6,33 @@ from .takeoff_model import object_fields, points, page_metadata
 from .takeoff_physical_operations import current_graph
 
 
-def barrier_summary(graph, barrier):
-    """Describe current facts only; no authority, service inference or cached text."""
+def _line(values):
+    return ' | '.join(re.sub(r'[\r\n\t]+', ' ', str(value)) for value in values
+                      if value is not None and value != '')
+
+
+def _defect_line(defect):
+    fields = defect['fields']
+    return _line([defect['display_id'], fields.get('label'), fields.get('location'),
+                  'FRL ' + fields['frl'] if fields.get('frl') else None])
+
+
+def service_summary(service):
+    """Keep explicit quantity, category, type and dimensions under their barrier."""
+    values = service['fields']
+    detail = [service['display_id'], f"{service['quantity']} x", values.get('label'),
+              values.get('service'), values.get('service_type'), values.get('size'), values.get('width_height_mm')]
+    width, height = values.get('width_mm'), values.get('height_mm')
+    if width is not None or height is not None:
+        detail.append(f"{width if width is not None else '?'} x {height if height is not None else '?'} mm")
+    if values.get('diameter_mm') is not None:
+        detail.append(f"Diameter {values['diameter_mm']:g} mm")
+    if values.get('insulation_mm') is not None:
+        detail.append(f"Insulation {values['insulation_mm']:g} mm")
+    return _line(detail)
+
+
+def _barrier_lines(graph, barrier):
     fields = barrier['fields']
     parts = [barrier['display_id']]
     for key in ('label', 'location', 'barrier_type', 'substrate', 'orientation'):
@@ -19,27 +44,22 @@ def barrier_summary(graph, barrier):
     if graph['version'] == 2:
         defect = next(value for value in graph['defects'] if value['id'] == barrier['defect_id'])
         frl = defect['fields'].get('frl')
-        parts.insert(1, defect['display_id'])
     if frl:
         parts.append('FRL ' + frl)
     service_lines = []
     for service in graph['services']:
         if service['deleted'] or service['barrier_id'] != barrier['id']:
             continue
-        values = service['fields']; detail = [service['display_id']]
-        for key in ('label', 'service', 'service_type', 'size'):
-            if values.get(key):
-                detail.append(str(values[key]))
-        width, height = values.get('width_mm'), values.get('height_mm')
-        if width is not None or height is not None:
-            detail.append(f"{width if width is not None else '?'}x{height if height is not None else '?'} mm")
-        if values.get('diameter_mm') is not None:
-            detail.append(f"Diameter {values['diameter_mm']:g} mm")
-        if values.get('insulation_mm') is not None:
-            detail.append(f"Insulation {values['insulation_mm']:g} mm")
-        detail.append(f"Qty {service['quantity']}")
-        service_lines.append(' | '.join(detail))
-    return [' | '.join(parts), *(service_lines or ['No services recorded'])]
+        service_lines.append(service_summary(service))
+    return [_line(parts), *(service_lines or ['No services recorded'])]
+
+
+def barrier_summary(graph, barrier):
+    """A defect header precedes the selected barrier and its services."""
+    header = []
+    if graph['version'] == 2:
+        header = [_defect_line(next(value for value in graph['defects'] if value['id'] == barrier['defect_id']))]
+    return [*header, *_barrier_lines(graph, barrier)]
 
 
 def defect_annotation(defect, document_id):
@@ -57,28 +77,12 @@ def defect_annotation(defect, document_id):
 
 def defect_summary(graph, defect):
     """Describe every current explicit substrate/type link without inference."""
-    def line(values):
-        return ' | '.join(re.sub(r'[\r\n\t]+', ' ', str(value)) for value in values)
-
-    fields = defect['fields']; parts = [defect['display_id']]
-    parts.extend(str(fields[key]) for key in ('label', 'location') if fields.get(key))
-    if fields.get('frl'):
-        parts.append('FRL ' + fields['frl'])
     barriers = [value for value in graph['barriers']
                 if not value['deleted'] and value['defect_id'] == defect['id']]
-    barrier_ids = {value['id']: value['display_id'] for value in barriers}
-    services = [value for value in graph['services']
-                if not value['deleted'] and value['barrier_id'] in barrier_ids]
-    details = [line([value['display_id'], value['fields'].get('substrate') or 'Substrate not recorded'])
-               for value in barriers]
-    details.extend(line([value['display_id'], barrier_ids[value['barrier_id']],
-                         value['fields'].get('service_type') or 'Service type not recorded'])
-                   for value in services)
+    details = [line for barrier in barriers for line in _barrier_lines(graph, barrier)]
     if not barriers:
         details.append('0 substrates | 0 services')
-    elif not services:
-        details.append('0 services')
-    return [line(parts), *details]
+    return [_defect_line(defect), *details]
 
 
 def export_physical_pdf(snapshot, request, documents):
@@ -109,7 +113,8 @@ def export_physical_pdf(snapshot, request, documents):
         rows.append({'id': identifier, 'mode': 'penetrations',
             'geometry': {'kind': 'count', 'document_id': document['id'], 'page': marker['page'], 'points': [marker['point']]},
             'appearance': {'stroke_color': '#C00000', 'fill_color': '#C00000', 'fill_enabled': True,
-                           'stroke_width': 2, 'opacity': 1, 'marker_shape': 'circle', 'marker_size': 12},
+                           'stroke_width': 5, 'opacity': 1, 'marker_shape': 'circle', 'marker_size': 25,
+                           **marker.get('appearance', {})},
             'mark': entity['display_id'], 'physical_summary': summary(graph, entity),
             'physical_summary_kind': 'defect' if summary is defect_summary else 'barrier',
             'callout': marker.get('callout'),

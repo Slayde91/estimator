@@ -570,6 +570,44 @@ colour, fill, opacity and line width are presentation settings; changing them is
 audited but does not change measurement confirmation or calculator inputs. Line
 width is in physical PDF points (0.25–20); opacity ranges from zero to one.
 
+New drawing markups use Line Width 5, Fill enabled, Marker Size 25 and Display
+Values off. Browser defaults can retain chosen appearance, while newly created
+markups always start with Display Values off. Existing saved values stay exact.
+**Visibility** in every drawing toolbar hides or shows all drawing markups and
+legends without changing the register, source evidence or export selections.
+
+Steel **Markups** applies the supplied 40-colour construction-plan palette to
+Length and Count markups on every page of the selected PDF. It uses only current
+receipt-linked native calculator thickness, rounds positive thickness to the
+nearest whole millimetre (half values round up) for the two-millimetre bands,
+and uses Pine from 79 mm. Missing or stale values stay unchanged and produce an
+incomplete-markup message. Switch it off to restore the colours captured before
+the first application. The exact thickness remains in the register and legend.
+Colour commands are audited presentation operations; measurements, confirmation
+and calculator inputs stay unchanged.
+
+Steel and Duct **Legend** toggles a persisted box on the current drawing page.
+Drag the box or its four corner handles; double-click it for independent line,
+fill and font settings. Entries group the page's items by colour and retain
+their marks, steel sections or duct dimensions and total lengths, and exact
+native thickness. Duct thickness is native spray DFT or native continuous-wrap
+layers multiplied by the configured layer thickness, converted from metres to
+millimetres. Local penetration layers do not inflate body thickness. Stale or
+detached calculator links withhold the result. Marked PDF downloads include
+visible persisted drawing legends as well as the existing provenance legend.
+
+Physical callouts place the Defect first, then each Barrier immediately followed
+by its Services. Service lines retain explicit quantity, category, type and
+dimensions without repeating their parent Barrier ID. Marker and callout styles
+are independent; callouts include Font Colour. With the drawing focused, Ctrl+C
+and Ctrl+V copy a selected Defect or Barrier and its complete active hierarchy
+at the pointer with fresh UUIDs and serial display IDs. Copies retain evidence
+and original revision provenance and remain unapproved drafts. Right-clicking a
+Defect callout and choosing **Delete** atomically retains deleted records for the
+Defect and its descendants, allowing restoration through existing history.
+Inspector source-association helper cards are hidden; the retained evidence,
+register identities and exports remain available.
+
 **Pan** drags the paper freely beyond every viewer edge, including at small zoom
 levels and from the grey background. **Fit page** restores a visible centred page
 with room for the floating controls. Pan and zoom never change source geometry,

@@ -23,6 +23,9 @@ const phrases = [
   "Fire testing proves the system works; construction proves how creative people can be.",
   "The installation was executed flawlessly; then we wrote a test report.",
   "Give me a red bull and a cigarette and I could probably spray that.",
+  "The defect was minor until someone photographed it.",
+  "I like to think that Penetration Specialist is code for Gigolo.",
+  "The system performs impeccably in ideal conditions - a fire test laboratory.",
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
@@ -48,7 +51,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       dispatchEvent() { throw Error('Presentation must not emit input or change events'); },
     },
     Math: Object.create(Math),
-    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 5000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
+    setTimeout(callback, delay) { assert.ok(delay === 35 || delay === 1000); timers.set(++nextTimer, { callback, delay, deadline: now + delay }); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
   };
   context.Math.random = () => random;
@@ -69,7 +72,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       assert.equal(next()?.[1].delay, 35, 'Only typing is scheduled before the final character'); tick();
     }
   };
-  const finish = () => { finishTyping(); advance(5000); };
+  const finish = () => { finishTyping(); advance(1000); };
   run();
   return { label, sizer, typed, cursor, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
@@ -84,9 +87,9 @@ for (let index = 0; index < phrases.length; index++) {
   assert.equal(h.cursor.hidden, false, 'Cursor stays visible through the actual final character');
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
-  assert.equal(h.timers.size, 1); assert.equal([...h.timers.values()][0].deadline, h.now() + 5000);
+  assert.equal(h.timers.size, 1); assert.equal([...h.timers.values()][0].deadline, h.now() + 1000);
   const finishedFrames = h.frames.slice();
-  h.advance(4999); assert.equal(h.cursor.hidden, false); assert.equal(h.typed.textContent, phrase);
+  h.advance(999); assert.equal(h.cursor.hidden, false); assert.equal(h.typed.textContent, phrase);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
   h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   passed++;
@@ -99,13 +102,13 @@ for (let index = 0; index < phrases.length; index++) {
   const h = harness({ previous: 'Unrecognized old value', reduced: true });
   assert.equal(h.label.textContent, phrases[0]); assert.equal(h.typed.textContent, phrases[0]);
   assert.deepEqual(h.frames, ['', phrases[0]]); assert.equal(h.cursor.hidden, false);
-  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [5000]);
-  h.advance(4999); assert.equal(h.cursor.hidden, false);
+  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [1000]);
+  h.advance(999); assert.equal(h.cursor.hidden, false);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.timers.size, 0); passed++;
 }
 {
   const h = harness({ previous: phrases[0], random: .999, reduced: true });
-  assert.equal(h.label.textContent, phrases.at(-1)); assert.equal(h.typed.textContent, phrases.at(-1)); h.advance(5000);
+  assert.equal(h.label.textContent, phrases.at(-1)); assert.equal(h.typed.textContent, phrases.at(-1)); h.advance(1000);
   assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); passed++;
 }
 {
@@ -117,30 +120,30 @@ for (let index = 0; index < phrases.length; index++) {
   assert.equal(h.typed.textContent, Array.from(h.label.textContent)[0]); assert.deepEqual(h.sizer.children, reserved);
   const second = h.label.textContent; h.nextPhrase(); assert.notEqual(h.label.textContent, second);
   h.finishTyping(); const current = h.label.textContent;
-  h.advance(4999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, false);
+  h.advance(999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, false);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
 }
 {
   const h = harness(); h.finish(); const first = h.label.textContent;
   h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.cursor.hidden, false);
-  h.finishTyping(); h.advance(4999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true);
+  h.finishTyping(); h.advance(999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true);
   assert.equal(h.writes.length, 2); passed++;
 }
 {
   const h = harness({ reduced: true }); h.advance(4000); const first = h.label.textContent;
   h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.typed.textContent, h.label.textContent);
-  h.advance(4999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true); passed++;
+  h.advance(999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true); passed++;
 }
 {
   const h = harness(); h.advance(70); h.changeMotion();
   assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, false);
-  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [5000]);
-  h.advance(2500); h.changeMotion(); h.changeMotion(false);
-  h.advance(2499); assert.equal(h.cursor.hidden, false);
+  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [1000]);
+  h.advance(500); h.changeMotion(); h.changeMotion(false);
+  h.advance(499); assert.equal(h.cursor.hidden, false);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); passed++;
 }
 {
-  const h = harness(); h.finishTyping(); h.advance(4000); h.changeMotion();
+  const h = harness(); h.finishTyping(); h.advance(0); h.changeMotion();
   h.advance(999); assert.equal(h.cursor.hidden, false);
   h.advance(1); assert.equal(h.cursor.hidden, true); h.changeMotion(false); h.changeMotion();
   assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); passed++;

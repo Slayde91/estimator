@@ -93,11 +93,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   });
   await check('Markup defaults validate only the five visual properties and safely ignore corrupt or unavailable storage',()=>{
     const appearance={stroke_color:'#a020f0',stroke_width:3.75,fill_color:'#00cc88',fill_enabled:false,opacity:.45},saved={version:1,appearance:{...appearance,marker_shape:'diamond',marker_size:44,quantity:99}},writes=[];
-    const storage={getItem(key){assert.equal(key,'ceasefire.takeoff-markup-defaults.v1');return JSON.stringify(saved);},setItem(...args){writes.push(args);}},h=harness(storage),expected={...appearance,stroke_color:'#A020F0',fill_color:'#00CC88'};
+    const storage={getItem(key){assert.equal(key,'ceasefire.takeoff-markup-defaults.v2');return JSON.stringify(saved);},setItem(...args){writes.push(args);}},h=harness(storage),expected={...appearance,stroke_color:'#A020F0',fill_color:'#00CC88',marker_size:25,display_values:false};
     assert.deepEqual(copy(h.audit.newMarkupAppearance()),expected);const external=h.audit.newMarkupAppearance();external.stroke_width=17;assert.deepEqual(copy(h.audit.newMarkupAppearance()),expected);assert.equal(writes.length,0);
     for(const altered of [{stroke_color:'red'},{fill_color:'#fff'},{stroke_width:0},{stroke_width:101},{stroke_width:'2'},{opacity:NaN},{opacity:1.01},{fill_enabled:1}])assert.equal(h.audit.validatedMarkupDefaults({...appearance,...altered}),null);
-    for(const value of ['not JSON',JSON.stringify({...saved,version:2}),JSON.stringify({version:1,appearance:{...appearance,opacity:1.2}})])assert.deepEqual(copy(harness({getItem(){return value;}}).audit.newMarkupAppearance()),{});
-    assert.deepEqual(copy(harness(new Error('Storage blocked')).audit.newMarkupAppearance()),{});
+    for(const value of ['not JSON',JSON.stringify({...saved,version:2}),JSON.stringify({version:1,appearance:{...appearance,opacity:1.2}})])assert.deepEqual(copy(harness({getItem(){return value;}}).audit.newMarkupAppearance()),{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false});
+    assert.deepEqual(copy(harness(new Error('Storage blocked')).audit.newMarkupAppearance()),{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false});
   });
   await check('Set as default flushes edits, stores visual preference only, and retains an in-window default if persistence is blocked',async()=>{
     for(const blocked of [false,true]){
@@ -106,19 +106,19 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       for(const field of editor.appearance){const key=field.control.name;if(!(key in desired))continue;if(key==='fill_enabled')field.control.checked=desired[key];else field.control.value=String(key==='opacity'?desired[key]*100:desired[key]);field.control.events.input();}
       const held=deferred(),sent=[];h.audit.setCommand(async(op,body)=>{sent.push({op,...copy(body)});await held.promise;Object.assign(h.audit.state.session.snapshot.items[0].appearance,body.changes.appearance);});
       const setting=h.audit.setMarkupDefaults(editor);await flush();assert.equal(sent.length,1);assert.equal(writes.length,0);held.resolve();await setting;
-      const canonical=copy(h.audit.state.session.snapshot),fingerprint=h.api.projectFingerprint();assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);assert.equal(sent[0].op,'bulk_update');const {fill_enabled,display_values,...changedAppearance}=desired;assert.deepEqual(sent[0].changes,{appearance:changedAppearance});
-      assert.equal(writes.length,blocked?0:1);if(!blocked)assert.deepEqual(writes[0],{key:'ceasefire.takeoff-markup-defaults.v1',value:{version:1,appearance:desired}});
+      const canonical=copy(h.audit.state.session.snapshot),fingerprint=h.api.projectFingerprint();assert.deepEqual(copy(h.audit.newMarkupAppearance()),{marker_size:25,...desired,display_values:false});assert.equal(sent[0].op,'bulk_update');const {display_values,...changedAppearance}=desired;assert.deepEqual(sent[0].changes,{appearance:changedAppearance});
+      assert.equal(writes.length,blocked?0:1);if(!blocked)assert.deepEqual(writes[0],{key:'ceasefire.takeoff-markup-defaults.v2',value:{version:1,appearance:desired}});
       await h.audit.setMarkupDefaults(h.audit.state.settingsEditor);assert.equal(sent.length,1);assert.equal(h.api.projectFingerprint(),fingerprint);assert.deepEqual(copy(h.audit.state.session.snapshot),canonical);assert.equal(h.audit.state.settingsDirty,false);
-      const stale=editor;h.audit.state.selected.clear();await assert.rejects(h.audit.setMarkupDefaults(stale),/selection changed/);assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);
+      const stale=editor;h.audit.state.selected.clear();await assert.rejects(h.audit.setMarkupDefaults(stale),/selection changed/);assert.deepEqual(copy(h.audit.newMarkupAppearance()),{marker_size:25,...desired,display_values:false});
     }
   });
   await check('Fresh Steel Duct Wall and Slab creations inherit defaults without changing existing items or source precision',async()=>{
     const desired={stroke_color:'#A020F0',stroke_width:3.75,fill_color:'#00CC88',fill_enabled:true,opacity:.45};
     for(const mode of ['steel','duct','wall','slab']){
-      const h=harness({getItem(){return JSON.stringify({version:1,appearance:desired});}}),value=blank();value.items=[{id:'old',mode,quantity:1,fields:{mark:'Old'},appearance:{stroke_color:'#CC0000'}}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.target={value:mode==='duct'?'ductwork':'steel_vermiculite'};dom.ui.viewport={dataset:{}};h.audit.state.mode=mode;h.audit.setSelectionRenderer(()=>{});
+      const h=harness({getItem(){return JSON.stringify({version:1,appearance:{marker_size:25,...desired,display_values:false}});}}),value=blank();value.items=[{id:'old',mode,quantity:1,fields:{mark:'Old'},appearance:{stroke_color:'#CC0000'}}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.target={value:mode==='duct'?'ductwork':'steel_vermiculite'};dom.ui.viewport={dataset:{}};h.audit.state.mode=mode;h.audit.setSelectionRenderer(()=>{});
       const geometry={kind:['wall','slab'].includes(mode)?'polygon':'polyline',document_id:'retained-doc',page:3,points:[[1.123456789,2],[20,2],[20,30]],...(['wall','slab'].includes(mode)?{exclusions:[]}:{})},measurement={method:'cited',length_m:6.123456789,citation:'Exact source dimension'},evidence=[{document_id:'retained-doc',page:3,note:'Exact source'}];let created;
       h.audit.setAsk(async()=>({mark:'New',quantity:['wall','slab'].includes(mode)?'1':1}));h.audit.setCommand(async(op,body)=>{assert.equal(op,'create_item');created=copy(body.item);});await h.audit.createDrawnItem(measurement,geometry,evidence);
-      assert.deepEqual(created.appearance,desired);assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.deepEqual(copy(h.audit.state.session.snapshot),value);assert.deepEqual(copy(h.audit.appearanceOf(value.items[0])).stroke_color,'#CC0000');
+      assert.deepEqual(created.appearance,{marker_size:25,...desired,display_values:false});assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.deepEqual(copy(h.audit.state.session.snapshot),value);assert.deepEqual(copy(h.audit.appearanceOf(value.items[0])).stroke_color,'#CC0000');
     }
   });
   await check('Drawing body single clicks select, a stationary double click opens all four mode panes, and blank clears without source writes',async()=>{
@@ -190,7 +190,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.setCommand(async(op,body)=>{calls++;sent={op,...copy(body)};return {created_item_ids:['created']};});
     const click=detail=>({detail,button:0,clientX:100,clientY:120,timeStamp:100+detail,preventDefault(){}});
     h.audit.drawingPointer(click(1));assert.equal(h.audit.state.countEntries.length,2);h.audit.drawingPointer(click(2));await flush();await flush();
-    assert.equal(calls,1);assert.deepEqual(sent,{op:'add_count_items',document_id:'doc',page:1,markers:[{point:[10,10],length_m:6.123456789}],fields:{},appearance:{}});assert.equal(h.audit.state.tool,'select');assert.equal(h.audit.state.countEntries.length,0);assert.equal(h.timers.size,0);assert.equal(h.audit.state.settingsOpen,true);
+    assert.equal(calls,1);assert.deepEqual(sent,{op:'add_count_items',document_id:'doc',page:1,markers:[{point:[10,10],length_m:6.123456789}],fields:{},appearance:{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false}});assert.equal(h.audit.state.tool,'select');assert.equal(h.audit.state.countEntries.length,0);assert.equal(h.timers.size,0);assert.equal(h.audit.state.settingsOpen,true);
   });
   await check('Count settings expand every same-batch length row, keep Qty read-only and preserve unrelated selections after regrouping',async()=>{
     const h=countHarness(),a=countItem('a','batch',5,[[10,10]]),b=countItem('b','batch',3.5,[[20,20],[30,30]]),other=countItem('other','different',5,[[40,40]]),trace={id:'trace',mode:'steel',quantity:2,fields:{mark:'trace'}};
@@ -990,7 +990,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.setPhysicalDetails(open=>{opened.push(open);state.physicalDetailsOpen=open;});
     state.physicalUI={completePendingEdits:async()=>calls.push('flush'),selectDrawing:async(id,multiple,focus,openDetails)=>{calls.push({id,multiple:!!multiple,focus,openDetails});if(!multiple)state.physicalSelected.clear();if(multiple&&state.physicalSelected.has(id))state.physicalSelected.delete(id);else state.physicalSelected.add(id);},clearSelection:async()=>{calls.push('clear');state.physicalSelected.clear();}};
     for(const open of [false,true]){state.physicalDetailsOpen=open;opened.length=0;for(let i=0;i<2;i++)await h.audit.choosePhysicalDrawing(entity,{},true);assert.equal(state.physicalDetailsOpen,open);assert.deepEqual(opened,[]);assert.equal(calls.at(-1).openDetails,false);assert.ok(state.physicalSelected.has(entity.id));}
-    await h.audit.choosePhysicalDrawing(entity,{ctrlKey:true},true);assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,true);assert.deepEqual(opened,[]);
+    await h.audit.choosePhysicalDrawing(entity,{ctrlKey:true},true);assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,false);
     let now=1000;h.context.Date={now:()=>now};const click={type:'click',clientX:40,clientY:60};
     state.physicalDetailsOpen=false;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,false);assert.equal(calls.at(-1).openDetails,false);
     now+=150;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,true);assert.equal(calls.at(-1).openDetails,true);

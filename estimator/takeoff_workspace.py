@@ -861,7 +861,9 @@ class TakeoffService:
                      'delete_document': {'document_id'}, 'record_render': {'document_id', 'page', 'success', 'warnings'},
                      'undo': set(), 'split_item': {'item_id', 'parts'}, 'merge_items': {'item_ids', 'item'},
                      'split_steel_group': {'item_id', 'quantities'}, 'merge_steel_groups': {'item_ids'},
-                     'detach_transfers': {'item_ids', 'calculator_id'}}
+                     'detach_transfers': {'item_ids', 'calculator_id'},
+                     'toggle_thickness_colours': {'document_id', 'calculator_id', 'calculator_drafts'},
+                     'set_legend': {'legend'}}
             if not isinstance(op, str) or op not in specs:
                 raise ValidationError('This takeoff operation is not supported.')
             object_fields(request, {'expected_revision', 'request_id', 'op'} | specs[op], 'Takeoff operation',
@@ -869,7 +871,15 @@ class TakeoffService:
             revised_calibration_id = None
             created_item_ids = None
             regrouped_item_ids = None
-            if op == 'create_item':
+            if op in ('toggle_thickness_colours', 'set_legend'):
+                from .takeoff_presentation import apply_presentation
+                linked = None
+                if op == 'toggle_thickness_colours':
+                    linked = self.linked_register_results(session_id, {
+                        'expected_revision': before['revision'],
+                        'calculator_drafts': request['calculator_drafts']})['linked_results']
+                apply_presentation(after, request, linked)
+            elif op == 'create_item':
                 self._create_item(after, request['item'])
             elif op == 'duplicate_items':
                 proposals, source_ids = duplicate_length_proposals(after, request)
@@ -1307,6 +1317,9 @@ class TakeoffService:
                 after['documents'] = [d for d in after['documents'] if d['id'] != document_id]
                 after['calibrations'] = [c for c in after['calibrations'] if c['document_id'] != document_id]
                 after['render_checks'] = [r for r in after['render_checks'] if r['document_id'] != document_id]
+                if 'drawing_presentation' in after:
+                    for key in ('colour_modes', 'legends'):
+                        after['drawing_presentation'][key] = [value for value in after['drawing_presentation'][key] if value['document_id'] != document_id]
             elif op == 'record_render':
                 doc, _ = page_metadata(after, request['document_id'], request['page'])
                 record = {key: deepcopy(request[key]) for key in ('document_id', 'page', 'success', 'warnings')}

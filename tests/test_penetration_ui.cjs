@@ -6,6 +6,17 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Item summary names missing Pipe Labour inputs without hiding native calculation errors or changing the draft',async h=>{
+    const state=h.audit.state, draft=copy(state.draft), response=result(state.draft);
+    response.summary.labour=response.summary.grand_total=response.summary.total_days=response.summary.labour_hours='#VALUE!';
+    response.errors=[{row_id:'line-1',cell:'pipe_labour_hours',message:'Enter Pipe Labour hours for the selected collar; a positive diameter up to 300 mm is required for automatic hours.'},{row_id:null,cell:'F2',message:'#VALUE!'}];
+    state.result=response;h.audit.render();assert.doesNotMatch(text(h.byId('penetration-summary')),/#VALUE!/);assert.match(h.byId('penetration-summary-notes').textContent,/Item 1: Enter Pipe Labour hours.*positive diameter/);assert.deepEqual(copy(state.draft),draft);assert.equal(state.result.summary.labour,'#VALUE!');
+  });
+  await check('Unresolved item summary identifies selected missing quantities and crew inputs without exposing cell error codes',async h=>{
+    const state=h.audit.state;state.draft.rows[0].inputs={Y:'Collar',O:null,AL:null,AN:null,W:null};const response=result(state.draft);
+    response.summary.labour='#VALUE!';response.errors=[{row_id:'line-1',cell:'F4',message:'#VALUE!'}];state.result=response;h.audit.render();
+    const notes=h.byId('penetration-summary-notes').textContent;for(const name of ['Item QTY','Diameter','Pipe Labour','Collar Multiplier','Teams/Crews'])assert.ok(notes.includes(name));assert.ok(!notes.includes('#VALUE!'));
+  });
   await check('Legacy workbook labels are presented as Category and Description',async h=>{
     assert.equal(h.control('J').getAttribute('aria-label'),'Item 1: Category');
     assert.equal(h.control('T').getAttribute('aria-label'),'Item 1: Description');
@@ -207,7 +218,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Summary formula errors disclose the affected cell and message alongside unavailable totals',async h=>{
     h.audit.setRequest(async(path,payload)=>({...result(payload.draft),summary:{grand_total:'#VALUE!'},errors:[{row_id:null,cell:'H2',message:'A source formula returned #VALUE!'}]}));
-    await h.audit.calculate();assert.match(text(h.byId('penetration-summary')),/#VALUE!/);assert.match(h.byId('penetration-summary-notes').textContent,/H2: A source formula returned #VALUE!/);
+    await h.audit.calculate();assert.doesNotMatch(text(h.byId('penetration-summary')),/#VALUE!/);assert.match(h.byId('penetration-summary-notes').textContent,/A source formula returned an unavailable calculation value/);
   });
 
   await check('Fresh projects have an empty schedule and one independent composer; opening schedule does not calculate composer',async h=>{

@@ -32,6 +32,16 @@ const box = locator => locator.boundingBox();
   await expect(page.locator('#calculators-heading,#libraries-heading,#takeoffs-heading,.library-choices,.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
   for (const width of [1600, 1146, 825, 570, 390]) {
     await page.setViewportSize({ width, height: 1000 });
+    if (width >= 1146) {
+      const brand=await box(page.locator('.brand-stack')), nav=await box(page.getByRole('navigation',{name:'Main navigation'})), actions=await box(page.locator('#header-project-actions'));
+      assert.ok(nav.x >= brand.x+brand.width && nav.x+nav.width <= actions.x && nav.y < brand.y+brand.height, 'Main navigation fits between the logo and Save controls');
+    }
+    if (width === 1146) {
+      await page.locator('#takeoff-navigation-toggle').hover(); await page.locator('#penetration-navigation-toggle').hover();
+      const parent=await box(page.locator('#penetration-navigation-toggle')), submenu=page.getByRole('group',{name:'Penetration workspaces'});await expect(submenu).toBeVisible();const bounds=await box(submenu);
+      assert.ok(bounds.x >= parent.x+parent.width-1 && bounds.x+bounds.width <= width, 'Penetrations flyout opens to the right');
+      await page.mouse.move(0,0);
+    }
     for (const id of ['library', 'takeoff']) {
       const toggle = page.locator(`#${id}-navigation-toggle`), menu = page.locator(`#${id}-navigation-menu`);
       await toggle.hover(); await expect(menu).toBeVisible();
@@ -74,6 +84,7 @@ const box = locator => locator.boundingBox();
   }
   for (const name of ['Steel', 'Duct', 'Walls', 'Slabs', 'Defect Reports', 'Service Plans']) {
     await chooseTakeoff(page, name); await idle();
+    const visibility=page.getByRole('button',{name:'Visibility',exact:true});await expect(visibility).toBeVisible();assert.ok(await visibility.locator('img').evaluate(img=>img.complete && img.naturalWidth>0));
     const register = page.locator(['Defect Reports', 'Service Plans'].includes(name) ? '.takeoff-physical-register' : '.takeoff-register').filter({ visible: true });
     const pdf = register.getByRole('button', { name: 'Download PDF', exact: true }); await expect(pdf).toBeVisible();
     assert.equal(await pdf.evaluate(el => el.previousElementSibling.getAttribute('aria-label')), ['Defect Reports', 'Service Plans'].includes(name) ? 'Export draft XLSX' : 'Export XLSX');
@@ -95,6 +106,7 @@ const box = locator => locator.boundingBox();
   const touch = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); const mobile = await touch.newPage(); await mobile.goto(`http://127.0.0.1:${info.port}/`); await idle(mobile);
   for (const [id, choice, view] of [['library', 'Technical Library', '#library-technical'], ['takeoff', 'Service Plans', '.takeoff-physical-register']]) {
     await mobile.locator(`#${id}-navigation-toggle`).tap(); await idle(mobile); const menu = mobile.locator(`#${id}-navigation-menu`); await expect(menu).toBeVisible();
+    if (id === 'takeoff') await mobile.locator('#penetration-navigation-toggle').tap();
     await menu.getByRole('button', { name: choice, exact: true }).tap(); await expect(mobile.locator(view)).toBeVisible(); await expect(menu).toBeHidden();
   }
   evidence.touch = true; await touch.close(); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

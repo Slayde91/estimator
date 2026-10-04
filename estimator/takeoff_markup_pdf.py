@@ -72,6 +72,7 @@ def surface_label_point(geometry):
 
 def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None):
     from .takeoff_exports import linked_result_text
+    from .takeoff_presentation import effective_appearance, legend_rows
     if not _SLOTS.acquire(blocking=False):
         raise ValidationError('Another marked drawing PDF is being prepared. Retry after it finishes.')
     try:
@@ -83,7 +84,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
             vertices += len(geometry['points']) + sum(len(value['points']) for value in geometry.get('exclusions', []))
             rows.append({'id': item['id'], 'mode': item['mode'], 'purpose': item.get('purpose'), 'geometry': geometry,
                          'cited_region': bool(item['measurement'] and item['measurement']['method'] == 'cited'),
-                         'appearance': markup_appearance(item), 'mark': fields.get('mark') or item['id'][:8],
+                         'appearance': effective_appearance(snapshot, item, linked) if snapshot else markup_appearance(item), 'mark': fields.get('mark') or item['id'][:8],
                          'section': fields.get('section'), 'shape': fields.get('shape'),
                          'width_mm': fields.get('width_mm'), 'height_mm': fields.get('height_mm'),
                          'diameter_mm': fields.get('diameter_mm'), 'quantity': item['quantity'],
@@ -97,6 +98,10 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
             raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
         spec = {'document': document, 'items': rows, 'project_id': project_id, 'revision': revision, 'mode': mode,
                 'logo': str(ROOT / 'static' / 'ceasefire-logo.png')}
+        if snapshot:
+            spec['drawing_legends'] = [{**legend, 'rows': legend_rows(snapshot, legend, results, linked)}
+                for legend in snapshot.get('drawing_presentation', {}).get('legends', [])
+                if legend['visible'] and legend['document_id'] == document['id'] and legend['mode'] == mode]
         payload = json.dumps(spec, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
         if len(payload) > MAX_SPEC_BYTES:
             raise ValidationError('The marked drawing legend exceeds the bounded export limit. Reduce the visible selection.')

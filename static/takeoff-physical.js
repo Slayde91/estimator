@@ -425,18 +425,20 @@
     function summary(id) {
       const entry = state.index.get(id); if (!entry || entry.entity.deleted) return "";
       const line = (values) => values.filter(value => value !== undefined && value !== null && value !== "").map(value => String(value).replace(/[\r\n\t]+/g, " ")).join(" · ");
+      const defectLine = value => { const f = value.entity.fields; return line([displayId(value), f.label, f.location, f.frl ? `FRL ${f.frl}` : ""]); };
+      const serviceLine = child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type, value.size, value.width_height_mm, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); };
+      const barrierLines = barrier => {
+        const f = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? f.frl : defect?.entity.fields.frl;
+        const services = state.servicesByBarrier.get(barrier.entity.id) || [];
+        return [line([displayId(barrier), f.label, f.location, f.barrier_type, f.substrate || "Substrate not recorded", f.orientation, f.thickness_mm != null ? `${f.thickness_mm} mm thick` : "", frl ? `FRL ${frl}` : ""]), ...services.map(serviceLine), ...(!services.length ? ["0 services"] : [])];
+      };
       if (entry.kind === "defect" && graph().version === 2) {
-        const fields = entry.entity.fields, barriers = [...state.index.values()].filter(value => value.kind === "barrier" && !value.entity.deleted && value.entity.defect_id === id), ids = new Set(barriers.map(value => value.entity.id));
-        const services = [...state.index.values()].filter(value => value.kind === "service" && !value.entity.deleted && ids.has(value.entity.barrier_id));
-        return [line([displayId(entry), fields.label, fields.location, fields.frl ? `FRL ${fields.frl}` : ""]),
-          ...barriers.map(child => line([displayId(child), child.entity.fields.substrate || "Substrate not recorded"])),
-          ...services.map(child => line([displayId(child), displayId(state.index.get(child.entity.barrier_id)), child.entity.fields.service_type || "Service type not recorded"])),
-          ...(!barriers.length ? ["0 substrates · 0 services"] : !services.length ? ["0 services"] : [])].join("\n");
+        const barriers = [...state.index.values()].filter(value => value.kind === "barrier" && !value.entity.deleted && value.entity.defect_id === id);
+        return [defectLine(entry), ...barriers.flatMap(barrierLines), ...(!barriers.length ? ["0 substrates · 0 services"] : [])].join("\n");
       }
       const barrier = entry.kind === "barrier" ? entry : ancestors(entry, state.index).find(parent => parent.kind === "barrier"); if (!barrier || barrier.entity.deleted) return "";
-      const fields = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? fields.frl : defect?.entity.fields.frl;
-      const services = state.servicesByBarrier.get(barrier.entity.id) || [];
-      return [line([displayId(barrier), defect ? displayId(defect) : "", fields.label, fields.location, fields.barrier_type, fields.substrate, fields.orientation, fields.thickness_mm != null ? `${fields.thickness_mm} mm thick` : "", frl ? `FRL ${frl}` : ""]), ...services.map(child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type, value.size, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); }), ...(!services.length ? ["0 services"] : [])].join("\n");
+      const defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect");
+      return [...(defect ? [defectLine(defect)] : []), ...barrierLines(barrier)].join("\n");
     }
     async function setMarker(id, marker) {
       await completePendingEdits();
@@ -488,6 +490,35 @@
       ensureAvailable(); requireCurrent(entry); const active = descendants(entry).filter(child => !child.entity.deleted);
       const answer = await ask(`Delete draft ${entry.kind}`, [["scope", "Deletion scope", [["only", "Only this entity (requires no active descendants)"], ["cascade", `This entity and ${active.length} active descendants`]], "", true]], `ID: ${displayId(entry)}\n${active.length} active descendants are linked below this entity. Reparent them first or explicitly include them. Tombstones and original identities are retained.`, "Preview deletion");
       if (answer) { requireCurrent(entry); await perform([{ op: "delete", entity_id: entry.entity.id, cascade: answer.scope === "cascade" }], "Review recoverable deletion"); }
+    }
+    async function deleteDrawing(id) {
+      await completePendingEdits(); ensureEditable(); ensureAvailable(); const entry = state.index.get(id); requireCurrent(entry);
+      return perform([{ op: "delete", entity_id: id, cascade: true }], "Delete this record and its linked barriers/services?");
+    }
+    function copyDrawing(id) {
+      ensureEditable(); ensureAvailable(); const entry = state.index.get(id); requireCurrent(entry);
+      if (!["defect", "barrier"].includes(entry.kind)) throw new Error("Select a defect or barrier callout to copy.");
+      const entries = [entry, ...descendants(entry).filter(child => !child.entity.deleted)]; entries.forEach(requireCurrent);
+      if (entries.length > 100) throw new Error("This callout exceeds the 100-record atomic copy limit.");
+      return { graphId: graph().id, scope: scope(), records: entries.map(value => copy(value)) };
+    }
+    async function pasteDrawing(copied, destination) {
+      await completePendingEdits(); ensureEditable(); ensureAvailable();
+      if (copied.graphId !== graph().id || copied.scope !== scope()) throw new Error("Copy a callout in this workspace first.");
+      for (const entry of copied.records) requireCurrent(entry);
+      const source = copied.records[0].entity, locator = source.annotation || source.marker;
+      if (!locator) throw new Error("The copied callout has no retained source annotation.");
+      const remap = new Map(copied.records.map(entry => [entry.entity.id, root.crypto.randomUUID()]));
+      const delta = destination.point.map((value, axis) => value-locator.point[axis]);
+      const commands = copied.records.map(entry => {
+        const old = entry.entity, entity = { id: remap.get(old.id), fields: copy(old.fields), evidence: copy(old.evidence),
+          uncertainty: { state: "not_assessed", note: `Copied from ${old.display_id || old.id}; verify this new location. ${old.uncertainty.note || ""}`.slice(0, 2000) }, copied_from: { entity_id: old.id, revision: old.revision } };
+        const parent = parentRelations()[entry.kind]; if (parent) entity[parent[1]] = remap.get(old[parent[1]]) || old[parent[1]];
+        if (entry.kind === "service") entity.quantity = old.quantity;
+        for (const key of ["marker", "annotation"]) if (old[key]) entity[key] = { ...copy(old[key]), document_id: destination.document_id, document_sha256: destination.document_sha256, page: destination.page, point: old[key].point.map((value, axis) => value+delta[axis]) };
+        return { op: "create", kind: entry.kind, entity };
+      });
+      if (await perform(commands, "Copy callout and linked physical records?")) { const id = remap.get(source.id); await selectDrawing(id, false, false, false); return id; }
     }
     async function deleteSelected() {
       ensureEditable(); ensureAvailable(); const selected = selectEntries(); selected.forEach(requireCurrent);
@@ -672,13 +703,13 @@
       ui.inspector.replaceChildren(node("h3", "", "Item Details")); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       renderDetailNavigation();
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty."), inspectorActions()); return; }
-      const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey(); ui.inspector.append(node("p", "takeoff-identity", displayId(entry)), node("p", "helper", `${titles[entry.kind]} · Revision ${entity.revision} · ${entity.deleted ? "Deleted draft" : "Unapproved draft"}`));
-      const callout = summary(entity.id); if (callout) { const details = node("details", "takeoff-physical-summary"); details.append(node("summary", "", "Automatic callout"), node("p", "helper", callout)); ui.inspector.append(details); }
+      const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey();
+      bridge.renderDrawingAppearance?.(ui.inspector, entity);
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
         if (entry.kind === "service") ui.inspector.append(node("p", "helper", `Explicit service quantity: ${entity.quantity}`));
-        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`), inspectorActions()); renderAssociations(entry); return;
+        ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`), inspectorActions()); return;
       }
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
         const wrapper = node("label", "field"), control = node(Array.isArray(type) ? "select" : type === "textarea" ? "textarea" : "input"); wrapper.append(node("span", "", label));
@@ -702,7 +733,6 @@
       }));
       const remove = button("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); remove.setAttribute("aria-label", "Delete draft record"); remove.title = "Delete draft record"; remove.replaceChildren(deleteIcon());
       ui.inspector.append(button("Link original source page", flushed => linkDocument(flushed ? state.index.get(entity.id) : entry)), inspectorActions(remove));
-      renderAssociations(entry);
     }
     function inspectorActions(remove) { const actions = node("div", "takeoff-physical-inspector-actions"); if (remove) actions.append(remove); actions.append(ui.discard); return actions; }
     function renderAssociations(entry) {
@@ -839,7 +869,7 @@
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }
-    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
+    return { render, select: selectEntity, selectDrawing, clearSelection, create, createFromSelection, setMarker, setAnnotation, deleteDrawing, copyDrawing, pasteDrawing, selectedBarrier, selection: () => [...state.selected], inspectedId: () => inspectedEntry()?.entity.id || null, summary, hover, completePendingEdits, isAutoApplying: () => state.autoRoutine, editRevision: () => state.editRevision, hasUnfinishedChanges: () => !state.destroyed && (state.busy || state.pending.size > 0), destroy() { state.destroyed = true; state.busy = false; cancelAutomatic(); state.filterDialog?.close("cancel"); ++state.imageGeneration; container.replaceChildren(); if (bridge.inspectorContainer) ui.inspector.remove(); state.pending.clear(); changed(); } };
   }
 
   const api = { mount, indexGraph, hierarchyRows, hierarchyPage, columnValue, fieldValue, fieldsFromValues, changedFields, bulkCommands, deletionPlan, formatDimensions, parseDimensions, imageEvidence, previewText, commandText };

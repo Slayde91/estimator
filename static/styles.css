@@ -51,7 +51,14 @@ a{color:inherit}
 .section-navigation-choice:hover,.section-navigation-choice:focus-visible{color:#111;background:#fff}
 .section-navigation-choice[aria-pressed=true]{color:#fff;background:var(--accent);box-shadow:inset 3px 0 0 #fff}
 .section-navigation-choice:disabled{opacity:.5;cursor:wait}
-.section-navigation-subgroup{margin:2px 0 7px 12px;border-left:1px solid #766b72;padding-left:6px}
+.section-navigation-branch{position:relative}
+.submenu-arrow{float:right;margin-left:16px}
+.section-navigation-subgroup{position:absolute;left:100%;top:0;width:230px;padding:7px;background:#111;border:1px solid #3b3238;border-radius:0 11px 11px 11px;box-shadow:0 8px 22px #0003}
+.section-navigation-subgroup[hidden]{display:none}
+@media(max-width:570px){.section-navigation-subgroup{position:static;width:100%;border-radius:7px;box-shadow:none}}
+.nav-icon{display:flex;align-items:center;justify-content:center;width:45px;height:45px;padding:8px;font-size:25px;line-height:1}
+.nav-icon img{object-fit:contain;filter:invert(1)}
+.nav-icon:hover img{filter:none}
 .calculator-navigation-menu{position:absolute;top:100%;left:0;z-index:21;width:265px;max-width:calc(100vw - 28px);padding:7px;background:#111;color:#fff;border:1px solid #3b3238;border-radius:0 0 11px 11px;box-shadow:0 8px 22px #0003}
 .calculator-navigation-menu[hidden]{display:none}
 .calculator-navigation-choice{display:block;width:100%;padding:11px 12px;text-align:left;color:#fff;background:transparent;border-radius:7px;font-size:13px;font-weight:600}
@@ -97,7 +104,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .header-project-actions .button,.project-workspace-actions .button{height:48px;min-height:48px}
 .header-project-actions .project-save-actions{gap:9px}
 .project-tools{grid-template-columns:minmax(0,1fr)}
-@media(max-width:1250px){.app-header{flex-wrap:wrap;gap:10px 24px}.header-navigation{order:3;flex-basis:100%;width:100%}.app-header nav{justify-content:center}.header-project-actions{align-self:flex-start}}
+@media(min-width:881px){.app-header{gap:16px;flex-wrap:nowrap}.brand-logo{width:190px}.header-navigation{flex:1;order:0;width:auto}.app-header nav{justify-content:space-between;gap:3px}.header-project-actions{margin-left:0}}
 @media(max-width:570px){.section-navigation-menu{left:0;right:auto}#library-navigation-menu{left:50%;right:auto;transform:translateX(-50%)}.section-navigation-choice{font-size:12px}.header-project-actions{gap:7px}.header-project-actions .project-save-actions{gap:7px}.header-project-actions .button{height:44px;min-height:44px}.header-project-actions .icon-only{width:44px;min-width:44px;padding:9px}.header-project-actions #save-project{padding:10px}.project-workspace-actions .button{height:48px;min-height:48px}}
 @media(max-width:570px){.app-header nav{position:relative}.section-navigation,.calculator-navigation{position:static}.section-navigation-menu,.calculator-navigation-menu{top:100%}}
 @media(max-width:1180px){.project-tools{grid-template-columns:minmax(220px,1fr) auto}.project-tools .actions{grid-column:1/-1;width:100%}}

@@ -71,6 +71,21 @@ class TakeoffLinkedResultTests(unittest.TestCase):
         self.assertEqual(result['status'], 'Current')
         self.assertIsNone(result['estimating_thickness_mm'])
 
+    def test_duct_returns_native_continuous_wrap_thickness_and_withholds_stale_rows(self):
+        identifier = self.case.create('duct', quantity=1); self.case.confirm(identifier)
+        self.case.apply(self.case.preview(identifier, 'ductwork'))
+        native = self.case.state['calculator']; drafts = {'ductwork': {key: deepcopy(native[key]) for key in ('inputs', 'schedule_rows')}}
+        result = self.read(drafts)['linked_results'][identifier][0]
+        binding = self.case.state['snapshot']['transfers'][0]
+        _, engine, lock = calculator_session('ductwork', drafts['ductwork']['inputs'])
+        with lock:
+            expected = engine.value('CALCULATOR', f"R{binding['row']}") * engine.value('PRODUCT SETTINGS', 'B96') * 1000
+        self.assertEqual(result['status'], 'Current'); self.assertEqual(result['duct_thickness_mm'], expected)
+        self.assertIn('local penetration layers excluded', result['duct_thickness_basis'])
+        drafts['ductwork']['inputs']['CALCULATOR'][f"D{binding['row']}"] += .25
+        stale = self.read(drafts)['linked_results'][identifier][0]
+        self.assertEqual(stale['status'], 'Unavailable'); self.assertIsNone(stale['duct_thickness_mm'])
+
     def test_missing_or_other_schedule_draft_withholds_the_linked_thickness(self):
         identifier, _ = self.linked()
         result = self.read()['linked_results'][identifier][0]
@@ -150,7 +165,7 @@ class TakeoffLinkedResultTests(unittest.TestCase):
         for changes in ({'expected_revision': True}, {'expected_revision': -1}, {'item_ids': []},
                         {'calculator_drafts': {'steel_board': {'inputs': {'CALCULATOR': {'AB9': 12}}, 'schedule_rows': [9]}}},
                         {'calculator_drafts': {'steel_vermiculite': {'inputs': {}, 'schedule_rows': None}}},
-                        {'calculator_drafts': {'ductwork': {'inputs': {}, 'schedule_rows': [11]}}}):
+                        {'calculator_drafts': {'unknown': {'inputs': {}, 'schedule_rows': [11]}}}):
             with self.subTest(changes=changes), self.assertRaises(ValidationError): self.read(**changes)
 
     def test_changed_evidence_and_tampered_audit_are_blocked(self):

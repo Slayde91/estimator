@@ -795,6 +795,7 @@
   function showView(view, librarySelection) {
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
     state.currentView = view;
+    $("project-tools").hidden = view !== "quotes";
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
@@ -1548,7 +1549,6 @@
       await newQuote();
       showView("home");
       state.initialized = true;
-      $("project-tools").hidden = false;
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
   }
 

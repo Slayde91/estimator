@@ -40,7 +40,7 @@ async function run() {
   await page.route(sourcePattern, route => { heldRoutes.push(route); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Upload PDFs', exact: true })).toBeVisible();
   const failureResponse = page.waitForResponse(response => response.url().endsWith('/commands') && response.request().postDataJSON()?.op === 'record_render' && response.request().postDataJSON()?.success === false, { timeout: 60000 });

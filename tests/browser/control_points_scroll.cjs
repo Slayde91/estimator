@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real keyboard/control-point editing and nested scroll focus on disposable drawings.
 const { chromium, expect } = require('@playwright/test');
@@ -44,8 +45,8 @@ const handles=id=>page.locator(`.takeoff-control-point[data-control-item-id="${i
 const handle=(id,index)=>page.locator(`.takeoff-control-point[data-control-item-id="${id}"][data-point-index="${index}"][data-exclusion-id=""]`);
 async function planFocus(){await page.getByLabel('Filter register',{exact:true}).focus();await page.locator('.takeoff-viewport').focus();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-scroll-active','true');}
 async function geometryEqual(id,points){assert.deepEqual((await snapshot()).items.find(item=>item.id===id).geometry.points,points);}
-async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await page.getByRole('button',{name:'Save As',exact:true}).click();assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
-async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await page.getByRole('button',{name:'Load',exact:true}).click();assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
+async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await clickProjectControl(page, 'Save As');assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
+async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await clickProjectControl(page, 'Load');assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
 async function scrollState(){return page.locator('.takeoff-viewport').evaluate(el=>({outer:window.scrollY,outerMax:document.documentElement.scrollHeight-innerHeight,top:el.scrollTop,left:el.scrollLeft,height:el.clientHeight,scrollHeight:el.scrollHeight,active:el.dataset.scrollActive,overscroll:getComputedStyle(el).overscrollBehavior}));}
 async function wheel(delta){const box=await page.locator('.takeoff-viewport').boundingBox(),point=[box.x+box.width/2,Math.max(120,Math.min(1000,box.y+box.height/2))];evidence.wheelTarget=await page.evaluate(([x,y])=>{const el=document.elementFromPoint(x,y);return{x,y,tag:el?.tagName,insidePlan:!!el?.closest('.takeoff-viewport')};},point);assert.equal(evidence.wheelTarget.insidePlan,true);await page.mouse.move(...point);await page.mouse.wheel(0,delta);}
 (async()=>{
@@ -55,7 +56,7 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   // Bootstrap finishes its default quote and Home navigation before publishing
   // project controls. Do not race that navigation with this drawing journey.
-  await expect(page.locator('#project-tools')).toBeVisible();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   // Upload publishes the document before its initial fit/render has finished.

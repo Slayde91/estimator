@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Count tool availability and placed Defects on a disposable source/server.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -94,8 +95,8 @@ async function countCursor() {
   await page.mouse.click(...await screen([300, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible(); await dialog('Create draft barrier', {}, 'Cancel'); evidence.servicePlanBarrierPlacementPreserved = true;
   await page.getByRole('button', { name: 'Select', exact: true }).click(); await page.getByRole('tab', { name: 'Defect Reports', exact: true }).click();
   current = await snapshot(); const physicalBeforeSave = structuredClone(current.physical);
-  await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, physicalBeforeSave);
-  await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, physicalBeforeSave);
+  await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click(); current = await snapshot(); assert.deepEqual(current.physical, physicalBeforeSave); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-viewer').scrollIntoViewIfNeeded();

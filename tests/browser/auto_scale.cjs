@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Printed-scale acceptance uses only generated PDFs and a disposable server.
 const { chromium, expect } = require('@playwright/test');
@@ -35,10 +36,10 @@ async function point([x, y]) {
   return position;
 }
 async function saveAndReopen(info) {
-  await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
-  await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open');
+  await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
   await expect(page.locator('.takeoff-viewport canvas')).toBeVisible();
@@ -51,7 +52,7 @@ async function saveAndReopen(info) {
   page.on('request', request => { if (request.url().endsWith('/auto-calibrate')) detections.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   let reply = await response(() => page.locator('#takeoff-upload').setInputFiles(info.scale_fixture), '/auto-calibrate');

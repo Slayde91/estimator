@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered scale/viewport and per-member vertical-dimension acceptance on disposable data.
 const { chromium, expect } = require('@playwright/test');
@@ -118,7 +119,7 @@ async function transfer() {
 }
 async function load() {
   const pending = page.waitForResponse(r => r.url().endsWith('/api/project/open'));
-  await page.getByRole('button', { name: 'Load', exact: true }).click();
+  await clickProjectControl(page, 'Load');
   const response = await pending; assert.equal(response.status(), 200, await response.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
@@ -142,7 +143,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Finish trace', exact: true })).toHaveCount(0);
@@ -206,7 +207,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
     }
     assert.match(await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return '';} catch(error) {return error.message;}}), /unfinished/);
     const saveRequests=[]; const watchSave=request=>{if(request.url().endsWith('/api/project/save-as'))saveRequests.push(request.url());};page.on('request',watchSave);
-    await page.getByRole('button',{name:'Save As',exact:true}).click();
+    await clickProjectControl(page, 'Save As');
     await expect(page.locator('#app-message')).toContainText('Synthetic revision race');
     page.off('request',watchSave);assert.deepEqual(saveRequests,[]);assert.equal(fs.existsSync(info.project),false);
     await page.screenshot({path:path.join(output,'failed-settings-save-guard.png'),fullPage:true});
@@ -382,7 +383,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.locator('#takeoff-markup-settings').evaluate(el => { el.scrollTop = el.scrollHeight; });
   await page.locator('#takeoff-markup-settings').screenshot({ path: path.join(output, 'riser-settings.png') });
   await page.getByRole('button',{name:'Viewport',exact:true}).click();
-  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await page.getByRole('button', { name: 'Save As', exact: true }).click();
+  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await clickProjectControl(page, 'Save As');
   assert.equal((await save).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2);
   const openPanel = page.getByRole('complementary', {name:'Viewports',exact:true}); await expect(openPanel.locator('[data-calibration-id]')).toHaveCount(2);

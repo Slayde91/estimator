@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Physical detail navigation and explicit marker placement use a disposable source/server only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -128,9 +129,9 @@ async function layout(width) {
   await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveCount(0); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60'); evidence.servicePlanIsolation = true;
   await page.getByRole('tab', { name: 'Defect Reports', exact: true }).click(); await idle(); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Barrier', barrier);
   assert.deepEqual((await snapshot()).physical.barriers[0].marker, firstMarker);
-  const beforeSave = structuredClone(state); await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const beforeSave = structuredClone(state); await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, beforeSave.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeSave.service_plans);
-  await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await snapshot(); assert.deepEqual(state.physical, beforeSave.physical); assert.deepEqual(state.service_plans, beforeSave.service_plans);
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.equal(sha(info.fixture), sourceBefore);
   evidence.savedReopened = true; fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors }, null, 2));

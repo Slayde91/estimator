@@ -10,10 +10,11 @@ const deferred = () => { let resolve, reject; const promise = new Promise((yes,n
 const flush = async () => { for (let i=0;i<12;i++) await Promise.resolve(); };
 const blank = () => ({version:1,project_id:'project',revision:0,documents:[],calibrations:[],items:[],transfers:[],render_checks:[],audit_head:null});
 const response = (snapshot, session_id='session') => ({session_id,revision:snapshot.revision,snapshot:copy(snapshot),item_results:[],issues:[]});
-function harness() {
+function harness(storage) {
   const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;}},crypto,
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
+  if (storage !== undefined) Object.defineProperty(context.window,'localStorage',{get(){if(storage instanceof Error)throw storage;return storage;}});
   let source=fs.readFileSync('static/takeoffs.js','utf8');
   source=source.replace('  window.CeasefireTakeoffs = {', '  globalThis.audit = {state,accept,command,ensureSession,editableFields,settingsSelectedItems,renderSettingsPanel,applySettings,flushSettings,markSettingsEdited,appearanceOf,snapshotKey,reviewStatus,visibleItems,transferSummary,boundInputDetails,notePdfWarning,documentWarnings,installPdfDiagnostics,releaseDocuments,boundedPdf,destroyPdfResources,pdfPage,discardPdf,recordPdfFailure,areaTraceLimit,transfer,detachSelected,manageLinkedRows,splitSelected,mergeSelected,renderRegister,renderOverlay,selectItem,startExclusion,editAreaBoundary,changeAreaCalibration,setTool,discardEditor,requireFinishedEdits,normalizePhysicalImages,button,creationFields,configureSteelCreation,createDrawnItem,lengthSummary,parsedLengthAddition,editLengthAddition,removeLengthAddition,confirmSelected,itemGroup,registerFilters,setApi(fn){api=fn;},setAsk(fn){ask=fn;},setCommand(fn){command=fn;}};\n  window.CeasefireTakeoffs = {');
   source=source.replace('setApi(fn){api=fn;}', 'renderControlPoints,pointReference,pointTarget,pointRemovalReason,removeControlPoint,planKeydown,handoffPlanWheel,downloadTakeoff,renderPage,drawingPointer,finishTrace,finishTraceFromDoubleClick,changeLength,itemCalibrations,useRectangularDuct,setFinishTrace(fn){finishTrace=fn;},setPdfTools(documentFn,pageFn){pdfDocument=documentFn;pdfPage=pageFn;},setApi(fn){api=fn;}');
@@ -23,6 +24,7 @@ function harness() {
   source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'activateCountTool,defectLocationEvidence,armPhysicalMarker,choosePhysicalDrawing,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'bulkSelectionFields,syncBulkFields,renderItemSettingsActions,drawableItems,renderCountMarkers,askDialog:ask,setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'validatedMarkupDefaults,readMarkupDefaults,newMarkupAppearance,setMarkupDefaults,syncSurfaceDetailsSelection,clearDrawingSelection,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -67,6 +69,45 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Markup defaults validate only the five visual properties and safely ignore corrupt or unavailable storage',()=>{
+    const appearance={stroke_color:'#a020f0',stroke_width:3.75,fill_color:'#00cc88',fill_enabled:false,opacity:.45},saved={version:1,appearance:{...appearance,marker_shape:'diamond',marker_size:44,quantity:99}},writes=[];
+    const storage={getItem(key){assert.equal(key,'ceasefire.takeoff-markup-defaults.v1');return JSON.stringify(saved);},setItem(...args){writes.push(args);}},h=harness(storage),expected={...appearance,stroke_color:'#A020F0',fill_color:'#00CC88'};
+    assert.deepEqual(copy(h.audit.newMarkupAppearance()),expected);const external=h.audit.newMarkupAppearance();external.stroke_width=17;assert.deepEqual(copy(h.audit.newMarkupAppearance()),expected);assert.equal(writes.length,0);
+    for(const altered of [{stroke_color:'red'},{fill_color:'#fff'},{stroke_width:0},{stroke_width:21},{stroke_width:'2'},{opacity:NaN},{opacity:1.01},{fill_enabled:1}])assert.equal(h.audit.validatedMarkupDefaults({...appearance,...altered}),null);
+    for(const value of ['not JSON',JSON.stringify({...saved,version:2}),JSON.stringify({version:1,appearance:{...appearance,opacity:1.2}})])assert.deepEqual(copy(harness({getItem(){return value;}}).audit.newMarkupAppearance()),{});
+    assert.deepEqual(copy(harness(new Error('Storage blocked')).audit.newMarkupAppearance()),{});
+  });
+  await check('Set as default flushes edits, stores visual preference only, and retains an in-window default if persistence is blocked',async()=>{
+    for(const blocked of [false,true]){
+      const writes=[],storage={getItem(){return null;},setItem(key,value){if(blocked)throw new Error('Blocked');writes.push({key,value:JSON.parse(value)});}},h=harness(storage),value=blank();value.items=[{id:'a',mode:'steel',quantity:1,fields:{mark:'A'},appearance:{}}];h.audit.accept(response(value));const dom=attachSettings(h);h.audit.state.selected=new Set(['a']);h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();
+      const editor=h.audit.state.settingsEditor,desired={stroke_color:'#A020F0',stroke_width:3.75,fill_color:'#00CC88',fill_enabled:false,opacity:.45};
+      for(const field of editor.appearance){const key=field.control.name;if(!(key in desired))continue;if(key==='fill_enabled')field.control.checked=desired[key];else field.control.value=String(desired[key]);field.control.events.input();}
+      const held=deferred(),sent=[];h.audit.setCommand(async(op,body)=>{sent.push({op,...copy(body)});await held.promise;Object.assign(h.audit.state.session.snapshot.items[0].appearance,body.changes.appearance);});
+      const setting=h.audit.setMarkupDefaults(editor);await flush();assert.equal(sent.length,1);assert.equal(writes.length,0);held.resolve();await setting;
+      const canonical=copy(h.audit.state.session.snapshot),fingerprint=h.api.projectFingerprint();assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);assert.equal(sent[0].op,'bulk_update');const {fill_enabled,...changedAppearance}=desired;assert.deepEqual(sent[0].changes,{appearance:changedAppearance});
+      assert.equal(writes.length,blocked?0:1);if(!blocked)assert.deepEqual(writes[0],{key:'ceasefire.takeoff-markup-defaults.v1',value:{version:1,appearance:desired}});
+      await h.audit.setMarkupDefaults(h.audit.state.settingsEditor);assert.equal(sent.length,1);assert.equal(h.api.projectFingerprint(),fingerprint);assert.deepEqual(copy(h.audit.state.session.snapshot),canonical);assert.equal(h.audit.state.settingsDirty,false);
+      const stale=editor;h.audit.state.selected.clear();await assert.rejects(h.audit.setMarkupDefaults(stale),/selection changed/);assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);
+    }
+  });
+  await check('Fresh Steel Duct Wall and Slab creations inherit defaults without changing existing items or source precision',async()=>{
+    const desired={stroke_color:'#A020F0',stroke_width:3.75,fill_color:'#00CC88',fill_enabled:true,opacity:.45};
+    for(const mode of ['steel','duct','wall','slab']){
+      const h=harness({getItem(){return JSON.stringify({version:1,appearance:desired});}}),value=blank();value.items=[{id:'old',mode,quantity:1,fields:{mark:'Old'},appearance:{stroke_color:'#CC0000'}}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.target={value:mode==='duct'?'ductwork':'steel_vermiculite'};dom.ui.viewport={dataset:{}};h.audit.state.mode=mode;h.audit.setSelectionRenderer(()=>{});
+      const geometry={kind:['wall','slab'].includes(mode)?'polygon':'polyline',document_id:'retained-doc',page:3,points:[[1.123456789,2],[20,2],[20,30]],...(['wall','slab'].includes(mode)?{exclusions:[]}:{})},measurement={method:'cited',length_m:6.123456789,citation:'Exact source dimension'},evidence=[{document_id:'retained-doc',page:3,note:'Exact source'}];let created;
+      h.audit.setAsk(async()=>({mark:'New',quantity:['wall','slab'].includes(mode)?'1':1}));h.audit.setCommand(async(op,body)=>{assert.equal(op,'create_item');created=copy(body.item);});await h.audit.createDrawnItem(measurement,geometry,evidence);
+      assert.deepEqual(created.appearance,desired);assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.deepEqual(copy(h.audit.state.session.snapshot),value);assert.deepEqual(copy(h.audit.appearanceOf(value.items[0])).stroke_color,'#CC0000');
+    }
+  });
+  await check('Drawing body selection opens settings in all four modes while silent control selection and refresh preserve a closed pane',async()=>{
+    for(const mode of ['steel','duct','wall','slab']){
+      const h=harness(),value=blank();value.items=[{id:'a',mode,quantity:1,fields:{mark:'A'}}];h.audit.accept(response(value));attachSettings(h,mode==='duct'?'ductwork':'steel_vermiculite');h.audit.state.mode=mode;h.audit.state.tool='select';h.audit.setSelectionRenderer(()=>h.audit.syncSurfaceDetailsSelection());
+      await h.audit.selectItem('a',false,false,true);assert.equal(h.audit.state.settingsOpen,true);assert.deepEqual([...h.audit.state.selected],['a']);
+      h.audit.state.settingsOpen=false;await h.audit.selectItem('a',false,false,false,false);h.audit.syncSurfaceDetailsSelection();assert.equal(h.audit.state.settingsOpen,false);assert.deepEqual([...h.audit.state.selected],['a']);
+      await h.audit.selectItem('a',false,false,true);assert.equal(h.audit.state.settingsOpen,true);
+      if(!h.audit.state.selected.size)await h.audit.selectItem('a',false,false,true);await h.audit.clearDrawingSelection();assert.equal(h.audit.state.settingsOpen,false);assert.equal(h.audit.state.selected.size,0);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
+    }
+  });
   await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and sources above the viewer',()=>{
     const h=harness(),dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();
     const ui=h.audit.state.ui,all=dom.all(root),find=name=>all.find(el=>el.classList.contains(name)),viewer=find('takeoff-viewer'),top=find('takeoff-viewer-top'),bottom=find('takeoff-page-controls'),search=find('takeoff-search-controls');

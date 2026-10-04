@@ -147,25 +147,26 @@ def _field_names(kind, parents):
 
 
 def entity_references(entity):
-    """All current retained source locators, including one optional count mark."""
-    return [*entity['evidence'], *([entity['marker']] if entity.get('marker') else [])]
+    """Retained evidence plus separate visual marker/annotation source locators."""
+    return [*entity['evidence'], *([entity['marker']] if entity.get('marker') else []),
+            *([entity['annotation']] if entity.get('annotation') else [])]
 
 
-def _marker(value):
+def _marker(value, label='Barrier marker'):
     if value is None:
         return
     keys = {'document_id', 'document_sha256', 'page', 'point'}
-    _object(value, keys | {'callout'}, keys, 'Barrier marker')
+    _object(value, keys | {'callout'}, keys, label)
     _id(value['document_id'], 'Marker document ID')
     _hash(value['document_sha256'], 'Marker document hash')
     _number(value['page'], 'Marker page', minimum=1, integer=True)
     if not isinstance(value['point'], list) or len(value['point']) != 2:
-        raise ValidationError('Barrier marker requires one PDF coordinate pair.')
+        raise ValidationError(f'{label} requires one PDF coordinate pair.')
     for coordinate in value['point']:
         _number(coordinate, 'Marker coordinate')
     if 'callout' in value:
         layout = value['callout']
-        _object(layout, {'offset', 'width', 'height'}, {'offset', 'width', 'height'}, 'Barrier callout layout')
+        _object(layout, {'offset', 'width', 'height'}, {'offset', 'width', 'height'}, label + ' callout layout')
         if not isinstance(layout['offset'], list) or len(layout['offset']) != 2:
             raise ValidationError('Callout offset requires a PDF x/y coordinate pair.')
         for coordinate in layout['offset']:
@@ -225,6 +226,8 @@ def _properties(entity, kind, parents):
     fields = _object(entity['fields'], _field_names(kind, parents), (), 'Physical fields')
     if 'marker' in entity:
         _marker(entity['marker'])
+    if 'annotation' in entity:
+        _marker(entity['annotation'], 'Defect source annotation')
     for key, value in fields.items():
         if key in DIMENSIONS:
             _number(value, key, minimum=0)
@@ -270,7 +273,7 @@ def validate_graph(graph, *, copy_result=True):
                 keys |= {'display_id'}
             if kind == 'service':
                 keys |= {'quantity'}
-            optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else set()
+            optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set()
             _object(entity, keys | optional, keys, 'Physical entity')
             if graph['version'] in (2, 3):
                 ordinal = _display_number(entity['display_id'], kind)
@@ -395,7 +398,7 @@ def _command(graph, command):
             keys.add(parents[kind][1])
         if kind == 'service':
             keys.add('quantity')
-        optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else set()
+        optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set()
         source = _object(command['entity'], keys | optional, keys, 'New physical entity')
         identifier = _id(source['id'])
         if kind in parents:
@@ -424,6 +427,8 @@ def _command(graph, command):
             allowed = {'fields', 'evidence', 'uncertainty'} | ({'quantity'} if kind == 'service' else set())
             if kind == 'barrier' and graph['version'] in (2, 3):
                 allowed.add('marker')
+            if kind == 'defect' and graph['version'] == 2:
+                allowed.add('annotation')
             changes = _object(command['changes'], allowed, (), 'Physical property changes')
             if not changes:
                 raise ValidationError('A physical update requires explicit changes.')

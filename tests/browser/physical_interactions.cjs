@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Native browser gestures use synthetic PDFs and disposable projects only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -326,9 +327,9 @@ let currentScope = 'defect_reports';
     console.log(`PASS: Focused layout and keyboard review; source PDF and calculators unchanged. Evidence: ${output}`); return;
   }
   await snapshot(); const beforeSave = structuredClone(state);
-  await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, beforeSave.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeSave.service_plans);
-  await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
+  await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await snapshot(); assert.deepEqual(state.physical, beforeSave.physical); assert.deepEqual(state.service_plans, beforeSave.service_plans);
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorsBefore); assert.equal(sha(info.fixture), sourceBefore); assert.deepEqual(errors, []); assert.deepEqual(caughtFindErrors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   evidence.savedReopened = true; evidence.retained = retained; fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors, caughtFindErrors, vendorFindProbes }, null, 2));

@@ -1,6 +1,8 @@
 // Physical hierarchy and real component event tests. A separate browser journey
 // proves rendered PDF/image interaction; these checks do not claim visual QA.
 const assert = require('node:assert/strict');
+const fs = require('node:fs'), vm = require('node:vm');
+const geometry = require('../static/takeoff-geometry.js');
 const physical = require('../static/takeoff-physical.js');
 const uuid = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -25,7 +27,7 @@ function documentHarness(){
     append(...values){for(const value of values){value.parentElement=this;this.children.push(value);}}
     replaceChildren(...values){this.children=[];this._text='';this.append(...values);}
     remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(child=>child!==this);this.parentElement=null;}
-    setAttribute(key,value){this.attributes[key]=String(value);}
+    setAttribute(key,value){this.attributes[key]=String(value);if(key==='class')this.className=String(value);}
     addEventListener(name,listener){(this.events[name]||=[]).push(listener);}
     getBoundingClientRect(){return {left:10,bottom:20,width:260,height:300};}
     focus(){doc.activeElement=this;}
@@ -63,6 +65,15 @@ function component(initial=graph(),extra={}){
   controller=physical.mount(dom.container,bridge);controller.render(copy(current));
   const all=()=>[...dom.all(dom.container),...dom.all(dom.container.ownerDocument.body),...(dom.inspectorHost?dom.all(dom.inspectorHost):[])],button=label=>{const control=all().find(element=>element.tagName==='BUTTON'&&(element.textContent===label||element.attributes['aria-label']===label));assert.ok(control,`Missing button: ${label}`);return control;};
   return {dom,controller,calls,answers,current,bridge,all,button,async click(label){button(label).emit('click');await flush();},async select(id){const row=all().find(element=>element.dataset.physicalId===uuid(id));assert.ok(row);row.children[0].children[0].emit('change');await flush();},input(label){const control=all().find(element=>element.attributes['aria-label']===label);assert.ok(control,`Missing field: ${label}`);return control;}};
+}
+function overlayHarness(value,controller){
+  const dom=documentHarness(),document=dom.container.ownerDocument,create=document.createElement;
+  document.getElementById=()=>null;document.createElement=tag=>{const el=create(tag);if(tag==='canvas')el.getContext=()=>({font:'9px Arial',measureText:text=>({width:String(text).length*5})});return el;};
+  const context={window:{CeasefireTakeoffGeometry:geometry},document,crypto:require('node:crypto'),setTimeout,clearTimeout,console};vm.createContext(context);
+  const source=fs.readFileSync('static/takeoffs.js','utf8').replace('  window.CeasefireTakeoffs = {','  globalThis.audit={state,physicalDrawingLocator,physicalMarkerReference,physicalMarkerTarget,renderPhysicalOverlay};\n  window.CeasefireTakeoffs = {');vm.runInContext(source,context);
+  const audit=context.audit,status=create('p'),overlay=create('svg');Object.assign(audit.state,{session:{session_id:'test-session',snapshot:snapshot(value)},mode:'physical',physicalScope:'defect_reports',physicalUI:controller,document:uuid(80),page:1,tool:'select',viewport:{width:500,height:500,transform:[1,0,0,-1,0,500]},physicalVisible:new Set(value.defects.map(entity=>entity.id)),ui:{physicalOverlayStatus:status}});
+  audit.state.session.snapshot.documents[0].pages=[{page:1,view:[0,0,500,500],user_unit:1},{page:2,view:[0,0,500,500],user_unit:1}];
+  return {audit,dom,overlay,status,all:()=>dom.all(overlay),render(){overlay.replaceChildren();audit.renderPhysicalOverlay(overlay);}};
 }
 let passed=0;
 async function check(label,test){await test();passed++;console.log(`ok - ${label}`);}
@@ -444,8 +455,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Placed Defect creation binds its copied source annotation without creating a barrier or quantity',async()=>{
     const h=component();await flush();const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,region:[[10,20],[11,20],[11,21],[10,21]],note:'Defect source-location annotation at PDF point [10.5,20.5].'},before=copy(h.current.physical);
-    h.answers.push({label:'Placed defect',uncertainty_state:'not_assessed'});const work=h.controller.create('defect',undefined,undefined,reference);reference.note='Caller changed';const id=await work;
-    const created=h.current.physical.defects.find(entity=>entity.id===id);assert.equal(created.evidence.length,1);assert.notEqual(created.evidence[0].note,reference.note);assert.deepEqual(created.evidence[0].region,reference.region);assert.equal(created.marker,undefined);assert.equal(created.quantity,undefined);assert.deepEqual(h.current.physical.barriers,before.barriers);assert.deepEqual(h.current.physical.services,before.services);assert.match(h.calls.asks[0].text,/Source page 2/);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);h.controller.destroy();
+    const annotation={document_id:reference.document_id,document_sha256:reference.document_sha256,page:2,point:[10.123456789,20.987654321]},originalAnnotation=copy(annotation);
+    h.answers.push({label:'Placed defect',uncertainty_state:'not_assessed'});const work=h.controller.create('defect',undefined,undefined,reference,undefined,annotation);reference.note='Caller changed';annotation.point[0]=99;const id=await work;
+    const created=h.current.physical.defects.find(entity=>entity.id===id);assert.equal(created.evidence.length,1);assert.notEqual(created.evidence[0].note,reference.note);assert.deepEqual(created.evidence[0].region,reference.region);assert.deepEqual(created.annotation,originalAnnotation);assert.equal(created.marker,undefined);assert.equal(created.quantity,undefined);assert.deepEqual(h.current.physical.barriers,before.barriers);assert.deepEqual(h.current.physical.services,before.services);assert.match(h.calls.asks[0].text,/Source page 2/);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);h.controller.destroy();
   });
   await check('Defect source changes during its form or review prevent physical apply',async()=>{
     for(const stage of ['form','preview','review']){
@@ -557,6 +569,37 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   });
   await check('Item Details Add service shares the compact register Add Substrate button class',async()=>{
     const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));const service=h.button('Add service in Item Details'),substrate=h.button('Add substrate');assert.equal(service.textContent,'+');assert.equal(substrate.textContent,'+');for(const name of substrate.className.split(/\s+/))assert.ok(service.className.split(/\s+/).includes(name));assert.equal(service.title,'Add service to B-0001');h.controller.destroy();
+  });
+  await check('Root Defect callouts use explicit fields and active record counts without aggregating quantities or child ratings',async()=>{
+    const value=graph();value.defects[0].fields.location='Level 1';value.barriers[0].fields.frl='custom child rating';value.services[0].quantity=700;value.services[1].deleted=true;
+    const h=component(value);await flush();assert.equal(h.controller.summary(uuid(2)),'D-0001 · Defect 01 · Level 1 · FRL -/120/120\n2 substrates · 1 services');
+    const before=copy(h.current.physical);await h.controller.selectDrawing(uuid(2),false,false,false);assert.equal(h.controller.inspectedId(),uuid(2));assert.deepEqual(h.current.physical,before);
+    delete h.current.physical.defects[0].fields.frl;h.controller.render(copy(h.current));assert.equal(h.controller.summary(uuid(2)),'D-0001 · Defect 01 · Level 1\n2 substrates · 1 services');assert.ok(!h.controller.summary(uuid(2)).includes('700'));assert.ok(!h.controller.summary(uuid(2)).includes('child rating'));h.controller.destroy();
+  });
+  await check('Defect annotation layout edits flush fields and preserve exact evidence and every child without review prompts',async()=>{
+    const value=graph(),reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[11,20],[11,21],[10,21]],note:'Original evidence'};value.defects[0].evidence=[reference];
+    const h=component(value);await flush();await h.controller.selectDrawing(uuid(2));const before=copy(h.current.physical),notes=h.input('Notes');notes.value='Saved before moving callout';notes.emit('input');
+    const annotation={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[10.5,20.5],callout:{offset:[13.123456789,-7.987654321],width:90.25,height:42.75}};
+    await h.controller.setAnnotation(uuid(2),annotation);assert.deepEqual(h.current.physical.defects[0].annotation,annotation);assert.equal(h.current.physical.defects[0].fields.notes,'Saved before moving callout');assert.deepEqual(h.current.physical.defects[0].evidence,before.defects[0].evidence);assert.deepEqual(h.current.physical.barriers,before.barriers);assert.deepEqual(h.current.physical.services,before.services);assert.equal(h.calls.confirmations.length,0);assert.equal(h.current.physical.defects[0].marker,undefined);assert.equal(h.current.physical.defects[0].quantity,undefined);
+    assert.equal(await h.controller.setAnnotation(uuid(2),annotation),false);await assert.rejects(h.controller.setAnnotation(uuid(1),annotation),/active defect/);h.controller.destroy();
+  });
+  await check('Defect source annotations reject cross-page creation and keep callout versus marker pane choices',async()=>{
+    const changes=[],h=component(graph(),{selectionChanged:change=>changes.push(change)});await flush();const source={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[0,0],[1,0],[1,1],[0,1]]},annotation={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[0.5,0.5]};
+    await assert.rejects(h.controller.create('defect',undefined,undefined,source,undefined,annotation),/different source page/);assert.equal(h.calls.asks.length,0);assert.equal(h.calls.previews.length,0);
+    await h.controller.selectDrawing(uuid(2),false,false,false);assert.equal(changes.at(-1).openDetails,false);await h.controller.selectDrawing(uuid(2));assert.equal(changes.at(-1).openDetails,true);h.controller.destroy();
+  });
+  await check('Legacy multi-page Defects share one deterministic original-region anchor with export and retain all source evidence',async()=>{
+    const value=graph();value.defects[0].evidence=[{document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,region:[[40,50],[60,50],[60,70],[40,70]]},{document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[12,20],[12,22],[10,22]]}];const before=copy(value),h=component(value);await flush();const drawing=overlayHarness(value,h.controller);
+    for(const page of [1,2]){drawing.audit.state.page=page;const locator=drawing.audit.physicalDrawingLocator(value.defects[0]);assert.deepEqual(copy(locator),{document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,point:[50,60]});drawing.render();assert.equal(drawing.all().filter(el=>el.className.includes('takeoff-physical-callout-frame')).length,page===2?1:0);}
+    const callout=drawing.all().find(el=>el.className==='takeoff-physical-callout');assert.ok(callout);assert.match(callout.textContent,/D-0001/);assert.match(callout.textContent,/2 substrates · 2 services/);assert.equal(callout.attributes.role,'button');assert.equal(callout.attributes.tabindex,'0');assert.deepEqual(value,before);assert.equal(value.defects[0].annotation,undefined);h.controller.destroy();
+  });
+  await check('Defect framed callouts use the shared resize handles and reject changed annotation or scope references',async()=>{
+    const value=graph();value.defects[0].annotation={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[120,300],callout:{offset:[50,-40],width:180,height:65}};const before=copy(value),h=component(value);await flush();const drawing=overlayHarness(value,h.controller);drawing.audit.state.physicalSelected.add(uuid(2));drawing.render();
+    assert.equal(drawing.all().filter(el=>el.className==='takeoff-physical-callout-handle').length,4);const marker=drawing.all().find(el=>el.className==='takeoff-physical-marker-hit');assert.match(marker.attributes['aria-label'],/^Source annotation D-0001/);const ref=drawing.audit.physicalMarkerReference(value.defects[0]);assert.equal(ref.kind,'defect');assert.equal(drawing.audit.physicalMarkerTarget(ref).id,uuid(2));drawing.audit.state.physicalScope='service_plans';assert.throws(()=>drawing.audit.physicalMarkerTarget(ref),/changed/);drawing.audit.state.physicalScope='defect_reports';drawing.audit.state.session.snapshot.physical.defects[0].annotation.point[0]++;assert.throws(()=>drawing.audit.physicalMarkerTarget(ref),/changed/);drawing.audit.state.session.snapshot.physical.defects[0].annotation.point[0]--;assert.deepEqual(value,before);h.controller.destroy();
+  });
+  await check('Removing a legacy evidence-derived callout records explicit null and preserves its original source association',async()=>{
+    const value=graph(),source={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[12,20],[12,22],[10,22]]};value.defects[0].evidence=[source];const h=component(value);await flush();const drawing=overlayHarness(value,h.controller);drawing.render();assert.equal(drawing.all().filter(el=>el.className==='takeoff-physical-callout-frame').length,1);
+    await h.controller.setAnnotation(uuid(2),null);assert.equal(h.current.physical.defects[0].annotation,null);assert.deepEqual(h.calls.previews.at(-1),[{op:'update',entity_id:uuid(2),changes:{annotation:null}}]);assert.deepEqual(h.current.physical.defects[0].evidence,[source]);drawing.audit.state.session.snapshot.physical=copy(h.current.physical);drawing.render();assert.equal(drawing.all().filter(el=>el.className==='takeoff-physical-callout-frame').length,0);assert.equal(await h.controller.setAnnotation(uuid(2),null),false);assert.equal(h.calls.applied.length,1);h.controller.destroy();
   });
   console.log(`${passed} physical draft UI checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

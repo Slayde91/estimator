@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 'use strict';
 // Real selection, auto-save and movement on disposable synthetic PDF evidence.
 const { chromium, expect } = require('@playwright/test');
@@ -126,8 +127,8 @@ async function drawSurface(mode, mark, startX) {
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   const beforeSave = await snapshot(), saving = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
-  await page.getByRole('button', { name: 'Save As', exact: true }).click(); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await page.getByRole('button', { name: 'Load', exact: true }).click(); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await clickProjectControl(page, 'Save As'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, beforeSave.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   assert.deepEqual(errors, []); await Promise.all(assetTasks);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, assets, commands, savedItems: beforeSave.items, calculatorInputsUnchanged: true }, null, 2));

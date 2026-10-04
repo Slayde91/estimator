@@ -60,6 +60,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser/pdf_render_gate.cjs
+      - run: npm run test:project-controls
+      - run: npm run test:markup-selection-defaults
+      - run: npm run test:defect-callouts
       - run: npm run test:takeoffs-browser
       - run: npm run test:takeoffs-lineage
       - run: npm run test:takeoffs-capacity

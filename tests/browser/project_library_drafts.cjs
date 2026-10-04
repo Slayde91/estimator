@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 // Rendered project-only library preservation. Every file, database and dialog
 // target is owned by the disposable synthetic fixture below.
 const { chromium, expect } = require('@playwright/test');
@@ -31,7 +32,7 @@ async function reply(action, pathname) {
   await action(); const response = await pending, body = await response.json(); assert.equal(response.status(), 200, JSON.stringify(body)); return body;
 }
 async function load(seed = false) {
-  choose({ seed }); await reply(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open');
+  choose({ seed }); await reply(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
 }
@@ -63,7 +64,7 @@ async function openProjectCopy() {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`);
   assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
-  await expect(page.locator('#project-tools')).toBeVisible();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   // Bootstrap exposes project tools before the initial Firestopping draft has
   // finished loading. Let it settle before capturing the first Load revision.
   await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; });
@@ -100,7 +101,7 @@ async function openProjectCopy() {
   // Save immediately after a fresh edit: no Recalculate button or manual delay
   // is required to collect the pending library draft.
   await description.fill('Project-only edited library item saved immediately');
-  const firstSave = await reply(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as');
+  const firstSave = await reply(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await expect(page.locator('#library-editor-save')).toHaveText('Keep in project draft');
   const first = JSON.parse(fs.readFileSync(info.project, 'utf8')), copy = first.library_drafts.records[0];
@@ -120,7 +121,7 @@ async function openProjectCopy() {
   console.log('Top Save As captured shared pricing and library edits only in this project; shared database and independent drafts remain unchanged.');
 
   await quantity.fill('4.875'); await quantity.press('Tab');
-  await reply(() => page.locator('#save-current-project').click(), '/api/project/save');
+  await reply(() => clickProjectControl(page, 'Save'), '/api/project/save');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const second = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   assert.equal(second.library_drafts.records[0].draft.rows[0].inputs.O, 4.875);

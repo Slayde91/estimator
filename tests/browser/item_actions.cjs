@@ -1,3 +1,4 @@
+const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real item actions, calculator leases and saved Undo on disposable source data.
 const { chromium, expect } = require('@playwright/test');
@@ -76,10 +77,10 @@ async function deleteItem(id, status = 200) {
   return response(() => dialog('Delete item?', {}, 'Delete item'), '/linked-delete', status);
 }
 async function saveLoad(info) {
-  await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
-  await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open');
+  await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await returnToTakeoffs(); return saved;
@@ -199,9 +200,9 @@ function clearedExpected(original, bindings) {
       return { takeoffs: attempt(() => window.CeasefireTakeoffs.projectSnapshot()), calculators: attempt(() => window.CeasefireCalculators.projectSnapshot()) };
     });
     assert.match(guards.takeoffs, /Finish|Wait/); assert.match(guards.calculators, /Finish|Wait/);
-    const saveButton = page.getByRole('button', { name: 'Save As', exact: true });
+    const saveButton = page.locator('#save-project');
     if (await saveButton.isEnabled()) {
-      await saveButton.click(); await expect(page.locator('#app-message')).toContainText(/Finish|Wait/);
+      await clickProjectControl(page, 'Save As'); await expect(page.locator('#app-message')).toContainText(/Finish|Wait/);
     }
     assert.equal(saveAttempts, 0, 'Project saving cannot serialize either side while a linked outcome is uncertain');
     const serverState = await page.evaluate(async () => (await fetch(`/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`)).json());
@@ -215,6 +216,10 @@ function clearedExpected(original, bindings) {
     await expect(page.getByRole('button', { name: 'Trace length', exact: true })).toBeEnabled();
     evidence.repeatedUnreadableResponseLocksUntilExplicitRecovery = true;
   } finally { await page.unroute('**/linked-delete'); page.off('request', saveWatcher); }
+  // Returning to Takeoffs is blocked while the linked outcome is uncertain.
+  // Reopen it after recovery before continuing the native drawing checks.
+  if (await page.locator('.nav-button[aria-current="page"]').getAttribute('data-view') !== 'takeoffs') await returnToTakeoffs();
+  else await fit(); // A render begun before recovery is correctly stale; render the recovered revision.
   assert.deepEqual(await calculators(), clearedExpected(alreadyCleared, bindings));
   await response(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), '/linked-undo');
   assert.deepEqual(await calculators(), alreadyCleared); evidence.alreadyRemovedRowSafe = true;

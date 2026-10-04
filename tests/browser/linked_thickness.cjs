@@ -19,7 +19,18 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], evidence = {}, requests = [];
 const idle = () => expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true');
-const snapshot = () => page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot());
+async function snapshot() {
+  // A reopened drawing can still be recording its render proof after derived
+  // thickness appears. Capture one committed snapshot, without editing drafts.
+  const captured = await page.waitForFunction(() => {
+    try { return window.CeasefireTakeoffs.projectSnapshot(); }
+    catch (error) {
+      if (error.message === 'Finish the current takeoff operation before saving.') return false;
+      throw error;
+    }
+  });
+  try { return await captured.jsonValue(); } finally { await captured.dispose(); }
+}
 const calculators = () => page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
 const row = id => page.locator(`tr[data-item-id="${id}"]`);
 const thickness = id => page.locator(`td[data-thickness-item-id="${id}"]`);

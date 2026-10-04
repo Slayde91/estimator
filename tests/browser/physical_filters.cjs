@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Column filters and automatic editing use an isolated fixture and owned records.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -37,7 +38,7 @@ async function seed(scope) {
   const applyReply = await page.request.post(`${origin}/api/takeoffs/sessions/${session}/physical/apply`, { data: { scope, expected_revision: preview.revision, request_id: randomUUID(), preview_id: preview.preview_id } }); assert.equal(applyReply.status(), 200, await applyReply.text());
   const applied = await applyReply.json(); assert.ok(applied.snapshot[scope === 'service_plans' ? 'service_plans' : 'physical'].barriers.length);
   await page.evaluate(async value => { const t = window.CeasefireTakeoffs; t.applyProject(await t.prepareProject(value, t.sessionId())); await t.open(); }, applied.snapshot); await idle();
-  await page.locator('[data-mode=physical]').click(); await page.getByRole('tab', { name: scope === 'service_plans' ? 'Service Plans' : 'Defect Reports', exact: true }).click(); await idle(); return ids;
+  await chooseTakeoff(page, 'physical'); await chooseTakeoff(page, scope === 'service_plans' ? 'Service Plans' : 'Defect Reports'); await idle(); return ids;
 }
 async function menu(label) { await page.getByRole('button', { name: `Filter ${label}`, exact: true }).click(); const dialog = page.getByRole('dialog'); await expect(dialog.getByRole('heading', { name: `Filter ${label}`, exact: true })).toBeVisible(); return dialog; }
 async function setFilter(label, values) { const dialog = await menu(label); await dialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck(); for (const value of values) await dialog.getByRole('checkbox', { name: value || '(Blanks)', exact: true }).check(); await dialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); await expect(dialog).not.toBeVisible(); }
@@ -47,9 +48,9 @@ async function matches(ids) { const expected = [...ids].sort(); await expect.pol
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765); origin = `http://127.0.0.1:${info.port}`; browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) requests.push(request.postDataJSON()); }); await page.goto(origin); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
-  const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode=physical]').click(); await idle();
+  const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   for (const scope of ['defect_reports', 'service_plans']) {
-    await page.getByRole('tab', { name: scope === 'service_plans' ? 'Service Plans' : 'Defect Reports', exact: true }).click(); await idle(); const ids = await seed(scope);
+    await chooseTakeoff(page, scope === 'service_plans' ? 'Service Plans' : 'Defect Reports'); await idle(); const ids = await seed(scope);
     const cases = [['State / uncertainty', 'Unapproved draft · Missing evidence', [ids.s2]], ['Location', 'Level01', [ids.b1, ids.s1, ids.s2]], ['FRL', '-/90/90', scope === 'service_plans' ? [ids.b2, ids.s3] : [ids.d2, ids.b2, ids.s3]], ['Substrate', 'Concrete/masonry floor', [ids.b2, ids.s3]], ['Orientation', 'Vertical', [ids.b1, ids.s1, ids.s2]], ['Category', 'Mechanical', [ids.s1, ids.s3]], ['Service type', 'D2 Comms Cables', [ids.s2]]];
     for (const [label, value, expected] of cases) { await setFilter(label, [value]); await matches(expected); assert.equal(await page.getByRole('button', { name: `Filter ${label}`, exact: true }).getAttribute('aria-pressed'), 'true'); await reset(label); }
     await setFilter('Category', ['Mechanical', 'Electrical & Communications']); await matches([ids.s1, ids.s2, ids.s3]); await reset('Category');

@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real plan layout, control-point movement and surface-label acceptance on disposable evidence.
@@ -111,7 +112,7 @@ async function layout(width) {
   // Closed polygon previews and server-bound labels exist for both area modes.
   const areaRecords = [];
   for (const mode of ['wall', 'slab']) {
-    await page.locator(`[data-mode="${mode}"]`).click(); await fit(); await page.getByRole('button', { name: 'Trace surface', exact: true }).click(); await points([[100, 100], [400, 100], [400, 400], [100, 400]]);
+    await chooseTakeoff(page, mode); await fit(); await page.getByRole('button', { name: 'Trace surface', exact: true }).click(); await points([[100, 100], [400, 100], [400, 400], [100, 400]]);
     const previewLabel = page.locator('.takeoff-area-preview'); await expect(previewLabel).toContainText('m²'); const previewArea = Number((await previewLabel.textContent()).replace(/,/g, '').match(/\d+(?:\.\d+)?/)[0]);
     const outline = page.locator('polygon.takeoff-pending,path.takeoff-pending,polyline.takeoff-pending'); const closed = await outline.evaluate(el => el.tagName.toLowerCase() === 'polygon' || /z\s*$/i.test(el.getAttribute('d') || '') || el.points?.numberOfItems > 3 && el.points.getItem(0).x === el.points.getItem(el.points.numberOfItems - 1).x && el.points.getItem(0).y === el.points.getItem(el.points.numberOfItems - 1).y); assert.equal(closed, true, 'Live surface preview must include its closing boundary');
     const previewBox = await previewLabel.boundingBox(), outlineBox = await outline.boundingBox(); assert.ok(previewBox.x >= outlineBox.x && previewBox.y >= outlineBox.y && previewBox.x + previewBox.width <= outlineBox.x + outlineBox.width && previewBox.y + previewBox.height <= outlineBox.y + outlineBox.height, 'Area preview stays inside the traced rectangle');
@@ -130,10 +131,10 @@ async function layout(width) {
     }
     areaRecords.push(item(state, area.id));
   }
-  await page.locator('[data-mode="duct"]').click(); await fit(); await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await points([[150, 200], [300, 200]]); await finish();
+  await chooseTakeoff(page, 'duct'); await fit(); await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await points([[150, 200], [300, 200]]); await finish();
   state = await command(() => dialog('Add duct object', { 'Item': 'DRAG-DUCT', 'Count/QTY': 1 }, 'Add item'), 'create_item'); const duct = state.snapshot.items.find(value => value.mode === 'duct'); await select(duct.id);
   state = await command(() => drag(duct.id, 1, [350, 225]), 'update_item'); assert.equal(item(state, duct.id).fields.shape, 'rectangular'); assert.deepEqual(item(state, duct.id).geometry.points[0], duct.geometry.points[0]);
-  await page.locator('[data-mode="wall"]').click(); await select(areaRecords[0].id); await fit();
+  await chooseTakeoff(page, 'wall'); await select(areaRecords[0].id); await fit();
   for (const width of [1600, 900, 620]) { await layout(width); await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180)); await page.screenshot({ path: path.join(output, `layout-${width}.png`) }); }
   await page.setViewportSize({ width: 1600, height: 1100 });
   await page.getByLabel('Register position', { exact: true }).selectOption('beside'); const besidePlan = await page.locator('.takeoff-viewport').boundingBox(), besideNav = await page.getByLabel('Drawing navigation', { exact: true }).boundingBox(), besideRegister = await page.locator('.takeoff-register').boundingBox(); assert.ok(besideNav.y >= besidePlan.y && besideNav.y + besideNav.height < besidePlan.y + besidePlan.height); assert.ok(besideRegister.x >= besidePlan.x + besidePlan.width); evidence.beside = { plan: besidePlan, navigation: besideNav, register: besideRegister }; await page.screenshot({ path: path.join(output, 'layout-beside-1600.png') }); await page.getByLabel('Register position', { exact: true }).selectOption('below');

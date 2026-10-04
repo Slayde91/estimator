@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Native Chromium gestures against a disposable server and synthetic PDF only.
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -65,13 +66,13 @@ async function scaleGeometry(mode, width) {
   for (const width of [1600, 1146, 825, 390]) {
     await page.setViewportSize({ width, height: 1100 });
     for (const mode of ['STEEL', 'DUCT', 'WALLS', 'SLABS', 'PENETRATIONS']) {
-      await page.getByRole('tab', { name: mode, exact: true }).click(); await scaleGeometry(mode, width);
+      await chooseTakeoff(page, mode); await scaleGeometry(mode, width);
       if (mode === 'PENETRATIONS') {
-        await page.getByRole('tab', { name: 'Service Plans', exact: true }).click(); await scaleGeometry('Service Plans', width);
-        await page.getByRole('tab', { name: 'Defect Reports', exact: true }).click();
+        await chooseTakeoff(page, 'Service Plans'); await scaleGeometry('Service Plans', width);
+        await chooseTakeoff(page, 'Defect Reports');
       }
     }
-    await page.getByRole('tab', { name: 'STEEL', exact: true }).click();
+    await chooseTakeoff(page, 'STEEL');
     await page.getByRole('button', { name: 'Settings', exact: true }).click(); await scaleGeometry('STEEL/settings', width);
     await page.getByRole('button', { name: 'Close settings', exact: true }).click();
     await page.screenshot({ path: path.join(output, `scale-overlay-${width}.png`) });

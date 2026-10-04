@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
@@ -139,7 +140,7 @@ async function fitCurrentDrawing(name) {
   assert.ok(Math.abs(state.item_results.find(item => item.id === merged.id).total_length_m - 30) < .05);
   await screenshot('reunited-steel-members.png');
   await page.getByLabel('Filter register', { exact: true }).fill('');
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await fitCurrentDrawing('synthetic-drawings.pdf');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 190 / 595], [500 / 842, 1 - 190 / 595]]);

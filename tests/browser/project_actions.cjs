@@ -1,7 +1,6 @@
 const { expect } = require('@playwright/test');
 
-// Project actions live on Projects. Use the same navigation as the user, and
-// retain the originating workspace after Save so its existing assertions apply.
+// New and Load live on Projects; saves are available in the application header.
 async function openProjectTools(page) {
   const previous = await page.locator('.nav-button[aria-current="page"]').getAttribute('data-view');
   if (previous !== 'quotes') {
@@ -18,8 +17,12 @@ async function openProjectTools(page) {
 }
 
 async function clickProjectControl(page, name) {
+  if (name === 'Save' || name === 'Save As') {
+    await page.locator('#header-project-actions').getByRole('button', { name, exact: true }).click();
+    return;
+  }
   const previous = await openProjectTools(page);
-  await page.locator('#project-tools').getByRole('button', { name, exact: true }).click();
+  await page.locator('.project-workspace-actions').getByRole('button', { name, exact: true }).click();
   // Do not wait for a save response here: failure/held-response tests deliberately
   // test the UI before a response exists. Load keeps its review dialog in place.
   if (name !== 'Load' && previous && previous !== 'quotes') {

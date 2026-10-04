@@ -1,3 +1,4 @@
+const { chooseTakeoff, chooseLibrary } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Public selectors and saved legacy descriptions on disposable synthetic storage.
@@ -70,7 +71,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); await load(true);
   const databaseBefore = protectedDatabase(), sharedBefore = await api(`/api/libraries/penetration/${info.item_id}/edit`);
 
-  await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await page.locator('[data-library-kind=technical]').click();
+  await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await chooseLibrary(page, 'technical');
   const technical = page.locator('#library-technical [data-library-filter=services]'); evidence.technicalOptions = await options(technical);
   await technical.selectOption('HDPE pipe'); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(1); await expect(page.locator('#library-technical [data-library-record]')).toHaveAttribute('data-library-record', 'report-a-v1');
   await technical.selectOption('PEX pipe'); await expect(page.locator('#library-technical [data-library-record]')).toHaveCount(0);
@@ -82,7 +83,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   }
   await page.screenshot({ path: path.join(output, 'technical-services.png') });
 
-  await page.locator('[data-library-kind=penetration]').click(); await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
+  await chooseLibrary(page, 'penetration'); await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
   const libraryService = page.locator('[data-library-editor-field=K]'); evidence.libraryOptions = await options(libraryService, 'Copper service'); assert.equal(evidence.libraryOptions.at(-1).disabled, true);
   const libraryDraft = await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()); await libraryService.focus(); await libraryService.press('Tab'); assert.equal(await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()), libraryDraft);
   await page.screenshot({ path: path.join(output, 'library-saved-service.png') }); await page.locator('#library-editor-cancel').click();
@@ -92,7 +93,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop.status().busy)).toBe(false);
   assert.equal(await page.evaluate(() => window.CeasefirePenetrations.projectSnapshot().composer.rows[0].inputs.K), 'Plastic Pipes'); await page.screenshot({ path: path.join(output, 'composer-saved-service.png') });
 
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode=physical]').click(); await physicalIdle();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await physicalIdle();
   // Canonical compatibility fixture: these are pre-existing saved descriptions,
   // seeded through the same public draft command API as other physical tests.
   const ids = { defect: randomUUID(), barrier: randomUUID(), service: randomUUID() };
@@ -105,7 +106,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const sid = await page.evaluate(() => window.CeasefireTakeoffs.sessionId()), snapshot = await takeoffSnapshot();
   const previewReply = await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/physical/preview`, { data: { scope: 'defect_reports', expected_revision: snapshot.revision, commands } }); assert.equal(previewReply.status(), 200, await previewReply.text()); const preview = await previewReply.json();
   const applyReply = await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/physical/apply`, { data: { scope: 'defect_reports', expected_revision: preview.revision, request_id: randomUUID(), preview_id: preview.preview_id } }); assert.equal(applyReply.status(), 200, await applyReply.text()); const applied = await applyReply.json();
-  await page.evaluate(async value => { const t = window.CeasefireTakeoffs; t.applyProject(await t.prepareProject(value, t.sessionId())); await t.open(); }, applied.snapshot); await page.locator('[data-mode=physical]').click(); await physicalIdle();
+  await page.evaluate(async value => { const t = window.CeasefireTakeoffs; t.applyProject(await t.prepareProject(value, t.sessionId())); await t.open(); }, applied.snapshot); await chooseTakeoff(page, 'physical'); await physicalIdle();
   await page.locator(`tr[data-physical-id="${ids.barrier}"] .takeoff-row-link`).click(); await page.getByRole('button', { name: 'Add service in Item Details', exact: true }).click();
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: 'Create draft service', exact: true })).toBeVisible(); evidence.takeoffNewOptions = await options(modal.getByLabel('Service type', { exact: true })); await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); const details = page.getByRole('complementary', { name: 'Item Details', exact: true }); evidence.takeoffSavedOptions = await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes');
@@ -120,7 +121,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const heldDefinition = async route => { definitionHeld = true; await definitionGate; await route.continue(); };
   await page.route('**/api/penetration/definition', heldDefinition);
   try {
-    await load(false); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode=physical]').click(); await physicalIdle();
+    await load(false); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await physicalIdle();
     await expect.poll(() => definitionHeld).toBe(true);
     await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click();
     const reopenedService = details.getByLabel('Service type', { exact: true });

@@ -44,6 +44,14 @@ a{color:inherit}
 .nav-button:hover{color:#111;background:#fff}
 .nav-button.active{color:#fff;background:#b90a15;box-shadow:inset 0 -2px 0 #fff}
 .calculator-navigation{position:relative;flex-shrink:0}
+.section-navigation{position:relative;flex-shrink:0}
+.section-navigation-menu{position:absolute;top:100%;left:0;z-index:21;width:265px;max-width:calc(100vw - 28px);padding:7px;background:#111;color:#fff;border:1px solid #3b3238;border-radius:0 0 11px 11px;box-shadow:0 8px 22px #0003}
+.section-navigation-menu[hidden]{display:none}
+.section-navigation-choice{display:block;width:100%;padding:11px 12px;text-align:left;color:#fff;background:transparent;border-radius:7px;font-size:13px;font-weight:600}
+.section-navigation-choice:hover,.section-navigation-choice:focus-visible{color:#111;background:#fff}
+.section-navigation-choice[aria-pressed=true]{color:#fff;background:var(--accent);box-shadow:inset 3px 0 0 #fff}
+.section-navigation-choice:disabled{opacity:.5;cursor:wait}
+.section-navigation-subgroup{margin:2px 0 7px 12px;border-left:1px solid #766b72;padding-left:6px}
 .calculator-navigation-menu{position:absolute;top:100%;left:0;z-index:21;width:265px;max-width:calc(100vw - 28px);padding:7px;background:#111;color:#fff;border:1px solid #3b3238;border-radius:0 0 11px 11px;box-shadow:0 8px 22px #0003}
 .calculator-navigation-menu[hidden]{display:none}
 .calculator-navigation-choice{display:block;width:100%;padding:11px 12px;text-align:left;color:#fff;background:transparent;border-radius:7px;font-size:13px;font-weight:600}
@@ -83,6 +91,15 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .project-attachment-zone[aria-busy=true] svg{visibility:hidden}
 .button.project-attachment-zone[aria-busy=true]::after{position:absolute;margin:0}
 .project-tools .actions .button{height:48px;min-height:48px}
+.header-project-actions{margin-left:auto;flex-shrink:0;align-self:flex-start;justify-content:flex-end}
+/* Keep the header geometry stable while bootstrap makes these actions ready. */
+.header-project-actions[hidden]{display:flex!important;visibility:hidden}
+.header-project-actions .button,.project-workspace-actions .button{height:48px;min-height:48px}
+.header-project-actions .project-save-actions{gap:9px}
+.project-tools{grid-template-columns:minmax(0,1fr)}
+@media(max-width:1250px){.app-header{flex-wrap:wrap;gap:10px 24px}.header-navigation{order:3;flex-basis:100%;width:100%}.app-header nav{justify-content:center}.header-project-actions{align-self:flex-start}}
+@media(max-width:570px){.section-navigation-menu{left:0;right:auto}#library-navigation-menu{left:50%;right:auto;transform:translateX(-50%)}.section-navigation-choice{font-size:12px}.header-project-actions{gap:7px}.header-project-actions .project-save-actions{gap:7px}.header-project-actions .button{height:44px;min-height:44px}.header-project-actions .icon-only{width:44px;min-width:44px;padding:9px}.header-project-actions #save-project{padding:10px}.project-workspace-actions .button{height:48px;min-height:48px}}
+@media(max-width:570px){.app-header nav{position:relative}.section-navigation,.calculator-navigation{position:static}.section-navigation-menu,.calculator-navigation-menu{top:100%}}
 @media(max-width:1180px){.project-tools{grid-template-columns:minmax(220px,1fr) auto}.project-tools .actions{grid-column:1/-1;width:100%}}
 @media(max-width:760px){.project-tools{grid-template-columns:1fr;align-items:flex-start}.project-tools .actions{grid-column:auto}}
 .button{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:650;white-space:nowrap;line-height:1.5;transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}

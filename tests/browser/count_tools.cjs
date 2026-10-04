@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Count tool availability and placed Defects on a disposable source/server.
 const { chromium, expect } = require('@playwright/test');
@@ -62,12 +63,12 @@ async function countCursor() {
   await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([500, 400]), { button: 'right' });
   assert.deepEqual((await snapshot()).items, before.items); evidence.steelStandaloneRemovedDedicatedLengthCountRetained = true;
-  await page.getByRole('tab', { name: 'DUCT', exact: true }).click(); await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
+  await chooseTakeoff(page, 'DUCT'); await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([150, 200])); await page.locator('.takeoff-viewport').press('Enter');
   const ductReply = await response(() => dialog('Add count', { Item: 'DUCT-CROSSHAIR', Level: 'L01', 'WxH (mm)': '100x200', FRL: '120/120/120', Orientation: 'Horizontal' }, 'Add count'), '/commands');
   const duct = ductReply.snapshot.items.find(value => value.fields.mark === 'DUCT-CROSSHAIR'); assert.equal(duct.purpose, 'count-only'); assert.equal(duct.quantity, 1); assert.equal(duct.measurement, null);
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor(); await page.mouse.click(...await screen([500, 400]), { button: 'right' }); evidence.ductCrosshairOverSavedMarker = true;
-  await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click(); await idle();
+  await chooseTakeoff(page, 'PENETRATIONS'); await idle();
   const initial = await snapshot(), requestCount = physicalRequests.length;
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor(); await expect(page.getByRole('dialog')).toHaveCount(0);
   assert.equal(physicalRequests.length, requestCount); assert.deepEqual(await snapshot(), initial); evidence.countOnlyArms = true;
@@ -104,13 +105,13 @@ async function countCursor() {
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([400, 400])); await response(() => dialog('Add Defect', { 'Defect Ref.': 'CANCELLED-REVIEW' }, 'Preview new draft'), '/physical/preview');
   const beforeReviewCancel = structuredClone(current.physical); await dialog('Create one draft defect?', {}, 'Cancel'); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); assert.deepEqual((await snapshot()).physical, beforeReviewCancel); evidence.reviewCancelCreatesNothing = true;
-  await page.getByRole('button', { name: 'Select', exact: true }).click(); await page.getByRole('tab', { name: 'Service Plans', exact: true }).click(); await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
+  await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Service Plans'); await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([300, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible(); await dialog('Create draft barrier', {}, 'Cancel'); evidence.servicePlanBarrierPlacementPreserved = true;
-  await page.getByRole('button', { name: 'Select', exact: true }).click(); await page.getByRole('tab', { name: 'Defect Reports', exact: true }).click();
+  await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Defect Reports');
   current = await snapshot(); const physicalBeforeSave = structuredClone(current.physical);
   await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, physicalBeforeSave);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click(); current = await snapshot(); assert.deepEqual(current.physical, physicalBeforeSave); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS'); current = await snapshot(); assert.deepEqual(current.physical, physicalBeforeSave); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-viewer').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'retained-defect-source-location-764.png') }); evidence.savedReopened = true;

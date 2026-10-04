@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 'use strict';
 // Native markup/handle selection and browser-owned visual defaults on disposable evidence.
 const { chromium, expect } = require('@playwright/test');
@@ -76,7 +77,7 @@ async function setDefault() {
   assert.deepEqual(await snapshot(), before, 'Saving a visual preference sends no item change'); assert.equal(requests.length, mutations);
 }
 async function drawCount(mark) {
-  await page.locator('[data-mode="duct"]').click(); await page.getByRole('button', { name: 'Count', exact: true }).click();
+  await chooseTakeoff(page, 'duct'); await page.getByRole('button', { name: 'Count', exact: true }).click();
   for (const point of [[500,250],[550,280]]) await page.mouse.click(...await screen(point));
   await page.locator('.takeoff-viewport').press('Enter');
   const reply = await command(() => dialog('Add count', { Item: mark }, 'Add count'), 'add_standalone_count');
@@ -125,7 +126,7 @@ function watch(current) {
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const originalDocuments = (await snapshot()).documents, originalCalibrations = (await snapshot()).calibrations;
   for (const mode of ['steel','duct','wall','slab']) {
-    await page.locator(`[data-mode="${mode}"]`).click(); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
+    await chooseTakeoff(page, mode); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
     const first = await draw(mode, `${mode}-A`), area = ['wall','slab'].includes(mode), bodyPoint = area ? [160,170] : [190,400];
     let oldSecond;
     if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, desired);
@@ -160,7 +161,7 @@ function watch(current) {
     evidence[mode]={singleClickSelectsWithoutOpening:true,nativeDoubleClickOpens:true,selectedBodyDoubleClickReopensClosedPane:true,controlClickSilent:true,controlDragSilent:true,blankClearsAndHides:true,pendingEditPreserved:true,heldSaveBlankClearsWithoutLoss:true,sourceEvidenceAndQuantityPreserved:true,newAppearance:mode==='steel'?desired:first.appearance};
   }
   const counted = await drawCount('DUCT-COUNT-DEFAULT'); assert.deepEqual(counted.appearance,desired); assert.equal(counted.quantity,2);
-  await page.locator('[data-mode="wall"]').click(); await page.getByRole('button',{name:'Length',exact:true}).click();
+  await chooseTakeoff(page, 'wall'); await page.getByRole('button',{name:'Length',exact:true}).click();
   for(const point of [[400,300],[600,320]])await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
   const length = await command(()=>dialog('Add length measurement',{Item:'WALL-LENGTH-DEFAULT'},'Add measurement'),'create_item'); assert.deepEqual(length.snapshot.items.find(item=>item.fields.mark==='WALL-LENGTH-DEFAULT').appearance,desired);
   assert.deepEqual((await snapshot()).documents,originalDocuments); assert.deepEqual((await snapshot()).calibrations,originalCalibrations); assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);
@@ -171,7 +172,7 @@ function watch(current) {
   csp.push(...await page.evaluate(()=>window.qaCsp)); await context.close();
   const blocked=await browser.newContext({viewport:{width:1146,height:900}}); await blocked.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push(event.violatedDirective));Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError');}});});
   page=await blocked.newPage();page.setDefaultTimeout(30000);watch(page);await enterWorkspace(info);
-  await page.locator('[data-mode="duct"]').click();const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,desired);evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
+  await chooseTakeoff(page, 'duct');const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,desired);evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);
   const runtimeAfter=runtimeHashes();
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,fixturePort:info.port,evidence,errors,csp,requests,savedItems:saved.items,calculatorInputsUnchanged:true,sourceDocumentsAndCalibrationUnchanged:true,runtimeBefore,runtimeAfter,runtimeSourceSha256:runtimeAfter['takeoffs.js'],limits:['Disposable fixture only; no live8765 interaction.','Copied or continued existing groups retain their original style; fresh drawings/counts/cited items use the browser visual preference.']},null,2));

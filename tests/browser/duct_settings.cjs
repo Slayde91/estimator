@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Duct creation and settings acceptance at the annotated browser viewport size.
@@ -82,7 +83,7 @@ async function retainedFixture(id, fields) {
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 });
   await page.waitForFunction(() => { try { return window.CeasefireTakeoffs.projectSnapshot().render_checks.some(check => check.page === 1 && check.success); } catch { return false; } });
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await page.getByRole('button', { name: 'Scale', exact: true }).click();
   await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100');
   await command(() => page.getByRole('dialog').getByRole('button', { name: 'Apply scale', exact: true }).click(), 'add_calibration');
@@ -170,7 +171,7 @@ async function retainedFixture(id, fields) {
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await command(() => page.getByRole('button', { name: 'Takeoffs', exact: true }).click(), 'record_render');
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   const reopened = await openItemSettings(page, id); await settingsSettled(page);
   await expect(reopened.getByLabel('WxH (mm)', { exact: true })).toHaveValue('800 x 450.5');
   await expect(reopened.getByLabel('Level', { exact: true })).toHaveValue('L04');

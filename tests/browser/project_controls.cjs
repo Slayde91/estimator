@@ -62,7 +62,7 @@ async function drop(name,content,eventName = 'drop') {
   }
   const tools = page.locator('#project-tools'), button = page.getByRole('button',{name:'Project files',exact:true});
   const description = page.locator('#project-attachment-status');
-  await expect(tools).toBeHidden(); await expect(button).toHaveCount(0);
+  await expect(tools).toBeHidden(); await expect(button).toBeVisible();
   evidence.navigation = [];
   for (const width of [1600,764,390]) {
     await page.setViewportSize({width,height:1000});
@@ -75,7 +75,7 @@ async function drop(name,content,eventName = 'drop') {
           const button = element.getBoundingClientRect(), svg = element.querySelector('svg').getBoundingClientRect(), status = document.getElementById('project-attachment-status');
           return {width:button.width,height:button.height,text:element.textContent.trim(),svgWidth:svg.width,svgHeight:svg.height,slotWidth:element.parentElement.getBoundingClientRect().width,statusClip:getComputedStyle(status).clip,statusWidth:status.getBoundingClientRect().width,buttonRight:button.right,viewport:innerWidth,pageWidth:document.documentElement.scrollWidth};
         });
-        assert.equal(geometry.width,48); assert.equal(geometry.height,48); assert.equal(geometry.text,'');
+        assert.equal(geometry.width,width <= 570 ? 44 : 48); assert.equal(geometry.height,width <= 570 ? 44 : 48); assert.equal(geometry.text,'');
         assert.equal(geometry.svgWidth,24); assert.equal(geometry.svgHeight,24); assert.equal(geometry.statusWidth,1);
         assert.equal(geometry.statusClip,'rect(0px, 0px, 0px, 0px)');
         assert.ok(geometry.buttonRight <= width); assert.ok(geometry.pageWidth <= width);
@@ -83,7 +83,7 @@ async function drop(name,content,eventName = 'drop') {
         await page.screenshot({path:path.join(output,`projects-${width}.png`),fullPage:true});
         evidence.navigation.push({width,name,visible:true,geometry});
       } else {
-        await expect(tools).toBeHidden(); await expect(button).toHaveCount(0);
+        await expect(tools).toBeHidden(); await expect(button).toBeVisible();
         for (const name of ['New','Load','Save','Save As']) await expect(tools.getByRole('button',{name,exact:true})).toHaveCount(0);
         evidence.navigation.push({width,name,visible:false});
       }
@@ -102,7 +102,7 @@ async function drop(name,content,eventName = 'drop') {
   await enter('Quote'); await page.getByLabel('Client',{exact:true}).fill('Disposable project controls client');
   await page.getByLabel('Client',{exact:true}).press('Tab'); await enter('Projects'); await idle();
   const saving = page.waitForResponse(response => new URL(response.url()).pathname === '/api/project/save-as'); saving.catch(() => {});
-  await tools.getByRole('button',{name:'Save As',exact:true}).click();
+  await page.locator('#header-project-actions').getByRole('button',{name:'Save As',exact:true}).click();
   const savedReply = await saving; assert.equal(savedReply.status(),200,await savedReply.text()); await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const projectBytes = fs.readFileSync(info.project), beforeFiles = await snapshot(); assert.equal(beforeFiles.dirty,false);

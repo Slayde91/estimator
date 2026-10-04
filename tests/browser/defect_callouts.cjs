@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Native Defect annotation/callout gestures on a disposable, cropped PDF.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -55,7 +56,7 @@ async function textFits() {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click(); await idle(); await fit();
+  await chooseTakeoff(page, 'PENETRATIONS'); await idle(); await fit();
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await sourcePoint([350.123456789, 280.987654321]));
   const preview = await response(() => dialog('Add Defect', { 'Defect Ref.': 'FRAMED-DEFECT', Location: 'Level 3', FRL: '-/60/60' }, 'Preview new draft'), '/physical/preview');
   await response(() => dialog('Create one draft defect?', {}, 'Apply draft change'), '/physical/apply'); id = preview.changed_ids[0];
@@ -80,7 +81,7 @@ async function textFits() {
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download PDF', exact: true }).click(); const pdf = await download; await pdf.saveAs(path.join(output, 'defect-callout.pdf')); assert.ok(fs.statSync(path.join(output, 'defect-callout.pdf')).size > 1000); assert.deepEqual((await snapshot()).physical, savedGraph);
   await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click(); assert.deepEqual((await snapshot()).physical, savedGraph); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS'); assert.deepEqual((await snapshot()).physical, savedGraph); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3); await fit(); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await textFits(); evidence.saveReopenAndPdf = true;
   for (const width of [1146, 764]) { await page.setViewportSize({ width, height: 900 }); await fit(); await callout().scrollIntoViewIfNeeded(); await textFits(); await page.screenshot({ path: path.join(output, `defect-callout-${width}.png`) }); }
   await page.setViewportSize({ width: 1146, height: 900 }); await fit(); await page.waitForTimeout(550); await marker().dblclick({ delay: 100 }); await expect(details()).toBeVisible();

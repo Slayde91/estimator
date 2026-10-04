@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Real nine-column Wall/Slab filters against disposable source-backed projects.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -19,7 +20,7 @@ const register = () => page.getByRole('table', { name: `${currentMode === 'wall'
 const rows = () => register().locator('tbody tr[data-item-id]');
 const rowMarks = () => rows().getByLabel(labels(currentMode)[1], { exact: true }).evaluateAll(fields => fields.map(field => field.value));
 const panel = () => page.locator('.takeoff-column-filter');
-async function mode(value) { currentMode = value; await page.getByRole('tab', { name: value === 'wall' ? 'WALLS' : 'SLABS', exact: true }).click(); }
+async function mode(value) { currentMode = value; await chooseTakeoff(page, value === 'wall' ? 'WALLS' : 'SLABS'); }
 async function menu(label) { await register().getByRole('button', { name: `Filter ${label}`, exact: true }).click(); await expect(panel()).toBeVisible(); return panel(); }
 async function finishMenu(dialog, action) {
   if (action === 'Escape') await dialog.press('Escape'); else await dialog.getByRole('button', { name: action, exact: true }).click();

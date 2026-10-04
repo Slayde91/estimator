@@ -804,7 +804,7 @@
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
-    if (view !== "calculators") setCalculatorMenuOpen(false);
+    closeNavigationMenus({ calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
@@ -874,23 +874,24 @@
   function setCalculatorMenuOpen(open) {
     const menu = $("calculator-navigation-menu"), toggle = $("calculator-navigation-toggle");
     if (!menu || !toggle) return;
+    if (open) closeNavigationMenus("calculator-navigation");
     menu.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
     if (open) window.CeasefireCalculators?.refreshNavigation?.();
   }
-  function setupCalculatorNavigation() {
-    const navigation = $("calculator-navigation"), toggle = $("calculator-navigation-toggle"), menu = $("calculator-navigation-menu");
+  function setupSectionNavigation(id, selector, setOpen, navigate) {
+    const navigation = $(id), toggle = $(id + "-toggle"), menu = $(id + "-menu");
     if (!navigation || !toggle || !menu) return;
-    const choices = [...menu.querySelectorAll("[data-calculator-id]")];
-    navigation.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") setCalculatorMenuOpen(true); });
-    navigation.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !navigation.contains(document.activeElement)) setCalculatorMenuOpen(false); });
-    navigation.addEventListener("focusin", () => setCalculatorMenuOpen(true));
-    navigation.addEventListener("focusout", event => { if (!navigation.contains(event.relatedTarget)) setCalculatorMenuOpen(false); });
-    toggle.addEventListener("click", () => setCalculatorMenuOpen(true));
+    const choices = [...menu.querySelectorAll(selector)];
+    navigation.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") setOpen(true); });
+    navigation.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !navigation.contains(document.activeElement)) setOpen(false); });
+    navigation.addEventListener("focusin", () => setOpen(true));
+    navigation.addEventListener("focusout", event => { if (!navigation.contains(event.relatedTarget)) setOpen(false); });
+    toggle.addEventListener("click", () => setOpen(true));
     navigation.addEventListener("keydown", event => {
-      if (event.key === "Escape") { event.preventDefault(); toggle.focus(); setCalculatorMenuOpen(false); return; }
+      if (event.key === "Escape") { event.preventDefault(); toggle.focus(); setOpen(false); return; }
       const index = choices.indexOf(event.target);
       if (["ArrowDown", "ArrowUp"].includes(event.key)) {
-        event.preventDefault(); setCalculatorMenuOpen(true);
+        event.preventDefault(); setOpen(true);
         const next = index < 0 ? event.key === "ArrowDown" ? 0 : choices.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length;
         choices[next]?.focus();
       } else if (index >= 0 && ["Home", "End"].includes(event.key)) {
@@ -898,14 +899,54 @@
       }
     });
     for (const choice of choices) choice.addEventListener("click", () => {
-      setCalculatorMenuOpen(false);
-      requestCalculatorNavigation(choice.dataset.calculatorId).catch(error => message(error.message, true));
+      setOpen(false);
+      navigate(choice).catch(error => message(error.message, true));
     });
-    window.addEventListener("pointerdown", event => { if (!navigation.contains(event.target)) setCalculatorMenuOpen(false); });
+    window.addEventListener("pointerdown", event => { if (!navigation.contains(event.target)) setOpen(false); });
+  }
+  function setSectionMenuOpen(id, open) {
+    const menu = $(id + "-menu"), toggle = $(id + "-toggle");
+    if (!menu || !toggle) return;
+    if (open) closeNavigationMenus(id);
+    menu.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
+    if (open && id === "takeoff-navigation") window.CeasefireTakeoffs?.refreshNavigation?.();
+  }
+  function closeNavigationMenus(except) {
+    for (const id of ["calculator-navigation", "library-navigation", "takeoff-navigation"]) {
+      if (id === except) continue;
+      const menu = $(id + "-menu"), toggle = $(id + "-toggle");
+      if (menu && toggle) { menu.hidden = true; toggle.setAttribute("aria-expanded", "false"); }
+    }
+  }
+  function setupCalculatorNavigation() {
+    setupSectionNavigation("calculator-navigation", "[data-calculator-id]", setCalculatorMenuOpen, choice => requestCalculatorNavigation(choice.dataset.calculatorId));
+    setupSectionNavigation("library-navigation", "[data-library-kind]", open => setSectionMenuOpen("library-navigation", open), choice => requestLibraryNavigation(choice.dataset.libraryKind));
+    setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));
+  }
+  let takeoffNavigationPending = false;
+  async function requestTakeoffNavigation(mode, scope) {
+    if (takeoffNavigationPending || !state.takeoffsEnabled) return false;
+    takeoffNavigationPending = true;
+    try {
+      document.activeElement?.blur?.();
+      if (state.currentView !== "takeoffs" && !await confirmLeavePricingLibrary()) return false;
+      const changed = await window.CeasefireTakeoffs?.selectWorkspace(mode, scope);
+      if (changed) {
+        // An in-section choice already updates the workspace. Reopening the
+        // section would rerender its unchanged PDF and record redundant proofs.
+        if (state.currentView !== "takeoffs") await showView("takeoffs");
+        window.CeasefireHeaderTagline?.next();
+      }
+      return !!changed;
+    } finally { takeoffNavigationPending = false; }
   }
   async function requestLibraryNavigation(kind, selection) {
-    if (kind !== state.libraryKind && !await confirmLeavePricingLibrary()) return false;
-    selectLibrary(kind, selection); return true;
+    if (!["pricing", "penetration", "technical"].includes(kind)) return false;
+    if ((state.currentView !== "pricing" || kind !== state.libraryKind) && !await confirmLeavePricingLibrary()) return false;
+    state.libraryKind = kind;
+    await showView("pricing", selection);
+    window.CeasefireHeaderTagline?.next();
+    return true;
   }
   async function requestPricingScopeSwitch(scope) {
     const previous = state.pricingScope;
@@ -1602,6 +1643,7 @@
       refreshPricingCatalog();
       $("loading-state").hidden = true;
       await newQuote();
+      $("header-project-actions").hidden = false;
       showView("home");
       state.initialized = true;
     } catch (error) { $("loading-state").textContent = "The estimator could not be loaded. Reload after the local server is available."; message(error.message, true); }
@@ -2013,7 +2055,6 @@
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
-  for (const button of document.querySelectorAll("[data-library-kind]")) button.addEventListener("click", () => requestLibraryNavigation(button.dataset.libraryKind));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());

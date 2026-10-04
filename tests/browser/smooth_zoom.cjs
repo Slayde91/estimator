@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Shared drawing zoom, using real PDF rendering and disposable synthetic documents.
 const { chromium, expect } = require('@playwright/test');
 const { settingsSettled } = require('./settings_helpers.cjs');
@@ -238,8 +239,8 @@ async function sequentialNativeWheel() {
   await installRenderProbe(landscape.id); const protectedBefore = await protectedState();
   assert.ok(protectedBefore.items.length && protectedBefore.results.some(value => value.length_m > 0), 'Nonempty measurements make invariant checks meaningful');
   for (const [mode, scope] of [['Steel'], ['Duct'], ['Walls'], ['Slabs'], ['Penetrations', 'Defect Reports'], ['Penetrations', 'Service Plans']]) {
-    await page.getByRole('tab', { name: mode.toUpperCase(), exact: true }).click(); await settingsSettled(page);
-    if (scope) { await page.getByRole('tab', { name: scope, exact: true }).click(); await settingsSettled(page); }
+    await chooseTakeoff(page, mode.toUpperCase()); await settingsSettled(page);
+    if (scope) { await chooseTakeoff(page, scope); await settingsSettled(page); }
     for (const [name, doc, number] of [['landscape', landscape, 1], ['rotated-crop-UserUnit2', landscape, 3], ['portrait-UserUnit2', portrait, 1]]) {
       if (await page.getByLabel('Drawing document', { exact: true }).inputValue() !== doc.id) await rendered(() => page.getByLabel('Drawing document', { exact: true }).selectOption(doc.id), 1);
       if (Number(await page.getByLabel('Page number', { exact: true }).inputValue()) !== number) await rendered(async () => { await page.getByLabel('Page number', { exact: true }).fill(String(number)); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, number);
@@ -247,7 +248,7 @@ async function sequentialNativeWheel() {
     }
   }
   await panAndNavigateDuringRefinement(landscape);
-  await page.getByRole('tab', { name: 'STEEL', exact: true }).click(); await settingsSettled(page);
+  await chooseTakeoff(page, 'STEEL'); await settingsSettled(page);
   await rendered(() => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1); await focusDrawing();
   await page.setViewportSize({ width: 764, height: 764 });
   await zoomCase('Steel/landscape-narrow-764');

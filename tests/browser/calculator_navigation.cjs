@@ -1,3 +1,4 @@
+const { chooseLibrary } = require('./section_navigation.cjs');
 // Native navigation acceptance against disposable synthetic data only. Hover,
 // keyboard and touch must select the existing workspaces without replacing drafts.
 const { chromium, expect } = require('@playwright/test');
@@ -71,7 +72,7 @@ async function workbook(title) {
 
   // Menu navigation uses the established library confirmation, including its
   // cancellation behavior. An explicit Continue retains the unsaved prices.
-  await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await page.locator('[data-library-kind="pricing"]').click(); await page.locator('#pricing-scope').selectOption('library');
+  await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await chooseLibrary(page, 'pricing'); await page.locator('#pricing-scope').selectOption('library');
   const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first(); await price.fill('789.12345'); await price.press('Tab');
   const priceDisplay = await price.inputValue(); assert.equal(priceDisplay, '789.12');
   const guarded = await snapshots(); await chooseCalculator(page, 'Steel (board)');
@@ -87,7 +88,7 @@ async function workbook(title) {
     const bounds = await menu.boundingBox(); assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, `Dropdown escaped viewport at ${width}: ${JSON.stringify(bounds)}`);
     await expect(menu.getByRole('button', { name: 'Ductwork (spray/wrap)', exact: true })).toBeVisible();
     if ([1146, 390].includes(width)) await page.screenshot({ path: path.join(output, `calculator-menu-${width}.png`), fullPage: true });
-    await page.getByRole('heading', { name: 'What would you like to do?', exact: true }).click(); await expect(menu).toBeHidden();
+    await page.getByRole('button', { name: 'Home', exact: true }).click(); await expect(menu).toBeHidden();
   }
   evidence.viewports = [1600, 1146, 825, 570, 390];
   const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

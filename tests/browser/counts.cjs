@@ -346,7 +346,14 @@ function pythonJson(script, ...args) {
   const originalStable = stable(state), firstIds = firstCount.map(item => item.id);
   for (const shape of ['circle', 'square', 'triangle', 'diamond']) {
     panel = await selectedCount([firstIds[0]]);
-    if (shape === 'circle') await selectMarkers([firstCount[0].member_ids[0]]);
+    if (shape === 'circle') {
+      const memberId = firstCount[0].member_ids[0];
+      await selectMarkers([memberId]);
+      await expect(panel).toBeHidden();
+      await page.locator(`.takeoff-count-hit[data-count-member-id="${memberId}"]`).dblclick();
+      await expect(panel.getByRole('heading', { name: 'Count Settings', exact: true })).toBeVisible();
+      await assertSelectedMarkers([memberId]);
+    }
     await fill(panel, 'Marker shape', shape); await fill(panel, 'Marker Size', 18);
     await fill(panel, 'Line Colour', '#1a2b3c'); await panel.getByLabel('Fill enabled', { exact: true }).check(); await fill(panel, 'Fill colour', '#4f6e8d'); await fill(panel, 'Opacity', 65);
     reply = await applySettings(panel, 2); state = reply.snapshot;

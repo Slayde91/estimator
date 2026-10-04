@@ -72,6 +72,19 @@ defect. The Count tool places barrier markers with descriptions derived from
 their barrier and services; selecting a marker opens Item Details beside the
 drawing. Ordinary physical field edits apply automatically after validation;
 callouts can be moved and resized at their corners. Steel and Duct also have
+movable, resizable drawing legends with independent line, fill and font colours.
+Steel's **Markups** button colours the current PDF's Length and Count markups
+from current linked calculator thicknesses. It rounds thickness to the nearest
+whole millimetre for the two-millimetre colour bands, keeps the exact result in
+the register and legend, and restores the captured colours when switched off.
+Missing or stale thicknesses remain unchanged and are reported. Duct thickness
+comes from native spray DFT or continuous wrap layers and layer thickness;
+local penetration layers are excluded. These displays do not change quantities
+or calculator rules. **Visibility** hides or shows drawing markups in every
+Takeoff workspace. Physical callout settings are separate from marker settings;
+Ctrl+C and Ctrl+V copy a selected Defect or Barrier with its linked children,
+fresh identities and retained copy provenance. Deleting a Defect callout retains
+recoverable deleted records for its complete hierarchy. Steel and Duct also have
 standalone counts, and Walls and Slabs have standalone calibrated lengths.
 These measurements appear below calculator items and never transfer to a
 calculator. Both physical registers and exports remain unapproved drafts. Source PDFs, image

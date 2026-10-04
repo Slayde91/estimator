@@ -4,6 +4,7 @@
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `linked-thickness-${Date.now()}`);
@@ -59,7 +60,7 @@ async function seed() {
   });
 }
 async function select(id) {
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  const clear = page.getByRole('button', { name: 'Clear selection', exact: true }); if (await clear.count()) await clear.click();
   await row(id).getByRole('checkbox', { name: /^Select / }).check();
 }
 async function transfer(id, target) {
@@ -132,11 +133,63 @@ async function editSprayLength(binding, value) {
   await editSprayLength(sprayBinding, length + 0.125); await expect(thickness(sprayId)).toHaveText('Unavailable');
   await expect(thickness(sprayId)).toHaveAttribute('title', /linked row was edited/); evidence.manualEditWithheld = true;
   await editSprayLength(sprayBinding, length); await expect(thickness(sprayId)).toHaveText(String(sprayValue)); evidence.restoredExactDraftRechecked = true;
+  // Native thickness colours are document-wide, reversible, and separate
+  // from quantity/confirmation data. Missing values remain visible warnings.
+  const paletteResponse = await page.request.get(`${new URL(page.url()).origin}/api/takeoffs/colour-legend`);
+  assert.equal(paletteResponse.status(), 200); const palette = (await paletteResponse.json()).colours;
+  assert.equal(palette.length, 40); const expectedColour = palette[Math.min(39, Math.floor((Math.max(1, Math.round(sprayValue))-1)/2))].colour;
+  const beforeColours = await snapshot(), beforeColourCalculators = await calculators();
+  const painted = () => page.locator(`.takeoff-hit[data-item-id="${sprayId}"]`).locator('xpath=preceding-sibling::*[1]');
+  const originalStroke = await painted().getAttribute('stroke');
+  await page.getByRole('button',{name:'Visibility',exact:true}).click();await expect(page.locator('.takeoff-overlay > *')).toHaveCount(0);
+  assert.deepEqual((await snapshot()).items,beforeColours.items);await page.getByRole('button',{name:'Visibility',exact:true}).click();await expect(painted()).toHaveAttribute('stroke',originalStroke);evidence.visibilityPreservesItems=true;
+  await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands');
+  await expect(painted()).toHaveAttribute('stroke', expectedColour); await expect(page.locator('#takeoffs-workspace .message')).toContainText('Markup is incomplete due to missing thickness values');
+  assert.deepEqual((await snapshot()).items, beforeColours.items); assert.deepEqual((await snapshot()).transfers, beforeColours.transfers); assert.deepEqual(await calculators(), beforeColourCalculators);
+  await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
+  const legend = () => page.getByRole('button', { name: 'Steel Legend', exact: true });
+  await expect(legend()).toContainText('SPRAY-LINK'); await expect(legend()).toContainText('410UB54'); await expect(legend()).toContainText(`${sprayValue} mm`);
+  await legend().scrollIntoViewIfNeeded(); await legend().dblclick({ delay: 100 });
+  await expect(page.locator('#takeoff-markup-settings')).toContainText('Legend Settings');
+  await expect(page.locator('.takeoff-legend-handle')).toHaveCount(4);
+  const settings = page.locator('#takeoff-markup-settings');
+  await response(async () => { await settings.getByLabel('Line Colour', { exact: true }).fill('#123456'); await settings.getByLabel('Line Colour', { exact: true }).press('Tab'); }, '/commands');
+  await response(async () => { await settings.getByLabel('Fill colour', { exact: true }).fill('#fff1dd'); await settings.getByLabel('Fill colour', { exact: true }).press('Tab'); }, '/commands');
+  await settings.getByRole('button', { name: 'Close settings', exact: true }).click();
+  for (const corner of ['nw', 'ne', 'sw', 'se']) {
+    const handle = page.getByRole('button', { name: `Resize legend ${corner}`, exact: true }); let box; await expect.poll(async () => !!(box = await handle.boundingBox())).toBe(true);
+    await response(async () => { await page.mouse.move(box.x+box.width/2, box.y+box.height/2); await page.mouse.down(); await page.mouse.move(box.x+box.width/2+(corner.includes('w') ? -8 : 8), box.y+box.height/2+(corner.includes('n') ? -8 : 8), { steps: 3 }); await page.mouse.up(); }, '/commands');
+  }
+  const beforeMove = (await snapshot()).drawing_presentation.legends[0].point;
+  let box; await expect.poll(async () => !!(box = await legend().boundingBox())).toBe(true);
+  await response(async () => { await page.mouse.move(box.x+10, box.y+10); await page.mouse.down(); await page.mouse.move(box.x+35, box.y+30, { steps: 5 }); await page.mouse.up(); }, '/commands');
+  assert.notDeepEqual((await snapshot()).drawing_presentation.legends[0].point, beforeMove);
+  await page.screenshot({ path: path.join(output, 'steel-thickness-colours-legend.png') });
+  const pdfDownload = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download PDF', exact: true }).click(); await (await pdfDownload).saveAs(path.join(output, 'thickness-colours-legend.pdf'));
+  await response(() => page.getByRole('button', { name: 'Markups', exact: true }).click(), '/commands'); await expect(painted()).toHaveAttribute('stroke', originalStroke);
+  assert.deepEqual(await calculators(), beforeColourCalculators); evidence.coloursLegendRestore = { expectedColour, originalStroke, missing: 1, nativeThickness: sprayValue };
+
+  // The existing Ductwork outputs return to the register after a real transfer.
+  const ductId = await page.evaluate(async () => {
+    const takeoffs = window.CeasefireTakeoffs, session = takeoffs.sessionId(); let current = takeoffs.projectSnapshot();
+    const doc = current.documents[0], calibration = current.calibrations[0];
+    const command = async (op, values) => { const response = await fetch(`/api/takeoffs/sessions/${session}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expected_revision: current.revision, request_id: crypto.randomUUID(), op, ...values }) }); const reply = await response.json(); if (!response.ok) throw Error(JSON.stringify(reply)); current = reply.snapshot; };
+    await command('create_item', { item: { mode: 'duct', geometry: { document_id: doc.id, page: 1, points: [[100, 480], [500, 480]] }, measurement: { method: 'calibrated', calibration_id: calibration.id }, quantity: 1,
+      fields: { mark: 'DUCT-LEGEND', shape: 'rectangular', width_mm: 250, height_mm: 250, product: 'FyreWrap', frl: '120/120/120', exposure: 'Internal', orientation: 'Both', wall_penetrations: 0, floor_penetrations: 0 }, evidence: [{ document_id: doc.id, page: 1, note: 'Synthetic duct legend acceptance' }] } });
+    const id = current.items.at(-1).id; await command('review_items', { item_ids: [id] }); await command('confirm_items', { item_ids: [id] }); takeoffs.applyProject(await takeoffs.prepareProject(current, session)); await takeoffs.open(); return id;
+  });
+  await chooseTakeoff(page, 'duct'); await idle(); const ductTransferred = await transfer(ductId, 'ductwork'), ductBinding = ductTransferred.snapshot.transfers.find(value => value.item_id === ductId);
+  const nativeLayers = await nativeOutput('ductwork', ductBinding, 'R'); assert.equal(nativeLayers, 1); await expect(thickness(ductId)).toHaveText('38');
+  await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
+  const ductLegend = page.getByRole('button', { name: 'Duct Legend', exact: true }); await expect(ductLegend).toContainText('250 x 250 mm'); await expect(ductLegend).toContainText('10.00 m'); await expect(ductLegend).toContainText('38 mm');
+  await page.screenshot({ path: path.join(output, 'duct-thickness-legend.png') }); evidence.ductNativeThickness = 38;
+  await chooseTakeoff(page, 'steel'); await idle(); await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite'); await expect(thickness(sprayId)).toHaveText(String(sprayValue));
   const savedBefore = await snapshot(), calculatorsBeforeSave = await calculators();
   await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(thickness(sprayId)).toHaveText(String(sprayValue)); assert.deepEqual((await snapshot()).transfers, savedBefore.transfers); assert.deepEqual(await calculators(), calculatorsBeforeSave); evidence.saveReopenRetainsProvenance = true;
+  assert.deepEqual((await snapshot()).drawing_presentation, savedBefore.drawing_presentation); evidence.legendsSurviveSaveLoad = true;
   await page.getByRole('button', { name: 'Clear selection', exact: true }).click(); await select(sprayId);
   await page.getByRole('button', { name: 'Detach links', exact: true }).click();
   await response(() => page.getByRole('dialog').getByRole('button', { name: 'Detach links', exact: true }).click(), '/commands');

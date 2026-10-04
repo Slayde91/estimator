@@ -78,7 +78,7 @@ async function bootstrap(initial, expected) {
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length); samples.push(sample);
     assert.equal(sample.cursorHidden, false);
-    assert.ok(!sample.finished || sample.now - sample.finished.at <= 4000, 'Startup draining must retain the cursor deadline checks');
+    assert.ok(!sample.finished || sample.now - sample.finished.at < 1000, 'Startup draining must retain the cursor deadline checks');
   }
   await idle();
   return samples;
@@ -133,18 +133,18 @@ async function advanceFromFinish(milliseconds) {
   return next;
 }
 async function expireCursor(initial, expected, { animated = true } = {}) {
-  const atFourSeconds = await advanceFromFinish(4000); sameHeader(initial, atFourSeconds);
-  assert.equal(atFourSeconds.typed, expected); assert.equal(atFourSeconds.cursorHidden, false);
-  const afterFinishBlink = animated ? await blinking(initial, expected, 'four seconds after the final character') : null;
-  if (!animated) assert.equal(atFourSeconds.cursorAnimation, 'none');
-  const beforeDeadline = await advanceFromFinish(4999); assert.equal(beforeDeadline.cursorHidden, false);
-  const stopped = await advanceFromFinish(5000); sameHeader(initial, stopped);
-  assert.equal(stopped.cursorHidden, true, 'The underscore must disappear exactly five seconds after completion');
+  const atHalfSecond = await advanceFromFinish(500); sameHeader(initial, atHalfSecond);
+  assert.equal(atHalfSecond.typed, expected); assert.equal(atHalfSecond.cursorHidden, false);
+  const afterFinishBlink = animated ? await blinking(initial, expected, 'half a second after the final character') : null;
+  if (!animated) assert.equal(atHalfSecond.cursorAnimation, 'none');
+  const beforeDeadline = await advanceFromFinish(999); assert.equal(beforeDeadline.cursorHidden, false);
+  const stopped = await advanceFromFinish(1000); sameHeader(initial, stopped);
+  assert.equal(stopped.cursorHidden, true, 'The underscore must disappear exactly one second after completion');
   assert.equal(stopped.cursorDisplay, 'none'); assert.equal(stopped.cursorAnimationCount, 0, 'Hidden cursor must have no running CSS animation');
   assert.equal(stopped.typed, expected); assert.equal(stopped.accessible, expected);
   await page.clock.runFor(10000);
   const later = await layout(); assert.equal(later.cursorHidden, true); assert.equal(later.cursorAnimationCount, 0);
-  return { atFourSeconds, afterFinishBlink, beforeDeadline, stopped, later };
+  return { atHalfSecond, afterFinishBlink, beforeDeadline, stopped, later };
 }
 async function presentationNavigation(initial) {
   // Initialize every synthetic calculator before comparing fingerprints so
@@ -243,7 +243,7 @@ async function presentationNavigation(initial) {
   }
   {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } });
-    await instrument(context, { random: .84 }); // Eighteen choices, no previous phrase: index 15.
+    await instrument(context, { random: 15 / 21 + .001 }); // Twenty-one choices, no previous phrase: index 15.
     page = await context.newPage(); watch(page); await installPausedClock();
     await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
     const initial = await layout(); assert.equal(initial.accessible, newPhrase);
@@ -270,7 +270,7 @@ async function presentationNavigation(initial) {
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, fixturePort: info.port, assetHashes, evidence, errors, csp,
-    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 18 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
+    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 21 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
   console.log(`Header navigation tagline browser acceptance passed: ${output}`);
 })().catch(async error => {
   console.error(error); if (page && !page.isClosed()) {

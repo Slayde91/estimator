@@ -156,7 +156,10 @@ def _marker(value, label='Barrier marker'):
     if value is None:
         return
     keys = {'document_id', 'document_sha256', 'page', 'point'}
-    _object(value, keys | {'callout'}, keys, label)
+    _object(value, keys | {'callout', 'appearance'}, keys, label)
+    if 'appearance' in value:
+        from .takeoff_model import validate_appearance
+        validate_appearance(value['appearance'])
     _id(value['document_id'], 'Marker document ID')
     _hash(value['document_sha256'], 'Marker document hash')
     _number(value['page'], 'Marker page', minimum=1, integer=True)
@@ -166,7 +169,10 @@ def _marker(value, label='Barrier marker'):
         _number(coordinate, 'Marker coordinate')
     if 'callout' in value:
         layout = value['callout']
-        _object(layout, {'offset', 'width', 'height'}, {'offset', 'width', 'height'}, label + ' callout layout')
+        _object(layout, {'offset', 'width', 'height', 'appearance'}, {'offset', 'width', 'height'}, label + ' callout layout')
+        if 'appearance' in layout:
+            from .takeoff_model import validate_appearance
+            validate_appearance(layout['appearance'])
         if not isinstance(layout['offset'], list) or len(layout['offset']) != 2:
             raise ValidationError('Callout offset requires a PDF x/y coordinate pair.')
         for coordinate in layout['offset']:
@@ -223,6 +229,11 @@ def _evidence(value, kind, parents):
 
 
 def _properties(entity, kind, parents):
+    if 'copied_from' in entity:
+        source = _object(entity['copied_from'], {'entity_id', 'revision'}, {'entity_id', 'revision'}, 'Copied physical source')
+        if _id(source['entity_id']) == entity['id']:
+            raise ValidationError('A physical record cannot be copied from itself.')
+        _number(source['revision'], 'Copied source revision', minimum=1, integer=True)
     fields = _object(entity['fields'], _field_names(kind, parents), (), 'Physical fields')
     if 'marker' in entity:
         _marker(entity['marker'])
@@ -273,7 +284,7 @@ def validate_graph(graph, *, copy_result=True):
                 keys |= {'display_id'}
             if kind == 'service':
                 keys |= {'quantity'}
-            optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set()
+            optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
             _object(entity, keys | optional, keys, 'Physical entity')
             if graph['version'] in (2, 3):
                 ordinal = _display_number(entity['display_id'], kind)
@@ -398,12 +409,16 @@ def _command(graph, command):
             keys.add(parents[kind][1])
         if kind == 'service':
             keys.add('quantity')
-        optional = {'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set()
+        optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
         source = _object(command['entity'], keys | optional, keys, 'New physical entity')
         identifier = _id(source['id'])
         if kind in parents:
             _id(source[parents[kind][1]], 'Physical parent ID')
         _properties(source, kind, parents)
+        if 'copied_from' in source:
+            original = before.get(source['copied_from']['entity_id'])
+            if not original or original[0] != kind or original[1]['revision'] != source['copied_from']['revision'] or original[1]['deleted']:
+                raise ValidationError('A copied record requires its current active source of the same kind.')
         entity = deepcopy(source)
         if identifier in before:
             raise ValidationError('A physical ID cannot be reused, including a deleted ID.')

@@ -145,7 +145,7 @@ class ServicePlansModelTests(unittest.TestCase):
         self.assertEqual(service['frl'], "'-/60/60")
         self.assertNotIn('frl', json.loads(service['fields_json']))
         self.assertEqual(barrier_summary(graph, graph['barriers'][0])[-1], 'No services recorded')
-        self.assertIn('Qty 4', barrier_summary(graph, graph['barriers'][1])[-1])
+        self.assertIn('4 x', barrier_summary(graph, graph['barriers'][1])[-1])
         self.assertEqual(json.loads(rows[0]['marker_json']), self.marker)
         workbook = load_workbook(BytesIO(export_physical_graph(graph, 'xlsx')[0])); self.addCleanup(workbook.close)
         self.assertNotIn('Defects', workbook.sheetnames)
@@ -291,7 +291,7 @@ class ServicePlansProjectTests(unittest.TestCase):
         before = deepcopy(case.session['snapshot'])
         payload, mime, _ = self.export(); self.assertEqual(mime, 'application/pdf')
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
-        for expected in ('B-0001', 'Plan barrier', 'FRL -/120/120', 'Concrete', 'S-0001', 'Pipe', 'Diameter 50 mm', 'Qty 3', 'Unapproved draft'):
+        for expected in ('B-0001', 'Plan barrier', 'FRL -/120/120', 'Concrete', 'S-0001', 'Pipe', 'Diameter 50 mm', '3 x', 'Unapproved draft'):
             self.assertIn(expected, text)
         self.assertIn(self.barrier['entity']['id'], text)
         self.assertNotIn('3 markers', text)
@@ -309,7 +309,7 @@ class ServicePlansProjectTests(unittest.TestCase):
         before = deepcopy(case.session['snapshot']); source = case.documents.document_path(self.doc).read_bytes()
         payload = self.export()[0]; reader = PdfReader(BytesIO(payload))
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        for expected in ('B-0001', 'Plan barrier', 'Concrete', 'Qty 3', 'Diameter 50 mm'): self.assertIn(expected, text)
+        for expected in ('B-0001', 'Plan barrier', 'Concrete', '3 x', 'Diameter 50 mm'): self.assertIn(expected, text)
         self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
         self.assertEqual(case.documents.document_path(self.doc).read_bytes(), source)
         request = {**deepcopy(case.base), 'takeoffs': before, 'takeoffs_session_id': case.session['session_id']}

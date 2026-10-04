@@ -19,7 +19,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
 const evidence = {}, errors = [], requests = [], csp = [], desired = { stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45, display_values: false };
-const defaultKey = 'ceasefire.takeoff-markup-defaults.v1';
+const defaultKey = 'ceasefire.takeoff-markup-defaults.v2';
 const runtimeHashes = () => Object.fromEntries(['takeoffs.js','takeoff-physical.js','takeoffs.css'].map(name => [name,createHash('sha256').update(fs.readFileSync(path.join(root,'static',name))).digest('hex')]));
 const panel = () => page.locator('#takeoff-markup-settings');
 const idle = () => expect(page.locator('#takeoffs-workspace')).not.toHaveAttribute('aria-busy', 'true');
@@ -129,7 +129,7 @@ function watch(current) {
     await chooseTakeoff(page, mode); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
     const first = await draw(mode, `${mode}-A`), area = ['wall','slab'].includes(mode), bodyPoint = area ? [160,170] : [190,400];
     let oldSecond;
-    if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, desired);
+    if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, {...desired,marker_size:25});
     if (await panel().isVisible()) await panel().getByRole('button', { name: 'Close settings', exact: true }).click();
     await click(bodyPoint); await expect(panel()).toBeHidden(); await expect(body(first.id)).toHaveAttribute('aria-pressed', 'true');
     await openDrawingSettings(bodyPoint); await expect(panel()).toBeVisible();
@@ -153,26 +153,26 @@ function watch(current) {
     if (mode === 'steel') {
       await setDefault(); assert.deepEqual(await page.evaluate(key => JSON.parse(localStorage.getItem(key)),defaultKey),{version:1,appearance:desired});
       assert.deepEqual((await snapshot()).items.find(item => item.id === oldSecond.id),oldSecond,'Setting defaults does not rewrite existing unrelated items');
-      const fresh = await draw(mode,'steel-NEW',650); assert.deepEqual(fresh.appearance,desired);
+      const fresh = await draw(mode,'steel-NEW',650); assert.deepEqual(fresh.appearance,{...desired,marker_size:25});
       await click([490,400]); await click([190,400],['Shift']); await expect(body(oldSecond.id)).toHaveAttribute('aria-pressed','true'); await expect(body(first.id)).toHaveAttribute('aria-pressed','true'); await expect(panel()).toBeVisible();
       await click([750,500]); await expect(panel()).toBeHidden();
     }
     await page.screenshot({ path:path.join(output,`${mode}-settings-selection.png`) });
     evidence[mode]={singleClickSelectsWithoutOpening:true,nativeDoubleClickOpens:true,selectedBodyDoubleClickReopensClosedPane:true,controlClickSilent:true,controlDragSilent:true,blankClearsAndHides:true,pendingEditPreserved:true,heldSaveBlankClearsWithoutLoss:true,sourceEvidenceAndQuantityPreserved:true,newAppearance:mode==='steel'?desired:first.appearance};
   }
-  const counted = await drawCount('DUCT-COUNT-DEFAULT'); assert.deepEqual(counted.appearance,desired); assert.equal(counted.quantity,2);
+  const counted = await drawCount('DUCT-COUNT-DEFAULT'); assert.deepEqual(counted.appearance,{...desired,marker_size:25}); assert.equal(counted.quantity,2);
   await chooseTakeoff(page, 'wall'); await page.getByRole('button',{name:'Length',exact:true}).click();
   for(const point of [[400,300],[600,320]])await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
-  const length = await command(()=>dialog('Add length measurement',{Item:'WALL-LENGTH-DEFAULT'},'Add measurement'),'create_item'); assert.deepEqual(length.snapshot.items.find(item=>item.fields.mark==='WALL-LENGTH-DEFAULT').appearance,desired);
+  const length = await command(()=>dialog('Add length measurement',{Item:'WALL-LENGTH-DEFAULT'},'Add measurement'),'create_item'); assert.deepEqual(length.snapshot.items.find(item=>item.fields.mark==='WALL-LENGTH-DEFAULT').appearance,{...desired,marker_size:25});
   assert.deepEqual((await snapshot()).documents,originalDocuments); assert.deepEqual((await snapshot()).calibrations,originalCalibrations); assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);
   const saved=await snapshot(),saveWait=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as')); await clickProjectControl(page,'Save As'); assert.equal((await saveWait).status(),200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const openWait=page.waitForResponse(response=>response.url().endsWith('/api/project/open')); await clickProjectControl(page,'Load'); assert.equal((await openWait).status(),200); await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click(); await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); assert.deepEqual((await snapshot()).items,saved.items); assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),calculators);
   // A new launch keeps the browser preference without putting it in the project.
-  assert.equal(Object.hasOwn(saved,'markup_defaults'),false); await enterWorkspace(info,false); const reloaded=await drawCount('AFTER-RELOAD'); assert.deepEqual(reloaded.appearance,desired); evidence.reloadPersisted=true;
+  assert.equal(Object.hasOwn(saved,'markup_defaults'),false); await enterWorkspace(info,false); const reloaded=await drawCount('AFTER-RELOAD'); assert.deepEqual(reloaded.appearance,{...desired,marker_size:25}); evidence.reloadPersisted=true;
   csp.push(...await page.evaluate(()=>window.qaCsp)); await context.close();
   const blocked=await browser.newContext({viewport:{width:1146,height:900}}); await blocked.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push(event.violatedDirective));Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError');}});});
   page=await blocked.newPage();page.setDefaultTimeout(30000);watch(page);await enterWorkspace(info);
-  await chooseTakeoff(page, 'duct');const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,desired);evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
+  await chooseTakeoff(page, 'duct');const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{stroke_width:5,fill_enabled:true,marker_size:25,display_values:false});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,{...desired,marker_size:25});evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);
   const runtimeAfter=runtimeHashes();
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,fixturePort:info.port,evidence,errors,csp,requests,savedItems:saved.items,calculatorInputsUnchanged:true,sourceDocumentsAndCalibrationUnchanged:true,runtimeBefore,runtimeAfter,runtimeSourceSha256:runtimeAfter['takeoffs.js'],limits:['Disposable fixture only; no live8765 interaction.','Copied or continued existing groups retain their original style; fresh drawings/counts/cited items use the browser visual preference.']},null,2));

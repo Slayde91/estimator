@@ -6,6 +6,7 @@ function takeoffChoice(page, name) {
 }
 async function chooseTakeoff(page, name, { waitForSelection = true } = {}) {
   await page.locator('#takeoff-navigation-toggle').hover();
+  if (['Defect Reports', 'Service Plans'].includes(name)) await page.locator('#penetration-navigation-toggle').hover();
   const choice = takeoffChoice(page, name);
   await expect(choice).toBeVisible();
   await choice.click();

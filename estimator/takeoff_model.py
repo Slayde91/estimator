@@ -49,7 +49,7 @@ for _mode in AREA_MODES:
         'system', 'classification', 'quantity', 'frl', 'substrate', 'treatment',
         'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
-APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'stroke_width', 'opacity',
+APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'font_color', 'stroke_width', 'opacity',
                              'marker_shape', 'marker_size', 'display_values'))
 STANDALONE_FIELDS = frozenset(('mark', 'level', 'width_mm', 'height_mm', 'frl', 'orientation', 'notes'))
 
@@ -82,7 +82,7 @@ def is_area_item(item):
 def validate_appearance(value):
     """Bound presentation-only settings; never accept CSS or executable values."""
     object_fields(value, APPEARANCE_FIELDS, 'Markup appearance')
-    for key in ('stroke_color', 'fill_color'):
+    for key in ('stroke_color', 'fill_color', 'font_color'):
         if key in value and (not isinstance(value[key], str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value[key])):
             raise ValidationError('Markup colours must be six-digit hexadecimal colours.')
     if 'fill_enabled' in value and type(value['fill_enabled']) is not bool:
@@ -101,9 +101,9 @@ def validate_appearance(value):
 
 def markup_appearance(item):
     """Shared physical-PDF-point defaults for browser and drawing exports."""
-    return {'stroke_color': '#FF0000', 'fill_enabled': is_area_item(item) or is_marker_item(item),
-            'fill_color': '#FF0000', 'stroke_width': 2, 'opacity': 1, 'display_values': False,
-            **({'marker_shape': 'circle', 'marker_size': 12} if is_marker_item(item) else {}),
+    return {'stroke_color': '#FF0000', 'fill_enabled': True,
+            'fill_color': '#FF0000', 'stroke_width': 5, 'opacity': 1, 'display_values': False,
+            **({'marker_shape': 'circle', 'marker_size': 25} if is_marker_item(item) else {}),
             **validate_appearance(item.get('appearance', {}))}
 
 
@@ -169,6 +169,12 @@ def audit_affected(before, after):
         affected[key] = sorted(changed(entries(before, key, limit), entries(after, key, limit)))
     renders = changed(entries(before, 'render_checks', 2000, render=True), entries(after, 'render_checks', 2000, render=True))
     affected['documents'] = sorted(set(affected['documents']) | {document for document, _ in renders})
+    if before.get('drawing_presentation') != after.get('drawing_presentation'):
+        presentations = [state.get('drawing_presentation', {}) for state in (before, after)]
+        affected['documents'] = sorted(set(affected['documents']) | {
+            row['document_id'] for state in presentations for key in ('legends', 'colour_modes') for row in state.get(key, [])})
+        affected['items'] = sorted(set(affected['items']) | {
+            row['item_id'] for state in presentations for mode in state.get('colour_modes', []) for row in mode['originals']})
     if before.get('version') == 2 or after.get('version') == 2:
         affected['image_extractions'] = sorted(changed(entries(before, 'image_extractions', 2000), entries(after, 'image_extractions', 2000)))
         def physical_entries(state, key='physical'):
@@ -801,7 +807,7 @@ def validate_snapshot(value, *, copy_result=True):
     keys = set(new_snapshot())
     if isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 2:
         keys.update(('physical', 'image_extractions'))
-    optional = {'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set()
+    optional = {'drawing_presentation'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
     object_fields(value, {*keys, 'companion_folder', *optional}, 'Takeoff snapshot', keys)
     if 'companion_folder' in value:
         text(value['companion_folder'], 'Evidence companion folder', 255)
@@ -938,5 +944,7 @@ def validate_snapshot(value, *, copy_result=True):
         transfer_ids.add(transfer['id']); targets.add(target); linked_items.add(linked)
     if value['audit_head'] is not None and (not isinstance(value['audit_head'], str) or not HASH.fullmatch(value['audit_head'])):
         raise ValidationError('Audit head must be a SHA-256 digest.')
+    from .takeoff_presentation import validate_presentation
+    validate_presentation(value)
     digest(value)
     return deepcopy(value) if copy_result else value

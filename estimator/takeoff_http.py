@@ -42,6 +42,15 @@ class TakeoffHTTP:
         if any(len(value) != 1 for value in query.values()):
             raise ValidationError('Use one value per takeoff option.')
         query = {key: value[0] for key, value in query.items()}
+        if route == '/api/takeoffs/colour-legend' and handler.command == 'GET':
+            if query:
+                raise ValidationError('The colour legend does not accept extra options.')
+            from .takeoff_presentation import PALETTE
+            handler.send_payload(200, {'rounding': 'nearest_whole_mm', 'colours': [
+                {'name': name, 'colour': colour, 'min_mm': index * 2 + 1,
+                 'max_mm': None if index == 39 else index * 2 + 2}
+                for index, (name, colour) in enumerate(PALETTE)]})
+            return True
         if route == '/api/takeoffs/options' and handler.command == 'GET':
             if set(query) - {'calculator', 'product', 'member_type'}:
                 raise ValidationError('Choose a calculator and optional product/member type.')

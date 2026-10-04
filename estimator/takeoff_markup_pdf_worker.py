@@ -199,6 +199,40 @@ def _paint_length_additions(pdf, item, matrix, drawing_bounds):
             pdf.drawString(label_x, label_y-11*index, label)
 
 
+def _paint_drawing_legends(pdf, legends, matrix):
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+    scale = math.hypot(matrix[0], matrix[1])
+    for legend in legends:
+        x, top = transform(legend['point'], matrix)
+        width, height = legend['width'] * scale, legend['height'] * scale
+        style = {'stroke_color': '#404040', 'fill_color': '#FFFFFF', 'font_color': '#202020',
+                 'fill_enabled': True, 'stroke_width': 1, 'opacity': .94, **legend['appearance']}
+        pdf.saveState(); pdf.setStrokeColor(HexColor(style['stroke_color']))
+        pdf.setLineWidth(style['stroke_width']); pdf.setFillColor(HexColor(style['fill_color']))
+        pdf.setFillAlpha(style['opacity']); pdf.rect(x, top-height, width, height, stroke=1, fill=int(style['fill_enabled']))
+        groups = {}
+        for row in legend['rows']:
+            groups.setdefault(row['colour'], []).append(row['text'])
+        lines = [(colour, '; '.join(texts)) for colour, texts in groups.items()]
+        font_size = 9 * scale; padding = min(8 * scale, width/10, height/10)
+        for _ in range(40):
+            paragraphs = [Paragraph(_text(text), ParagraphStyle('DrawingLegend', fontName='ExportVera',
+                fontSize=font_size, leading=font_size*1.3, textColor=HexColor(style['font_color']))) for _, text in lines]
+            sizes = [paragraph.wrap(max(.1, width-3*padding-font_size), height)[1] for paragraph in paragraphs]
+            if sum(sizes) + font_size*2 + max(0, len(lines)-1)*font_size*.3 + padding*2 <= height:
+                break
+            font_size *= .9
+        pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont('ExportVeraBold', font_size)
+        pdf.drawString(x+padding, top-padding-font_size, legend['mode'].title() + ' Legend')
+        y = top-padding-font_size*2
+        for (colour, _), paragraph, needed in zip(lines, paragraphs, sizes):
+            pdf.setFillColor(HexColor(colour)); pdf.rect(x+padding, y-font_size, font_size, font_size, stroke=0, fill=1)
+            paragraph.drawOn(pdf, x+2*padding+font_size, y-needed); y -= needed+font_size*.3
+        pdf.restoreState()
+
+
 def _paint_markups(pdf, items, matrix, drawing_bounds=None):
     from reportlab.lib.colors import HexColor
     for item in items:
@@ -220,12 +254,12 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
                 if item['mode'] == 'penetrations':
                     from reportlab.pdfbase.pdfmetrics import stringWidth
                     summary = item['physical_summary']
-                    labels = [f"{item['legend_number']}. " + line for line in summary[:3]]
-                    if len(summary) > 3:
-                        extra = 'linked records' if item.get('physical_summary_kind') == 'defect' else 'services'
-                        labels.append(f"+ {len(summary)-3} more {extra} (see legend)")
+                    labels = list(summary)
                     layout = item.get('callout')
                     if layout:
+                        callout_style = {'stroke_color': '#696166', 'fill_color': '#FFFFFF',
+                            'font_color': '#30282B', 'fill_enabled': True, 'stroke_width': 1, 'opacity': .94,
+                            **layout.get('appearance', {})}
                         from reportlab.platypus import Paragraph
                         from reportlab.lib.styles import ParagraphStyle
                         offset = layout['offset']
@@ -245,13 +279,14 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
                         for _ in range(20):
                             paragraph = Paragraph('<br/>'.join(_text(label) for label in labels),
                                 ParagraphStyle('PhysicalCallout', fontName='ExportVera', fontSize=font_size,
-                                    leading=font_size*1.25, textColor=HexColor(style['stroke_color'])))
+                                    leading=font_size*1.25, textColor=HexColor(callout_style['font_color'])))
                             _, needed = paragraph.wrap(max(.1, width-2*padding), max(.1, height-2*padding))
                             if needed <= height-2*padding:
                                 break
                             font_size *= .75
-                        pdf.setFillColor(HexColor('#FFFFFF')); pdf.setFillAlpha(.92)
-                        pdf.roundRect(x, y, width, height, min(3, width/8, height/8), stroke=1, fill=1)
+                        pdf.setStrokeColor(HexColor(callout_style['stroke_color'])); pdf.setLineWidth(callout_style['stroke_width'])
+                        pdf.setFillColor(HexColor(callout_style['fill_color'])); pdf.setFillAlpha(callout_style['opacity'])
+                        pdf.roundRect(x, y, width, height, min(3, width/8, height/8), stroke=1, fill=int(callout_style['fill_enabled']))
                         pdf.setFillAlpha(style['opacity'])
                         pdf.line(center[0], center[1], x, y+height)
                         paragraph.drawOn(pdf, x+padding, y+height-padding-needed)
@@ -316,7 +351,7 @@ def _paint_value_labels(pdf, item, matrix, bounds):
             x, y = max(left+2, min(x, right-width-2)), max(bottom+2, min(y, top-10))
         pdf.setFillAlpha(1); pdf.setFillColor(HexColor('#FFFFFF'))
         pdf.rect(x-1, y-1, width+2, 10, stroke=0, fill=1)
-        pdf.setFillColor(HexColor('#18384E')); pdf.setFont('ExportVeraBold', 8)
+        pdf.setFillColor(HexColor(item['appearance'].get('font_color', item['appearance']['stroke_color']))); pdf.setFont('ExportVeraBold', 8)
         pdf.drawString(x, y, text)
 
 
@@ -387,6 +422,7 @@ def render_document(source, spec, output):
         drawing_left = (width-drawing_width)/2
         _paint_markups(pdf, page_items, matrix,
                        (drawing_left, legend_height, drawing_left+drawing_width, height))
+        _paint_drawing_legends(pdf, [legend for legend in spec.get('drawing_legends', []) if legend['page'] == index+1], matrix)
         _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
         pdf.save(); overlay.seek(0); page.merge_page(PdfReader(overlay).pages[0])
         page.compress_content_streams(level=9)

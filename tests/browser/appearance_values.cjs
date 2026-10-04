@@ -108,18 +108,23 @@ async function assertLabels(item, state) {
     await command(() => panel().getByLabel('Display Values',{exact:true}).uncheck()); await expect(page.locator(`[data-value-item-id="${before.id}"]`)).toHaveCount(0); await expect(page.locator(`[data-area-item-id="${before.id}"]`)).toHaveCount(0);
     evidence[mode] = { labels, minimumAndMaximum:true, canonicalPercent:true, optIn:true, removal:true, technicalDataUnchanged:true };
   }
-  // A saved default can explicitly enable values for fresh items without rewriting any old item.
+  // Saved appearance defaults never enable values on fresh items or rewrite old items.
   await chooseTakeoff(page, 'steel'); await select(items[0]); await command(() => panel().getByLabel('Display Values',{exact:true}).check());
   const beforeDefault = await snapshot(), requestCount = requests.length; await panel().getByRole('button',{name:'Set as default',exact:true}).click(); await settingsSettled(page);
   assert.deepEqual(await snapshot(),beforeDefault); assert.equal(requests.length,requestCount);
-  const preference = await page.evaluate(() => JSON.parse(localStorage.getItem('ceasefire.takeoff-markup-defaults.v1')).appearance); assert.equal(preference.display_values,true);
-  const fresh = await draw('duct','NEW-WITH-VALUES',400); assert.deepEqual(fresh.appearance,preference); await assertLabels(fresh,await snapshot());
+  const preference = await page.evaluate(() => JSON.parse(localStorage.getItem('ceasefire.takeoff-markup-defaults.v2')).appearance); assert.equal(preference.display_values,true);
+  const fresh = await draw('duct','NEW-WITH-VALUES',400); assert.deepEqual(fresh.appearance,{...preference,marker_size:25,display_values:false});
+  await expect(page.locator(`[data-value-item-id="${fresh.id}"]`)).toHaveCount(0);
+  const enabledFresh = await command(() => panel().getByLabel('Display Values',{exact:true}).check());
+  await assertLabels(enabledFresh.snapshot.items.find(value => value.id === fresh.id),enabledFresh.snapshot);
   // Counted Steel uses each explicit member length, even with no inferred scale for a count.
   await chooseTakeoff(page, 'steel'); await page.getByRole('button',{name:'Count steel lengths',exact:true}).click();
   for (const point of [[450,300],[550,300]]) { await page.mouse.click(...await screen(point)); await modal('Counted member length',{'Length per member (m)':6.123456789},'Place marker'); }
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
   const counted = await command(async () => page.mouse.dblclick(...await screen([650,300])),'add_count_items'), count = counted.snapshot.items.find(value => value.geometry?.kind === 'count');
-  assert.equal(count.quantity,2); assert.equal(count.measurement.length_m,6.123456789); assert.equal(count.appearance.display_values,true);
+  assert.equal(count.quantity,2); assert.equal(count.measurement.length_m,6.123456789); assert.equal(count.appearance.display_values,false);
+  await expect(page.locator(`[data-value-item-id="${count.id}"]`)).toHaveCount(0);
+  await select(count); await command(() => panel().getByLabel('Display Values',{exact:true}).check());
   await expect(page.locator(`[data-value-item-id="${count.id}"]`)).toHaveCount(2);
   assert.deepEqual(await page.locator(`[data-value-item-id="${count.id}"]`).evaluateAll(elements => elements.map(el => Number(el.dataset.value))),[6123.456789,6123.456789]);
   await page.screenshot({path:path.join(output,'steel-count-cited-values.png')});
@@ -130,5 +135,5 @@ async function assertLabels(item, state) {
   assert.deepEqual(errors,[]); assert.deepEqual(await page.evaluate(() => window.qaCsp),[]);
   const runtimeAfter = runtimeHashes(); assert.deepEqual(runtimeAfter,runtimeBefore,'The fixture ran against stable runtime bytes');
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,port:info.port,evidence,errors,requests,preference,count:{id:count.id,length_m:count.measurement.length_m,quantity:count.quantity},saveReopenExact:true,sourceAndCalculatorUnchanged:true,runtimeBefore,runtimeAfter},null,2));
-  console.log(`PASS: native four-mode values, percentage/width bounds, exact opacity retention, opted-in defaults, counted cited lengths and Save/Load. ${output}`);
+  console.log(`PASS: native four-mode values, percentage/width bounds, exact opacity retention, values disabled on creation, counted cited lengths and Save/Load. ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-3000)); if(page) { await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:String(error),errors,evidence,status:await page.evaluate(()=>window.CeasefireDesktop?.status()).catch(()=>null)},null,2)); } process.exitCode=1; }).finally(async () => { fs.writeFileSync(path.join(output,'server.log'),logs); if(browser)await browser.close(); server.kill(); });

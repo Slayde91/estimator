@@ -27,6 +27,9 @@
     "Fire testing proves the system works; construction proves how creative people can be.",
     "The installation was executed flawlessly; then we wrote a test report.",
     "Give me a red bull and a cigarette and I could probably spray that.",
+    "The defect was minor until someone photographed it.",
+    "I like to think that Penetration Specialist is code for Gigolo.",
+    "The system performs impeccably in ideal conditions - a fire test laboratory.",
   ];
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
@@ -47,7 +50,7 @@
     if (typed.textContent !== phrase) typed.textContent = phrase;
     if (complete || closed) return;
     complete = true;
-    cursorTimer = setTimeout(stopCursor, 5000);
+    cursorTimer = setTimeout(stopCursor, 1000);
   }
   function typeNext() {
     if (closed) return;
@@ -882,6 +885,7 @@
     const navigation = $(id), toggle = $(id + "-toggle"), menu = $(id + "-menu");
     if (!navigation || !toggle || !menu) return;
     const choices = [...menu.querySelectorAll(selector)];
+    const visibleChoices = () => choices.filter(choice => !choice.closest?.('.section-navigation-subgroup[hidden]'));
     navigation.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") setOpen(true); });
     navigation.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !navigation.contains(document.activeElement)) setOpen(false); });
     navigation.addEventListener("focusin", () => setOpen(true));
@@ -889,16 +893,19 @@
     toggle.addEventListener("click", () => setOpen(true));
     navigation.addEventListener("keydown", event => {
       if (event.key === "Escape") { event.preventDefault(); toggle.focus(); setOpen(false); return; }
-      const index = choices.indexOf(event.target);
+      const available = visibleChoices(), index = available.indexOf(event.target);
       if (["ArrowDown", "ArrowUp"].includes(event.key)) {
         event.preventDefault(); setOpen(true);
-        const next = index < 0 ? event.key === "ArrowDown" ? 0 : choices.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length;
-        choices[next]?.focus();
+        const next = index < 0 ? event.key === "ArrowDown" ? 0 : available.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + available.length) % available.length;
+        available[next]?.focus();
       } else if (index >= 0 && ["Home", "End"].includes(event.key)) {
-        event.preventDefault(); choices[event.key === "Home" ? 0 : choices.length - 1]?.focus();
+        event.preventDefault(); available[event.key === "Home" ? 0 : available.length - 1]?.focus();
       }
     });
-    for (const choice of choices) choice.addEventListener("click", () => {
+    for (const choice of choices) choice.addEventListener("click", event => {
+      if (choice.id === "penetration-navigation-toggle" && event.pointerType === "touch") {
+        $("penetration-navigation-menu").hidden = false; choice.setAttribute("aria-expanded", "true"); return;
+      }
       setOpen(false);
       navigate(choice).catch(error => message(error.message, true));
     });
@@ -919,6 +926,18 @@
     }
   }
   function setupCalculatorNavigation() {
+    const branch = $("penetration-navigation"), parent = $("penetration-navigation-toggle"), submenu = $("penetration-navigation-menu");
+    if (branch && parent && submenu) {
+      const open = value => { submenu.hidden = !value; parent.setAttribute("aria-expanded", String(value)); };
+      branch.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") open(true); });
+      branch.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !branch.contains(document.activeElement)) open(false); });
+      branch.addEventListener("focusin", () => open(true));
+      branch.addEventListener("focusout", event => { if (!branch.contains(event.relatedTarget)) open(false); });
+      branch.addEventListener("keydown", event => {
+        if (event.key === "ArrowRight" && event.target === parent) { event.preventDefault(); event.stopPropagation(); open(true); submenu.querySelector("button")?.focus(); }
+        if (event.key === "ArrowLeft" && submenu.contains(event.target)) { event.preventDefault(); event.stopPropagation(); parent.focus(); open(false); }
+      });
+    }
     setupSectionNavigation("calculator-navigation", "[data-calculator-id]", setCalculatorMenuOpen, choice => requestCalculatorNavigation(choice.dataset.calculatorId));
     setupSectionNavigation("library-navigation", "[data-library-kind]", open => setSectionMenuOpen("library-navigation", open), choice => requestLibraryNavigation(choice.dataset.libraryKind));
     setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));

@@ -201,7 +201,9 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                       'sheet': binding['sheet'], 'row': binding['row'], 'status': 'Unavailable',
                       'reason': 'Current confirmed source and matching calculator draft are required.',
                       'published_thickness_mm': None, 'estimating_thickness_mm': None,
-                      'board_stack_mm': None, 'board_layers': None, 'total_thickness_mm': None}
+                      'board_stack_mm': None, 'board_layers': None, 'total_thickness_mm': None,
+                      'duct_thickness_mm': None, 'duct_thickness_basis': None,
+                      'wrap_layers': None, 'wrap_layer_thickness_mm': None}
             results.append(result)
             if (not confirmations[item['id']] or binding['status'] != 'current'
                     or binding['item_version'] != item['version'] or binding['item_digest'] != item_digest(item, snapshot)
@@ -235,10 +237,22 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                         result.update(board_stack_mm=stack, total_thickness_mm=total,
                                       board_layers=layers if number(layers) else None)
                     else:
-                        # Duct dimensions and lengths are exported from Takeoffs.
-                        # No new technical thickness mapping is inferred here.
-                        result['reason'] = 'Duct protection remains in the linked Ductwork calculator.'
-                        continue
+                        spray, layers = value('L'), value('R')
+                        if value('CB') != 1:
+                            result['reason'] = str(value('J') or 'The Ductwork calculator has no usable body result.')
+                            continue
+                        if number(spray) and spray > 0:
+                            result.update(duct_thickness_mm=spray, duct_thickness_basis='Spray DFT')
+                        else:
+                            layer_m = engine.value('PRODUCT SETTINGS', 'B96')
+                            if not number(layers) or layers <= 0 or not number(layer_m) or layer_m <= 0:
+                                result['reason'] = 'The Ductwork calculator has no usable spray or continuous-wrap thickness.'
+                                continue
+                            # Unit projection of the native continuous-layer count
+                            # and selected layer thickness, not a new fire rule.
+                            result.update(duct_thickness_mm=layers * layer_m * 1000,
+                                          duct_thickness_basis='Continuous wrap; local penetration layers excluded',
+                                          wrap_layers=layers, wrap_layer_thickness_mm=layer_m * 1000)
                     result.update(status='Current', reason='', calculator_source_sha256=model['source']['sha256'],
                                   calculator_draft_sha256=draft['fingerprint'])
             except (ValueError, ArithmeticError, TypeError, KeyError, FormulaError):
@@ -258,9 +272,7 @@ def linked_register_results(snapshot, request, *, store):
     if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
         raise ValidationError('The Takeoffs draft changed. Read its current linked results again.')
     drafts = _calculator_drafts(request.get('calculator_drafts', {}))
-    if set(drafts) - {'steel_vermiculite', 'steel_board'}:
-        raise ValidationError('Thickness results belong to the existing Steel Spray and Steel Board schedules.')
-    selected = [item for item in snapshot['items'] if item['mode'] == 'steel']
+    selected = [item for item in snapshot['items'] if item['mode'] in ('steel', 'duct')]
     approvals, binding_registry = _local_authority(snapshot, store)
     confirmations = {item['id']: _confirmed(item, snapshot, item_result(item, snapshot), approvals)
                      for item in selected}
@@ -279,6 +291,8 @@ def linked_result_text(results):
             published = result['published_thickness_mm']
             sections.append(f"Spray: {result['estimating_thickness_mm']:.2f} mm estimating"
                             + (f"; {published:.2f} mm published" if published is not None else '; published thickness unavailable'))
+        elif result['calculator_id'] == 'ductwork':
+            sections.append(f"Ductwork: {result['duct_thickness_mm']:.2f} mm; {result['duct_thickness_basis']}")
         else:
             layers = result['board_layers']
             sections.append(f"Board: {result['board_stack_mm']} mm stack; "

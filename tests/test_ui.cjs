@@ -621,7 +621,7 @@ let passed=0;
   assert.match(stylesCss,/\.button\.refresh-button\{[^}]*background:#fff[^}]*box-shadow:none/);
   assert.match(libraryCss,/\.library-item-actions \.button\{[^}]*height:48px[^}]*min-height:48px/);assert.match(libraryCss,/\.library-delete\{[^}]*width:48px[^}]*height:48px/);
   assert.ok(html.indexOf('id="penetration-item-quantity"')<html.indexOf('id="penetration-add-to-schedule"'));
-  assert.match(html,/data-view="home"[^>]*aria-current="page"[^>]*>Home</);assert.match(html,/data-view="quotes"[^>]*>Projects</);assert.match(html,/data-view="help"[^>]*>Help</);
+  assert.match(html,/data-view="home"[^>]*aria-current="page"[^>]*aria-label="Home"/);assert.match(html,/data-view="quotes"[^>]*aria-label="Projects"/);assert.match(html,/data-view="help"[^>]*aria-label="Help"/);
   assert.match(html,/data-home-view="estimate"/);assert.match(html,/data-home-view="pricing"/);assert.match(html,/data-home-view="calculators"/);assert.match(html,/data-home-view="quotes"/);
   assert.match(html,/id="penetration-add"[^>]*penetration-new-item-action[^>]*title="Add new item"/);
   assert.ok(html.indexOf('id="penetration-schedule-heading"')<html.indexOf('id="penetration-schedule-recalculate"'));assert.ok(html.indexOf('id="penetration-schedule-recalculate"')<html.indexOf('<div class="table-scroll"><table><thead><tr><th scope="col">Item</th>'));

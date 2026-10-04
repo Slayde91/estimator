@@ -79,7 +79,7 @@ class TakeoffMarkupEditTests(unittest.TestCase):
         identifier = self.case.create(); original = deepcopy(self.item(identifier))
         self.assertNotIn('appearance', validate_snapshot(self.case.state['snapshot'])['items'][0])
         self.assertEqual(markup_appearance(original), {'stroke_color': '#FF0000', 'fill_color': '#FF0000',
-            'stroke_width': 2, 'fill_enabled': False, 'opacity': 1, 'display_values': False})
+            'stroke_width': 5, 'fill_enabled': True, 'opacity': 1, 'display_values': False})
         invalid = [None, [], {}, {'unknown': 1}, {'stroke_color': 'red'}, {'stroke_color': '#fff'},
                    {'fill_color': 'url(http://example.test)'}, {'fill_enabled': 1}, {'opacity': True},
                    {'opacity': -0.1}, {'opacity': 1.1}, {'opacity': math.nan}, {'stroke_width': 0},

@@ -36,7 +36,7 @@ async function dialog(title, values, action) {
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
 async function pageNumber(number) {
-  return command(async () => { await fill(page, 'Page number', number); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 'record_render');
+  return renderDrawing(page, async () => { await fill(page, 'Page number', number); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, number);
 }
 const fit = () => renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
 // Opening Takeoffs with a retained PDF renders it asynchronously. aria-busy
@@ -104,7 +104,7 @@ function clearedExpected(original, bindings) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
-  await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle(); await pageNumber(3); await fit();
   await page.getByRole('button', { name: 'Scale', exact: true }).click(); await page.getByLabel('Drawing calibration', { exact: true }).selectOption('scale:100');
   await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');

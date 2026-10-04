@@ -103,7 +103,9 @@ async function saveAndLoad(info) {
   return { saved, reopened: await snapshot() };
 }
 async function deleteMarker(item, memberId) {
-  const marker = page.locator(`[data-count-member-id="${memberId}"]`); await marker.scrollIntoViewIfNeeded();
+  // The overlay can redraw after linked results arrive. Let the click resolve
+  // its current SVG target, including scrolling, instead of holding a stale hit.
+  const marker = page.locator(`[data-count-member-id="${memberId}"]`);
   await marker.click({ button: 'right' });
   return command(() => page.getByRole('menuitem', { name: 'Delete count marker', exact: true }).click(), 'delete_count_marker');
 }

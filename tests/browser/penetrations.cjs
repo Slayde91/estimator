@@ -180,6 +180,9 @@ async function showImage() {
     await expect(notes).toHaveValue('First pending note'); await expect(quantity).toHaveValue('0'); assert.equal(physicalRequests.length, requestsBeforeRace);
     await clickProjectControl(page, 'Load'); await reachedRead;
     await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+    // Load now lives on Projects. Settle the return navigation before testing
+    // later typing against the still-held native file read.
+    await idle();
     const beforeLater = await page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
     assert.equal(beforeLater.busy, false); assert.equal(beforeLater.physicalUnfinished, true);
     await notes.fill('Later pending note must survive the load race');

@@ -647,12 +647,17 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Unconfirmed');
     assert.equal(item.state,'confirmed');
   });
-  await check('Icon actions keep original accessible names/tooltips and the Add to Schedule plus glyph',()=>{
+  await check('Icon actions keep original accessible names/tooltips, the Add to Schedule plus glyph and the linked-row clock',async()=>{
     const h=harness(),dom=attachMinimalDom(h);
-    for(const label of ['‹ Page','Page ›','Select','Pan','Trace length','Fit page','Upload PDFs','Search','Stop search','Preview transfer']){
+    for(const label of ['‹ Page','Page ›','Select','Pan','Trace length','Fit page','Upload PDFs','Search','Stop search','Preview transfer','Update linked rows','Detach links']){
       const control=h.audit.button(label,()=>{});assert.equal(control.attributes['aria-label'],label);assert.equal(control.title,label);assert.ok(control.classList.contains('icon-only'));assert.equal(control.children.at(-1).textContent,label);assert.ok(control.children.at(-1).classList.contains('sr-only'));
       if(label==='Preview transfer')assert.equal(control.children[0].textContent,'+');else assert.equal(dom.all(control).filter(node=>node.tagName==='SVG').length,1);
     }
+    let updates=0;const update=h.audit.button('Update linked rows',()=>{updates++;});const clock=dom.all(update).find(node=>node.tagName==='SVG');
+    assert.equal(clock.children.length,1);assert.equal(clock.children[0].attributes.d,'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 6v6h6');
+    assert.equal(clock.attributes.stroke,'currentColor');assert.equal(clock.attributes.fill,'none');assert.equal(clock.attributes['stroke-linecap'],'round');assert.equal(clock.attributes['stroke-linejoin'],'round');
+    update.events.click();await flush();assert.equal(updates,1);
+    assert.equal(dom.all(h.audit.button('Detach links',()=>{})).find(node=>node.tagName==='PATH').attributes.d,'M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2');
     const ordinary=h.audit.button('Confirm',()=>{});assert.equal(ordinary.textContent,'Confirm');assert.ok(!ordinary.classList.contains('icon-only'));
   });
   await check('Steel creation includes destination fields and new ducts default rectangular without replacing legacy shape data',async()=>{

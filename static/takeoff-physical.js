@@ -309,14 +309,17 @@
         offset = Math.max(0, Math.min(Math.max(0, preview.relationships.length - 1), offset + (answer.action === "previous" ? -100 : 100)));
       }
     }
-    async function perform(commands, title, allowPending = false, review = true) {
+    async function perform(commands, title, allowPending = false, review = true, requireSource) {
       ensureEditable(); ensureAvailable(allowPending); const key = graphKey(), identity = `${scope()}/${state.snapshot?.project_id || ""}`, captured = new Map(controlsInWorkspace("[data-physical-field]").map(control => [control, { value: String(control.value), revision: state.bindings.get(control)?.revision }])); setBusy(true);
       try {
+        requireSource?.();
         const preview = await bridge.preview(commands);
         if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed before review. Preview the edit again.");
+        requireSource?.();
         previewText(preview, state.index);
         if (review && !await reviewPreview(title, preview, commands)) return false;
         if (state.destroyed || graphKey() !== key) throw new Error("The physical draft changed during review. Preview the edit again.");
+        requireSource?.();
         const reply = await bridge.apply(preview.preview_id);
         if (state.destroyed || identity !== `${scope()}/${state.snapshot?.project_id || ""}`) throw new Error("The physical workspace changed while the validated change was applying. The new workspace has been preserved.");
         if (!state.destroyed) {
@@ -360,10 +363,17 @@
         if (!answer) return null; if (answer.parent_id === "previous") offset -= 100; else if (answer.parent_id === "next") offset += 100; else return answer.parent_id;
       }
     }
-    async function create(kind, chosenParent, marker) {
+    async function create(kind, chosenParent, marker, sourceEvidence, requirePlacement) {
       if (!kinds.includes(kind) || servicePlans() && kind === "defect") throw new Error("Choose a record type belonging to this workspace.");
       if (marker !== undefined && kind !== "barrier") throw new Error("A count marker belongs to a barrier.");
-      ensureEditable(); ensureAvailable(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable();
+      const evidence = sourceEvidence === undefined ? [] : [copy(sourceEvidence)];
+      const requireSource = () => {
+        requirePlacement?.();
+        if (!evidence.length) return;
+        const reference = evidence[0], source = state.snapshot?.documents?.find(value => value.id === reference.document_id), context = bridge.imageContext?.();
+        if (kind !== "defect" || !source || source.sha256 !== reference.document_sha256 || !Number.isInteger(reference.page) || reference.page < 1 || reference.page > source.pages.length || context && (context.document_id !== source.id || context.page !== reference.page)) throw new Error("The defect source location changed. Select Count on the current drawing again.");
+      };
+      ensureEditable(); ensureAvailable(); requireSource(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable(); requireSource();
       if (graphKey() !== key) throw new Error("The physical draft changed before this form opened. Repeat the edit.");
       let parent = chosenParent;
       if (parentRelations()[kind]) {
@@ -373,10 +383,11 @@
         if (!parent) return;
         const entry = state.index.get(parent); if (!entry || entry.kind !== parentKind || entry.entity.deleted) throw new Error("The selected physical parent is unavailable.");
       } else parent = null;
-      const answer = await ask(`Create draft ${kind}`, fieldDefinitions(null, kind), `${warning()}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank. Link retained source evidence after creating the draft.`, "Preview new draft");
+      const answer = await ask(evidence.length ? "Add Defect" : `Create draft ${kind}`, fieldDefinitions(null, kind), `${warning()}${parent ? `\n\nParent ID: ${displayId(state.index.get(parent))}` : ""}\n\nUnknown properties stay blank.${evidence.length ? `\n\nSource page ${evidence[0].page}: ${evidence[0].note}` : " Link retained source evidence after creating the draft."}`, "Preview new draft");
       if (!answer) return;
-      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence: [], uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}) };
-      if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`)) { await selectEntity(entity.id, false, marker === undefined); return entity.id; }
+      requireSource();
+      const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}) };
+      if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`, false, true, requireSource)) { await selectEntity(entity.id, false, marker === undefined && !evidence.length); return entity.id; }
     }
     function createFromSelection(kind, marker) {
       ensureEditable(); ensureAvailable();

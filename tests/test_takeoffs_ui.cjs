@@ -21,7 +21,7 @@ function harness() {
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'addPhysicalCountRecord,armPhysicalMarker,choosePhysicalDrawing,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'activateCountTool,defectLocationEvidence,armPhysicalMarker,choosePhysicalDrawing,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'bulkSelectionFields,syncBulkFields,renderItemSettingsActions,drawableItems,renderCountMarkers,askDialog:ask,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
@@ -367,11 +367,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.state.tool='exclusion';h.audit.state.exclusionItemId='surface';assert.equal(h.audit.areaTraceLimit(),968);
     h.audit.state.retraceId=null;h.audit.state.exclusionItemId=null;assert.equal(h.audit.areaTraceLimit(),1000);
   });
-  await check('Area sorting and filtering use net square metres and preserve stable selected identities',()=>{
+  await check('Surface registers ignore hidden legacy sorting and combine search with column filters while preserving selected identities',()=>{
     const h=harness(),value=blank();value.items=[{id:'wall-large',mode:'wall',fields:{mark:'W1',treatment:'Board'},state:'draft',version:1},{id:'wall-small',mode:'wall',fields:{mark:'W2',treatment:'Spray'},state:'draft',version:1},{id:'slab',mode:'slab',fields:{mark:'S1'},state:'draft',version:1}];
     h.audit.accept({...response(value),item_results:[{id:'wall-large',net_area_m2:72},{id:'wall-small',net_area_m2:18},{id:'slab',net_area_m2:5}]});h.audit.state.mode='wall';h.audit.state.sort='area';h.audit.state.selected.add('wall-large');
-    assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-small','wall-large']);
+    assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-large','wall-small']);
     h.audit.state.filter='spray';assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-small']);assert.ok(h.audit.state.selected.has('wall-large'));
+    h.audit.registerFilters().set('treatment',new Set(['Board']));assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),[]);h.audit.state.filter='';assert.deepEqual(copy(h.audit.visibleItems()).map(value=>value.id),['wall-large']);
+    assert.equal(h.audit.state.resultMap.get('wall-large').net_area_m2,72);assert.equal(h.audit.state.resultMap.get('wall-small').net_area_m2,18);
   });
   await check('Area records cannot invoke calculator transfers, option lookup, link changes or linear split/merge',async()=>{
     const h=harness();let calls=0;h.audit.setApi(async()=>{calls++;throw new Error('Unexpected area calculator request');});
@@ -446,13 +448,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       await assert.rejects(h.audit.finishTrace(),/unfinished item(?:\/settings)? edits/);assert.deepEqual(copy(h.audit.state.points),[[1,1],[2,2]]);assert.equal(h.audit.state.formDirty,true);
     }
   });
-  await check('Selecting an item uses final grouped pagination and expands its collapsed group',async()=>{
+  await check('Selecting a surface uses final numeric-mark pagination while ignoring hidden legacy groups',async()=>{
     const h=harness(),value=blank();value.items=Array.from({length:101},(_,i)=>({id:`surface-${i}`,mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:String(i),group:i===100?'A':'Z'},geometry:null,measurement:null,evidence:[],member_ids:[]}));
     h.audit.accept(response(value));h.audit.state.mode='wall';h.audit.state.group='group';h.audit.state.sort='mark';h.audit.state.collapsed.add('A');const {ui}=attachMinimalDom(h);
     await h.audit.selectItem('surface-100',false,false);
-    assert.equal(h.audit.state.offset,0);assert.ok(!h.audit.state.collapsed.has('A'));assert.ok(ui.tableWrap.querySelectorAll('[data-item-id]').some(row=>row.dataset.itemId==='surface-100'&&row.classList.contains('selected')));
+    assert.equal(h.audit.state.offset,100);assert.ok(h.audit.state.collapsed.has('A'));assert.ok(ui.tableWrap.querySelectorAll('[data-item-id]').some(row=>row.dataset.itemId==='surface-100'&&row.classList.contains('selected')));
     h.audit.state.collapsed.add('Z');await h.audit.selectItem('surface-99',false,false);
-    assert.equal(h.audit.state.offset,100);assert.ok(!h.audit.state.collapsed.has('Z'));assert.deepEqual(ui.tableWrap.querySelectorAll('[data-item-id]').map(row=>row.dataset.itemId),['surface-99']);
+    assert.equal(h.audit.state.offset,0);assert.ok(h.audit.state.collapsed.has('Z'));assert.equal(ui.tableWrap.querySelectorAll('[data-item-id]').length,100);assert.ok(ui.tableWrap.querySelectorAll('[data-item-id]').some(row=>row.dataset.itemId==='surface-99'&&row.classList.contains('selected')));
   });
   await check('Register View/Edit actions open left settings without an inline editor and retain pending edits through register filtering',async()=>{
     const h=harness(),value=blank(),item={id:'surface',mode:'wall',version:1,state:'draft',quantity:1,fields:{mark:'W1',level:'L01',group:'West'},geometry:null,measurement:null,evidence:[],member_ids:[]};
@@ -462,7 +464,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const actions=dom.all(dom.ui.tableWrap).filter(node=>node.tagName==='BUTTON');assert.ok(actions.some(node=>(node.attributes['aria-label']||node.textContent)==='View'));assert.ok(actions.some(node=>(node.attributes['aria-label']||node.textContent)==='Edit item'));
     level.value='L02';level.events.input();const before=copy(h.audit.state.session.snapshot);
     h.audit.state.filter='No matching item';h.audit.renderRegister();assert.equal(h.audit.state.settingsEditor,editor);assert.equal(level.value,'L02');assert.ok(dom.all(dom.ui.settingsPanel).includes(level));
-    h.audit.state.filter='';h.audit.state.group='group';h.audit.state.collapsed.add('West');h.audit.renderRegister();assert.equal(h.audit.state.settingsEditor,editor);assert.ok(dom.all(dom.ui.settingsPanel).includes(level));
+    h.audit.state.filter='';h.audit.registerFilters().set('level',new Set(['L01']));h.audit.renderRegister();assert.equal(h.audit.state.settingsEditor,editor);assert.ok(dom.all(dom.ui.settingsPanel).includes(level));assert.equal(dom.ui.tableWrap.querySelectorAll('[data-item-id]').length,1);
     assert.throws(()=>h.api.projectSnapshot(),/unfinished/);assert.deepEqual(copy(h.audit.state.session.snapshot),before);
     let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};Object.assign(h.audit.state.session.snapshot.items[0].fields,body.changes.fields);});await h.audit.flushSettings();
     assert.deepEqual(sent,{op:'bulk_update',item_ids:['surface'],changes:{fields:{level:'L02'}}});assert.equal(h.audit.state.settingsDirty,false);assert.equal(h.api.projectSnapshot().items[0].fields.level,'L02');
@@ -896,14 +898,27 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const h=harness();let destroyed=false;h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,destroy(){destroyed=true;}};
     await assert.rejects(h.audit.changePhysicalScope('service_plans'),/unfinished physical/);assert.equal(h.audit.state.physicalScope,'defect_reports');assert.equal(destroyed,false);
   });
-  await check('Deferred physical Count creation cannot arm a tool or replace selection after switching mode or scope',async()=>{
-    for(const change of [state=>{state.mode='steel';},state=>{state.physicalScope='service_plans';}]){
-      const h=harness(), pending=deferred(), state=h.audit.state;h.audit.accept(response({...blank(),physical:{barriers:[{id:'barrier',deleted:false}]}}));
-      Object.assign(state,{mode:'physical',viewport:{width:200},tool:'select',selected:new Set(['kept'])});
-      state.physicalUI={hasUnfinishedChanges:()=>false,createFromSelection:()=>pending.promise,select(){throw Error('Stale marker must not be selected');}};
-      let armed=0,opened=0;h.audit.setCountTool(()=>armed++);h.audit.setPhysicalDetails(()=>opened++);
-      const before=copy(state.session.snapshot), work=h.audit.addPhysicalCountRecord('barrier');await flush();change(state);pending.resolve('barrier');await work;
-      assert.equal(armed,0);assert.equal(opened,0);assert.equal(state.physicalPlacementTarget,undefined);assert.deepEqual([...state.selected],['kept']);assert.deepEqual(copy(state.session.snapshot),before);
+  await check('Defect Count arms a source placement without opening a form or creating a physical record',()=>{
+    const h=countHarness(),state=h.audit.state;state.mode='physical';state.physicalUI={hasUnfinishedChanges:()=>false,create(){assert.fail('Count must wait for the drawing click');}};
+    h.dom.ui.scaleControls=h.dom.element();h.dom.ui.scaleToggle=h.dom.element();h.audit.setCountTool(tool=>{state.tool=tool;});const before=copy(state.session.snapshot);
+    h.audit.activateCountTool();assert.equal(state.tool,'count');assert.equal(state.physicalPlacementTarget.kind,'defect');assert.equal(state.physicalPlacementTarget.documentId,'doc');assert.deepEqual(copy(state.session.snapshot),before);assert.match(h.dom.ui.progress.textContent,/Click the drawing.*defect/);
+  });
+  await check('Defect source-location annotations retain the exact clicked point and clip to the PDF crop without measurements',()=>{
+    const h=countHarness(),state=h.audit.state;state.viewport.transform=[0,2,2,0,0,0];const source={document_id:'doc',document_sha256:'a'.repeat(64),page:1,point:[0,200]};
+    const evidence=copy(h.audit.defectLocationEvidence(source));assert.deepEqual(evidence.region,[[0,197.5],[2.5,197.5],[2.5,200],[0,200]]);assert.equal(evidence.document_sha256,source.document_sha256);assert.match(evidence.note,/\[0,200\]/);assert.match(evidence.note,/does not represent physical size or quantity/);assert.equal(evidence.measurement,undefined);assert.equal(evidence.point,undefined);
+    assert.throws(()=>h.audit.defectLocationEvidence({...source,point:[-1,200]}),/inside/);state.viewport.transform=[0,0,0,0,0,0];assert.throws(()=>h.audit.defectLocationEvidence(source),/transform/);
+  });
+  await check('Defect drawing placement uses one source annotation, displays a pending marker, and cancels without a mutation',async()=>{
+    const h=countHarness(),state=h.audit.state;h.dom.ui.status=h.dom.element();state.session.snapshot.documents[0].sha256='a'.repeat(64);Object.assign(state,{mode:'physical',points:[]});
+    const before=copy(state.session.snapshot);let calls=0;state.physicalUI={hasUnfinishedChanges:()=>false,selectedBarrier:()=>null,async create(kind,parent,marker,evidence){calls++;assert.equal(kind,'defect');assert.equal(parent,undefined);assert.equal(marker,undefined);assert.deepEqual(copy(state.physicalPlacementTarget.pendingPoint),[12.3456789,23.9876543]);assert.equal(state.physicalPlacing,true);assert.match(evidence.note,/12.3456789,23.9876543/);return undefined;}};
+    state.physicalPlacementTarget={kind:'defect',sessionId:'session',documentId:'doc',page:1,controller:state.physicalUI};await h.audit.placePhysicalMarker([12.3456789,23.9876543]);assert.equal(calls,1);assert.equal(state.physicalPlacing,false);assert.equal(state.physicalPlacementTarget.pendingPoint,undefined);assert.equal(state.tool,'count');assert.deepEqual(copy(state.session.snapshot),before);
+    state.physicalPlacementTarget.page=2;await assert.rejects(h.audit.placePhysicalMarker([12,23]),/previous drawing/);assert.equal(calls,1);assert.deepEqual(copy(state.session.snapshot),before);
+  });
+  await check('Placed Defect creation carries an exact session, revision, controller, scope and original-source guard',async()=>{
+    for(const replace of [state=>{state.session.session_id='replacement';},state=>{state.session.revision++;},state=>{state.physicalUI=null;},state=>{state.physicalScope='service_plans';},state=>{state.document='other';},state=>{state.page=2;},state=>{state.session.snapshot.documents[0].sha256='b'.repeat(64);},state=>{state.mode='steel';}]){
+      const h=countHarness(),state=h.audit.state;h.dom.ui.status=h.dom.element();state.session.snapshot.documents[0].sha256='a'.repeat(64);state.mode='physical';let checked=0;
+      state.physicalUI={hasUnfinishedChanges:()=>false,selectedBarrier:()=>null,async create(kind,parent,marker,evidence,requirePlacement){assert.equal(kind,'defect');requirePlacement();replace(state);assert.throws(requirePlacement,/drawing or physical draft changed/);checked++;return undefined;}};
+      state.physicalPlacementTarget={kind:'defect',sessionId:'session',documentId:'doc',page:1,controller:state.physicalUI};await h.audit.placePhysicalMarker([50,60]);assert.equal(checked,1);assert.equal(state.physicalPlacing,false);assert.equal(state.physicalPlacementTarget.pendingPoint,undefined);
     }
   });
   await check('Explicit marker placement requires Penetrations and rechecks its scope after asynchronous selection',async()=>{

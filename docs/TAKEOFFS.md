@@ -163,11 +163,13 @@ remain unchanged: each row supplies its per-member length and marker-derived Qty
 
 ## Standalone counts and lengths
 
-In Steel and Duct, **Count** below **Trace length** counts markers without a
-length or calibration. Enter Item, Level and WxH (mm), and choose FRL and
+In Duct, **Count** below **Trace length** counts markers without a
+length or calibration, using a crosshair cursor. Enter Item, Level and WxH (mm), and choose FRL and
 Orientation. **Total Count/QTY** comes from the retained markers and cannot be
 typed independently. Continuing a count retains its member identities; deleting
-a marker reduces only that count.
+a marker reduces only that count. Steel's standalone **Count** creation button
+is hidden; saved standalone Steel counts retain their register, editing,
+continuation, history and export behavior. **Count steel lengths** remains available.
 
 In Walls and Slabs, **Length** below **Add exclusion** measures a calibrated
 polyline in metres. Enter its Item and Level. If its calibration is removed,
@@ -290,9 +292,21 @@ rotation, CropBox offsets, UserUnit, zoom and screen density do not change area.
 The expanded register row can re-trace the boundary, edit original PDF vertices and edit or
 remove individual exclusions. Each exclusion has a persistent ID. These edits
 invalidate confirmation and can be undone. Bulk edits, row/source
-selection, filtering, grouping, confirmation and project persistence use
-the shared workspace. Surface split/merge is explicitly unavailable; grouping
-separate surfaces preserves their individual identities.
+selection, filtering, confirmation and project persistence use the shared
+workspace. Surface split/merge is explicitly unavailable.
+
+The column filters cover **Confirmation**, **Wall ID** or **Slab / zone ID**,
+**Level**, **Surface basis**, **Substrate**, **Treatment**, **Protection system**,
+**Protection product** and **FRL / fire rating**. They use the same value search,
+checkboxes, Apply and Reset as the other registers; values within a column are
+alternatives and active columns must all match. Wall and Slab filter selections
+stay separate. These filters replace the confirmation, sort and grouping menus.
+
+Selecting a surface opens Item Details in the left Settings pane. Clicking the
+sole selected surface again or empty drawing space clears selection and closes
+the pane. Modifier keys keep multiple selection available. Pending field edits
+finish saving before selection changes or the pane closes; selecting or clearing
+items does not change their evidence, geometry or physical quantity.
 
 Confirmed CSV/XLSX registers retain all exclusion geometry and source-bound area
 checks. Surface items have no mapping to the existing length-based calculators
@@ -322,13 +336,15 @@ inherited context for its services. Switching sub-tabs never copies, merges or
 reparents records between these two hierarchies. Both retain their own numbered
 identities and are saved in the project.
 
-In Defect Reports, **Count** below **Scale** opens **Add Defect**, **Add Barrier**
-and **Add Services**. These use the existing reviewed creation dialogs and the
-selected record's relevant parent, or ask for a parent when none is selected.
-Adding a barrier with a PDF open then lets you click its marker position. Choose
-**Select** to leave it unplaced. An unmarked barrier's Item Details has **Place
-count marker** to add its position later. In Service Plans, **Count** still
-places an existing or new barrier directly on the original PDF page.
+In Defect Reports, **Count** below **Scale** arms a crosshair. Clicking the
+original PDF shows a pending source marker and opens **Add Defect**. The existing
+reviewed creation flow retains the exact source hash, page and clicked PDF point
+in a small source-location annotation clipped to the page. This annotation does
+not infer physical size, area, barriers, services or quantities. Cancelling the
+form or review creates no record. The register's **Add defect** can still create
+an unplaced defect. An unmarked barrier's Item Details has **Place count marker**
+to add its position later. In Service Plans, **Count** still uses a crosshair to
+place an existing or new barrier directly on the original PDF page.
 Each marker has an automatic callout derived from
 the barrier fields and its active services. Editing those records updates the
 description; the marker does not infer or multiply service quantities. Selecting

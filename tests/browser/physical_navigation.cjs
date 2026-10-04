@@ -1,4 +1,4 @@
-// Count menus and physical detail navigation use a disposable source/server only.
+// Physical detail navigation and explicit marker placement use a disposable source/server only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
 const { createHash } = require('node:crypto');
@@ -16,7 +16,6 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], requests = [], evidence = {};
 const details = () => page.getByRole('complementary', { name: 'Item Details', exact: true });
-const menu = () => page.getByRole('group', { name: 'Defect report count', exact: true });
 const row = id => page.locator(`tr[data-physical-id="${id}"]`);
 const marker = id => page.locator(`.takeoff-physical-marker-hit[data-physical-id="${id}"]`);
 const sha = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -41,8 +40,8 @@ async function apply(title) {
 }
 async function create(kind, fields, trigger) {
   if (!trigger) {
-    await page.getByRole('button', { name: 'Count', exact: true }).click(); await expect(menu()).toBeVisible();
-    await menu().getByRole('button', { name: { defect: 'Add Defect', barrier: 'Add Barrier', service: 'Add Services' }[kind], exact: true }).click();
+    if (kind === 'defect') await page.getByRole('button', { name: 'Add defect', exact: true }).click();
+    else await details().getByRole('button', { name: `Add ${kind} in Item Details`, exact: true }).click();
   } else await trigger();
   const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
@@ -88,9 +87,7 @@ async function layout(width) {
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await idle();
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await expect(menu()).toBeVisible();
-  assert.deepEqual(await menu().getByRole('button').allTextContents(), ['Add Defect', 'Add Barrier', 'Add Services']);
-  await menu().press('Escape'); await expect(menu()).toBeHidden(); await expect(page.getByRole('button', { name: 'Count', exact: true })).toBeFocused();
+  await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0);
   const defect = await create('defect', { 'Defect Ref.': 'NAV-A', FRL: '-/120/120' });
   const barrier = await create('barrier', { Location: 'Existing unplaced barrier', Substrate: 'Concrete/masonry wall' });
   const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '25' });
@@ -110,10 +107,10 @@ async function layout(width) {
   await navigate('Barrier', otherBarrier); await expect(details().getByLabel('Location', { exact: true })).toHaveValue('Second family');
   await navigate('Defect', otherDefect); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-B');
   await navigate('Service', otherService);
-  const newBarrier = await create('barrier', { Location: 'Count menu PDF placement' });
-  assert.equal(state.physical.barriers.at(-1).defect_id, otherDefect); await place(newBarrier, [500, 300]);
+  const newBarrier = await create('barrier', { Location: 'Explicit PDF placement' }, () => row(otherDefect).getByRole('button', { name: /^Add barrier to / }).click());
+  assert.equal(state.physical.barriers.at(-1).defect_id, otherDefect); await place(newBarrier, [500, 300], true);
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-B');
-  const newService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 4 }); assert.equal(state.physical.services.at(-1).barrier_id, newBarrier);
+  const newService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 4 }, () => row(newBarrier).getByRole('button', { name: /^Add service to / }).click()); assert.equal(state.physical.services.at(-1).barrier_id, newBarrier);
   await marker(barrier).click(); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
   const navigation = details().getByRole('table', { name: 'Item Details navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('columnheader').allTextContents(), ['Defect', 'Barrier', 'Service']);
@@ -124,7 +121,7 @@ async function layout(width) {
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;
   await page.getByRole('tab', { name: 'Service Plans', exact: true }).click(); await idle(); await page.setViewportSize({ width: 1600, height: 1100 });
-  await expect(menu()).toBeHidden(); await expect(page.getByRole('button', { name: 'Add Defect', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0); await expect(page.getByRole('button', { name: 'Add Defect', exact: true })).toHaveCount(0);
   const planBarrier = await create('barrier', { Location: 'Independent plan', FRL: '-/60/60' }, () => page.getByRole('button', { name: 'Add substrate', exact: true }).click());
   assert.equal(state.service_plans.barriers[0].id, planBarrier); assert.equal(state.service_plans.barriers[0].defect_id, undefined); assert.equal(state.service_plans.defects, undefined);
   assert.deepEqual(await details().getByRole('table', { name: 'Item Details navigation', exact: true }).getByRole('columnheader').allTextContents(), ['Barrier', 'Service']);
@@ -137,7 +134,7 @@ async function layout(width) {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await snapshot(); assert.deepEqual(state.physical, beforeSave.physical); assert.deepEqual(state.service_plans, beforeSave.service_plans);
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.equal(sha(info.fixture), sourceBefore);
   evidence.savedReopened = true; fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors }, null, 2));
-  console.log(`PASS: Count creation without PDF, correct parents, existing/new marker placement, Defect-first inspection, active-ID navigation, pending guards, separate Service Plans, responsive source/panel alignment and Save/Load. Evidence: ${output}`);
+  console.log(`PASS: Physical creation without PDF, correct parents, explicit marker placement, Defect-first inspection, active-ID navigation, pending guards, separate Service Plans, responsive source/panel alignment and Save/Load. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-4000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

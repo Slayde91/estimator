@@ -138,13 +138,11 @@
 .takeoff-scale-controls select{grid-column:1/-1;min-width:0;max-width:none;width:100%}
 .takeoff-scale-controls .button{min-width:0;width:100%;padding:9px 6px;white-space:normal}
 .takeoff-count-anchor{position:relative;display:flex}
-.takeoff-count-anchor[hidden],.takeoff-count-controls[hidden]{display:none}
-.takeoff-count-controls{position:absolute;left:calc(100% + 18px);top:0;z-index:12;width:min(220px,calc(100vw - 120px));margin:0;display:grid;gap:8px;box-shadow:0 4px 18px #0003}
-.takeoff-count-controls .button{width:100%;text-align:left}
+.takeoff-count-anchor[hidden]{display:none}
 .takeoff-drawing-pane>.takeoff-progress,.takeoff-drawing-pane>.takeoff-control-status{margin:0}
 @media(max-width:650px){.takeoff-tool-rail{padding:8px;gap:8px}.takeoff-scale-controls{gap:6px}.takeoff-viewer-controls{max-width:calc(100% - 12px);padding:6px}.takeoff-viewer-top{top:6px}.takeoff-page-controls{bottom:6px;gap:4px}}
 
-.takeoff-viewport[data-tool=count]{cursor:crosshair}
+.takeoff-viewport:is([data-tool=count],[data-tool=count-only]),.takeoff-viewport:is([data-tool=count],[data-tool=count-only]) .takeoff-overlay,.takeoff-viewport:is([data-tool=count],[data-tool=count-only]) .takeoff-overlay [role=button]{cursor:crosshair}
 .takeoff-overlay .takeoff-count-hit{fill:transparent;pointer-events:all}
 .takeoff-overlay .takeoff-count-pending{pointer-events:none}
 .takeoff-count-lengths{display:grid;gap:8px}

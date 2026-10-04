@@ -174,18 +174,26 @@ async function surface(mode, rotated = false) {
   assert.equal(state.snapshot.items.find(item => item.id === wall.id).fields.level, 'L02');
   assert.deepEqual(state.snapshot.items.find(item => item.id === wall.id).geometry, wall.geometry);
   await page.getByLabel('Filter register', { exact: true }).fill('WALL-01');
-  await page.getByLabel('Sort register', { exact: true }).selectOption('area');
-  await page.getByLabel('Group register', { exact: true }).selectOption('level');
+  for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Filter Level', exact: true }).click();
+  let filterDialog = page.locator('.takeoff-column-filter'); await filterDialog.getByRole('checkbox', { name: 'Select all values', exact: true }).uncheck();
+  await filterDialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); await filterDialog.waitFor({ state: 'detached' });
+  await expect(page.locator(`tr[data-item-id="${wall.id}"]`)).toHaveCount(0);
+  assert.deepEqual(await page.evaluate(id => window.CeasefireTakeoffs.projectSnapshot().items.find(item => item.id === id).geometry, wall.id), wall.geometry);
+  await page.getByRole('button', { name: 'Filter Level', exact: true }).click(); filterDialog = page.locator('.takeoff-column-filter');
+  await filterDialog.getByRole('checkbox', { name: 'L02', exact: true }).check();
+  await filterDialog.getByRole('button', { name: 'Apply filter', exact: true }).click(); await filterDialog.waitFor({ state: 'detached' });
   await page.locator(`tr[data-item-id="${wall.id}"]`).hover();
   await expect(page.locator('.takeoff-markup.hovered')).toHaveCount(1);
   await page.getByLabel('Hide WALL-01 on drawing', { exact: true }).check();
   await expect(page.locator(`.takeoff-hit[data-item-id="${wall.id}"]`)).toHaveCount(0);
   await page.getByLabel('Hide WALL-01 on drawing', { exact: true }).uncheck();
-  // SVG focus/hover uses the same persistent row identity after filters/grouping.
+  // SVG focus/hover uses the same persistent row identity after column filtering.
   await page.locator(`.takeoff-hit[data-item-id="${wall.id}"]`).hover({ position: { x: 25, y: 25 } });
   await expect(page.locator(`tr[data-item-id="${wall.id}"]`)).toHaveClass(/hovered/);
   await page.getByLabel('Filter register', { exact: true }).fill('');
-  await page.getByLabel('Group register', { exact: true }).selectOption('');
+  await page.getByRole('button', { name: 'Filter Level', exact: true }).click(); filterDialog = page.locator('.takeoff-column-filter');
+  await filterDialog.getByRole('button', { name: 'Reset filter', exact: true }).click(); await filterDialog.waitFor({ state: 'detached' });
   await confirm();
   await page.screenshot({ path: path.join(output, 'wall-confirmed.png'), fullPage: true });
   await command(() => page.getByRole('button', { name: 'Page ›', exact: true }).click(), 'record_render');

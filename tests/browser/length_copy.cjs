@@ -1,5 +1,6 @@
 // Real keyboard/pointer copy and paste. All sources, saves and server state are disposable.
 const { chromium, expect } = require('@playwright/test');
+const { renderDrawing } = require('./viewer_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `length-copy-${Date.now()}`);
@@ -50,10 +51,7 @@ async function navigate(number) {
   await rendered(() => page.getByRole('button', { name: 'Fit page', exact: true }).click());
 }
 async function rendered(action) {
-  await page.evaluate(() => { window.qaPreviousCanvas = document.querySelector('.takeoff-page canvas'); });
-  await action();
-  await expect.poll(() => page.evaluate(() => window.qaPreviousCanvas !== document.querySelector('.takeoff-page canvas'))).toBe(true);
-  await expect(page.locator('.takeoff-progress')).toContainText('Original source'); await idle();
+  await renderDrawing(page, action);
 }
 async function scale(denominator) {
   const choice = page.getByLabel('Drawing calibration', { exact: true });
@@ -119,7 +117,8 @@ async function saveLoad(info) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
   await navigate(3); await scale(100);
   // Retained metadata and appearance enter through the real validated creation

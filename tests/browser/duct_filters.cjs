@@ -4,6 +4,10 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const mode = process.argv[2] === 'steel' ? 'steel' : 'duct', steel = mode === 'steel', title = steel ? 'Steel' : 'Duct', prefix = steel ? 'S' : 'D';
 const markLabel = steel ? 'Member mark' : 'Item', sizeLabel = steel ? 'Steel section' : 'WxH (mm)', ratingLabel = steel ? 'Fire period (min)' : 'FRL', typeLabel = steel ? 'Member type' : 'Orientation';
+const expectedFilterColumns = {
+  duct: ['Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation'],
+  steel: ['Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Fire period (min)', 'Thickness (mm)'],
+};
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `${mode}-filters-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -20,6 +24,11 @@ const register = () => page.getByRole('table', { name: `${title} editable takeof
 const rows = () => register().locator('tbody tr[data-item-id]');
 const rowMarks = () => rows().getByLabel(markLabel, { exact: true }).evaluateAll(fields => fields.map(field => field.value));
 const panel = () => page.locator('.takeoff-column-filter');
+async function assertFilterColumns(table, registerMode) {
+  const buttons = table.locator('.takeoff-column-filter-button');
+  assert.deepEqual(await buttons.evaluateAll(controls => controls.map(control => control.getAttribute('aria-label'))), expectedFilterColumns[registerMode].map(label => `Filter ${label}`));
+  assert.deepEqual(await buttons.evaluateAll(controls => controls.map(control => control.closest('th').textContent.trim())), expectedFilterColumns[registerMode]);
+}
 async function menu(label) { await register().getByRole('button', { name: `Filter ${label}`, exact: true }).click(); await expect(panel()).toBeVisible(); return panel(); }
 async function finishMenu(dialog, action) {
   if (action === 'Escape') await dialog.press('Escape');
@@ -84,7 +93,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await expect(updateLinked.locator('svg')).toHaveAttribute('stroke', 'currentColor');
   await expect(updateLinked.locator('svg')).toHaveAttribute('stroke-linejoin', 'round');
   await expect(page.getByLabel('Filter register', { exact: true })).toBeVisible();
-  assert.equal(await register().locator('.takeoff-column-filter-button').count(), steel ? 7 : 6); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
+  assert.equal(await register().locator('.takeoff-column-filter-button').count(), steel ? 7 : 6); await assertFilterColumns(register(), mode); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
   const baselineCommands = commands.length;
   await page.getByRole('button', { name: 'Next 100', exact: true }).click(); assert.deepEqual(await rowMarks(), [`${prefix}101`, `${prefix}102`]);
   await filter('Level', ['L1']); assert.deepEqual(await rowMarks(), [`${prefix}001`, `${prefix}002`]);
@@ -114,7 +123,9 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   dialog = await menu(markLabel); await dialog.getByRole('checkbox', { name: `${prefix}001`, exact: true }).check(); await finishMenu(dialog, 'Escape'); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
   await page.getByRole('tab', { name: steel ? 'DUCT' : 'STEEL', exact: true }).click();
   for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
-  assert.equal(await page.locator('.takeoff-column-filter-button').count(), 6);
+  const alternateMode = steel ? 'duct' : 'steel';
+  assert.equal(await page.locator('.takeoff-column-filter-button').count(), steel ? 6 : 7);
+  await assertFilterColumns(page.getByRole('table', { name: `${steel ? 'Duct' : 'Steel'} editable takeoff register`, exact: true }), alternateMode);
   await page.getByRole('tab', { name: mode.toUpperCase(), exact: true }).click(); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
   await page.setViewportSize({ width: 764, height: 764 }); dialog = await menu(markLabel);
   const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 764 && box.y + box.height <= 764);
@@ -123,6 +134,6 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   assert.equal(commands.length, baselineCommands, 'Filters, search, pagination and export sent no item or calibration command');
   assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()), seeded.snapshot, 'Snapshot and calculation inputs remain unchanged');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
-  Object.assign(evidence, { passed: true, mode, itemCount: 102, allSixColumns: true, paginationReset: true, andOrBlankSearch: true, nativeDialogCompletionVerified: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
+  Object.assign(evidence, { passed: true, mode, itemCount: 102, legacySixColumnsExercised: true, renderedFilterColumns: expectedFilterColumns[mode], crossModeFilterColumns: expectedFilterColumns[alternateMode], thicknessFilterRenderingOnly: true, paginationReset: true, andOrBlankSearch: true, nativeDialogCompletionVerified: true, narrowMenuInViewport: true, snapshotUnchanged: true, selectedExportUnchanged: true });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2)); console.log(JSON.stringify({ output, ...evidence }, null, 2));
 })().catch(async error => { console.error(error); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); fs.writeFileSync(path.join(output, 'server.log'), logs); });

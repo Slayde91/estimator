@@ -292,9 +292,21 @@ rotation, CropBox offsets, UserUnit, zoom and screen density do not change area.
 The expanded register row can re-trace the boundary, edit original PDF vertices and edit or
 remove individual exclusions. Each exclusion has a persistent ID. These edits
 invalidate confirmation and can be undone. Bulk edits, row/source
-selection, filtering, grouping, confirmation and project persistence use
-the shared workspace. Surface split/merge is explicitly unavailable; grouping
-separate surfaces preserves their individual identities.
+selection, filtering, confirmation and project persistence use the shared
+workspace. Surface split/merge is explicitly unavailable.
+
+The column filters cover **Confirmation**, **Wall ID** or **Slab / zone ID**,
+**Level**, **Surface basis**, **Substrate**, **Treatment**, **Protection system**,
+**Protection product** and **FRL / fire rating**. They use the same value search,
+checkboxes, Apply and Reset as the other registers; values within a column are
+alternatives and active columns must all match. Wall and Slab filter selections
+stay separate. These filters replace the confirmation, sort and grouping menus.
+
+Selecting a surface opens Item Details in the left Settings pane. Clicking the
+sole selected surface again or empty drawing space clears selection and closes
+the pane. Modifier keys keep multiple selection available. Pending field edits
+finish saving before selection changes or the pane closes; selecting or clearing
+items does not change their evidence, geometry or physical quantity.
 
 Confirmed CSV/XLSX registers retain all exclusion geometry and source-bound area
 checks. Surface items have no mapping to the existing length-based calculators

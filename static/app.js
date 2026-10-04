@@ -931,7 +931,12 @@
       document.activeElement?.blur?.();
       if (state.currentView !== "takeoffs" && !await confirmLeavePricingLibrary()) return false;
       const changed = await window.CeasefireTakeoffs?.selectWorkspace(mode, scope);
-      if (changed) { await showView("takeoffs"); window.CeasefireHeaderTagline?.next(); }
+      if (changed) {
+        // An in-section choice already updates the workspace. Reopening the
+        // section would rerender its unchanged PDF and record redundant proofs.
+        if (state.currentView !== "takeoffs") await showView("takeoffs");
+        window.CeasefireHeaderTagline?.next();
+      }
       return !!changed;
     } finally { takeoffNavigationPending = false; }
   }

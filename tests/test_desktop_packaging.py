@@ -1,8 +1,11 @@
 """Private content stays outside code; factory packaging preserves scoped state."""
 from copy import deepcopy
 from contextlib import redirect_stderr
+import ast
 import hashlib
+from html.parser import HTMLParser
 import io
+import inspect
 import json
 from pathlib import Path
 import sqlite3
@@ -297,6 +300,40 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('fonts/Montserrat-Variable.ttf',STATIC_FILES)
         self.assertIn('ceasefire-app.ico',STATIC_FILES)
         self.assertFalse(any('takeoff' in path or 'pdfjs' in path for path in (*DATA_FILES,*STATIC_FILES)))
+
+    def test_native_smoke_destinations_resolve_in_the_actual_header_menu(self):
+        from estimator.desktop_selftest import self_test
+
+        class Template(HTMLParser):
+            def __init__(self): super().__init__(); self.menu = False; self.controls = {}
+            def handle_starttag(self, tag, attributes):
+                attributes = dict(attributes)
+                if tag == 'div' and attributes.get('id') == 'calculator-navigation-menu': self.menu = True
+                if tag == 'button' and (attributes.get('id') == 'calculator-navigation-toggle' or self.menu):
+                    self.controls[attributes.get('id') or attributes.get('data-calculator-id')] = attributes
+            def handle_endtag(self, tag):
+                if tag == 'div': self.menu = False
+
+        template = Template(); template.feed((ROOT / 'static/index.html').read_text(encoding='utf-8'))
+        source = ast.parse(inspect.getsource(self_test))
+        journey = next(node for node in ast.walk(source) if isinstance(node, ast.For)
+            and isinstance(node.target, ast.Tuple)
+            and [value.id for value in node.target.elts] == ['calculator_id', 'label'])
+        destinations = ast.literal_eval(journey.iter)
+        self.assertEqual({identifier for identifier, _ in destinations}, {'steel_vermiculite', 'steel_board', 'ductwork'})
+        selector = next(node.value for node in journey.body if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == 'selector' for target in node.targets))
+        self.assertEqual(template.controls['calculator-navigation-toggle']['aria-controls'], 'calculator-navigation-menu')
+        for identifier, _ in destinations:
+            parts = []
+            for part in selector.values:
+                if isinstance(part, ast.Constant): parts.append(part.value)
+                else:
+                    self.assertIsInstance(part, ast.FormattedValue)
+                    self.assertEqual(part.value.id, 'calculator_id'); parts.append(identifier)
+            actual = ''.join(parts)
+            self.assertEqual(actual, f'#calculator-navigation-menu button[data-calculator-id="{identifier}"]')
+            self.assertEqual(template.controls[identifier]['data-calculator-id'], identifier)
 
     def test_native_runtime_inputs_require_both_distinct_verified_packages(self):
         x64=self.root/'runtime-x64.exe'

@@ -197,7 +197,8 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
             if binding['item_id'] != item['id']:
                 continue
             calculator_id = binding['calculator_id']; draft = drafts.get(calculator_id)
-            result = {'calculator_id': calculator_id, 'row': binding['row'], 'status': 'Unavailable',
+            result = {'calculator_id': calculator_id, 'binding_id': binding['id'],
+                      'sheet': binding['sheet'], 'row': binding['row'], 'status': 'Unavailable',
                       'reason': 'Current confirmed source and matching calculator draft are required.',
                       'published_thickness_mm': None, 'estimating_thickness_mm': None,
                       'board_stack_mm': None, 'board_layers': None, 'total_thickness_mm': None}
@@ -244,6 +245,27 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                 result['reason'] = 'The existing calculator could not return a usable result.'
         output[item['id']] = results
     return output
+
+
+def linked_register_results(snapshot, request, *, store):
+    """Read original calculator outputs through the same authority gates as exports.
+
+    Results are a projection of the supplied current draft, never persisted as
+    Takeoff properties or promoted into calculator inputs.
+    """
+    object_fields(request, {'expected_revision', 'calculator_drafts'}, 'Linked register results',
+                  {'expected_revision'})
+    if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+        raise ValidationError('The Takeoffs draft changed. Read its current linked results again.')
+    drafts = _calculator_drafts(request.get('calculator_drafts', {}))
+    if set(drafts) - {'steel_vermiculite', 'steel_board'}:
+        raise ValidationError('Thickness results belong to the existing Steel Spray and Steel Board schedules.')
+    selected = [item for item in snapshot['items'] if item['mode'] == 'steel']
+    approvals, binding_registry = _local_authority(snapshot, store)
+    confirmations = {item['id']: _confirmed(item, snapshot, item_result(item, snapshot), approvals)
+                     for item in selected}
+    return {'project_id': snapshot['project_id'], 'revision': snapshot['revision'],
+            'linked_results': _linked_results(snapshot, selected, confirmations, binding_registry, drafts)}
 
 
 def linked_result_text(results):
@@ -379,4 +401,4 @@ def export_workspace(snapshot, request, format, *, documents, store):
         return _schedule_xlsx(snapshot, selected, results, confirmations, linked)
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, selected, results, confirmations, linked, documents,
-                             project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'])
+                             project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot)

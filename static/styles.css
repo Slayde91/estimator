@@ -37,11 +37,18 @@ a{color:inherit}
 @media(prefers-reduced-motion:reduce){.header-tagline-cursor{animation:none}}
 @media(max-width:880px){.header-navigation{order:3;width:100%;flex-basis:100%}}
 @media print{.header-navigation{display:none!important}}
-.app-header nav{display:flex;gap:7px;padding:5px;background:#111;border-radius:11px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.app-header nav{display:flex;gap:7px;padding:5px;background:#111;border-radius:11px;max-width:100%;overflow:visible;scrollbar-width:none}
 .app-header nav::-webkit-scrollbar{display:none}
 .nav-button{color:#fff;background:none;padding:10px 17px;font-size:13px;font-weight:650;border-radius:7px;transition:background .15s,color .15s,box-shadow .15s;flex-shrink:0}
 .nav-button:hover{color:#111;background:#fff}
 .nav-button.active{color:#fff;background:#b90a15;box-shadow:inset 0 -2px 0 #fff}
+.calculator-navigation{position:relative;flex-shrink:0}
+.calculator-navigation-menu{position:absolute;top:100%;left:0;z-index:21;width:265px;max-width:calc(100vw - 28px);padding:7px;background:#111;color:#fff;border:1px solid #3b3238;border-radius:0 0 11px 11px;box-shadow:0 8px 22px #0003}
+.calculator-navigation-menu[hidden]{display:none}
+.calculator-navigation-choice{display:block;width:100%;padding:11px 12px;text-align:left;color:#fff;background:transparent;border-radius:7px;font-size:13px;font-weight:600}
+.calculator-navigation-choice:hover,.calculator-navigation-choice:focus-visible{color:#111;background:#fff}
+.calculator-navigation-choice[aria-pressed=true]{color:#fff;background:var(--accent);box-shadow:inset 3px 0 0 #fff}
+@media(max-width:570px){.calculator-navigation-menu{left:auto;right:0}.calculator-navigation-choice{font-size:12px}}
 .local-badge{margin-left:auto;font-size:11px;white-space:nowrap;color:#766b72}
 .local-badge>span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);margin-right:7px}
 main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh - 155px)}

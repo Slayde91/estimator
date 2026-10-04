@@ -50,7 +50,7 @@ for _mode in AREA_MODES:
         'surface_basis', 'surface_citation', 'gross_area_m2', 'excluded_area_m2', 'net_area_m2'))
 HASH = re.compile(r'^[0-9a-f]{64}$')
 APPEARANCE_FIELDS = frozenset(('stroke_color', 'fill_enabled', 'fill_color', 'stroke_width', 'opacity',
-                             'marker_shape', 'marker_size'))
+                             'marker_shape', 'marker_size', 'display_values'))
 STANDALONE_FIELDS = frozenset(('mark', 'level', 'width_mm', 'height_mm', 'frl', 'orientation', 'notes'))
 
 
@@ -87,9 +87,11 @@ def validate_appearance(value):
             raise ValidationError('Markup colours must be six-digit hexadecimal colours.')
     if 'fill_enabled' in value and type(value['fill_enabled']) is not bool:
         raise ValidationError('Markup fill must be true or false.')
+    if 'display_values' in value and type(value['display_values']) is not bool:
+        raise ValidationError('Markup Display Values must be true or false.')
     if 'marker_shape' in value and value['marker_shape'] not in ('circle', 'square', 'triangle', 'diamond'):
         raise ValidationError('Count marker shape must be circle, square, triangle or diamond.')
-    for key, low, high in (('stroke_width', 0.25, 20), ('opacity', 0, 1), ('marker_size', 2, 72)):
+    for key, low, high in (('stroke_width', 0.25, 100), ('opacity', 0, 1), ('marker_size', 2, 72)):
         if key in value:
             number(value[key], 'Markup ' + key)
             if not low <= value[key] <= high:
@@ -100,7 +102,7 @@ def validate_appearance(value):
 def markup_appearance(item):
     """Shared physical-PDF-point defaults for browser and drawing exports."""
     return {'stroke_color': '#FF0000', 'fill_enabled': is_area_item(item) or is_marker_item(item),
-            'fill_color': '#FF0000', 'stroke_width': 2, 'opacity': 1,
+            'fill_color': '#FF0000', 'stroke_width': 2, 'opacity': 1, 'display_values': False,
             **({'marker_shape': 'circle', 'marker_size': 12} if is_marker_item(item) else {}),
             **validate_appearance(item.get('appearance', {}))}
 

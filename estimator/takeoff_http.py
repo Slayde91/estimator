@@ -162,6 +162,10 @@ class TakeoffHTTP:
             return True
         elif action == 'transfer-preview':
             result = self.service.preview_transfer(session_id, body)
+        elif action == 'linked-results':
+            if query:
+                raise ValidationError('Linked register results accept a structured request only.')
+            result = self.service.linked_register_results(session_id, body)
         elif action == 'transfer-apply':
             result = self.service.apply_transfer(session_id, body)
         elif action == 'linked-delete':

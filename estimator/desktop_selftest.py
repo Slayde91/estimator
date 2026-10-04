@@ -229,11 +229,15 @@ def self_test(data_directory, output_report):
                 probe.wait('document.querySelector("#app-message").textContent.startsWith("PDF saved to ")')
                 pdfs = list(directory.glob('*.pdf'))
                 assert pdfs and all(file.read_bytes().startswith(b'%PDF') for file in pdfs)
-                probe.click('[data-view="calculators"]')
-                probe.wait('document.querySelectorAll("#calculator-list button").length >= 3')
-                for index, label in enumerate(('Steel spray', 'Steel board', 'Ductwork')):
+                for calculator_id, label in (('steel_vermiculite', 'Steel spray'), ('steel_board', 'Steel board'), ('ductwork', 'Ductwork')):
                     before = set(directory.glob('*.xlsx'))
-                    probe.script(f'document.querySelectorAll("#calculator-list button[data-estimator-kind=estimate]")[{index}].click();')
+                    # Use the public disclosure for every destination; a prior
+                    # choice closes it. IDs keep exports independent of order.
+                    probe.click('#calculator-navigation-toggle')
+                    selector = f'#calculator-navigation-menu button[data-calculator-id="{calculator_id}"]'
+                    probe.wait(f'!document.querySelector("#calculator-navigation-menu").hidden && !!document.querySelector({json.dumps(selector)})')
+                    probe.click(selector)
+                    probe.wait(f'document.querySelector({json.dumps(selector)}).getAttribute("aria-pressed") === "true"')
                     # Export availability alone can precede the first worksheet
                     # response. Require calculated, rendered content as well.
                     probe.wait('!document.querySelector("#calculator-workspace").hidden && !document.querySelector("#calculator-excel").disabled && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table") && !document.querySelector("#calculator-grid").textContent.includes("Loading this worksheet")')

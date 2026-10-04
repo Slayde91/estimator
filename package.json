@@ -2,6 +2,10 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:calculator-navigation": "node tests/browser/calculator_navigation.cjs",
+    "test:page-rotation": "node tests/browser/page_rotation.cjs",
+    "test:linked-thickness": "node tests/browser/linked_thickness.cjs",
+    "test:appearance-values": "node tests/browser/appearance_values.cjs",
     "test:project-controls": "node tests/browser/project_controls.cjs",
     "test:markup-selection-defaults": "node tests/browser/markup_selection_defaults.cjs",
     "test:defect-callouts": "node tests/browser/defect_callouts.cjs",

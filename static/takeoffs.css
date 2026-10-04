@@ -91,6 +91,7 @@
 .takeoff-control-menu .button{width:100%;padding:8px;font-size:12px}.takeoff-control-menu .helper{font-size:10px;line-height:1.3;margin:6px 0 0;color:#4f5358}
 .takeoff-control-status{padding:5px 0}.takeoff-control-status[hidden]{display:none}
 .takeoff-overlay .takeoff-area-label,.takeoff-overlay .takeoff-area-preview{text-anchor:middle;dominant-baseline:middle;font:650 13px Arial,sans-serif;fill:#18384e;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.takeoff-overlay .takeoff-value-label{dominant-baseline:middle;font:650 12px Arial,sans-serif;fill:#18384e;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
 .takeoff-overlay .takeoff-area-preview{fill:#9a1721;font-style:italic;stroke:#fff8f5}
 
 /* Drawing tools stay beside the plan; document, navigation and export controls follow it. */

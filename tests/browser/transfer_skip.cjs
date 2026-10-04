@@ -1,3 +1,4 @@
+const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real Add-to-schedule review with existing links and manual calculator edits.
@@ -68,7 +69,7 @@ async function changeCell(address, value) {
 }
 async function openSpray() {
   await page.locator('.nav-button[data-view="calculators"]').click();
-  await page.locator('.calculator-choice').filter({ hasText: 'Steel (spray)' }).click();
+  await chooseCalculator(page, 'Steel (spray)');
   await page.locator('#calculator-pages').getByRole('button', { name: 'SCHEDULE', exact: true }).click();
   await expect(page.locator('#calculator-grid')).not.toHaveAttribute('aria-busy', 'true');
 }

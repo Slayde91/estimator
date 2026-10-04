@@ -233,7 +233,7 @@ function pythonJson(script, ...args) {
   await expect(panel).not.toContainText('All length groups in a Count share');
   await expect(panel).not.toContainText('Only edited controls apply');
   await expect(panel.getByLabel('Marker Size', { exact: true })).toBeVisible();
-  await expect(panel.getByLabel('Stroke Width', { exact: true })).toHaveCount(1);
+  await expect(panel.getByLabel('Line Width', { exact: true })).toHaveCount(1);
   for (const width of [1600, 1146]) {
     await page.setViewportSize({ width, height: 1100 });
     const shape = await panel.getByLabel('Marker shape', { exact: true }).boundingBox(), size = await panel.getByLabel('Marker Size', { exact: true }).boundingBox();
@@ -302,7 +302,7 @@ function pythonJson(script, ...args) {
   reply = await command(async () => { movement = await dragMarker(dragGroup.member_ids[1], [26, -22]); }, 'move_count_markers'); state = reply.snapshot;
   assertIndependentMove(dragBaseline, state, dragGroup.id, 1, movement);
   const movedStable = stable(state), calculatorBeforeDrag = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  panel = await selectedCount([dragGroup.id]); await fill(panel, 'Opacity', .42);
+  panel = await selectedCount([dragGroup.id]); await fill(panel, 'Opacity', 42);
   state = (await applySettings(panel)).snapshot;
   assert.equal(state.items.find(item => item.id === dragGroup.id).appearance.opacity, .42);
   await expect(panel.getByRole('button', { name: /Apply settings|Discard settings/ })).toHaveCount(0);
@@ -348,7 +348,7 @@ function pythonJson(script, ...args) {
     panel = await selectedCount([firstIds[0]]);
     if (shape === 'circle') await selectMarkers([firstCount[0].member_ids[0]]);
     await fill(panel, 'Marker shape', shape); await fill(panel, 'Marker Size', 18);
-    await fill(panel, 'Stroke colour', '#1a2b3c'); await panel.getByLabel('Fill enabled', { exact: true }).check(); await fill(panel, 'Fill colour', '#4f6e8d'); await fill(panel, 'Opacity', .65);
+    await fill(panel, 'Line Colour', '#1a2b3c'); await panel.getByLabel('Fill enabled', { exact: true }).check(); await fill(panel, 'Fill colour', '#4f6e8d'); await fill(panel, 'Opacity', 65);
     reply = await applySettings(panel, 2); state = reply.snapshot;
     if (shape === 'circle') await assertSelectedMarkers([firstCount[0].member_ids[0]]);
     for (const item of state.items.filter(item => item.count_id === countId)) {

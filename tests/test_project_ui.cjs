@@ -66,7 +66,7 @@ function harness({ penetration = false } = {}) {
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,uploadProjectFiles,reviewDesktopClose,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -167,6 +167,27 @@ async function penetrationCheck(name, fn) {
     assert.doesNotMatch(button[1],/project-attachment-status|Drop files here|choose files/);
     assert.match(html,/<\/button><small id="project-attachment-status" class="sr-only" role="status">/);
     assert.match(html,/<input id="project-attachment-input" type="file" multiple hidden>/);
+  });
+  await check('Calculator menu cancellation preserves Pricing Library and every calculator draft', async h => {
+    Object.assign(h.app.state,{currentView:'pricing',libraryKind:'pricing',pricingScope:'library'});
+    h.app.state.draft.rates.local.price=99.12345;const before=h.snapshot();let selected=false;
+    h.context.window.CeasefireCalculators.select=async()=>{selected=true;};
+    const navigating=h.app.requestCalculatorNavigation('ductwork');await flush();
+    assert.equal(h.byId('discard-dialog').open,true);assert.equal(h.byId('discard-dialog').querySelector('h2').textContent,'Unsaved Pricing Library');
+    await h.byId('discard-dialog').close('cancel');assert.equal(await navigating,false);
+    assert.equal(selected,false);assert.equal(h.app.state.currentView,'pricing');assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Calculator menu rejects a changed Pricing Library confirmation then opens only the chosen workbook', async h => {
+    Object.assign(h.app.state,{currentView:'pricing',libraryKind:'pricing',pricingScope:'library'});
+    h.app.state.draft.rates.local.price=99;const selected=[];
+    h.context.window.CeasefireCalculators.select=async id=>selected.push(id);
+    const stale=h.app.requestCalculatorNavigation('steel_board');await flush();
+    h.app.state.draft.rates.local.price=100;await h.byId('discard-dialog').close('confirm');assert.equal(await stale,false);
+    assert.deepEqual(selected,[]);assert.equal(h.app.state.currentView,'pricing');
+    const before=h.snapshot(),accepted=h.app.requestCalculatorNavigation('steel_board');await flush();
+    await h.byId('discard-dialog').close('confirm');assert.equal(await accepted,true);
+    assert.deepEqual(selected,['steel_board']);assert.equal(h.app.state.currentView,'calculators');assert.deepEqual(h.snapshot(),before);
+    h.calc.state.action=true;assert.equal(await h.app.requestCalculatorNavigation('ductwork'),false);assert.deepEqual(selected,['steel_board']);
   });
   await check('Save As captures estimate and every loaded calculator, preserving edits made while the dialog is open', async h => {
     const before = h.snapshot(), pending = deferred(); let sent;

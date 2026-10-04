@@ -25,6 +25,7 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'activateCountTool,defectLocationEvidence,armPhysicalMarker,choosePhysicalDrawing,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'bulkSelectionFields,syncBulkFields,renderItemSettingsActions,drawableItems,renderCountMarkers,askDialog:ask,setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'validatedMarkupDefaults,readMarkupDefaults,newMarkupAppearance,setMarkupDefaults,syncSurfaceDetailsSelection,clearDrawingSelection,setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'renderMeasurementValues,renderValueLabel,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -69,22 +70,43 @@ const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,stat
 let passed=0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async()=>{
+  await check('Line Width and percent Opacity controls preserve untouched historical precision and bound explicit edits',async()=>{
+    const h=harness(),value=blank(),opacity=.003333333333333333;value.items=[{id:'a',mode:'steel',quantity:1,fields:{mark:'A'},appearance:{stroke_width:.5,opacity}}];h.audit.accept(response(value));attachSettings(h);h.audit.state.selected=new Set(['a']);h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();
+    const editor=h.audit.state.settingsEditor,width=editor.appearance.find(field=>field.control.name==='stroke_width'),alpha=editor.appearance.find(field=>field.control.name==='opacity');
+    assert.equal(width.control.attributes['aria-label'],'Line Width');assert.equal(editor.appearance.find(field=>field.control.name==='stroke_color').control.attributes['aria-label'],'Line Colour');
+    for(const field of [width,alpha]){assert.equal(field.control.min,'1');assert.equal(field.control.max,'100');}
+    assert.equal(width.read(),.5);assert.equal(alpha.read(),opacity);assert.equal(Number(alpha.control.value),opacity*100);
+    width.control.value='100';assert.equal(width.read(),100);width.control.value='101';assert.throws(()=>width.read(),/1 to 100/);width.control.value='.75';assert.throws(()=>width.read(),/1 to 100/);
+    alpha.control.value='75';assert.equal(alpha.read(),.75);alpha.control.value='.5';assert.throws(()=>alpha.read(),/1 to 100/);
+    width.control.value='.5';alpha.control.value=String(opacity*100);let sent;h.audit.setCommand(async(op,body)=>{sent={op,...copy(body)};});const level=editor.fields.find(field=>field.control.name==='level');level.control.value='Historical retained';level.control.events.input();await h.audit.applySettings(editor);assert.deepEqual(sent.changes,{fields:{level:'Historical retained'}});assert.equal(h.audit.state.session.snapshot.items[0].appearance.opacity,opacity);
+  });
+  await check('Display Values edits only presentation and calibrated segment labels retain exact source lengths after rotation',async()=>{
+    const h=harness(),value=blank();value.calibrations=[{id:'scale',document_id:'doc',page:1,points:[[0,0],[100,0]],distance_m:10,uniform_scale:true}];h.audit.accept(response(value));const dom=attachMinimalDom(h);Object.assign(h.audit.state,{document:'doc',page:1,viewport:{transform:[0,2,-2,0,400,0]}});
+    const geometry={kind:'polyline',document_id:'doc',page:1,points:[[10,10],[30,10],[30,40]]},item={id:'a',mode:'steel',geometry,measurement:{method:'calibrated',calibration_id:'scale'},appearance:{display_values:true}};const before=copy(item);
+    h.audit.renderMeasurementValues(dom.ui.overlay,item,geometry);assert.deepEqual(dom.ui.overlay.children.map(label=>Number(label.attributes['data-value'])),[2000,3000]);assert.deepEqual(dom.ui.overlay.children.map(label=>[Number(label.attributes.x),Number(label.attributes.y)]),[[380,30],[350,50]]);assert.deepEqual(item,before);
+    dom.ui.overlay.replaceChildren();item.appearance.display_values=false;h.audit.renderMeasurementValues(dom.ui.overlay,item,geometry);assert.equal(dom.ui.overlay.children.length,0);item.appearance.display_values=true;h.audit.state.session.snapshot.calibrations[0].deleted=true;h.audit.renderMeasurementValues(dom.ui.overlay,item,geometry);assert.equal(dom.ui.overlay.children.length,0);
+  });
+  await check('Surface perimeter includes the closing edge and openings while Steel counts show only explicit cited member lengths',()=>{
+    const h=harness(),value=blank();value.calibrations=[{id:'scale',document_id:'doc',page:1,points:[[0,0],[10,0]],distance_m:1,uniform_scale:true}];h.audit.accept(response(value));const dom=attachMinimalDom(h);Object.assign(h.audit.state,{document:'doc',page:1,viewport:{transform:[1,0,0,1,0,0]}});
+    const geometry={kind:'polygon',document_id:'doc',page:1,points:[[0,0],[100,0],[100,100],[0,100]],exclusions:[{id:'hole',points:[[20,20],[30,20],[30,30],[20,30]]}]};h.audit.renderMeasurementValues(dom.ui.overlay,{id:'wall',mode:'wall',geometry,measurement:{method:'calibrated',calibration_id:'scale'},appearance:{display_values:true}},geometry);assert.deepEqual(dom.ui.overlay.children.map(label=>Number(label.attributes['data-value'])),[10000,10000,10000,10000,1000,1000,1000,1000]);
+    const c=countHarness(),item=countItem('count','COUNT-1',6.123456789,[[30,30],[60,60]]);item.appearance={display_values:true};const original=copy(item);c.audit.renderCountMarkers(c.dom.ui.overlay,item,item.geometry);const labels=c.dom.ui.overlay.children.filter(label=>label.attributes['data-value-kind']==='cited-count');assert.equal(labels.length,2);assert.deepEqual(labels.map(label=>Number(label.attributes['data-value'])),[6123.456789,6123.456789]);assert.deepEqual(item,original);
+  });
   await check('Markup defaults validate only the five visual properties and safely ignore corrupt or unavailable storage',()=>{
     const appearance={stroke_color:'#a020f0',stroke_width:3.75,fill_color:'#00cc88',fill_enabled:false,opacity:.45},saved={version:1,appearance:{...appearance,marker_shape:'diamond',marker_size:44,quantity:99}},writes=[];
     const storage={getItem(key){assert.equal(key,'ceasefire.takeoff-markup-defaults.v1');return JSON.stringify(saved);},setItem(...args){writes.push(args);}},h=harness(storage),expected={...appearance,stroke_color:'#A020F0',fill_color:'#00CC88'};
     assert.deepEqual(copy(h.audit.newMarkupAppearance()),expected);const external=h.audit.newMarkupAppearance();external.stroke_width=17;assert.deepEqual(copy(h.audit.newMarkupAppearance()),expected);assert.equal(writes.length,0);
-    for(const altered of [{stroke_color:'red'},{fill_color:'#fff'},{stroke_width:0},{stroke_width:21},{stroke_width:'2'},{opacity:NaN},{opacity:1.01},{fill_enabled:1}])assert.equal(h.audit.validatedMarkupDefaults({...appearance,...altered}),null);
+    for(const altered of [{stroke_color:'red'},{fill_color:'#fff'},{stroke_width:0},{stroke_width:101},{stroke_width:'2'},{opacity:NaN},{opacity:1.01},{fill_enabled:1}])assert.equal(h.audit.validatedMarkupDefaults({...appearance,...altered}),null);
     for(const value of ['not JSON',JSON.stringify({...saved,version:2}),JSON.stringify({version:1,appearance:{...appearance,opacity:1.2}})])assert.deepEqual(copy(harness({getItem(){return value;}}).audit.newMarkupAppearance()),{});
     assert.deepEqual(copy(harness(new Error('Storage blocked')).audit.newMarkupAppearance()),{});
   });
   await check('Set as default flushes edits, stores visual preference only, and retains an in-window default if persistence is blocked',async()=>{
     for(const blocked of [false,true]){
       const writes=[],storage={getItem(){return null;},setItem(key,value){if(blocked)throw new Error('Blocked');writes.push({key,value:JSON.parse(value)});}},h=harness(storage),value=blank();value.items=[{id:'a',mode:'steel',quantity:1,fields:{mark:'A'},appearance:{}}];h.audit.accept(response(value));const dom=attachSettings(h);h.audit.state.selected=new Set(['a']);h.audit.state.settingsOpen=true;h.audit.renderSettingsPanel();
-      const editor=h.audit.state.settingsEditor,desired={stroke_color:'#A020F0',stroke_width:3.75,fill_color:'#00CC88',fill_enabled:false,opacity:.45};
-      for(const field of editor.appearance){const key=field.control.name;if(!(key in desired))continue;if(key==='fill_enabled')field.control.checked=desired[key];else field.control.value=String(desired[key]);field.control.events.input();}
+      const editor=h.audit.state.settingsEditor,desired={stroke_color:'#A020F0',stroke_width:3.75,fill_color:'#00CC88',fill_enabled:false,opacity:.45,display_values:false};
+      for(const field of editor.appearance){const key=field.control.name;if(!(key in desired))continue;if(key==='fill_enabled')field.control.checked=desired[key];else field.control.value=String(key==='opacity'?desired[key]*100:desired[key]);field.control.events.input();}
       const held=deferred(),sent=[];h.audit.setCommand(async(op,body)=>{sent.push({op,...copy(body)});await held.promise;Object.assign(h.audit.state.session.snapshot.items[0].appearance,body.changes.appearance);});
       const setting=h.audit.setMarkupDefaults(editor);await flush();assert.equal(sent.length,1);assert.equal(writes.length,0);held.resolve();await setting;
-      const canonical=copy(h.audit.state.session.snapshot),fingerprint=h.api.projectFingerprint();assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);assert.equal(sent[0].op,'bulk_update');const {fill_enabled,...changedAppearance}=desired;assert.deepEqual(sent[0].changes,{appearance:changedAppearance});
+      const canonical=copy(h.audit.state.session.snapshot),fingerprint=h.api.projectFingerprint();assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);assert.equal(sent[0].op,'bulk_update');const {fill_enabled,display_values,...changedAppearance}=desired;assert.deepEqual(sent[0].changes,{appearance:changedAppearance});
       assert.equal(writes.length,blocked?0:1);if(!blocked)assert.deepEqual(writes[0],{key:'ceasefire.takeoff-markup-defaults.v1',value:{version:1,appearance:desired}});
       await h.audit.setMarkupDefaults(h.audit.state.settingsEditor);assert.equal(sent.length,1);assert.equal(h.api.projectFingerprint(),fingerprint);assert.deepEqual(copy(h.audit.state.session.snapshot),canonical);assert.equal(h.audit.state.settingsDirty,false);
       const stale=editor;h.audit.state.selected.clear();await assert.rejects(h.audit.setMarkupDefaults(stale),/selection changed/);assert.deepEqual(copy(h.audit.newMarkupAppearance()),desired);
@@ -112,7 +134,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const h=harness(),dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();
     const ui=h.audit.state.ui,all=dom.all(root),find=name=>all.find(el=>el.classList.contains(name)),viewer=find('takeoff-viewer'),top=find('takeoff-viewer-top'),bottom=find('takeoff-page-controls'),search=find('takeoff-search-controls');
     assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,viewer);assert.deepEqual(top.children,[search,ui.navigation]);
-    assert.equal(ui.tools.select.parentNode,bottom);assert.equal(ui.tools.pan.parentNode,bottom);const labels=bottom.children.map(el=>el.attributes['aria-label']||el.textContent);assert.ok(labels.indexOf('Select')<labels.indexOf('Pan'));assert.ok(labels.indexOf('Pan')<labels.indexOf('−'));
+    assert.equal(ui.tools.select.parentNode,bottom);assert.equal(ui.tools.pan.parentNode,bottom);const labels=bottom.children.map(el=>el.attributes['aria-label']||el.textContent);assert.ok(labels.indexOf('Select')<labels.indexOf('Pan'));assert.ok(labels.indexOf('Pan')<labels.indexOf('−'));assert.ok(labels.includes('Rotate page'));
     assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleToggle.parentNode.previousElementSibling,ui.tools.viewport);
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);

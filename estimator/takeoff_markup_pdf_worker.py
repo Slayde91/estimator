@@ -274,6 +274,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
                 else:
                     pdf.drawString(center[0]+style['marker_size']/2+3, center[1]+3, str(item['legend_number']))
                 pdf.setFillColor(HexColor(style['fill_color']))
+            _paint_value_labels(pdf, item, matrix, drawing_bounds)
             pdf.restoreState()
             continue
         path = pdf.beginPath()
@@ -292,7 +293,30 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
         # ordinal on the drawing avoids obscuring geometry with long identifiers.
         pdf.drawString(x+4, y+4, str(item['legend_number']))
         _paint_length_additions(pdf, item, matrix, drawing_bounds)
+        _paint_value_labels(pdf, item, matrix, drawing_bounds)
         pdf.restoreState()
+
+
+def _paint_value_labels(pdf, item, matrix, bounds):
+    from decimal import Decimal, localcontext, ROUND_HALF_UP
+    from reportlab.lib.colors import HexColor
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    for label in item.get('value_labels', []):
+        value = Decimal(str(label['value']))
+        with localcontext() as context:
+            context.prec = max(28, value.adjusted()+8)
+            text = format(value.quantize(Decimal('.001'), rounding=ROUND_HALF_UP), ',f').rstrip('0').rstrip('.') + ' ' + label['unit']
+        x, y = transform(label['point'], matrix)
+        width = stringWidth(text, 'ExportVeraBold', 8)
+        x += item['appearance'].get('marker_size', 12)/2+5 if label['kind'] == 'cited-count' else -width/2
+        y += 9
+        if bounds:
+            left, bottom, right, top = bounds
+            x, y = max(left+2, min(x, right-width-2)), max(bottom+2, min(y, top-10))
+        pdf.setFillAlpha(1); pdf.setFillColor(HexColor('#FFFFFF'))
+        pdf.rect(x-1, y-1, width+2, 10, stroke=0, fill=1)
+        pdf.setFillColor(HexColor('#18384E')); pdf.setFont('ExportVeraBold', 8)
+        pdf.drawString(x, y, text)
 
 
 def _invisible_link(annotation):

@@ -1619,13 +1619,19 @@ let passed = 0;
   assert.match(sectionCss,/\.calculator-grid td\.calculator-role-label,[^}]*background:#fff!important;color:#171217/);
   assert.match(sectionCss,/\.calculator-page\[aria-pressed=true\][^}]*border-bottom-color:var\(--red\)/);passed++;
 
-  // The Firestopping choice and every workbook choice expose the same estimator
-  // selection state so only the active calculator remains highlighted.
-  entry=setup();audit.renderChoices();
-  const calculatorChoices=byId('calculator-list').children;
-  assert.equal(calculatorChoices.length,2);
-  assert.equal(calculatorChoices[0].dataset.estimatorKind,'penetration');
-  assert.equal(calculatorChoices[1].dataset.estimatorKind,'estimate');passed++;
+  // Header destinations retain the active workbook/firestopping state without
+  // recreating the removed chooser cards or changing any draft inputs.
+  entry=setup();
+  const calculatorChoices=['penetration','steel_vermiculite','steel_board','ductwork'].map(id=>{const button=element('button');button.dataset.calculatorId=id;return button;});
+  byId('calculator-navigation-menu').replaceChildren(...calculatorChoices);
+  const choiceDraft=copy(audit.projectSnapshot());audit.renderChoices();
+  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','false','true','false']);
+  context.window.CeasefireProposalCalculators={isFirestopping:()=>true};audit.renderChoices();
+  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['true','false','false','false']);
+  assert.deepEqual(copy(audit.projectSnapshot()),choiceDraft);delete context.window.CeasefireProposalCalculators;
+  const choiceHtml=fs.readFileSync('static/index.html','utf8');
+  assert.ok(!choiceHtml.includes('id="calculator-list"'));
+  for(const id of ['penetration','steel_vermiculite','steel_board','ductwork'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.
   for(const [id,sheet,column,firstRow,label] of [
@@ -2051,6 +2057,23 @@ let passed = 0;
   takeoffBridge.releaseTakeoffTarget(freshLease);assert.equal(audit.state.action,false);passed++;
   const staleLinked=await takeoffBridge.captureTakeoffTargets(linkedIds);second.inputs.CALCULATOR.B10=8;
   assert.throws(()=>takeoffBridge.reserveTakeoffTargets(linkedIds,staleLinked.fingerprint),/changed during linked deletion review/);passed++;
+
+  // Automatic thickness projection reads an initialized draft without blurring
+  // controls, fetching definitions, adding entries or editing a schedule.
+  entry=dynamicSetup([9],{CALCULATOR:{B9:1.23456789012345},SETTINGS:{B6:0.123456789012345}});
+  context.document.activeElement={blur(){throw new Error('A read-only projection must not blur the editor.');}};
+  audit.setRequest(()=>{throw new Error('A read-only projection must not initialize calculator entries.');});
+  const readonlyFingerprint=audit.projectFingerprint(),readonlyRevision=entry.revision,readonlyEntries=audit.state.entries;
+  const readonlyDraft=takeoffBridge.readTakeoffTarget('steel_board');
+  assert.deepEqual(copy(readonlyDraft.inputs),copy(entry.inputs));assert.deepEqual(copy(readonlyDraft.schedule_rows),[9]);assert.equal(readonlyDraft.fingerprint,readonlyFingerprint);
+  readonlyDraft.inputs.CALCULATOR.B9=99;readonlyDraft.schedule_rows.push(10);
+  assert.equal(entry.inputs.CALCULATOR.B9,1.23456789012345);assert.deepEqual(copy(entry.scheduleRows),[9]);
+  assert.equal(audit.projectFingerprint(),readonlyFingerprint);assert.equal(entry.revision,readonlyRevision);assert.equal(audit.state.entries,readonlyEntries);passed++;
+  assert.throws(()=>takeoffBridge.readTakeoffTarget('missing-calculator'),/unavailable/);
+  entry.invalid.set('CALCULATOR!B9',true);assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/invalid inputs/);entry.invalid.clear();
+  audit.state.action=true;assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/unavailable/);audit.state.action=false;
+  entry.scheduleRows=undefined;assert.throws(()=>takeoffBridge.readTakeoffTarget('steel_board'),/unavailable/);
+  context.document.activeElement=null;passed++;
 
   assert.match(fs.readFileSync('static/app.js', 'utf8'), /view === "calculators".*CeasefireCalculators\?\.open/);
   console.log(`Calculator UI checks passed: ${passed}`);

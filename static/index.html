@@ -36,7 +36,15 @@
     <nav aria-label="Main navigation">
       <button type="button" class="nav-button active" data-view="home" aria-current="page">Home</button>
       <button type="button" class="nav-button" data-view="estimate">Quote</button>
-      <button type="button" class="nav-button" data-view="calculators">Calculators</button>
+      <div id="calculator-navigation" class="calculator-navigation">
+        <button id="calculator-navigation-toggle" type="button" class="nav-button" data-view="calculators" aria-expanded="false" aria-controls="calculator-navigation-menu">Calculators</button>
+        <div id="calculator-navigation-menu" class="calculator-navigation-menu" role="group" aria-label="Choose a calculator" hidden>
+          <button type="button" class="calculator-navigation-choice" data-calculator-id="penetration" aria-pressed="false">Firestopping Estimator</button>
+          <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_vermiculite" aria-pressed="false">Steel (spray)</button>
+          <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_board" aria-pressed="false">Steel (board)</button>
+          <button type="button" class="calculator-navigation-choice" data-calculator-id="ductwork" aria-pressed="false">Ductwork (spray/wrap)</button>
+        </div>
+      </div>
       <!-- TAKEOFFS:START -->
       <button type="button" class="nav-button" data-view="takeoffs">Takeoffs</button>
       <!-- TAKEOFFS:END -->
@@ -99,7 +107,6 @@
     <section id="view-calculators" class="view" aria-labelledby="calculators-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow">CALCULATORS</p><h1 id="calculators-heading">Product Calculators</h1><p class="subtitle">Prepare a schedule, adjust settings and review the calculated material requirements.</p></div></div>
       <div id="calculator-message" class="message" role="status" hidden></div>
-      <div id="calculator-list" class="calculator-list" role="group" aria-label="Choose a calculator"></div>
       <section id="estimator-penetration" class="estimator-child" aria-labelledby="penetration-heading" hidden>
         <div id="firestopping-project-workspace">
         <div class="page-heading"><div><p class="eyebrow">FIRESTOPPING CALCULATOR</p><h2 id="penetration-heading">Firestopping Estimator</h2><p class="subtitle">Calculate the current item, then add it to the Firestopping Schedule in the Quote.</p></div><div class="actions"><button id="penetration-add-to-library" type="button" class="button secondary penetration-header-action icon-only" aria-label="Add to Library" title="Add to Library"><span class="button-symbol book-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z"></path><path d="M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"></path></svg></span><span class="sr-only">Add to Library</span></button><button id="penetration-recalculate" type="button" class="button penetration-header-action icon-only calculator-symbol-button recalculate-button" aria-label="Recalculate" title="Recalculate"><span class="button-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="4" y="2.5" width="16" height="19" rx="2"></rect><path d="M7.5 6.5h9v3h-9zM8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"></path></svg></span><span class="sr-only">Recalculate</span></button><button id="penetration-settings" type="button" class="button secondary penetration-settings-toggle penetration-header-action icon-only" aria-pressed="false" aria-label="Settings" title="Settings"><span class="button-symbol gear-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="4.5"></circle><path d="M10 2h4l1 3 2.8-1.3 2.5 2.5L19 9l3 1v4l-3 1 1.3 2.8-2.5 2.5L15 19l-1 3h-4l-1-3-2.8 1.3-2.5-2.5L5 15l-3-1v-4l3-1-1.3-2.8 2.5-2.5L9 5z"></path></svg></span><span class="sr-only">Settings</span></button></div></div>

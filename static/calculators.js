@@ -7,11 +7,6 @@
   const controlNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const controlExactNumber = new Intl.NumberFormat("en-AU", { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 15 });
   const state = { list: null, listRequest: null, definitionRequests: new Map(), entries: new Map(), current: null, loadRevision: 0, requestRevision: 0, timer: null, action: false, calculating: false, optionLists: new Map(), optionKeys: new WeakMap(), nextListId: 0 };
-  const descriptions = {
-    steel_vermiculite: "Steel schedules, coating thicknesses and material quantities",
-    ductwork: "Ductwork dimensions, protection systems and quantities",
-    steel_board: "Steel member schedules, board stacks and whole-sheet takeoff",
-  };
   // Browser annotation scopes use immutable source coordinates. They change
   // alignment/labels only; values, formulas, input keys and exports are untouched.
   const browserPresentation = {
@@ -387,6 +382,7 @@
     return replacements.reduce((text, [from, to]) => text.split(from).join(to), value);
   }
   function updateStatus(entry = current()) {
+    window.CeasefireTakeoffs?.calculatorDraftChanged?.();
     window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
     $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save or Save As" : "Project calculator inputs · use Save or Save As to save all calculators";
@@ -1372,18 +1368,10 @@
   }
 
   function renderChoices() {
-    const firestopping = node("button", "calculator-choice"); firestopping.type = "button";
-    firestopping.dataset.estimatorKind = "penetration";
-    firestopping.setAttribute("aria-pressed", String(Boolean(window.CeasefireProposalCalculators?.isFirestopping?.())));
-    firestopping.append(node("strong", "", "Firestopping Estimator"), node("span", "", "Calculate items and build the Firestopping Schedule"));
-    firestopping.addEventListener("click", () => window.CeasefireProposalCalculators?.showFirestopping());
-    $("calculator-list").replaceChildren(firestopping, ...(state.list || []).map((definition) => {
-      const button = node("button", "calculator-choice"); button.type = "button";
-      button.dataset.estimatorKind = "estimate";
-      button.setAttribute("aria-pressed", String(!window.CeasefireProposalCalculators?.isFirestopping?.() && definition.id === state.current));
-      button.append(node("strong", "", definition.title), node("span", "", descriptions[definition.id] || "Workbook schedule and settings"));
-      button.addEventListener("click", () => selectCalculator(definition.id)); return button;
-    }));
+    const firestopping = Boolean(window.CeasefireProposalCalculators?.isFirestopping?.());
+    for (const button of $("calculator-navigation-menu")?.querySelectorAll("[data-calculator-id]") || []) {
+      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && button.dataset.calculatorId === state.current));
+    }
   }
 
   async function selectCalculator(id) {
@@ -1623,6 +1611,11 @@
 
   // The public takeoff bridge captures a complete calculator draft. Only a
   // server-validated preview may replace it, under an exclusive short lease.
+  function readTakeoffTarget(id) {
+    const entry = state.entries.get(id);
+    if (state.action || !entry?.definition.schedule || !Array.isArray(entry.scheduleRows) || entry.invalid.size) throw new Error("The current calculator schedule is unavailable or has invalid inputs.");
+    return { inputs: clone(entry.inputs), ...scheduleState(entry), fingerprint: projectFingerprint() };
+  }
   async function captureTakeoffTarget(id) {
     document.activeElement?.blur?.();
     await completeProjectSnapshot();
@@ -1702,8 +1695,9 @@
   }
 
   window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };
+  Object.assign(window.CeasefireCalculators, { select: selectCalculator, refreshNavigation: renderChoices });
   Object.assign(window.CeasefireCalculators, { prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot });
   Object.assign(window.CeasefireCalculators, { hasPendingOperation: () => !!state.action });
-  Object.assign(window.CeasefireCalculators, { captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });
+  Object.assign(window.CeasefireCalculators, { readTakeoffTarget, captureTakeoffTarget, reserveTakeoffTarget, applyTakeoffTarget, releaseTakeoffTarget });
   Object.assign(window.CeasefireCalculators, { captureTakeoffTargets, reserveTakeoffTargets, applyTakeoffTargets });
 })();

@@ -41,14 +41,14 @@ function harness() {
 let passed = 0;
 async function check(label, test) { await test(); passed++; console.log(`ok - ${label}`); }
 (async () => {
-  await check('Only the six requested columns in each register have accessible filter buttons and active state', () => {
+  await check('The requested Steel and Duct columns have accessible filters, including linked Steel thickness', () => {
     const h = harness(); h.audit.renderRegister();
     const buttons = h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button'));
     assert.deepEqual(buttons.map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Item', 'Filter Level', 'Filter WxH (mm)', 'Filter FRL', 'Filter Orientation']);
     assert.ok(buttons.every(el => el.attributes['aria-pressed'] === 'false' && el.attributes['aria-haspopup'] === 'dialog'));
     h.audit.registerFilters().set('level', new Set(['L1']));
     const active = h.audit.registerColumnFilterButton('level'); assert.equal(active.attributes['aria-pressed'], 'true'); assert.match(active.className, /active/); assert.match(active.title, /filter applied/);
-    h.state.mode = 'steel'; h.audit.renderRegister(); assert.deepEqual(h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button')).map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Member mark', 'Filter Level', 'Filter Member type', 'Filter Steel section', 'Filter Fire period (min)']);
+    h.state.mode = 'steel'; h.audit.renderRegister(); assert.deepEqual(h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button')).map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Member mark', 'Filter Level', 'Filter Member type', 'Filter Steel section', 'Filter Fire period (min)', 'Filter Thickness (mm)']);
   });
   await check('Values use OR within a column and AND across all six columns, with authoritative confirmation', () => {
     const h = harness(), filters = h.audit.registerFilters();

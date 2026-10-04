@@ -149,6 +149,13 @@ class PhysicalHTTPTests(unittest.TestCase):
                 'request_id': str(uuid4()), 'document_id': document['id'], 'first_page': first, 'page_count': count})
             self.assertEqual(status, 400)
         self.assertEqual(self.json_request('GET', base), state)
+        self.assertEqual(self.request('GET', base+'/images?approved=true')[0], 400)
+        self.assertEqual(self.request('GET', base+'/images?limit=101')[0], 400)
+        self.assertEqual(self.request('GET', base+'/images?offset=bad')[0], 400)
+        self.assertEqual(self.request('POST', base+'/physical/preview', {'expected_revision': state['revision'], 'commands': [{'op': 'approve'}]})[0], 400)
+        self.assertEqual(self.request('POST', base+'/physical/apply', {'expected_revision': state['revision'],
+            'request_id': str(uuid4()), 'preview_id': []})[0], 400)
+        self.assertEqual(self.json_request('GET', base), state)
 
     def test_matrix_pdf_requires_current_revision_and_preserves_both_scopes(self):
         from pypdf import PdfReader
@@ -167,11 +174,8 @@ class PhysicalHTTPTests(unittest.TestCase):
         self.assertIn('Passive_Fire_Matrix.pdf',headers['Content-Disposition'])
         reader=PdfReader(BytesIO(payload));self.assertEqual(reader.metadata.title,'Passive_Fire_Matrix')
         self.assertIn('D-0001',reader.pages[0].extract_text())
+        status,_,plan_payload=self.request('POST',base+'/physical/export/pdf',
+            {'scope':'service_plans','expected_revision':state['revision']})
+        self.assertEqual(status,200,plan_payload)
+        self.assertNotIn('D-0001',PdfReader(BytesIO(plan_payload)).pages[0].extract_text())
         self.assertEqual(self.json_request('GET',base),state)
-        self.assertEqual(self.request('GET', base+'/images?approved=true')[0], 400)
-        self.assertEqual(self.request('GET', base+'/images?limit=101')[0], 400)
-        self.assertEqual(self.request('GET', base+'/images?offset=bad')[0], 400)
-        self.assertEqual(self.request('POST', base+'/physical/preview', {'expected_revision': state['revision'], 'commands': [{'op': 'approve'}]})[0], 400)
-        self.assertEqual(self.request('POST', base+'/physical/apply', {'expected_revision': state['revision'],
-            'request_id': str(uuid4()), 'preview_id': []})[0], 400)
-        self.assertEqual(self.json_request('GET', base), state)

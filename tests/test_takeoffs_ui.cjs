@@ -11,7 +11,7 @@ const flush = async () => { for (let i=0;i<12;i++) await Promise.resolve(); };
 const blank = () => ({version:1,project_id:'project',revision:0,documents:[],calibrations:[],items:[],transfers:[],render_checks:[],audit_head:null});
 const response = (snapshot, session_id='session') => ({session_id,revision:snapshot.revision,snapshot:copy(snapshot),item_results:[],issues:[]});
 function harness(storage) {
-  const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;}},crypto,
+  const context={window:{CeasefireTakeoffGeometry:geometry,CeasefireProject:{changed(){}}},document:{getElementById(){return null;},fonts:{load(){return Promise.resolve([]);},check(){return true;}}},crypto,
     Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,URL,Math,console:{...console},setTimeout,clearTimeout};
   vm.createContext(context);
   if (storage !== undefined) Object.defineProperty(context.window,'localStorage',{get(){if(storage instanceof Error)throw storage;return storage;}});
@@ -144,9 +144,10 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and sources above the viewer',()=>{
     const h=harness(),dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();
     const ui=h.audit.state.ui,all=dom.all(root),find=name=>all.find(el=>el.classList.contains(name)),viewer=find('takeoff-viewer'),top=find('takeoff-viewer-top'),bottom=find('takeoff-page-controls'),search=find('takeoff-search-controls');
-    assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,viewer);assert.deepEqual(top.children,[search,ui.navigation]);
+    const bottomGroup=find('takeoff-viewer-bottom');assert.equal(bottomGroup.parentNode,viewer);
+    assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,bottomGroup);assert.deepEqual(top.children,[search,ui.navigation]);
     assert.equal(ui.tools.select.parentNode,bottom);assert.equal(ui.tools.pan.parentNode,bottom);const labels=bottom.children.map(el=>el.attributes['aria-label']||el.textContent);assert.ok(labels.indexOf('Select')<labels.indexOf('Pan'));assert.ok(labels.indexOf('Pan')<labels.indexOf('−'));assert.ok(labels.includes('Rotate page'));
-    assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleAnchor.parentNode,viewer);assert.ok(!dom.all(ui.toolRail).includes(ui.scaleAnchor));
+    assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleAnchor.parentNode,bottomGroup);assert.ok(!dom.all(ui.toolRail).includes(ui.scaleAnchor));
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);
     assert.equal(ui.sourceDocuments.parentNode,ui.layout);assert.equal(ui.layout.children[0],ui.sourceDocuments);assert.equal(ui.navigation.attributes['aria-label'],'Drawing navigation');assert.equal(search.attributes.role,'search');assert.equal(ui.sourceDocuments.attributes['aria-labelledby'],'takeoff-source-documents-heading');

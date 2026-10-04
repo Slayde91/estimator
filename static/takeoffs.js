@@ -520,7 +520,7 @@
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
     if (sessionId !== state.session?.session_id || scope !== state.physicalScope || format === "pdf" && revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
     const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-    message("Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
+    message(format === "pdf" ? "Downloaded Passive_Fire_Matrix from the current physical draft." : "Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
   }
   function ensurePhysicalUI() {
     if (state.physicalUI) return;
@@ -2390,7 +2390,7 @@
   function physicalCalloutLines(summary, width, fontSize = 9, fontFamily = "CeasefireDrawing") {
     const context = (state.calloutMeasure ||= document.createElement("canvas").getContext("2d")), lines = [];
     for (const paragraph of String(summary).split(/\r?\n/).filter(Boolean)) {
-      let line = ""; context.fontKerning = "none"; context.font = `${lines.length ? "400" : "700"} ${fontSize}px ${fontFamily}`;
+      let line = ""; context.fontKerning = fontFamily === "CeasefireDrawing" ? "none" : "auto"; context.font = `${lines.length ? "400" : "700"} ${fontSize}px ${fontFamily}`;
       for (const word of paragraph.split(/\s+/)) {
         const candidate = line ? `${line} ${word}` : word;
         if (line && context.measureText(candidate).width > width) { lines.push(line); line = ""; context.font = `400 ${fontSize}px ${fontFamily}`; }

@@ -21,7 +21,7 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'pointGeometry,moveControlPoint,beginControlPointDrag,cancelSelectionGesture,markupTarget,deleteMarkup,surfacePreview,renderSurfaceLabel,renderPendingTrace,tracePointerMove,setSelectionRenderer(fn){renderSelection=fn;},setPointSelector(fn){selectControlPoint=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,selectWorkspace,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'activateCountTool,defectLocationEvidence,armPhysicalMarker,choosePhysicalDrawing,choosePhysicalEvidence,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'bulkSelectionFields,syncBulkFields,renderItemSettingsActions,drawableItems,renderCountMarkers,askDialog:ask,setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'validatedMarkupDefaults,readMarkupDefaults,newMarkupAppearance,setMarkupDefaults,syncSurfaceDetailsSelection,clearDrawingSelection,setApi(fn){api=fn;}');
@@ -1014,8 +1014,8 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     bridge.selectionChanged({selected:[]});assert.deepEqual(opened,[true,true,false]);
   });
   await check('Physical workspace switching preserves unfinished forms instead of losing pending edits',async()=>{
-    const h=harness();let destroyed=false;h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,destroy(){destroyed=true;}};
-    await assert.rejects(h.audit.changePhysicalScope('service_plans'),/unfinished physical/);assert.equal(h.audit.state.physicalScope,'defect_reports');assert.equal(destroyed,false);
+    const h=harness();attachMinimalDom(h);h.audit.accept(response(blank()));let destroyed=false;h.audit.state.physicalUI={hasUnfinishedChanges:()=>true,destroy(){destroyed=true;}};
+    await assert.rejects(h.audit.selectWorkspace('physical','service_plans'),/unfinished physical/);assert.equal(h.audit.state.physicalScope,'defect_reports');assert.equal(destroyed,false);
   });
   await check('Defect Count arms a source placement without opening a form or creating a physical record',()=>{
     const h=countHarness(),state=h.audit.state;state.mode='physical';state.physicalUI={hasUnfinishedChanges:()=>false,create(){assert.fail('Count must wait for the drawing click');}};

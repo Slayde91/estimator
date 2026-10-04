@@ -2,6 +2,7 @@
   "name": "ceasefire-estimator-browser-tests",
   "private": true,
   "scripts": {
+    "test:header-controls": "node tests/browser/header_controls.cjs",
     "test:viewer-pan-scale": "node tests/browser/viewer_pan_scale.cjs",
     "test:calculator-navigation": "node tests/browser/calculator_navigation.cjs",
     "test:page-rotation": "node tests/browser/page_rotation.cjs",

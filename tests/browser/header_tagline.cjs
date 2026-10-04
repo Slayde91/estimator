@@ -1,3 +1,4 @@
+const { chooseLibrary } = require('./section_navigation.cjs');
 // Header presentation and successful navigation against a disposable fixture.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -186,7 +187,7 @@ async function presentationNavigation(initial) {
   await page.getByRole('button', { name: 'Libraries', exact: true }).click();
   await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(selected.accessible);
   const library = await layout(); await typeUntilFinished(library, library.accessible, await bootstrap(library, library.accessible));
-  await page.locator('[data-library-kind="pricing"]').click(); await page.locator('#pricing-scope').selectOption('library');
+  await chooseLibrary(page, 'pricing'); await page.locator('#pricing-scope').selectOption('library');
   const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
   await price.fill('789.12345'); await price.press('Tab');
   const guarded = await snapshot(), beforeCancel = await layout(), display = await price.inputValue();

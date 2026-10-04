@@ -2,7 +2,9 @@
 .calculator-workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:25px 25px 20px}
 .calculator-workspace-heading h2{font-size:23px;letter-spacing:-.6px}
 .calculator-workspace-heading .helper{margin-top:6px}
-.calculator-tools{padding:15px 25px;background:#fcfaf9;border-block:1px solid var(--line);display:flex;gap:20px;justify-content:space-between;align-items:center}
+.calculator-tools{display:flex;align-items:center}
+.calculator-header-actions{display:flex;gap:18px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.calculator-primary-actions{flex-wrap:nowrap}
 .calculator-tools .helper{max-width:390px;margin:0}
 .calculator-pages,.calculator-settings-chooser{display:flex;gap:5px;overflow:auto;padding:18px 25px 0;scrollbar-width:thin}
 .calculator-page,.calculator-settings-choice{flex-shrink:0;padding:11px 15px;border:1px solid transparent;border-bottom:3px solid transparent;background:transparent;color:#665761;font-size:11px;font-weight:700;letter-spacing:.35px;border-radius:7px 7px 0 0}
@@ -43,8 +45,8 @@
 .calculator-document-notes{font-size:10px;color:#74656d;margin-top:7px;line-height:1.65}
 .calculator-empty{padding:35px;text-align:center;color:var(--muted)}
 #calculator-confirm-detail{white-space:pre-line}
-@media(max-width:1100px){.calculator-tools{align-items:flex-start;flex-direction:column;gap:10px}.calculator-tools .helper{max-width:none}.app-header:has([data-view=calculators]){gap:20px}}
-@media(max-width:760px){.calculator-workspace-heading{align-items:flex-start;flex-direction:column;padding:20px}.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer{padding:15px 20px}.calculator-pages,.calculator-settings-chooser{padding:15px 20px 0}.calculator-sheet-heading{align-items:flex-start;flex-direction:column;gap:10px}.calculator-grid{max-height:65vh}.calculator-warnings{margin-inline:20px}}
+@media(max-width:1100px){.calculator-workspace-heading{flex-wrap:wrap}.calculator-tools .helper{max-width:none}}
+@media(max-width:760px){.calculator-workspace-heading{align-items:flex-start;flex-direction:column;padding:20px}.calculator-header-actions{justify-content:flex-start;gap:9px 18px}.calculator-sheet-heading,.calculator-sheet-footer{padding:15px 20px}.calculator-pages,.calculator-settings-chooser{padding:15px 20px 0}.calculator-sheet-heading{align-items:flex-start;flex-direction:column;gap:10px}.calculator-grid{max-height:65vh}.calculator-warnings{margin-inline:20px}}
 @media(max-width:760px){.calculator-document-cards{grid-template-columns:1fr}}
 /* Continuous worksheets: branded sections, readable inputs and one complete table. */
 .calculator-grid{--calculator-section-bg:linear-gradient(100deg,#8b101e,#b31624);--calculator-section-ink:#fff;max-height:none;overflow:visible;min-height:160px;border:0;background:#fff}

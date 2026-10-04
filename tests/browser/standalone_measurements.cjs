@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Real count-only/length-only tools; disposable data and original rotated PDF.
 const { chromium, expect } = require('@playwright/test');
@@ -60,7 +61,7 @@ async function dialog(title, values, action) {
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   const before = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   for (const mode of ['STEEL', 'DUCT']) {
-    await page.getByRole('tab', { name: mode, exact: true }).click();
+    await chooseTakeoff(page, mode);
     let finishedDraftPoints;
     if (mode === 'STEEL') {
       await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0);
@@ -132,11 +133,11 @@ async function dialog(title, values, action) {
     const reply = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add_calibration', request_id: crypto.randomUUID(), expected_revision: current.revision, calibration: { id: crypto.randomUUID(), document_id: doc.id, page: 3, name: 'Synthetic precise scale', points: [[100, 100], [200, 100]], distance_m: 10, uniform_scale: true } }) });
     if (!reply.ok) throw new Error(await reply.text()); const updated = await reply.json(); takeoffs.applyProject(await takeoffs.prepareProject(updated.snapshot, sid));
   });
-  await page.getByRole('tab', { name: 'WALLS', exact: true }).click();
+  await chooseTakeoff(page, 'WALLS');
   await page.locator('.takeoff-source-document').first().click(); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   for (const mode of ['WALLS', 'SLABS']) {
-    await page.getByRole('tab', { name: mode, exact: true }).click(); await page.getByRole('button', { name: 'Length', exact: true }).click();
+    await chooseTakeoff(page, mode); await page.getByRole('button', { name: 'Length', exact: true }).click();
     await page.mouse.click(...await screen([150, 200])); await page.mouse.click(...await screen([250, 200])); await page.locator('.takeoff-viewport').press('Enter');
     const reply = await command(() => dialog('Add length measurement', { Item: `${mode}-LENGTH`, Level: 'L01' }, 'Add measurement'), 'create_item');
     const item = reply.snapshot.items.find(item => item.fields.mark === `${mode}-LENGTH`); assert.equal(item.purpose, 'length-only'); assert.equal(item.quantity, 1); assert.equal(item.geometry.points.length, 2); assert.equal(item.measurement.method, 'calibrated');
@@ -164,12 +165,12 @@ async function dialog(title, values, action) {
     for (const id of identifiers) if (current.items.find(item => item.id === id).measurement !== null) throw new Error('A retired inset must require explicit recalibration');
     takeoffs.applyProject(await takeoffs.prepareProject(current, sid));
   }, lengthIds);
-  await page.getByRole('tab', { name: 'WALLS', exact: true }).click();
+  await chooseTakeoff(page, 'WALLS');
   await page.locator('.takeoff-source-document').first().click(); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   for (const mode of ['WALLS', 'SLABS']) {
-    await page.getByRole('tab', { name: mode, exact: true }).click();
+    await chooseTakeoff(page, mode);
     const original = beforeRepair.items.find(item => item.id === evidence[mode].id);
     await page.locator(`.takeoff-standalone-register tr[data-item-id="${original.id}"]`).getByRole('button', { name: 'Edit item', exact: true }).click();
     const repair = page.locator('.takeoff-settings-tools').getByRole('button', { name: 'Attach length calibration', exact: true }); await expect(repair).toBeVisible(); await repair.click();
@@ -182,7 +183,7 @@ async function dialog(title, values, action) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // A deliberately slow options request must never delay the duct form itself.
-  await page.getByRole('tab', { name: 'DUCT', exact: true }).click(); await page.getByRole('button', { name: 'Trace length', exact: true }).click();
+  await chooseTakeoff(page, 'DUCT'); await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   await page.mouse.click(...await screen([350, 200])); await page.mouse.click(...await screen([450, 200]));
   let release; const gate = new Promise(resolve => { release = resolve; });
@@ -205,7 +206,7 @@ async function dialog(title, values, action) {
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, current.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
-  await page.getByRole('tab', { name: 'STEEL', exact: true }).click(); await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0); await expect(page.locator('.takeoff-standalone-register tr[data-item-id]')).toHaveCount(1); evidence.retainedCountsSavedReopened = true;
+  await chooseTakeoff(page, 'STEEL'); await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0); await expect(page.locator('.takeoff-standalone-register tr[data-item-id]')).toHaveCount(1); evidence.retainedCountsSavedReopened = true;
   await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-standalone-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'counts-narrow.png') });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ ok: true, evidence, operations, errors }, null, 2)); console.log(`Standalone measurements browser acceptance passed: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs); if (page) await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); process.exitCode = 1; }).finally(async () => { await browser?.close(); server.kill(); });

@@ -1,3 +1,4 @@
+const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered scale/viewport and per-member vertical-dimension acceptance on disposable data.
@@ -158,14 +159,15 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const calibrate = page.locator('#takeoff-scale-controls [data-tool="calibrate"]');
   await expect(calibrate.locator('svg')).toHaveCount(0);
   assert.deepEqual(await calibrate.evaluate(el => [el.previousElementSibling.id, el.nextElementSibling.textContent]), ['takeoff-calibration', 'Edit calibration']);
-  assert.deepEqual(await page.getByRole('group', { name: 'Drawing downloads', exact: true }).evaluate(el => {
-    const panel = el.previousElementSibling;
-    return { grouped: panel.classList.contains('takeoff-tab-panel'), lists: [...panel.children].map(list => ({ role: list.getAttribute('role'), label: list.getAttribute('aria-label') })) };
-  }), { grouped: true, lists: [{ role: 'tablist', label: 'Takeoff modes' }, { role: 'tablist', label: 'Penetration workspaces' }] });
-  const modeTabs = page.getByRole('tablist', { name: 'Takeoff modes', exact: true });
-  await expect(modeTabs).toBeVisible(); await expect(modeTabs.getByRole('tab')).toHaveText(['STEEL', 'DUCT', 'PENETRATIONS', 'WALLS', 'SLABS']);
-  await expect(modeTabs.getByRole('tab', { name: 'STEEL', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('.takeoff-tab-panel > .takeoff-physical-tabs')).toBeHidden();
+  await expect(page.locator('.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
+  await page.locator('#takeoff-navigation-toggle').hover();
+  const modes = page.locator('#takeoff-navigation-menu');
+  await expect(modes).toBeVisible();
+  await expect(modes.getByRole('button')).toHaveText(['Steel', 'Duct', 'Penetrations', 'Defect Reports', 'Service Plans', 'Walls', 'Slabs']);
+  await expect(takeoffChoice(page, 'Steel')).toHaveAttribute('aria-pressed', 'true');
+  await page.mouse.move(0, 0);
+  await expect(modes).toBeHidden();
+  await expect(page.locator('.takeoff-register').getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible();
   await scaleToggle.click(); await expect(scaleToggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeFocused();
   await page.getByLabel('Drawing calibration', { exact: true }).press('Escape');
@@ -359,7 +361,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const cursorAfter = await sourceAt(cursor); closePoint(cursorAfter.point, cursorBefore.point, 1.5);
   evidence.zoom = { centerBefore, centerAfter, cursorBefore, cursorAfter }; await fit();
   // Rectangular duct default, and a cited drop is added once per physical run.
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click(); await draw([[400, 450], [600, 450]], true);
   state = await command(() => dialog('Add duct object', { 'Item': 'DUCT-DROP', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   const ductId = state.snapshot.items.find(item => item.mode === 'duct').id;
@@ -405,7 +407,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
 
   await load();
   for (const [mode, id, base, additionLength, total] of [['steel', mainId, baseline, .5, (baseline + .5) * 2], ['duct', ductId, ductBase, .75, ductTotal]]) {
-    await page.locator(`[data-mode="${mode}"]`).click(); await page.locator(`tr[data-item-id="${id}"] .takeoff-row-link`).click(); await idle();
+    await chooseTakeoff(page, mode); await page.locator(`tr[data-item-id="${id}"] .takeoff-row-link`).click(); await idle();
     await expect(page.locator(`tr[data-item-id="${id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {
       const pending = page.waitForEvent('download'); await page.getByRole('button', { name: `Export ${format}`, exact: true }).click();
@@ -423,7 +425,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   }
   // Untrusted project text cannot turn a changed source dimension into a valid confirmation.
   const tampered = JSON.parse(fs.readFileSync(info.project)); tampered.takeoffs.items.find(item => item.id === ductId).length_additions[0].length_mm = 1750;
-  fs.writeFileSync(info.project, JSON.stringify(tampered)); await load(); await page.locator('[data-mode="duct"]').click();
+  fs.writeFileSync(info.project, JSON.stringify(tampered)); await load(); await chooseTakeoff(page, 'duct');
   await page.locator(`tr[data-item-id="${ductId}"] .takeoff-row-link`).click(); await idle();
   const reopened = await snapshot(), stale = reopened.items.find(item => item.id === ductId);
   assert.notEqual(stale.state, 'confirmed'); assert.equal(stale.confirmation, null);

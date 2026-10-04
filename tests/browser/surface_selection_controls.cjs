@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 'use strict';
 // Real selection, auto-save and movement on disposable synthetic PDF evidence.
@@ -69,7 +70,7 @@ async function drawSurface(mode, mark, startX) {
   await command(() => dialog('Apply drawing scale 1:100?', {}, 'Apply scale'), 'add_calibration');
   const originalCalculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   for (const mode of ['wall','slab']) {
-    await page.locator(`[data-mode="${mode}"]`).click(); await expect(panel()).toBeHidden();
+    await chooseTakeoff(page, mode); await expect(panel()).toBeHidden();
     await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
     const first = await drawSurface(mode, `${mode.toUpperCase()}-A`, 100);
     await expect(panel()).toBeVisible(); await expect(panel().getByRole('heading', { name: 'Item details', exact: true })).toBeVisible();

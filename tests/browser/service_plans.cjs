@@ -1,3 +1,4 @@
+const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
@@ -78,7 +79,7 @@ async function create(kind, fields, trigger) {
 async function select(id) {
   await row(id).locator('.takeoff-row-link').click(); await idle(); await expect(details()).toBeVisible();
 }
-async function tab(name) { await page.getByRole('tab', { name, exact: true }).click(); await idle(); await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true'); }
+async function tab(name) { await chooseTakeoff(page, name); await idle(); await expect(takeoffChoice(page, name)).toHaveAttribute('aria-pressed', 'true'); }
 // Rotated fixture page 3: crop [20,30,800,570], clockwise rotation 90, UserUnit 2.
 async function screen([x, y]) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
@@ -164,8 +165,8 @@ async function controls() {
   const definitionReply = await page.request.post(`${origin}/api/penetration/definition`, { data: { configuration: await page.evaluate(() => window.CeasefireProject.configuration()) } });
   assert.equal(definitionReply.status(), 200); const definitions = await definitionReply.json();
   const frls = definitions.row_fields.find(field => field.column === 'N').options;
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await idle();
-  await expect(page.getByRole('tab', { name: 'Defect Reports', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
+  await expect(takeoffChoice(page, 'Defect Reports')).toHaveAttribute('aria-pressed', 'true');
   await renderedPage(() => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1, true);
   const defect = await create('defect', { 'Defect Ref.': 'REPORT-A', 'FRL': '-/120/120' });
   const reportBarrier = await create('barrier', { 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall', 'Location': 'Report only' }, 'Add barrier to D-0001');
@@ -226,18 +227,16 @@ async function controls() {
   evidence.countPlacement = { marker: originalMarker, derivedCallout: true, noScaleRequired: true, paneOnSelectionAndSettings: true };
   console.log('Count placement, exact rotated coordinates, automatic callout and Item Details passed.');
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = 0; });
-  await page.getByRole('heading', { name: 'TAKEOFFS', exact: true }).evaluate(el => {
-    const header = document.querySelector('header').getBoundingClientRect();
-    window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12);
-  });
-  await expect(page.getByRole('tab', { name: 'Defect Reports', exact: true })).toBeInViewport();
-  await expect(page.getByRole('tab', { name: 'Service Plans', exact: true })).toBeInViewport();
+  await page.locator('#takeoff-navigation-toggle').hover();
+  await expect(takeoffChoice(page, 'Defect Reports')).toBeInViewport();
+  await expect(takeoffChoice(page, 'Service Plans')).toBeInViewport();
+  await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, 'service-plan-marker-item-details.png') });
 
   await select(service);
   for (const [label,value] of Object.entries({'Explicit service quantity':5,'Service Size (mm)':'50','Width x Height (mm)':'120x90'})) { await response(async()=>{const control=details().getByLabel(label,{exact:true});await control.fill(String(value));await control.press('Tab');},'/physical/apply');await idle();await snapshot(); }
   // A scope switch flushes input without an extra field-review dialog.
-  await tab('Defect Reports'); await expect(page.getByRole('tab',{name:'Defect Reports',exact:true})).toHaveAttribute('aria-selected','true'); await tab('Service Plans');
+  await tab('Defect Reports'); await expect(takeoffChoice(page, 'Defect Reports')).toHaveAttribute('aria-pressed','true'); await tab('Service Plans');
   for (const text of ['5 \u00d7', '50', '120 x 90 mm']) await summaryContains(barrier, text);
   await expect(callout(barrier)).not.toContainText('2 ×'); assert.deepEqual(entity(barrier).marker, originalMarker); assert.deepEqual(state.physical, reportBefore);
   evidence.derivedSummaryUpdates = true;

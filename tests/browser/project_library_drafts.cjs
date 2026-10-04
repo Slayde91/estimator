@@ -1,3 +1,4 @@
+const { chooseLibrary } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Rendered project-only library preservation. Every file, database and dialog
 // target is owned by the disposable synthetic fixture below.
@@ -45,7 +46,7 @@ async function picture() {
 async function independentDrafts() { return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot() })); }
 async function enterLibraries() { await page.getByRole('button', { name: 'Libraries', exact: true }).click(); }
 async function openProjectCopy() {
-  await enterLibraries(); await page.locator('[data-library-kind="penetration"]').click();
+  await enterLibraries(); await chooseLibrary(page, 'penetration');
   const section = page.getByRole('region', { name: 'Project library drafts', exact: true });
   await expect(section).toBeVisible(); await section.scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'project-library-list.png') });
@@ -81,12 +82,12 @@ async function openProjectCopy() {
   const imageFixture = spawnSync(python, ['-c', "from PIL import Image, ImageDraw; import sys; im=Image.new('RGB',(640,360),'#edf4ff'); d=ImageDraw.Draw(im); d.rectangle((40,45,600,305),outline='#19678f',width=9); d.ellipse((235,95,405,265),fill='#cb0018'); d.text((55,20),'SYNTHETIC PROJECT-ONLY DIAGRAM',fill='#102d48'); im.save(sys.argv[1],format='PNG')", uploadPath], { cwd: root, windowsHide: true, encoding: 'utf8' });
   assert.equal(imageFixture.status, 0, imageFixture.stderr);
 
-  await enterLibraries(); await page.locator('[data-library-kind="pricing"]').click();
+  await enterLibraries(); await chooseLibrary(page, 'pricing');
   await page.locator('#pricing-scope').selectOption('library');
   const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
   const priceIdentity = await price.evaluate(control => ({ id: control.closest('tr').dataset.priceId, kind: control.closest('tr').dataset.priceKind }));
   await price.fill('789.12'); await price.press('Tab');
-  await page.locator('[data-library-kind="penetration"]').click();
+  await chooseLibrary(page, 'penetration');
   await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
   await page.locator(`[data-library-edit="${info.item_id}"]`).first().click();
   await expect(page.locator('#firestopping-library-editor')).toBeVisible();

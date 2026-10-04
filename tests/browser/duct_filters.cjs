@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Steel and Duct column filters against disposable, source-backed 102-row registers.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -80,7 +81,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     takeoffs.applyProject(await takeoffs.prepareProject(current, sid));
     return { first: current.items[0].id, snapshot: current };
   }, mode);
-  await page.getByRole('tab', { name: mode.toUpperCase(), exact: true }).click();
+  await chooseTakeoff(page, mode.toUpperCase());
   await expect(rows()).toHaveCount(100); await expect(page.getByText('1–100 of 102 matching items', { exact: true })).toBeVisible();
   for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
   for (const label of ['Select filtered items', 'Clear selection', 'Undo last edit']) await expect(page.getByRole('button', { name: label, exact: true }))[steel ? 'toBeVisible' : 'toBeHidden']();
@@ -121,12 +122,12 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await expect(dialog.getByRole('checkbox', { name: 'Select all values', exact: true })).toHaveJSProperty('indeterminate', true);
   await finishMenu(dialog, 'Apply filter'); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
   dialog = await menu(markLabel); await dialog.getByRole('checkbox', { name: `${prefix}001`, exact: true }).check(); await finishMenu(dialog, 'Escape'); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
-  await page.getByRole('tab', { name: steel ? 'DUCT' : 'STEEL', exact: true }).click();
+  await chooseTakeoff(page, steel ? 'DUCT' : 'STEEL');
   for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
   const alternateMode = steel ? 'duct' : 'steel';
   assert.equal(await page.locator('.takeoff-column-filter-button').count(), steel ? 6 : 7);
   await assertFilterColumns(page.getByRole('table', { name: `${steel ? 'Duct' : 'Steel'} editable takeoff register`, exact: true }), alternateMode);
-  await page.getByRole('tab', { name: mode.toUpperCase(), exact: true }).click(); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
+  await chooseTakeoff(page, mode.toUpperCase()); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
   await page.setViewportSize({ width: 764, height: 764 }); dialog = await menu(markLabel);
   const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 764 && box.y + box.height <= 764);
   await page.screenshot({ path: path.join(output, `${mode}-filter-menu-narrow.png`) }); await finishMenu(dialog, 'Cancel');

@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Toolbar acceptance against a disposable server and original synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
@@ -102,8 +103,8 @@ async function fitPageMatrix() {
   // Page 3 is a true portrait viewport after its retained rotation, crop and
   // UserUnit are applied; page 1 is landscape. Both use the uploaded original.
   for (const [mode, scope] of [['STEEL'], ['DUCT'], ['WALLS'], ['SLABS'], ['PENETRATIONS', 'Defect Reports'], ['PENETRATIONS', 'Service Plans']]) {
-    await page.getByRole('tab', { name: mode, exact: true }).click(); await settingsSettled(page);
-    if (scope) { await page.getByRole('tab', { name: scope, exact: true }).click(); await settingsSettled(page); }
+    await chooseTakeoff(page, mode); await settingsSettled(page);
+    if (scope) { await chooseTakeoff(page, scope); await settingsSettled(page); }
     for (const width of [1146, 764]) {
       await page.setViewportSize({ width, height: 764 });
       for (const [orientation, number, aspect] of [['landscape', 1, 842 / 595], ['portrait-rotated-crop-UserUnit2', 3, 540 / 780]]) {

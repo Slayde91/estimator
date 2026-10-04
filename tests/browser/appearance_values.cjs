@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 'use strict';
 // Native controls and source-based values; no live application or calculator writes.
 const { chromium, expect } = require('@playwright/test');
@@ -45,7 +46,7 @@ async function select(item) {
   await expect(panel()).toBeVisible();
 }
 async function draw(mode, mark, x = 100) {
-  await page.locator(`[data-mode="${mode}"]`).click(); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
+  await chooseTakeoff(page, mode); await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 1);
   const area = ['wall', 'slab'].includes(mode), points = area ? [[x,100],[x+120,100],[x+120,240],[x,240]] : [[x,400],[x+120,400],[x+120,470]];
   await page.getByRole('button', { name: area ? 'Trace surface' : 'Trace length', exact: true }).click();
   for (const point of points) await page.mouse.click(...await screen(point)); await page.locator('.takeoff-viewport').press('Enter');
@@ -108,13 +109,13 @@ async function assertLabels(item, state) {
     evidence[mode] = { labels, minimumAndMaximum:true, canonicalPercent:true, optIn:true, removal:true, technicalDataUnchanged:true };
   }
   // A saved default can explicitly enable values for fresh items without rewriting any old item.
-  await page.locator('[data-mode="steel"]').click(); await select(items[0]); await command(() => panel().getByLabel('Display Values',{exact:true}).check());
+  await chooseTakeoff(page, 'steel'); await select(items[0]); await command(() => panel().getByLabel('Display Values',{exact:true}).check());
   const beforeDefault = await snapshot(), requestCount = requests.length; await panel().getByRole('button',{name:'Set as default',exact:true}).click(); await settingsSettled(page);
   assert.deepEqual(await snapshot(),beforeDefault); assert.equal(requests.length,requestCount);
   const preference = await page.evaluate(() => JSON.parse(localStorage.getItem('ceasefire.takeoff-markup-defaults.v1')).appearance); assert.equal(preference.display_values,true);
   const fresh = await draw('duct','NEW-WITH-VALUES',400); assert.deepEqual(fresh.appearance,preference); await assertLabels(fresh,await snapshot());
   // Counted Steel uses each explicit member length, even with no inferred scale for a count.
-  await page.locator('[data-mode="steel"]').click(); await page.getByRole('button',{name:'Count steel lengths',exact:true}).click();
+  await chooseTakeoff(page, 'steel'); await page.getByRole('button',{name:'Count steel lengths',exact:true}).click();
   for (const point of [[450,300],[550,300]]) { await page.mouse.click(...await screen(point)); await modal('Counted member length',{'Length per member (m)':6.123456789},'Place marker'); }
   await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
   const counted = await command(async () => page.mouse.dblclick(...await screen([650,300])),'add_count_items'), count = counted.snapshot.items.find(value => value.geometry?.kind === 'count');

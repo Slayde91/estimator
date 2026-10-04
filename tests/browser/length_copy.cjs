@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Real keyboard/pointer copy and paste. All sources, saves and server state are disposable.
 const { chromium, expect } = require('@playwright/test');
@@ -61,7 +62,7 @@ async function scale(denominator) {
   return command(() => dialog(`Apply drawing scale 1:${denominator}?`, {}, 'Apply scale'), 'add_calibration');
 }
 async function create(mode, vertices, values) {
-  await page.locator(`[data-mode="${mode}"]`).click();
+  await chooseTakeoff(page, mode);
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   for (const point of vertices) await page.mouse.click(...await screen(point));
   await page.locator('.takeoff-viewport').press('Enter');
@@ -170,7 +171,7 @@ async function saveLoad(info) {
   const ductLength = reply.item_results.find(item => item.id === duct.id).length_m;
   assertCopy(duct, copiedDuct, reply, [420, 330], ductLength); await assertRow(copiedDuct, reply);
   console.log('Steel/Duct paste, repeated identities, cross-page scale, native text clipboard and stale-source rejection passed.');
-  await page.locator('[data-mode="steel"]').click();
+  await chooseTakeoff(page, 'steel');
   await page.getByRole('button', { name: 'Count steel lengths', exact: true }).click(); await page.mouse.click(...await screen([550, 220]));
   await dialog('Counted member length', { 'Length per member (m)': 4.25 }, 'Place marker');
   await expect(page.getByRole('dialog')).toHaveCount(0);

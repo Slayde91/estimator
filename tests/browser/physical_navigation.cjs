@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Physical detail navigation and explicit marker placement use a disposable source/server only.
 const { chromium, expect } = require('@playwright/test');
@@ -87,7 +88,7 @@ async function layout(width) {
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('[data-mode="physical"]').click(); await idle();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0);
   const defect = await create('defect', { 'Defect Ref.': 'NAV-A', FRL: '-/120/120' });
   const barrier = await create('barrier', { Location: 'Existing unplaced barrier', Substrate: 'Concrete/masonry wall' });
@@ -121,13 +122,13 @@ async function layout(width) {
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).dblclick({ delay: 100 });
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;
-  await page.getByRole('tab', { name: 'Service Plans', exact: true }).click(); await idle(); await page.setViewportSize({ width: 1600, height: 1100 });
+  await chooseTakeoff(page, 'Service Plans'); await idle(); await page.setViewportSize({ width: 1600, height: 1100 });
   await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0); await expect(page.getByRole('button', { name: 'Add Defect', exact: true })).toHaveCount(0);
   const planBarrier = await create('barrier', { Location: 'Independent plan', FRL: '-/60/60' }, () => page.getByRole('button', { name: 'Add substrate', exact: true }).click());
   assert.equal(state.service_plans.barriers[0].id, planBarrier); assert.equal(state.service_plans.barriers[0].defect_id, undefined); assert.equal(state.service_plans.defects, undefined);
   assert.deepEqual(await details().getByRole('table', { name: 'Item Details navigation', exact: true }).getByRole('columnheader').allTextContents(), ['Barrier', 'Service']);
   await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveCount(0); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60'); evidence.servicePlanIsolation = true;
-  await page.getByRole('tab', { name: 'Defect Reports', exact: true }).click(); await idle(); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Barrier', barrier);
+  await chooseTakeoff(page, 'Defect Reports'); await idle(); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await navigate('Barrier', barrier);
   assert.deepEqual((await snapshot()).physical.barriers[0].marker, firstMarker);
   const beforeSave = structuredClone(state); await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, beforeSave.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeSave.service_plans);

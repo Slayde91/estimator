@@ -1,3 +1,4 @@
+const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Native browser gestures use synthetic PDFs and disposable projects only.
 const { chromium, expect } = require('@playwright/test');
@@ -53,7 +54,7 @@ async function create(kind, fields, trigger) {
   await response(() => dialog(`Create one draft ${kind}?`, {}, 'Apply draft change'), '/physical/apply'); await snapshot(); return preview.changed_ids[0];
 }
 async function scopeTab(name) {
-  await page.getByRole('tab', { name, exact: true }).click(); await idle(); await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');
+  await chooseTakeoff(page, name); await idle(); await expect(takeoffChoice(page, name)).toHaveAttribute('aria-pressed', 'true');
 }
 async function selectBarrier(id) {
   await row(id).locator('.takeoff-row-link').click(); await idle(); await expect(details()).toBeVisible();
@@ -166,6 +167,11 @@ async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {
       if (savingFirst) { await details().getByLabel('Notes', { exact: true }).press('Tab'); await expect.poll(() => held).toBe(true); }
       // Filling a lower pane field may scroll the outer document. Read the
       // native hit position afterward rather than aiming at stale coordinates.
+      await target.evaluate(el => {
+        const bounds = el.getBoundingClientRect(), header = document.querySelector('.app-header').getBoundingClientRect();
+        const y = bounds.y + bounds.height / 2;
+        if (y < header.bottom + 32) window.scrollBy(0, y - header.bottom - 32);
+      });
       const bounds = await target.boundingBox(), start = [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
       const hit = await page.evaluate(([x, y]) => ({ className: document.elementFromPoint(x, y)?.getAttribute('class'), physical: !!document.elementFromPoint(x, y)?.closest('.takeoff-physical-callout,.takeoff-physical-marker-hit,.takeoff-physical-callout-handle') }), start);
       assert.ok(hit.physical, `The delayed-save regression reaches its native physical target: ${JSON.stringify(hit)}`);
@@ -212,24 +218,19 @@ async function reviewAlignment(scope, barrier) {
     for (const open of [false, true]) {
       if (open) await selectBarrier(barrier); else await closeDetails();
       await page.evaluate(() => window.scrollTo(0, 0));
-      // Scrolling/resizing can leave the stationary pointer over the selected
-      // tab. Its hover rule differs from the unhovered Firestopping reference.
-      await page.mouse.move(0, 0);
-      await expect.poll(() => page.locator('.takeoff-tab-panel>.takeoff-modes:first-child [aria-selected=true]').evaluate(selected => selected.matches(':hover')), { message: 'The selected tab is unhovered for the base-style comparison' }).toBe(false);
-      const measure = () => page.evaluate(() => {
+      await page.locator('#takeoff-navigation-toggle').hover();
+      const measured = await page.evaluate(() => {
         const bounds = selector => { const value = document.querySelector(selector).getBoundingClientRect(); return { x: value.x, y: value.y, width: value.width, height: value.height }; };
         const style = element => Object.fromEntries(['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderBottomWidth', 'borderBottomColor', 'borderTopLeftRadius', 'backgroundColor', 'color', 'fontSize', 'fontWeight', 'textTransform'].map(key => [key, getComputedStyle(element)[key]]));
-        const selected = document.querySelector('.takeoff-tab-panel>.takeoff-modes:first-child [aria-selected=true]');
-        const reference = document.createElement('button'); reference.className = 'penetration-group'; reference.setAttribute('aria-selected', 'true'); document.body.append(reference);
-        const referenceStyle = style(reference), referenceHovered = reference.matches(':hover'); reference.remove();
-        return { documents: bounds('.takeoff-source-documents'), steel: bounds('[data-mode=steel]'), layout: bounds('.takeoff-drawing-layout'), tabsSharePanel: document.querySelector('.takeoff-physical-tabs').parentElement === document.querySelector('[data-mode=steel]').parentElement.parentElement, selectedHovered: selected.matches(':hover'), referenceHovered, selectedStyle: style(selected), firestoppingStyle: referenceStyle };
+        const selected = document.querySelector('#takeoff-navigation-menu [aria-pressed=true]');
+        const reference = document.createElement('button'); reference.className = 'calculator-navigation-choice'; reference.setAttribute('aria-pressed', 'true'); document.body.append(reference);
+        const referenceStyle = style(reference); reference.remove();
+        return { documents: bounds('.takeoff-source-documents'), layout: bounds('.takeoff-drawing-layout'), selectedStyle: style(selected), calculatorStyle: referenceStyle, scopesInMenu: !!document.querySelector('#takeoff-navigation-menu .section-navigation-subgroup [data-physical-scope]'), oldPanelCount: document.querySelectorAll('.takeoff-tab-panel').length };
       });
-      let measured = await measure();
-      await expect.poll(async () => { measured = await measure(); return measured.selectedStyle; }, { message: 'The selected Takeoffs tab settles to the exact Firestopping style' }).toEqual(measured.firestoppingStyle);
-      assert.equal(measured.selectedHovered, false); assert.equal(measured.referenceHovered, false);
-      assert.ok(Math.abs(measured.documents.x - measured.steel.x) <= 1.01, `Source documents starts at the far-left Steel tab, allowing the tab panel border: ${JSON.stringify(measured)}`);
       assert.ok(Math.abs(measured.documents.x - measured.layout.x) < 1 && Math.abs(measured.documents.width - measured.layout.width) < 1, 'Source documents spans the full drawing layout with Item Details open or closed');
-      assert.equal(measured.tabsSharePanel, true); assert.deepEqual(measured.selectedStyle, measured.firestoppingStyle, 'Takeoffs selected tab preserves the existing Firestopping visual style');
+      assert.equal(measured.scopesInMenu, true); assert.equal(measured.oldPanelCount, 0);
+      assert.deepEqual(measured.selectedStyle, measured.calculatorStyle, 'Takeoffs selection matches the existing Calculators dropdown style');
+      await page.mouse.move(0, 0);
       await page.screenshot({ path: path.join(output, `${scope}-${width}-details-${open ? 'open' : 'closed'}-alignment.png`), fullPage: true });
       (evidence.alignment ||= []).push({ scope, width, detailsOpen: open, ...measured });
     }
@@ -260,7 +261,7 @@ let currentScope = 'defect_reports';
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   await page.goto(origin); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS');
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   const retained = [];
   for (const scope of ['defect_reports', 'service_plans']) {

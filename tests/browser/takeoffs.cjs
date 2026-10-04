@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -109,7 +110,7 @@ async function fitCurrentDrawing(name) {
 }
 async function boardJourney(info) {
   const initial = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.locator('[data-mode="steel"]').click();
+  await chooseTakeoff(page, 'steel');
   await page.locator('#takeoff-upload').setInputFiles(info.board_fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(2, { timeout: 60000 });
   await page.getByLabel('Drawing document', { exact: true }).selectOption(await page.locator('.takeoff-document').filter({ hasText: 'synthetic-board.pdf' }).getAttribute('value'));
@@ -282,7 +283,7 @@ async function boardJourney(info) {
   await fillInspector({ 'Count/QTY': 3 }); await reviewConfirm();
   transferred = await transfer(true); assert.equal(transferred.preview.inputs.SCHEDULE.I10, 3);
   await screenshot('confirmed-steel.png');
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await page.getByRole('button', { name: 'Trace length', exact: true }).click();
   await draw([[100 / 842, 1 - 245 / 595], [600 / 842, 1 - 220 / 595]]);
   await page.locator('.takeoff-viewport').press('Enter');
@@ -327,10 +328,10 @@ async function boardJourney(info) {
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');
   // Duct has no redundant Undo toolbar button. The shared workspace history
   // remains accessible from Steel and restores the exact deleted identity.
-  await page.locator('[data-mode="steel"]').click();
+  await chooseTakeoff(page, 'steel');
   extra = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo');
   assert.ok(extra.snapshot.items.some(i => i.id === mergedRun.id));
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await page.locator(`tr[data-item-id=\"${mergedRun.id}\"] .takeoff-row-link`).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await command(() => dialog('Delete 1 objects?', {}, 'Delete objects'), 'delete_items');
@@ -338,7 +339,7 @@ async function boardJourney(info) {
   await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   await screenshot('confirmed-duct.png');
   const board = await boardJourney(info);
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   // Project Save As commits the companion bundle before the complete JSON.
   const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
@@ -355,7 +356,7 @@ async function boardJourney(info) {
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
-  await page.locator('[data-mode="duct"]').click();
+  await chooseTakeoff(page, 'duct');
   await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   const reopenedDuct=await openItemSettings(page,ductId);await expect(reopenedDuct.getByLabel('WxH (mm)',{exact:true})).toHaveValue('600 x 400');await expect(reopenedDuct.getByLabel('Product',{exact:true})).toHaveValue('FyreWrap');await expect(reopenedDuct.getByLabel('Exposure',{exact:true})).toHaveValue('Internal');await expect(reopenedDuct.getByLabel('FRL',{exact:true})).toHaveValue('120/120/120');
   for (const format of ['CSV', 'XLSX']) {

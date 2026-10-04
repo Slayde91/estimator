@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 // Native PDF text selection and clipboard; original sources and storage are synthetic.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -59,14 +60,14 @@ async function dragText(phrase, vertical = false) {
   await rendered(() => page.locator('#takeoff-upload').setInputFiles(info.fixture)); await fit();
   const initial = await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot());
   for (const [mode, scope] of [['STEEL'], ['DUCT'], ['WALLS'], ['SLABS'], ['PENETRATIONS', 'Defect Reports'], ['PENETRATIONS', 'Service Plans']]) {
-    await page.getByRole('tab', { name: mode, exact: true }).click(); await settingsSettled(page);
-    if (scope) { await page.getByRole('tab', { name: scope, exact: true }).click(); await settingsSettled(page); }
+    await chooseTakeoff(page, mode); await settingsSettled(page);
+    if (scope) { await chooseTakeoff(page, scope); await settingsSettled(page); }
     await textTool(); const copied = await dragText('100UC15'); evidence.scopes.push({ scope: scope || mode, copied });
     await page.getByRole('button', { name: 'Pan', exact: true }).click();
     assert.equal(await page.evaluate(() => getSelection().toString()), '', 'Changing tool clears only drawing text selection');
     assert.equal(await layer().evaluate(el => getComputedStyle(el).pointerEvents), 'none');
   }
-  await page.getByRole('tab', { name: 'STEEL', exact: true }).click(); await settingsSettled(page); await textTool();
+  await chooseTakeoff(page, 'STEEL'); await settingsSettled(page); await textTool();
   const selected = await dragText('100UC15');
   await page.evaluate(() => { window.selectedTextSpan = document.querySelector('.takeoff-text-layer span'); window.selectedTextLayer = document.querySelector('.takeoff-text-layer'); });
   const before = await layer().boundingBox(); await rendered(() => page.getByRole('button', { name: '+', exact: true }).click());

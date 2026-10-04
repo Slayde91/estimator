@@ -1,3 +1,4 @@
+const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real pointer/keyboard area workflow on synthetic drawings and a disposable server.
@@ -76,7 +77,7 @@ function checkArea(state, id, expected = 56) {
   return value;
 }
 async function surface(mode, rotated = false) {
-  await page.locator(`[data-mode="${mode}"]`).click();
+  await chooseTakeoff(page, mode);
   if (await page.getByRole('button', { name: 'Close settings', exact: true }).isVisible()) await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await fit();
   await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
@@ -201,11 +202,11 @@ async function surface(mode, rotated = false) {
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toHaveValue('');
   const slab = await surface('slab', true);
   // Row navigation recovers exact document/page and shape after changing modes/pages.
-  await page.locator('[data-mode="wall"]').click();
+  await chooseTakeoff(page, 'wall');
   await page.locator(`tr[data-item-id="${wall.id}"] .takeoff-row-link`).click();
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('1');
   await expect(page.locator(`.takeoff-hit[data-item-id="${wall.id}"]`)).toHaveCount(1);
-  await page.locator('[data-mode="slab"]').click();
+  await chooseTakeoff(page, 'slab');
   await page.locator(`tr[data-item-id="${slab.id}"] .takeoff-row-link`).click();
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('2');
   await page.screenshot({ path: path.join(output, 'slab-rotated-confirmed.png'), fullPage: true });
@@ -222,7 +223,7 @@ async function surface(mode, rotated = false) {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   for (const record of [wall, slab]) {
     const mode = record === wall ? 'wall' : 'slab';
-    await page.locator(`[data-mode="${mode}"]`).click();
+    await chooseTakeoff(page, mode);
     await page.locator(`tr[data-item-id="${record.id}"] .takeoff-row-link`).click();
     await expect(page.locator(`tr[data-item-id="${record.id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {

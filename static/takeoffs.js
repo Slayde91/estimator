@@ -208,7 +208,7 @@
       // Navigation and drawing actions must visibly wait for scale inspection
       // or a mutation, rather than accepting a click that the handler ignores.
       for (const control of state.ui.root.querySelectorAll("[data-mode],[data-tool]")) if (control.dataset.mode || control.dataset.tool) control.disabled = value || !!control.dataset.mode && !labels[control.dataset.mode];
-      for (const control of state.ui.physicalTabs?.querySelectorAll("button") || []) control.disabled = value || state.physicalPlacing;
+      refreshNavigation();
       for (const control of state.ui.pageControls?.querySelectorAll("button,input") || []) control.disabled = value;
       if (state.ui.documentSelect) state.ui.documentSelect.disabled = value || !documents().length;
       for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value || control.dataset.countReadOnly === "true";
@@ -282,16 +282,6 @@
     if (state.ui) return;
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
-    const modes = node("div", "takeoff-modes"); modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", "Takeoff modes");
-    for (const [mode, label] of [["steel", "STEEL"], ["duct", "DUCT"], ["physical", "PENETRATIONS"], ["wall", "WALLS"], ["slab", "SLABS"]]) {
-      const el = button(label, () => changeMode(mode), "takeoff-mode"); el.dataset.mode = mode; el.setAttribute("role", "tab"); el.setAttribute("aria-selected", String(state.mode === mode));
-      if (!labels[mode]) { el.disabled = true; el.title = "Planned after the Steel and Duct release"; }
-      modes.append(el);
-    }
-    ui.physicalTabs = node("div", "takeoff-modes takeoff-physical-tabs"); ui.physicalTabs.setAttribute("role", "tablist"); ui.physicalTabs.setAttribute("aria-label", "Penetration workspaces"); ui.physicalTabs.hidden = true;
-    for (const [scope, label] of [["defect_reports", "Defect Reports"], ["service_plans", "Service Plans"]]) {
-      const tab = button(label, () => changePhysicalScope(scope), "takeoff-mode"); tab.dataset.physicalScope = scope; tab.setAttribute("role", "tab"); tab.setAttribute("aria-selected", String(scope === state.physicalScope)); ui.physicalTabs.append(tab);
-    }
     ui.message = node("div", "message"); ui.message.hidden = true;
     const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
@@ -302,8 +292,7 @@
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
-    ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
-    const headingControls = node("div", "takeoff-heading-controls"), drawingDownloads = node("div", "takeoff-toolbar takeoff-drawing-downloads"); drawingDownloads.setAttribute("role", "group"); drawingDownloads.setAttribute("aria-label", "Drawing downloads"); drawingDownloads.append(...ui.drawingDownloads); headingControls.append(modes, drawingDownloads);
+    ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
     ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
     const navigation = node("div", "takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
     const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls");
@@ -347,14 +336,13 @@
     const exports = node("div", "takeoff-register-controls"); ui.target = select([["steel_vermiculite", "Steel Spray Schedule"], ["steel_board", "Steel Board Schedule"]], refreshRegisterOptions); ui.target.setAttribute("aria-label", "Destination schedule");
     ui.transferControls = [ui.target, button("Preview transfer", () => transfer(false)), button("Update linked rows", () => transfer(true)), button("Detach links", detachSelected)];
     ui.areaNotice = node("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
-    exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), ui.areaNotice);
+    exports.append(...ui.transferControls, button("Export CSV", () => exportRegister("csv")), button("Export XLSX", () => exportRegister("xlsx")), ui.drawingPdf, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls, scaleAnchor);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
-    const tabPanel = node("div", "takeoff-tab-panel"); tabPanel.append(modes, ui.physicalTabs); headingControls.replaceChildren(tabPanel, drawingDownloads);
-    workspace.append(layout, register); root.append(headingControls, ui.message, workspace, ui.physicalContainer);
+    workspace.append(layout, register); root.append(ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
@@ -370,13 +358,27 @@
     });
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
-  async function changeMode(mode) { if (!labels[mode] || state.busy || state.physicalPlacing) return; if (!await discardEditor()) return; invalidateLinkedThickness(); state.mode = mode; resetPlanInteraction(); state.offset = 0; state.selected.clear(); cancelTrace(); syncSurfaceDetailsSelection(); renderData(); }
-  async function changePhysicalScope(scope) {
-    if (!["defect_reports", "service_plans"].includes(scope) || scope === state.physicalScope || state.busy || state.physicalPlacing) return;
-    if (!await discardEditor()) return;
-    resetPlanInteraction(); cancelTrace(); state.physicalUI?.destroy(); state.physicalUI = null;
-    state.physicalScope = scope; state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear(); state.physicalDetailsOpen = false;
-    renderData();
+  function refreshNavigation() {
+    for (const choice of $("takeoff-navigation-menu")?.querySelectorAll("[data-mode]") || []) {
+      choice.disabled = !!(state.busy || state.physicalPlacing || state.navigationBusy || !labels[choice.dataset.mode]);
+      choice.setAttribute("aria-pressed", String(choice.dataset.mode === state.mode && (!choice.dataset.physicalScope || choice.dataset.physicalScope === state.physicalScope)));
+    }
+  }
+  async function selectWorkspace(mode, scope) {
+    if (!labels[mode] || scope && (mode !== "physical" || !["defect_reports", "service_plans"].includes(scope)) || state.busy || state.physicalPlacing || state.navigationBusy) return false;
+    state.navigationBusy = true; refreshNavigation();
+    try {
+      build(); await ensureSession();
+      const sessionId = state.session?.session_id;
+      if (!await discardEditor() || sessionId !== state.session?.session_id) return false;
+      invalidateLinkedThickness(); resetPlanInteraction(); cancelTrace();
+      if (scope && scope !== state.physicalScope) {
+        state.physicalUI?.destroy(); state.physicalUI = null;
+        state.physicalScope = scope; state.physicalSelected.clear(); state.physicalVisible.clear(); state.physicalHovered = null; state.physicalPreviews.clear(); state.physicalDetailsOpen = false;
+      }
+      state.mode = mode; state.offset = 0; state.selected.clear(); syncSurfaceDetailsSelection(); renderData();
+      return true;
+    } finally { state.navigationBusy = false; refreshNavigation(); }
   }
   function setPhysicalDetailsOpen(open) {
     state.lastDrawingClick = null;
@@ -396,11 +398,10 @@
   function renderData() {
     if (!state.ui) return;
     scheduleLinkedThickness();
-    for (const el of state.ui.root.querySelectorAll("[data-mode]")) el.setAttribute("aria-selected", String(el.dataset.mode === state.mode));
+    refreshNavigation();
     const physical = state.mode === "physical";
     state.ui.tools.count.dataset.tool = physical ? "count" : "count-only";
-    if (state.ui.tools.settings) state.ui.tools.settings.hidden = false; for (const [index, control] of (state.ui.drawingDownloads || []).entries()) control.hidden = physical && index === 0;
-    state.ui.physicalTabs.hidden = !physical; for (const tab of state.ui.physicalTabs.querySelectorAll("button")) tab.setAttribute("aria-selected", String(tab.dataset.physicalScope === state.physicalScope));
+    if (state.ui.tools.settings) state.ui.tools.settings.hidden = false;
     if (physical) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     renderPhysicalDetails();
     state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = true; state.ui.register.hidden = physical;
@@ -549,6 +550,7 @@
         const reply = await physicalRequest("images/extract", { document_id: state.document, first_page: state.page, page_count: 1 }, { mutate: true });
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
+      drawingPdf: () => button("Download PDF", () => downloadTakeoff("marked-pdf")),
       export: exportPhysical, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
@@ -3307,6 +3309,6 @@
   }
   function scheduleBindings(calculatorId, row) { return (snapshot()?.transfers || []).filter(binding => binding.calculator_id === calculatorId && binding.row === row && binding.status !== "detached"); }
   async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); if (!items().some(item => item.id === itemId)) { await safely(() => manageLinkedRows(itemId)); return; } await selectItem(itemId); }
-  window.CeasefireTakeoffs = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
+  window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
     sessionId: () => state.session?.session_id, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged };
 })();

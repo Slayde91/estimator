@@ -6,7 +6,8 @@
   const label = document.getElementById("header-tagline-label");
   const sizer = document.getElementById("header-tagline-sizer");
   const typed = document.getElementById("header-tagline-typed");
-  if (!label || !sizer || !typed) return;
+  const cursor = document.querySelector("#header-tagline .header-tagline-cursor");
+  if (!label || !sizer || !typed || !cursor) return;
   const phrases = [
     "Built on caffeine and the audacity of 'Do your best, mastic the rest.'",
     "Made for deadlines and the belief that 'There’s a tested system for that… probably.'",
@@ -23,6 +24,9 @@
     "Measure twice, discover the drawing is wrong anyway.",
     "The architect drew the wall; the services drew their own conclusions.",
     "The drawing said “typical,” which was optimistic.",
+    "Fire testing proves the system works; construction proves how creative people can be.",
+    "The installation was executed flawlessly; then we wrote a test report.",
+    "Give me a red bull and a cigarette and I could probably spray that.",
   ];
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
@@ -35,22 +39,37 @@
   sizer.textContent = phrase + "_";
   const characters = Array.from(phrase);
   const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-  let timer = null, count = 0;
+  let typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false;
+  cursor.hidden = false;
+  function stopCursor() {
+    clearTimeout(cursorTimer);
+    cursorTimer = null;
+    cursor.hidden = true;
+  }
   function finish() {
-    clearTimeout(timer);
-    timer = null;
-    typed.textContent = phrase;
+    clearTimeout(typingTimer);
+    typingTimer = null;
+    if (typed.textContent !== phrase) typed.textContent = phrase;
+    if (complete || closed) return;
+    complete = true;
+    cursorTimer = setTimeout(stopCursor, 5000);
   }
   function typeNext() {
+    if (closed) return;
     typed.textContent = characters.slice(0, ++count).join("");
-    if (count < characters.length) timer = setTimeout(typeNext, 35);
-    else timer = null;
+    if (count < characters.length) typingTimer = setTimeout(typeNext, 35);
+    else finish();
+  }
+  function close() {
+    closed = true;
+    finish();
+    stopCursor();
   }
   typed.textContent = "";
   if (motion?.matches) finish();
   else typeNext();
   motion?.addEventListener?.("change", event => { if (event.matches) finish(); });
-  window.addEventListener?.("pagehide", finish, { once: true });
+  window.addEventListener?.("pagehide", close, { once: true });
 })();
 // HEADER_TAGLINE:END
 

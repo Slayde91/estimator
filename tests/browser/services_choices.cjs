@@ -1,4 +1,4 @@
-const { chooseTakeoff } = require('./section_navigation.cjs');
+const { chooseTakeoff, chooseLibrary } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Public selectors and saved legacy descriptions on disposable synthetic storage.

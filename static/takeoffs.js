@@ -95,8 +95,8 @@
     "Delete viewport": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
     "Remove document": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
     "Close viewports": "M6 9l6 6 6-6",
-    "Update linked rows": "M3 11a9 9 0 1 1 3 8M3 17l3 2-3 2M12 6v6h5",
-    "Detach links": "M9 8H7a4 4 0 0 0 0 8h3M15 8h2a4 4 0 0 1 0 8h-3M8 12h8M8 7l8 10M16 7l-8 10",
+    "Update linked rows": "M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 12M4 12l2.3 6A7 7 0 0 0 17.9 17",
+    "Detach links": "M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2",
     "Select filtered items": "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z M7 12l3 3 7-7",
     "Clear selection": "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z",
     "Export CSV": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
@@ -284,10 +284,6 @@
     ui.tools = {};
     for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? setTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
-    ui.countControls = node("div", "takeoff-toolbar takeoff-count-controls"); ui.countControls.id = "takeoff-count-controls"; ui.countControls.hidden = true; ui.countControls.setAttribute("role", "group"); ui.countControls.setAttribute("aria-label", "Defect report count");
-    for (const [kind, label] of [["defect", "Add Defect"], ["barrier", "Add Barrier"], ["service", "Add Services"]]) ui.countControls.append(button(label, () => addPhysicalCountRecord(kind)));
-    ui.countAnchor.append(ui.countControls);
-    ui.countControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleCountControls(false); ui.tools.count.focus(); } });
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.tools.viewport.after(scaleAnchor); ui.scaleAnchor = scaleAnchor;
     ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
@@ -357,7 +353,7 @@
     });
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); if (state.document) await renderPage(); }
-  async function changeMode(mode) { if (!labels[mode] || state.busy || state.physicalPlacing) return; if (!await discardEditor()) return; state.mode = mode; resetPlanInteraction(); state.offset = 0; state.selected.clear(); cancelTrace(); renderData(); }
+  async function changeMode(mode) { if (!labels[mode] || state.busy || state.physicalPlacing) return; if (!await discardEditor()) return; state.mode = mode; resetPlanInteraction(); state.offset = 0; state.selected.clear(); cancelTrace(); syncSurfaceDetailsSelection(); renderData(); }
   async function changePhysicalScope(scope) {
     if (!["defect_reports", "service_plans"].includes(scope) || scope === state.physicalScope || state.busy || state.physicalPlacing) return;
     if (!await discardEditor()) return;
@@ -396,11 +392,9 @@
     if (physical) {
       for (const tool of ["trace", "countLength", "measure", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
       state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; state.ui.scaleAnchor.after(state.ui.countAnchor);
-      state.ui.tools.count.setAttribute("aria-expanded", String(state.physicalScope === "defect_reports" && !state.ui.countControls.hidden));
-      state.ui.tools.count.setAttribute("aria-controls", "takeoff-count-controls");
       ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
-    toggleCountControls(false); state.ui.tools.trace.after(state.ui.countAnchor);
+    state.ui.tools.trace.after(state.ui.countAnchor);
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
     for (const control of state.ui.registerExtraControls || []) control.hidden = state.mode === "duct";
     for (const control of [state.ui.statusFilter, state.ui.sort, state.ui.group]) control.hidden = usesColumnFilters();
@@ -408,7 +402,7 @@
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
     state.ui.areaNotice.hidden = !area;
     state.ui.tools.trace.hidden = area;
-    state.ui.tools.count.hidden = !["steel", "duct"].includes(state.mode); state.ui.countAnchor.hidden = !["steel", "duct"].includes(state.mode); state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = !area;
+    state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = !area;
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
     const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Net area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
@@ -546,35 +540,16 @@
   }
   function inViewport(point, region) { return point[0] >= region[0] && point[1] >= region[1] && point[0] <= region[0] + region[2] && point[1] <= region[1] + region[3]; }
   function toggleScaleControls(open = state.ui.scaleControls.hidden) {
-    if (open) toggleCountControls(false);
     state.ui.scaleControls.hidden = !open; state.ui.scaleToggle.setAttribute("aria-expanded", String(open)); state.ui.scaleToggle.classList.toggle("takeoff-tool-active", open);
     if (open) state.ui.calibration.focus();
-  }
-  function toggleCountControls(open = state.ui?.countControls?.hidden) {
-    if (!state.ui?.countControls) return;
-    open = !!open && state.mode === "physical" && state.physicalScope === "defect_reports";
-    state.ui.countControls.hidden = !open;
-    state.ui.tools.count.setAttribute("aria-expanded", String(open));
-    state.ui.tools.count.classList.toggle("takeoff-tool-active", open || state.tool === "count");
-    if (open) { toggleScaleControls(false); state.ui.countControls.querySelector("button")?.focus(); }
   }
   function activateCountTool() {
     if (state.busy || state.physicalPlacing) return;
     if (state.mode === "physical" && state.physicalScope === "defect_reports") {
-      if (state.modal) throw new Error("Finish the current dialog first.");
-      toggleCountControls();
+      ensurePhysicalUI(); toggleScaleControls(false); setTool("count");
+      state.physicalPlacementTarget = { kind: "defect", sessionId: state.session?.session_id, documentId: state.document, page: state.page, controller: state.physicalUI };
+      setProgress("Click the drawing to locate a defect and open Add Defect. The location is a source annotation; it does not create a barrier or service quantity.");
     } else { setTool(state.mode === "physical" ? "count" : "count-only"); state.ui.tools.count.classList.add("takeoff-tool-active"); }
-  }
-  async function addPhysicalCountRecord(kind) {
-    if (state.mode !== "physical" || state.physicalScope !== "defect_reports" || state.busy) return;
-    requireFinishedEdits(); ensurePhysicalUI(); toggleCountControls(false);
-    const controller = state.physicalUI, sessionId = state.session?.session_id, scope = state.physicalScope;
-    const id = await controller.createFromSelection(kind);
-    if (!id || state.mode !== "physical" || state.physicalScope !== scope || state.physicalUI !== controller || state.session?.session_id !== sessionId) return;
-    setPhysicalDetailsOpen(true);
-    if (kind === "barrier" && state.viewport) {
-      await armPhysicalMarker(id);
-    }
   }
   async function armPhysicalMarker(id) {
     if (state.mode !== "physical") throw new Error("Open the Penetrations workspace before placing a barrier marker.");
@@ -1374,7 +1349,8 @@
     return visibleItems().filter(item => item.geometry && (item.measurement || item.purpose === "count-only") && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
   }
   async function clearDrawingSelection() {
-    if (state.tool !== "select" || state.busy || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size)) return;
+    const savingSurfaceSettings = isArea() && state.settingsEditor?.applying;
+    if (state.tool !== "select" || state.busy && !savingSurfaceSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size)) return;
     if (!await discardEditor()) return;
     state.selected.clear(); state.countSelection.clear(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
@@ -1422,7 +1398,7 @@
     document.addEventListener("focusin", outside, { signal: controller.signal });
   }
   function resetPlanInteraction() {
-    toggleCountControls(false); state.physicalPlacementTarget = null;
+    state.physicalPlacementTarget = null;
     state.panCleanup?.();
     if (state.countContinuation) cancelTrace();
     deactivatePlan(); state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.traceCursor = null;
@@ -1642,6 +1618,9 @@
     const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
     // An unselected markup retains ordinary click-to-select behavior.
     if (id && !state.selected.has(id)) return;
+    // Let a surface click flush its pending auto-settings before changing selection.
+    // A move cannot start until that edit has finished.
+    if (isArea() && state.settingsDirty && !state.formDirty && !state.points.length && !state.pendingViewport) return;
     if (state.formDirty || state.settingsDirty || state.points.length || state.pendingViewport) {
       event.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
       throw new Error("Apply or discard unfinished item/settings edits before selecting or moving markups.");
@@ -1664,7 +1643,7 @@
     const finish = next => {
       if (next.pointerId !== gesture.pointerId) return;
       const valid = current(); move(next); state.gesture = null; gesture.cleanup();
-      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (valid) { state.suppressSelectionClickUntil = Date.now() + 500; if (id) void safely(() => selectItem(id, gesture.additive, false)); else if (!gesture.additive) void safely(clearDrawingSelection); } return; }
+      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (valid) { state.suppressSelectionClickUntil = Date.now() + 500; if (id) void safely(() => selectItem(id, gesture.additive, false, true)); else if (!gesture.additive) void safely(clearDrawingSelection); } return; }
       state.suppressSelectionClickUntil = Date.now() + 500; next.preventDefault();
       void safely(async () => {
         if (!valid || state.busy || state.formDirty || state.settingsDirty) throw new Error("The drawing or item state changed during the gesture. Repeat the selection or move.");
@@ -2024,9 +2003,9 @@
       let shape, hit; if (geometry.kind === "polygon") { const path = pointDrag ? [geometry.points, ...geometry.exclusions.map(value => value.points)].map(ring => ring.map(convert).map((p, index) => `${index ? "L" : "M"}${p[0]},${p[1]}`).join(" ") + " Z").join(" ") : G.polygonPath(geometry, state.viewport.transform); const attrs = { d: path, "fill-rule": "evenodd", "clip-rule": "evenodd" }; shape = svg("path", { ...attrs, ...attributes }); hit = svg("path", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, ...attributes }); hit = svg("rect", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, ...attributes, class: `${className} takeoff-length-markup` }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
-      hit.dataset.itemId = item.id; hit.setAttribute("aria-label", `${item.fields.mark || item.id} · ${reviewStatus(item).label}`); hit.setAttribute("tabindex", "0"); hit.setAttribute("role", "button");
-      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
-      hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } else if (event.key === "Enter") { event.preventDefault(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey, false)); } });
+      hit.dataset.itemId = item.id; hit.setAttribute("aria-label", `${item.fields.mark || item.id} · ${reviewStatus(item).label}`); hit.setAttribute("tabindex", "0"); hit.setAttribute("role", "button"); hit.setAttribute("aria-pressed", String(state.selected.has(item.id)));
+      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false, true)); });
+      hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } else if (event.key === "Enter" || event.key === " " && isSurface(item)) { event.preventDefault(); event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false, true)); } });
       hit.addEventListener("contextmenu", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } });
       hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
       const label = svg("text", { x: points[0][0] + 6, y: points[0][1] - 7, class: "takeoff-label" }); label.textContent = item.fields.mark || item.id.slice(0, 8); overlay.append(shape, hit, label);
@@ -2105,6 +2084,11 @@
     }
   }
   function renderPendingTrace(overlay) {
+    if (state.mode === "physical" && state.physicalPlacementTarget?.pendingPoint) {
+      const point = G.transform(state.physicalPlacementTarget.pendingPoint, state.viewport.transform);
+      overlay.append(svg("circle", { cx: point[0], cy: point[1], r: 5, class: "takeoff-pending takeoff-defect-pending", "aria-label": "Pending defect source location" }));
+      return;
+    }
     if (!state.points.length) return;
     if (["count", "count-only"].includes(state.tool)) {
       const appearance = appearanceOf({ geometry: { kind: "count" } });
@@ -2138,11 +2122,18 @@
     const source = currentDocument(), sessionId = state.session?.session_id, revision = state.session?.revision, scope = state.physicalScope, controller = state.physicalUI;
     if (!source || !state.viewport) throw new Error("Open the original PDF before placing a barrier marker.");
     const marker = { document_id: source.id, document_sha256: source.sha256, page: state.page, point: [...point] };
-    const current = () => { if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope || controller !== state.physicalUI || state.document !== marker.document_id || state.page !== marker.page) throw new Error("The drawing or physical draft changed. Place the marker again."); };
+    const current = () => { if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope || controller !== state.physicalUI || state.mode !== "physical" || state.document !== marker.document_id || state.page !== marker.page || documentById(marker.document_id)?.sha256 !== marker.document_sha256) throw new Error("The drawing or physical draft changed. Place the marker again."); };
     state.physicalPlacing = true; working(state.busy);
     try {
       const selected = controller.selectedBarrier(), selectedDefect = physicalGraph()?.defects?.find(entity => state.physicalSelected.has(entity.id) && !entity.deleted);
       const placement = state.physicalPlacementTarget;
+      if (placement?.kind === "defect") {
+        if (scope !== "defect_reports" || placement.controller !== controller || placement.sessionId !== sessionId || placement.documentId !== marker.document_id || placement.page !== marker.page) throw new Error("The defect placement belongs to a previous drawing. Select Count again.");
+        const evidence = defectLocationEvidence(marker); placement.pendingPoint = [...point]; renderOverlay(); current();
+        const id = await controller.create("defect", undefined, undefined, evidence, current);
+        if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); setPhysicalDetailsOpen(true); renderOverlay(); }
+        return;
+      }
       const explicitTarget = placement?.controller === controller && placement.sessionId === sessionId && placement.documentId === state.document && placement.page === state.page && selected?.id === placement.id && !selected.marker;
       let reuse = explicitTarget;
       if (!explicitTarget && selected && !selected.marker) {
@@ -2152,7 +2143,20 @@
       current();
       const id = reuse ? await controller.setMarker(selected.id, marker) && selected.id : await controller.create("barrier", selected?.defect_id || selectedDefect?.id, marker);
       if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); await controller.selectDrawing(id, false, false); setPhysicalDetailsOpen(true); renderOverlay(); }
-    } finally { state.physicalPlacing = false; working(state.busy); window.CeasefireProject?.changed?.(); }
+    } finally {
+      if (state.physicalPlacementTarget?.kind === "defect") { delete state.physicalPlacementTarget.pendingPoint; renderOverlay(); }
+      state.physicalPlacing = false; working(state.busy); window.CeasefireProject?.changed?.();
+    }
+  }
+  function defectLocationEvidence(marker) {
+    const view = pageMetadata()?.view, point = marker.point;
+    if (!view || view.length !== 4 || !view.every(Number.isFinite) || view[2] <= view[0] || view[3] <= view[1] || point.length !== 2 || !point.every(Number.isFinite) || point.some((value, axis) => value < view[axis] || value > view[axis + 2])) throw new Error("Place the defect inside its original PDF page.");
+    // This small source-location annotation is never a measured physical area.
+    // Its size follows the marker on screen and remains inside the page crop.
+    const radius = 5 / Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
+    const [left, bottom, right, top] = [Math.max(view[0], point[0] - radius), Math.max(view[1], point[1] - radius), Math.min(view[2], point[0] + radius), Math.min(view[3], point[1] + radius)];
+    if (!(radius > 0) || !Number.isFinite(radius) || right <= left || top <= bottom) throw new Error("The drawing transform cannot locate this defect.");
+    return { document_id: marker.document_id, document_sha256: marker.document_sha256, page: marker.page, region: [[left, bottom], [right, bottom], [right, top], [left, top]], note: `Defect source-location annotation at PDF point ${JSON.stringify(point)}. Annotation size does not represent physical size or quantity.` };
   }
   function physicalMarkerReference(entity) {
     return { id: entity.id, sessionId: state.session?.session_id, scope: state.physicalScope, documentId: state.document, page: state.page, revision: entity.revision, marker: JSON.stringify(entity.marker) };
@@ -2353,6 +2357,8 @@
   const registerFilterColumns = {
     steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", fire_period_min: "Fire period (min)" },
     duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation" },
+    wall: { confirmation: "Confirmation", mark: "Wall ID", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
+    slab: { confirmation: "Confirmation", mark: "Slab / zone ID", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
   };
   const usesColumnFilters = () => Object.hasOwn(registerFilterColumns, state.mode);
   function registerFilters() {
@@ -2362,6 +2368,10 @@
     return state.registerColumnFilters.get(state.mode);
   }
   function registerFilterValue(item, key) {
+    if (key === "surface_basis") {
+      const value = String(item.fields?.[key] ?? "").trim(), choices = fields[item.mode]?.find(field => field[0] === key)?.[2];
+      return Array.isArray(choices) ? choices.find(choice => choice[0] === value)?.[1] || value : value;
+    }
     return String(key === "confirmation" ? reviewStatus(item).label : key === "duct_size" ? formatDuctSize(item.fields || {}) : item.fields?.[key] ?? "").trim();
   }
   function registerColumnValues(key) {
@@ -2433,13 +2443,22 @@
   }
   function itemGroup(item) { if (isStandalone(item)) return null; return !usesColumnFilters() && state.group ? (state.group === "state" ? reviewStatus(item).label : item.fields[state.group] || "Ungrouped") : null; }
   function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(!usesColumnFilters() && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
-  async function selectItem(id, multiple = false, focus = true) {
+  function syncSurfaceDetailsSelection() {
+    if (!isArea()) return;
+    state.settingsOpen = selectedItems().length > 0;
+    if (state.settingsOpen) state.viewportsOpen = false;
+    else { if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsEditor = null; }
+    renderViewportPanel();
+  }
+  async function selectItem(id, multiple = false, focus = true, fromDrawing = false) {
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
     if (isCount(item) || isStandalone(item)) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
     const modeChanged = state.mode !== item.mode;
-    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    const deselectSurface = fromDrawing && isSurface(item) && !multiple && state.selected.size === 1 && state.selected.has(id);
+    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (deselectSurface || multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    syncSurfaceDetailsSelection();
     if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));
     if (focus && !item.geometry) message("This draft has no source markup yet. Inspect its fields, then attach source geometry before review or confirmation.", true);
     if (focus && item.geometry) { const changed = state.document !== item.geometry.document_id || state.page !== item.geometry.page; state.document = item.geometry.document_id; state.page = item.geometry.page; state.hidden.delete(id); if (changed) { renderRail(); renderCalibrations(); await renderPage(); } await focusGeometry(item); }
@@ -2455,7 +2474,7 @@
     positionPage(viewport.clientWidth / 2 - (box[0] + box[2]) / 2, viewport.clientHeight / 2 - (box[1] + box[3]) / 2);
   }
   function hover(id) { state.hovered = id; for (const row of state.ui?.tableWrap.querySelectorAll("[data-item-id]") || []) row.classList.toggle("hovered", row.dataset.itemId === id); for (const hit of state.ui?.overlay.querySelectorAll("[data-item-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.itemId === id); }
-  function renderSelection() { renderRegister(); renderSettingsPanel(); renderOverlay(); }
+  function renderSelection() { syncSurfaceDetailsSelection(); renderRegister(); renderSettingsPanel(); renderOverlay(); }
   function revealDrawingPanel(panel, focus, gap = 12) {
     if (!panel || panel.hidden) return;
     const bounds = panel.getBoundingClientRect?.(), header = document.querySelector?.(".app-header")?.getBoundingClientRect?.();

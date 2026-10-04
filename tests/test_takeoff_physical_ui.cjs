@@ -442,6 +442,36 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const h=component();await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.value='Unfinished';notes.emit('input');assert.throws(()=>h.controller.createFromSelection('service'),/unfinished/);assert.equal(h.calls.asks.length,0);assert.equal(notes.value,'Unfinished');await h.click('Discard unfinished physical edits');await h.controller.clearSelection();assert.equal(await h.controller.createFromSelection('service'),undefined);assert.equal(h.calls.asks.at(-1).title,'Choose parent barrier');assert.equal(h.calls.previews.length,0);
     await h.controller.select(uuid(1));const creating=h.controller.createFromSelection('service'),replacement=copy(h.current);replacement.project_id=uuid(500);replacement.physical.project_id=uuid(500);replacement.physical.id=uuid(501);h.controller.render(replacement);await assert.rejects(creating,/draft changed/);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.equal(h.controller.inspectedId(),null);h.controller.destroy();
   });
+  await check('Placed Defect creation binds its copied source annotation without creating a barrier or quantity',async()=>{
+    const h=component();await flush();const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:2,region:[[10,20],[11,20],[11,21],[10,21]],note:'Defect source-location annotation at PDF point [10.5,20.5].'},before=copy(h.current.physical);
+    h.answers.push({label:'Placed defect',uncertainty_state:'not_assessed'});const work=h.controller.create('defect',undefined,undefined,reference);reference.note='Caller changed';const id=await work;
+    const created=h.current.physical.defects.find(entity=>entity.id===id);assert.equal(created.evidence.length,1);assert.notEqual(created.evidence[0].note,reference.note);assert.deepEqual(created.evidence[0].region,reference.region);assert.equal(created.marker,undefined);assert.equal(created.quantity,undefined);assert.deepEqual(h.current.physical.barriers,before.barriers);assert.deepEqual(h.current.physical.services,before.services);assert.match(h.calls.asks[0].text,/Source page 2/);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);h.controller.destroy();
+  });
+  await check('Defect source changes during its form or review prevent physical apply',async()=>{
+    for(const stage of ['form','preview','review']){
+      const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[11,20],[11,21],[10,21]],note:'Source location'},h=component();await flush();let context={document_id:uuid(80),page:1};h.bridge.imageContext=()=>context;
+      const answer={label:'Stale source',uncertainty_state:'not_assessed'},oldAsk=h.bridge.ask,oldPreview=h.bridge.preview;
+      if(stage==='form')h.bridge.ask=async(...args)=>{await oldAsk(...args);context={document_id:uuid(80),page:2};return answer;};
+      else {h.answers.push(answer);if(stage==='preview')h.bridge.preview=async(...args)=>{const preview=await oldPreview(...args);context.page=2;return preview;};else h.bridge.confirm=async()=>{context.page=2;return true;};}
+      const before=copy(h.current.physical);await assert.rejects(h.controller.create('defect',undefined,undefined,reference),/source location changed/);assert.equal(h.calls.applied.length,0);assert.deepEqual(h.current.physical,before);h.controller.destroy();
+    }
+  });
+  await check('The exact placement reservation is checked after each asynchronous creation boundary and before apply',async()=>{
+    for(const stage of ['entry','form','preview','review']){
+      const h=component();await flush();const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[11,20],[11,21],[10,21]],note:'Source location'},answer={label:'Reservation',uncertainty_state:'not_assessed'};let current=true,checks=0;
+      const guard=()=>{checks++;if(!current)throw Error('Exact placement changed');};
+      if(stage==='entry')current=false;
+      else if(stage==='form')h.bridge.ask=async()=>{current=false;return answer;};
+      else {h.answers.push(answer);if(stage==='preview'){const old=h.bridge.preview;h.bridge.preview=async commands=>{const preview=await old(commands);current=false;return preview;};}else h.bridge.confirm=async()=>{current=false;return true;};}
+      const before=copy(h.current.physical);await assert.rejects(h.controller.create('defect',undefined,undefined,reference,guard),/Exact placement changed/);assert.ok(checks>0);assert.equal(h.calls.applied.length,0);assert.deepEqual(h.current.physical,before);h.controller.destroy();
+    }
+  });
+  await check('A placement replacement during delayed field choices cannot open Add Defect or create its annotation',async()=>{
+    const pending=defer(),h=component(graph(),{fieldOptions:()=>pending.promise});await flush();let valid=true;
+    const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[11,20],[11,21],[10,21]],note:'Source location'},before=copy(h.current.physical);
+    const creating=h.controller.create('defect',undefined,undefined,reference,()=>{if(!valid)throw Error('Placement replaced while choices loaded');});await flush();assert.equal(h.calls.asks.length,0);valid=false;pending.resolve(copy(fieldChoices));
+    await assert.rejects(creating,/Placement replaced/);assert.equal(h.calls.asks.length,0);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.deepEqual(h.current.physical,before);h.controller.destroy();
+  });
   await check('Unplaced Barrier actions guard pending and stale edits before arming an existing marker',async()=>{
     for(const value of [graph(),servicePlanGraph()]){
       const calls=[],h=component(value,{placeMarker:id=>calls.push(id)});await flush();await h.controller.select(uuid(1));const notes=h.input('Notes');notes.value='Retained pending';notes.emit('input');await h.click('Place count marker');assert.deepEqual(calls,[uuid(1)]);assert.equal(h.current.physical.barriers[0].fields.notes,'Retained pending');assert.equal(h.calls.previews.length,1);

@@ -37,6 +37,10 @@ async function command(action, op) {
   const pending = page.waitForResponse(response => response.url().endsWith('/commands') && response.request().postDataJSON()?.op === op); pending.catch(() => {});
   await action(); const result = await pending; assert.equal(result.status(), 200, await result.text()); await idle(); return result.json();
 }
+async function response(action, suffix) {
+  const pending = page.waitForResponse(reply => new URL(reply.url()).pathname.endsWith(suffix)); pending.catch(() => {});
+  await action(); const reply = await pending; assert.equal(reply.status(), 200, await reply.text()); await idle(); return reply.json();
+}
 async function dialog(title, values, action) {
   const modal = page.getByRole('dialog'); await expect(modal.getByRole('heading', { name: title, exact: true })).toBeVisible();
   for (const [label, value] of Object.entries(values)) { const field = modal.getByLabel(label, { exact: true }); if (await field.evaluate(el => el.tagName) === 'SELECT') { await expect.poll(() => field.locator('option').evaluateAll(options => options.map(option => option.value))).toContain(value); await field.selectOption(value); } else await field.fill(value); }
@@ -50,12 +54,30 @@ async function dialog(title, values, action) {
   // Bootstrap selects its initial view; navigate only after it has completed.
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
-  await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1); await idle();
+  await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1); await expect(page.locator('.takeoff-document')).toHaveCount(1); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   const before = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   for (const mode of ['STEEL', 'DUCT']) {
     await page.getByRole('tab', { name: mode, exact: true }).click();
+    let finishedDraftPoints;
+    if (mode === 'STEEL') {
+      await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Count steel lengths', exact: true })).toBeVisible();
+      // A retained standalone Steel count remains editable and extendable even
+      // though its creation button has been removed. Seed the historical server
+      // format; the public restore path renders the same saved record.
+      finishedDraftPoints = [[150, 200], [230, 230]];
+      await page.evaluate(async points => {
+        const takeoffs = window.CeasefireTakeoffs, current = takeoffs.projectSnapshot(), sid = takeoffs.sessionId(), doc = current.documents[0];
+        const response = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add_standalone_count', request_id: crypto.randomUUID(), expected_revision: current.revision, document_id: doc.id, page: 3, mode: 'steel', markers: points.map(point => ({ point })), fields: { mark: 'STEEL-ONLY', level: 'L01', width_mm: 100, height_mm: 200, frl: '120/120/120', orientation: 'Horizontal' }, appearance: {} }) });
+        if (!response.ok) throw new Error(await response.text()); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sid));
+      }, finishedDraftPoints);
+      await renderDrawing(page, () => page.locator('.takeoff-source-document').first().click(), 1); await idle();
+      await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
+      await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
+      await page.locator('.takeoff-standalone-register tr[data-item-id]').getByRole('button', { name: 'Edit item', exact: true }).click();
+    } else {
     await page.getByRole('button', { name: 'Count', exact: true }).click();
     await page.mouse.click(...await screen([150, 200])); await page.mouse.click(...await screen([230, 230]));
     await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
@@ -70,9 +92,10 @@ async function dialog(title, values, action) {
     assertSamePoints(await renderedMarkerPoints('.takeoff-count-pending'), [firstDraftPoint], `${mode} Backspace removes the replacement preview marker`);
     await page.mouse.click(...await screen([230, 230]));
     await expect(page.locator('.takeoff-count-pending')).toHaveCount(2);
-    const finishedDraftPoints = await renderedMarkerPoints('.takeoff-count-pending');
+    finishedDraftPoints = await renderedMarkerPoints('.takeoff-count-pending');
     await page.locator('.takeoff-viewport').press('Enter');
     await command(() => dialog('Add count', { Item: `${mode}-ONLY`, Level: 'L01', 'WxH (mm)': '100x200', FRL: '120/120/120', Orientation: 'Horizontal' }, 'Add count'), 'add_standalone_count');
+    }
     let current = await snapshot(), count = current.items.find(item => item.fields.mark === `${mode}-ONLY`);
     assert.equal(count.purpose, 'count-only'); assert.equal(count.quantity, 2); assert.equal(count.measurement, null); assert.equal(count.geometry.kind, 'count-only'); assert.equal(count.geometry.points.length, 2);
     assertSamePoints(count.geometry.points, finishedDraftPoints, `${mode} saved geometry matches the post-undo draft`);
@@ -99,7 +122,7 @@ async function dialog(title, values, action) {
     count = (await snapshot()).items.find(item => item.id === count.id);
     assert.equal(count.quantity, 2); assert.deepEqual(count.member_ids, originalMembers); assert.equal(count.measurement, null);
     await expect(page.locator('.takeoff-count-hit')).toHaveCount(2);
-    evidence[mode] = { id: count.id, quantity: count.quantity, points: count.geometry.points, draftUndo: { keys: ['Control+z', 'Backspace'], previewPoints: finishedDraftPoints, savedPoints: count.geometry.points } };
+    evidence[mode] = { id: count.id, quantity: count.quantity, points: count.geometry.points, ...(mode === 'STEEL' ? { retainedHistoricalCount: true, creationButtonRemoved: true } : { draftUndo: { keys: ['Control+z', 'Backspace'], previewPoints: finishedDraftPoints, savedPoints: count.geometry.points } }) };
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
   }
   // Seed the exact page calibration independently of any calculator values.
@@ -173,6 +196,15 @@ async function dialog(title, values, action) {
     return { busy: state.busy, modal: state.modal, finishing: state.countFinishing };
   })).toEqual({ busy: false, modal: false, finishing: false });
   const current = await snapshot(); assert.equal(current.documents[0].sha256, before.documents[0].sha256); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []);
+  // The hidden Steel creation button must not make historical standalone counts
+  // disappear from a saved project. Reopen the real native Save As companion
+  // bundle and compare all retained fields, member IDs and source geometry.
+  await response(() => page.getByRole('button', { name: 'Save As', exact: true }).click(), '/api/project/save-as');
+  const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.items, current.items);
+  await response(() => page.getByRole('button', { name: 'Load', exact: true }).click(), '/api/project/open');
+  await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, current.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
+  await page.getByRole('tab', { name: 'STEEL', exact: true }).click(); await expect(page.getByRole('button', { name: 'Count', exact: true })).toHaveCount(0); await expect(page.locator('.takeoff-standalone-register tr[data-item-id]')).toHaveCount(1); evidence.retainedCountsSavedReopened = true;
   await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-standalone-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'counts-narrow.png') });
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ ok: true, evidence, operations, errors }, null, 2)); console.log(`Standalone measurements browser acceptance passed: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs); if (page) await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); process.exitCode = 1; }).finally(async () => { await browser?.close(); server.kill(); });

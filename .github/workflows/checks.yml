@@ -42,6 +42,7 @@ jobs:
       - run: node tests/test_takeoff_zoom_ui.cjs
       - run: node tests/test_takeoff_text_ui.cjs
       - run: node tests/test_takeoff_column_filters_ui.cjs
+      - run: node tests/test_surface_column_filters_ui.cjs
       - run: node tests/test_takeoff_physical_ui.cjs
       - run: python scripts/build.py
   takeoff-browser:
@@ -69,6 +70,8 @@ jobs:
       - run: npm run test:takeoffs-pdf-text
       - run: npm run test:takeoffs-duct-filters
       - run: npm run test:takeoffs-steel-filters
+      - run: npm run test:surface-column-filters
+      - run: npm run test:surface-selection-controls
       - run: npm run test:header-tagline
       - run: npm run test:services-choices
       - run: npm run test:takeoffs-standalone
@@ -84,6 +87,7 @@ jobs:
       - run: npm run test:physical-filters
       - run: npm run test:project-library-drafts
       - run: npm run test:takeoffs-counts
+      - run: npm run test:takeoffs-count-tools
       - run: npm run test:takeoffs-item-actions
       - run: npm run test:takeoffs-viewer-controls
       - run: npm run test:takeoffs-transfer-skip

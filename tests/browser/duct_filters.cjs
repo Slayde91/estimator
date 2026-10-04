@@ -6,7 +6,7 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const mode = process.argv[2] === 'steel' ? 'steel' : 'duct', steel = mode === 'steel', title = steel ? 'Steel' : 'Duct', prefix = steel ? 'S' : 'D';
 const markLabel = steel ? 'Member mark' : 'Item', sizeLabel = steel ? 'Steel section' : 'WxH (mm)', ratingLabel = steel ? 'Fire period (min)' : 'FRL', typeLabel = steel ? 'Member type' : 'Orientation';
 const expectedFilterColumns = {
-  duct: ['Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation'],
+  duct: ['Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Thickness (mm)'],
   steel: ['Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Fire period (min)', 'Thickness (mm)'],
 };
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `${mode}-filters-${Date.now()}`);
@@ -94,7 +94,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await expect(updateLinked.locator('svg')).toHaveAttribute('stroke', 'currentColor');
   await expect(updateLinked.locator('svg')).toHaveAttribute('stroke-linejoin', 'round');
   await expect(page.getByLabel('Filter register', { exact: true })).toBeVisible();
-  assert.equal(await register().locator('.takeoff-column-filter-button').count(), steel ? 7 : 6); await assertFilterColumns(register(), mode); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
+  assert.equal(await register().locator('.takeoff-column-filter-button').count(), expectedFilterColumns[mode].length); await assertFilterColumns(register(), mode); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
   const baselineCommands = commands.length;
   await page.getByRole('button', { name: 'Next 100', exact: true }).click(); assert.deepEqual(await rowMarks(), [`${prefix}101`, `${prefix}102`]);
   await filter('Level', ['L1']); assert.deepEqual(await rowMarks(), [`${prefix}001`, `${prefix}002`]);
@@ -125,7 +125,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await chooseTakeoff(page, steel ? 'DUCT' : 'STEEL');
   for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
   const alternateMode = steel ? 'duct' : 'steel';
-  assert.equal(await page.locator('.takeoff-column-filter-button').count(), steel ? 6 : 7);
+  assert.equal(await page.locator('.takeoff-column-filter-button').count(), expectedFilterColumns[alternateMode].length);
   await assertFilterColumns(page.getByRole('table', { name: `${steel ? 'Duct' : 'Steel'} editable takeoff register`, exact: true }), alternateMode);
   await chooseTakeoff(page, mode.toUpperCase()); assert.deepEqual(await rowMarks(), [`${prefix}100`, `${prefix}101`, `${prefix}102`]);
   await page.setViewportSize({ width: 764, height: 764 }); dialog = await menu(markLabel);

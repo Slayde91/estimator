@@ -1,9 +1,3 @@
-.calculator-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:24px}
-.calculator-choice{text-align:left;position:relative;min-height:112px;padding:20px 22px;border:1px solid var(--line);border-radius:12px;background:white;color:var(--ink);box-shadow:0 3px 12px #39232c04;transition:border-color .15s,background .15s}
-.calculator-choice:hover{border-color:#dca3a7;background:#fffaf9}
-.calculator-choice[aria-pressed=true]{border-color:var(--accent);background:linear-gradient(120deg,#fff5ee,#fff);box-shadow:inset 3px 0 0 var(--red)}
-.calculator-choice strong{display:block;font-size:16px;line-height:1.4;margin-bottom:7px}
-.calculator-choice span{display:block;color:var(--muted);font-size:11px}
 .calculator-workspace{padding:0;overflow:hidden}
 .calculator-workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:25px 25px 20px}
 .calculator-workspace-heading h2{font-size:23px;letter-spacing:-.6px}
@@ -50,8 +44,7 @@
 .calculator-empty{padding:35px;text-align:center;color:var(--muted)}
 #calculator-confirm-detail{white-space:pre-line}
 @media(max-width:1100px){.calculator-tools{align-items:flex-start;flex-direction:column;gap:10px}.calculator-tools .helper{max-width:none}.app-header:has([data-view=calculators]){gap:20px}}
-@media(max-width:760px){.calculator-list{grid-template-columns:1fr;gap:10px}.calculator-choice{min-height:80px;padding:15px 18px}.calculator-choice strong{font-size:14px}.calculator-workspace-heading{align-items:flex-start;flex-direction:column;padding:20px}.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer{padding:15px 20px}.calculator-pages,.calculator-settings-chooser{padding:15px 20px 0}.calculator-sheet-heading{align-items:flex-start;flex-direction:column;gap:10px}.calculator-grid{max-height:65vh}.calculator-warnings{margin-inline:20px}}
-@media(prefers-reduced-motion:reduce){.calculator-choice{transition:none}}
+@media(max-width:760px){.calculator-workspace-heading{align-items:flex-start;flex-direction:column;padding:20px}.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer{padding:15px 20px}.calculator-pages,.calculator-settings-chooser{padding:15px 20px 0}.calculator-sheet-heading{align-items:flex-start;flex-direction:column;gap:10px}.calculator-grid{max-height:65vh}.calculator-warnings{margin-inline:20px}}
 @media(max-width:760px){.calculator-document-cards{grid-template-columns:1fr}}
 /* Continuous worksheets: branded sections, readable inputs and one complete table. */
 .calculator-grid{--calculator-section-bg:linear-gradient(100deg,#8b101e,#b31624);--calculator-section-ink:#fff;max-height:none;overflow:visible;min-height:160px;border:0;background:#fff}
@@ -230,9 +223,6 @@
 @media(max-width:760px){.calculator-status-columns{grid-template-columns:minmax(0,1fr)}.calculator-status-columns>[aria-hidden=true]{display:none}}
 
 /* One black, red and white palette is shared by every workbook calculator tab. */
-.calculator-choice,.calculator-choice:hover,.calculator-choice[aria-pressed=true]{background:#fff;color:#171217}
-.calculator-choice span{color:#171217}
-.calculator-choice:hover,.calculator-choice[aria-pressed=true]{border-color:var(--red)}
 .calculator-workspace,.calculator-tools,.calculator-sheet-heading,.calculator-sheet-footer,.calculator-pages,.calculator-settings-chooser{background:#fff;color:#171217}
 .calculator-tools,.calculator-sheet-footer,.calculator-settings-chooser{border-color:#171217}
 .calculator-page,.calculator-settings-choice{background:#fff;color:#171217}

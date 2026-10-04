@@ -1,3 +1,4 @@
+const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Real rendered standard-edition acceptance. All files and state are synthetic.
 const { chromium, expect } = require('@playwright/test');
@@ -110,13 +111,13 @@ async function worksheetReady(title, label) {
   await page.unroute('**/api/calculators');await page.unroute('**/api/calculators/steel_vermiculite');
   const destinations=['Steel (spray)','Ductwork (spray/wrap)','Steel (board)'],lastPages=[];
   for(const title of destinations){
-    await page.locator('#calculator-list button').filter({has:page.locator('strong',{hasText:title})}).click();await worksheetReady(title);
+    await chooseCalculator(page, title);await worksheetReady(title);
     const pages=page.locator('#calculator-pages button'),label=await pages.nth(1).textContent();
     await pages.nth(1).click();await worksheetReady(title,label);lastPages.push(label);
   }
   const snapshot=await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),beforeRevisit=navigationRequests.filter(value=>value.endsWith('/worksheet')).length;
   for(const [index,title] of destinations.entries()){
-    await page.locator('#calculator-list button').filter({has:page.locator('strong',{hasText:title})}).click();await worksheetReady(title,lastPages[index]);
+    await chooseCalculator(page, title);await worksheetReady(title,lastPages[index]);
   }
   assert.equal(navigationRequests.filter(value=>value.endsWith('/worksheet')).length,beforeRevisit);
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),snapshot);

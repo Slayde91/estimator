@@ -1677,6 +1677,16 @@ class TakeoffService:
             self._assert_eligible(snapshot, selected, confirmed=True, session_id=session_id)
             return export_register(snapshot, selected, format)
 
+    def linked_register_results(self, session_id, request):
+        """Read current linked thicknesses without changing drafts or receipts."""
+        from .takeoff_exports import linked_register_results
+        with self._lock:
+            snapshot = self._session(session_id)['snapshot']
+            self._session_evidence(session_id)
+            self.documents.assert_documents(snapshot['documents'], owner=session_id)
+            self._verify_audit_head(snapshot, owner=session_id)
+            return linked_register_results(snapshot, request, store=self.store)
+
     def export_workspace(self, session_id, format, request):
         """Export a current drawing/register copy without creating authority."""
         from .takeoff_exports import export_workspace

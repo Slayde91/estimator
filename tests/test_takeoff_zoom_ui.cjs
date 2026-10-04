@@ -26,7 +26,7 @@ function harness() {
     document: { getElementById() { return null; }, createElement: element, createElementNS: (_, tag) => element(tag) },
     console, crypto: require('node:crypto'), setTimeout(fn, delay) { timers.set(++nextId, { fn, delay }); return nextId; }, clearTimeout(id) { timers.delete(id); } };
   vm.createContext(context);
-  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state,zoomBy,renderPage,fitPage,displayViewport,pageDisplayKey,cancelQueuedZoom,drawingPoint,positionPage,beginPan,recordPdfFailure,releaseDocuments,
+  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit = {state,zoomBy,renderPage,fitPage,rotatePage,pageViewport,pageRotation,displayViewport,pageDisplayKey,cancelQueuedZoom,drawingPoint,positionPage,beginPan,recordPdfFailure,releaseDocuments,
     setPdf(fn){pdfDocument=async()=>({});pdfPage=async(...args)=>fn(args[2]);},setCommand(fn){command=fn;},setOverlay(fn){renderOverlay=fn;},stopSideWork(){autoCalibratePage=async()=>{};renderThumbnails=async()=>{};}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
@@ -38,7 +38,7 @@ function harness() {
   const page = { getViewport({ scale }) { return { width: 200 * scale, height: 300 * scale, transform: [scale, 0, 0, -scale, 0, 300 * scale] }; },
     render(options) { const task = { ...deferred(), options, cancelled: false, cancel() { this.cancelled = true; } }; renders.push(task); return task; } };
   Object.assign(state, { ui, session: { session_id: 'session', revision: 0, snapshot: { documents: [{ id: 'doc', name: 'Original.pdf', sha256: 'a'.repeat(64), pages: [{ page: 1 }, { page: 2 }] }], items: [], calibrations: [], render_checks: [] } }, document: 'doc', page: 1, displayPage: page, viewport: page.getViewport({ scale: 1 }), zoom: 1 });
-  state.displayKey = audit.pageDisplayKey(); state.planContextKey = JSON.stringify(['session', 'doc', 1, 'steel']);
+  state.displayKey = audit.pageDisplayKey(); state.planContextKey = JSON.stringify(['session', 'doc', 1, 'steel', 0]);
   audit.setOverlay(() => overlays.push(copy(state.viewport))); audit.stopSideWork(); audit.setPdf(() => page);
   audit.setCommand(async (op, payload, guard) => { if (!guard || guard()) commands.push({ op, ...copy(payload) }); });
   audit.displayViewport(state.viewport, null); overlays.length = 0;
@@ -79,7 +79,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const h = harness(), canvas = h.ui.canvas; await h.audit.zoomBy(1.5, [200, 150]); h.state.page = 2;
     h.frame(); assert.equal(h.overlays.length, 0); assert.equal([...h.timers.values()].filter(timer => timer.delay === 120).length, 0); assert.equal(h.ui.canvas, canvas);
     const pending = h.audit.renderPage(); await flush(); assert.equal(h.state.viewport, null); h.renders[0].resolve(); await pending;
-    assert.equal(h.state.displayKey, JSON.stringify(['session', 'doc', 2])); assert.equal(h.commands[0].page, 2);
+    assert.equal(h.state.displayKey, JSON.stringify(['session', 'doc', 2, 0])); assert.equal(h.commands[0].page, 2);
   });
   await check('Late failure from an invalidated refinement cannot hide a newer preview or record false evidence', async () => {
     const h = harness(); await h.audit.zoomBy(1.5, [200, 150]); h.frame(); h.timer(120); await flush(); const old = h.renders[0];
@@ -153,6 +153,39 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.beginPan(event(100, 100)); h.ui.viewport.events.pointermove(event(110, 120)); const before = h.ui.pageWrap.getBoundingClientRect();
     h.timer(120); await flush(); h.ui.viewport.events.pointermove(event(130, 150)); const after = h.ui.pageWrap.getBoundingClientRect();
     near(after.left - before.left, 20); near(after.top - before.top, 30); h.ui.viewport.events.pointerup(event(130, 150)); await h.finish();
+  });
+  await check('Clockwise rotation composes with original rotation, preserves source points and is scoped per page', async () => {
+    const h = harness(), saved = copy(h.state.session.snapshot), requested = [];
+    h.page.rotate = 90;
+    h.page.getViewport = ({ scale, rotation }) => {
+      requested.push(rotation);
+      const transforms = [[1, 0, 0, -1, 0, 300], [0, 1, 1, 0, 0, 0], [-1, 0, 0, 1, 200, 0], [0, -1, -1, 0, 300, 200]];
+      const swapped = rotation % 180 !== 0;
+      return { width: (swapped ? 300 : 200) * scale, height: (swapped ? 200 : 300) * scale, transform: transforms[rotation / 90].map(value => value * scale) };
+    };
+    for (const expected of [180, 270, 0, 90]) {
+      const pending = h.audit.rotatePage(); await flush(); await h.finish(); await pending;
+      assert.equal(requested.at(-1), expected);
+      const p = geometry.transform([60, 120], h.state.viewport.transform), paper = h.ui.pageWrap.getBoundingClientRect();
+      const original = h.point([paper.left + p[0], paper.top + p[1]]);
+      near(original[0], 60); near(original[1], 120);
+      assert.deepEqual(copy(h.state.session.snapshot), saved, 'Rotation never rewrites retained source coordinates or quantities');
+    }
+    h.state.page = 2; assert.equal(h.audit.pageRotation(), 0);
+    const pending = h.audit.rotatePage(); await flush(); await h.finish(); await pending;
+    assert.equal(h.audit.pageRotation(), 90); h.state.page = 1; assert.equal(h.audit.pageRotation(), 0);
+    await h.audit.releaseDocuments(); assert.equal(h.state.pageRotations.size, 0);
+  });
+  await check('Rotation cancels an obsolete zoom refinement and refuses an unfinished trace', async () => {
+    const h = harness(); await h.audit.zoomBy(1.5, [200, 150]); h.frame(); h.timer(120); await flush();
+    const previous = h.renders[0], canvas = h.ui.canvas;
+    const pending = h.audit.rotatePage(); await flush(); assert.equal(previous.cancelled, true);
+    await h.finish(previous); assert.equal(h.ui.canvas, canvas);
+    await h.finish(h.renders[1]); await pending;
+    assert.equal(h.audit.pageRotation(), 90);
+    h.state.points = [[10, 20]];
+    await assert.rejects(h.audit.rotatePage(), /finish or cancel/i);
+    assert.equal(h.audit.pageRotation(), 90);
   });
   console.log(`${passed} smooth zoom checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -13,6 +13,8 @@ function element(tag='div') {
     append(...children){this.children.push(...children);this.options=this.children;children.forEach(child=>{if(child&&typeof child==='object')child.parent=this;});},
     replaceChildren(...children){this.children=[];this.append(...children);},
     querySelector(selector){if(selector==='[data-sell-preview]'){const find=node=>node.dataset?.sellPreview?node:(node.children||[]).map(find).find(Boolean);return this.children.map(find).find(Boolean)||null;}if(!this.parts.has(selector))this.parts.set(selector,element());return this.parts.get(selector);},
+    querySelectorAll(selector){const match=selector.match(/^\[data-([a-z-]+)\]$/),key=match?.[1].replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),found=[];const walk=node=>{if(key&&node.dataset?.[key]!==undefined)found.push(node);for(const child of node.children||[])walk(child);};for(const child of this.children)walk(child);return found;},
+    contains(target){if(this===target)return true;return this.children.some(child=>child&&typeof child==='object'&&child.contains?.(target));},
     closest(selector){for(let current=this;current;current=current.parent)if(current.tagName===selector)return current;return this.querySelector(`parent:${selector}`);},
     showModal(){assert.ok(!this.open);this.open=true;},
     close(value){this.returnValue=value;this.open=false;return this.emit('close');},

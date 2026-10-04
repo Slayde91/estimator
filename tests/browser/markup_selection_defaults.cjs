@@ -17,7 +17,7 @@ const ready = new Promise((resolve, reject) => {
   server.stdout.on('data', value => { stdout += value; if (stdout.includes('\n')) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split('\n')[0])); } catch (error) { reject(error); } } });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${logs}`)); });
 });
-const evidence = {}, errors = [], requests = [], csp = [], desired = { stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45 };
+const evidence = {}, errors = [], requests = [], csp = [], desired = { stroke_color: '#A020F0', stroke_width: 3.75, fill_color: '#00CC88', fill_enabled: true, opacity: .45, display_values: false };
 const defaultKey = 'ceasefire.takeoff-markup-defaults.v1';
 const runtimeHashes = () => Object.fromEntries(['takeoffs.js','takeoff-physical.js','takeoffs.css'].map(name => [name,createHash('sha256').update(fs.readFileSync(path.join(root,'static',name))).digest('hex')]));
 const panel = () => page.locator('#takeoff-markup-settings');
@@ -65,7 +65,7 @@ async function draw(mode, mark, x = 100) {
   return reply.snapshot.items.find(item => item.fields.mark === mark);
 }
 async function setDefault() {
-  for (const [label, value] of [['Stroke colour', desired.stroke_color], ['Stroke Width', desired.stroke_width], ['Fill colour', desired.fill_color], ['Opacity', desired.opacity]]) { await panel().getByLabel(label, { exact: true }).fill(String(value)); await panel().getByLabel(label, { exact: true }).press('Tab'); await settingsSettled(page); }
+  for (const [label, value] of [['Line Colour', desired.stroke_color], ['Line Width', desired.stroke_width], ['Fill colour', desired.fill_color], ['Opacity', desired.opacity * 100]]) { await panel().getByLabel(label, { exact: true }).fill(String(value)); await panel().getByLabel(label, { exact: true }).press('Tab'); await settingsSettled(page); }
   await panel().getByLabel('Fill enabled', { exact: true }).setChecked(desired.fill_enabled); await settingsSettled(page);
   const before = await snapshot(), mutations = requests.length;
   await panel().getByRole('button', { name: 'Set as default', exact: true }).click(); await settingsSettled(page);

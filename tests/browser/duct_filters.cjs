@@ -84,7 +84,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await expect(updateLinked.locator('svg')).toHaveAttribute('stroke', 'currentColor');
   await expect(updateLinked.locator('svg')).toHaveAttribute('stroke-linejoin', 'round');
   await expect(page.getByLabel('Filter register', { exact: true })).toBeVisible();
-  assert.equal(await register().locator('.takeoff-column-filter-button').count(), 6); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
+  assert.equal(await register().locator('.takeoff-column-filter-button').count(), steel ? 7 : 6); assert.equal(await register().locator('.takeoff-group-row').count(), 0);
   const baselineCommands = commands.length;
   await page.getByRole('button', { name: 'Next 100', exact: true }).click(); assert.deepEqual(await rowMarks(), [`${prefix}101`, `${prefix}102`]);
   await filter('Level', ['L1']); assert.deepEqual(await rowMarks(), [`${prefix}001`, `${prefix}002`]);

@@ -1,3 +1,4 @@
+const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
@@ -176,7 +177,7 @@ async function boardJourney(info) {
     }
   }
   await page.locator('.nav-button[data-view="calculators"]').click();
-  await page.locator('.calculator-choice').filter({ hasText: 'Steel (board)' }).click();
+  await chooseCalculator(page, 'Steel (board)');
   await page.locator('#calculator-pages').getByRole('button', { name: 'SCHEDULE', exact: true }).click();
   const source = page.getByRole('button', { name: `Open takeoff ${citedId}`, exact: true });
   await expect(source).toBeVisible({ timeout: 60000 });

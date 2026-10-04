@@ -17,7 +17,7 @@ function harness() {
   const lib = { TextLayer: class { constructor(options) { this.options = options; this.completion = deferred(); tasks.push(this); } render() { return this.completion.promise; } cancel() { this.cancelled = true; } } };
   audit.lib(lib); audit.copy(() => copied.push(true));
   Object.assign(state, { session: { session_id: 's' }, document: 'd', page: 1, tool: 'text', selected: new Set(['selected-markup']),
-    displayKey: JSON.stringify(['s', 'd', 1]), displayPage: page, viewport: { transform: [0, 2, 2, 0, -60, -40] }, ui: { pageWrap: element(), progress: element() } });
+    displayKey: JSON.stringify(['s', 'd', 1, 0]), displayPage: page, viewport: { transform: [0, 2, 2, 0, -60, -40] }, ui: { pageWrap: element(), progress: element() } });
   return { audit, state, selection, requests, tasks, copied, page };
 }
 let passed = 0;
@@ -33,7 +33,7 @@ async function check(label, fn) { await fn(); passed++; console.log(`ok - ${labe
     assert.equal(h.state.pdfText.container, layer); assert.equal(h.requests.length, 1); assert.equal(layer.style.transform, 'matrix(0,3,-3,0,1620,0)'); assert.equal(h.selection.anchorNode, layer);
   });
   await check('A prior page extraction cannot append text after navigation', async () => {
-    const h = harness(), pending = h.audit.ensurePdfTextLayer(); await flush(); h.audit.clearPdfTextLayer(); h.state.page = 2; h.state.displayKey = JSON.stringify(['s', 'd', 2]);
+    const h = harness(), pending = h.audit.ensurePdfTextLayer(); await flush(); h.audit.clearPdfTextLayer(); h.state.page = 2; h.state.displayKey = JSON.stringify(['s', 'd', 2, 0]);
     h.requests[0].resolve({ items: [{ str: 'Old page' }] }); await pending; assert.equal(h.tasks.length, 0); assert.equal(h.state.ui.pageWrap.children.length, 0); assert.equal(h.state.pdfText, null);
   });
   await check('Zoom stays available while text is loading and completion uses the latest display transform', async () => {

@@ -778,6 +778,7 @@
     $("firestopping-project-workspace").hidden = libraryEditor;
     $("firestopping-library-editor").hidden = !libraryEditor;
     $("estimator-penetration").setAttribute("aria-labelledby", libraryEditor ? "library-editor-heading" : "penetration-heading");
+    window.CeasefireCalculators?.refreshNavigation?.();
     if (kind === "penetration" && !libraryEditor) return window.CeasefirePenetrations?.open();
     if (kind === "estimate") return window.CeasefirePenetrations?.openSchedule?.();
   }
@@ -792,10 +793,11 @@
     else window.CeasefireLibraries?.open(kind, selection);
   }
 
-  function showView(view, librarySelection) {
+  function showView(view, librarySelection, calculatorId) {
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
+    if (view !== "calculators") setCalculatorMenuOpen(false);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
@@ -807,7 +809,7 @@
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
-    if (view === "calculators") estimatorReady = state.estimatorKind === "penetration" ? selectEstimator("penetration") : window.CeasefireCalculators?.open();
+    if (view === "calculators") estimatorReady = state.estimatorKind === "penetration" ? selectEstimator("penetration") : calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open();
     if (view === "estimate") estimatorReady = selectEstimator("estimate");
     if (view === "takeoffs") estimatorReady = window.CeasefireTakeoffs?.open().catch(error => message(error.message, true));
     // Each section starts with its heading and actions visible below the sticky
@@ -847,6 +849,49 @@
   async function requestViewNavigation(view, librarySelection) {
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     showView(view, librarySelection); return true;
+  }
+  async function requestCalculatorNavigation(id) {
+    if (!["penetration", "steel_vermiculite", "steel_board", "ductwork"].includes(id)) return false;
+    document.activeElement?.blur?.();
+    if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
+    if (window.CeasefireCalculators?.hasPendingOperation?.()) {
+      message("Finish the current calculator action before choosing another calculator.", true); return false;
+    }
+    state.estimatorKind = id === "penetration" ? "penetration" : "estimate";
+    await showView("calculators", undefined, id === "penetration" ? undefined : id);
+    return true;
+  }
+  function setCalculatorMenuOpen(open) {
+    const menu = $("calculator-navigation-menu"), toggle = $("calculator-navigation-toggle");
+    if (!menu || !toggle) return;
+    menu.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
+    if (open) window.CeasefireCalculators?.refreshNavigation?.();
+  }
+  function setupCalculatorNavigation() {
+    const navigation = $("calculator-navigation"), toggle = $("calculator-navigation-toggle"), menu = $("calculator-navigation-menu");
+    if (!navigation || !toggle || !menu) return;
+    const choices = [...menu.querySelectorAll("[data-calculator-id]")];
+    navigation.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") setCalculatorMenuOpen(true); });
+    navigation.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && !navigation.contains(document.activeElement)) setCalculatorMenuOpen(false); });
+    navigation.addEventListener("focusin", () => setCalculatorMenuOpen(true));
+    navigation.addEventListener("focusout", event => { if (!navigation.contains(event.relatedTarget)) setCalculatorMenuOpen(false); });
+    toggle.addEventListener("click", () => setCalculatorMenuOpen(true));
+    navigation.addEventListener("keydown", event => {
+      if (event.key === "Escape") { event.preventDefault(); toggle.focus(); setCalculatorMenuOpen(false); return; }
+      const index = choices.indexOf(event.target);
+      if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+        event.preventDefault(); setCalculatorMenuOpen(true);
+        const next = index < 0 ? event.key === "ArrowDown" ? 0 : choices.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length;
+        choices[next]?.focus();
+      } else if (index >= 0 && ["Home", "End"].includes(event.key)) {
+        event.preventDefault(); choices[event.key === "Home" ? 0 : choices.length - 1]?.focus();
+      }
+    });
+    for (const choice of choices) choice.addEventListener("click", () => {
+      setCalculatorMenuOpen(false);
+      requestCalculatorNavigation(choice.dataset.calculatorId).catch(error => message(error.message, true));
+    });
+    window.addEventListener("pointerdown", event => { if (!navigation.contains(event.target)) setCalculatorMenuOpen(false); });
   }
   async function requestLibraryNavigation(kind, selection) {
     if (kind !== state.libraryKind && !await confirmLeavePricingLibrary()) return false;
@@ -1955,6 +2000,7 @@
   }
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.view));
+  setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
   for (const button of document.querySelectorAll("[data-library-kind]")) button.addEventListener("click", () => requestLibraryNavigation(button.dataset.libraryKind));

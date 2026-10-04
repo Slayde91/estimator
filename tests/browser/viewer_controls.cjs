@@ -218,8 +218,8 @@ async function fitPageMatrix() {
   const editBounds=await editor.boundingBox();assert.ok(editBounds.y>=headerBounds.y+headerBounds.height&&editBounds.y<headerBounds.y+headerBounds.height+30,'Edit brings settings into view');
   assert.equal(await editor.evaluate(el=>el.scrollTop),0,'Edit starts at the beginning of its independent settings scrollbar');
   await expect(editor.getByRole('button',{name:/Apply settings|Discard settings|Apply item edits|Discard edits/})).toHaveCount(0);
-  const appearanceOrder=await editor.locator('.takeoff-settings-fields>.field').evaluateAll(fields=>fields.slice(0,5).map(field=>field.textContent.trim()));
-  assert.deepEqual(appearanceOrder,['Stroke colour','Stroke Width','Fill colour','Fill enabled','Opacity']);
+  const appearanceOrder=await editor.locator('.takeoff-settings-fields>.field').evaluateAll(fields=>fields.slice(0,6).map(field=>field.textContent.trim()));
+  assert.deepEqual(appearanceOrder,['Line Colour','Line Width','Fill colour','Fill enabled','Opacity%','Display Values']);
   await editSettings(page,{'Level':'AUTO-LEVEL'});
   const afterEdit=await snapshot();assert.equal(afterEdit.items.find(value=>value.id===item.id).fields.level,'AUTO-LEVEL');
   assert.deepEqual(afterEdit.items.find(value=>value.id===item.id).geometry,item.geometry);

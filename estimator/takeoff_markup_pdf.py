@@ -1,6 +1,7 @@
 """Read-only marked PDF export through one bounded disposable PDF process."""
 from hashlib import sha256
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,7 +11,7 @@ from threading import BoundedSemaphore
 
 from .catalog import ROOT, ValidationError
 from .takeoff_documents import _open_regular
-from .takeoff_model import markup_appearance
+from .takeoff_model import markup_appearance, polyline_length, validate_measurement_scope
 
 MAX_OUTPUT_BYTES = 256 * 1024 * 1024
 MAX_SPEC_BYTES = 16 * 1024 * 1024
@@ -18,7 +19,58 @@ PDF_EXPORT_TIMEOUT = 65
 _SLOTS = BoundedSemaphore(1)
 
 
-def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None):
+def measurement_value_labels(item, snapshot, result):
+    """Presentation labels use explicit cited lengths or the exact page calibration."""
+    if not markup_appearance(item)['display_values']:
+        return []
+    geometry, measurement = item.get('geometry'), item.get('measurement')
+    if not geometry or not measurement:
+        return []
+    if geometry.get('kind') == 'count' and item['mode'] == 'steel':
+        return [{'point': point, 'value': measurement['length_m'] * 1000, 'unit': 'mm', 'kind': 'cited-count'}
+                for point in geometry['points']]
+    if measurement['method'] != 'calibrated' or snapshot is None:
+        return []
+    try:
+        validate_measurement_scope(item, snapshot)
+        calibration = next(value for value in snapshot['calibrations'] if value['id'] == measurement['calibration_id'])
+        scale = calibration['distance_m'] / polyline_length(calibration['points'])
+    except (ValidationError, StopIteration):
+        return []
+    polygon = geometry.get('kind') == 'polygon'
+    rings = [geometry['points']] + ([value['points'] for value in geometry.get('exclusions', [])] if polygon else [])
+    labels = []
+    for ring in rings:
+        points = ring + [ring[0]] if polygon else ring
+        for a, b in zip(points, points[1:]):
+            labels.append({'point': [(a[0]+b[0])/2, (a[1]+b[1])/2],
+                           'value': math.hypot(b[0]-a[0], b[1]-a[1]) * scale * 1000, 'unit': 'mm', 'kind': 'segment'})
+    if polygon and result.get('net_area_m2') is not None:
+        point = surface_label_point(geometry)
+        if point is not None:
+            labels.append({'point': point, 'value': result['net_area_m2'], 'unit': 'm²', 'kind': 'area'})
+    return labels
+
+
+def surface_label_point(geometry):
+    """Choose an interior drawing span without placing the area value in an opening."""
+    from .takeoff_area import _inside
+    rings = [geometry['points']] + [value['points'] for value in geometry.get('exclusions', [])]
+    levels = sorted({point[1] for ring in rings for point in ring})
+    centre = (levels[0]+levels[-1])/2
+    scans = sorted(((a+b)/2 for a, b in zip(levels, levels[1:])), key=lambda y: abs(y-centre))
+    for y in scans[:16]:
+        crossings = sorted(a[0]+(y-a[1])*(b[0]-a[0])/(b[1]-a[1])
+                           for ring in rings for a, b in zip(ring, ring[1:]+ring[:1]) if (a[1] > y) != (b[1] > y))
+        spans = sorted(zip(crossings[::2], crossings[1::2]), key=lambda span: span[1]-span[0], reverse=True)
+        for left, right in spans[:8]:
+            point = [(left+right)/2, y]
+            if _inside(point, rings[0]) and not any(_inside(point, ring) for ring in rings[1:]):
+                return point
+    return None
+
+
+def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None):
     from .takeoff_exports import linked_result_text
     if not _SLOTS.acquire(blocking=False):
         raise ValidationError('Another marked drawing PDF is being prepared. Retry after it finishes.')
@@ -39,6 +91,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
                          'additions_length_m': result.get('additions_length_m', 0),
                          'length_additions': item.get('length_additions', []),
                          'total_length_m': result.get('total_length_m'), 'net_area_m2': result.get('net_area_m2'),
+                         'value_labels': measurement_value_labels(item, snapshot, result),
                          'confirmed': confirmations[item['id']], 'linked_result': linked_result_text(linked[item['id']])})
         if vertices > 200000:
             raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')

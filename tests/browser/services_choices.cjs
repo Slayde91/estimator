@@ -1,3 +1,4 @@
+const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Public selectors and saved legacy descriptions on disposable synthetic storage.
 const { chromium, expect } = require('@playwright/test');
@@ -85,7 +86,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const libraryService = page.locator('[data-library-editor-field=K]'); evidence.libraryOptions = await options(libraryService, 'Copper service'); assert.equal(evidence.libraryOptions.at(-1).disabled, true);
   const libraryDraft = await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()); await libraryService.focus(); await libraryService.press('Tab'); assert.equal(await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()), libraryDraft);
   await page.screenshot({ path: path.join(output, 'library-saved-service.png') }); await page.locator('#library-editor-cancel').click();
-  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await page.locator('[data-estimator-kind=penetration]').click();
+  await chooseCalculator(page, 'Firestopping Estimator');
   const composerService = page.locator('#penetration-row-fields [data-penetration-field=K]'); evidence.composerOptions = await options(composerService, 'Plastic Pipes'); assert.equal(evidence.composerOptions.at(-1).disabled, true);
   await page.locator('#penetration-row-fields [data-penetration-field=T]').fill('Independent saved composer description'); await page.locator('#penetration-row-fields [data-penetration-field=T]').press('Tab');
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop.status().busy)).toBe(false);

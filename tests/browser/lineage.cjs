@@ -1,3 +1,4 @@
+const { chooseCalculator } = require('./calculator_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
@@ -163,7 +164,7 @@ async function fitCurrentDrawing(name) {
   await expect(page.getByRole('button', { name: 'Linked calculator rows', exact: true })).toHaveCount(0);
   // The source button on a preserved calculator row resolves its now-historical source.
   await page.locator('.nav-button[data-view="calculators"]').click();
-  await page.locator('.calculator-choice').filter({ hasText: 'Ductwork (spray/wrap)' }).click();
+  await chooseCalculator(page, 'Ductwork (spray/wrap)');
   await page.locator('#calculator-pages').getByRole('button', { name: 'SCHEDULE', exact: true }).click();
   await page.getByRole('button', { name: `Open takeoff ${originalRun}`, exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Linked calculator rows', exact: true })).toBeVisible();
@@ -177,7 +178,7 @@ async function fitCurrentDrawing(name) {
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.projectSnapshot()), before.calculators, 'Detach must retain all manual values');
   // Explicitly remove the old manual calculator line through its existing UI before retry.
   await page.locator('.nav-button[data-view="calculators"]').click();
-  await page.locator('.calculator-choice').filter({ hasText: 'Ductwork (spray/wrap)' }).click();
+  await chooseCalculator(page, 'Ductwork (spray/wrap)');
   await page.locator('#calculator-pages').getByRole('button', { name: 'SCHEDULE', exact: true }).click();
   const oldRow = page.locator(`tr[data-source-row="${ancestorBinding.row}"]`);
   await oldRow.getByRole('button', { name: /Remove line/ }).click();

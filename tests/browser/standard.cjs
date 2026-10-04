@@ -78,7 +78,7 @@ async function worksheetReady(title, label) {
   choose({open:'takeoffs'});
   const rejected = await reply(() => clickProjectControl(page, 'Load'),'/api/project/open');
   assert.equal(rejected.status,400); assert.match(JSON.stringify(rejected.body), /TAKEOFFS/i);
-  await page.getByRole('button', { name: 'Quote', exact: true }).click();
+  await page.getByRole('button', { name: 'Estimates', exact: true }).click();
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveValue('STANDARD-SAVED');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   choose({save:'takeoffs'});

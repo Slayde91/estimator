@@ -163,10 +163,11 @@ class TakeoffHTTP:
             result = self.service.apply_physical(session_id, body)
         elif action == 'images/extract':
             result = self.service.extract_images(session_id, body)
-        elif action in {'physical/export/csv', 'physical/export/xlsx'}:
-            if not isinstance(body, dict) or set(body) - {'scope'}:
+        elif action in {'physical/export/csv', 'physical/export/xlsx', 'physical/export/pdf'}:
+            format = action.rsplit('/', 1)[1]
+            if not isinstance(body, dict) or set(body) - ({'scope', 'expected_revision'} if format == 'pdf' else {'scope'}):
                 raise ValidationError('Draft physical export accepts only a workspace scope.')
-            payload, kind, filename = self.service.export_physical(session_id, action.rsplit('/', 1)[1], body.get('scope', 'defect_reports'))
+            payload, kind, filename = self.service.export_physical(session_id, format, body.get('scope', 'defect_reports'), body.get('expected_revision'))
             handler.send_download(payload, kind, filename)
             return True
         elif action == 'transfer-preview':

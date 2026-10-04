@@ -19,7 +19,7 @@
   const definitions = {
     barrier: [["location", "Location"], ["barrier_type", "Barrier type", ["Empty Opening", "Core hole", "Oversized"].map(value => [value, value])], ["substrate", "Substrate"], ["orientation", "Substrate orientation"], ["notes", "Notes", "textarea"]],
     defect: [["label", "Defect Ref."], ["location", "Location"], ["frl", "FRL"], ["notes", "Notes", "textarea"]],
-    service: [["service", "Category"], ["service_type", "Service type"], ["size", "Service Size (mm)"], ["width_height_mm", "Width x Height (mm)"], ["diameter_mm", "Overall Diameter (mm)", "number"], ["insulation_mm", "Insulation (mm)", "number"], ["notes", "Notes", "textarea"]],
+    service: [["service", "Category"], ["service_type", "Service type"], ["size", "Service Size (mm)"], ["notes", "Notes", "textarea"]],
   };
   const fieldsFor = (kind, scope = "defect_reports") => kind === "barrier" && scope === "service_plans" ? [...definitions.barrier.slice(0, 1), ["frl", "FRL"], ...definitions.barrier.slice(1)] : definitions[kind];
   const sharedOptionKeys = new Set(["substrate", "orientation", "service", "service_type", "frl"]);
@@ -857,6 +857,9 @@
       const symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase())); download.replaceChildren(symbol); download.setAttribute("aria-label", label); download.title = label; tools.append(download);
     }
     if (bridge.drawingPdf) tools.append(bridge.drawingPdf());
+    const matrix = button("Download Passive Fire Matrix PDF", () => runBridge(() => bridge.export("pdf")), "button icon-only schedule-download-button takeoff-download-button calculator-export-pdf");
+    matrix.setAttribute("aria-label", "Download Passive Fire Matrix PDF"); matrix.title = "Download Passive Fire Matrix PDF";
+    const matrixSymbol = node("span", "download-format-icon"); matrixSymbol.setAttribute("aria-hidden", "true"); matrixSymbol.append(node("span", "download-arrow", "▤"), node("span", "download-format", "PDF")); matrix.replaceChildren(matrixSymbol); tools.append(matrix);
     ui.root.append(tools); const filters = node("div", "takeoff-register-controls"), search = node("input"); search.type = "search"; search.placeholder = "Filter physical records…"; search.setAttribute("aria-label", "Filter physical hierarchy"); search.addEventListener("input", () => { if (state.pending.size || state.busy) return; state.filter = search.value; state.offset = 0; renderTable(); });
     const deleted = node("label", "takeoff-check"), show = node("input"); show.type = "checkbox"; show.addEventListener("change", () => void safe(() => { ensureAvailable(); state.showDeleted = show.checked; state.offset = 0; renderTable(); })); deleted.append(show, node("span", "", "Show deleted records"));
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());

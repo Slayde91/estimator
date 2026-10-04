@@ -44,8 +44,9 @@ async function scaleGeometry(mode, width) {
     return { button: box(el), popup: box(document.querySelector('#takeoff-scale-controls')), viewer: box(el.closest('.takeoff-viewer')), pages: box(document.querySelector('.takeoff-page-controls')), inRail: !!el.closest('.takeoff-tool-rail') };
   });
   assert.equal(geometry.inRail, false);
-  assert.ok(Math.abs(geometry.viewer.right - geometry.button.right - 10) <= 2, `${mode}/${width}: scale is at the bottom right`);
-  assert.ok(geometry.button.bottom <= geometry.viewer.bottom && geometry.viewer.bottom - geometry.button.bottom <= 12);
+  assert.ok(Math.abs(geometry.viewer.right - geometry.button.right - (width<=650?6:10)) <= 2, `${mode}/${width}: scale is at the right viewer gutter`);
+  assert.ok(geometry.button.bottom <= geometry.viewer.bottom);
+  assert.ok(Math.abs(geometry.button.y+geometry.button.height/2-geometry.pages.y-geometry.pages.height/2)<=2, `${mode}/${width}: scale aligns with the centre controls`);
   assert.ok(geometry.popup.bottom < geometry.button.y, `${mode}/${width}: scale menu opens above its button`);
   assert.ok(geometry.popup.x >= geometry.viewer.x && geometry.popup.right <= geometry.viewer.right + 1);
   assert.ok(geometry.pages.right < geometry.button.x, `${mode}/${width}: scale never overlaps page controls`);

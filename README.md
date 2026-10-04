@@ -92,9 +92,9 @@ originals and immutable history are retained beside the project JSON. See the [t
 and validation contract](docs/TAKEOFFS.md). It uses the normal strict CSP and does
 not require browser annotation compatibility.
 
-The **Estimator** tab has two tiles. **Estimator** includes the **Firestopping
+The **Estimates** menu contains **Main** and **Firestopping**. **Main** includes the **Firestopping
 Schedule** below Material Requirements & Output, with its own totals and
-PDF/XLSX downloads. **Firestopping Estimator** calculates one current item;
+PDF/XLSX downloads. **Firestopping** calculates one current item;
 **Add to Schedule** copies it into the schedule using current project prices.
 Editing the current item does not change existing
 schedule lines. **Edit** loads a copy of a schedule line; **Update Schedule**
@@ -259,17 +259,20 @@ An existing export is never overwritten: duplicate filenames receive a numbered 
 
 ## Calculators
 
-Choose **Calculators**, then **Steel (spray)**, **Steel (board)** or **Ductwork (spray/wrap)**. New main schedules start with one blank row and support up to 1,000 rows. **Add row** and **Undo remove** sit below each main schedule table; each row has its own **Remove** button. Removing a row clears all its editable inputs, including advanced fields, while its formula addresses and the remaining line numbers stay fixed. Added blank rows and removed rows are retained in project files. Editing a cleared row or reusing its slot retires its removal undo history so newer inputs cannot be overwritten. Steel schedules show a read-only Line column, and the spray schedule has an editable Location column after it. Vermiculite has START, LOOKUP, SCHEDULE, BAGS, SETTINGS and FACTOR CALCS tabs. Board and duct main tabs are labelled SCHEDULE; board SETTINGS and EXTRA BOARDS are also available. These are display aliases only: vermiculite LOOKUP and the board/duct SCHEDULE tabs still use their original `CALCULATOR` worksheet names, API identifiers and formula mappings. Large schedules load a moving window of up to 60 rows as you scroll; every entered row still contributes to calculations, saved projects and reports. Editable fields have controls; calculated outputs distinguish populated values from blanks, with a separate highlight for published thickness. Zero is a populated value. Main sections use white text on red headings. Single-member forms fit a phone, with comparison tables scrolling separately.
+Choose **Calculators**, then **Steel (spray)**, **Steel (board)** or **Ductwork (spray/wrap)**. New main schedules start with one blank row and support up to 1,000 rows. **Add row** and **Undo remove** sit below each main schedule table; each row has its own **Remove** button. Removing a row clears all its editable inputs, including advanced fields, while its formula addresses and the remaining line numbers stay fixed. Added blank rows and removed rows are retained in project files. Editing a cleared row or reusing its slot retires its removal undo history so newer inputs cannot be overwritten. Steel schedules show a read-only Line column, and the spray schedule has an editable Location column after it.
+
+Steel spray has **START**, **SCHEDULE**, **SUMMARY**, **SETTINGS** and **FACTOR CALCS** tabs. Steel board has **START**, **SCHEDULE**, **BOARD SUMMARY** and **SETTINGS**; its former EXTRA BOARDS tab is hidden. The former spray LOOKUP tab is also hidden. Their source inputs, formulas and saved values remain intact, including historical additional-board allowances. Spray SUMMARY uses the original `BAGS` worksheet; board and duct SCHEDULE use their original `CALCULATOR` worksheet identities. Large schedules load a moving window of up to 60 rows as you scroll; every entered row still contributes to calculations, saved projects and reports. Editable fields have controls; calculated outputs distinguish populated values from blanks, with a separate highlight for published thickness. Zero is a populated value. Main sections use white text on red headings. Forms fit a phone, with comparison tables scrolling separately.
 
 Recently viewed calculator tabs reopen faster while their inputs remain unchanged. Editing inputs, importing a schedule, resetting or loading a project refreshes dependent results; **Recalculate** always requests a fresh calculation. Pricing navigation also retains unchanged controls and pending edits. Initial calculator loads and calculations after edits can still take longer. Saving and report downloads continue to use the complete current inputs.
 
-Vermiculite **START** shows the operating rules directly. **SETTINGS** has seven
-global/product sections, and **FACTOR CALCS** has three helper sections. Choose a
+Vermiculite **START** shows the operating rules directly. **SETTINGS** has six
+global/product sections; Common Calculation Rules appear under Global Settings.
+**FACTOR CALCS** has three helper sections. Choose a
 folder tab to open a section; only that section is shown. Duct and board Settings
 use the same folder-tab presentation and selection behavior. Other settings still affect calculations and are
 retained when you save or download. The browser remembers the open section while
 you switch tabs. In vermiculite SCHEDULE, Section ID opens a native list of source
-sections. BAGS shows product ordering first, then the **MATERIAL QUANTITIES**
+sections. SUMMARY shows the product summary first, then the **MATERIAL QUANTITIES**
 heading and separate manual calculation.
 
 The redundant **SETTINGS & RULES** banner is hidden in all three calculators. Board settings also hide the introductory source-constants/wastage note. Other settings notes and the underlying source content remain unchanged.
@@ -277,7 +280,8 @@ The redundant **SETTINGS & RULES** banner is hidden in all three calculators. Bo
 Board and duct product/section/detail choices also use native lists. Choices
 that allow a custom value keep a separate editor for that value. Board purchasing
 dimensions show mm and purchase area shows m². The board schedule title and live
-warning appear after its CALCULATED SUMMARY, directly above the member rows.
+warning appear directly above the member rows. Its duplicate CALCULATED SUMMARY
+is hidden. BOARD SUMMARY retains the purchasing table without the overview cards.
 
 Enter inputs directly, or click **Export Template**, fill its schedule in Excel and use **Import XLSX Schedule**. Import automatically displays rows through the last entered item, preserving physical order, gaps and partially completed entries. Formatting and generated line numbers do not create extra rows. Import replaces the complete schedule, including clearing unused old rows and advanced inputs omitted from the imported template, and preserves other calculator settings. It stays a draft until **Save / Save As**, which captures all calculators and the estimate together. Existing projects retain their exact inputs and automatically reveal populated rows even if older files have no row-display metadata. **Reset Calc** restores one blank schedule row and default settings as a draft; steel spray uses the user-selected material defaults described below. **Recalculate** remains in the calculator heading. All main schedule headings, cells and input controls are centred.
 
@@ -287,7 +291,7 @@ Ductwork PRODUCT SETTINGS also has editable CAFCO and MONOKOTE MK-6 bag mass and
 
 Direct yield takes priority. Estimating density is a material-consumption assumption, not installed coating density. Historical theoretical, batch/discontinuous and uninjected yield evidence is retained in the [developer yield review](docs/VERMICULITE_YIELD_REVIEW.md); it does not assert that the new rounded startup densities are published coverage. Settings omit date, source-ID and document-name metadata rows from their visible presentation; retained source evidence and saved basis text are not deleted. Source defaults can still be reproduced with explicit empty calculation inputs; saved work is never migrated silently.
 
-Vermiculite SCHEDULE shows running net and whole bags for every product. Whole bags come from the pooled BAGS calculation, including waste and withheld-quantity rules. They are not the sum of individually rounded schedule lines. The requested top labels and status/source columns are hidden from this worksheet view, while their underlying results remain available to the calculation and reports. The single-member LOOKUP tab (source worksheet `CALCULATOR`) omits its third notes section, and BAGS uses a compact table width.
+Vermiculite SUMMARY shows total entered spray area, quantified coating volume, incomplete rows, and net and whole bags for every product. Whole bags come from the pooled BAGS calculation, including waste and withheld-quantity rules. They are not the sum of individually rounded schedule lines. The former duplicate PRODUCT ORDER SUMMARY table is hidden. Schedule status/source columns and the hidden single-member source worksheet remain available to calculations and reports.
 
 The templates contain 1,000 prepared rows and reference instructions, with **no Line column**. They include only normal editable schedule inputs and omit advanced and calculated fields. Duct has eight inputs, board 12 and spray 13 including Location as its first column; board retains its existing input order. Physical row order determines line numbers when imported. Previous full templates, including advanced inputs, templates with an informational Line column and original templates with their exact legacy headings remain importable. Import accepts the exported values-only `.xlsx` layout, up to 5 MB; it does not map an arbitrary schedule layout or execute uploaded formulas. The [schedule extension mapping](docs/SCHEDULE_EXTENSION.md) explains the application ranges and preserved source coordinates.
 

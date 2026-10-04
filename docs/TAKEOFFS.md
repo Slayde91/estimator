@@ -331,7 +331,7 @@ image occurrences or missing inputs.
 **Service Plans** is a separate **Barrier → Service** register in the same
 project. It has no defect record or Defect ID column. **Add substrate** opens
 the barrier form; a barrier's **+** creates a child service. FRL is stored on
-the barrier, uses the Firestopping Estimator choices, and is displayed as
+the barrier, uses the Firestopping choices, and is displayed as
 inherited context for its services. Switching sub-tabs never copies, merges or
 reparents records between these two hierarchies. Both retain their own numbered
 identities and are saved in the project.
@@ -620,8 +620,24 @@ unconfirmed items. It retains numeric precision with two-decimal length display,
 labels drafts explicitly and leaves unknown values blank. Existing confirmed
 CSV/XLSX register exports remain available separately.
 
-Download PDF creates a static, compressed copy of the current source PDF with
-visible markups of the active Takeoffs type. Each source page has a CEASEFIRE
+For Defect Reports and Service Plans, **Download PDF** creates a static copy
+of the source drawing with the visible callouts as shown in the viewer, including
+their wording, fonts, wrapping, styles, positions and page rotations. The download
+retains the source page count and sizes and has no added Takeoff legend or legend
+references. Hidden markups remain hidden in this drawing download.
+
+The separate **Download Passive Fire Matrix PDF** button creates
+**Passive_Fire_Matrix.pdf**, titled **Passive_Fire_Matrix**. Its table contains
+Defect ID, Barrier ID, Service ID, Location, FRL, Substrate, Orientation, Category,
+Service type, Service quantity and Service Size (mm). It includes active register
+records, including empty defects and barriers, with blank fields where no value
+is recorded. Service Plans leaves Defect ID blank. The export requires the current
+draft revision and remains an unapproved draft. Historical width, height, diameter
+and insulation values remain in saved records; their inspector fields are hidden
+and Service Size is the visible size input.
+
+For Steel, Duct, Walls and Slabs, Download PDF creates a static, compressed copy
+of the current source PDF with visible markups of the active Takeoffs type. Each source page has a CEASEFIRE
 legend identifying the marks, steel sections or duct dimensions and total
 lengths; overflow legends continue on additional labelled pages. Drawing content
 uses lossless compression; the app logo is rendered at print resolution. Adding

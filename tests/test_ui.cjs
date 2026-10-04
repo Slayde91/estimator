@@ -784,10 +784,10 @@ let passed=0;
   context.window.CeasefireLibraries={open(kind,id){libraryReturns.push({kind,id});}};
   context.window.CeasefireLibraryEditor={isOpen:()=>librarySession};
   audit.state.inputs.D15='Unchanged project input';audit.state.draft.rates.unsaved={price:77.123456789};const protectedState=copy({inputs:audit.state.inputs,draft:audit.state.draft});
-  context.window.CeasefireLibraryEditorNavigation.show();assert.equal(audit.state.currentView,'calculators');assert.equal(audit.state.estimatorKind,'penetration');assert.equal(projectOpens,0);
+  context.window.CeasefireLibraryEditorNavigation.show();assert.equal(audit.state.currentView,'estimate');assert.equal(audit.state.estimatorKind,'penetration');assert.equal(projectOpens,0);
   assert.equal(byId('firestopping-project-workspace').hidden,true);assert.equal(byId('firestopping-library-editor').hidden,false);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'library-editor-heading');
   context.window.CeasefireLibraryEditorNavigation.returnToLibrary('legacy-row-4');assert.deepEqual(libraryReturns,[{kind:'penetration',id:'legacy-row-4'}]);assert.equal(audit.state.currentView,'pricing');
-  librarySession=false;audit.showView('estimate');assert.equal(projectOpens,0);assert.equal(byId('firestopping-project-workspace').hidden,false);assert.equal(byId('firestopping-library-editor').hidden,true);
+  librarySession=false;audit.showView('estimate');assert.equal(projectOpens,1);assert.equal(byId('estimator-main').hidden,true);assert.equal(byId('firestopping-project-workspace').hidden,false);assert.equal(byId('firestopping-library-editor').hidden,true);
   assert.deepEqual(copy({inputs:audit.state.inputs,draft:audit.state.draft}),protectedState);assert.equal(byId('estimator-penetration').getAttribute('aria-labelledby'),'penetration-heading');
   context.window.CeasefirePenetrations=priorPenetrations;context.window.CeasefireLibraries=priorLibraries;delete context.window.CeasefireLibraryEditor;passed++;
 

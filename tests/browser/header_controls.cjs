@@ -52,7 +52,7 @@ const box = locator => locator.boundingBox();
       await page.keyboard.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(menu).toBeHidden();
     }
-    for (const section of ['Home', 'Quote', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Help']) {
+    for (const section of ['Home', 'Estimates', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Help']) {
       await page.getByRole('button', { name: section, exact: true }).click(); await idle();
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();
       for (const name of ['Save', 'Save As', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();

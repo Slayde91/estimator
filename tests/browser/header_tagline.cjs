@@ -152,7 +152,7 @@ async function presentationNavigation(initial) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const snapshot = () => page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations.projectFingerprint(), pricing: window.CeasefireProject.configuration(), details: window.CeasefireProject.details() }));
   const baseline = await snapshot(), changes = [];
-  const sections = [['Home', '#view-home'], ['Quote', '#view-estimate'], ['Calculators', '#view-calculators'], ['Takeoffs', '#view-takeoffs'], ['Libraries', '#view-pricing'], ['Projects', '#view-quotes'], ['Help', '#view-help']];
+  const sections = [['Home', '#view-home'], ['Estimates', '#view-estimate'], ['Calculators', '#view-calculators'], ['Takeoffs', '#view-takeoffs'], ['Libraries', '#view-pricing'], ['Projects', '#view-quotes'], ['Help', '#view-help']];
   for (const [name, selector] of sections) for (const repeated of [false, true]) {
     const previous = await page.locator('#header-tagline-label').textContent();
     await page.getByRole('button', { name, exact: true }).click();

@@ -11,6 +11,7 @@
   // alignment/labels only; values, formulas, input keys and exports are untouched.
   const browserPresentation = {
     steel_vermiculite: {
+      START: { text: { A7: "Use SCHEDULE to enter members and SUMMARY to review product quantities. Open FACTOR CALCS for the Section Factor Helper." } },
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
@@ -20,7 +21,7 @@
       },
     },
     steel_board: {
-      START: { hide: ["A1"], text: { A1: "" } },
+      START: { hide: ["A1"], text: { A1: "", D13: "Previously saved additional-board allowances remain included in purchasing totals.", A27: "Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.", A31: "Saved additional-board allowances remain included in the board summary." } },
       "BOARD SUMMARY": { center: ["A11:D29", "I11:J29"], text: { A1: "SUMMARY" } }, // 22
       SETTINGS: { center: ["A5:C34", "G5:N10"], text: { Q5: "Description" }, omit: ["A1", "A3"] }, // 23–25
     },
@@ -99,7 +100,7 @@
       BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
-        A7: [["CALCULATOR = one member", "LOOKUP = one member"], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
+        A7: [["CALCULATOR = one member", "SCHEDULE = members"], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
         G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
         G185: factorLookupDirections, G241: factorLookupDirections,
         G38: estimatingDensityDirections, G71: estimatingDensityDirections, G103: estimatingDensityDirections,
@@ -130,7 +131,7 @@
       },
       CALCULATOR: {
         A5: [["Paste into A:L only.", "Enter the normal schedule inputs."]],
-        A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, EXTRA BOARDS for additional allowances, and SETTINGS for configuration."]],
+        A6: [["Only START, CALCULATOR and BOARD SUMMARY are visible. See START for optional columns and hidden supporting sheets.", "Use START for guidance, BOARD SUMMARY for purchasing, and SETTINGS for configuration. Previously saved additional-board allowances remain included."]],
         Y2: [["AD = reference box only  |  AE = all board layers, net  |  AF = board including wastage", "Box reference area is for reference only  |  Board required - net includes all layers  |  Board incl waste includes wastage"]],
         Y5: [["AI gives the issue and action directly.", "Row status gives the issue and action directly."]],
         Y6: [["their notes in AI", "their Row status notes"]],
@@ -354,7 +355,7 @@
   function sheetMetadata(entry) { return entry.definition.sheets.find((sheet) => sheet.name === entry.sheet) || {}; }
   function displayPages(definition) {
     const pages = definition.display_pages?.length ? definition.display_pages : definition.pages.map((sheet) => ({ id: sheet, label: sheet, sheet }));
-    return pages.map((page) => page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
+    return pages.filter(page => !(definition.id === "steel_vermiculite" && page.id === "CALCULATOR") && !(definition.id === "steel_board" && page.sheet === "EXTRA BOARDS")).map((page) => page.id === "CALCULATOR" && page.sheet === "CALCULATOR" ?
       { ...page, label: definition.id === "steel_vermiculite" ? "LOOKUP" : ["steel_board", "ductwork"].includes(definition.id) ? "SCHEDULE" : page.label }
       : definition.id === "steel_vermiculite" && page.id === "BAGS" ? { ...page, label: "SUMMARY" } : page);
   }
@@ -375,7 +376,7 @@
     if (typeof value !== "string") return value;
     const id = entry.definition.id;
     let replacements = sourceDirections[id]?.[entry.sheet]?.[address] || [];
-    if (id === "steel_vermiculite") replacements = [...replacements, ["CALCULATOR", "LOOKUP"], ["BAGS", "SUMMARY"]];
+    if (id === "steel_vermiculite") replacements = [...replacements, ["CALCULATOR", "SCHEDULE"], ["BAGS", "SUMMARY"]];
     const position = parseAddress(address);
     const schedule = entry.definition.schedule;
     if (id === "steel_board" && position && ((entry.sheet === schedule?.sheet && position.column === 35 && position.row >= schedule.first_row && position.row <= schedule.last_row) || (entry.sheet === "SETTINGS" && position.column === 17 && position.row >= 6 && position.row <= 51))) replacements = boardStatusDirections;
@@ -656,7 +657,14 @@
   function displayMetadata(entry, result = entry.result) {
     const metadata = sheetMetadata(entry);
     const omittedRanges = [...(result?.omitted_ranges || metadata.omitted_ranges || []), ...(browserPresentation[entry.definition.id]?.[entry.sheet]?.omit || [])];
-    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: result?.presentation_tables || metadata.presentation_tables || [], table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: result?.settings_sections ?? metadata.settings_sections ?? [], display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
+    const spraySummary = entry.definition.id === "steel_vermiculite" && entry.sheet === "BAGS";
+    if (spraySummary) omittedRanges.push("A17:I25");
+    let settingsSections = result?.settings_sections ?? metadata.settings_sections ?? [];
+    if (entry.definition.id === "steel_vermiculite" && entry.sheet === "SETTINGS") {
+      const common = settingsSections.find(section => section.id === "A17");
+      settingsSections = settingsSections.filter(section => section.id !== "A17").map(section => section.id === "A9" && common ? { ...section, ranges: [...section.ranges, ...common.ranges] } : section);
+    }
+    return { ...metadata, omitted_rows: result?.omitted_rows || metadata.omitted_rows || [], omitted_columns: result?.omitted_columns || metadata.omitted_columns || [], omitted_ranges: omittedRanges, hidden_addresses: browserPresentation[entry.definition.id]?.[entry.sheet]?.hide || [], presentation_tables: (result?.presentation_tables || metadata.presentation_tables || []).filter(table => !spraySummary || table.title_address !== "A17"), table_layout: result?.table_layout || metadata.table_layout, display_column_order: result?.display_column_order || metadata.display_column_order || [], display_text: result?.display_text || metadata.display_text || {}, display_cells: result?.display_cells || metadata.display_cells || {}, navigation_mode: result?.navigation_mode ?? metadata.navigation_mode ?? "links", settings_sections: settingsSections, display_table_order: result?.display_table_order ?? metadata.display_table_order ?? [], schedule_heading: result?.schedule_heading ?? metadata.schedule_heading ?? "", expand_tables: result?.expand_tables ?? metadata.expand_tables ?? false };
   }
 
   function omittedCell(metadata) {
@@ -784,7 +792,12 @@
       for (const value of board ? [total.box_reference_area, total.net_board_area, total.whole_sheets, status] : [total.net_bags, total.whole_bags, status]) { const cell = node("td", typeof value === "string" ? "calculator-product-order-status" : ""); cell.dataset.calculatorValue = "true"; updateOutputCell(cell, { value }); row.append(cell); }
       body.append(row);
     }
-    table.append(head, body); scroll.append(table); container.replaceChildren(heading, ...(overview ? [overview] : []), note, scroll);
+    table.append(head, body); scroll.append(table);
+    const cards = node("div", "calculator-summary-cards calculator-summary-three");
+    for (const total of result?.spray_schedule_totals || []) {
+      const card = node("div", "calculator-summary-metric"), output = node("strong"); output.dataset.calculatorValue = "true"; updateOutputCell(output, { value: total.value }); card.append(node("span", "", total.label), output); cards.append(card);
+    }
+    container.replaceChildren(heading, ...(cards.children.length ? [cards] : []), ...(overview ? [overview] : []), note, scroll);
   }
 
   function sectionDetails(entry, result, metadata) {
@@ -1131,10 +1144,9 @@
     const vermiculiteSchedule = Boolean(schedule && entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE");
     const scheduleOverview = schedule ? renderOverview(visibleRows.filter((row) => row.row < schedule.header_row), entry, columns) : null;
     if (scheduleOverview && !boardSchedule && !vermiculiteSchedule) content.push(scheduleOverview);
-    if (boardSummary) content.push(renderOverview(visibleRows.filter((row) => row.row <= 10), entry, columns));
-    if (schedule && (entry.definition.id === "steel_vermiculite" && entry.sheet === "SCHEDULE" || entry.definition.id === "steel_board" && entry.sheet === "CALCULATOR")) {
+    if (entry.definition.id === "steel_vermiculite" && entry.sheet === "BAGS") {
       const totals = node("section", "calculator-product-totals"); totals.id = "calculator-product-totals";
-      entry.productTotalsElement = totals; renderProductTotals(result, totals, vermiculiteSchedule ? scheduleOverview : null); content.push(totals);
+      entry.productTotalsElement = totals; renderProductTotals(result, totals); content.push(totals);
     }
     if (boardSchedule) content.push(scheduleOverview);
     const logicalSections = new Map();

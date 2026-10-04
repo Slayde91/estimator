@@ -156,3 +156,26 @@ class PhysicalHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('POST', base+'/physical/apply', {'expected_revision': state['revision'],
             'request_id': str(uuid4()), 'preview_id': []})[0], 400)
         self.assertEqual(self.json_request('GET', base), state)
+
+    def test_matrix_pdf_requires_current_revision_and_preserves_both_scopes(self):
+        from pypdf import PdfReader
+        from tests.test_takeoff_physical_v2 import create
+        base, state = self.session(upload=False)
+        preview = self.json_request('POST', base+'/physical/preview', {
+            'expected_revision':state['revision'], 'commands':[create('defect',label='Matrix only',frl='-/60/60')]})
+        state = self.json_request('POST',base+'/physical/apply',{'expected_revision':state['revision'],
+            'request_id':str(uuid4()),'preview_id':preview['preview_id']})
+        for revision in (None, True, state['revision']-1,state['revision']+1):
+            self.assertEqual(self.request('POST',base+'/physical/export/pdf',
+                {'scope':'defect_reports','expected_revision':revision})[0],400)
+        status,headers,payload=self.request('POST',base+'/physical/export/pdf',
+            {'scope':'defect_reports','expected_revision':state['revision']})
+        self.assertEqual(status,200,payload);self.assertEqual(headers['Content-Type'],'application/pdf')
+        self.assertIn('Passive_Fire_Matrix.pdf',headers['Content-Disposition'])
+        reader=PdfReader(BytesIO(payload));self.assertEqual(reader.metadata.title,'Passive_Fire_Matrix')
+        self.assertIn('D-0001',reader.pages[0].extract_text())
+        status,_,plan_payload=self.request('POST',base+'/physical/export/pdf',
+            {'scope':'service_plans','expected_revision':state['revision']})
+        self.assertEqual(status,200,plan_payload)
+        self.assertNotIn('D-0001',PdfReader(BytesIO(plan_payload)).pages[0].extract_text())
+        self.assertEqual(self.json_request('GET',base),state)

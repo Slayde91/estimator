@@ -24,7 +24,7 @@ const errors = [], requests = [], evidence = {};
 async function idle() { await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; }); }
 async function enter(name) {
   await page.getByRole('button',{name,exact:true}).click();
-  await expect(page.locator(`.nav-button[data-view="${name === 'Projects' ? 'quotes' : {Home:'home',Quote:'estimate',Calculators:'calculators',Takeoffs:'takeoffs',Libraries:'pricing',Help:'help'}[name]}"]`)).toHaveAttribute('aria-current','page');
+  await expect(page.locator(`.nav-button[data-view="${name === 'Projects' ? 'quotes' : {Home:'home',Estimates:'estimate',Calculators:'calculators',Takeoffs:'takeoffs',Libraries:'pricing',Help:'help'}[name]}"]`)).toHaveAttribute('aria-current','page');
 }
 async function snapshot() {
   return page.evaluate(() => ({
@@ -66,7 +66,7 @@ async function drop(name,content,eventName = 'drop') {
   evidence.navigation = [];
   for (const width of [1600,764,390]) {
     await page.setViewportSize({width,height:1000});
-    for (const name of ['Projects','Home','Quote','Calculators','Takeoffs','Libraries','Help']) {
+    for (const name of ['Projects','Home','Estimates','Calculators','Takeoffs','Libraries','Help']) {
       await enter(name); await idle();
       if (name === 'Projects') {
         await expect(tools).toBeVisible(); await expect(button).toBeVisible();
@@ -99,7 +99,7 @@ async function drop(name,content,eventName = 'drop') {
   assert.deepEqual(await snapshot(),beforeUnsaved); assert.equal(fs.existsSync(path.join(output,'unsaved.txt')),false);
   evidence.unsaved = {pickerBlocked:true,dropBlocked:true,noRequests:true,draftsPreserved:true};
 
-  await enter('Quote'); await page.getByLabel('Client',{exact:true}).fill('Disposable project controls client');
+  await enter('Estimates'); await page.getByLabel('Client',{exact:true}).fill('Disposable project controls client');
   await page.getByLabel('Client',{exact:true}).press('Tab'); await enter('Projects'); await idle();
   const saving = page.waitForResponse(response => new URL(response.url()).pathname === '/api/project/save-as'); saving.catch(() => {});
   await page.locator('#header-project-actions').getByRole('button',{name:'Save As',exact:true}).click();

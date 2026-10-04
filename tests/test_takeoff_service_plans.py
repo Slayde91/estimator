@@ -144,8 +144,8 @@ class ServicePlansModelTests(unittest.TestCase):
         service = next(row for row in rows if row['entity_type'] == 'service')
         self.assertEqual(service['frl'], "'-/60/60")
         self.assertNotIn('frl', json.loads(service['fields_json']))
-        self.assertEqual(barrier_summary(graph, graph['barriers'][0])[-1], 'No services recorded')
-        self.assertIn('4 x', barrier_summary(graph, graph['barriers'][1])[-1])
+        self.assertEqual(barrier_summary(graph, graph['barriers'][0])[-1], '0 services')
+        self.assertIn('4 ×', barrier_summary(graph, graph['barriers'][1])[-1])
         self.assertEqual(json.loads(rows[0]['marker_json']), self.marker)
         workbook = load_workbook(BytesIO(export_physical_graph(graph, 'xlsx')[0])); self.addCleanup(workbook.close)
         self.assertNotIn('Defects', workbook.sheetnames)
@@ -290,16 +290,18 @@ class ServicePlansProjectTests(unittest.TestCase):
         case = self.case; source = case.documents.document_path(self.doc); checksum = sha256(source.read_bytes()).hexdigest()
         before = deepcopy(case.session['snapshot'])
         payload, mime, _ = self.export(); self.assertEqual(mime, 'application/pdf')
-        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
-        for expected in ('B-0001', 'Plan barrier', 'FRL -/120/120', 'Concrete', 'S-0001', 'Pipe', 'Diameter 50 mm', '3 x', 'Unapproved draft'):
+        text = ' '.join(' '.join(page.extract_text().split()) for page in PdfReader(BytesIO(payload)).pages)
+        for expected in ('B-0001', 'Plan barrier', 'FRL -/120/120', 'Concrete', 'S-0001', 'Pipe', 'Ø 50 mm', '3 ×'):
             self.assertIn(expected, text)
-        self.assertIn(self.barrier['entity']['id'], text)
+        self.assertNotIn('TAKEOFF LEGEND', text)
+        self.assertNotIn('see legend', text)
+        self.assertNotIn(self.barrier['entity']['id'], text)
         self.assertNotIn('3 markers', text)
         self.assertEqual(sha256(source.read_bytes()).hexdigest(), checksum)
         self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
         self.apply([{'op': 'update', 'entity_id': self.pipe['entity']['id'], 'changes': {'fields': {'service': 'Cable'}}}])
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(self.export()[0])).pages)
-        self.assertIn('Cable', text); self.assertNotIn('Diameter 50 mm', text)
+        self.assertIn('Cable', text); self.assertNotIn('Ø 50 mm', text)
 
     def test_resized_positioned_callout_survives_pdf_export_save_and_reopen(self):
         case = self.case
@@ -309,7 +311,7 @@ class ServicePlansProjectTests(unittest.TestCase):
         before = deepcopy(case.session['snapshot']); source = case.documents.document_path(self.doc).read_bytes()
         payload = self.export()[0]; reader = PdfReader(BytesIO(payload))
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        for expected in ('B-0001', 'Plan barrier', 'Concrete', '3 x', 'Diameter 50 mm'): self.assertIn(expected, text)
+        for expected in ('B-0001', 'Plan barrier', 'Concrete', '3 ×', 'Ø 50 mm'): self.assertIn(expected, text)
         self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
         self.assertEqual(case.documents.document_path(self.doc).read_bytes(), source)
         request = {**deepcopy(case.base), 'takeoffs': before, 'takeoffs_session_id': case.session['session_id']}
@@ -373,6 +375,31 @@ class ServicePlansProjectTests(unittest.TestCase):
                         {'physical_scope': None}, {'summary': 'Approved'}, {'document_id': str(uuid4())},
                         {'item_ids': [self.barrier['entity']['id']]*2}):
             with self.subTest(changes=changes), self.assertRaises(ValidationError): self.export(**changes)
+
+    def test_blank_source_pages_survive_with_browser_zoom_and_rotation_without_legends(self):
+        case=project_fixtures.TakeoffProjectTests();case.pdf=drawing_fixture();case.setUp();self.addCleanup(case.doCleanups)
+        document=case.session['snapshot']['documents'][0]
+        command=create(marker={'document_id':document['id'],'document_sha256':document['sha256'],
+            'page':1,'point':[60,60]},label='One marked page')
+        preview=case.service.preview_physical(case.session['session_id'],{'expected_revision':case.session['revision'],
+            'scope':'service_plans','commands':[command]})
+        case.session=case.service.apply_physical(case.session['session_id'],{'expected_revision':case.session['revision'],
+            'scope':'service_plans','request_id':str(uuid4()),'preview_id':preview['preview_id']})
+        before=deepcopy(case.session['snapshot'])
+        payload=case.service.export_workspace(case.session['session_id'],'marked-pdf',{'expected_revision':case.session['revision'],
+            'mode':'penetrations','physical_scope':'service_plans','document_id':document['id'],
+            'item_ids':[command['entity']['id']],'rendering':{'zoom':.32,'rotations':{'1':90,'3':270}}})[0]
+        pages=PdfReader(BytesIO(payload)).pages;self.assertEqual(len(pages),len(document['pages']))
+        from estimator.takeoff_markup_pdf_worker import page_transform
+        for index,page in enumerate(pages):
+            metadata=dict(document['pages'][index]);metadata['rotation']=(metadata['rotation']+{0:90,2:270}.get(index,0))%360
+            _,width,height=page_transform(metadata)
+            self.assertAlmostEqual(float(page.mediabox.width),width);self.assertAlmostEqual(float(page.mediabox.height),height)
+            text=page.extract_text();self.assertNotIn('TAKEOFF LEGEND',text);self.assertNotIn('see legend',text)
+        self.assertEqual(case.service.get(case.session['session_id'])['snapshot'],before)
+        for rendering in ({'zoom':True,'rotations':{}},{'zoom':.32,'rotations':{'0':90}},
+                          {'zoom':.32,'rotations':{'1':45}},{'zoom':float('inf'),'rotations':{}}):
+            with self.subTest(rendering=rendering),self.assertRaises(ValidationError): self.export(rendering=rendering)
 
     def test_saved_audit_rejects_removed_graph_or_rewritten_numbered_identity(self):
         case = self.case; before = case.session['snapshot']

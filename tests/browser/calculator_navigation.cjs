@@ -21,7 +21,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const errors = [], requests = [], evidence = {};
-const destinations = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)', 'Firestopping Estimator'];
+const destinations = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'];
 function monitor(target) {
   target.setDefaultTimeout(60000); target.on('pageerror', error => errors.push(error.message));
   target.on('request', request => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
@@ -40,6 +40,15 @@ async function workbook(title) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;
   const before = await snapshots(), beforeRequests = calculationRequests();
+  const estimateToggle=page.getByRole('button',{name:'Estimates',exact:true}), estimates=page.getByRole('group',{name:'Choose an estimate',exact:true});
+  await estimateToggle.hover();await expect(estimates).toBeVisible();
+  assert.deepEqual(await estimates.getByRole('button').allTextContents(),['Main','Firestopping']);
+  assert.deepEqual(await snapshots(),before);assert.equal(calculationRequests(),beforeRequests);
+  await estimates.getByRole('button',{name:'Firestopping',exact:true}).click();await idle();
+  await expect(page.locator('#estimator-penetration')).toBeVisible();await expect(page.locator('#estimator-main')).toBeHidden();
+  await estimateToggle.hover();await estimates.getByRole('button',{name:'Main',exact:true}).click();await idle();
+  await expect(page.locator('#estimator-main')).toBeVisible();await expect(page.locator('#estimator-penetration')).toBeHidden();
+  assert.deepEqual(await snapshots(),before);
   const toggle = page.getByRole('button', { name: 'Calculators', exact: true }), menu = page.getByRole('group', { name: 'Choose a calculator', exact: true });
   await expect(page.locator('#calculator-list')).toHaveCount(0); await expect(page.locator('.calculator-choice')).toHaveCount(0);
   await toggle.hover(); await expect(toggle).toHaveAttribute('aria-expanded', 'true'); await expect(menu).toBeVisible();

@@ -363,7 +363,8 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls, scaleAnchor);
+    const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, scaleAnchor);
+    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(ui.message, workspace, ui.physicalContainer);
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
@@ -514,15 +515,16 @@
     for (const hit of state.ui?.overlay.querySelectorAll("[data-physical-id]") || []) hit.previousElementSibling?.classList.toggle("hovered", hit.dataset.physicalId === id);
   }
   async function exportPhysical(format) {
-    const sessionId = state.session?.session_id, scope = state.physicalScope;
-    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope }) });
+    const sessionId = state.session?.session_id, scope = state.physicalScope, revision = state.session?.revision;
+    const response = await fetch(`/api/takeoffs/sessions/${sessionId}/physical/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, ...(format === "pdf" ? { expected_revision: revision } : {}) }) });
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Physical draft export failed."); }
-    if (sessionId !== state.session?.session_id || scope !== state.physicalScope) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
-    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-    message("Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
+    if (sessionId !== state.session?.session_id || scope !== state.physicalScope || format === "pdf" && revision !== state.session?.revision) throw new Error("The project or penetration workspace changed during draft export. Export the current draft again.");
+    const blob = await response.blob(), url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = format === "pdf" ? "Passive_Fire_Matrix.pdf" : `CEASEFIRE-${scope === "service_plans" ? "Service-Plans" : "Defect-Reports"}-UNAPPROVED-DRAFT.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+    message(format === "pdf" ? "Downloaded Passive_Fire_Matrix from the current physical draft." : "Exported the unapproved physical draft with its retained parent and evidence identities. This is not an approved quantity export.");
   }
   function ensurePhysicalUI() {
     if (state.physicalUI) return;
+    state.drawingFonts ||= Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]).then(() => { if (state.mode === "physical") renderOverlay(); });
     if (!window.CeasefireTakeoffPhysical?.mount) throw new Error("The physical draft workspace could not be loaded.");
     const scope = state.physicalScope;
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
@@ -2385,13 +2387,13 @@
     if (openDetails || !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
     renderOverlay();
   }
-  function physicalCalloutLines(summary, width, fontSize = 9) {
+  function physicalCalloutLines(summary, width, fontSize = 9, fontFamily = "CeasefireDrawing") {
     const context = (state.calloutMeasure ||= document.createElement("canvas").getContext("2d")), lines = [];
     for (const paragraph of String(summary).split(/\r?\n/).filter(Boolean)) {
-      let line = ""; context.font = `${lines.length ? "400" : "700"} ${fontSize}px Arial`;
+      let line = ""; context.fontKerning = fontFamily === "CeasefireDrawing" ? "none" : "auto"; context.font = `${lines.length ? "400" : "700"} ${fontSize}px ${fontFamily}`;
       for (const word of paragraph.split(/\s+/)) {
         const candidate = line ? `${line} ${word}` : word;
-        if (line && context.measureText(candidate).width > width) { lines.push(line); line = ""; context.font = `400 ${fontSize}px Arial`; }
+        if (line && context.measureText(candidate).width > width) { lines.push(line); line = ""; context.font = `400 ${fontSize}px ${fontFamily}`; }
         let part = "";
         for (const character of word) {
           if (part && context.measureText(part + character).width > width) { if (line) { lines.push(line); line = ""; } lines.push(part); part = ""; }
@@ -2506,7 +2508,7 @@
     const leader = svg("path", { d: `M${point[0]} ${point[1]}L${Math.max(x, Math.min(point[0], x + width))} ${Math.max(y, Math.min(point[1], y + height))}`, stroke: calloutAppearance.stroke_color, "stroke-width": calloutAppearance.stroke_width * markerScale, fill: "none", "pointer-events": "none" });
     const callout = svg("g", { class: `takeoff-physical-callout${selected ? " selected" : ""}`, "data-physical-id": entity.id, role: "button", tabindex: 0, "aria-pressed": String(selected), "aria-label": `Callout ${entity.display_id} · ${summary}` });
     callout.append(svg("rect", { class: "takeoff-physical-callout-frame", x, y, width, height, rx: 3 * scale, fill: calloutAppearance.fill_enabled ? calloutAppearance.fill_color : "none", "fill-opacity": calloutAppearance.opacity, stroke: calloutAppearance.stroke_color, "stroke-width": calloutAppearance.stroke_width * markerScale }));
-    const text = svg("text", { fill: calloutAppearance.font_color, "font-family": "Arial, sans-serif", "font-size": fontSize });
+    const text = svg("text", { fill: calloutAppearance.font_color, "font-family": "CeasefireDrawing", "font-kerning": "none", "font-size": fontSize });
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
     const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: markerAppearance.fill_enabled ? markerAppearance.fill_color : "none", stroke: markerAppearance.stroke_color, opacity: markerAppearance.opacity, "stroke-width": markerAppearance.stroke_width * markerScale, "pointer-events": "none" });
     if (selected) {
@@ -2629,7 +2631,7 @@
     const group = svg("g", { class: "takeoff-drawing-legend", role: "button", tabindex: 0, "aria-label": `${labels[legend.mode]} Legend`, "aria-pressed": String(!!selected), "data-legend-id": legend.id });
     group.append(svg("rect", { x, y, width, height, fill: style.fill_enabled ? style.fill_color : "none", "fill-opacity": style.opacity, stroke: style.stroke_color, "stroke-width": style.stroke_width*scale }));
     let font = 11*scale, wrapped;
-    for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font) })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
+    for (let attempt = 0; attempt < 45; attempt++) { wrapped = rows.map(row => ({ ...row, lines: physicalCalloutLines(row.text, Math.max(10, width-30*scale), font, "Arial, sans-serif") })); if ((wrapped.reduce((sum, row) => sum+row.lines.length, 0)+3)*font*1.3 < height-12*scale) break; font *= .9; }
     const heading = svg("text", { x: x+8*scale, y: y+8*scale+font, fill: style.font_color || "#202020", "font-size": font, "font-family": "Arial, sans-serif", "font-weight": "700", "pointer-events": "none" }); heading.textContent = `${labels[legend.mode]} Legend`; group.append(heading);
     let lineY = y+8*scale+font*2.5;
     for (const row of wrapped) {
@@ -3435,11 +3437,15 @@
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
     if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
     try {
+      if (mode === "physical") {
+        await state.drawingFonts;
+        if (!document.fonts.check("9px CeasefireDrawing") || !document.fonts.check("700 9px CeasefireDrawing")) throw new Error("The drawing fonts could not load. Retry after the drawing finishes loading.");
+      }
       const calculatorDrafts = {}, calculatorFingerprints = [], destinations = mode === "steel" ? ["steel_vermiculite", "steel_board"] : mode === "duct" ? ["ductwork"] : [];
       for (const id of destinations) {
         try { const draft = await window.CeasefireCalculators?.captureTakeoffTarget?.(id); if (draft) { calculatorDrafts[id] = { inputs: draft.inputs, schedule_rows: draft.schedule_rows }; calculatorFingerprints.push(draft.fingerprint); } }
@@ -3448,7 +3454,8 @@
       const assertCalculatorDrafts = () => { if (calculatorFingerprints.length && calculatorFingerprints.some(fingerprint => typeof fingerprint !== "string" || fingerprint !== window.CeasefireCalculators?.projectFingerprint?.())) throw new Error("The calculator draft changed during export. Download again from the current draft."); };
       assertCalculatorDrafts();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed while preparing the download. Export the current draft again.");
-      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : mode, item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId } : {}), ...(mode === "physical" ? { physical_scope: scope } : { calculator_drafts: calculatorDrafts }) }) });
+      const rendering = { zoom: state.zoom, rotations: Object.fromEntries((documentById(documentId)?.pages || []).map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,documentId,index+1])) || 0])) };
+      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : mode, item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId } : {}), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
       if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
       const blob = await response.blob();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");

@@ -85,9 +85,22 @@ async function countCursor() {
   assert.equal(reference.document_sha256, sourceHash); assert.equal(reference.document_id, before.documents[0].id); assert.equal(reference.page, 3); assert.equal(reference.region.length, 4);
   const retainedPoint = JSON.parse(reference.note.match(/PDF point (\[[^\]]+\])/)[1]); retainedPoint.forEach((coordinate, axis) => assert.ok(Math.abs(coordinate - acceptedPoint[axis]) < 1e-9, 'Pending point and retained source coordinates agree'));
   assert.ok(reference.region.every(([x, y]) => x >= 20 && x <= 800 && y >= 30 && y <= 570)); assert.equal(reference.region[0][0], 20); assert.equal(reference.region[0][1], 30); assert.match(reference.note, /does not represent physical size or quantity/);
-  await expect(page.locator('.takeoff-overlay [data-physical-id]')).toHaveCount(1);
+  const sourceMarker = page.locator('.takeoff-overlay .takeoff-physical-marker-hit'), callout = page.locator('.takeoff-overlay .takeoff-physical-callout');
+  await expect(sourceMarker).toHaveCount(1); await expect(callout).toHaveCount(1);
+  for (const element of [sourceMarker, callout]) await expect(element).toHaveAttribute('data-physical-id', defect.id);
+  const summary = `${defect.display_id} · PLACED-DEFECT · FRL -/120/120\n0 substrates · 0 services`;
+  await expect(sourceMarker).toHaveAttribute('aria-label', `Source annotation ${defect.display_id} · ${summary}`);
+  await expect(callout).toHaveAttribute('aria-label', `Callout ${defect.display_id} · ${summary}`);
+  await expect(callout.locator('.takeoff-physical-callout-frame')).toHaveCount(1);
+  for (const text of [defect.display_id, 'PLACED-DEFECT', 'FRL -/120/120', '0 substrates · 0 services']) await expect(callout).toContainText(text);
+  assert.deepEqual(defect.annotation, { document_id: reference.document_id, document_sha256: sourceHash, page: 3, point: retainedPoint });
+  const renderedSourcePoint = await sourceMarker.evaluate(marker => {
+    const [, , width, height] = marker.ownerSVGElement.getAttribute('viewBox').split(/\s+/).map(Number);
+    return [20 + Number(marker.getAttribute('cy')) / height * 780, 30 + Number(marker.getAttribute('cx')) / width * 540];
+  });
+  renderedSourcePoint.forEach((coordinate, axis) => assert.ok(Math.abs(coordinate - retainedPoint[axis]) < 1e-9, 'Rendered source annotation keeps the exact retained PDF point'));
   await expect(page.getByRole('complementary', { name: 'Item Details', exact: true }).getByLabel('Defect Ref.', { exact: true })).toHaveValue('PLACED-DEFECT');
-  await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); evidence.placedDefect = { id: defect.id, source: reference, pendingPoint: acceptedPoint, noBarrierOrServiceCreated: true };
+  await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); evidence.placedDefect = { id: defect.id, source: reference, annotation: defect.annotation, renderedSourcePoint, summary, pendingPoint: acceptedPoint, noBarrierOrServiceCreated: true };
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([400, 400])); await response(() => dialog('Add Defect', { 'Defect Ref.': 'CANCELLED-REVIEW' }, 'Preview new draft'), '/physical/preview');
   const beforeReviewCancel = structuredClone(current.physical); await dialog('Create one draft defect?', {}, 'Cancel'); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); assert.deepEqual((await snapshot()).physical, beforeReviewCancel); evidence.reviewCancelCreatesNothing = true;

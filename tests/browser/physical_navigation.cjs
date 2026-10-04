@@ -118,7 +118,7 @@ async function layout(width) {
   for (const [kind, expected] of [['Defect', [defect, otherDefect]], ['Barrier', [barrier, otherBarrier, newBarrier]], ['Service', [service, otherService, newService]]]) assert.deepEqual(await navigation.getByLabel(`${kind} ID in Item Details`, { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), expected);
   const previews = requests.length; await details().getByLabel('Notes', { exact: true }).fill('Retain unfinished Defect edit');
   await response(()=>navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service),'/physical/apply'); await idle(); await snapshot(); assert.equal(state.physical.defects.find(entry=>entry.id===defect).fields.notes,'Retain unfinished Defect edit'); await expect(details().getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(service); assert.equal(requests.length, previews+1);
-  await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).click();
+  await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).dblclick({ delay: 100 });
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;
   await page.getByRole('tab', { name: 'Service Plans', exact: true }).click(); await idle(); await page.setViewportSize({ width: 1600, height: 1100 });

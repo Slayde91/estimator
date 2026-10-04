@@ -129,8 +129,12 @@ async function controls() {
     const button = page.getByRole('button', { name: `Export draft ${format}`, exact: true }); await expect(button).toContainText(format);
     const css = await style(button); assert.equal(css.background, 'rgb(43, 34, 40)'); assert.equal(css.color, 'rgb(255, 255, 255)');
   }
-  const scale = await page.getByRole('button', { name: 'Scale', exact: true }).boundingBox(), count = await page.getByRole('button', { name: 'Count', exact: true }).boundingBox();
-  assert.ok(count.y >= scale.y + scale.height && Math.abs(count.x - scale.x) < 2, 'Count sits directly below Scale in the left rail');
+  const scaleButton = page.getByRole('button', { name: 'Scale', exact: true }), countButton = page.getByRole('button', { name: 'Count', exact: true });
+  assert.equal(await scaleButton.evaluate(el => !!el.closest('.takeoff-viewer') && !el.closest('.takeoff-tool-rail')), true, 'Scale is a viewer overlay');
+  assert.equal(await countButton.evaluate(el => !!el.closest('.takeoff-tool-rail')), true, 'Count stays in the left rail');
+  const scale = await scaleButton.boundingBox(), viewer = await page.locator('.takeoff-viewer').boundingBox(), count = await countButton.boundingBox(), viewportTool = await page.getByRole('button', { name: 'Viewport', exact: true }).boundingBox();
+  assert.ok(Math.abs(viewer.x + viewer.width - scale.x - scale.width - 10) < 2 && Math.abs(viewer.y + viewer.height - scale.y - scale.height - 10) < 2, 'Scale sits at the viewer bottom right');
+  assert.ok(count.y >= viewportTool.y + viewportTool.height && Math.abs(count.x - viewportTool.x) < 2, 'Count stays below Viewport in the left rail');
   await expect(page.getByRole('complementary', { name: 'Physical draft inspector', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-physical-register .takeoff-physical-inspector')).toHaveCount(0);
   evidence.controls = controls;

@@ -780,7 +780,8 @@
   function selectEstimator(kind) {
     if (!["estimate", "penetration"].includes(kind)) return;
     state.estimatorKind = kind;
-    $("estimator-main").hidden = false;
+    state.estimateKind = kind;
+    $("estimator-main").hidden = kind !== "estimate";
     $("estimator-penetration").hidden = kind !== "penetration";
     for (const button of document.querySelectorAll("[data-estimator-kind]")) button.setAttribute("aria-pressed", String(button.dataset.estimatorKind === kind));
     if (kind === "penetration") $("calculator-workspace").hidden = true;
@@ -807,7 +808,7 @@
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
-    closeNavigationMenus({ calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
+    closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
@@ -819,8 +820,8 @@
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
-    if (view === "calculators") estimatorReady = state.estimatorKind === "penetration" ? selectEstimator("penetration") : calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open();
-    if (view === "estimate") estimatorReady = selectEstimator("estimate");
+    if (view === "calculators") estimatorReady = calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open();
+    if (view === "estimate") estimatorReady = selectEstimator(state.estimateKind || "estimate");
     if (view === "takeoffs") estimatorReady = window.CeasefireTakeoffs?.open().catch(error => message(error.message, true));
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
@@ -863,15 +864,26 @@
     return true;
   }
   async function requestCalculatorNavigation(id) {
-    if (!["penetration", "steel_vermiculite", "steel_board", "ductwork"].includes(id)) return false;
+    if (id === "penetration") return requestEstimateNavigation("penetration");
+    if (!["steel_vermiculite", "steel_board", "ductwork"].includes(id)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {
       message("Finish the current calculator action before choosing another calculator.", true); return false;
     }
-    state.estimatorKind = id === "penetration" ? "penetration" : "estimate";
-    await showView("calculators", undefined, id === "penetration" ? undefined : id);
+    state.estimatorKind = "estimate";
+    await showView("calculators", undefined, id);
     if (state.currentView === "calculators") window.CeasefireHeaderTagline?.next();
+    return true;
+  }
+  async function requestEstimateNavigation(kind) {
+    if (!["estimate", "penetration"].includes(kind)) return false;
+    document.activeElement?.blur?.();
+    if (state.currentView !== "estimate" && !await confirmLeavePricingLibrary()) return false;
+    if (window.CeasefireCalculators?.hasPendingOperation?.()) { message("Finish the current calculator action before choosing an estimate.", true); return false; }
+    state.estimateKind = kind;
+    await showView("estimate");
+    if (state.currentView === "estimate") window.CeasefireHeaderTagline?.next();
     return true;
   }
   function setCalculatorMenuOpen(open) {
@@ -919,7 +931,7 @@
     if (open && id === "takeoff-navigation") window.CeasefireTakeoffs?.refreshNavigation?.();
   }
   function closeNavigationMenus(except) {
-    for (const id of ["calculator-navigation", "library-navigation", "takeoff-navigation"]) {
+    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation"]) {
       if (id === except) continue;
       const menu = $(id + "-menu"), toggle = $(id + "-toggle");
       if (menu && toggle) { menu.hidden = true; toggle.setAttribute("aria-expanded", "false"); }
@@ -938,6 +950,7 @@
         if (event.key === "ArrowLeft" && submenu.contains(event.target)) { event.preventDefault(); event.stopPropagation(); parent.focus(); open(false); }
       });
     }
+    setupSectionNavigation("estimate-navigation", "[data-estimator-kind]", open => setSectionMenuOpen("estimate-navigation", open), choice => requestEstimateNavigation(choice.dataset.estimatorKind));
     setupSectionNavigation("calculator-navigation", "[data-calculator-id]", setCalculatorMenuOpen, choice => requestCalculatorNavigation(choice.dataset.calculatorId));
     setupSectionNavigation("library-navigation", "[data-library-kind]", open => setSectionMenuOpen("library-navigation", open), choice => requestLibraryNavigation(choice.dataset.libraryKind));
     setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));
@@ -2073,7 +2086,6 @@
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.view));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
-  for (const button of document.querySelectorAll("[data-estimator-kind]")) button.addEventListener("click", () => selectEstimator(button.dataset.estimatorKind));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
   for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
@@ -2171,17 +2183,17 @@
   window.CeasefireLibraryNavigation = { open: requestLibraryNavigation };
   window.CeasefireTakeoffNavigation = { show() { return showView("takeoffs"); } };
   window.CeasefirePenetrationNavigation = {
-    show() { state.estimatorKind = "penetration"; return showView("calculators"); },
-    showSchedule() { state.estimatorKind = "estimate"; return showView("estimate"); },
+    show() { state.estimateKind = "penetration"; return showView("estimate"); },
+    showSchedule() { state.estimateKind = "estimate"; return showView("estimate"); },
     confirm: confirmReplace,
     notify,
   };
   window.CeasefireLibraryEditorNavigation = {
-    show() { document.activeElement?.blur?.(); state.estimatorKind = "penetration"; showView("calculators"); },
+    show() { document.activeElement?.blur?.(); state.estimateKind = "penetration"; showView("estimate"); },
     returnToLibrary(id) { state.libraryKind = "penetration"; showView("pricing", id); },
   };
   window.CeasefireProposalCalculators = {
-    showFirestopping() { state.estimatorKind = "penetration"; return showView("calculators"); },
+    showFirestopping() { state.estimateKind = "penetration"; return showView("estimate"); },
     showWorkbook() { state.estimatorKind = "estimate"; $("estimator-penetration").hidden = true; },
     isFirestopping() { return state.estimatorKind === "penetration"; },
   };

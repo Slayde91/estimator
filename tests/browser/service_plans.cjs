@@ -134,7 +134,8 @@ async function controls() {
   assert.equal(await scaleButton.evaluate(el => !!el.closest('.takeoff-viewer') && !el.closest('.takeoff-tool-rail')), true, 'Scale is a viewer overlay');
   assert.equal(await countButton.evaluate(el => !!el.closest('.takeoff-tool-rail')), true, 'Count stays in the left rail');
   const scale = await scaleButton.boundingBox(), viewer = await page.locator('.takeoff-viewer').boundingBox(), count = await countButton.boundingBox(), viewportTool = await page.getByRole('button', { name: 'Viewport', exact: true }).boundingBox();
-  assert.ok(Math.abs(viewer.x + viewer.width - scale.x - scale.width - 10) < 2 && Math.abs(viewer.y + viewer.height - scale.y - scale.height - 10) < 2, 'Scale sits at the viewer bottom right');
+  const controlsBox=await page.locator('.takeoff-page-controls').boundingBox();
+  assert.ok(Math.abs(viewer.x + viewer.width - scale.x - scale.width - 10) < 2 && Math.abs(scale.y+scale.height/2-controlsBox.y-controlsBox.height/2)<2, 'Scale aligns with the centre controls');
   assert.ok(count.y >= viewportTool.y + viewportTool.height && Math.abs(count.x - viewportTool.x) < 2, 'Count stays below Viewport in the left rail');
   await expect(page.getByRole('complementary', { name: 'Physical draft inspector', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-physical-register .takeoff-physical-inspector')).toHaveCount(0);
@@ -183,7 +184,7 @@ async function controls() {
   await apply('Create one draft barrier?'); const barrier = preview.changed_ids[0];
   assert.equal(state.service_plans.version, 3); assert.ok(!Object.hasOwn(state.service_plans, 'defects')); assert.ok(!Object.hasOwn(entity(barrier), 'defect_id')); assert.equal(entity(barrier).fields.frl, '-/90/90');
   assert.deepEqual(state.physical, reportBefore); await expect(row(barrier)).toContainText('B-0001'); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/90/90');
-  const service = await create('service', { 'Category': 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '32', 'Width x Height (mm)': '100x80' }, 'Add service in Item Details');
+  const service = await create('service', { 'Category': 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '32' }, 'Add service in Item Details');
   assert.equal(entity(service).barrier_id, barrier); assert.ok(!Object.hasOwn(entity(service).fields, 'frl')); await expect(details().getByLabel('FRL', { exact: true })).toHaveCount(0);
   await expect(row(service)).toContainText('-/90/90'); await controls();
   evidence.hierarchy = { defect, reportBarrier, reportService, barrier, service, independentSequences: true, barrierFrl: true };
@@ -205,7 +206,7 @@ async function controls() {
   evidence.placedMarker = originalMarker;
   const placedClick = await page.evaluate(() => window.qaDrawingEvents.filter(event => event.type === 'click').at(-1)), exactPlacedPoint = sourcePoint(placedClick);
   for (let axis = 0; axis < 2; axis++) assert.ok(Math.abs(originalMarker.point[axis] - exactPlacedPoint[axis]) < 1e-7, `Placed source coordinates ${originalMarker.point} from ${JSON.stringify(placedClick)}`);
-  for (const text of ['B-0001', 'PLAN-A', 'Concrete/masonry wall', 'FRL -/90/90', 'S-0001', '2 ×', '100 x 80 mm']) await summaryContains(barrier, text);
+  for (const text of ['B-0001', 'PLAN-A', 'Concrete/masonry wall', 'FRL -/90/90', 'S-0001', '2 ×']) await summaryContains(barrier, text);
   assert.ok(await callout(barrier).locator('text').evaluate(el => parseFloat(getComputedStyle(el).fontSize)) >= 10, 'The fitted-page callout must remain readable on screen');
   const calloutPlacement = await callout(barrier).evaluate(el => {
     const hit = [...el.parentElement.querySelectorAll('.takeoff-physical-marker-hit')].find(candidate => candidate.dataset.physicalId === el.dataset.physicalId);
@@ -235,10 +236,10 @@ async function controls() {
   await page.screenshot({ path: path.join(output, 'service-plan-marker-item-details.png') });
 
   await select(service);
-  for (const [label,value] of Object.entries({'Explicit service quantity':5,'Service Size (mm)':'50','Width x Height (mm)':'120x90'})) { await response(async()=>{const control=details().getByLabel(label,{exact:true});await control.fill(String(value));await control.press('Tab');},'/physical/apply');await idle();await snapshot(); }
+  for (const [label,value] of Object.entries({'Explicit service quantity':5,'Service Size (mm)':'50'})) { await response(async()=>{const control=details().getByLabel(label,{exact:true});await control.fill(String(value));await control.press('Tab');},'/physical/apply');await idle();await snapshot(); }
   // A scope switch flushes input without an extra field-review dialog.
   await tab('Defect Reports'); await expect(takeoffChoice(page, 'Defect Reports')).toHaveAttribute('aria-pressed','true'); await tab('Service Plans');
-  for (const text of ['5 \u00d7', '50', '120 x 90 mm']) await summaryContains(barrier, text);
+  for (const text of ['5 \u00d7', '50']) await summaryContains(barrier, text);
   await expect(callout(barrier)).not.toContainText('2 ×'); assert.deepEqual(entity(barrier).marker, originalMarker); assert.deepEqual(state.physical, reportBefore);
   evidence.derivedSummaryUpdates = true;
 
@@ -280,12 +281,22 @@ async function controls() {
   await summaryContains(barrier, '5 ×'); evidence.savedReopenedGraphsAndMarkers = true;
   console.log('Scoped marks and exact Save As / reopen graph preservation passed.');
 
+  const viewerLines=await page.locator('.takeoff-physical-callout tspan').allTextContents();
   const csv = await exportDraft('CSV'), xlsx = await exportDraft('XLSX'), pdf = await downloadDrawing();
+  const matrixWait=page.waitForEvent('download');await page.getByRole('button',{name:'Download Passive Fire Matrix PDF',exact:true}).click();
+  const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\nprint(json.dumps({'sheets':w.sheetnames,'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))", xlsx);
   assert.ok(workbook.sheets.includes('Barriers')); assert.ok(workbook.sheets.includes('Services')); assert.ok(!workbook.sheets.includes('Defects')); assert.deepEqual(workbook.formulas, []);
   const pdfText = pythonJson("import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1]);print(json.dumps({'text':'\\n'.join(p.extract_text() or '' for p in r.pages),'pages':len(r.pages)}))", pdf);
-  for (const text of ['PLAN-A', 'PLAN-B', 'B-0001', 'S-0001', '-/90/90', 'Unapproved draft']) assert.ok(pdfText.text.includes(text), text);
+  for (const text of ['PLAN-A', 'PLAN-B', 'B-0001', 'S-0001', '-/90/90']) assert.ok(pdfText.text.includes(text), text);
+  for(const line of viewerLines)assert.ok(pdfText.text.includes(line),`Viewer line missing from drawing PDF: ${line}`);
+  assert.equal(pdfText.pages,4);assert.ok(!/TAKEOFF LEGEND|see legend|Unapproved draft/.test(pdfText.text));
+  const matrixInfo=pythonJson("import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1]);print(json.dumps({'title':r.metadata.title,'text':' '.join(' '.join(p.extract_text().split()) for p in r.pages)}))",matrix);
+  assert.equal(matrixInfo.title,'Passive_Fire_Matrix');assert.equal(path.basename(matrix),'Passive_Fire_Matrix.pdf');
+  for(const column of ['Defect ID','Barrier ID','Service ID','Location','FRL','Substrate','Orientation','Category','Service type','Service quantity','Service Size (mm)'])assert.ok(matrixInfo.text.includes(column),column);
+  assert.ok(matrixInfo.text.includes('B-0001'));assert.ok(matrixInfo.text.includes('S-0001'));assert.ok(!matrixInfo.text.includes('TAKEOFF LEGEND'));
+  fs.writeFileSync(path.join(output,'viewer-callout-lines.json'),JSON.stringify(viewerLines,null,2));
   assert.ok(!pdfText.text.includes('Report only')); assert.ok(pdfText.text.includes('Rotated crop with UserUnit 2')); assert.equal(sha(info.fixture), sourceBefore);
   evidence.exports = { csv: path.basename(csv), xlsx: workbook, pdf: { filename: path.basename(pdf), pages: pdfText.pages }, sourceSha256: sourceBefore };
   console.log('Scoped CSV, values-only XLSX and marked PDF exports passed.');

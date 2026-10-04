@@ -60,6 +60,9 @@ EVIDENCE_HEADERS = COMMON_HEADERS + ('association_key', 'association_index', 'do
     'region_json', 'supported_fields_json', 'evidence_note', 'association_json')
 CHUNK_HEADERS = ('sheet', 'record_id', 'column', 'part', 'total_parts', 'sha256',
                  'exact_text [concatenate in part order]')
+MATRIX_HEADERS = ('Defect ID', 'Barrier ID', 'Service ID', 'Location', 'FRL',
+                  'Substrate', 'Orientation', 'Category', 'Service type',
+                  'Service quantity', 'Service Size (mm)')
 _EXCEL_DATE = (2000, 1, 1, 0, 0, 0)
 
 
@@ -210,6 +213,100 @@ def _stable_archive(payload):
     return result.getvalue()
 
 
+def matrix_rows(graph):
+    """Active hierarchy leaves, retaining parents with no children as empty rows."""
+    graph = validate_graph(graph)
+    if graph['version'] not in (2, 3):
+        raise ValidationError('The matrix PDF requires the current Defect Reports or Service Plans hierarchy.')
+    barriers = [entry for entry in graph['barriers'] if not entry['deleted']]
+    services = [entry for entry in graph['services'] if not entry['deleted']]
+    services_by_barrier, barriers_by_defect = {}, {}
+    for entry in services:
+        services_by_barrier.setdefault(entry['barrier_id'], []).append(entry)
+    for entry in barriers:
+        barriers_by_defect.setdefault(entry.get('defect_id'), []).append(entry)
+    rows = []
+
+    def append(defect=None, barrier=None, service=None):
+        df, bf, sf = (entry['fields'] if entry else {} for entry in (defect, barrier, service))
+        size = sf.get('size')
+        if not size and sf.get('width_mm') is not None and sf.get('height_mm') is not None:
+            size = f"{sf['width_mm']} x {sf['height_mm']}"
+        if not size and sf.get('diameter_mm') is not None:
+            size = sf['diameter_mm']
+        rows.append([defect['display_id'] if defect else '', barrier['display_id'] if barrier else '',
+            service['display_id'] if service else '', bf.get('location') or df.get('location', ''),
+            (bf if graph['version'] == 3 else df).get('frl', ''), bf.get('substrate', ''),
+            bf.get('orientation', ''), sf.get('service', ''), sf.get('service_type', ''),
+            service['quantity'] if service else '', size or ''])
+
+    def append_barrier(defect, barrier):
+        children = services_by_barrier.get(barrier['id'], [])
+        if children:
+            for service in children:
+                append(defect, barrier, service)
+        else:
+            append(defect, barrier)
+
+    if graph['version'] == 3:
+        for barrier in barriers:
+            append_barrier(None, barrier)
+    else:
+        for defect in graph['defects']:
+            if defect['deleted']:
+                continue
+            children = barriers_by_defect.get(defect['id'], [])
+            if children:
+                for barrier in children:
+                    append_barrier(defect, barrier)
+            else:
+                append(defect)
+    if len(rows) > 20000:
+        raise ValidationError('The matrix PDF exceeds its 20,000-row limit. No rows were omitted; use the CSV/XLSX register.')
+    return rows
+
+
+def export_matrix_pdf(graph):
+    from html import escape
+    import re
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A3, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, LongTable, TableStyle, Spacer
+
+    rows = matrix_rows(graph)
+    output = BytesIO()
+    document = SimpleDocTemplate(output, pagesize=landscape(A3), leftMargin=30,
+        rightMargin=30, topMargin=30, bottomMargin=36, title='Passive_Fire_Matrix',
+        author='CEASEFIRE ESTIMATOR', invariant=True)
+    cell_style = ParagraphStyle('MatrixCell', fontName='Helvetica', fontSize=8, leading=10)
+    header_style = ParagraphStyle('MatrixHeader', parent=cell_style, fontName='Helvetica-Bold', textColor=colors.white)
+    def cell(value, heading=False):
+        text = re.sub(r'\s+', ' ', str(value if value is not None else '')).strip()
+        style = header_style if heading else cell_style
+        if len(text) > 1000 and not heading:
+            style = ParagraphStyle('MatrixLongCell', parent=cell_style, fontSize=6, leading=8)
+        return Paragraph(escape(text), style)
+    table = LongTable([[cell(value, True) for value in MATRIX_HEADERS]] +
+                      [[cell(value) for value in row] for row in rows],
+                      colWidths=[65,65,65,125,65,125,85,120,155,90,100], repeatRows=1)
+    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#841824')),
+        ('GRID',(0,0),(-1,-1),.35,colors.HexColor('#D4C8CA')),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),6),
+        ('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),7),
+        ('BOTTOMPADDING',(0,0),(-1,-1),7),
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F8F5F5')])]))
+    title = Paragraph('Passive_Fire_Matrix', ParagraphStyle('MatrixTitle',fontName='Helvetica-Bold',fontSize=18,leading=22))
+    def footer(canvas, doc):
+        canvas.saveState(); canvas.setFont('Helvetica',7)
+        canvas.setFillColor(colors.HexColor('#63575B'))
+        canvas.drawString(30,18,f"UNAPPROVED DRAFT | {('Service Plans' if graph['version'] == 3 else 'Defect Reports')} | Physical revision {graph['revision']}")
+        canvas.drawRightString(doc.pagesize[0]-30,18,f'Page {doc.page}')
+        canvas.restoreState()
+    document.build([title,Spacer(1,12),table],onFirstPage=footer,onLaterPages=footer)
+    return output.getvalue(), 'application/pdf', 'Passive_Fire_Matrix.pdf'
+
+
 def export_physical_graph(graph, format, source_names=None):
     """Return bytes, MIME and filename for a draft-only diagnostic register.
 
@@ -218,9 +315,11 @@ def export_physical_graph(graph, format, source_names=None):
     Source names are optional unverified display labels, never file paths to
     read. There is deliberately no approved/export-with-lock switch.
     """
-    if not isinstance(format, str) or format not in ('csv', 'xlsx'):
-        raise ValidationError('Choose CSV or XLSX draft physical export.')
+    if not isinstance(format, str) or format not in ('csv', 'xlsx', 'pdf'):
+        raise ValidationError('Choose CSV, XLSX or the matrix PDF draft physical export.')
     graph = validate_graph(graph)
+    if format == 'pdf':
+        return export_matrix_pdf(graph)
     current = graph['version'] in (2, 3)
     common_headers = {1: COMMON_HEADERS, 2: V2_COMMON_HEADERS, 3: V3_COMMON_HEADERS}[graph['version']]
     details_headers = DETAIL_HEADERS + (('marker_json',) if graph['version'] == 3 or any('marker' in entry for entry in graph['barriers']) else ())

@@ -102,7 +102,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Unknown fields stay absent and service quantity never receives a fallback',()=>{
     assert.deepEqual(physical.fieldsFromValues('barrier',{location:' L02 ',notes:''}),{location:'L02'});
     for(const invalid of ['',null,undefined,0,-1,1.5,Infinity,'NaN'])assert.throws(()=>physical.fieldValue('service','quantity',invalid),/explicit positive/);
-    assert.equal(physical.fieldValue('service','quantity','2'),2);assert.equal(physical.fieldValue('service','insulation_mm','0'),0);assert.throws(()=>physical.fieldValue('service','width_height_mm','0x10'),/positive/);assert.throws(()=>physical.fieldValue('barrier','frl','120'),/belonging/);
+    assert.equal(physical.fieldValue('service','quantity','2'),2);assert.throws(()=>physical.fieldValue('barrier','frl','120'),/belonging/);
   });
   await check('Combined service dimensions are strict, atomic and preserve untouched partial legacy dimensions',()=>{
     for(const [text,width_mm,height_mm] of [['100x200',100,200],[' .5 X 20.25 ',.5,20.25],['30 × 40',30,40]])assert.deepEqual(physical.parseDimensions(text),{width_mm,height_mm});
@@ -112,9 +112,6 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.equal(physical.formatDimensions(entry.entity.fields),'100 x ');
     const retained=physical.fieldsFromValues('service',{service:'Mechanical',width_height_mm:'100 x ',diameter_mm:'25',notes:'New note'},entry.entity.fields);
     assert.deepEqual(retained,{...entry.entity.fields,notes:'New note'});
-    assert.throws(()=>physical.changedFields(entry,'width_height_mm','200x'),/Width x Height/);assert.deepEqual(entry,before);
-    assert.deepEqual(physical.changedFields(entry,'width_height_mm','200x300').fields,{...entry.entity.fields,width_mm:200,height_mm:300});
-    const cleared=physical.changedFields(entry,'width_height_mm','').fields;assert.equal(cleared.width_mm,undefined);assert.equal(cleared.height_mm,undefined);assert.equal(cleared.diameter_mm,25);
     const image={id:uuid(70),occurrence_id:uuid(71),sha256:'a'.repeat(64),document_id:uuid(80),document_sha256:'d'.repeat(64),page:1};
     assert.deepEqual(physical.imageEvidence(image,'Dimensions shown','width_height_mm').fields,['width_mm','height_mm']);
   });
@@ -125,11 +122,16 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     h.input('Notes').value='Retain prior choice';h.input('Notes').emit('input');await h.controller.completePendingEdits();assert.equal(h.current.physical.defects[0].fields.frl,' Historic FRL ');
     h.answers.push({field:'frl'},{value:'-/90/90'});await h.click('Bulk edit same-type records');assert.deepEqual(definitionOptions(h.calls.asks.at(-1).definitions[0]),[...fieldChoices.frl,' Historic FRL ']);assert.equal(h.current.physical.defects[0].fields.frl,'-/90/90');h.controller.destroy();
   });
-  await check('Service creation and inspector expose one combined dimension field and Overall Diameter',async()=>{
-    const h=component();await flush();h.answers.push({service:'Mechanical',service_type:'Copper pipe',width_height_mm:'120x80.5',diameter_mm:'25',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service to B-0001');
-    const fields=h.calls.asks[0].definitions;assert.equal(fields.find(([key])=>key==='width_height_mm')[1],'Width x Height (mm)');assert.equal(fields.find(([key])=>key==='diameter_mm')[1],'Overall Diameter (mm)');assert.ok(!fields.some(([key])=>['width_mm','height_mm'].includes(key)));
-    const created=h.calls.previews[0][0].entity;assert.equal(created.fields.width_mm,120);assert.equal(created.fields.height_mm,80.5);assert.equal(created.fields.width_height_mm,undefined);assert.equal(created.fields.diameter_mm,25);
-    assert.equal(h.input('Width x Height (mm)').value,'120 x 80.5');assert.equal(h.input('Overall Diameter (mm)').value,25);h.controller.destroy();
+  await check('Service form keeps Size and hides obsolete dimensions without changing retained data',async()=>{
+    const h=component();await flush();await h.select(5);
+    const before=copy(h.current.physical.services[0]);
+    for(const label of ['Width x Height (mm)','Overall Diameter (mm)','Insulation (mm)'])assert.ok(!h.all().some(node=>node.attributes['aria-label']===label));
+    h.input('Notes').value='New note';h.input('Notes').emit('input');await h.controller.completePendingEdits();
+    for(const key of ['width_mm','height_mm','diameter_mm','insulation_mm'])assert.deepEqual(h.current.physical.services[0].fields[key],before.fields[key]);
+    h.answers.push({service:'Mechanical',service_type:'Copper pipe',size:'25',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service to B-0001');
+    const fields=h.calls.asks.at(-1).definitions;assert.ok(fields.some(([key])=>key==='size'));
+    assert.ok(!fields.some(([key])=>['width_height_mm','width_mm','height_mm','diameter_mm','insulation_mm'].includes(key)));
+    assert.equal(h.calls.previews.at(-1)[0].entity.fields.size,'25');h.controller.destroy();
   });
   await check('Register actions use compact accessible icons and Add defect follows the table before pagination',async()=>{
     const h=component(graph(),{history:async()=>{throw new Error('Removed history must not run');}});await flush();
@@ -171,9 +173,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const complete=[index.get(uuid(1)),...leaves];assert.deepEqual(physical.deletionPlan(complete,index).commands,[{op:'delete',entity_id:uuid(1),cascade:true}]);assert.deepEqual(physical.deletionPlan(complete.slice(0,-1),index).additional.map(entry=>entry.entity.id),[uuid(200)]);assert.deepEqual(physical.deletionPlan(complete.slice(0,-1),index).commands,[]);
   });
   await check('Save completion validates and automatically applies pending inspector values',async()=>{
-    const h=component();await flush();await h.select(5);const size=h.input('Width x Height (mm)'),notes=h.input('Notes');size.value='100x';size.emit('input');notes.value='Keep pending note';notes.emit('input');
-    await assert.rejects(h.controller.completePendingEdits(),/Width x Height/);assert.equal(h.calls.previews.length,0);assert.equal(size.value,'100x');assert.equal(notes.value,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),true);
-    size.value='100x200';size.emit('input');await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.current.physical.services[0].fields.width_mm,100);assert.equal(h.current.physical.services[0].fields.height_mm,200);assert.equal(h.current.physical.services[0].fields.notes,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
+    const h=component();await flush();await h.select(5);const size=h.input('Explicit service quantity'),notes=h.input('Notes');size.value='-1';size.emit('input');notes.value='Keep pending note';notes.emit('input');
+    await assert.rejects(h.controller.completePendingEdits(),/quantity/i);assert.equal(h.calls.previews.length,0);assert.equal(size.value,'-1');assert.equal(notes.value,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),true);
+    size.value='2';size.emit('input');await h.controller.completePendingEdits();assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,0);assert.equal(h.current.physical.services[0].quantity,2);assert.equal(h.current.physical.services[0].fields.notes,'Keep pending note');assert.equal(h.controller.hasUnfinishedChanges(),false);h.controller.destroy();
   });
   await check('Routine inspector and table edits need no confirmation while failed validation preserves unfinished input',async()=>{
     for(const mode of ['inspector','table']){
@@ -507,9 +509,9 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.current.physical.barriers[0].fields.notes,'Saved while validation is running');assert.deepEqual(h.controller.selection(),[uuid(4)]);h.controller.destroy();
   });
   await check('Invalid automatic input and preview outages preserve input until corrected or discarded',async()=>{
-    const h=component();await flush();await h.controller.select(uuid(5));const dimensions=h.input('Width x Height (mm)');dimensions.value='100x';dimensions.emit('input');dimensions.emit('change');await flush();
-    assert.equal(h.calls.previews.length,0);assert.equal(dimensions.value,'100x');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.ok(h.calls.notifications.at(-1).text.includes('Width x Height'));
-    dimensions.value='100x200';dimensions.emit('input');dimensions.emit('change');await flush();assert.equal(h.current.physical.services[0].fields.height_mm,200);assert.equal(h.controller.hasUnfinishedChanges(),false);
+    const h=component();await flush();await h.controller.select(uuid(5));const dimensions=h.input('Explicit service quantity');dimensions.value='-1';dimensions.emit('input');dimensions.emit('change');await flush();
+    assert.equal(h.calls.previews.length,0);assert.equal(dimensions.value,'-1');assert.equal(h.controller.hasUnfinishedChanges(),true);assert.ok(/quantity/i.test(h.calls.notifications.at(-1).text));
+    dimensions.value='2';dimensions.emit('input');dimensions.emit('change');await flush();assert.equal(h.current.physical.services[0].quantity,2);assert.equal(h.controller.hasUnfinishedChanges(),false);
     h.bridge.preview=async()=>{throw new Error('Validation temporarily unavailable');};const notes=h.input('Notes');notes.value='Retain this unsent edit';notes.emit('input');notes.emit('change');await flush();
     assert.equal(notes.value,'Retain this unsent edit');assert.equal(notes.disabled,false);assert.equal(h.controller.hasUnfinishedChanges(),true);await h.click('Discard unfinished physical edits');assert.equal(h.controller.hasUnfinishedChanges(),false);assert.equal(h.current.physical.services[0].fields.notes,undefined);h.controller.destroy();
   });

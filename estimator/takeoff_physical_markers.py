@@ -7,8 +7,22 @@ from .takeoff_physical_operations import current_graph
 
 
 def _line(values):
-    return ' | '.join(re.sub(r'[\r\n\t]+', ' ', str(value)) for value in values
+    return ' · '.join(re.sub(r'[\r\n\t]+', ' ', str(value)) for value in values
                       if value is not None and value != '')
+
+
+def _number(value):
+    """Browser Number text without rounding the recorded measurement."""
+    from decimal import Decimal
+    if value is None:
+        return ''
+    if isinstance(value, (int, float)):
+        if value == int(value):
+            return str(int(value))
+        if abs(value) >= 1e-6:
+            return format(Decimal(str(value)), 'f')
+        return re.sub(r'e([+-])0+', r'e\1', str(value))
+    return str(value)
 
 
 def _defect_line(defect):
@@ -20,15 +34,15 @@ def _defect_line(defect):
 def service_summary(service):
     """Keep explicit quantity, category, type and dimensions under their barrier."""
     values = service['fields']
-    detail = [service['display_id'], f"{service['quantity']} x", values.get('label'),
+    detail = [service['display_id'], f"{service['quantity']} ×", values.get('label'),
               values.get('service'), values.get('service_type') or 'Service type not recorded', values.get('size'), values.get('width_height_mm')]
     width, height = values.get('width_mm'), values.get('height_mm')
     if width is not None or height is not None:
-        detail.append(f"{width if width is not None else '?'} x {height if height is not None else '?'} mm")
+        detail.append(f"{_number(width)} x {_number(height)} mm")
     if values.get('diameter_mm') is not None:
-        detail.append(f"Diameter {values['diameter_mm']:g} mm")
+        detail.append(f"Ø {_number(values['diameter_mm'])} mm")
     if values.get('insulation_mm') is not None:
-        detail.append(f"Insulation {values['insulation_mm']:g} mm")
+        detail.append(f"Insulation {_number(values['insulation_mm'])} mm")
     return _line(detail)
 
 
@@ -36,10 +50,11 @@ def _barrier_lines(graph, barrier):
     fields = barrier['fields']
     parts = [barrier['display_id']]
     for key in ('label', 'location', 'barrier_type', 'substrate', 'orientation'):
-        if fields.get(key):
-            parts.append(str(fields[key]))
+        value = fields.get(key) or ('Substrate not recorded' if key == 'substrate' else None)
+        if value:
+            parts.append(str(value))
     if fields.get('thickness_mm') is not None:
-        parts.append(f"{fields['thickness_mm']:g} mm thick")
+        parts.append(f"{_number(fields['thickness_mm'])} mm thick")
     frl = fields.get('frl')
     if graph['version'] == 2:
         defect = next(value for value in graph['defects'] if value['id'] == barrier['defect_id'])
@@ -51,7 +66,7 @@ def _barrier_lines(graph, barrier):
         if service['deleted'] or service['barrier_id'] != barrier['id']:
             continue
         service_lines.append(service_summary(service))
-    return [_line(parts), *(service_lines or ['No services recorded'])]
+    return [_line(parts), *(service_lines or ['0 services'])]
 
 
 def barrier_summary(graph, barrier):
@@ -81,17 +96,30 @@ def defect_summary(graph, defect):
                 if not value['deleted'] and value['defect_id'] == defect['id']]
     details = [line for barrier in barriers for line in _barrier_lines(graph, barrier)]
     if not barriers:
-        details.append('0 substrates | 0 services')
+        details.append('0 substrates · 0 services')
     return [_defect_line(defect), *details]
 
 
 def export_physical_pdf(snapshot, request, documents):
     required = {'expected_revision', 'mode', 'physical_scope', 'document_id', 'item_ids'}
-    object_fields(request, required, 'Penetration drawing export', required)
+    object_fields(request, required | {'rendering'}, 'Penetration drawing export', required)
     graph = current_graph(snapshot, request['physical_scope'])
     if graph['version'] not in (2, 3):
         raise ValidationError('Legacy physical hierarchies cannot have barrier count markers.')
     document, _ = page_metadata(snapshot, request['document_id'], 1)
+    rendering = request.get('rendering', {'zoom': 1, 'rotations': {}})
+    object_fields(rendering, {'zoom', 'rotations'}, 'Physical drawing rendering', {'zoom', 'rotations'})
+    import math
+    zoom = rendering['zoom']
+    if type(zoom) not in (int, float) or not math.isfinite(zoom) or not .05 <= zoom <= 20:
+        raise ValidationError('Physical drawing zoom must be finite and between 0.05 and 20.')
+    rotations = rendering['rotations']
+    valid_pages = {str(index) for index in range(1, len(document['pages']) + 1)}
+    if (not isinstance(rotations, dict) or len(rotations) > len(document['pages'])
+            or any(page not in valid_pages
+                   or type(rotation) is not int or rotation not in (0,90,180,270)
+                   for page, rotation in rotations.items())):
+        raise ValidationError('Physical drawing rotations must identify existing pages and quarter turns.')
     identifiers = request['item_ids']
     callouts = {value['id']: (value, value['marker'], barrier_summary) for value in graph['barriers'] if not value['deleted'] and value.get('marker')}
     if graph['version'] == 2:
@@ -121,4 +149,5 @@ def export_physical_pdf(snapshot, request, documents):
             'confirmed': False})
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, [], {}, {}, {}, documents, project_id=snapshot['project_id'],
-        revision=snapshot['revision'], mode=request['physical_scope'].replace('_', ' '), physical_rows=rows)
+        revision=snapshot['revision'], mode=request['physical_scope'].replace('_', ' '), physical_rows=rows,
+        physical_rendering=rendering)

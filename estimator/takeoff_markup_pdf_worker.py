@@ -233,7 +233,69 @@ def _paint_drawing_legends(pdf, legends, matrix):
         pdf.restoreState()
 
 
-def _paint_markups(pdf, items, matrix, drawing_bounds=None):
+def _physical_lines(summary, width, font_size):
+    """Same word/character wrapping and first-line emphasis as the viewer."""
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    lines = []
+    for paragraph in summary:
+        if not paragraph:
+            continue
+        line = ''; font = 'ExportVera' if lines else 'ExportVeraBold'
+        for word in paragraph.split():
+            candidate = f'{line} {word}' if line else word
+            if line and stringWidth(candidate, font, font_size) > width:
+                lines.append(line); line = ''; font = 'ExportVera'
+            part = ''
+            for character in word:
+                if part and stringWidth(part+character, font, font_size) > width:
+                    if line:
+                        lines.append(line); line = ''
+                    lines.append(part); part = ''
+                part += character
+            line += (' ' if line else '') + part
+        if line:
+            lines.append(line)
+    return lines
+
+
+def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
+    from reportlab.lib.colors import HexColor
+    factor = max(zoom, 1.2)/zoom
+    layout = item.get('callout')
+    style = {'stroke_color':'#696166','fill_color':'#FFFFFF','font_color':'#30282B',
+             'fill_enabled':True,'stroke_width':1,'opacity':.94,
+             **(layout.get('appearance',{}) if layout else {})}
+    if layout:
+        anchor = transform([point[0]+layout['offset'][0],point[1]+layout['offset'][1]],matrix)
+        source_scale = math.hypot(matrix[0],matrix[1])
+        width, height = layout['width']*source_scale, layout['height']*source_scale
+        x,y = anchor[0],anchor[1]-height
+    else:
+        width = 238*factor
+        height = (min(len(_physical_lines(item['physical_summary'],width-12*factor,9*factor)),30)*12+12)*factor
+        left,bottom,right,top = bounds
+        x = max(left,min(center[0]+17*factor,right-width))
+        y = center[1]-18*factor-height if center[1]-18*factor-height >= bottom else min(top-height,center[1]+18*factor)
+    padding = min(6*factor,width/12,height/8)
+    font_size = 9*factor
+    lines = _physical_lines(item['physical_summary'],width-2*padding,font_size)
+    for _ in range(30):
+        if len(lines)*font_size*1.3 <= height-2*padding:
+            break
+        font_size *= .9
+        lines = _physical_lines(item['physical_summary'],width-2*padding,font_size)
+    pdf.setStrokeAlpha(1);pdf.setFillAlpha(1)
+    pdf.setStrokeColor(HexColor(style['stroke_color']));pdf.setLineWidth(style['stroke_width'])
+    pdf.line(center[0],center[1],max(x,min(center[0],x+width)),max(y,min(center[1],y+height)))
+    pdf.setFillColor(HexColor(style['fill_color']));pdf.setFillAlpha(style['opacity'])
+    pdf.roundRect(x,y,width,height,3*factor,stroke=1,fill=int(style['fill_enabled']))
+    pdf.setFillAlpha(1);pdf.setFillColor(HexColor(style['font_color']))
+    for index,line in enumerate(lines):
+        pdf.setFont('ExportVeraBold' if index == 0 else 'ExportVera',font_size)
+        pdf.drawString(x+padding,y+height-padding-font_size-index*font_size*1.3,line)
+
+
+def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
     from reportlab.lib.colors import HexColor
     for item in items:
         geometry, style = item['geometry'], item['appearance']; points = geometry['points']
@@ -249,6 +311,14 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
             pdf.setFillAlpha(style['opacity'])
             for point in points:
                 center = transform(point, matrix)
+                if item['mode'] == 'penetrations' and physical_zoom is not None:
+                    physical_style = {**style,'marker_shape':'circle','marker_size':max(style['marker_size'],8/physical_zoom)}
+                    pdf.saveState()
+                    _paint_physical_callout(pdf,item,point,center,matrix,drawing_bounds,physical_zoom)
+                    pdf.restoreState()
+                    # The viewer paints the point in front of the callout.
+                    _paint_count_marker(pdf,center,physical_style)
+                    continue
                 _paint_count_marker(pdf, center, style)
                 pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
                 if item['mode'] == 'penetrations':
@@ -377,7 +447,8 @@ def render_document(source, spec, output):
     from reportlab.pdfgen import canvas
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.colors import HexColor
-    font_dir = Path(reportlab.__file__).resolve().parent / 'fonts'
+    physical = bool(spec.get('physical_drawing'))
+    font_dir = Path(__file__).resolve().parent.parent / 'static' / 'fonts' if physical else Path(reportlab.__file__).resolve().parent / 'fonts'
     for name, filename in (('ExportVera', 'Vera.ttf'), ('ExportVeraBold', 'VeraBd.ttf')):
         if name not in pdfmetrics.getRegisteredFontNames(): pdfmetrics.registerFont(TTFont(name, str(font_dir / filename)))
     pdfmetrics.registerFontFamily('ExportVera', normal='ExportVera', bold='ExportVeraBold')
@@ -390,8 +461,11 @@ def render_document(source, spec, output):
         if hasattr(annotations, 'get_object'): annotations = annotations.get_object()
         if any(not _invisible_link(annotation) for annotation in annotations):
             raise ValueError('Source annotations or form widgets cannot yet be flattened faithfully. Export a plain drawing PDF; the original is unchanged.')
-        metadata = spec['document']['pages'][index]; _, drawing_width, drawing_height = page_transform(metadata)
-        if not 1 <= drawing_width <= MAX_PAGE_SIDE or not 1 <= drawing_height <= MAX_PAGE_SIDE-800:
+        metadata = dict(spec['document']['pages'][index])
+        if physical:
+            metadata['rotation'] = (metadata['rotation']+spec['physical_rendering']['rotations'].get(str(index+1),0))%360
+        _, drawing_width, drawing_height = page_transform(metadata)
+        if not 1 <= drawing_width <= MAX_PAGE_SIDE or not 1 <= drawing_height <= (MAX_PAGE_SIDE if physical else MAX_PAGE_SIDE-800):
             raise ValueError('This PDF page is outside the supported physical drawing export size.')
         contents = original.get_contents(); count = len(contents.get_data()) if contents is not None else 0
         total_content += count
@@ -399,12 +473,16 @@ def render_document(source, spec, output):
             raise ValueError('Decoded PDF drawing content exceeds the safe export limit.')
         page_items = [item for item in spec['items'] if item['geometry']['page'] == index+1]
         for number, item in enumerate(page_items, 1): item['legend_number'] = number
-        width = max(595, drawing_width); rows = _legend_rows(page_items, width, style)
-        _, heading_height = _filename_heading(spec, width)
-        first_rows, remaining, used = [], list(rows), 95+heading_height
-        while remaining and used + remaining[0][2] <= 380:
-            row = remaining.pop(0); first_rows.append(row); used += row[2]
-        legend_height = max(125, used+15); height = drawing_height + legend_height
+        width = drawing_width if physical else max(595, drawing_width)
+        first_rows, remaining, heading_height, legend_height = [], [], 0, 0
+        if not physical:
+            rows = _legend_rows(page_items,width,style)
+            _,heading_height = _filename_heading(spec,width)
+            remaining,used = list(rows),95+heading_height
+            while remaining and used+remaining[0][2] <= 380:
+                row = remaining.pop(0);first_rows.append(row);used += row[2]
+            legend_height = max(125,used+15)
+        height = drawing_height + legend_height
         matrix, _, _ = page_transform(metadata, legend_height, (width-drawing_width)/2)
         page = writer.add_blank_page(width=width, height=height)
         drawing = copy(original)
@@ -421,10 +499,13 @@ def render_document(source, spec, output):
         overlay = BytesIO(); pdf = canvas.Canvas(overlay, pagesize=(width, height), pageCompression=1, invariant=True)
         drawing_left = (width-drawing_width)/2
         _paint_markups(pdf, page_items, matrix,
-                       (drawing_left, legend_height, drawing_left+drawing_width, height))
+                       (drawing_left, legend_height, drawing_left+drawing_width, height),
+                       spec['physical_rendering']['zoom'] if physical else None)
         _paint_drawing_legends(pdf, [legend for legend in spec.get('drawing_legends', []) if legend['page'] == index+1], matrix)
-        _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
-        pdf.save(); overlay.seek(0); page.merge_page(PdfReader(overlay).pages[0])
+        if not physical:
+            _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
+        # Blank physical pages still need one overlay page after legends are removed.
+        pdf.showPage(); pdf.save(); overlay.seek(0); page.merge_page(PdfReader(overlay).pages[0])
         page.compress_content_streams(level=9)
         while remaining:
             group, used = [], 95+heading_height

@@ -109,13 +109,13 @@ class DefectCalloutModelTests(unittest.TestCase):
     def test_summary_uses_only_explicit_defect_facts_and_active_linked_values(self):
         graph = self.graph()
         self.assertEqual(defect_summary(graph, graph['defects'][0]), [
-            'D-0001 | Observed defect | L01 | FRL -/60/60',
-            'B-0001 | Concrete | FRL -/60/60', 'S-0001 | 7 x | Pipe | Copper pipe'])
-        self.assertIn('7 x', '\n'.join(defect_summary(graph, graph['defects'][0])))
+            'D-0001 · Observed defect · L01 · FRL -/60/60',
+            'B-0001 · Concrete · FRL -/60/60', 'S-0001 · 7 × · Pipe · Copper pipe'])
+        self.assertIn('7 ×', '\n'.join(defect_summary(graph, graph['defects'][0])))
         graph['defects'][0]['fields'].pop('frl'); graph['barriers'][0]['fields']['frl'] = 'custom child rating'
         self.assertNotIn('FRL', '\n'.join(defect_summary(graph, graph['defects'][0])))
         graph['services'][0]['deleted'] = True
-        self.assertEqual(defect_summary(graph, graph['defects'][0])[-1], 'No services recorded')
+        self.assertEqual(defect_summary(graph, graph['defects'][0])[-1], '0 services')
         self.assertEqual(entity_references(graph['defects'][0]), [self.evidence, self.annotation])
 
     def test_summary_retains_every_explicit_member_parent_and_collection_order(self):
@@ -137,21 +137,21 @@ class DefectCalloutModelTests(unittest.TestCase):
         graph['services'][:2] = reversed(graph['services'][:2])
         before = deepcopy(graph)
         lines = defect_summary(graph, graph['defects'][0])
-        self.assertEqual([line.split(' | ')[0] for line in lines], ['D-0001', 'B-0002', 'S-0002', 'B-0001', 'S-0001', 'B-0003', 'S-0003', 'B-0004', 'S-0004'])
+        self.assertEqual([line.split(' · ')[0] for line in lines], ['D-0001', 'B-0002', 'S-0002', 'B-0001', 'S-0001', 'B-0003', 'S-0003', 'B-0004', 'S-0004'])
         self.assertIn('Masonry', lines[1]); self.assertIn('Cable bundle', lines[2]); self.assertIn('Copper pipe', lines[4]); self.assertIn('Service type not recorded', lines[-1])
         self.assertTrue(all('B-' not in line for line in lines if line.startswith('S-')))
         self.assertEqual(graph, before)
         graph['services'][0]['fields']['service_type'] = 'Updated\nservice\ttype'
-        self.assertTrue(any(line.startswith('S-0002 | 1 x') and 'Updated service type' in line for line in defect_summary(graph, graph['defects'][0])))
+        self.assertTrue(any(line.startswith('S-0002 · 1 ×') and 'Updated service type' in line for line in defect_summary(graph, graph['defects'][0])))
 
     def test_deleted_barrier_children_and_category_do_not_supply_defect_values(self):
         graph = self.graph()
         graph = v2.apply(graph, {'op': 'delete', 'entity_id': self.barrier['entity']['id'], 'cascade': True})
         self.assertEqual(defect_summary(graph, graph['defects'][0]), [
-            'D-0001 | Observed defect | L01 | FRL -/60/60', '0 substrates | 0 services'])
+            'D-0001 · Observed defect · L01 · FRL -/60/60', '0 substrates · 0 services'])
         graph = self.graph(); graph['services'][0]['fields'].pop('service_type')
         self.assertEqual(defect_summary(graph, graph['defects'][0])[-1],
-                         'S-0001 | 7 x | Pipe | Service type not recorded')
+                         'S-0001 · 7 × · Pipe · Service type not recorded')
 
     def test_csv_xlsx_retain_separate_annotation_bytes_without_new_evidence_rows(self):
         graph = self.graph(); before = deepcopy(graph)
@@ -199,9 +199,9 @@ class DefectCalloutProjectTests(unittest.TestCase):
             'expected_revision': case.session['revision'], 'mode': 'penetrations', 'physical_scope': 'defect_reports',
             'document_id': self.doc['id'], 'item_ids': [self.defect['entity']['id']]})
         self.assertEqual(mime, 'application/pdf')
-        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+        text = ' '.join(' '.join(page.extract_text().split()) for page in PdfReader(BytesIO(payload)).pages)
         for expected in ('B-0001', 'Concrete wall', 'B-0002', 'Masonry wall',
-                         'S-0001 | 1 x | Copper pipe', 'S-0002 | 1 x | Cable bundle'):
+                         'S-0001 · 1 × · Copper pipe', 'S-0002 · 1 × · Cable bundle'):
             self.assertIn(expected, text)
         self.assertNotIn('Unrelated substrate', text); self.assertNotIn('Unrelated service', text)
         self.assertNotIn('more services', text)
@@ -214,8 +214,8 @@ class DefectCalloutProjectTests(unittest.TestCase):
         payload, mime, _ = case.service.export_workspace(case.session['session_id'], 'marked-pdf', {
             'expected_revision': case.session['revision'], 'mode': 'penetrations', 'physical_scope': 'defect_reports',
             'document_id': self.doc['id'], 'item_ids': [self.defect['entity']['id']]})
-        self.assertEqual(mime, 'application/pdf'); text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
-        for expected in ('D-0001', 'Defect source', 'Level 1', 'FRL -/60/60', '0 substrates', '0 services', 'Unapproved draft'):
+        self.assertEqual(mime, 'application/pdf'); text = ' '.join(' '.join(page.extract_text().split()) for page in PdfReader(BytesIO(payload)).pages)
+        for expected in ('D-0001', 'Defect source', 'Level 1', 'FRL -/60/60', '0 substrates', '0 services'):
             self.assertIn(expected, text)
         self.assertEqual(case.documents.document_path(self.doc).read_bytes(), source)
         self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)

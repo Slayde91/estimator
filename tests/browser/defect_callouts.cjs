@@ -66,13 +66,14 @@ async function textFits() {
   await expect(page.locator('.takeoff-overlay .takeoff-label')).toHaveCount(0); evidence.initialFrame = await textFits();
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await expect(details()).not.toBeVisible(); await fit();
   await callout().press('Enter'); await expect(details()).not.toBeVisible(); await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
-  await marker().press('Enter'); await expect(details()).toBeVisible(); await callout().press(' '); await expect(details()).toBeVisible(); await marker().press('Enter'); await expect(details()).not.toBeVisible(); await fit();
-  evidence.calloutSelectsMarkerTogglesDetails = true;
+  await marker().press('Enter'); await expect(details()).toBeVisible(); await callout().press(' '); await expect(details()).toBeVisible(); await marker().press('Control+Enter'); await expect(details()).not.toBeVisible(); await fit();
+  evidence.calloutSelectsMarkerKeyboardOpensModifierDeselects = true;
   await callout().press('Enter'); const firstPoint = structuredClone((await snapshot()).physical.defects[0].annotation.point);
   await drag(callout(), 24, 18); await expect(details()).not.toBeVisible(); assert.deepEqual(current.physical.defects[0].annotation.point, firstPoint); assert.ok(current.physical.defects[0].annotation.callout);
   const moved = structuredClone(current.physical.defects[0].annotation.callout); evidence.resizes = [];
   for (const corner of ['nw', 'ne', 'sw', 'se']) { await drag(page.locator(`.takeoff-physical-callout-handle[data-corner="${corner}"]`), corner.includes('w') ? -8 : 8, corner.includes('n') ? -6 : 6); assert.deepEqual(current.physical.defects[0].annotation.point, firstPoint); evidence.resizes.push({ corner, layout: structuredClone(current.physical.defects[0].annotation.callout), text: await textFits() }); }
-  assert.notDeepEqual(current.physical.defects[0].annotation.callout, moved); await drag(marker(), 18, 14); await expect(details()).toBeVisible(); assert.notDeepEqual(current.physical.defects[0].annotation.point, firstPoint);
+  assert.notDeepEqual(current.physical.defects[0].annotation.callout, moved); await drag(marker(), 18, 14); await expect(details()).not.toBeVisible(); assert.notDeepEqual(current.physical.defects[0].annotation.point, firstPoint);
+  await page.waitForTimeout(550); await marker().dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   assert.deepEqual(current.physical.defects[0].evidence, original.evidence); assert.deepEqual(current.physical.defects[0].fields, original.fields); assert.equal(current.physical.barriers.length, 0); assert.equal(current.physical.services.length, 0); evidence.markerMovePreservesEvidence = true;
   await details().getByLabel('Defect Ref.', { exact: true }).fill('UPDATED-FRAMED-DEFECT'); await details().getByLabel('Defect Ref.', { exact: true }).press('Tab'); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await snapshot(); await textFits();
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); const savedGraph = structuredClone((await snapshot()).physical);
@@ -82,6 +83,19 @@ async function textFits() {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.getByRole('tab', { name: 'PENETRATIONS', exact: true }).click(); assert.deepEqual((await snapshot()).physical, savedGraph); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3); await fit(); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await textFits(); evidence.saveReopenAndPdf = true;
   for (const width of [1146, 764]) { await page.setViewportSize({ width, height: 900 }); await fit(); await callout().scrollIntoViewIfNeeded(); await textFits(); await page.screenshot({ path: path.join(output, `defect-callout-${width}.png`) }); }
+  await page.setViewportSize({ width: 1146, height: 900 }); await fit(); await page.waitForTimeout(550); await marker().dblclick({ delay: 100 }); await expect(details()).toBeVisible();
+  const annotationBeforeLinks = structuredClone((await snapshot()).physical.defects[0].annotation);
+  await page.locator(`tr[data-physical-id="${id}"]`).getByRole('button', { name: 'Add barrier to D-0001', exact: true }).click();
+  const barrier = await response(() => dialog('Create draft barrier', { Substrate: 'Concrete/masonry wall' }, 'Preview new draft'), '/physical/preview');
+  await response(() => dialog('Create one draft barrier?', {}, 'Apply draft change'), '/physical/apply');
+  await details().getByRole('button', { name: 'Add service in Item Details', exact: true }).click();
+  const service = await response(() => dialog('Create draft service', { Category: 'Mechanical', 'Service type': 'Copper Pipes', 'Explicit service quantity': 2 }, 'Preview new draft'), '/physical/preview');
+  await response(() => dialog('Create one draft service?', {}, 'Apply draft change'), '/physical/apply');
+  await snapshot(); for (const value of ['B-0001 · Concrete/masonry wall', 'S-0001 · B-0001 · Copper Pipes']) await expect(callout()).toContainText(value);
+  assert.equal(current.physical.barriers.find(value => value.id === barrier.changed_ids[0]).defect_id, id);
+  assert.equal(current.physical.services.find(value => value.id === service.changed_ids[0]).barrier_id, barrier.changed_ids[0]);
+  assert.equal(current.physical.services[0].quantity, 2); assert.deepEqual(current.physical.defects[0].annotation, annotationBeforeLinks);
+  await textFits(); await page.screenshot({ path: path.join(output, 'defect-linked-values.png') }); evidence.linkedValuesDisplayed = true;
   assert.equal(hash(info.fixture), sourceHash); assert.deepEqual(errors, []); evidence.annotation = savedGraph.defects[0].annotation; evidence.sourceUnchanged = true;
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, disposablePort: info.port, evidence, requests, errors }, null, 2)); console.log(`Defect callout acceptance passed: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-2500)); if (page) { await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); } fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: false, evidence, requests, errors, error: String(error) }, null, 2)); process.exitCode = 1; }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); await browser?.close(); server.kill(); });

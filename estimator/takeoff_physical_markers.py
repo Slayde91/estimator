@@ -1,4 +1,6 @@
 """Derived draft callouts with independent source annotations and quantities."""
+import re
+
 from .catalog import ValidationError
 from .takeoff_model import object_fields, points, page_metadata
 from .takeoff_physical_operations import current_graph
@@ -54,16 +56,29 @@ def defect_annotation(defect, document_id):
 
 
 def defect_summary(graph, defect):
-    """Only explicit defect facts and counts of current related records."""
+    """Describe every current explicit substrate/type link without inference."""
+    def line(values):
+        return ' | '.join(re.sub(r'[\r\n\t]+', ' ', str(value)) for value in values)
+
     fields = defect['fields']; parts = [defect['display_id']]
     parts.extend(str(fields[key]) for key in ('label', 'location') if fields.get(key))
     if fields.get('frl'):
         parts.append('FRL ' + fields['frl'])
-    barriers = {value['id'] for value in graph['barriers']
-                if not value['deleted'] and value['defect_id'] == defect['id']}
+    barriers = [value for value in graph['barriers']
+                if not value['deleted'] and value['defect_id'] == defect['id']]
+    barrier_ids = {value['id']: value['display_id'] for value in barriers}
     services = [value for value in graph['services']
-                if not value['deleted'] and value['barrier_id'] in barriers]
-    return [' | '.join(parts), f'{len(barriers)} substrates | {len(services)} services']
+                if not value['deleted'] and value['barrier_id'] in barrier_ids]
+    details = [line([value['display_id'], value['fields'].get('substrate') or 'Substrate not recorded'])
+               for value in barriers]
+    details.extend(line([value['display_id'], barrier_ids[value['barrier_id']],
+                         value['fields'].get('service_type') or 'Service type not recorded'])
+                   for value in services)
+    if not barriers:
+        details.append('0 substrates | 0 services')
+    elif not services:
+        details.append('0 services')
+    return [line(parts), *details]
 
 
 def export_physical_pdf(snapshot, request, documents):
@@ -96,6 +111,7 @@ def export_physical_pdf(snapshot, request, documents):
             'appearance': {'stroke_color': '#C00000', 'fill_color': '#C00000', 'fill_enabled': True,
                            'stroke_width': 2, 'opacity': 1, 'marker_shape': 'circle', 'marker_size': 12},
             'mark': entity['display_id'], 'physical_summary': summary(graph, entity),
+            'physical_summary_kind': 'defect' if summary is defect_summary else 'barrier',
             'callout': marker.get('callout'),
             'confirmed': False})
     from .takeoff_markup_pdf import export_marked_pdf

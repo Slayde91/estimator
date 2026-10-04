@@ -112,7 +112,7 @@ async function layout(width) {
   assert.equal(state.physical.barriers.at(-1).defect_id, otherDefect); await place(newBarrier, [500, 300], true);
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-B');
   const newService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 4 }, () => row(newBarrier).getByRole('button', { name: /^Add service to / }).click()); assert.equal(state.physical.services.at(-1).barrier_id, newBarrier);
-  await marker(barrier).click(); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
+  await marker(barrier).dblclick({ delay: 100 }); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
   const navigation = details().getByRole('table', { name: 'Item Details navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('columnheader').allTextContents(), ['Defect', 'Barrier', 'Service']);
   for (const [kind, expected] of [['Defect', [defect, otherDefect]], ['Barrier', [barrier, otherBarrier, newBarrier]], ['Service', [service, otherService, newService]]]) assert.deepEqual(await navigation.getByLabel(`${kind} ID in Item Details`, { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), expected);

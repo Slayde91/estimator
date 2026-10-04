@@ -29,9 +29,10 @@ a{color:inherit}
 .brand-stack .status-label.unsaved{background:#fff1bf;color:#775300}
 .brand-logo{display:block;width:200px;max-width:100%;height:auto}
 .header-navigation{min-width:0;max-width:100%;width:fit-content}
-.header-tagline{display:grid;contain:inline-size;min-width:0;margin:8px 6px 0;font-size:12px;line-height:1.5;font-style:italic;color:var(--muted);overflow-wrap:anywhere}
+.header-tagline{display:grid;contain:inline-size;min-width:0;margin:8px 6px 0;font-size:12px;line-height:1.5;font-style:italic;text-align:center;color:var(--muted);overflow-wrap:anywhere}
 .header-tagline-sizer,.header-tagline-visual{grid-area:1/1}
-.header-tagline-sizer{visibility:hidden}
+.header-tagline-sizer{visibility:hidden;display:grid}
+.header-tagline-sizer>span{grid-area:1/1}
 .header-tagline-cursor{animation:header-tagline-blink 1s step-end infinite}
 @keyframes header-tagline-blink{50%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.header-tagline-cursor{animation:none}}

@@ -108,7 +108,9 @@ async function selectDrawingBehavior(scope, barrier, defect) {
     await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
   }
   await page.getByRole('button', { name: 'Resize callout se', exact: true }).click(); await expect(details()).not.toBeVisible();
-  await marker(barrier).click(); await expect(details()).toBeVisible();
+  await marker(barrier).click(); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.takeoff-physical-selection')).toHaveCount(1);
+  await marker(barrier).dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   if (defect) await expect(details().getByLabel('Defect ID in Item Details', { exact: true })).toHaveValue(defect);
   for (const input of ['pointer', 'Enter', ' ']) {
     if (input === 'pointer') await frame(barrier).click(); else await callout(barrier).press(input);
@@ -117,16 +119,17 @@ async function selectDrawingBehavior(scope, barrier, defect) {
   await callout(barrier).press('Control+Enter'); await expect(details()).toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'false');
   await callout(barrier).press('Enter'); await expect(details()).toBeVisible(); await expect(callout(barrier)).toHaveAttribute('aria-pressed', 'true');
   await page.screenshot({ path: path.join(output, `${scope}-callout-selected-pane-open.png`), fullPage: true });
-  await marker(barrier).click(); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
+  await marker(barrier).click({ modifiers: ['Control'] }); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
   await marker(barrier).press('Enter'); await expect(details()).toBeVisible();
-  await marker(barrier).press(' '); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
+  await marker(barrier).press(' '); await expect(details()).toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
+  await marker(barrier).press('Control+Space'); await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
   await marker(barrier).press('Enter'); await expect(details()).toBeVisible();
   // The existing post-drag guard ignores pointer-release echo clicks for500ms;
   // keyboard actions above are intentionally exercised inside that interval.
   await page.waitForTimeout(550);
   await page.mouse.click(...await drawingPoint(scope === 'service_plans' ? [80, 470] : [550, 500], scope === 'service_plans' ? 3 : 1));
   await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
-  (evidence.selection ||= []).push({ scope, calloutPointerAndKeyboardPreservePane: true, calloutModifierDeselectionPreservesOpenPane: true, resizeHandleClickPreservesClosedPane: true, markerPointerAndKeyboardTogglePane: true, blankPageClearsSelection: true });
+  (evidence.selection ||= []).push({ scope, calloutPointerAndKeyboardPreservePane: true, calloutModifierDeselectionPreservesOpenPane: true, resizeHandleClickPreservesClosedPane: true, markerSingleSelectsDoubleOpens: true, selectedMarkerHalo: true, keyboardOpensModifierDeselects: true, blankPageClearsSelection: true });
 }
 async function compareAddServiceStyle(scope) {
   await page.mouse.move(0, 0);
@@ -298,7 +301,7 @@ let currentScope = 'defect_reports';
     assert.equal(placed.page, pageNumber); assert.equal(placed.document_sha256, sourceBefore);
     await closeDetails(); await fit();
     await response(() => drag(marker(barrier), -18, 14), '/physical/apply'); await snapshot();
-    await expect(details()).toBeVisible();
+    await expect(details()).not.toBeVisible();
     const moved = structuredClone(entity(scope, barrier).marker); assert.notDeepEqual(moved.point, placed.point);
     const withoutPoint = value => { const copy = structuredClone(value); delete copy.point; return copy; };
     assert.deepEqual(withoutPoint(moved), withoutPoint(placed), 'Marker drag changes only its source point'); assert.deepEqual(entity(scope, service), serviceBefore);
@@ -329,7 +332,7 @@ let currentScope = 'defect_reports';
       await fit(); await page.screenshot({ path: path.join(output, `${scope}-${width}-zoom.png`), fullPage: true }); evidence.responsive.push({ scope, width, pageNumber, zoomRetainsMarkerAndCallout: true });
     }
     retained.push({ scope, barrier, service, marker: structuredClone(entity(scope, barrier).marker) });
-    evidence.scopes.push({ scope, barrier, service, defect, pageNumber, automaticEdits: true, markerDragOpensPane: true, calloutDragPreservesClosedPane: true, calloutDrag: layout, corners, measuredText: text, calloutSelectionPreservesPane: true, markerSelectionTogglesPane: true, rapidKeyboardAfterPointer: true });
+    evidence.scopes.push({ scope, barrier, service, defect, pageNumber, automaticEdits: true, markerDragPreservesClosedPane: true, calloutDragPreservesClosedPane: true, calloutDrag: layout, corners, measuredText: text, calloutSelectionPreservesPane: true, markerSingleSelectsDoubleOpens: true, rapidKeyboardAfterPointer: true });
     console.log(`PASS: ${scope} automatic edits, marker/callout drag, four corners, measured text and responsive zoom.`);
   }
   if (layoutReview) {

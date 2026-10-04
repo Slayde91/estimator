@@ -216,7 +216,7 @@ async function controls() {
   const detailBox = await page.locator('.takeoff-physical-details').boundingBox(), drawingBox = await page.locator('.takeoff-viewport').boundingBox();
   assert.ok(detailBox.x + detailBox.width <= drawingBox.x + 2, 'Item Details sits left of the PDF page');
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
-  await marker(barrier).click(); await expect(details()).toBeVisible();
+  await marker(barrier).click(); await expect(details()).toBeHidden(); await marker(barrier).dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeVisible();
   evidence.countPlacement = { marker: originalMarker, derivedCallout: true, noScaleRequired: true, paneOnSelectionAndSettings: true };
@@ -272,7 +272,7 @@ async function controls() {
   assert.deepEqual(state.physical, beforeRoundtrip.physical); assert.deepEqual(state.service_plans, beforeRoundtrip.service_plans);
   assert.deepEqual(saved.takeoffs.physical, beforeRoundtrip.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeRoundtrip.service_plans);
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
-  await expect(marker(barrier)).toBeVisible(); await marker(barrier).click(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/90/90');
+  await expect(marker(barrier)).toBeVisible(); await marker(barrier).dblclick({ delay: 100 }); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/90/90');
   await summaryContains(barrier, '5 ×'); evidence.savedReopenedGraphsAndMarkers = true;
   console.log('Scoped marks and exact Save As / reopen graph preservation passed.');
 
@@ -306,7 +306,7 @@ async function controls() {
   await tab('Service Plans'); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-physical-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'service-plan-register-764.png'), fullPage: true });
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
-  await marker(secondBarrier).click(); await expect(details()).toBeVisible(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60');
+  await marker(secondBarrier).dblclick({ delay: 100 }); await expect(details()).toBeVisible(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60');
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = 0; });
   await page.locator('.takeoff-drawing-layout').evaluate(el => { const header = document.querySelector('header').getBoundingClientRect(); window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12); });
   await page.screenshot({ path: path.join(output, 'service-plan-item-details-764.png') });

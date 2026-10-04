@@ -428,7 +428,10 @@
       if (entry.kind === "defect" && graph().version === 2) {
         const fields = entry.entity.fields, barriers = [...state.index.values()].filter(value => value.kind === "barrier" && !value.entity.deleted && value.entity.defect_id === id), ids = new Set(barriers.map(value => value.entity.id));
         const services = [...state.index.values()].filter(value => value.kind === "service" && !value.entity.deleted && ids.has(value.entity.barrier_id));
-        return [line([displayId(entry), fields.label, fields.location, fields.frl ? `FRL ${fields.frl}` : ""]), `${barriers.length} substrates · ${services.length} services`].join("\n");
+        return [line([displayId(entry), fields.label, fields.location, fields.frl ? `FRL ${fields.frl}` : ""]),
+          ...barriers.map(child => line([displayId(child), child.entity.fields.substrate || "Substrate not recorded"])),
+          ...services.map(child => line([displayId(child), displayId(state.index.get(child.entity.barrier_id)), child.entity.fields.service_type || "Service type not recorded"])),
+          ...(!barriers.length ? ["0 substrates · 0 services"] : !services.length ? ["0 services"] : [])].join("\n");
       }
       const barrier = entry.kind === "barrier" ? entry : ancestors(entry, state.index).find(parent => parent.kind === "barrier"); if (!barrier || barrier.entity.deleted) return "";
       const fields = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? fields.frl : defect?.entity.fields.frl;

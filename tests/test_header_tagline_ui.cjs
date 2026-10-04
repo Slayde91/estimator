@@ -25,7 +25,7 @@ const phrases = [
   "Give me a red bull and a cigarette and I could probably spray that.",
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false } = {}) {
-  const label = { textContent: '' }, sizer = { textContent: '' }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
+  const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
   let current = '', last = previous, nextTimer = 0, preference, pagehide, now = 0;
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
@@ -34,6 +34,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
     document: {
       getElementById(id) { return missing ? null : elements[id]; },
       querySelector(selector) { assert.equal(selector, '#header-tagline .header-tagline-cursor'); return missing || missingCursor ? null : cursor; },
+      createElement(tag) { assert.equal(tag, 'span'); return { textContent: '' }; },
     },
     window: {
       localStorage: {
@@ -70,13 +71,13 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   };
   const finish = () => { finishTyping(); advance(5000); };
   run();
-  return { label, sizer, typed, cursor, frames, timers, writes, run, tick, finishTyping, finish, advance,
+  return { label, sizer, typed, cursor, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
 }
 let passed = 0;
 for (let index = 0; index < phrases.length; index++) {
   const h = harness({ random: (index + .01) / phrases.length }), phrase = phrases[index];
-  assert.equal(h.label.textContent, phrase); assert.equal(h.sizer.textContent, phrase + '_');
+  assert.equal(h.label.textContent, phrase); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
@@ -87,7 +88,7 @@ for (let index = 0; index < phrases.length; index++) {
   const finishedFrames = h.frames.slice();
   h.advance(4999); assert.equal(h.cursor.hidden, false); assert.equal(h.typed.textContent, phrase);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
-  h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.equal(h.sizer.textContent, phrase + '_');
+  h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   passed++;
 }
 {
@@ -111,6 +112,26 @@ for (let index = 0; index < phrases.length; index++) {
   const h = harness({ blocked: true }); h.finish(); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.writes.length, 0); passed++;
 }
 {
+  const h = harness({ blocked: true }); h.tick(); const first = h.label.textContent, reserved = h.sizer.children.slice();
+  h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.timers.size, 1); assert.equal(h.cursor.hidden, false);
+  assert.equal(h.typed.textContent, Array.from(h.label.textContent)[0]); assert.deepEqual(h.sizer.children, reserved);
+  const second = h.label.textContent; h.nextPhrase(); assert.notEqual(h.label.textContent, second);
+  h.finishTyping(); const current = h.label.textContent;
+  h.advance(4999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, false);
+  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
+}
+{
+  const h = harness(); h.finish(); const first = h.label.textContent;
+  h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.cursor.hidden, false);
+  h.finishTyping(); h.advance(4999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true);
+  assert.equal(h.writes.length, 2); passed++;
+}
+{
+  const h = harness({ reduced: true }); h.advance(4000); const first = h.label.textContent;
+  h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.typed.textContent, h.label.textContent);
+  h.advance(4999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true); passed++;
+}
+{
   const h = harness(); h.advance(70); h.changeMotion();
   assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, false);
   assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [5000]);
@@ -127,7 +148,7 @@ for (let index = 0; index < phrases.length; index++) {
 {
   const h = harness(); h.tick(); h.pagehide(); const frames = h.frames.slice();
   assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
-  h.changeMotion(); h.advance(10000); assert.deepEqual(h.frames, frames); assert.equal(h.timers.size, 0); passed++;
+  h.changeMotion(); h.nextPhrase(); h.advance(10000); assert.deepEqual(h.frames, frames); assert.equal(h.timers.size, 0); passed++;
 }
 {
   const h = harness(); h.finishTyping(); h.advance(1000); h.pagehide();
@@ -158,4 +179,4 @@ assert.match(html, /id="header-tagline-sizer"[^>]*aria-hidden="true"/);
 assert.match(html, /class="header-tagline-cursor">_<\/span>/);
 assert.match(fs.readFileSync('static/styles.css', 'utf8'), /\[hidden\]\{display:none!important\}/, 'Expired cursor is hidden by the shared CSS rule');
 assert.ok(!html.match(/id="header-tagline"[^>]*(?:aria-live|role="status")/), 'Typing must not repeatedly announce characters');
-console.log(`Header launch tagline UI checks passed: ${passed}`);
+console.log(`Header navigation tagline UI checks passed: ${passed}`);

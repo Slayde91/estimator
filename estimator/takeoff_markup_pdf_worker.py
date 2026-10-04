@@ -222,7 +222,8 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None):
                     summary = item['physical_summary']
                     labels = [f"{item['legend_number']}. " + line for line in summary[:3]]
                     if len(summary) > 3:
-                        labels.append(f"+ {len(summary)-3} more services (see legend)")
+                        extra = 'linked records' if item.get('physical_summary_kind') == 'defect' else 'services'
+                        labels.append(f"+ {len(summary)-3} more {extra} (see legend)")
                     layout = item.get('callout')
                     if layout:
                         from reportlab.platypus import Paragraph

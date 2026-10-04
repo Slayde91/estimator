@@ -44,6 +44,10 @@ async function click(point, modifiers = []) {
   try { await page.mouse.click(...target); } finally { for (const modifier of modifiers.reverse()) await page.keyboard.up(modifier); }
   await idle();
 }
+async function openDrawingSettings(point) {
+  await page.waitForTimeout(550);
+  await page.mouse.dblclick(...await screen(point)); await idle();
+}
 const body = id => page.locator(`.takeoff-hit[data-item-id="${id}"]`).first();
 async function enterWorkspace(info, calibrate = true) {
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.equal(response.status(), 200); assert.match(response.headers()['content-security-policy'], /script-src 'self'/);
@@ -126,7 +130,8 @@ function watch(current) {
     let oldSecond;
     if (mode === 'steel') oldSecond = await draw(mode, 'steel-OLD', 400); else assert.deepEqual(first.appearance, desired);
     if (await panel().isVisible()) await panel().getByRole('button', { name: 'Close settings', exact: true }).click();
-    await click(bodyPoint); await expect(panel()).toBeVisible(); await expect(body(first.id)).toHaveAttribute('aria-pressed', 'true');
+    await click(bodyPoint); await expect(panel()).toBeHidden(); await expect(body(first.id)).toHaveAttribute('aria-pressed', 'true');
+    await openDrawingSettings(bodyPoint); await expect(panel()).toBeVisible();
     await panel().getByRole('button', { name: 'Close settings', exact: true }).click(); await expect(panel()).toBeHidden();
     await page.waitForTimeout(550); const handle = page.locator(`.takeoff-control-point[data-control-item-id="${first.id}"][data-point-index="0"][data-exclusion-id=""]`);
     const beforeHandle = await snapshot(), count = requests.length;
@@ -135,8 +140,8 @@ function watch(current) {
     const moved = await command(async () => { await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(start[0]+12,start[1]-8,{steps:6}); await page.mouse.up(); }, 'update_item');
     await expect(panel()).toBeHidden(); const current = moved.snapshot.items.find(item => item.id === first.id);
     assert.notDeepEqual(current.geometry.points[0], first.geometry.points[0]); assert.deepEqual(current.geometry.points.slice(1),first.geometry.points.slice(1)); assert.deepEqual(current.evidence,first.evidence); assert.equal(current.quantity,first.quantity);
-    // A selected body opens a manually closed pane even after a handle operation.
-    await click(bodyPoint); await expect(panel()).toBeVisible();
+    // A native double click opens a manually closed pane after a handle operation.
+    await openDrawingSettings(bodyPoint); await expect(panel()).toBeVisible();
     // A genuinely immediate blank click joins the pending automatic settings save.
     const blank = await screen([750,500]); await page.waitForTimeout(550);
     await panel().getByLabel('Level', { exact: true }).fill(`${mode}-PENDING`);
@@ -152,7 +157,7 @@ function watch(current) {
       await click([750,500]); await expect(panel()).toBeHidden();
     }
     await page.screenshot({ path:path.join(output,`${mode}-settings-selection.png`) });
-    evidence[mode]={bodyOpens:true,selectedBodyReopensClosedPane:true,controlClickSilent:true,controlDragSilent:true,blankClearsAndHides:true,pendingEditPreserved:true,heldSaveBlankClearsWithoutLoss:true,sourceEvidenceAndQuantityPreserved:true,newAppearance:mode==='steel'?desired:first.appearance};
+    evidence[mode]={singleClickSelectsWithoutOpening:true,nativeDoubleClickOpens:true,selectedBodyDoubleClickReopensClosedPane:true,controlClickSilent:true,controlDragSilent:true,blankClearsAndHides:true,pendingEditPreserved:true,heldSaveBlankClearsWithoutLoss:true,sourceEvidenceAndQuantityPreserved:true,newAppearance:mode==='steel'?desired:first.appearance};
   }
   const counted = await drawCount('DUCT-COUNT-DEFAULT'); assert.deepEqual(counted.appearance,desired); assert.equal(counted.quantity,2);
   await page.locator('[data-mode="wall"]').click(); await page.getByRole('button',{name:'Length',exact:true}).click();
@@ -166,7 +171,7 @@ function watch(current) {
   csp.push(...await page.evaluate(()=>window.qaCsp)); await context.close();
   const blocked=await browser.newContext({viewport:{width:1146,height:900}}); await blocked.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push(event.violatedDirective));Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError');}});});
   page=await blocked.newPage();page.setDefaultTimeout(30000);watch(page);await enterWorkspace(info);
-  await page.locator('[data-mode="duct"]').click();const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{});await click([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,desired);evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
+  await page.locator('[data-mode="duct"]').click();const baseline=await draw('duct','BLOCKED-OLD');assert.deepEqual(baseline.appearance,{});await openDrawingSettings([190,400]);await setDefault();await expect(page.locator('#takeoffs-workspace [role="status"]').filter({hasText:'Browser storage is unavailable'})).toBeVisible();const fallback=await drawCount('BLOCKED-NEW');assert.deepEqual(fallback.appearance,desired);evidence.blockedStorageInWindow=true;csp.push(...await page.evaluate(()=>window.qaCsp));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);
   const runtimeAfter=runtimeHashes();
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,fixturePort:info.port,evidence,errors,csp,requests,savedItems:saved.items,calculatorInputsUnchanged:true,sourceDocumentsAndCalibrationUnchanged:true,runtimeBefore,runtimeAfter,runtimeSourceSha256:runtimeAfter['takeoffs.js'],limits:['Disposable fixture only; no live8765 interaction.','Copied or continued existing groups retain their original style; fresh drawings/counts/cited items use the browser visual preference.']},null,2));

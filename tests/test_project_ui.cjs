@@ -13,8 +13,9 @@ const projectFilename = 'CEASEFIRE-Project.ceasefire-project.json';
 const penetrationHelper = require('./helpers/penetration_ui.cjs');
 const fileResponse = type => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({saved:true,path:`C:/Downloads/report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,filename:`report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,destination:'downloads'}) });
 function definition(id) {
-  return { id, title: titles[ids.indexOf(id)], pages: ['CALCULATOR'], inputs: { CALCULATOR: { A9: 'Local saved value' } },
-    sheets: [{ name: 'CALCULATOR', header_rows: [], hidden_columns: [], merges: [] }], documents: [] };
+  const pages = id === 'steel_vermiculite' ? ['CALCULATOR', 'SCHEDULE'] : ['CALCULATOR'];
+  return { id, title: titles[ids.indexOf(id)], pages, inputs: { CALCULATOR: { A9: 'Local saved value' } },
+    sheets: pages.map(name => ({ name, header_rows: [], hidden_columns: [], merges: [] })), documents: [] };
 }
 function project() {
   return { estimate: { id: null, title: 'Imported project', project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road',

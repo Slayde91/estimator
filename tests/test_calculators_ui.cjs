@@ -405,9 +405,9 @@ let passed = 0;
   const unchangedGrid=byId('calculator-grid').children;await audit.selectPage('CALCULATOR');await audit.selectCalculator('steel_board');
   assert.equal(byId('calculator-grid').children,unchangedGrid);assert.equal(navigationRequests.length,2);passed++;
 
-  // Cached Steel Spray LOOKUP navigation restores its border-removal class every time.
+  // The removed Steel Spray LOOKUP cannot be selected, and its source inputs remain intact.
   entry.definition.id='steel_vermiculite';await audit.selectPage('SETTINGS');assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),false);
-  await audit.selectPage('CALCULATOR');assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),true);entry.definition.id='steel_board';passed++;
+  await audit.selectPage('CALCULATOR');assert.equal(entry.sheet,'SETTINGS');assert.equal(entry.inputs.CALCULATOR.B9,1.23456789123);assert.equal(byId('calculator-grid').classList.contains('calculator-steel-lookup'),false);entry.definition.id='steel_board';await audit.selectPage('CALCULATOR');passed++;
 
   // Explicit recalculate always requests; any sheet's precise edit invalidates dependent pages.
   await audit.calculate();assert.equal(navigationRequests.length,3);
@@ -550,8 +550,7 @@ let passed = 0;
   entry=setup();entry.sheet='START';
   const maintenance='Only START, CALCULATOR and BOARD SUMMARY are visible. Supporting data sheets remain embedded and hidden. Do not delete them. Library edits must also update the generated geometric lookup prefix.';
   const updated=audit.sourceDisplayText(maintenance,entry,'A27');
-  assert.match(updated,/START, CALCULATOR, BOARD SUMMARY, EXTRA BOARDS and SETTINGS/);
-  assert.ok(updated.endsWith('Library edits must also update the generated geometric lookup prefix.'));
+  assert.equal(updated,'Use START, SCHEDULE, BOARD SUMMARY and SETTINGS. Supporting reference data is retained by the application.');
   const optionalDirections='Unhide M:X for advanced inputs. M:Q controls layout, layers, lookup and installation detail. R/S = depth/width; T = area; U = mass; V = INSIDE box girth; W = added girth; X = design reference. AI gives the action directly. AJ:AV retains detailed outputs and notes.';
   assert.equal(audit.sourceDisplayText(optionalDirections,entry,'A26'),'Row status gives the required action. Saved optional inputs, detailed calculation outputs and notes remain part of the workbook rules.');
   entry.definition.id='steel_vermiculite';entry.sheet='CALCULATOR';
@@ -674,24 +673,23 @@ let passed = 0;
   assert.equal(cards[2].children[0].textContent,'Not quantified');assert.equal(cards[2].children[1].textContent,'0.00');
   assert.ok(!descendants(overview).some(node=>node.dataset?.calculatorOutput==='M5'||node.textContent==='Scope blocks'));passed++;
 
-  // Product bag totals are authoritative, preserve withheld blanks and refresh without losing schedule controls.
+  // Product bag totals move to Summary, preserve withheld blanks and retain the schedule draft.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
   entry.definition.sheets=[{name:'SCHEDULE',header_rows:[8],merges:[],hidden_columns:[],schedule_heading:'MEMBER SCHEDULE'}];
   const totalsResult=(net,whole)=>result({}, {sheet:'SCHEDULE',product_totals:[{product:'CAFCO 300',net_bags:net,whole_bags:whole,status:whole==null?'REVIEW YIELD':'QUANTITY COMPLETE'}],
     rows:[{row:4,cells:[{column:1,address:'A4',value:'Spray area'}]},{row:5,cells:[{column:1,address:'A5',value:20}]},{row:9,cells:[{column:2,address:'B9',value:1,editable:true,type:'number'}]}]});
-  entry.result=totalsResult(2.3456789,null);realRender(entry);const bagInput=renderedControls()[0],totalsNode=entry.productTotalsElement;
+  entry.result=totalsResult(2.3456789,null);realRender(entry);assert.equal(entry.productTotalsElement,null);assert.equal(renderedControls().length,1);
+  entry.sheet='BAGS';entry.definition.sheets.push({name:'BAGS',header_rows:[],merges:[]});
+  const summaryTotals=(net,whole)=>({...totalsResult(net,whole),sheet:'BAGS',rows:[],spray_schedule_totals:[{label:'TOTAL ENTERED SPRAY AREA (m²)',value:20}]});
+  entry.result=summaryTotals(2.3456789,null);realRender(entry);const totalsNode=entry.productTotalsElement;
   assert.equal(totalsNode.children[0].textContent,'PRODUCT SUMMARY');
   assert.ok(byId('calculator-grid').children.includes(totalsNode));
-  const memberSection=byId('calculator-grid').children.find(node=>node.className==='calculator-schedule-section');
-  assert.ok(memberSection);assert.equal(memberSection.children[0].textContent,'MEMBER SCHEDULE');assert.ok(descendants(memberSection).includes(bagInput));
-  assert.ok(byId('calculator-grid').children.indexOf(totalsNode)<byId('calculator-grid').children.indexOf(memberSection));
-  const bagOverview=descendants(totalsNode).find(node=>node.className==='calculator-overview');
-  assert.ok(bagOverview);assert.equal(totalsNode.children[1],bagOverview);assert.ok(descendants(bagOverview).some(node=>node.calculatorValueCard));
+  assert.equal(renderedControls().length,0);assert.ok(descendants(totalsNode).some(node=>node.textContent==='TOTAL ENTERED SPRAY AREA (m²)'));
   assert.ok(descendants(byId('calculator-grid')).filter(node=>node.className?.includes('calculator-table-scroll')).every(node=>!node.classList.contains('calculator-section-scroll')));
   const totalRow=()=>descendants(totalsNode).find(node=>node.tagName==='tbody').children[0];
   assert.equal(totalRow().children[1].textContent,'2.35');assert.equal(totalRow().children[2].textContent,'');assert.equal(totalRow().children[3].textContent,'REVIEW YIELD');
-  audit.setRender(realRender);audit.setRequest(async()=>totalsResult(4.56789,6));await audit.calculate();
-  assert.equal(renderedControls()[0],bagInput);assert.equal(entry.productTotalsElement,totalsNode);assert.equal(totalRow().children[1].textContent,'4.57');assert.equal(totalRow().children[2].textContent,'6.00');passed++;
+  audit.setRender(realRender);audit.setRequest(async()=>summaryTotals(4.56789,6));await audit.calculate();
+  assert.equal(entry.productTotalsElement,totalsNode);assert.equal(totalRow().children[1].textContent,'4.57');assert.equal(totalRow().children[2].textContent,'6.00');assert.deepEqual(copy(entry.inputs),{});passed++;
 
   // Decorative gaps disappear while section roles, populated merge widths and values survive.
   entry=setup();entry.definition.schedule.sheet='SCHEDULE';entry.definition.sheets[0].merges=['A1:C1'];
@@ -718,7 +716,7 @@ let passed = 0;
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A6').textContent,'Review the selected construction.');passed++;
 
   // Mobile forms reuse each input once; comparison rows retain real column headers in their own scroll region.
-  for(const [sheet,first,last] of [['CALCULATOR',28,30],['BAGS',19,24]]){
+  for(const [sheet,first,last] of [['CALCULATOR',28,30]]){
     entry=setup();entry.definition.id='steel_vermiculite';entry.definition.schedule.sheet='SCHEDULE';entry.sheet=sheet;
     entry.definition.sheets=[{name:sheet,header_rows:[first],merges:['A1:D1','A6:C6'],hidden_columns:[]}];
     entry.result=result({}, {sheet,max_column:4,visible_columns:[1,2,3,4],rows:[{row:1,cells:[{column:1,address:'A1',value:sheet,presentation:{role:'title'}}]},
@@ -785,7 +783,7 @@ let passed = 0;
   assert.deepEqual(descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow).map(node=>node.dataset.sourceRow),['36']);
   assert.equal(JSON.stringify(entry.result),preservedSource);assert.equal(renderedControls().length,1);passed++;
 
-  // Schedule title prose and V/W/X stay hidden even in a full API result; cards, pooled totals and Y stay visible.
+  // Schedule title prose and V/W/X stay hidden; summary metrics move off Schedule and detailed Y notes remain.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='SCHEDULE';entry.definition.schedule.sheet='SCHEDULE';
   entry.definition.schedule.header_row=9;entry.definition.schedule.first_row=10;
   entry.definition.sheets=[{name:'SCHEDULE',header_rows:[9],merges:[],omitted_rows:[1,2,3,8],omitted_columns:[22,23,24]}];
@@ -798,8 +796,8 @@ let passed = 0;
   realRender(entry);const rendered=descendants(byId('calculator-grid'));
   assert.ok(!rendered.some(node=>/^Removed introductory line|^Hidden source/.test(node.textContent||'')));
   assert.ok(rendered.some(node=>node.dataset?.calculatorOutput==='Y10'));
-  assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement.hidden,false);
-  assert.equal(rendered.filter(node=>node.calculatorValueCard).length,3);
+  assert.equal(renderedControls().length,1);assert.equal(entry.productTotalsElement,null);
+  assert.equal(rendered.filter(node=>node.calculatorValueCard).length,0);
   assert.equal(JSON.stringify(entry.result),fullResult);passed++;
 
   // Settings banners are omitted from display; source titles and other notes remain unchanged.
@@ -822,13 +820,11 @@ let passed = 0;
   const explicitSection=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='A26');
   assert.match(explicitSection.className,/calculator-role-section/);assert.equal(explicitSection.dataset.calculatorValue,undefined);passed++;
 
-  // The BAGS order table uses nine logical columns, fills desktop width and gives status a bounded share.
+  // The removed BAGS order table leaves the manual quantity form and native rows intact.
   entry=setup();entry.definition.id='steel_vermiculite';entry.sheet='BAGS';entry.definition.sheets=[{name:'BAGS',header_rows:[19],merges:['A1:N1']}];
   entry.result=result({}, {sheet:'BAGS',max_column:14,visible_columns:Array.from({length:14},(_,i)=>i+1),rows:[{row:1,cells:[{column:1,address:'A1',value:'Bags'}]},...[19,20,21,22,23,24].map(row=>({row,cells:Array.from({length:9},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:i===8?'Order status':row===19?'Header':0,calculated:row!==19}))}))]});
   realRender(entry);const order=descendants(byId('calculator-grid')).find(node=>node.classList?.contains('calculator-order-table'));
-  assert.equal(order.style.width,'100%');assert.equal(order.children[0].children.length,9);assert.equal(order.children[0].children[8].style.width,'20%');
-  assert.equal(order.children[0].children.reduce((sum,col)=>sum+parseFloat(col.style.width),0),100);
-  assert.equal(order.children.at(-1).children.length,6);
+  assert.equal(order,undefined);assert.equal(entry.result.rows.length,7);assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='A20'));
   const bagsForm=descendants(byId('calculator-grid')).find(node=>node.classList?.contains('calculator-bags-form'));
   assert.equal(bagsForm.style.width,'100%');assert.ok(bagsForm.children[0].children.every(col=>col.style.width.endsWith('%')));
   assert.ok(Math.abs(bagsForm.children[0].children.reduce((sum,col)=>sum+parseFloat(col.style.width),0)-100)<1e-10);passed++;
@@ -992,7 +988,7 @@ let passed = 0;
   const updatedSettings=copy(entry.result);updatedSettings.inputs={SETTINGS:{B12:99.987654}};updatedSettings.rows.find(row=>row.row===12).cells.find(cell=>cell.column===2).value=99.987654;
   audit.setRequest(async()=>updatedSettings);await audit.calculate();assert.equal(renderedControls().find(node=>node.dataset.calculatorCell==='B12'),primaryControl);assert.equal(primaryControl.value,'99.99');assert.equal(entry.inputs.SETTINGS.B12,99.987654);passed++;
 
-  // BOARD SUMMARY hides six purchasing columns while retaining all three cards, warning rows and raw quantities.
+  // BOARD SUMMARY retains purchasing rows and raw quantities without its removed overview.
   entry=setup();entry.sheet='BOARD SUMMARY';entry.definition.sheets=[{name:entry.sheet,header_rows:[11],presentation_tables:[{first_row:11,last_row:29,columns:[1,2,3,4,9,10],column_widths:[240,150,150,150,150,150],label:'Board purchasing totals'}],merges:['A1:L1','A3:L3','A6:C7','E6:G7','I6:L7','A8:L9','A31:L31','A35:L35']}];
   const purchasingHeaders=['Product','Thickness mm','Sheet length mm','Sheet width mm','Box board - net m2','Extra boards - net m2','Net total sqm','With waste sqm','Whole sheets','Purchase sqm','Stock source','Board key'];
   entry.result=result({}, {sheet:entry.sheet,max_column:12,rows:[
@@ -1009,10 +1005,10 @@ let passed = 0;
   const sourceBoardSummary=JSON.stringify(entry.result);
   realRender(entry);audit.setRender(realRender);
   const summaryCards=descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard);
-  assert.equal(summaryCards.length,3);assert.deepEqual(summaryCards.map(node=>node.textContent),['58.48','60.79','27.00']);
+  assert.equal(summaryCards.length,0);
   const boardSummaryOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
-  assert.equal(boardSummaryOverview.classList.contains('calculator-overview-full'),true);assert.equal(boardSummaryOverview.classList.contains('calculator-overview-board'),true);
-  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,1);
+  assert.equal(boardSummaryOverview,undefined);
+  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,0);
   const purchasingTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Board purchasing totals');
   assert.equal(purchasingTable.children[0].children.length,6);
   assert.deepEqual(purchasingTable.children.at(-1).children[0].children.map(node=>node.textContent),[0,1,2,3,8,9].map(index=>purchasingHeaders[index]));
@@ -1021,12 +1017,13 @@ let passed = 0;
     for(const column of ['E','F','G','H','K','L'])assert.ok(!purchasingOutputAddresses.includes(`${column}${row}`));
     for(const column of ['A','B','C','D','I','J'])assert.ok(purchasingOutputAddresses.includes(`${column}${row}`));
   }
-  for(const address of ['A6','E6','I6','A31','A35'])assert.ok(purchasingOutputAddresses.includes(address));
+  for(const address of ['A6','E6','I6'])assert.ok(!purchasingOutputAddresses.includes(address));
+  for(const address of ['A31','A35'])assert.ok(purchasingOutputAddresses.includes(address));
   assert.equal(JSON.stringify(entry.result),sourceBoardSummary);
   for(const row of descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow)) assert.ok(Number(row.dataset.sourceRow)>=11);
   const updatedSummary=copy(entry.result);updatedSummary.rows.find(row=>row.row===6).cells[0].value=0;updatedSummary.rows.find(row=>row.row===8).cells[0].value='No incomplete rows';audit.setRequest(async()=>updatedSummary);await audit.calculate();
-  assert.equal(summaryCards[0].textContent,'0.00');assert.equal(summaryCards[0].calculatorValueCard.classList.contains('calculator-value-present'),true);
-  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='A8').textContent,'No incomplete rows');passed++;
+  assert.equal(descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard).length,0);
+  assert.equal(entry.result.rows.find(row=>row.row===6).cells[0].value,0);assert.equal(entry.result.rows.find(row=>row.row===8).cells[0].value,'No incomplete rows');passed++;
 
   // Hiding Evidence reference preserves saved references and optional inputs through edits, calculation and save.
   entry=setup({CALCULATOR:{M9:'Saved optional layout'},'EXTRA BOARDS':{A6:'Extra support',N6:'Existing design reference'}});
@@ -1057,7 +1054,7 @@ let passed = 0;
   assert.deepEqual(extraSavedBody.inputs,retainedHiddenInputs);assert.deepEqual(copy(entry.inputs),retainedHiddenInputs);
   assert.deepEqual(JSON.parse(entry.saved),retainedHiddenInputs);assert.equal(audit.dirty(entry),false);passed++;
 
-  // The board schedule shows authoritative product totals instead of six detached metrics, with incomplete rows explicit.
+  // The board schedule hides duplicate product totals while retaining row warnings and all native totals.
   entry=setup();entry.definition.sheets[0].max_column=35;
   const boardTotals=[{product:'COREX',box_reference_area:12.34567,net_board_area:21.014,whole_sheets:11,incomplete_rows:5,incomplete_extra_rows:1},
     {product:'P250',box_reference_area:0,net_board_area:null,whole_sheets:null,incomplete_rows:0,incomplete_extra_rows:2}];
@@ -1069,25 +1066,18 @@ let passed = 0;
   assert.equal(descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard).length,0);
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='Old metric label'));
   assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('9 rows have no board quantity')));
-  assert.ok(entry.productTotalsElement);const boardTotalNodes=descendants(entry.productTotalsElement);
-  assert.ok(byId('calculator-grid').children.includes(entry.productTotalsElement));
+  assert.equal(entry.productTotalsElement,null);
   const boardOverview=byId('calculator-grid').children.find(node=>node.className==='calculator-overview');
-  assert.equal(boardOverview.classList.contains('calculator-overview-full'),true);assert.ok(!descendants(boardOverview).includes(entry.productTotalsElement));
-  assert.ok(boardTotalNodes.some(node=>node.textContent==='CALCULATED SUMMARY'));
+  assert.equal(boardOverview.classList.contains('calculator-overview-full'),true);
+  assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='CALCULATED SUMMARY'));
   const boardGridChildren=byId('calculator-grid').children,boardOverviewIndex=boardGridChildren.indexOf(boardOverview);
-  assert.ok(boardGridChildren.indexOf(entry.productTotalsElement)<boardOverviewIndex);
   assert.ok(descendants(boardGridChildren[boardOverviewIndex+1]).some(node=>node.dataset?.calculatorCell==='A9'));
   for(const address of ['A1','Y6'])assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===address).length,1);
-  assert.ok(boardTotalNodes.some(node=>node.textContent==='Box reference area (m²)'));
-  assert.ok(boardTotalNodes.some(node=>node.textContent==='12.35'));assert.ok(boardTotalNodes.some(node=>node.textContent==='21.01'));
-  assert.ok(boardTotalNodes.some(node=>/5.00 incomplete schedule rows; 1.00 incomplete additional-board rows/.test(node.textContent||'')));
-  const boardTable=boardTotalNodes.find(node=>node.tagName==='table'),incompleteProduct=boardTable.children[1].children[1];
-  assert.equal(incompleteProduct.children[1].classList.contains('calculator-value-present'),true);
-  assert.equal(incompleteProduct.children[2].classList.contains('calculator-value-empty'),true);assert.equal(incompleteProduct.children[3].textContent,'');
+  assert.deepEqual(copy(entry.result.board_product_totals),boardTotals);
   assert.equal(JSON.stringify(entry.result),boardRaw);
   const updatedBoard=copy(entry.result);updatedBoard.board_product_totals[0].net_board_area=99.9999;updatedBoard.board_product_totals[0].incomplete_rows=0;updatedBoard.board_product_totals[0].incomplete_extra_rows=0;updatedBoard.rows.find(row=>row.row===6).cells[0].value='Incomplete order: 3 rows have no board quantity.';
   const retainedMember=renderedControls()[0];audit.setRequest(async()=>updatedBoard);await audit.calculate();
-  assert.equal(renderedControls()[0],retainedMember);assert.ok(descendants(entry.productTotalsElement).some(node=>node.textContent==='100.00'));assert.ok(descendants(entry.productTotalsElement).some(node=>node.textContent==='No incomplete rows'));passed++;
+  assert.equal(renderedControls()[0],retainedMember);assert.equal(entry.productTotalsElement,null);assert.equal(entry.result.board_product_totals[0].net_board_area,99.9999);assert.equal(entry.result.board_product_totals[0].incomplete_rows,0);passed++;
   assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='Y6'&&node.textContent.includes('3 rows have no board quantity')));
 
   // Duct output reordering moves the two requested results without losing prepared rows, controls or omitted columns.
@@ -1142,7 +1132,7 @@ let passed = 0;
   for(const [calculator,sheet,source,shown] of [
     ['steel_vermiculite','CALCULATOR','QUICK CALCULATOR',null],
     ['steel_board','START','CEASEFIRE / STRUCTURAL STEEL BOARD ESTIMATOR',null],
-    ['steel_board','BOARD SUMMARY','BOARD SUMMARY','SUMMARY'],
+    ['steel_board','BOARD SUMMARY','BOARD SUMMARY',null],
   ]) {
     entry=setup();entry.definition.id=calculator;entry.sheet=sheet;entry.definition.sheets=[{name:sheet,header_rows:[],merges:[]}];
     entry.result=result({}, {sheet,rows:[{row:1,cells:[{column:1,address:'A1',value:source,presentation:{role:'title'}}]}]});
@@ -1256,16 +1246,14 @@ let passed = 0;
     {row:17,cells:[{column:1,address:'A17',value:'PRODUCT ORDER SUMMARY',presentation:{role:'section'}}]},{row:18,cells:[]},
     ...[19,20,21,22,23,24].map(row=>({row,cells:Array.from({length:9},(_,i)=>({column:i+1,address:`${String.fromCharCode(65+i)}${row}`,value:row===19?`Header ${i+1}`:i===8?'Order status':row,calculated:row>19}))})),
   ]});const rawBagCells=JSON.stringify(entry.result);realRender(entry);
-  assert.equal(renderedControls().length,3);const projectedOrder=descendants(byId('calculator-grid')).find(node=>node.className==='calculator-projected-section');assert.equal(projectedOrder.children[0].textContent,'PRODUCT ORDER SUMMARY');
-  const projectedOrderTable=descendants(projectedOrder).find(node=>node.tagName==='table');assert.equal(projectedOrderTable.style.width,'100%');assert.equal(projectedOrderTable.children.at(-1).children.length,6);assert.equal(projectedOrderTable.children[0].children[8].style.width,'20%');
+  assert.equal(renderedControls().length,3);assert.ok(!descendants(byId('calculator-grid')).some(node=>node.textContent==='PRODUCT ORDER SUMMARY'));
   const manualTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Manual quantity');assert.ok(manualTable.children.at(-1).children[0].children.every(node=>node.tagName==='td'));
-  assert.ok(descendants(byId('calculator-grid')).indexOf(projectedOrderTable)<descendants(byId('calculator-grid')).indexOf(manualTable));assert.match(projectedOrder.children[0].id,/-1$/);
   const manualSection=byId('calculator-grid').children.find(node=>node.className==='calculator-projected-section'&&descendants(node).includes(manualTable));
   assert.deepEqual(manualSection.children.slice(0,2).map(node=>node.dataset.calculatorOutput),['A1','A3']);assert.equal(manualSection.children[1].tagName,'p');assert.match(manualSection.children[0].id,/-0$/);
   for(const address of ['A1','A3'])assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput===address).length,1);
   assert.ok(!descendants(manualTable).some(node=>['A1','A3'].includes(node.dataset?.calculatorOutput)));
   assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
-  for(const row of [20,21,22,23,24])assert.ok(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput===`A${row}`).classList.contains('calculator-bold'));
+  for(const row of [20,21,22,23,24])assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput===`A${row}`));
   const yieldRow=manualTable.children.at(-1).children.find(node=>node.dataset.sourceRow==='10');
   assert.deepEqual(yieldRow.children.map(node=>node.dataset.calculatorOutput),['A10','D10']);assert.deepEqual(yieldRow.children.map(node=>node.colSpan),[3,3]);
   const bagNotes=byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>['H6','H11'].includes(node.dataset.calculatorOutput));
@@ -1274,13 +1262,13 @@ let passed = 0;
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='H10'));
   assert.equal(manualTable.children[0].children.length,13);assert.ok(manualTable.children[0].children.every(column=>column.style.width===manualTable.children[0].children[0].style.width));
   assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='G10'));
-  assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='G20').textContent,'20.00');
+  assert.equal(entry.result.rows.find(row=>row.row===20).cells.find(cell=>cell.address==='G20').value,20);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='D10').textContent,'0.05');
   assert.equal(entry.result.rows.find(row=>row.row===10).cells.find(cell=>cell.address==='D10').value,0.05128205128205128);
   assert.equal(JSON.stringify(entry.result),rawBagCells);
-  for(const table of [manualTable,projectedOrderTable])assert.ok(descendants(byId('calculator-grid')).some(node=>node.classList?.contains('calculator-section-scroll')&&node.children.includes(table)));
+  assert.ok(descendants(byId('calculator-grid')).some(node=>node.classList?.contains('calculator-section-scroll')&&node.children.includes(manualTable)));
   entry.result.rows.find(row=>row.row===18).cells.push({column:2,address:'B18',value:null,calculated:true});realRender(entry);
-  const preservedBlankFormula=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(node=>node.dataset.calculatorOutput==='B18');assert.ok(preservedBlankFormula);assert.equal(preservedBlankFormula.classList.contains('calculator-value-empty'),true);passed++;
+  assert.ok(!byId('calculator-grid').querySelectorAll('[data-calculator-output]').some(node=>node.dataset.calculatorOutput==='B18'));assert.equal(entry.result.rows.find(row=>row.row===18).cells[0].value,null);passed++;
 
   // Duct projections omit USE NOTES while retaining side-table references, uncovered controls and blank separator rows.
   entry=setup();entry.definition.id='ductwork';entry.sheet='PRODUCT SETTINGS';
@@ -1399,7 +1387,8 @@ let passed = 0;
     const chooserButtons=()=>descendants(byId('calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
     const chooserPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
     const openPanels=()=>chooserPanels().filter(panel=>!panel.hidden);
-    assert.equal(chooserButtons().length,scenario.sections.length);assert.equal(chooserPanels().length,scenario.sections.length);assert.equal(openPanels().length,0);
+    const sectionCount=scenario.sections.length-(scenario.id==='steel_vermiculite'?1:0);
+    assert.equal(chooserButtons().length,sectionCount);assert.equal(chooserPanels().length,sectionCount);assert.equal(openPanels().length,0);
     assert.ok(!descendants(byId('calculator-grid')).some(node=>node.className==='calculator-contents'));
     for(const [index,button] of chooserButtons().entries()){assert.equal(button.tagName,'button');assert.equal(button.type,'button');assert.equal(button.getAttribute('aria-expanded'),'false');assert.equal(button.getAttribute('aria-controls'),chooserPanels()[index].id);assert.equal(chooserPanels()[index].getAttribute('aria-labelledby'),button.id);}
     const sourceControls=scenario.rows.flatMap(row=>row.cells.filter(cell=>cell.editable).map(cell=>cell.address)).sort();
@@ -1478,7 +1467,7 @@ let passed = 0;
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   assert.equal(entry.page,'START');assert.equal(entry.sheet,'SETTINGS');assert.equal(byId('calculator-sheet-title').textContent,'START');
-  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','LOOKUP','SCHEDULE','SUMMARY','SETTINGS','FACTOR CALCS']);
+  assert.deepEqual(byId('calculator-pages').children.map(button=>button.textContent),['START','SCHEDULE','SUMMARY','SETTINGS','FACTOR CALCS']);
   assert.equal(virtualButtons().length,0);assert.equal(renderedControls().length,0);assert.ok(virtualOutputs().includes('A270'));
   assert.equal(virtualOutputs().filter(address=>address==='A7').length,1);
   const startBody=descendants(byId('calculator-grid')).find(node=>node.tagName==='tbody'&&node.children.some(row=>row.dataset.sourceRow==='270'));
@@ -1487,13 +1476,13 @@ let passed = 0;
   assert.deepEqual(copy(entry.inputs),virtualInputs);assert.deepEqual(copy(entry.definition.pages),['CALCULATOR','SCHEDULE','BAGS','SETTINGS']);passed++;
   const virtualNavigationStartRequests=virtualRequests.length;
   assert.equal(audit.sourceDisplayText('Factor helper starts at row 341.',entry,'A7'),'Open FACTOR CALCS for the Section Factor Helper.');
-  assert.equal(audit.sourceDisplayText('CALCULATOR = one member | BAGS = ordering | Factor helper starts at row 341.',entry,'A7'),'LOOKUP = one member | SUMMARY = ordering | Open FACTOR CALCS for the Section Factor Helper.');
-  assert.equal(audit.sourceDisplayText('Use CALCULATOR for one member and BAGS for ordering.',entry,'A9'),'Use LOOKUP for one member and SUMMARY for ordering.');
+  assert.equal(audit.sourceDisplayText('CALCULATOR = one member | BAGS = ordering | Factor helper starts at row 341.',entry,'A7'),'SCHEDULE = members | SUMMARY = ordering | Open FACTOR CALCS for the Section Factor Helper.');
+  assert.equal(audit.sourceDisplayText('Use CALCULATOR for one member and BAGS for ordering.',entry,'A9'),'Use SCHEDULE for one member and SUMMARY for ordering.');
   const bagsDirectionsEntry={...entry,sheet:'BAGS',result:null};
   assert.equal(audit.sourceDisplayText('Change product yields and waste in SETTINGS. The factor helper is also there.',bagsDirectionsEntry,'A27'),'Change product yields and waste in SETTINGS. Open FACTOR CALCS for factor helpers.');
 
   // Settings and factor chooser selections are independent; hidden source inputs and invalid drafts survive switching.
-  await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,7);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
+  await audit.selectPage('SETTINGS');assert.equal(virtualButtons().length,6);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,7);
   assert.equal(virtualRequests.length,virtualNavigationStartRequests); // Both browser tabs use the same unchanged source worksheet.
   assert.ok(!virtualOutputs().includes('A1'));assert.ok(virtualOutputs().includes('D42'));for(const address of ['A7','A270','A341','A356','A370'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualSetting=renderedControls().find(control=>control.dataset.calculatorCell==='D10');
@@ -1521,7 +1510,7 @@ let passed = 0;
   entry.navigationCache=null;
   audit.setRequest(async(path,options)=>++virtualCalls===1?oldVirtualError.promise:virtualResult(JSON.parse(options.body).inputs));
   const oldFailure=audit.selectPage('START');await audit.selectPage('SETTINGS');oldVirtualError.reject(new Error('Obsolete START failure'));await oldFailure;
-  assert.equal(entry.page,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete START failure'));assert.equal(virtualButtons().length,7);passed++;
+  assert.equal(entry.page,'SETTINGS');assert.ok(!byId('calculator-message').textContent.includes('Obsolete START failure'));assert.equal(virtualButtons().length,6);passed++;
 
   // Saving, both downloads and reset from a virtual tab still use the complete source-keyed calculator draft.
   audit.setRequest(serveVirtual);await audit.selectPage('FACTOR CALCS');const fullVirtualDraft=copy(entry.inputs);
@@ -1622,16 +1611,16 @@ let passed = 0;
   // Header destinations retain the active workbook/firestopping state without
   // recreating the removed chooser cards or changing any draft inputs.
   entry=setup();
-  const calculatorChoices=['penetration','steel_vermiculite','steel_board','ductwork'].map(id=>{const button=element('button');button.dataset.calculatorId=id;return button;});
+  const calculatorChoices=['steel_vermiculite','steel_board','ductwork'].map(id=>{const button=element('button');button.dataset.calculatorId=id;return button;});
   byId('calculator-navigation-menu').replaceChildren(...calculatorChoices);
   const choiceDraft=copy(audit.projectSnapshot());audit.renderChoices();
-  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','false','true','false']);
+  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','true','false']);
   context.window.CeasefireProposalCalculators={isFirestopping:()=>true};audit.renderChoices();
-  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['true','false','false','false']);
+  assert.deepEqual(calculatorChoices.map(button=>button.getAttribute('aria-pressed')),['false','false','false']);
   assert.deepEqual(copy(audit.projectSnapshot()),choiceDraft);delete context.window.CeasefireProposalCalculators;
   const choiceHtml=fs.readFileSync('static/index.html','utf8');
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
-  for(const id of ['penetration','steel_vermiculite','steel_board','ductwork'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));passed++;
+  for(const id of ['steel_vermiculite','steel_board','ductwork'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(!choiceHtml.includes('data-calculator-id="penetration"'));assert.ok(choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.
   for(const [id,sheet,column,firstRow,label] of [

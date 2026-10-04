@@ -100,7 +100,7 @@
       BAGS: { A27: [["The factor helper is also there.", "Open FACTOR CALCS for factor helpers."], ["Hidden reference sheets support the calculations and must not be deleted.", "Retained reference data supports the calculations."]] },
       SETTINGS: {
         A3: [["blue cells are editable", "input fields are editable"]],
-        A7: [["CALCULATOR = one member", "LOOKUP = one member"], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
+        A7: [["CALCULATOR = one member", "SCHEDULE = members"], ["BAGS = ordering", "SUMMARY = ordering"], ["Factor helper starts at row 341.", "Open FACTOR CALCS for the Section Factor Helper."]],
         G43: factorLookupDirections, G76: factorLookupDirections, G108: factorLookupDirections,
         G185: factorLookupDirections, G241: factorLookupDirections,
         G38: estimatingDensityDirections, G71: estimatingDensityDirections, G103: estimatingDensityDirections,

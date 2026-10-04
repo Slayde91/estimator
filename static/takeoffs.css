@@ -102,12 +102,12 @@
 .takeoff-navigation-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .takeoff-document-controls{flex:1;flex-wrap:nowrap}
 .takeoff-navigation .takeoff-document-controls select{flex:1;min-width:0;max-width:none;width:100%;text-overflow:ellipsis}
-.takeoff-viewer{position:relative;min-width:0}
+.takeoff-viewer{position:relative;min-width:0;container-type:inline-size}
 .takeoff-viewer-controls{position:absolute;left:50%;transform:translateX(-50%);z-index:5;max-width:calc(100% - 20px);padding:8px;box-sizing:border-box;background:#fff;box-shadow:0 2px 10px #0002}
 .takeoff-viewer-top{top:10px;width:920px;margin:0;gap:8px;align-items:center}
-.takeoff-page-controls{bottom:10px;width:max-content;justify-content:center;margin:0;gap:6px;border:1px solid #c7c1bd;border-radius:9px}
+.takeoff-page-controls{bottom:10px;left:calc(50% - 26px);width:max-content;max-width:calc(100% - 74px);justify-content:center;margin:0;gap:6px;border:1px solid #c7c1bd;border-radius:9px}
 .takeoff-page-controls .helper{white-space:nowrap}
-.takeoff-page-navigation{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.takeoff-page-navigation{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;min-width:0;max-width:100%}
 .takeoff-page-navigation .takeoff-page-input{flex:0 1 65px;min-width:36px}
 .takeoff-search-controls{flex:1 1 380px;flex-wrap:nowrap;margin:0;padding:0;border:0;gap:6px;min-width:0;background:transparent}
 .takeoff-search-controls input{flex:1;min-width:80px;width:0;max-width:none}
@@ -133,15 +133,16 @@
 .takeoff-tab-panel>.takeoff-physical-tabs{padding:0;border:0;border-top:1px solid var(--line)}
 .takeoff-tab-panel>.takeoff-physical-tabs .takeoff-mode{padding:12px 18px 10px;font-size:11px;text-transform:none}
 .takeoff-drawing-downloads{padding:0;margin:0;border:0;background:transparent;gap:6px}
-.takeoff-scale-anchor{position:relative;display:flex}
-.takeoff-scale-controls{position:absolute;left:calc(100% + 18px);top:0;z-index:12;width:min(310px,calc(100vw - 120px));margin:0;box-shadow:0 4px 18px #0003;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+.takeoff-scale-anchor{position:absolute;right:10px;bottom:10px;z-index:12;display:flex}
+.takeoff-scale-anchor>.takeoff-icon-button{display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:38px;padding:8px;background:#fff;box-shadow:0 2px 10px #0002}
+.takeoff-scale-controls{position:absolute;right:0;bottom:calc(100% + 8px);z-index:12;width:min(310px,calc(100cqw - 20px));max-height:calc(var(--takeoff-viewer-height) - 76px);overflow:auto;box-sizing:border-box;margin:0;box-shadow:0 4px 18px #0003;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
 .takeoff-scale-controls[hidden]{display:none}
 .takeoff-scale-controls select{grid-column:1/-1;min-width:0;max-width:none;width:100%}
 .takeoff-scale-controls .button{min-width:0;width:100%;padding:9px 6px;white-space:normal}
 .takeoff-count-anchor{position:relative;display:flex}
 .takeoff-count-anchor[hidden]{display:none}
 .takeoff-drawing-pane>.takeoff-progress,.takeoff-drawing-pane>.takeoff-control-status{margin:0}
-@media(max-width:650px){.takeoff-tool-rail{padding:8px;gap:8px}.takeoff-scale-controls{gap:6px}.takeoff-viewer-controls{max-width:calc(100% - 12px);padding:6px}.takeoff-viewer-top{top:6px}.takeoff-page-controls{bottom:6px;gap:4px}}
+@media(max-width:650px){.takeoff-tool-rail{padding:8px;gap:8px}.takeoff-scale-controls{gap:6px}.takeoff-viewer-controls{max-width:calc(100% - 12px);padding:6px}.takeoff-viewer-top{top:6px}.takeoff-page-controls{bottom:6px;gap:4px;max-width:calc(100% - 74px)}.takeoff-scale-anchor{bottom:6px}}
 
 .takeoff-viewport:is([data-tool=count],[data-tool=count-only]),.takeoff-viewport:is([data-tool=count],[data-tool=count-only]) .takeoff-overlay,.takeoff-viewport:is([data-tool=count],[data-tool=count-only]) .takeoff-overlay [role=button]{cursor:crosshair}
 .takeoff-overlay .takeoff-count-hit{fill:transparent;pointer-events:all}
@@ -234,6 +235,8 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-physical-summary p{white-space:pre-line}
 .takeoff-overlay .takeoff-physical-marker-hit{cursor:pointer;pointer-events:all}
 .takeoff-overlay .takeoff-physical-marker-hit:focus-visible{outline:2px solid #0068dc;outline-offset:4px}
+.takeoff-overlay .takeoff-physical-selection-underlay{fill:none;stroke:#fff;stroke-width:5;vector-effect:non-scaling-stroke;pointer-events:none}
+.takeoff-overlay .takeoff-physical-selection{fill:none;stroke:#0068dc;stroke-width:2.5;stroke-dasharray:4 2;vector-effect:non-scaling-stroke;pointer-events:none}
 .takeoff-overlay .takeoff-physical-callout{cursor:pointer}
 .takeoff-viewport[data-tool=select] .takeoff-physical-callout{cursor:move;touch-action:none}
 .takeoff-overlay .takeoff-physical-callout.dragging{cursor:grabbing}

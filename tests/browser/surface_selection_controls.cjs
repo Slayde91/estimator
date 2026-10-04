@@ -43,6 +43,9 @@ async function clickPoint(point, modifiers = []) {
   try { await page.mouse.click(...position); } finally { for (const modifier of modifiers.reverse()) await page.keyboard.up(modifier); }
   await idle();
 }
+async function doublePoint(point) {
+  await page.waitForTimeout(550); await page.mouse.dblclick(...await screen(point), { delay: 100 }); await idle();
+}
 async function selected(id, value) { await expect(hit(id)).toHaveAttribute('aria-pressed', String(value)); await expect(page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / })).toBeChecked({ checked: value }); }
 async function drawSurface(mode, mark, startX) {
   await page.getByRole('button', { name: 'Trace surface', exact: true }).click();
@@ -73,12 +76,15 @@ async function drawSurface(mode, mark, startX) {
     const second = await drawSurface(mode, `${mode.toUpperCase()}-B`, 400);
     await clickPoint([700,450]); await expect(panel()).toBeHidden(); await selected(second.id, false);
     const beforeSelection = await snapshot(), beforeCommandCount = commands.length;
-    await clickPoint([160,170]); await selected(first.id, true); await expect(panel()).toBeVisible();
+    await clickPoint([160,170]); await selected(first.id, true); await expect(panel()).toBeHidden();
+    await doublePoint([160,170]); await selected(first.id, true); await expect(panel()).toBeVisible();
     await expect(panel().getByLabel(mode === 'wall' ? 'Wall ID' : 'Slab / zone ID', { exact: true })).toHaveValue(first.fields.mark);
-    await clickPoint([160,170]); await selected(first.id, false); await expect(panel()).toBeHidden();
+    await clickPoint([160,170]); await selected(first.id, true); await expect(panel()).toBeVisible();
+    await clickPoint([160,170], ['Control']); await selected(first.id, false); await expect(panel()).toBeHidden();
     await hit(first.id).press('Enter'); await selected(first.id, true); await expect(panel()).toBeVisible();
-    await hit(first.id).press('Space'); await selected(first.id, false); await expect(panel()).toBeHidden();
-    await clickPoint([160,170]); await clickPoint([460,170], ['Shift']);
+    await hit(first.id).press('Space'); await selected(first.id, true); await expect(panel()).toBeVisible();
+    await hit(first.id).press('Control+Space'); await selected(first.id, false); await expect(panel()).toBeHidden();
+    await doublePoint([160,170]); await clickPoint([460,170], ['Shift']);
     await selected(first.id, true); await selected(second.id, true); await expect(panel()).toBeVisible();
     await clickPoint([160,170], ['Control']); await selected(first.id, false); await selected(second.id, true); await expect(panel()).toBeVisible();
     await clickPoint([700,450]); await selected(second.id, false); await expect(panel()).toBeHidden();
@@ -86,18 +92,18 @@ async function drawSurface(mode, mark, startX) {
     await page.getByRole('button', { name: 'Clear selection', exact: true }).click(); await expect(panel()).toBeHidden();
     assert.deepEqual(await snapshot(), beforeSelection, 'Selection changes neither source evidence nor item quantities/geometry'); assert.equal(commands.length, beforeCommandCount, 'Selection sends no mutation command');
     // Click immediately after input, before the 450ms auto-save debounce.
-    await clickPoint([160,170]); const repeatPosition = await screen([160,170]);
+    await doublePoint([160,170]); const repeatPosition = await screen([160,170]);
     await page.waitForTimeout(550);
     await panel().getByLabel('Level', { exact: true }).fill(`${mode}-L01`);
     await command(() => page.mouse.click(...repeatPosition), 'bulk_update');
-    await selected(first.id, false); await expect(panel()).toBeHidden();
+    await selected(first.id, true); await expect(panel()).toBeVisible();
     assert.equal((await snapshot()).items.find(item => item.id === first.id).fields.level, `${mode}-L01`);
-    await clickPoint([160,170]); const blankPosition = await screen([700,450]);
+    await doublePoint([160,170]); const blankPosition = await screen([700,450]);
     await page.waitForTimeout(550);
     await panel().getByLabel('Level', { exact: true }).fill(`${mode}-L02`);
     await command(() => page.mouse.click(...blankPosition), 'bulk_update'); await expect(panel()).toBeHidden();
     // A blank click during an already running auto-save waits for it to finish.
-    await clickPoint([160,170]); const savingBlankPosition = await screen([700,450]);
+    await doublePoint([160,170]); const savingBlankPosition = await screen([700,450]);
     await page.waitForTimeout(550);
     let releaseSave, heldResolve;
     const held = new Promise(resolve => { heldResolve = resolve; });
@@ -113,7 +119,7 @@ async function drawSurface(mode, mark, startX) {
     await page.unroute('**/commands', holdSave); await expect(panel()).toBeHidden();
     const edited = (await snapshot()).items.find(item => item.id === first.id); assert.equal(edited.fields.level, `${mode}-L03`); assert.deepEqual(edited.geometry, first.geometry); assert.deepEqual(edited.evidence, first.evidence);
     // A drag keeps selection and details open, moving only the selected source vertices.
-    await clickPoint([160,170]); await page.waitForTimeout(550);
+    await doublePoint([160,170]); await page.waitForTimeout(550);
     const origin = await screen([160,170]), destination = await screen([175,182]);
     const moved = await command(async () => { await page.mouse.move(...origin); await page.mouse.down(); await page.mouse.move(...destination, { steps: 6 }); await page.mouse.up(); }, 'move_items');
     await selected(first.id, true); await expect(panel()).toBeVisible();
@@ -123,7 +129,7 @@ async function drawSurface(mode, mark, startX) {
     assert.deepEqual(current.evidence, first.evidence); assert.equal(current.quantity, 1); assert.deepEqual(current.member_ids, first.member_ids);
     await page.screenshot({ path: path.join(output, `${mode}-selected-details.png`) });
     await clickPoint([700,450]); await expect(panel()).toBeHidden();
-    evidence[mode] = { firstId: first.id, secondId: second.id, pointerToggle: true, blankClickCloses: true, keyboardEnterAndSpace: true, modifierSelectionRetained: true, pendingEditSavedBeforeClose: true, moveDelta: delta, sourceEvidenceUnchanged: true, quantityUnchanged: true };
+    evidence[mode] = { firstId: first.id, secondId: second.id, singleSelectsDoubleOpens: true, blankClickCloses: true, keyboardEnterAndSpace: true, modifierSelectionRetained: true, pendingEditSavedBeforeClose: true, moveDelta: delta, sourceEvidenceUnchanged: true, quantityUnchanged: true };
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   const beforeSave = await snapshot(), saving = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));

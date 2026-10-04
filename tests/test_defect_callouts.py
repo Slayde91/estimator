@@ -32,7 +32,7 @@ class DefectCalloutModelTests(unittest.TestCase):
             'region': [[45, 45], [55, 45], [55, 55], [45, 55]], 'note': 'Original source interpretation'}
         self.defect['entity'].update(annotation=deepcopy(self.annotation), evidence=[deepcopy(self.evidence)])
         self.barrier = v2.create('barrier', self.defect['entity']['id'], substrate='Concrete')
-        self.service = v2.create('service', self.barrier['entity']['id'], service='Pipe')
+        self.service = v2.create('service', self.barrier['entity']['id'], service='Pipe', service_type='Copper pipe')
         self.service['entity']['quantity'] = 7
 
     def graph(self):
@@ -106,15 +106,54 @@ class DefectCalloutModelTests(unittest.TestCase):
             wrong = deepcopy(command); wrong['entity']['annotation'] = self.annotation
             with self.assertRaises(ValidationError): prepare_changes(self.snapshot, [self.defect, wrong])
 
-    def test_summary_uses_only_explicit_defect_facts_and_active_record_counts(self):
+    def test_summary_uses_only_explicit_defect_facts_and_active_linked_values(self):
         graph = self.graph()
-        self.assertEqual(defect_summary(graph, graph['defects'][0]), ['D-0001 | Observed defect | L01 | FRL -/60/60', '1 substrates | 1 services'])
+        self.assertEqual(defect_summary(graph, graph['defects'][0]), [
+            'D-0001 | Observed defect | L01 | FRL -/60/60',
+            'B-0001 | Concrete', 'S-0001 | B-0001 | Copper pipe'])
         self.assertNotIn('7', '\n'.join(defect_summary(graph, graph['defects'][0])))
         graph['defects'][0]['fields'].pop('frl'); graph['barriers'][0]['fields']['frl'] = 'custom child rating'
         self.assertNotIn('FRL', '\n'.join(defect_summary(graph, graph['defects'][0])))
         graph['services'][0]['deleted'] = True
-        self.assertEqual(defect_summary(graph, graph['defects'][0])[-1], '1 substrates | 0 services')
+        self.assertEqual(defect_summary(graph, graph['defects'][0])[-1], '0 services')
         self.assertEqual(entity_references(graph['defects'][0]), [self.evidence, self.annotation])
+
+    def test_summary_retains_every_explicit_member_parent_and_collection_order(self):
+        masonry = v2.create('barrier', self.defect['entity']['id'], substrate='Masonry')
+        duplicate = v2.create('barrier', self.defect['entity']['id'], substrate='Concrete')
+        unknown = v2.create('barrier', self.defect['entity']['id'])
+        other = v2.create('defect', label='Other defect')
+        unrelated = v2.create('barrier', other['entity']['id'], substrate='Unrelated substrate')
+        cable = v2.create('service', masonry['entity']['id'], service_type='Cable bundle')
+        pipe = v2.create('service', duplicate['entity']['id'], service_type='Copper pipe')
+        untyped = v2.create('service', unknown['entity']['id'], service='Not a recorded service type')
+        excluded = v2.create('service', unrelated['entity']['id'], service_type='Unrelated service type')
+        historical = v2.create('service', self.barrier['entity']['id'], service_type='Deleted service type')
+        graph = prepare_changes(self.snapshot, [self.defect, self.barrier, masonry, duplicate, unknown,
+            other, unrelated, self.service, cable, pipe, untyped, excluded, historical])['graph']
+        graph = v2.apply(graph, {'op': 'delete', 'entity_id': historical['entity']['id'], 'cascade': False})
+        # Render order follows the retained collections, not a deduplicated value set.
+        graph['barriers'][:2] = reversed(graph['barriers'][:2])
+        graph['services'][:2] = reversed(graph['services'][:2])
+        before = deepcopy(graph)
+        self.assertEqual(defect_summary(graph, graph['defects'][0]), [
+            'D-0001 | Observed defect | L01 | FRL -/60/60',
+            'B-0002 | Masonry', 'B-0001 | Concrete', 'B-0003 | Concrete',
+            'B-0004 | Substrate not recorded',
+            'S-0002 | B-0002 | Cable bundle', 'S-0001 | B-0001 | Copper pipe',
+            'S-0003 | B-0003 | Copper pipe', 'S-0004 | B-0004 | Service type not recorded'])
+        self.assertEqual(graph, before)
+        graph['services'][0]['fields']['service_type'] = 'Updated\nservice\ttype'
+        self.assertIn('S-0002 | B-0002 | Updated service type', defect_summary(graph, graph['defects'][0]))
+
+    def test_deleted_barrier_children_and_category_do_not_supply_defect_values(self):
+        graph = self.graph()
+        graph = v2.apply(graph, {'op': 'delete', 'entity_id': self.barrier['entity']['id'], 'cascade': True})
+        self.assertEqual(defect_summary(graph, graph['defects'][0]), [
+            'D-0001 | Observed defect | L01 | FRL -/60/60', '0 substrates | 0 services'])
+        graph = self.graph(); graph['services'][0]['fields'].pop('service_type')
+        self.assertEqual(defect_summary(graph, graph['defects'][0])[-1],
+                         'S-0001 | B-0001 | Service type not recorded')
 
     def test_csv_xlsx_retain_separate_annotation_bytes_without_new_evidence_rows(self):
         graph = self.graph(); before = deepcopy(graph)
@@ -146,6 +185,31 @@ class DefectCalloutProjectTests(unittest.TestCase):
         case = self.case
         preview = case.service.preview_physical(case.session['session_id'], {'expected_revision': case.session['revision'], 'scope': 'defect_reports', 'commands': commands})
         case.session = case.service.apply_physical(case.session['session_id'], {'expected_revision': case.session['revision'], 'scope': 'defect_reports', 'request_id': str(uuid4()), 'preview_id': preview['preview_id']})
+
+    def test_real_pdf_contains_all_linked_values_without_changing_source_or_graph(self):
+        concrete = v2.create('barrier', self.defect['entity']['id'], substrate='Concrete wall')
+        masonry = v2.create('barrier', self.defect['entity']['id'], substrate='Masonry wall')
+        pipe = v2.create('service', concrete['entity']['id'], service_type='Copper pipe')
+        cable = v2.create('service', masonry['entity']['id'], service_type='Cable bundle')
+        other = v2.create('defect', label='Separate source annotation')
+        unrelated = v2.create('barrier', other['entity']['id'], substrate='Unrelated substrate')
+        excluded = v2.create('service', unrelated['entity']['id'], service_type='Unrelated service')
+        self.apply([concrete, masonry, pipe, cable, other, unrelated, excluded])
+        case = self.case; before = deepcopy(case.session['snapshot'])
+        source = case.documents.document_path(self.doc).read_bytes()
+        payload, mime, _ = case.service.export_workspace(case.session['session_id'], 'marked-pdf', {
+            'expected_revision': case.session['revision'], 'mode': 'penetrations', 'physical_scope': 'defect_reports',
+            'document_id': self.doc['id'], 'item_ids': [self.defect['entity']['id']]})
+        self.assertEqual(mime, 'application/pdf')
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+        for expected in ('B-0001', 'Concrete wall', 'B-0002', 'Masonry wall',
+                         'S-0001 | B-0001 | Copper pipe', 'S-0002 | B-0002 | Cable bundle',
+                         'more linked records (see legend)'):
+            self.assertIn(expected, text)
+        self.assertNotIn('Unrelated substrate', text); self.assertNotIn('Unrelated service', text)
+        self.assertNotIn('more services', text)
+        self.assertEqual(case.documents.document_path(self.doc).read_bytes(), source)
+        self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
 
     def test_real_pdf_export_save_reopen_preserve_source_and_calculator_bytes(self):
         case = self.case; before = deepcopy(case.session['snapshot']); source = case.documents.document_path(self.doc).read_bytes()

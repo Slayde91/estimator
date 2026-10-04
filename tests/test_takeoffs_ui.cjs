@@ -22,10 +22,10 @@ function harness(storage) {
   source=source.replace('setApi(fn){api=fn;}', 'stageCountMarker,queueCountLength,resetCountDraft,finishCount,cancelTrace,deleteCountMarker,beginCountMarkerDrag,changeCountLength,countBatchItems,selectedCountMemberIds,selectCountMarker,continueCount,beginSelectionGesture,working,setOverlayRenderer(fn){renderOverlay=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'build,renderRail,linkedCalculatorOperation,recoverLinkedOperation,openItemSettings,viewItem,formField,populateCalculatorOptions,loadSettingsOptions,parseDuctSize,formatDuctSize,bulkEdit,setFlushSettings(fn){flushSettings=fn;},requestApi:api,setDataRenderer(fn){renderData=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'physicalGraph,physicalSnapshot,physicalMarkerReference,physicalMarkerTarget,physicalCalloutLines,changePhysicalScope,placePhysicalMarker,physicalSource,renderPhysicalOverlay,setNavigateDocument(fn){navigateDocument=fn;},setPositionPage(fn){positionPage=fn;},setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'activateCountTool,defectLocationEvidence,armPhysicalMarker,choosePhysicalDrawing,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'activateCountTool,defectLocationEvidence,armPhysicalMarker,choosePhysicalDrawing,choosePhysicalEvidence,ensurePhysicalUI,setCountTool(fn){setTool=fn;},setPhysicalDetails(fn){setPhysicalDetailsOpen=fn;},setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'bulkSelectionFields,syncBulkFields,renderItemSettingsActions,drawableItems,renderCountMarkers,askDialog:ask,setApi(fn){api=fn;}');
   source=source.replace('setApi(fn){api=fn;}', 'validatedMarkupDefaults,readMarkupDefaults,newMarkupAppearance,setMarkupDefaults,syncSurfaceDetailsSelection,clearDrawingSelection,setApi(fn){api=fn;}');
-  source=source.replace('setApi(fn){api=fn;}', 'renderMeasurementValues,renderValueLabel,setApi(fn){api=fn;}');
+  source=source.replace('setApi(fn){api=fn;}', 'renderMeasurementValues,renderValueLabel,drawingClickOpensSettings,selectDrawingItem,setApi(fn){api=fn;}');
   vm.runInContext(source,context);
   return {context,audit:context.audit,api:context.window.CeasefireTakeoffs};
 }
@@ -121,21 +121,32 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       assert.deepEqual(created.appearance,desired);assert.deepEqual(created.geometry,geometry);assert.deepEqual(created.measurement,measurement);assert.deepEqual(created.evidence,evidence);assert.deepEqual(copy(h.audit.state.session.snapshot),value);assert.deepEqual(copy(h.audit.appearanceOf(value.items[0])).stroke_color,'#CC0000');
     }
   });
-  await check('Drawing body selection opens settings in all four modes while silent control selection and refresh preserve a closed pane',async()=>{
+  await check('Drawing body single clicks select, a stationary double click opens all four mode panes, and blank clears without source writes',async()=>{
     for(const mode of ['steel','duct','wall','slab']){
       const h=harness(),value=blank();value.items=[{id:'a',mode,quantity:1,fields:{mark:'A'}}];h.audit.accept(response(value));attachSettings(h,mode==='duct'?'ductwork':'steel_vermiculite');h.audit.state.mode=mode;h.audit.state.tool='select';h.audit.setSelectionRenderer(()=>h.audit.syncSurfaceDetailsSelection());
-      await h.audit.selectItem('a',false,false,true);assert.equal(h.audit.state.settingsOpen,true);assert.deepEqual([...h.audit.state.selected],['a']);
+      let now=1000;h.context.Date={now:()=>now};const click={type:'click',clientX:40,clientY:60};
+      await h.audit.selectDrawingItem('a',click);assert.equal(h.audit.state.settingsOpen,false);assert.deepEqual([...h.audit.state.selected],['a']);
+      now+=150;await h.audit.selectDrawingItem('a',click);assert.equal(h.audit.state.settingsOpen,true);assert.deepEqual([...h.audit.state.selected],['a']);
       h.audit.state.settingsOpen=false;await h.audit.selectItem('a',false,false,false,false);h.audit.syncSurfaceDetailsSelection();assert.equal(h.audit.state.settingsOpen,false);assert.deepEqual([...h.audit.state.selected],['a']);
       await h.audit.selectItem('a',false,false,true);assert.equal(h.audit.state.settingsOpen,true);
       if(!h.audit.state.selected.size)await h.audit.selectItem('a',false,false,true);await h.audit.clearDrawingSelection();assert.equal(h.audit.state.settingsOpen,false);assert.equal(h.audit.state.selected.size,0);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
     }
+  });
+  await check('Double-click intent rejects expired, moved, modified and stale source clicks, and blank clicks reset it',async()=>{
+    const h=harness(),state=h.audit.state;h.audit.accept(response(blank()));attachSettings(h,'steel_vermiculite');Object.assign(state,{mode:'steel',tool:'select'});h.audit.setSelectionRenderer(()=>{});
+    let now=1000;h.context.Date={now:()=>now};const click={type:'click',clientX:40,clientY:60},choose=(event=click,id='item:a')=>h.audit.drawingClickOpensSettings(event,id);
+    assert.equal(choose(),false);now+=501;assert.equal(choose(),false);now+=100;assert.equal(choose({...click,clientX:45}),false);
+    assert.equal(choose({...click,ctrlKey:true}),false);assert.equal(choose(),false);now+=100;state.page++;assert.equal(choose(),false);
+    now+=100;state.session.revision++;assert.equal(choose(),false);now+=100;assert.equal(choose(click,'item:b'),false);
+    await h.audit.clearDrawingSelection();now+=100;assert.equal(choose(click,'item:b'),false);assert.equal(choose({type:'keydown'}),true);
+    assert.equal(state.lastDrawingClick,null);assert.deepEqual(copy(state.session.snapshot),blank());
   });
   await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and sources above the viewer',()=>{
     const h=harness(),dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();
     const ui=h.audit.state.ui,all=dom.all(root),find=name=>all.find(el=>el.classList.contains(name)),viewer=find('takeoff-viewer'),top=find('takeoff-viewer-top'),bottom=find('takeoff-page-controls'),search=find('takeoff-search-controls');
     assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,viewer);assert.deepEqual(top.children,[search,ui.navigation]);
     assert.equal(ui.tools.select.parentNode,bottom);assert.equal(ui.tools.pan.parentNode,bottom);const labels=bottom.children.map(el=>el.attributes['aria-label']||el.textContent);assert.ok(labels.indexOf('Select')<labels.indexOf('Pan'));assert.ok(labels.indexOf('Pan')<labels.indexOf('−'));assert.ok(labels.includes('Rotate page'));
-    assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleToggle.parentNode.previousElementSibling,ui.tools.viewport);
+    assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleAnchor.parentNode,viewer);assert.ok(!dom.all(ui.toolRail).includes(ui.scaleAnchor));
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);
     assert.equal(ui.sourceDocuments.parentNode,ui.layout);assert.equal(ui.layout.children[0],ui.sourceDocuments);assert.equal(ui.navigation.attributes['aria-label'],'Drawing navigation');assert.equal(search.attributes.role,'search');assert.equal(ui.sourceDocuments.attributes['aria-labelledby'],'takeoff-source-documents-heading');
@@ -368,16 +379,45 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.state.selected.clear();h.audit.planKeydown(event);assert.equal(prevented,2);for(const tool of ['pan','trace']){h.audit.state.tool=tool;h.audit.planKeydown(event);}h.audit.state.mode='physical';h.audit.planKeydown(event);assert.equal(prevented,5);h.audit.planKeydown({...event,target:{closest(){return {};}}});assert.equal(prevented,5);
   });
   await check('Focused plan wheel hands off at both edges with explicit delta units and clamped outer bounds',()=>{
-    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollTop:200,scrollHeight:300,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;let prevented=0;
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollLeft:0,scrollWidth:200,clientWidth:200,scrollTop:200,scrollHeight:300,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;let prevented=0;
     const event={cancelable:true,deltaY:220,deltaX:0,deltaMode:0,preventDefault(){prevented++;}};assert.equal(h.audit.handoffPlanWheel(event),true);assert.equal(outer.scrollTop,320);assert.equal(viewport.scrollTop,200);
     viewport.scrollTop=0;assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-3,deltaMode:1}),true);assert.equal(outer.scrollTop,272);assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-1,deltaMode:2}),true);assert.equal(outer.scrollTop,172);
     assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-500}),true);assert.equal(outer.scrollTop,0);viewport.scrollTop=200;assert.equal(h.audit.handoffPlanWheel({...event,deltaY:2000}),true);assert.equal(outer.scrollTop,1000);assert.equal(prevented,5);
   });
-  await check('Plan wheel leaves ordinary internal scrolling, native fields, modifiers and exhausted outer space untouched',()=>{
-    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollTop:100,scrollHeight:300,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;
-    const event={cancelable:true,deltaY:20,deltaX:0,preventDefault(){throw new Error('Native wheel was intercepted');}};assert.equal(h.audit.handoffPlanWheel(event),false);viewport.scrollTop=200;
+  await check('Plan wheel leaves native fields, modifiers, unfocused drawing and exhausted outer space untouched',()=>{
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollLeft:0,scrollWidth:200,clientWidth:200,scrollTop:200,scrollHeight:300,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;
+    const event={cancelable:true,deltaY:20,deltaX:0,preventDefault(){throw new Error('A reserved native wheel was intercepted');}};
     for(const change of [{cancelable:false},{defaultPrevented:true},{ctrlKey:true},{metaKey:true},{shiftKey:true},{deltaX:40},{deltaY:0},{deltaY:NaN},{deltaX:Infinity},{target:{isContentEditable:true}},{target:{closest(){return {};}}}])assert.equal(h.audit.handoffPlanWheel({...event,...change}),false);
     h.audit.state.planActive=false;assert.equal(h.audit.handoffPlanWheel(event),false);h.audit.state.planActive=true;outer.scrollTop=1000;assert.equal(h.audit.handoffPlanWheel(event),false);outer.scrollTop=0;viewport.scrollTop=0;assert.equal(h.audit.handoffPlanWheel({...event,deltaY:-20}),false);assert.equal(viewport.scrollTop,0);assert.equal(outer.scrollTop,0);
+  });
+  await check('Focused wheel preserves both axes through diagonal and circular movement without changing source data',()=>{
+    const h=harness(),value=blank();h.audit.accept(response(value));const retained=copy(h.audit.state.session.snapshot);
+    const outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollLeft:400,scrollTop:400,scrollWidth:1200,scrollHeight:1200,clientWidth:200,clientHeight:200};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;let cancelled=0;
+    const wheel=(x,y,mode=0)=>h.audit.handoffPlanWheel({cancelable:true,deltaX:x,deltaY:y,deltaMode:mode,preventDefault(){cancelled++;}});
+    assert.equal(wheel(35,20),true);assert.deepEqual([viewport.scrollLeft,viewport.scrollTop],[435,420]);
+    for(const [x,y] of [[20,0],[14,14],[0,20],[-14,14],[-20,0],[-14,-14],[0,-20],[14,-14]])assert.equal(wheel(x,y),true);
+    assert.deepEqual([viewport.scrollLeft,viewport.scrollTop],[435,420]);assert.equal(cancelled,9);assert.equal(outer.scrollTop,100);
+    assert.equal(wheel(2,-1,1),true);assert.deepEqual([viewport.scrollLeft,viewport.scrollTop],[467,404]);
+    assert.equal(wheel(-1,1,2),true);assert.deepEqual([viewport.scrollLeft,viewport.scrollTop],[267,604]);
+    assert.deepEqual(copy(h.audit.state.session.snapshot),retained);
+  });
+  await check('A diagonal wheel stays in the drawing when either axis can move and clamps at the true limits',()=>{
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollLeft:10,scrollTop:200,scrollWidth:400,scrollHeight:300,clientWidth:200,clientHeight:100};h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;
+    let cancelled=0;const wheel=(x,y)=>h.audit.handoffPlanWheel({cancelable:true,deltaX:x,deltaY:y,deltaMode:0,preventDefault(){cancelled++;}});
+    assert.equal(wheel(500,20),true);assert.equal(viewport.scrollLeft,200);assert.equal(viewport.scrollTop,200);assert.equal(outer.scrollTop,100);
+    assert.equal(wheel(40,20),false);assert.equal(outer.scrollTop,100);assert.equal(wheel(0,40),true);assert.equal(outer.scrollTop,140);
+    assert.equal(wheel(-500,-500),true);assert.deepEqual([viewport.scrollLeft,viewport.scrollTop],[0,0]);assert.equal(outer.scrollTop,140);assert.equal(cancelled,3);
+  });
+  await check('Fractional native scroll limits hand exhausted wheel input to the outer page',()=>{
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollWidth:400,clientWidth:200,scrollHeight:300,clientHeight:100};
+    // The true native maxima are half a pixel below rounded DOM dimensions.
+    let left=199.5,top=199.5;
+    Object.defineProperties(viewport,{scrollLeft:{get(){return left;},set(value){left=Math.max(0,Math.min(199.5,value));}},scrollTop:{get(){return top;},set(value){top=Math.max(0,Math.min(199.5,value));}}});
+    h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;
+    let cancelled=0;const wheel=(x,y)=>h.audit.handoffPlanWheel({cancelable:true,deltaX:x,deltaY:y,deltaMode:0,preventDefault(){cancelled++;}});
+    assert.equal(wheel(0,220),true);assert.equal(outer.scrollTop,320);assert.deepEqual([left,top],[199.5,199.5]);
+    assert.equal(wheel(-10,20),true);assert.deepEqual([left,top],[189.5,199.5]);assert.equal(outer.scrollTop,320);
+    assert.equal(cancelled,2);
   });
   await check('A changed calculator draft during export cannot publish the captured linked result',async()=>{
     const h=harness(),value=blank(),body=deferred();value.items=[{id:'a',mode:'steel',fields:{mark:'A'}}];h.audit.accept(response(value));
@@ -944,16 +984,27 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     retained.deleted=true;assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);retained.deleted=false;
     retained.revision++;assert.throws(()=>h.audit.physicalMarkerTarget(ref),/changed/);
   });
-  await check('Callout selection preserves pane visibility while marker selection opens and deselection closes it',async()=>{
-    const h=harness(),state=h.audit.state,entity={id:'barrier'},calls=[],opened=[];Object.assign(state,{mode:'physical',physicalSelected:new Set(),physicalDetailsOpen:false});h.audit.setOverlayRenderer(()=>{});
+  await check('Callouts keep pane visibility; marker single clicks select, double clicks open and modifier deselection closes',async()=>{
+    const h=harness(),state=h.audit.state,entity={id:'barrier',revision:1,deleted:false,marker:{document_id:'doc',document_sha256:'a'.repeat(64),page:1,point:[20,30]}},calls=[],opened=[];
+    h.audit.accept(response({...blank(),version:2,physical:null,service_plans:{version:3,barriers:[entity],services:[]},image_extractions:[]}));Object.assign(state,{mode:'physical',physicalScope:'service_plans',document:'doc',page:1,physicalSelected:new Set(),physicalDetailsOpen:false});h.audit.setOverlayRenderer(()=>{});
     h.audit.setPhysicalDetails(open=>{opened.push(open);state.physicalDetailsOpen=open;});
     state.physicalUI={completePendingEdits:async()=>calls.push('flush'),selectDrawing:async(id,multiple,focus,openDetails)=>{calls.push({id,multiple:!!multiple,focus,openDetails});if(!multiple)state.physicalSelected.clear();if(multiple&&state.physicalSelected.has(id))state.physicalSelected.delete(id);else state.physicalSelected.add(id);},clearSelection:async()=>{calls.push('clear');state.physicalSelected.clear();}};
     for(const open of [false,true]){state.physicalDetailsOpen=open;opened.length=0;for(let i=0;i<2;i++)await h.audit.choosePhysicalDrawing(entity,{},true);assert.equal(state.physicalDetailsOpen,open);assert.deepEqual(opened,[]);assert.equal(calls.at(-1).openDetails,false);assert.ok(state.physicalSelected.has(entity.id));}
     await h.audit.choosePhysicalDrawing(entity,{ctrlKey:true},true);assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,true);assert.deepEqual(opened,[]);
-    state.physicalDetailsOpen=false;await h.audit.choosePhysicalDrawing(entity,{});assert.equal(state.physicalDetailsOpen,true);assert.equal(calls.at(-1).openDetails,true);
-    await h.audit.choosePhysicalDrawing(entity,{});assert.equal(state.physicalDetailsOpen,false);assert.equal(state.physicalSelected.size,0);assert.equal(calls.at(-1),'clear');
-    await h.audit.choosePhysicalDrawing(entity,{});await h.audit.choosePhysicalDrawing(entity,{ctrlKey:true});assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,false);
+    let now=1000;h.context.Date={now:()=>now};const click={type:'click',clientX:40,clientY:60};
+    state.physicalDetailsOpen=false;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,false);assert.equal(calls.at(-1).openDetails,false);
+    now+=150;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,true);assert.equal(calls.at(-1).openDetails,true);
+    now+=150;await h.audit.choosePhysicalDrawing(entity,click);assert.equal(state.physicalDetailsOpen,true);assert.equal(state.physicalSelected.size,1);
+    await h.audit.choosePhysicalDrawing(entity,{...click,ctrlKey:true});assert.equal(state.physicalSelected.size,0);assert.equal(state.physicalDetailsOpen,false);
     assert.equal(calls.filter(value=>value==='flush').length,9);
+  });
+  await check('Physical source regions open on double click and reject source replacement during a pending edit',async()=>{
+    const h=harness(),state=h.audit.state,reference={document_id:'doc',document_sha256:'a'.repeat(64),page:1,region:[[1,1],[2,1],[2,2]]},entity={id:'service',fields:{},evidence:[reference],deleted:false};
+    h.audit.accept(response({...blank(),version:2,physical:null,service_plans:{version:3,barriers:[],services:[entity]},image_extractions:[]}));Object.assign(state,{mode:'physical',tool:'select',physicalScope:'service_plans',document:'doc',page:1,physicalDetailsOpen:false});h.audit.setOverlayRenderer(()=>{});h.audit.setPhysicalDetails(open=>{state.physicalDetailsOpen=open;});
+    const calls=[];state.physicalUI={completePendingEdits:async()=>{},selectDrawing:async(id,_multiple,_focus,open)=>{calls.push(open);state.physicalSelected.add(id);}};
+    let now=1000;h.context.Date={now:()=>now};const click={type:'click',clientX:40,clientY:60};await h.audit.choosePhysicalEvidence(entity,reference,click);assert.equal(state.physicalDetailsOpen,false);
+    now+=100;await h.audit.choosePhysicalEvidence(entity,reference,click);assert.equal(state.physicalDetailsOpen,true);assert.deepEqual(calls,[false,true]);
+    const hold=deferred();state.physicalUI.completePendingEdits=()=>hold.promise;const pending=h.audit.choosePhysicalEvidence(entity,reference,click);state.session.snapshot.service_plans.services[0].evidence=[];hold.resolve();await assert.rejects(pending,/evidence or drawing changed/);assert.equal(calls.length,2);
   });
   await check('Both physical selection bridge callbacks respect presentation-only callout selection',async()=>{
     const h=harness(),dom=attachMinimalDom(h),state=h.audit.state,opened=[];let bridge;Object.assign(state,{mode:'physical',physicalDetailsOpen:false});dom.ui.physicalContainer=dom.element();dom.ui.physicalDetails=dom.element();h.audit.setOverlayRenderer(()=>{});h.audit.setPhysicalDetails(open=>opened.push(open));

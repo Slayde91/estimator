@@ -1,7 +1,7 @@
 "use strict";
 
 // HEADER_TAGLINE:START
-// Presentation only: selecting and typing a launch phrase never changes a project.
+// Presentation only: selecting and typing a phrase never changes a project.
 (() => {
   const label = document.getElementById("header-tagline-label");
   const sizer = document.getElementById("header-tagline-sizer");
@@ -31,16 +31,11 @@
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
   try { previous = window.localStorage.getItem(storageKey); } catch { /* Storage may be unavailable. */ }
-  const choices = phrases.filter(phrase => phrase !== previous);
-  const phrase = choices[Math.floor(Math.random() * choices.length)];
-  try { window.localStorage.setItem(storageKey, phrase); } catch { /* The phrase still works without storage. */ }
-  label.textContent = phrase;
-  // The complete hidden line reserves exactly the final wrapping and height.
-  sizer.textContent = phrase + "_";
-  const characters = Array.from(phrase);
+  // All phrases share one hidden grid cell, reserving the tallest wrapping at
+  // this width before typing or navigation can change the visible sentence.
+  sizer.replaceChildren(...phrases.map(phrase => { const line = document.createElement("span"); line.textContent = phrase + "_"; return line; }));
   const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-  let typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false;
-  cursor.hidden = false;
+  let phrase = "", characters = [], typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false;
   function stopCursor() {
     clearTimeout(cursorTimer);
     cursorTimer = null;
@@ -65,9 +60,21 @@
     finish();
     stopCursor();
   }
-  typed.textContent = "";
-  if (motion?.matches) finish();
-  else typeNext();
+  function nextPhrase() {
+    if (closed) return;
+    clearTimeout(typingTimer);
+    typingTimer = null;
+    stopCursor();
+    const choices = phrases.filter(choice => choice !== (phrase || previous));
+    phrase = choices[Math.floor(Math.random() * choices.length)];
+    try { window.localStorage.setItem(storageKey, phrase); } catch { /* The phrase still works without storage. */ }
+    label.textContent = phrase;
+    characters = Array.from(phrase); count = 0; complete = false;
+    typed.textContent = ""; cursor.hidden = false;
+    if (motion?.matches) finish(); else typeNext();
+  }
+  nextPhrase();
+  window.CeasefireHeaderTagline = Object.freeze({ next: nextPhrase });
   motion?.addEventListener?.("change", event => { if (event.matches) finish(); });
   window.addEventListener?.("pagehide", close, { once: true });
 })();
@@ -848,7 +855,9 @@
   }
   async function requestViewNavigation(view, librarySelection) {
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
-    showView(view, librarySelection); return true;
+    await showView(view, librarySelection);
+    if (state.currentView === view) window.CeasefireHeaderTagline?.next();
+    return true;
   }
   async function requestCalculatorNavigation(id) {
     if (!["penetration", "steel_vermiculite", "steel_board", "ductwork"].includes(id)) return false;
@@ -859,6 +868,7 @@
     }
     state.estimatorKind = id === "penetration" ? "penetration" : "estimate";
     await showView("calculators", undefined, id === "penetration" ? undefined : id);
+    if (state.currentView === "calculators") window.CeasefireHeaderTagline?.next();
     return true;
   }
   function setCalculatorMenuOpen(open) {

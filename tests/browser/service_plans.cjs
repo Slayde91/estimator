@@ -129,8 +129,12 @@ async function controls() {
     const button = page.getByRole('button', { name: `Export draft ${format}`, exact: true }); await expect(button).toContainText(format);
     const css = await style(button); assert.equal(css.background, 'rgb(43, 34, 40)'); assert.equal(css.color, 'rgb(255, 255, 255)');
   }
-  const scale = await page.getByRole('button', { name: 'Scale', exact: true }).boundingBox(), count = await page.getByRole('button', { name: 'Count', exact: true }).boundingBox();
-  assert.ok(count.y >= scale.y + scale.height && Math.abs(count.x - scale.x) < 2, 'Count sits directly below Scale in the left rail');
+  const scaleButton = page.getByRole('button', { name: 'Scale', exact: true }), countButton = page.getByRole('button', { name: 'Count', exact: true });
+  assert.equal(await scaleButton.evaluate(el => !!el.closest('.takeoff-viewer') && !el.closest('.takeoff-tool-rail')), true, 'Scale is a viewer overlay');
+  assert.equal(await countButton.evaluate(el => !!el.closest('.takeoff-tool-rail')), true, 'Count stays in the left rail');
+  const scale = await scaleButton.boundingBox(), viewer = await page.locator('.takeoff-viewer').boundingBox(), count = await countButton.boundingBox(), viewportTool = await page.getByRole('button', { name: 'Viewport', exact: true }).boundingBox();
+  assert.ok(Math.abs(viewer.x + viewer.width - scale.x - scale.width - 10) < 2 && Math.abs(viewer.y + viewer.height - scale.y - scale.height - 10) < 2, 'Scale sits at the viewer bottom right');
+  assert.ok(count.y >= viewportTool.y + viewportTool.height && Math.abs(count.x - viewportTool.x) < 2, 'Count stays below Viewport in the left rail');
   await expect(page.getByRole('complementary', { name: 'Physical draft inspector', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-physical-register .takeoff-physical-inspector')).toHaveCount(0);
   evidence.controls = controls;
@@ -216,7 +220,7 @@ async function controls() {
   const detailBox = await page.locator('.takeoff-physical-details').boundingBox(), drawingBox = await page.locator('.takeoff-viewport').boundingBox();
   assert.ok(detailBox.x + detailBox.width <= drawingBox.x + 2, 'Item Details sits left of the PDF page');
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
-  await marker(barrier).click(); await expect(details()).toBeVisible();
+  await marker(barrier).click(); await expect(details()).toBeHidden(); await marker(barrier).dblclick({ delay: 100 }); await expect(details()).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeHidden();
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(details()).toBeVisible();
   evidence.countPlacement = { marker: originalMarker, derivedCallout: true, noScaleRequired: true, paneOnSelectionAndSettings: true };
@@ -272,7 +276,7 @@ async function controls() {
   assert.deepEqual(state.physical, beforeRoundtrip.physical); assert.deepEqual(state.service_plans, beforeRoundtrip.service_plans);
   assert.deepEqual(saved.takeoffs.physical, beforeRoundtrip.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeRoundtrip.service_plans);
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
-  await expect(marker(barrier)).toBeVisible(); await marker(barrier).click(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/90/90');
+  await expect(marker(barrier)).toBeVisible(); await marker(barrier).dblclick({ delay: 100 }); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/90/90');
   await summaryContains(barrier, '5 ×'); evidence.savedReopenedGraphsAndMarkers = true;
   console.log('Scoped marks and exact Save As / reopen graph preservation passed.');
 
@@ -306,7 +310,7 @@ async function controls() {
   await tab('Service Plans'); await page.setViewportSize({ width: 764, height: 764 }); await page.locator('.takeoff-physical-register').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'service-plan-register-764.png'), fullPage: true });
   await renderedPage(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
-  await marker(secondBarrier).click(); await expect(details()).toBeVisible(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60');
+  await marker(secondBarrier).dblclick({ delay: 100 }); await expect(details()).toBeVisible(); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/60/60');
   await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = 0; });
   await page.locator('.takeoff-drawing-layout').evaluate(el => { const header = document.querySelector('header').getBoundingClientRect(); window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12); });
   await page.screenshot({ path: path.join(output, 'service-plan-item-details-764.png') });

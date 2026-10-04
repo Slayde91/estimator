@@ -115,7 +115,7 @@
     "Export CSV": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
     "Export XLSX": "M14 2H4v20h16V8l-6-6zm0 0v6h6M8 11v4m-2-2 2 2 2-2",
     "Fit page": "M9 9L3 3m0 5V3h5M15 9l6-6m-5 0h5v5M9 15l-6 6m0-5v5h5M15 15l6 6m-5 0h5v-5",
-    "Rotate page": "M14 3H5v18h14V8l-5-5zm0 0v5h5M8 15a4 4 0 0 1 7-2m0-3v3h-3M16 16a4 4 0 0 1-7 2",
+    "Rotate page": "M12 6l6 6-6 6-6-6zM13 3a9 9 0 0 1 7 15m0-4v4h3M11 21A9 9 0 0 1 4 6m0 4V6H1",
     "Upload PDFs": "M14 3H5v18h14V8l-5-5zm0 0v5h5M12 18v-7m-3 3 3-3 3 3",
     "Search": "M15.5 15.5L21 21M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
     "Stop search": "M15.5 15.5L21 21M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0M7 7l6 6M13 7l-6 6",
@@ -301,7 +301,7 @@
     for (const [tool, title] of [["select", "Select"], ["pan", "Pan"], ["settings", "Settings"], ["viewport", "Viewport"], ["calibrate", "Calibrate"], ["trace", "Trace length"], ["count", "Count"], ["countLength", "Count steel lengths"], ["polygon", "Trace surface"], ["exclusion", "Add exclusion"], ["measure", "Length"]]) { const el = button(title, () => tool === "count" ? activateCountTool() : tool === "countLength" ? setTool("count") : tool === "exclusion" ? startExclusion() : tool === "settings" ? toggleSettings() : tool === "viewport" ? toggleViewportPanel() : setTool(tool)); if (!["viewport", "settings"].includes(tool)) el.dataset.tool = tool === "countLength" ? "count" : tool; else { el.setAttribute("aria-expanded", "false"); el.setAttribute("aria-controls", tool === "settings" ? "takeoff-markup-settings" : "takeoff-viewports"); } ui.tools[tool] = el; toolbar.append(el); }
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
-    ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.tools.viewport.after(scaleAnchor); ui.scaleAnchor = scaleAnchor;
+    ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
     ui.drawingDownloads = [button("Download XLSX", () => downloadTakeoff("schedule-xlsx")), button("Download PDF", () => downloadTakeoff("marked-pdf"))];
     const headingControls = node("div", "takeoff-heading-controls"), drawingDownloads = node("div", "takeoff-toolbar takeoff-drawing-downloads"); drawingDownloads.setAttribute("role", "group"); drawingDownloads.setAttribute("aria-label", "Drawing downloads"); drawingDownloads.append(...ui.drawingDownloads); headingControls.append(modes, drawingDownloads);
     ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
@@ -351,7 +351,7 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls);
+    const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, pageControls, scaleAnchor);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
     const tabPanel = node("div", "takeoff-tab-panel"); tabPanel.append(modes, ui.physicalTabs); headingControls.replaceChildren(tabPanel, drawingDownloads);
     workspace.append(layout, register); root.append(headingControls, ui.message, workspace, ui.physicalContainer);
@@ -379,6 +379,7 @@
     renderData();
   }
   function setPhysicalDetailsOpen(open) {
+    state.lastDrawingClick = null;
     state.physicalDetailsOpen = !!open;
     if (open) { state.viewportsOpen = false; state.settingsOpen = false; state.settingsEditor = null; renderViewportPanel(); }
     renderPhysicalDetails();
@@ -409,7 +410,7 @@
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
       for (const tool of ["trace", "countLength", "measure", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
-      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; state.ui.scaleAnchor.after(state.ui.countAnchor);
+      state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; state.ui.tools.viewport.after(state.ui.countAnchor);
       ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
@@ -603,6 +604,7 @@
     state.viewportsOpen = !state.viewportsOpen; renderViewportPanel();
   }
   async function toggleSettings() {
+    state.lastDrawingClick = null;
     if (state.mode === "physical") { ensurePhysicalUI(); setPhysicalDetailsOpen(!state.physicalDetailsOpen); return; }
     if (!await discardEditor()) return;
     state.settingsOpen = !state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false;
@@ -1242,6 +1244,7 @@
     state.zoomFrame = window.requestAnimationFrame ? window.requestAnimationFrame(preview) : setTimeout(preview, 0);
   }
   function setTool(tool, target = {}) {
+    state.lastDrawingClick = null;
     if (state.busy) return;
     if (state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current count or dialog first.");
     if (tool === "count-only" && !["steel", "duct"].includes(state.mode)) throw new Error("Count-only items belong to Steel or Duct.");
@@ -1412,6 +1415,7 @@
     return visibleItems().filter(item => item.geometry && (item.measurement || item.purpose === "count-only") && !state.hidden.has(item.id) && item.geometry.document_id === state.document && item.geometry.page === state.page);
   }
   async function clearDrawingSelection() {
+    state.lastDrawingClick = null;
     const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
     if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.settingsOpen)) return;
     if (!await discardEditor()) return;
@@ -1435,15 +1439,27 @@
     if (!state.planActive || !event.cancelable || event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return false;
     const viewport = state.ui?.viewport, outer = document.scrollingElement;
     const deltaY = Number(event.deltaY), deltaX = Number(event.deltaX || 0);
-    if (!viewport || !outer || !Number.isFinite(deltaY) || !Number.isFinite(deltaX) || !deltaY || Math.abs(deltaX) > Math.abs(deltaY)) return false;
-    const innerMax = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-    if (deltaY < 0 ? viewport.scrollTop > 1 : viewport.scrollTop < innerMax - 1) return false;
+    if (!viewport || !outer || !Number.isFinite(deltaY) || !Number.isFinite(deltaX) || !deltaY && !deltaX) return false;
+    const unitX = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientWidth : 1;
+    const unitY = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
+    const innerLeft = Math.max(0, Math.min(Math.max(0, viewport.scrollWidth - viewport.clientWidth), viewport.scrollLeft + deltaX * unitX));
+    const innerTop = Math.max(0, Math.min(Math.max(0, viewport.scrollHeight - viewport.clientHeight), viewport.scrollTop + deltaY * unitY));
+    if (innerLeft !== viewport.scrollLeft || innerTop !== viewport.scrollTop) {
+      // Consume both raw axes together: native wheel gestures may lock to the
+      // first dominant axis and lose diagonal or circular trackpad movement.
+      const beforeLeft = viewport.scrollLeft, beforeTop = viewport.scrollTop;
+      viewport.scrollLeft = innerLeft; viewport.scrollTop = innerTop;
+      // Browser dimensions are rounded, but its actual scroll limit can be
+      // fractional. Only consume the wheel when an axis really moved after
+      // native clamping; otherwise the outer page must receive the edge input.
+      if (viewport.scrollLeft !== beforeLeft || viewport.scrollTop !== beforeTop) { event.preventDefault(); return true; }
+    }
+    if (!deltaY || Math.abs(deltaX) > Math.abs(deltaY)) return false;
     const outerMax = Math.max(0, outer.scrollHeight - outer.clientHeight);
-    const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
-    const next = Math.max(0, Math.min(outerMax, outer.scrollTop + deltaY * units));
+    const next = Math.max(0, Math.min(outerMax, outer.scrollTop + deltaY * unitY));
     if (next === outer.scrollTop) return false;
     // Chromium may keep its wheel target latched to the plan at its edge.
-    // Cancel only this explicit handoff; ordinary internal scrolling stays native.
+    // When neither drawing axis can move, hand vertical input back to the page.
     event.preventDefault(); outer.scrollTop = next; return true;
   }
   function deactivatePlan() {
@@ -1461,6 +1477,7 @@
     document.addEventListener("focusin", outside, { signal: controller.signal });
   }
   function resetPlanInteraction() {
+    state.lastDrawingClick = null;
     state.physicalPlacementTarget = null;
     state.panCleanup?.();
     if (state.countContinuation) cancelTrace();
@@ -1500,6 +1517,7 @@
     message("Control point deleted. The revised quantity requires confirmation. Undo last edit restores the previous geometry.");
   }
   function selectControlPoint(reference, menu = false) {
+    state.lastDrawingClick = null;
     pointTarget(reference); state.markupMenu = null; state.controlPoint = reference; state.controlMenu = menu; renderOverlay();
     const selector = `[data-control-item-id="${reference.itemId}"][data-point-index="${reference.index}"][data-exclusion-id="${reference.exclusionId || ""}"]`;
     const menuItem = menu && state.ui.overlay.querySelector(".takeoff-control-menu button:not(:disabled)");
@@ -1668,6 +1686,7 @@
   }
   function cancelSelectionGesture() {
     const gesture = state.gesture; if (!gesture) return;
+    state.lastDrawingClick = null;
     state.gesture = null; gesture.cleanup();
     if (gesture.countSelectionBefore) state.selected = gesture.countSelectionBefore;
     if (gesture.countMarkerSelectionBefore) { state.selected = gesture.countMarkerSelectionBefore.items; state.countSelection = gesture.countMarkerSelectionBefore.members; }
@@ -1700,13 +1719,14 @@
       if (next.pointerId !== gesture.pointerId || !current()) return;
       const distance = Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]);
       if (!gesture.moved && distance < 4) return;
+      state.lastDrawingClick = null;
       gesture.moved = true; gesture.current = drawingPoint(next); gesture.delta = [gesture.current[0] - gesture.initial[0], gesture.current[1] - gesture.initial[1]];
       next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
     };
     const finish = next => {
       if (next.pointerId !== gesture.pointerId) return;
       const valid = current(); move(next); state.gesture = null; gesture.cleanup();
-      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (valid) { state.suppressSelectionClickUntil = Date.now() + 500; if (id) void safely(() => selectItem(id, gesture.additive, false, true)); else if (!gesture.additive) void safely(clearDrawingSelection); } return; }
+      if (!gesture.moved) { renderOverlay(); window.CeasefireProject?.changed?.(); if (valid) { state.suppressSelectionClickUntil = Date.now() + 500; if (id) void safely(() => selectDrawingItem(id, next, gesture.additive)); else if (!gesture.additive) void safely(clearDrawingSelection); } return; }
       state.suppressSelectionClickUntil = Date.now() + 500; next.preventDefault();
       void safely(async () => {
         if (!valid || state.busy || state.formDirty || state.settingsDirty) throw new Error("The drawing or item state changed during the gesture. Repeat the selection or move.");
@@ -1930,12 +1950,12 @@
     else { state.selected.delete(item.id); state.countSelection.delete(item.id); }
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
   }
-  async function selectCountMarker(itemId, memberId, additive = false) {
+  async function selectCountMarker(itemId, memberId, additive = false, openSettings = true) {
     if (state.busy || state.modal || state.gesture || !await discardEditor()) return;
     const item = drawableItems().find(value => value.id === itemId);
     if (!isCount(item) || !item.member_ids.includes(memberId)) throw new Error("This marker changed. Select its current position again.");
     setCountMarkerSelection(item, memberId, additive);
-    state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null;
+    if (openSettings) { state.settingsOpen = true; state.viewportsOpen = false; state.settingsEditor = null; }
     renderViewportPanel(); renderSelection();
   }
   function beginCountMarkerDrag(event, item, index, memberId) {
@@ -1960,6 +1980,7 @@
     const move = next => {
       if (next.pointerId !== gesture.pointerId || !current()) return;
       if (!gesture.moved && Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]) < 4) return;
+      state.lastDrawingClick = null;
       const position = drawingPoint(next); gesture.current = position; gesture.delta = position.map((value, axis) => value - initial[axis]); gesture.moved = true;
       next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
     };
@@ -1970,7 +1991,7 @@
       next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
       if (!gesture.moved || !valid) {
         state.selected = previous.items; state.countSelection = previous.members;
-        if (valid) void safely(() => selectCountMarker(item.id, memberId, additive)); else { renderSelection(); message("The drawing or count changed during the drag. Select the current markers and try again.", true); }
+        if (valid) void safely(() => selectCountMarker(item.id, memberId, additive, drawingClickOpensSettings(next, `count:${item.id}:${memberId}`))); else { renderSelection(); message("The drawing or count changed during the drag. Select the current markers and try again.", true); }
         window.CeasefireProject?.changed?.(); return;
       }
       void safely(async () => {
@@ -1999,7 +2020,7 @@
       const hit = countSymbol(point, appearance, { class: "takeoff-hit takeoff-count-hit", fill: "transparent", stroke: "transparent", "stroke-width": Math.max(8, appearance.stroke_width * scale), tabindex: 0, role: "button", "aria-pressed": String(chosen), "aria-label": `Count marker ${index + 1} · ${item.fields.mark || item.id}${isStandalone(item) ? "" : ` · ${formatLength(item.measurement.length_m)} m`}` });
       hit.dataset.itemId = item.id; hit.dataset.countItemId = item.id; hit.dataset.countMemberId = memberId;
       hit.addEventListener("pointerdown", event => void safely(() => beginCountMarkerDrag(event, item, index, memberId)));
-      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectCountMarker(item.id, memberId, event.ctrlKey || event.metaKey || event.shiftKey)); });
+      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectCountMarker(item.id, memberId, event.ctrlKey || event.metaKey || event.shiftKey, drawingClickOpensSettings(event, `count:${item.id}:${memberId}`))); });
       const menu = event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(() => { requireFinishedEdits(); const reference = pointReference(item, index); markupTarget(reference); if (!selectedCountMemberIds(item).includes(memberId)) setCountMarkerSelection(item, memberId); state.controlPoint = null; state.controlMenu = false; state.markupMenu = { reference, memberId, point }; renderSelection(); state.ui.overlay.querySelector('.takeoff-markup-menu button')?.focus({ preventScroll: true }); }); };
       hit.addEventListener("contextmenu", menu);
       hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") menu(event); else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); void safely(() => selectCountMarker(item.id, memberId, event.ctrlKey || event.metaKey || event.shiftKey)); } });
@@ -2086,7 +2107,7 @@
       else if (item.measurement?.method === "cited") { const box = G.region(points[0], points[points.length - 1]); const attrs = { x: box[0], y: box[1], width: box[2], height: box[3] }; shape = svg("rect", { ...attrs, ...attributes }); hit = svg("rect", { ...attrs, class: "takeoff-hit takeoff-area-hit" }); }
       else { const coords = points.map(p => p.join(",")).join(" "); shape = svg("polyline", { points: coords, ...attributes, class: `${className} takeoff-length-markup` }); hit = svg("polyline", { points: coords, class: "takeoff-hit" }); }
       hit.dataset.itemId = item.id; hit.setAttribute("aria-label", `${item.fields.mark || item.id} · ${reviewStatus(item).label}`); hit.setAttribute("tabindex", "0"); hit.setAttribute("role", "button"); hit.setAttribute("aria-pressed", String(state.selected.has(item.id)));
-      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false, true)); });
+      hit.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectDrawingItem(item.id, event)); });
       hit.addEventListener("keydown", event => { if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } else if (event.key === "Enter" || event.key === " " && isSurface(item)) { event.preventDefault(); event.stopPropagation(); void safely(() => selectItem(item.id, event.ctrlKey || event.metaKey || event.shiftKey, false, true)); } });
       hit.addEventListener("contextmenu", event => { if (state.tool === "select") { event.preventDefault(); event.stopPropagation(); void safely(() => openMarkupMenu(item, event)); } });
       hit.addEventListener("pointerenter", () => hover(item.id)); hit.addEventListener("pointerleave", () => hover(null));
@@ -2262,14 +2283,28 @@
     return entity;
   }
   async function choosePhysicalDrawing(entity, event, callout = false) {
+    const controller = state.physicalUI, reference = physicalMarkerReference(entity);
     await state.physicalUI?.completePendingEdits?.();
+    if (state.physicalUI !== controller) throw new Error("The physical draft changed. Select its current marker again.");
+    entity = physicalMarkerTarget({ ...reference, revision: physicalDrawingEntity(entity.id)?.revision });
     const multiple = event.ctrlKey || event.metaKey || event.shiftKey;
-    if (!callout && state.physicalSelected.has(entity.id) && state.physicalDetailsOpen && !multiple) {
-      await state.physicalUI.clearSelection(); setPhysicalDetailsOpen(false);
-    } else {
-      await state.physicalUI.selectDrawing(entity.id, multiple, false, !callout);
-      if (!callout) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
-    }
+    const openDetails = !callout && drawingClickOpensSettings(event, `physical:${entity.id}`);
+    if (callout) state.lastDrawingClick = null;
+    await controller.selectDrawing(entity.id, multiple, false, openDetails);
+    if (openDetails || !callout && !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
+    renderOverlay();
+  }
+  async function choosePhysicalEvidence(entity, reference, event) {
+    const controller = state.physicalUI, source = JSON.stringify(reference);
+    const context = JSON.stringify([state.session?.session_id, state.physicalScope, state.document, state.page]);
+    await controller?.completePendingEdits?.();
+    const current = ["barriers", "defects", "openings", "services"].flatMap(key => physicalGraph()?.[key] || []).find(value => value.id === entity.id && !value.deleted);
+    if (!controller || state.physicalUI !== controller || state.tool !== "select" || state.mode !== "physical" ||
+      context !== JSON.stringify([state.session?.session_id, state.physicalScope, state.document, state.page]) ||
+      !current?.evidence?.some(value => JSON.stringify(value) === source)) throw new Error("The source evidence or drawing changed. Select its current region again.");
+    const openDetails = drawingClickOpensSettings(event, `physical-evidence:${entity.id}`);
+    await controller.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false, openDetails);
+    if (openDetails || !state.physicalSelected.size) setPhysicalDetailsOpen(state.physicalSelected.size > 0);
     renderOverlay();
   }
   function physicalCalloutLines(summary, width, fontSize = 9) {
@@ -2321,6 +2356,7 @@
     const move = next => {
       if (gesture.released || next.pointerId !== gesture.pointerId || !current()) return;
       if (!gesture.moved && Math.hypot(next.clientX - gesture.startClient[0], next.clientY - gesture.startClient[1]) < 4) return;
+      state.lastDrawingClick = null;
       gesture.current = drawingPoint(next); gesture.delta = gesture.current.map((value, axis) => value - initial[axis]); gesture.moved = true;
       if (box) {
         const start = G.transform(initial, state.viewport.transform), end = G.transform(gesture.current, state.viewport.transform), dx = end[0] - start[0], dy = end[1] - start[1];
@@ -2354,8 +2390,7 @@
           marker.callout = { offset: anchor.map((value, axis) => value - marker.point[axis]), width: gesture.box.width / pdfScale, height: gesture.box.height / pdfScale };
         }
         await (reference.kind === "defect" ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
-        await controller.selectDrawing(entity.id, false, false, kind === "physical-marker");
-        if (kind === "physical-marker") setPhysicalDetailsOpen(true);
+        await controller.selectDrawing(entity.id, false, false, false);
       }).finally(() => { if (state.gesture === gesture) cancelSelectionGesture(); renderOverlay(); window.CeasefireProject?.changed?.(); });
     };
     const cancel = next => { if (next.pointerId === gesture.pointerId) cancelSelectionGesture(); };
@@ -2395,6 +2430,10 @@
     const text = svg("text", { fill: "#30282b", "font-family": "Arial, sans-serif", "font-size": fontSize });
     lines.forEach((line, index) => { const span = svg("tspan", { x: x + padding, y: y + padding + fontSize + index * lineHeight, "font-weight": index === 0 ? "700" : "400" }); span.textContent = line; text.append(span); }); callout.append(text);
     const shape = svg("circle", { cx: point[0], cy: point[1], r: radius, class: `takeoff-physical-marker${selected ? " selected" : ""}`, fill: "#b90a15", stroke: selected ? "#fff" : "#b90a15", "stroke-width": Math.max(1, 2 * markerScale), "pointer-events": "none" });
+    if (selected) {
+      const halo = { cx: point[0], cy: point[1], r: radius + 5, "pointer-events": "none", "aria-hidden": "true", "data-selected-physical-id": entity.id };
+      overlay.append(svg("circle", { ...halo, class: "takeoff-physical-selection-underlay" }), svg("circle", { ...halo, class: "takeoff-physical-selection" }));
+    }
     const hit = svg("circle", { cx: point[0], cy: point[1], r: Math.max(radius, 9), class: "takeoff-physical-marker-hit", fill: "transparent", stroke: "none", "pointer-events": "all", role: "button", tabindex: 0, "aria-label": `${defect ? "Source annotation" : "Count marker"} ${entity.display_id} · ${summary}`, "aria-pressed": String(selected), "data-physical-id": entity.id });
     for (const target of [hit, callout]) {
       const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); if (event.type === "click" && Date.now() < (state.suppressSelectionClickUntil || 0)) return; void safely(() => choosePhysicalDrawing(entity, event, target === callout)); };
@@ -2434,8 +2473,9 @@
       const path = G.polygonPath({ kind: "polygon", points: reference.region, exclusions: [] }, state.viewport.transform), first = G.transform(reference.region[0], state.viewport.transform);
       const shape = svg("path", { d: path, class: `takeoff-shape takeoff-physical-shape${state.physicalSelected.has(entity.id) ? " selected" : ""}${state.physicalHovered === entity.id ? " hovered" : ""}` });
       const hit = svg("path", { d: path, class: "takeoff-hit takeoff-area-hit", role: "button", tabindex: 0, "aria-label": `${kind}: ${entity.fields.label || entity.id} · unapproved draft evidence` }); hit.dataset.physicalId = entity.id;
-      hit.addEventListener("click", event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey || event.shiftKey, false)); });
-      hit.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(() => state.physicalUI.selectDrawing(entity.id, event.ctrlKey || event.metaKey, false)); } });
+      const choose = event => { if (state.tool !== "select") return; event.stopPropagation(); void safely(() => choosePhysicalEvidence(entity, reference, event)); };
+      hit.addEventListener("click", choose);
+      hit.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
       hit.addEventListener("pointerenter", () => state.physicalUI?.hover(entity.id)); hit.addEventListener("pointerleave", () => state.physicalUI?.hover(null));
       const label = svg("text", { x: first[0] + 6, y: first[1] - 7, class: "takeoff-label" }); label.textContent = `${kind}: ${entity.fields.label || entity.id.slice(0, 8)}`; overlay.append(shape, hit, label);
     }
@@ -2632,13 +2672,33 @@
     else { if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsEditor = null; }
     renderViewportPanel();
   }
+  function drawingClickOpensSettings(event, id) {
+    // SVG hits are replaced by selection rendering. Remember the completed
+    // stationary click, rather than relying on dblclick on the old SVG node.
+    if (event.type === "keydown") { state.lastDrawingClick = null; return true; }
+    if (event.ctrlKey || event.metaKey || event.shiftKey) { state.lastDrawingClick = null; return false; }
+    const context = JSON.stringify([state.session?.session_id, state.session?.revision, pageDisplayKey(), state.mode, state.physicalScope, id]);
+    const now = Date.now(), previous = state.lastDrawingClick;
+    state.lastDrawingClick = { context, at: now, x: event.clientX, y: event.clientY };
+    const double = previous?.context === context && now - previous.at >= 0 && now - previous.at <= 500 &&
+      [event.clientX, event.clientY, previous.x, previous.y].every(Number.isFinite) && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 4;
+    if (double) state.lastDrawingClick = null;
+    return double;
+  }
+  async function selectDrawingItem(id, event, multiple = event.ctrlKey || event.metaKey || event.shiftKey) {
+    const item = items().find(value => value.id === id), context = JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]);
+    const geometry = JSON.stringify(item?.geometry);
+    if (!item || !await discardEditor()) return;
+    if (state.tool !== "select" || context !== JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]) ||
+      geometry !== JSON.stringify(items().find(value => value.id === id)?.geometry)) throw new Error("The markup or drawing changed. Select its current position again.");
+    await selectItem(id, multiple, false, true, drawingClickOpensSettings(event, `item:${id}`));
+  }
   async function selectItem(id, multiple = false, focus = true, fromDrawing = false, openSettings = true) {
     if (!await discardEditor()) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
     const modeChanged = state.mode !== item.mode;
-    const deselectSurface = fromDrawing && isSurface(item) && state.settingsOpen && !multiple && state.selected.size === 1 && state.selected.has(id);
-    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (deselectSurface || multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    state.mode = item.mode; state.offset = Math.floor(Math.max(0, groupedItems().findIndex(candidate => candidate.id === id)) / 100) * 100; if (!multiple) { state.selected.clear(); state.countSelection.clear(); } state.countSelection.delete(id); if (multiple && state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
     if (openSettings && state.selected.has(id) && (fromDrawing || isSurface(item) || isCount(item) || isStandalone(item))) state.settingsOpen = true;
     syncSurfaceDetailsSelection();
     if (state.selected.has(id) && state.group) state.collapsed.delete(itemGroup(item));

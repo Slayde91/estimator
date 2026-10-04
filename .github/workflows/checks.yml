@@ -63,6 +63,7 @@ jobs:
       - run: node tests/browser/pdf_render_gate.cjs
       - run: npm run test:calculator-navigation
       - run: npm run test:page-rotation
+      - run: npm run test:viewer-pan-scale
       - run: npm run test:linked-thickness
       - run: npm run test:appearance-values
       - run: npm run test:project-controls

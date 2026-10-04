@@ -112,13 +112,13 @@ async function layout(width) {
   assert.equal(state.physical.barriers.at(-1).defect_id, otherDefect); await place(newBarrier, [500, 300], true);
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-B');
   const newService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 4 }, () => row(newBarrier).getByRole('button', { name: /^Add service to / }).click()); assert.equal(state.physical.services.at(-1).barrier_id, newBarrier);
-  await marker(barrier).click(); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
+  await marker(barrier).dblclick({ delay: 100 }); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
   const navigation = details().getByRole('table', { name: 'Item Details navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('columnheader').allTextContents(), ['Defect', 'Barrier', 'Service']);
   for (const [kind, expected] of [['Defect', [defect, otherDefect]], ['Barrier', [barrier, otherBarrier, newBarrier]], ['Service', [service, otherService, newService]]]) assert.deepEqual(await navigation.getByLabel(`${kind} ID in Item Details`, { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), expected);
   const previews = requests.length; await details().getByLabel('Notes', { exact: true }).fill('Retain unfinished Defect edit');
   await response(()=>navigation.getByLabel('Service ID in Item Details', { exact: true }).selectOption(service),'/physical/apply'); await idle(); await snapshot(); assert.equal(state.physical.defects.find(entry=>entry.id===defect).fields.notes,'Retain unfinished Defect edit'); await expect(details().getByLabel('Service ID in Item Details', { exact: true })).toHaveValue(service); assert.equal(requests.length, previews+1);
-  await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).click();
+  await page.locator('.takeoff-physical-details').evaluate(el => { el.scrollTop = el.scrollHeight; }); await marker(barrier).dblclick({ delay: 100 });
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;
   await page.getByRole('tab', { name: 'Service Plans', exact: true }).click(); await idle(); await page.setViewportSize({ width: 1600, height: 1100 });

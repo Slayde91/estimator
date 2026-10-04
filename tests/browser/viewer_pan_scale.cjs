@@ -97,6 +97,16 @@ async function scaleGeometry(mode, width) {
   }
   await page.mouse.up(); assert.deepEqual((await position()).paper, start.paper);
   assert.deepEqual(await retained(), sourceBefore); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculatorsBefore);
+  // Rounded dimensions can differ from Chromium's true fractional limit.
+  // Clamp through the browser, then prove a focused viewer hands the wheel to
+  // the outer page when neither drawing axis actually moves.
+  await page.evaluate(() => window.scrollTo(0, 100)); await viewport().focus();
+  await viewport().evaluate(el => { el.scrollLeft = el.scrollWidth; el.scrollTop = el.scrollHeight; });
+  const edgeBefore = await position(), edgeBox = await viewport().boundingBox();
+  await page.mouse.move(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2); await page.mouse.wheel(0, 180);
+  await expect.poll(async () => (await position()).outer).toBeGreaterThan(edgeBefore.outer);
+  const edgeAfter = await position(); assert.deepEqual([edgeAfter.left, edgeAfter.top], [edgeBefore.left, edgeBefore.top]);
+  evidence.edge = { before: edgeBefore, after: edgeAfter };
   // Release focus: the same wheel input belongs to the outer page again.
   await viewport().press('Escape'); await page.evaluate(() => window.scrollTo(0, 100));
   const beforePage = await position(); await page.mouse.move(center[0], center[1]); await page.mouse.wheel(0, 180);

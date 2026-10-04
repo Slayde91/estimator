@@ -1447,7 +1447,12 @@
     if (innerLeft !== viewport.scrollLeft || innerTop !== viewport.scrollTop) {
       // Consume both raw axes together: native wheel gestures may lock to the
       // first dominant axis and lose diagonal or circular trackpad movement.
-      event.preventDefault(); viewport.scrollLeft = innerLeft; viewport.scrollTop = innerTop; return true;
+      const beforeLeft = viewport.scrollLeft, beforeTop = viewport.scrollTop;
+      viewport.scrollLeft = innerLeft; viewport.scrollTop = innerTop;
+      // Browser dimensions are rounded, but its actual scroll limit can be
+      // fractional. Only consume the wheel when an axis really moved after
+      // native clamping; otherwise the outer page must receive the edge input.
+      if (viewport.scrollLeft !== beforeLeft || viewport.scrollTop !== beforeTop) { event.preventDefault(); return true; }
     }
     if (!deltaY || Math.abs(deltaX) > Math.abs(deltaY)) return false;
     const outerMax = Math.max(0, outer.scrollHeight - outer.clientHeight);

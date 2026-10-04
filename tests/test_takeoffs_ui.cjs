@@ -408,6 +408,17 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.equal(wheel(40,20),false);assert.equal(outer.scrollTop,100);assert.equal(wheel(0,40),true);assert.equal(outer.scrollTop,140);
     assert.equal(wheel(-500,-500),true);assert.deepEqual([viewport.scrollLeft,viewport.scrollTop],[0,0]);assert.equal(outer.scrollTop,140);assert.equal(cancelled,3);
   });
+  await check('Fractional native scroll limits hand exhausted wheel input to the outer page',()=>{
+    const h=harness(),outer={scrollTop:100,scrollHeight:1300,clientHeight:300},viewport={scrollWidth:400,clientWidth:200,scrollHeight:300,clientHeight:100};
+    // The true native maxima are half a pixel below rounded DOM dimensions.
+    let left=199.5,top=199.5;
+    Object.defineProperties(viewport,{scrollLeft:{get(){return left;},set(value){left=Math.max(0,Math.min(199.5,value));}},scrollTop:{get(){return top;},set(value){top=Math.max(0,Math.min(199.5,value));}}});
+    h.context.document.scrollingElement=outer;h.audit.state.ui={viewport};h.audit.state.planActive=true;
+    let cancelled=0;const wheel=(x,y)=>h.audit.handoffPlanWheel({cancelable:true,deltaX:x,deltaY:y,deltaMode:0,preventDefault(){cancelled++;}});
+    assert.equal(wheel(0,220),true);assert.equal(outer.scrollTop,320);assert.deepEqual([left,top],[199.5,199.5]);
+    assert.equal(wheel(-10,20),true);assert.deepEqual([left,top],[189.5,199.5]);assert.equal(outer.scrollTop,320);
+    assert.equal(cancelled,2);
+  });
   await check('A changed calculator draft during export cannot publish the captured linked result',async()=>{
     const h=harness(),value=blank(),body=deferred();value.items=[{id:'a',mode:'steel',fields:{mark:'A'}}];h.audit.accept(response(value));
     let fingerprint='before',downloads=0,fetches=0;

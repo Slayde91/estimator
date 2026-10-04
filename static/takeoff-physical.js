@@ -426,7 +426,7 @@
       const entry = state.index.get(id); if (!entry || entry.entity.deleted) return "";
       const line = (values) => values.filter(value => value !== undefined && value !== null && value !== "").map(value => String(value).replace(/[\r\n\t]+/g, " ")).join(" · ");
       const defectLine = value => { const f = value.entity.fields; return line([displayId(value), f.label, f.location, f.frl ? `FRL ${f.frl}` : ""]); };
-      const serviceLine = child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type, value.size, value.width_height_mm, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); };
+      const serviceLine = child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type || "Service type not recorded", value.size, value.width_height_mm, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); };
       const barrierLines = barrier => {
         const f = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? f.frl : defect?.entity.fields.frl;
         const services = state.servicesByBarrier.get(barrier.entity.id) || [];

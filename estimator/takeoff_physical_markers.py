@@ -21,7 +21,7 @@ def service_summary(service):
     """Keep explicit quantity, category, type and dimensions under their barrier."""
     values = service['fields']
     detail = [service['display_id'], f"{service['quantity']} x", values.get('label'),
-              values.get('service'), values.get('service_type'), values.get('size'), values.get('width_height_mm')]
+              values.get('service'), values.get('service_type') or 'Service type not recorded', values.get('size'), values.get('width_height_mm')]
     width, height = values.get('width_mm'), values.get('height_mm')
     if width is not None or height is not None:
         detail.append(f"{width if width is not None else '?'} x {height if height is not None else '?'} mm")

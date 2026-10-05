@@ -185,6 +185,10 @@ def audit_affected(before, after):
         affected['physical'] = sorted(changed(physical_entries(before), physical_entries(after)))
         if 'service_plans' in before or 'service_plans' in after:
             affected['service_plans'] = sorted(changed(physical_entries(before, 'service_plans'), physical_entries(after, 'service_plans')))
+    if 'annotations' in before or 'annotations' in after:
+        def annotation_entries(state):
+            return entries({'annotations': state.get('annotations', {}).get('callouts', [])}, 'annotations', 1000)
+        affected['annotations'] = sorted(changed(annotation_entries(before), annotation_entries(after)))
     return affected
 
 
@@ -807,7 +811,7 @@ def validate_snapshot(value, *, copy_result=True):
     keys = set(new_snapshot())
     if isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 2:
         keys.update(('physical', 'image_extractions'))
-    optional = {'drawing_presentation'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
+    optional = {'drawing_presentation', 'annotations'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
     object_fields(value, {*keys, 'companion_folder', *optional}, 'Takeoff snapshot', keys)
     if 'companion_folder' in value:
         text(value['companion_folder'], 'Evidence companion folder', 255)
@@ -946,5 +950,7 @@ def validate_snapshot(value, *, copy_result=True):
         raise ValidationError('Audit head must be a SHA-256 digest.')
     from .takeoff_presentation import validate_presentation
     validate_presentation(value)
+    from .takeoff_annotations import validate_annotations
+    validate_annotations(value)
     digest(value)
     return deepcopy(value) if copy_result else value

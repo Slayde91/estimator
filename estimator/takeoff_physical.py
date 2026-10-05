@@ -169,10 +169,15 @@ def _marker(value, label='Barrier marker'):
         _number(coordinate, 'Marker coordinate')
     if 'callout' in value:
         layout = value['callout']
-        _object(layout, {'offset', 'width', 'height', 'appearance'}, {'offset', 'width', 'height'}, label + ' callout layout')
+        _object(layout, {'offset', 'width', 'height', 'appearance'}, set(), label + ' callout layout')
+        geometry = {'offset', 'width', 'height'} & layout.keys()
+        _object(layout, {'offset', 'width', 'height', 'appearance'},
+                {'offset', 'width', 'height'} if geometry else {'appearance'}, label + ' callout layout')
         if 'appearance' in layout:
             from .takeoff_model import validate_appearance
             validate_appearance(layout['appearance'])
+        if not geometry:
+            return
         if not isinstance(layout['offset'], list) or len(layout['offset']) != 2:
             raise ValidationError('Callout offset requires a PDF x/y coordinate pair.')
         for coordinate in layout['offset']:

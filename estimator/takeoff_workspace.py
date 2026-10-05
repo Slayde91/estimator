@@ -865,7 +865,9 @@ class TakeoffService:
                      'split_steel_group': {'item_id', 'quantities'}, 'merge_steel_groups': {'item_ids'},
                      'detach_transfers': {'item_ids', 'calculator_id'},
                      'toggle_thickness_colours': {'document_id', 'calculator_id', 'calculator_drafts'},
-                     'set_legend': {'legend'}}
+                     'set_legend': {'legend'},
+                     'create_annotation': {'annotation'}, 'update_annotation': {'annotation_id', 'changes'},
+                     'delete_annotation': {'annotation_id'}}
             if not isinstance(op, str) or op not in specs:
                 raise ValidationError('This takeoff operation is not supported.')
             object_fields(request, {'expected_revision', 'request_id', 'op'} | specs[op], 'Takeoff operation',
@@ -873,7 +875,11 @@ class TakeoffService:
             revised_calibration_id = None
             created_item_ids = None
             regrouped_item_ids = None
-            if op in ('toggle_thickness_colours', 'set_legend'):
+            created_annotation_id = None
+            if op in ('create_annotation', 'update_annotation', 'delete_annotation'):
+                from .takeoff_annotations import apply_annotation
+                created_annotation_id = apply_annotation(after, request)
+            elif op in ('toggle_thickness_colours', 'set_legend'):
                 from .takeoff_presentation import apply_presentation
                 linked = None
                 if op == 'toggle_thickness_colours':
@@ -1309,6 +1315,8 @@ class TakeoffService:
                     refs = item_references(item)
                     if any(r['document_id'] == document_id for r in refs):
                         raise ValidationError('Remove or reassign all linked items before deleting their source document.')
+                if any(value['document_id'] == document_id for value in after.get('annotations', {}).get('callouts', [])):
+                    raise ValidationError('Remove free call-outs before deleting their source document.')
                 if any(value['document_id'] == document_id for value in after.get('image_extractions', [])):
                     raise ValidationError('A source document with retained image extraction history cannot be deleted.')
                 if any(reference['document_id'] == document_id
@@ -1347,7 +1355,9 @@ class TakeoffService:
                 if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images', 'linked_delete', 'linked_undo'):
                     raise ValidationError('Schedule transfers, source-render observations and undo receipts cannot be reversed by takeoff-only undo.')
                 after = deepcopy(event['before']); after['audit_head'] = before['audit_head']
-                if before['version'] == 2:
+                from .takeoff_annotations import undo_annotations
+                undo_annotations(before, after)
+                if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation'):
                     self._physical_gate(session_id, before)
                     after = self._undo_physical(session_id, before, after)
                 originals = {i['id']: i for i in before['items']}
@@ -1427,6 +1437,9 @@ class TakeoffService:
                 self._create_item(after, proposed, self._predecessors(originals))
                 self._remove(after, originals)
             response = self._commit(session_id, request, before, after, approvals)
+            if created_annotation_id is not None:
+                response['created_annotation_id'] = created_annotation_id
+                session['requests'][request['request_id']].setdefault('metadata', {})['created_annotation_id'] = created_annotation_id
             if revised_calibration_id:
                 response['revised_calibration_id'] = revised_calibration_id
                 session['requests'][request['request_id']]['metadata'] = {'revised_calibration_id': revised_calibration_id}

@@ -46,7 +46,9 @@
     "test:services-choices": "node tests/browser/services_choices.cjs",
     "test:takeoffs-standalone": "node tests/browser/standalone_measurements.cjs",
     "test:physical-interactions": "node tests/browser/physical_interactions.cjs",
-    "test:physical-filters": "node tests/browser/physical_filters.cjs"
+    "test:physical-filters": "node tests/browser/physical_filters.cjs",
+    "test:takeoffs-search": "node tests/browser/text_search.cjs",
+    "test:takeoffs-free-callouts": "node tests/browser/free_callouts.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

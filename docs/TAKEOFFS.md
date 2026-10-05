@@ -1,10 +1,9 @@
 # Manual drawing takeoffs
 
-Current controls release: PR #154. Publication/activation require dated receipts.
-The latest eight requests are planned in [ROADMAP.md](../ROADMAP.md); the physical
-Count label, current search results layout and lack of free call-outs described
-below remain current until that next implementation. See
-[Takeoffs architecture](TAKEOFFS_ARCHITECTURE.md) for model and planned boundaries.
+The PR #154 controls baseline and the search/free Call-out extension are described
+here. Publication and live activation require their dated release receipts. See
+[roadmap](../ROADMAP.md) and [Takeoffs architecture](TAKEOFFS_ARCHITECTURE.md)
+for source behaviour, model boundaries and release gates.
 
 TAKEOFFS adds a drawing and evidence register to the existing project. It does
 not change calculator formulas, shared pricing, frozen project prices or the
@@ -13,6 +12,70 @@ are available. AI proposals, independent visual validation and Physical Model
 Locks are not part of this increment.
 
 ## Working with a drawing
+
+Typing into Search opens results directly below the field. Yellow highlights show
+the sentence context; orange highlights show the measured matched words. Phrases
+can cross text runs. Clear the input or choose **Stop search** to cancel extraction
+and clear the field, list and highlights. Old work cannot restore cleared results.
+Use Up/Down in the dropdown, Enter to choose and Escape to close it.
+
+**Search** first chooses the closest match to the centre of the current view.
+Repeated activation advances in the current page's display reading order and
+wraps. Equal distances retain that order. Changing page starts the nearest cycle
+again. A page without a match stays in place and reports it; choose another page
+explicitly from the dropdown. Scans have no searchable text without a text layer.
+The 500-result cap and missing/failed page coverage are disclosed. Where exact
+glyph geometry is unavailable, the result labels its whole-text-run fallback.
+
+## Drawing shortcuts
+
+Every tool has its assignment in its tooltip. Upload PDFs has no shortcut.
+These apply while focus is inside Takeoffs and outside an editor or dialog.
+Disabled/hidden actions, IME composition and repeated keydown events are guarded.
+Ctrl+0 still fits the page. Native copying, pasting, cutting, selecting, saving,
+undo and browser navigation retain their existing keys.
+
+| Action | Shortcut |
+| --- | --- |
+| Select | Ctrl+; |
+| Pan | Ctrl+[ |
+| Settings | Ctrl+] |
+| Viewport | Ctrl+backslash |
+| Calibrate | Ctrl+F1 |
+| Trace length | Ctrl+F2 |
+| Count | Ctrl+F3 |
+| Count steel lengths | Ctrl+F7 |
+| Trace surface | Ctrl+F8 |
+| Add exclusion | Ctrl+F9 |
+| Length | Ctrl+F10 |
+| Markups | Ctrl+comma |
+| Legend | Ctrl+period |
+| Visibility | Ctrl+/ |
+| Call-out | Ctrl+apostrophe |
+
+## Free Call-outs
+
+In Steel, Duct, Walls or Slabs, choose **Call-out** and click the drawing.
+**Item Details** contains rich text with bold, italic, underline and bullet/number
+lists. Paste inserts plain text. Shared appearance controls and **Set as default**
+apply to new free and physical Call-outs; existing saved styles remain intact.
+The physical Call-out action keeps its existing draft hierarchy and quantities.
+Both actions use the original supplied icon.
+
+A free Call-out is a drawing note with its own persistent ID and source location.
+It adds no register entry, measurement, quantity, physical approval or calculator
+transfer. Select it to edit, drag its box to reposition the label, drag its source
+point to move the note, or drag its bottom-right handle to resize. Finish Item
+Details before drawing moves. **Undo last edit** restores its retained identity
+and original coordinates. Project Save/reopen and marked PDF retain the note.
+**Hide Call-out** affects the visible PDF; open Settings and choose **Show hidden
+Call-outs** to restore hidden notes. **Discard pending edits** restores the latest
+accepted note while allowing an already-sent update to settle.
+
+Notes support at most 8,000 characters, 64 text blocks and 256 formatted runs;
+there are at most 1,000 free notes in a project. Text that cannot fit or contains
+a character unsupported by the PDF font fails export explicitly, with the original
+text retained. Resize the box or edit that text before exporting.
 
 1. Upload the original PDF and open its page. Use Fit page, zoom and Pan to
    inspect the source. Search reports the pages inspected, empty text pages and
@@ -345,14 +408,14 @@ inherited context for its services. Switching sub-tabs never copies, merges or
 reparents records between these two hierarchies. Both retain their own numbered
 identities and are saved in the project.
 
-In Defect Reports, **Count** below **Scale** arms a crosshair. Clicking the
+In Defect Reports, **Call-out** arms a crosshair. Clicking the
 original PDF shows a pending source marker and opens **Add Defect**. The existing
 reviewed creation flow retains the exact source hash, page and clicked PDF point
 in a small source-location annotation clipped to the page. This annotation does
 not infer physical size, area, barriers, services or quantities. Cancelling the
 form or review creates no record. The register's **Add defect** can still create
 an unplaced defect. An unmarked barrier's Item Details has **Place count marker**
-to add its position later. In Service Plans, **Count** still uses a crosshair to
+to add its position later. In Service Plans, **Call-out** uses a crosshair to
 place an existing or new barrier directly on the original PDF page.
 Each marker has an automatic callout derived from
 the barrier fields and its active services. Editing those records updates the
@@ -596,6 +659,9 @@ Colour commands are audited presentation operations; measurements, confirmation
 and calculator inputs stay unchanged.
 
 Steel and Duct **Legend** toggles a persisted box on the current drawing page.
+Creation requires at least one visible eligible Length/Count markup on that page.
+Hidden items and global markup hiding are excluded; free Call-outs are ineligible.
+A visible legend remains removable after deleting its last eligible markup.
 Drag the box or its four corner handles; double-click it for independent line,
 fill and font settings. Entries group the page's items by colour and retain
 their marks, steel sections or duct dimensions and total lengths, and exact

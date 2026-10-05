@@ -14,7 +14,7 @@ function harness() {
   vm.runInContext(source, context); const { audit } = context, { state } = audit;
   const dims = { pageX: 20, pageY: 30, pageWidth: 780, pageHeight: 540 };
   const page = { getViewport() { return { rawDims: dims }; }, getTextContent() { const request = deferred(); requests.push(request); return request.promise; } };
-  const lib = { TextLayer: class { constructor(options) { this.options = options; this.completion = deferred(); tasks.push(this); } render() { return this.completion.promise; } cancel() { this.cancelled = true; } } };
+  const lib = { TextLayer: class { constructor(options) { this.options = options; this.completion = deferred(); this.textContentItemsStr = options.textContentSource.items.filter(item => typeof item.str === 'string').map(item => item.str); this.textDivs = this.textContentItemsStr.map(() => element()); tasks.push(this); } render() { return this.completion.promise; } cancel() { this.cancelled = true; } } };
   audit.lib(lib); audit.copy(() => copied.push(true));
   Object.assign(state, { session: { session_id: 's' }, document: 'd', page: 1, tool: 'text', selected: new Set(['selected-markup']),
     displayKey: JSON.stringify(['s', 'd', 1, 0]), displayPage: page, viewport: { transform: [0, 2, 2, 0, -60, -40] }, ui: { pageWrap: element(), progress: element() } });
@@ -27,6 +27,7 @@ async function check(label, fn) { await fn(); passed++; console.log(`ok - ${labe
     const h = harness(), pending = h.audit.ensurePdfTextLayer(); await flush();
     h.requests[0].resolve({ items: [{ str: 'Original only' }] }); await flush(); h.tasks[0].completion.resolve(); await pending;
     const layer = h.state.pdfText.container; assert.equal(layer.style.transform, 'matrix(0,2,-2,0,1080,0)');
+    assert.equal(h.state.pdfText.divs.length, 1, 'Rendered text exposes PDF.js text-run divs for exact search ranges');
     assert.equal(layer.style.width, '780px'); assert.equal(layer.style.height, '540px');
     h.selection.anchorNode = layer; h.selection.focusNode = layer;
     h.state.viewport.transform = [0, 3, 3, 0, -90, -60]; h.audit.positionPdfTextLayer(); await h.audit.ensurePdfTextLayer();

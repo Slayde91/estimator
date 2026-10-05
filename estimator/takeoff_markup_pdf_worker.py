@@ -140,15 +140,21 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     separator = height-53-heading_height
     pdf.setStrokeColor(HexColor('#C62828')); pdf.setLineWidth(1); pdf.line(18, separator, width-18, separator)
     y = separator-10
+    annotation_count = sum(annotation['page'] == page_number for annotation in spec.get('annotations', []))
+    has_marks = any(item['geometry']['page'] == page_number for item in spec['items'])
+    annotation_label = f"{annotation_count} free Call-out{'s' if annotation_count != 1 else ''} (drawing notes only)"
     if not rows:
-        has_marks = any(item['geometry']['page'] == page_number for item in spec['items'])
         pdf.drawString(20, y-10, 'Markup details continue on the following legend page.' if has_marks
+                       else annotation_label + '; no measurement markups.' if annotation_count
                        else 'No visible markups of the selected takeoff type on this page.')
     for item, paragraph, row_height in rows:
         color = HexColor(item['appearance']['stroke_color']); pdf.setStrokeColor(color); pdf.setLineWidth(3)
         pdf.line(20, y-8, 34, y-8)
         paragraph.drawOn(pdf, 42, y-(row_height-12))
         y -= row_height
+    if annotation_count and has_marks:
+        pdf.setFont('ExportVera', 7); pdf.setFillColor(HexColor('#202831'))
+        pdf.drawString(18, 26, annotation_label + '; excluded from measurement register.')
     pdf.setFont('ExportVera', 6); pdf.setFillColor(Color(.32, .36, .4))
     pdf.drawString(18, 14, 'Derived marked drawing. Original PDF retained unchanged. Unconfirmed marks are drafts; technical suitability requires separate assessment.')
 
@@ -265,15 +271,17 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
     style = {'stroke_color':'#FF3300','fill_color':'#FFDD33','font_color':'#000000',
              'fill_enabled':True,'stroke_width':4,'opacity':.75,
              **(layout.get('appearance',{}) if layout else {})}
-    if layout:
+    if layout and 'offset' in layout:
         anchor = transform([point[0]+layout['offset'][0],point[1]+layout['offset'][1]],matrix)
         source_scale = math.hypot(matrix[0],matrix[1])
         width, height = layout['width']*source_scale, layout['height']*source_scale
         x,y = anchor[0],anchor[1]-height
     else:
-        width = 238*factor
-        height = (min(len(_physical_lines(item['physical_summary'],width-12*factor,9*factor)),30)*12+12)*factor
         left,bottom,right,top = bounds
+        width = min(238*factor, right-left)
+        padding = min(6*factor, width/12)
+        height = min((min(len(_physical_lines(item['physical_summary'],width-2*padding,9*factor)),30)*12+12)*factor,
+                     top-bottom)
         x = max(left,min(center[0]+17*factor,right-width))
         y = center[1]-18*factor-height if center[1]-18*factor-height >= bottom else min(top-height,center[1]+18*factor)
     padding = min(6*factor,width/12,height/8)
@@ -284,6 +292,8 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
             break
         font_size *= .9
         lines = _physical_lines(item['physical_summary'],width-2*padding,font_size)
+    if not (layout and 'offset' in layout) and (len(lines)*font_size*1.3 > height-2*padding):
+        raise ValueError('The automatic physical call-out cannot display every line within the source drawing. Reduce its displayed details before exporting.')
     pdf.setStrokeAlpha(1);pdf.setFillAlpha(1)
     pdf.setStrokeColor(HexColor(style['stroke_color']));pdf.setLineWidth(style['stroke_width'])
     pdf.line(center[0],center[1],max(x,min(center[0],x+width)),max(y,min(center[1],y+height)))
@@ -293,6 +303,85 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
     for index,line in enumerate(lines):
         pdf.setFont('ExportVeraBold' if index == 0 else 'ExportVera',font_size)
         pdf.drawString(x+padding,y+height-padding-font_size-index*font_size*1.3,line)
+
+
+def _annotation_lines(content, width, font_size):
+    """Wrap every literal character and retain supported marks without HTML."""
+    from reportlab.pdfbase.pdfmetrics import getFont, stringWidth
+    lines, widths, numbered = [], {}, 0
+    for block in content['blocks']:
+        numbered = numbered + 1 if block['kind'] == 'number' else 0
+        prefix = '\u2022 ' if block['kind'] == 'bullet' else (f'{numbered}. ' if numbered else '')
+        styled = [(character, False, False, False) for character in prefix]
+        for run in block['runs']:
+            styled.extend((character, run.get('bold', False), run.get('italic', False), run.get('underline', False))
+                          for character in run['text'].replace('\r\n', '\n').replace('\r', '\n').replace('\t', '    '))
+        line, used = [], 0
+        for character, bold, italic, underline in styled:
+            if character == '\n':
+                lines.append(line); line, used = [], 0
+                continue
+            font = 'ExportVeraBold' if bold else 'ExportVera'
+            if ord(character) not in getFont(font).face.charToGlyph:
+                raise ValueError('A free call-out contains a character unsupported by the drawing PDF font. Edit that character before exporting; its original text is retained.')
+            key = (character, font)
+            advance = widths.setdefault(key, stringWidth(character, font, font_size))
+            if advance > width:
+                return None
+            if line and used + advance > width:
+                lines.append(line); line, used = [], 0
+            line.append((character, font, italic, underline, advance)); used += advance
+        lines.append(line)
+    return lines
+
+
+def _paint_annotations(pdf, annotations, matrix, bounds):
+    from reportlab.lib.colors import HexColor
+    scale = math.hypot(matrix[0], matrix[1])
+    left, bottom, right, top = bounds
+    for annotation in annotations:
+        style = annotation['appearance']
+        width, height = annotation['width'] * scale, annotation['height'] * scale
+        if width > right-left or height > top-bottom:
+            raise ValueError('A free call-out box exceeds the drawing bounds. Resize it before exporting.')
+        anchor = transform(annotation['label_position'], matrix)
+        x, y = max(left, min(anchor[0], right-width)), max(bottom, min(anchor[1]-height, top-height))
+        padding = min(6 * scale, width / 12, height / 8)
+        font_size = 10 * scale
+        while True:
+            lines = _annotation_lines(annotation['content'], width-2*padding, font_size)
+            if lines is not None and len(lines) * font_size * 1.3 <= height-2*padding:
+                break
+            if font_size <= 4 * scale:
+                if lines is None:
+                    raise ValueError('A free call-out box is too narrow to display every character safely.')
+                raise ValueError('A free call-out contains more text than its box can display safely. Enlarge the box or shorten the text before exporting.')
+            font_size = max(4 * scale, font_size * .9)
+        pdf.saveState()
+        pdf.setStrokeColor(HexColor(style['stroke_color'])); pdf.setLineWidth(style['stroke_width'])
+        pdf.setStrokeAlpha(1); pdf.setFillAlpha(1)
+        center = transform(annotation['point'], matrix)
+        pdf.line(center[0], center[1], max(x, min(center[0], x+width)), max(y, min(center[1], y+height)))
+        pdf.setFillColor(HexColor(style['fill_color'])); pdf.setFillAlpha(style['opacity'])
+        pdf.roundRect(x, y, width, height, min(3*scale, height/8), stroke=1, fill=int(style['fill_enabled']))
+        pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color']))
+        for index, line in enumerate(lines):
+            cursor, baseline = x+padding, y+height-padding-font_size-index*font_size*1.3
+            for character, font, italic, underline, advance in line:
+                pdf.saveState(); pdf.setFont(font, font_size)
+                if italic:
+                    pdf.translate(cursor, baseline); pdf.transform(1, 0, .18, 1, 0, 0)
+                    pdf.drawString(0, 0, character)
+                else:
+                    pdf.drawString(cursor, baseline, character)
+                pdf.restoreState()
+                if underline:
+                    pdf.setStrokeColor(HexColor(style['font_color'])); pdf.setLineWidth(max(.25, font_size/18))
+                    pdf.line(cursor, baseline-font_size*.12, cursor+advance, baseline-font_size*.12)
+                cursor += advance
+        # The original-coordinate point is a presentation anchor, not a Count.
+        pdf.setFillColor(HexColor(style['stroke_color'])); pdf.circle(center[0], center[1], 3*scale, stroke=0, fill=1)
+        pdf.restoreState()
 
 
 def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
@@ -326,7 +415,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
                     summary = item['physical_summary']
                     labels = list(summary)
                     layout = item.get('callout')
-                    if layout:
+                    if layout and 'offset' in layout:
                         callout_style = {'stroke_color': '#FF3300', 'fill_color': '#FFDD33',
                             'font_color': '#000000', 'fill_enabled': True, 'stroke_width': 4, 'opacity': .75,
                             **layout.get('appearance', {})}
@@ -502,6 +591,8 @@ def render_document(source, spec, output):
                        (drawing_left, legend_height, drawing_left+drawing_width, height),
                        spec['physical_rendering']['zoom'] if physical else None)
         _paint_drawing_legends(pdf, [legend for legend in spec.get('drawing_legends', []) if legend['page'] == index+1], matrix)
+        _paint_annotations(pdf, [annotation for annotation in spec.get('annotations', []) if annotation['page'] == index+1], matrix,
+                           (drawing_left, legend_height, drawing_left+drawing_width, height))
         if not physical:
             _paint_legend(pdf, first_rows, width, legend_height, spec, index+1)
         # Blank physical pages still need one overlay page after legends are removed.

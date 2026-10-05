@@ -17,6 +17,7 @@ from estimator.takeoff_physical import graph_parents, preview_change
 from estimator.takeoff_physical_exports import export_physical_graph
 from estimator.takeoff_physical_markers import barrier_summary
 from estimator.takeoff_physical_operations import current_graph, prepare_changes
+from estimator.takeoff_annotations import DEFAULT_APPEARANCE
 from tests import test_takeoff_physical_v2 as v2
 from tests import test_takeoff_workspace as fixtures
 from tests import test_takeoff_project as project_fixtures
@@ -121,6 +122,20 @@ class ServicePlansModelTests(unittest.TestCase):
             with self.subTest(patch=patch), self.assertRaises(ValidationError):
                 v2.apply(graph, {'op': 'update', 'entity_id': identifier,
                     'changes': {'marker': {**self.marker, 'callout': {**layout, **patch}}}})
+
+    def test_callout_style_only_preserves_automatic_layout_and_rejects_partial_geometry(self):
+        graph = self.graph(); identifier = self.barrier['entity']['id']
+        marker = {**self.marker, 'callout': {'appearance': deepcopy(DEFAULT_APPEARANCE)}}
+        updated = v2.apply(graph, {'op': 'update', 'entity_id': identifier, 'changes': {'marker': marker}})
+        self.assertEqual(updated['barriers'][0]['marker'], marker)
+        self.assertEqual(updated['services'], graph['services'])
+        self.assertEqual(barrier_summary(updated, updated['barriers'][0]), barrier_summary(graph, graph['barriers'][0]))
+        for layout in ({}, {'offset': [10, 10]}, {'width': 50, 'appearance': DEFAULT_APPEARANCE},
+                       {'height': 40}, {'offset': [10, 10], 'height': 40, 'appearance': DEFAULT_APPEARANCE},
+                       {'appearance': {'font_color': '<script>'}}):
+            with self.subTest(layout=layout), self.assertRaises(ValidationError):
+                v2.apply(graph, {'op': 'update', 'entity_id': identifier,
+                    'changes': {'marker': {**self.marker, 'callout': layout}}})
 
     def test_numbered_defect_report_barrier_marker_is_additive(self):
         defect = v2.create('defect', frl='-/90/90')
@@ -321,6 +336,46 @@ class ServicePlansProjectTests(unittest.TestCase):
         self.assertEqual(reopened['takeoffs_issues'], [])
         saved = json.loads(case.target.read_bytes())
         for key in ('estimate', 'calculators'): self.assertEqual(saved[key], json.loads(case.legacy)[key])
+
+    def test_style_only_callout_keeps_readable_auto_pdf_text_and_saved_service_quantity(self):
+        case = self.case
+        marker = deepcopy(case.session['snapshot']['service_plans']['barriers'][0]['marker'])
+        appearance = {**DEFAULT_APPEARANCE, 'font_color': '#154A23', 'stroke_color': '#227744', 'fill_color': '#DDEE33'}
+        marker['callout'] = {'appearance': appearance}
+        self.apply([{'op': 'update', 'entity_id': self.barrier['entity']['id'], 'changes': {'marker': marker}}])
+        before = deepcopy(case.session['snapshot'])
+        for zoom in (1, .32):
+            reader = PdfReader(BytesIO(self.export(rendering={'zoom': zoom, 'rotations': {}})[0]))
+            text = ' '.join(reader.pages[0].extract_text().split())
+            for expected in ('B-0001', 'Plan barrier', 'Concrete', 'S-0001', '3 ×', 'Pipe', 'Ø 50 mm'):
+                self.assertIn(expected, text)
+            operations = reader.pages[0].get_contents().operations
+            self.assertTrue(any(operator == b'rg' and abs(float(values[0])-21/255) < 1e-5
+                                and abs(float(values[1])-74/255) < 1e-5 for values, operator in operations))
+            # Inspect painted rounded-box control points. Text extraction alone
+            # still returns text painted outside the page and cannot prove fit.
+            painted_boxes, path = [], []
+            for values, operator in operations:
+                if operator == b'n': path = []
+                elif operator in (b'm', b'l', b'c'):
+                    path.extend(zip(map(float, values[::2]), map(float, values[1::2])))
+                elif operator in (b'B', b'B*', b'b', b'b*'):
+                    if path:
+                        xs, ys = zip(*path); painted_boxes.append((min(xs), min(ys), max(xs), max(ys)))
+                    path = []
+                elif operator in (b'S', b's', b'f', b'F', b'f*'): path = []
+            self.assertTrue(painted_boxes)
+            for x0, y0, x1, y1 in painted_boxes:
+                self.assertGreaterEqual(x0, 0); self.assertGreaterEqual(y0, 0)
+                self.assertLessEqual(x1, float(reader.pages[0].mediabox.width))
+                self.assertLessEqual(y1, float(reader.pages[0].mediabox.height))
+        request = {**deepcopy(case.base), 'takeoffs': before, 'takeoffs_session_id': case.session['session_id']}
+        case.library.save_as(request); case.dialogs.opened = str(case.target)
+        reopened = case.library.open_file()
+        self.assertEqual(reopened['takeoffs_issues'], [])
+        self.assertEqual(reopened['takeoffs']['service_plans']['barriers'][0]['marker'], marker)
+        self.assertEqual(reopened['takeoffs']['service_plans']['services'], before['service_plans']['services'])
+        self.assertEqual(case.service.get(case.session['session_id'])['snapshot'], before)
 
     def test_upright_callout_dimensions_export_consistently_at_every_rotation_and_user_unit(self):
         # Enough visible space for this box at all rotations avoids confusing

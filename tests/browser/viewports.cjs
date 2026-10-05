@@ -154,7 +154,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   const scaleToggle = page.getByRole('button', { name: 'Scale', exact: true });
   await expect(scaleToggle).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeHidden();
-  assert.equal(await scaleToggle.evaluate(el => !!el.closest('.takeoff-viewer') && el.parentElement.parentElement.classList.contains('takeoff-viewer-bottom') && !el.closest('.takeoff-tool-rail')), true, 'Scale shares the centre controls group in the PDF viewer');
+  assert.equal(await scaleToggle.evaluate(el => !!el.closest('.takeoff-viewer') && el.parentElement.parentElement.classList.contains('takeoff-viewer-top') && !el.closest('.takeoff-tool-rail')), true, 'Scale precedes source and search controls in the top viewer overlay');
   await expect(page.locator('.takeoff-tool-rail > [data-tool="calibrate"]')).toHaveCount(0);
   const calibrate = page.locator('#takeoff-scale-controls [data-tool="calibrate"]');
   await expect(calibrate.locator('svg')).toHaveCount(0);

@@ -42,7 +42,7 @@ const finish = () => page.locator('.takeoff-viewport').press('Enter');
 const handle = (id, index, exclusion = '') => page.locator(`.takeoff-control-point[data-control-item-id="${id}"][data-point-index="${index}"][data-exclusion-id="${exclusion}"]`);
 async function select(id) { const all = page.getByRole('checkbox', { name: 'Select all matching items', exact: true }); await all.check(); await all.uncheck(); await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check(); await page.getByRole('button', { name: 'Select', exact: true }).click(); }
 async function drag(id, index, destination, exclusion = '', during) {
-  const point = handle(id, index, exclusion); await point.scrollIntoViewIfNeeded(); const target = await screen(destination), before = await point.boundingBox();
+  const point = handle(id, index, exclusion); await point.scrollIntoViewIfNeeded(); const target = await screen(destination); await expect(point).toBeVisible(); let before; await expect.poll(async () => { before = await point.boundingBox(); return !!before; }).toBe(true);
   const origin = [before.x + before.width / 2, before.y + before.height / 2]; await page.mouse.move(...origin); await page.mouse.down();
   try { let midway; if (during) { await page.mouse.move((origin[0] + target[0]) / 2, (origin[1] + target[1]) / 2, { steps: 4 }); midway = await page.evaluate(() => window.CeasefireTakeoffs.projectFingerprint()); } await page.mouse.move(...target, { steps: 8 }); if (during) await during(midway); } finally { await page.mouse.up(); }
 }
@@ -68,8 +68,9 @@ async function layout(width) {
   assert.ok(boxes.rail.x + boxes.rail.width <= boxes.plan.x + 1, JSON.stringify(boxes)); assert.ok(boxes.rail.width < 120);
   for (const key of ['top','bottom','scale']) { const box = boxes[key]; assert.ok(box.x >= boxes.plan.x && box.y >= boxes.plan.y && box.x + box.width <= boxes.plan.x + boxes.plan.width && box.y + box.height <= boxes.plan.y + boxes.plan.height, JSON.stringify(boxes)); }
   assert.ok(Math.abs(boxes.top.x + boxes.top.width / 2 - boxes.plan.x - boxes.plan.width / 2) < 1, JSON.stringify(boxes));
-  assert.ok(boxes.bottom.x + boxes.bottom.width < boxes.scale.x, 'Page controls leave room for the Scale overlay');
-  assert.ok(boxes.scale.x > boxes.plan.x + boxes.plan.width / 2 && boxes.scale.y > boxes.plan.y + boxes.plan.height / 2, 'Scale stays in the bottom-right of the viewer');
+  assert.ok(boxes.scale.y + boxes.scale.height < boxes.bottom.y, 'Scale stays above the page controls');
+  assert.ok(boxes.scale.x < boxes.plan.x + boxes.plan.width / 2 && boxes.scale.y < boxes.plan.y + boxes.plan.height / 2, 'Scale stays in the top-left of the viewer');
+  assert.ok(boxes.scale.x + boxes.scale.width <= boxes.sources.x, 'Scale precedes the source selector');
   await expect(rail.getByRole('button', { name: 'Scale', exact: true })).toHaveCount(0);
   assert.equal(await scale.evaluate(el => !!el.closest('.takeoff-viewer')), true);
   assert.ok(boxes.navigation.y >= boxes.top.y && boxes.navigation.y + boxes.navigation.height <= boxes.top.y + boxes.top.height, JSON.stringify(boxes)); assert.ok(boxes.sources.y >= boxes.plan.y && boxes.sources.y + boxes.sources.height <= boxes.top.y + boxes.top.height + 1, JSON.stringify(boxes)); assert.ok(Math.abs(boxes.rail.y - boxes.plan.y) < 2, JSON.stringify(boxes)); assert.ok(boxes.register.y >= boxes.plan.y + boxes.plan.height - 1, JSON.stringify(boxes));

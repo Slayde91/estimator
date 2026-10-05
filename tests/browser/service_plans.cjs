@@ -88,8 +88,10 @@ async function screen([x, y]) {
   assert.equal(await page.evaluate(([cx, cy]) => !!document.elementFromPoint(cx, cy)?.closest('.takeoff-viewport'), point), true, `Point ${point} must lie on the visible plan`);
   return point;
 }
+let savedOnce = false;
 async function saveAndLoad(info) {
-  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), savedOnce ? '/api/project/save' : '/api/project/save-as');
+  savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
@@ -134,7 +136,8 @@ async function controls() {
   assert.equal(await countButton.evaluate(el => !!el.closest('.takeoff-tool-rail')), true, 'Count stays in the left rail');
   const scale = await scaleButton.boundingBox(), viewer = await page.locator('.takeoff-viewer').boundingBox(), count = await countButton.boundingBox(), viewportTool = await page.getByRole('button', { name: 'Viewport', exact: true }).boundingBox();
   const controlsBox=await page.locator('.takeoff-page-controls').boundingBox();
-  assert.ok(Math.abs(viewer.x + viewer.width - scale.x - scale.width - 10) < 2 && Math.abs(scale.y+scale.height/2-controlsBox.y-controlsBox.height/2)<2, 'Scale aligns with the centre controls');
+  const sources = await page.locator('.takeoff-source-documents').boundingBox();
+  assert.ok(scale.x < viewer.x + viewer.width/2 && scale.y < controlsBox.y && scale.x + scale.width <= sources.x, 'Scale precedes source controls in the top-left viewer overlay');
   assert.ok(count.y >= viewportTool.y + viewportTool.height && Math.abs(count.x - viewportTool.x) < 2, 'Count stays below Viewport in the left rail');
   await expect(page.getByRole('complementary', { name: 'Physical draft inspector', exact: true })).toHaveCount(0);
   await expect(page.locator('.takeoff-physical-register .takeoff-physical-inspector')).toHaveCount(0);
@@ -194,7 +197,7 @@ async function controls() {
   // A queued ordinary-register options refresh must also be harmless after switching scopes.
   await page.getByLabel('Destination schedule', { exact: true }).evaluate(el => el.dispatchEvent(new Event('change', { bubbles: true })));
   await select(barrier); await page.getByRole('button', { name: 'Select', exact: true }).click(); await page.mouse.click(...await screen([240,170]));
-  await expect(details()).toBeHidden(); await expect(row(barrier).getByRole('checkbox')).not.toBeChecked();
+  await expect(details()).toBeHidden(); await expect(row(barrier).getByRole('checkbox', { name: /^Select / })).not.toBeChecked();
   await expect(page.getByRole('alert').filter({ hasText: "Cannot read properties of undefined (reading 'find')" })).toHaveCount(0);
   evidence.blankDrawingSelection = true;
   await select(barrier); await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([240,170]));

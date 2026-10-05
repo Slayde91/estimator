@@ -1,204 +1,111 @@
-# Roadmap
+# CEASEFIRE Estimator roadmap
 
-## Current: portable projects, PDF details and input presentation
+Updated 5 October 2026. This roadmap separates implemented source behaviour,
+release verification and planned work. PR #154 carries the current controls and
+library update; its final publication and live activation are established by the
+dated release receipts, not by this document. The verified baseline for that
+release is PR #153, merge `7488b4a023562a3d4b0832d0f713b282a81e7c94`.
 
-Branch `feat/project-files-and-pdf-details` starts from verified PR #29 merge
-`8e4cb3b`. Save Project / Load Project exchanges the active estimate, its pricing
-snapshot and all three calculators as a validated JSON file. Imports open drafts
-without changing existing local saves or the global pricing library. SQLite
-remains at `.runtime/estimator.sqlite3`; no migration is required.
+## Delivered capabilities
 
-All PDFs include company contacts and project identity, with source workbook/hash
-footnotes removed. Only the two highlighted Steel (spray) summary headings are
-removed. Settings/helper choices use folder tabs. The exact requested Estimator
-fields accept whole-number edits; Global Adjustment displays currency. Historical
-fractional values and calculation precision remain intact.
+| Area | Implemented capability and retained boundary |
+| --- | --- |
+| Workbook calculation | Local Python calculation engines, immutable imported workbook definitions, source fingerprints, independently checked formula parity and explicit reviewed exceptions. Stored and calculated precision is retained. |
+| Estimator | Material and labour estimating, local quote persistence, error propagation, project identity, branded PDF and saved pricing snapshots. |
+| Workbook calculators | Steel spray, Steel board and Duct protection; separate schedule and materials/summary PDFs, values-only XLSX exchange, 1,000-row schedules and legacy template compatibility. Purchasing, layers, waste and coverage retain their calculator-specific rules. |
+| Board summary | Approved Net Steel sqm uses exposed steel-profile surface once per member/product/thickness row without layer/waste multipliers. Missing geometry is disclosed. Purchase sqm and workbook formulas are unchanged (PR #152). |
+| Firestopping estimating | Editable reviewed settings and groups, library-backed choices, labour/pricing integration, schedule reports and retained project inputs. A technical reference is not automatic approval for an installation. |
+| Pricing Library | Product/Service editing, supplier price, markup, calculated sell price, separate estimator-use groups, yield and complete values-only import/export. Shared catalogue updates do not rewrite frozen project pricing. |
+| Technical and Firestopping libraries | Source-bound reports, revision/page context, diagrams, configuration/substrate/service/FRL filters, manufacturer imports and duplicate-review tooling. Runtime inventory contents are private local state and require current verification. |
+| Portable projects | Validated versioned project JSON, capability-bound native saves, complete calculator drafts, library drafts, immutable companion evidence/history, explicit load validation and late-edit guards. |
+| Manual drawing Takeoffs | Original-PDF retention, text search, zoom/pan/text selection, CropBox/rotation/UserUnit handling, per-page scale, calibrated named viewports and original-coordinate markups. No OCR is implied. |
+| Steel and Duct Takeoffs | Traced lengths, manual source-cited lengths, steel counted lengths with persistent member IDs, standalone counts, rise/drop additions, item edits, column filters, selection/hiding, split/merge, undo/history and explicit confirmation. |
+| Walls and Slabs | Calibrated polygon area, exclusions, true-surface inputs and standalone lengths; source geometry, revisions and confirmation retained. |
+| Manual physical drafts | Defect Reports uses Defect → Barrier → Service; Service Plans uses a separate Barrier → Service graph. Persistent display IDs, explicit service quantities, source-position markers, generated call-outs and reviewed image extraction are retained. These are unapproved physical drafts. |
+| Drawing/register exports | XLSX registers, static marked drawing PDFs, visible call-outs, calibrated measurements and current linked thickness where provenance allows it; separate draft Passive Fire Matrix PDF (PR #151). |
+| Explicit calculator transfers | Confirmed supported Steel/Duct items can be previewed and applied to an explicit destination. Local provenance, source identity, row conflicts, stale links, updates and detach remain explicit. Standalone counts/lengths and physical drafts cannot become priced quantities through those paths. |
+| Navigation and desktop | Home/Estimates/Calculators/Takeoffs/Libraries/Projects/Help, accessible disclosure menus, compact icon controls, local launcher and Standard Windows desktop packaging. Standard packaging excludes Takeoffs. Passing build checks is not a new published installer. |
 
-Validation and publication receipts are in `.runtime/project-files-qa` and PDF
-rendering evidence in `.runtime/pdf-details-qa`. Git/CI and the publication receipt
-govern the final status; older checkpoints below are historical.
+Recent merged increments include original-coordinate editing/export (PRs #121–125),
+count/scale tools (#127), smooth viewer interaction (#138, #148), column filters
+(#139), item details and Fit page (#140), surface/Count controls (#144), project
+and markup controls (#146–147), header menus (#149), thickness/legends (#150),
+Estimates/Passive Fire Matrix (#151), Net Steel sqm (#152) and viewer/navigation
+feedback (#153). See [Takeoffs](docs/TAKEOFFS.md),
+[architecture](docs/TAKEOFFS_ARCHITECTURE.md),
+[calculator mapping](docs/CALCULATOR_PRESENTATION_MAPPING.md) and
+[project state](docs/PROJECT_STATE.md) for the detailed contracts.
 
-## Historical checkpoint: 1,000-row schedules and calculator controls
+## Current release: controls and library polish, PR #154
 
-Branch `feat/thousand-row-schedules` starts from verified PR #28 merge
-`ef4518a`. This increment renames/reorders calculator cards and actions, moves
-Recalculate before Save calculator, extends duct and board schedules to 1,000
-items, and adds spray Location plus steel Line columns. Templates and schedule
-PDF/XLSX outputs carry the updated fields; legacy templates remain accepted.
+The original 26 browser comments are implemented in this release:
 
-See [the capacity and exchange contract](docs/SCHEDULE_EXTENSION.md) for runtime versus original-source
-boundaries. Original packages, technical lookup rules, saved coordinate mappings
-and pricing remain intact. Focused checks cover fully populated 1,000-row schedules,
-independent purchasing totals, legacy and new templates, row-1,000 API save/reopen,
-and rendered browser controls. All 132 UI checks pass. Generated schedule PDFs
-and XLSX templates/registers have been inspected. Full regression and publication
-results belong to the current Git/CI state and `.runtime/thousand-row-schedules-qa`
-receipts; earlier checkpoints do not establish those results.
+- Scale moves to the top-left overlay before the document and search controls;
+  narrow Settings panes start below these controls.
+- Active rail tools show light red. Call-out defaults are `#FF3300`, `#FFDD33`,
+  `#000000`, width 4, fill enabled and 75% opacity; explicit saved styles win.
+- Width/Marker edits accept 1–100 PDF points; Opacity accepts 1–100 percent.
+  Untouched historical fractions, zero opacity and stored precision are preserved.
+- Project files advertises drag/drop. One Save action updates an authorized file
+  or opens the existing destination dialog when no target is bound.
+- Header navigation fits its icons, icon footprints/strokes are consistent,
+  Sigma is centred, Save aligns on the same row, and the supplied Takeoffs image
+  remains byte-for-byte unchanged.
+- Steel/Duct length copying works with Settings closed; native text copying stays
+  available. New legends fit their wrapped text; saved legend positions/sizes persist.
+- Filtered selection toggles matching rows without clearing selection outside the
+  filter. Duct shares the compact controls; redundant Clear/sort/group controls go.
+- Drawing and marked-PDF measurement labels show two decimal places; raw numeric
+  records and calculator/export values retain their original precision.
+- Physical registers add presentation-only Select/Hide controls and Service Size
+  filtering. Hidden markers are omitted from the visible drawing download while
+  physical records and quantities remain unchanged.
+- Pricing Library fits smaller viewports and uses the requested heading/eyebrow.
+  Technical Library exposes whole-inventory totals, manufacturer totals and the
+  count not linked to Firestopping. The typing cursor stops at the final character.
 
-## Historical checkpoint: appendix downloads and board summary
+Local focused checks and full CI are recorded separately. Merge/activation require
+successful CI for the exact final feature commit, preserved source/data receipts,
+fresh served-asset checks and rendered live-browser acceptance. No migration of
+calculator source files or saved project data is part of this release.
 
-PR #28 merged at `ef4518a` after both exact-head CI runs passed (282 Python
-passes, four optional source skips, 131 UI checks and build). The live app and
-both saved quotes were verified. Its older pending statements below are
-historical and do not describe the current increment.
+## Next session: eight newly requested browser changes
 
-Current increment: appendix download and board-summary polish on
-`feat/appendix-download-polish` in
-`C:/ESTIMATOR/worktrees/appendix-download-polish`, based on PR #27 merge
-`700b471`.
+These requests are recorded and **not implemented by PR #154**.
 
-All three calculator schedule PDFs download as `APPENDIX A.pdf`, and their
-Excel registers as `APPENDIX A.xlsx`. The register button moves before schedule
-PDF. Import schedule is Excel green; Save calculator and Save quote are yellow;
-the Estimator Download PDF button is red. Existing draft, validation, precision
-and save behavior remains unchanged.
+| Comment | Required behaviour | Acceptance evidence |
+| --- | --- | --- |
+| 1 | Unique Ctrl+key shortcuts for every left-rail tool except Upload PDFs in every Takeoffs section; tooltip includes the assignment. Verify the claimed existing Viewport shortcut before choosing keys. | All visible/enabled tools work by keyboard; disabled tools stay disabled; native editing, copy/paste/cut, undo, browser shortcuts and IME composition are preserved. |
+| 2 | Search results appear as an anchored dropdown below the search input while typing. | Keyboard/touch selection, viewport clipping, changing document/scope and old asynchronous responses tested. |
+| 3 | Clearing input clears both result list and highlights immediately. | In-flight search cannot restore stale results after clear. |
+| 4 | Search first finds the nearest result to the current page position; repeated activation advances through that page's matches and wraps to the first. | Ordered result identity, initial distance and repeat/wrap verified at multiple zooms/rotations. Explicitly resolve the no-match-on-current-page case during implementation. |
+| 5 | Stop search cancels the run and empties the field, results and highlights. | Cancellation tested during PDF loading and extraction, followed by a new query. |
+| 6 | Relevant sentence/context is yellow, with searched words in a distinct colour. | Phrase/repeated-word matches, multi-run text, rotated/cropped PDFs and search coverage limits verified. No OCR claim. |
+| 7 | Legend can be activated only when relevant Length and/or Count markups exist. | Empty document, document switch, deletion/undo, hidden items and already-visible legend tested. |
+| 8 | Physical Count becomes Call-out with its supplied icon and a shortcut distinct from Count. Add free call-outs in Steel/Duct/Walls/Slabs, with shared defaults/settings and only a rich-text Item Details box. | Existing physical hierarchy/IDs/quantities survive rename; free call-outs add no register or calculator quantity; save/reopen, undo, marked PDF, style and rich-text safety verified. |
 
-Only the board materials & summary PDF omits the rounding paragraph, the two
-pictured paragraphs in BOARD SUMMARY A8, EXTRA BOARDS heading/introduction/empty
-message and source filename/hash paragraph. It retains populated extra-board
-items, all tables and totals, other warnings and the A31/A35 guidance. The
-complete calculation projection and Excel contents remain intact. Other PDF
-content and the materials/summary and Estimator filenames remain unchanged.
+Suggested order: search lifecycle and dropdown (2–6), common shortcut registry (1),
+legend availability (7), then physical rename and separate free annotations (8).
+The requested icon is attached to the conversation; the next session must locate
+its exact local bytes or obtain the original attachment before final icon acceptance.
+Do not substitute an unrelated icon and claim it matches.
 
-Validation checkpoint: all 33 focused Python tests pass (12 report/projection
-tests in 92.310 seconds and 21 API tests in 77.768 seconds). The 36 Estimator and
-95 calculator UI checks passed again after the final CSS cleanup. Visual review
-passed all eight board-summary pages: default and cleared cases each use two
-pages instead of three; the advanced case uses four
-instead of five and retains all 18 extra-board items. Five unaffected PDF scopes
-match baseline `700b471` after text normalization, and all three board raw
-projections match exactly.
+The [architecture plan](docs/TAKEOFFS_ARCHITECTURE.md#planned-extension-eight-new-comments)
+defines the proposed state, geometry and persistence boundaries. The new comments
+authorize these bounded changes, not automated technical approval or matching.
 
-Browser checks confirm the Estimator's red PDF and yellow Save buttons, plus
-green Import, yellow Save and Excel-before-PDF order for all three calculators.
-The board Excel action confirmed that its download started. Independent code
-review found no unintended scope, calculation or persistence change.
-Build, full-suite CI,
-runtime refresh and publication are pending; no full-suite pass is claimed.
-Evidence is in `.runtime/appendix-download-polish-qa`; current Git and its
-publication receipt govern the final outcome.
+## Planned work that remains outside this release
 
-The preceding Estimator PDF cleanup merged through PR #27 at `700b471`.
-Its implementation is retained; earlier checkpoint claims below are historical.
+- AI-assisted extraction/proposals and independent visual validation (historical
+  Phases 5/6) remain paused. No Physical Model Lock is delivered.
+- Takeoff-to-Firestopping candidate matching remains a design direction. Route
+  candidates by applicability before ranking; require explicit reviewed multi-member
+  assignments when one installation covers several barriers/services. Shared
+  barriers alone do not establish a shared opening. No automatic priced transfer.
+- Wider deployment, multi-user authentication and a refreshed publicly distributed
+  installer require their own reviewed work and evidence. The current HTTP server
+  remains a local application.
 
-Historical PR #26 merged at `3d3e1ed`; both CI runs passed with 283 tests
-(four optional source skips), 128 UI checks and build. Its checkpoint below is
-historical and does not validate this Estimator-only change.
-
-Previous increment: separate calculator schedule and materials/summary PDFs on
-`feat/separate-calculator-pdfs`, based on PR #25 merge `c4e1a79`.
-The existing report endpoint now contains Full schedule only; the new summary
-endpoint contains Material quantities and summary, including final material
-orders, ancillary tables and board EXTRA BOARDS. Excel retains the complete
-Summary/Schedule/Extra boards projection. Exposure inputs use normal weight
-only in the three source-backed schedule columns; headings and reference
-labels remain emphasized. The toolbar orders schedule PDF before Excel register
-and the new materials & summary PDF.
-
-Verified before publication: 30 API/cleanup tests, all 11 PDF/projection tests
-(including the corrected summary-only quantity assertion), nine display-metadata
-tests, 128 UI checks (33 Estimator and 95 Calculator), JavaScript syntax and
-scoped diff checks. Six HTTP-generated PDF scopes pass; the 1,000-item spray
-schedule retains every unique mark across 67 pages, including the final item.
-Rendered pages from every report type were reviewed, including repeating headers
-and page breaks. Distribution build and isolated package wiring checks pass.
-The full Python regression run is in progress. Exact-head CI/review, runtime
-refresh and merge remain pending; later results belong in the local receipt.
-Evidence: `.runtime/calculator-pdf-split-qa`.
-
-Historical PR #25 merged at `c4e1a79` with verified successful post-merge CI.
-It restored expandable pricing uses and introduced compact one-row product
-exports with eight aligned use lists, both older import formats and native
-Excel text preservation. Its final receipt is
-`.runtime/compact-pricing-qa/publication.json`; those checks do not validate
-the current PDF split.
-
-Historical PR #24 merged at `7408276` with successful post-merge CI. It repaired
-freeze-pane metadata and temporarily used an inline browser table with separate
-visible Excel Use rows. Its native Excel open, parity and browser results are
-retained in `.runtime/pricing-visible-yields-qa/publication.json`.
-
-Calculator dropdown/display polish merged in PR #23 at `53c875d`. Its scoped
-omissions, native quick dropdown and styles remain implemented. Release evidence
-is retained in `.runtime/calculator-polish-qa`.
-
-The unified Inventory & Rates release merged in PR #22 at `a4c8ffc` with
-257 Python passes, four optional source-workbook skips and 122 UI checks on
-both pre-merge CI runs. Explicit IDs and use order preserve mapping; old pricing
-templates remain accepted. Its runtime and data-preservation receipt is in
-`.runtime/unified-pricing-qa/publication.json`.
-
-The preceding shared footer merged in PR #21 at `ab48baf`, following the labour
-breakdown/calculator control work in PR #20 at `e843cf7`. Both releases have
-successful exact-head CI receipts in their corresponding `.runtime` QA folders.
-
-The preceding START/factor increment merged in PR #19 as `335f4b6` from
-`cc1ccf9`. Both exact-head CI runs passed 235 Python tests (231 passed, four
-skipped) and 111 UI checks. Its evidence is retained under `.runtime/tabs-notes-qa`;
-those results do not validate this subsequent increment.
-
-Previous published checkpoint `678ee3f` on `feat/workbook-calculators` / PR #6
-recorded 189 Python tests and 65 UI checks passing locally. Its CI was blocked
-before job steps by GitHub account payment/spending limits. That evidence does
-not verify this subsequent presentation increment or its publication status.
-
-## Implemented
-
-- Original Quote Calculator inputs, formulas, editable pricing and saved snapshots.
-- Labour-days breakdown from stored result cells, with correct pinning exclusion, source F10 total, explicit error/missing states and read-only enrichment for older saved-quote responses.
-- Official Ceasefire logo, complete material/labour tables in PDFs, Project No./Client/Site Address, automatic names and saved work-summary data. The PDF omits the requested explanatory blocks and Work summary section.
-- Estimator NOTES label on the existing measurement field; Job and access B12 editor and duplicate PDF subsection hidden. Saved notes, generated material notes, summary data and internal workflow behavior remain intact.
-- Whole-library Excel export/import with additions/removals, review and Save pricing.
-- Unified Inventory & Rates with a use filter, expandable category/rate/yield details, one shared product-price editor and separate resets. Compact one-row product exports retain independent uses through aligned lists, valid freeze panes and both previous template formats on import.
-- Two-decimal presentation while retaining raw calculation precision.
-- Three workbook Calculators, source-backed browser tabs, board SETTINGS/EXTRA BOARDS and adjustable settings.
-- Source-backed vermiculite START/SETTINGS/FACTOR CALCS views: operating rules shown directly, seven settings choices and three helper choices. Duct and board retain five/three settings choices; all preserve complete calculation/save/report scope. Scoped navigation, order-first BAGS, MEMBER SCHEDULE, published-value units/highlight and expanded board START.
-- Permanent technical databases, original formulas and dependent dropdowns. Requested board/duct controls use native selects with source-permitted custom values retained; large steel lists populate when opened.
-- Schedule templates/import, separate drafts/saved states and source-version guards.
-- Continuous full-row calculator pages with separate source-backed sections, uniform red-and-white headings, black data grids, linked contents and labelled totals; first columns scroll horizontally with their tables.
-- Six-column board purchasing table with retained summary cards; hidden extra-board evidence fields and no browser advanced-column checkbox. Saved hidden inputs and the advanced worksheet API remain supported.
-- Independent presentation tables with full content height, explicit note/heading/blank-row display overrides, and browser-only omission of Duct USE NOTES. Prepared schedules retain their vertical scrollers.
-- Explicit area/volume summary units, independent full-width running material totals, all Settings tables without vertical caps, and bounded reference-label/period-table formatting. Decorative BAGS G is omitted only from its manual form; pooled Whole bags remains visible below.
-- Bounded detail-row layouts and helper spacer merges; pink technical headings, bold exposure/product labels and normal reference/support prose. Full-width board overviews retain summary cards; display titles use BOARD SUMMARY, EXTRA BOARDS, CALCULATED SUMMARY and PRODUCT SUMMARY without renaming worksheets.
-- Vermiculite product bag totals from pooled BAGS formulas, an independently sized period matrix, and compact BAGS presentation.
-- Read-only material-basis display; requested Settings metadata, review action/panel, schedule commentary columns/top labels and single-member notes section omitted from the worksheet view.
-- Populated/blank output highlights, plus a scoped published-thickness highlight; zero remains populated. Vermiculite Section ID uses the source-backed native list without duplicating every option across the initial 1,000-row DOM.
-- Reviewed five-product commercial defaults, isolated from source graphs and existing saved inputs; reset remains a draft until Save calculator. Numeric material settings stay adjustable.
-- Schedule-only PDF downloads retain used items, thicknesses, areas, applicable quantities and statuses. A separate materials & summary PDF retains product/ancillary tables, closing totals and board extras; both use the same complete calculation. Duplicate detail, standalone helper and settings appendices remain excluded.
-- Excel register downloads from the same draft/report projection, with typed exact values, Summary/Schedule and board Extra boards sheets, filters and retained statuses/qualifications. No state save or live Excel calculation is implied.
-- Original exclusions/withheld quantities and the approved duct text correction.
-- Australian manuals, PDS/SDS and clearly labelled report/request links.
-- Independent native Microsoft Excel fixtures, HTTP/persistence and UI regressions.
-- Standalone source distribution and Windows launcher without Excel at runtime.
-
-## Verification and publication
-
-SESSION_HANDOFF.md records the current Estimator PDF-cleanup checkpoint.
-Use current Git/checks and `.runtime/estimator-pdf-cleanup-qa/publication.json` for later
-validation and publication outcomes. Do not infer CI success from local checks
-or treat a previous implementation checkpoint as verification of this change.
-
-The previous source-parity checkpoint passed 419,905 native Excel comparisons,
-covering 161,566 source formulas, 300 approved text outputs and 258,039 varied
-outputs across 3,471 schedule cases. The original Quote fixture remains
-216 × 151. Complete reconstruction tests protect database extraction. Reviewed
-commercial defaults require additional input-profile, precedence, save-isolation
-and display checks; source expectations stay unchanged. See
-[yield evidence and qualifications](docs/VERMICULITE_YIELD_REVIEW.md).
-
-## Meaningful remaining work
-
-Validate the cleaned Estimator PDF and hidden B12 field, verify the refreshed
-runtime and saved state, then publish the increment.
-Verify the current PR's exact-head CI/review state before merging and confirm
-the resulting merge commit. Earlier CI or billing results do not establish the
-current outcome. Never bypass or relabel a failed check.
-
-Future calculator-to-priced-quote transfer needs an explicit material, purchasing, product and labour mapping. The workbooks do not define it, so tools remain separate. Source revisions require fresh import, native comparison and intentional saved-state migration; hashes prevent silent changes today.
-
-An installer, authenticated shared hosting, concurrent multi-user editing and managed backups require an operating-environment decision. No public deployment has occurred.
-
-The historical 946f2c1 checkpoint recorded 176 Python tests, 56 UI checks and
-subsequent report/HTTP/distribution checks, with CI blocked before job steps.
-Those counts and renders predate both the PDF reductions/reviewed-default
-profile and the latest presentation cleanup; current results belong in SESSION_HANDOFF.md.
+The superseded PR #29-era roadmap is retained as
+[historical evidence](docs/history/ROADMAP_PRE_OCTOBER_2026.md). Old statements of
+pending checks or publication describe their own time boundary, not today's release.

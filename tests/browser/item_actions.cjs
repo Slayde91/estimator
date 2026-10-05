@@ -201,7 +201,7 @@ function clearedExpected(original, bindings) {
       return { takeoffs: attempt(() => window.CeasefireTakeoffs.projectSnapshot()), calculators: attempt(() => window.CeasefireCalculators.projectSnapshot()) };
     });
     assert.match(guards.takeoffs, /Finish|Wait/); assert.match(guards.calculators, /Finish|Wait/);
-    const saveButton = page.locator('#save-project');
+    const saveButton = page.locator('#save-current-project');
     if (await saveButton.isEnabled()) {
       await clickProjectControl(page, 'Save'); await expect(page.locator('#app-message')).toContainText(/Finish|Wait/);
     }

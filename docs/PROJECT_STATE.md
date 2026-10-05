@@ -1,5 +1,22 @@
 # Project state
 
+## 5 October 2026: controls and libraries checkpoint
+
+PR #154 implements the original 26 browser comments: top-left Scale, active rail
+feedback, shared call-out defaults, 1–100 appearance edits with legacy precision,
+unified Save, compact consistent header icons, Settings-closed length copy,
+text-fitted legends, filtered selection, two-decimal drawing labels, physical
+Hide/Service Size filters, compact Pricing Library, Technical Library inventory
+summary and immediate cursor stop. Source workbook/formula files are unchanged.
+Physical drafts remain unapproved and hiding does not change quantities.
+
+The latest eight requests are recorded as planned work: shared shortcuts, an
+anchored live search dropdown, clear/stop lifecycle, nearest/next/wrap navigation,
+context/word colours, legend eligibility and separate free call-outs. They are
+not implemented by this checkpoint. ROADMAP.md and TAKEOFFS_ARCHITECTURE.md define
+the delivered and proposed scopes. Exact commit/CI/merge/live facts belong to the
+dated release and handoff receipts; no publication is inferred from this prose.
+
 ## 5 October 2026: approved Net Steel sqm definition
 
 The user approved exposed steel-profile surface, counted once per member in each

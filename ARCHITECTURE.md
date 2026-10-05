@@ -1,5 +1,15 @@
 # Architecture
 
+## Current architecture map — 5 October 2026
+
+The calculation and pricing sections below retain their original decisions. The
+current Takeoffs, physical drafts, companion evidence, capability-bound Save and
+planned search/call-out extension are documented in
+[Takeoffs architecture](docs/TAKEOFFS_ARCHITECTURE.md).
+[ROADMAP.md](ROADMAP.md) separates delivered behaviour from planned features.
+Publication and activation are established by current release receipts, not older
+checkpoint prose. The local-server and immutable workbook boundaries still apply.
+
 ## Verified starting point
 
 GitHub `Slayde91/estimator` contained only README.md at `18d5058` (Initial commit). `C:\ESTIMATOR` contained the two workbooks and an Excel lock file, with no Git checkout or application files. A clean clone was created at `C:\ESTIMATOR\app`; source workbooks were preserved outside the repository. No local commits or divergent implementation existed to reconcile.

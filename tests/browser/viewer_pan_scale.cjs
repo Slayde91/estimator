@@ -126,5 +126,5 @@ async function scaleGeometry(mode, width) {
   assert.equal(icon.view, '0 0 24 24'); assert.equal(icon.stroke, 'round'); assert.match(icon.d, /M12 6l6 6-6 6-6-6z/); assert.ok(icon.bounds[0] >= 0 && icon.bounds[1] >= 0 && icon.bounds[0] + icon.bounds[2] <= 24 && icon.bounds[1] + icon.bounds[3] <= 24);
   evidence.rotateIcon = icon; assert.deepEqual(errors, []); const csp = await page.evaluate(() => window.qaCsp); assert.deepEqual(csp, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, commands, errors, csp }, null, 2));
-  console.log(`PASS: scale opens above a bottom-right overlay in every mode at four widths, controls never overlap, native two-axis/circular wheel and hand-tool paths preserve original source/calculator data. Evidence: ${output}`);
+  console.log(`PASS: scale opens above a top-left overlay in every mode at four widths, controls never overlap, native two-axis/circular wheel and hand-tool paths preserve original source/calculator data. Evidence: ${output}`);
 })().catch(async error => { if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), `${error.stack}\n${logs}`); console.error(error); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); });

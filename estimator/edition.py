@@ -51,6 +51,7 @@ def excluded_route(route, edition):
     if validate_edition(edition) == 'full':
         return False
     return (route in TAKEOFF_ASSETS or route.removeprefix('/static') in TAKEOFF_ASSETS
+            or re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/takeoff', route) is not None
             or route == '/api/takeoffs'
             or route.startswith('/api/takeoffs/') or route == '/vendor/pdfjs'
             or route.startswith('/vendor/pdfjs/') or route == '/static/vendor/pdfjs'

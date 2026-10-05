@@ -163,7 +163,7 @@
 .takeoff-overlay .takeoff-length-markup.selected,.takeoff-overlay .takeoff-length-markup.hovered,.takeoff-overlay polyline.takeoff-markup.selected,.takeoff-overlay polyline.takeoff-markup.hovered{filter:none}
 @container(max-width:700px){
   .takeoff-drawing-layout.with-settings>.takeoff-drawing-pane,.takeoff-drawing-layout.with-viewports>.takeoff-drawing-pane{grid-column:2/-1}
-  .takeoff-drawing-layout>.takeoff-markup-settings,.takeoff-drawing-layout>.takeoff-viewports{position:absolute;left:66px;top:0;z-index:8;width:min(300px,calc(100% - 66px));grid-column:1/-1;grid-row:2;box-shadow:3px 3px 12px #0003}
+  .takeoff-drawing-layout>.takeoff-markup-settings,.takeoff-drawing-layout>.takeoff-viewports{position:absolute;left:66px;top:0;z-index:8;width:min(300px,calc(100% - 66px));grid-column:1/-1;grid-row:1;box-shadow:3px 3px 12px #0003}
 }
 
 /* The pan plane includes space beyond every PDF edge; the source overlay moves with its page. */
@@ -254,5 +254,5 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-overlay .takeoff-physical-callout:focus-visible .takeoff-physical-callout-frame{stroke:#004e7c;stroke-width:2.4;vector-effect:non-scaling-stroke}
 @container(max-width:700px){
   .takeoff-drawing-layout.with-physical-details>.takeoff-drawing-pane{grid-column:2/-1}
-  .takeoff-drawing-layout>.takeoff-physical-details{position:absolute;left:66px;top:0;z-index:8;width:min(300px,calc(100% - 66px));grid-column:1/-1;grid-row:2;box-shadow:3px 3px 12px #0003}
+  .takeoff-drawing-layout>.takeoff-physical-details{position:absolute;left:66px;top:0;z-index:8;width:min(300px,calc(100% - 66px));grid-column:1/-1;grid-row:1;box-shadow:3px 3px 12px #0003}
 }

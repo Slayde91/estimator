@@ -100,12 +100,12 @@ class TakeoffDisplayValuePDFTests(unittest.TestCase):
         case = self.case; identifiers = case.create_marks()
         source = case.case.documents.document_path(case.document); original = sha256(source.read_bytes()).hexdigest()
         reader = PdfReader(BytesIO(case.export(identifiers)[0]))
-        self.assertTrue(all('8,000 mm' not in page.extract_text() for page in reader.pages))
+        self.assertTrue(all('8,000.00 mm' not in page.extract_text() for page in reader.pages))
         for identifier in identifiers:
             case.command('update_item', item_id=identifier, changes={'appearance': {'display_values': True}})
         snapshot = deepcopy(case.case.session['snapshot']); reader = PdfReader(BytesIO(case.export(identifiers)[0]))
         for index, page in enumerate(reader.pages):
-            self.assertIn('8,000 mm', page.extract_text()); self.assertIn(f'ORIGINAL DRAWING ROTATION {index*90}', page.extract_text())
+            self.assertIn('8,000.00 mm', page.extract_text()); self.assertIn(f'ORIGINAL DRAWING ROTATION {index*90}', page.extract_text())
             self.assertEqual(page.get('/Rotate', 0), 0); self.assertEqual(page.get('/UserUnit', 1), 1)
         self.assertEqual(sha256(source.read_bytes()).hexdigest(), original)
         self.assertEqual(case.case.service.get(case.case.session['session_id'])['snapshot'], snapshot)
@@ -122,7 +122,7 @@ class TakeoffDisplayValuePDFTests(unittest.TestCase):
         identifier = case.case.session['snapshot']['items'][-1]['id']; before = deepcopy(case.case.session['snapshot'])
         result = next(value for value in case.case.session['item_results'] if value['id'] == identifier)
         payload = case.export([identifier], mode='wall')[0]; text = PdfReader(BytesIO(payload)).pages[0].extract_text()
-        self.assertIn('10,000 mm', text); self.assertIn('5,000 mm', text); self.assertIn('50 m²', text)
+        self.assertIn('10,000.00 mm', text); self.assertIn('5,000.00 mm', text); self.assertIn('50.00 m²', text)
         self.assertEqual(result['net_area_m2'], 50)
         self.assertEqual(case.case.service.get(case.case.session['session_id'])['snapshot'], before)
 
@@ -133,7 +133,7 @@ class TakeoffDisplayValuePDFTests(unittest.TestCase):
             fields={'mark': 'EXPLICIT-COUNT'}, appearance={'display_values': True})
         identifier = reply['created_item_ids'][0]; before = deepcopy(case.case.session['snapshot'])
         text = PdfReader(BytesIO(case.export([identifier])[0])).pages[1].extract_text()
-        self.assertEqual(text.count('1,234.568 mm'), 2)
+        self.assertEqual(text.count('1,234.57 mm'), 2)
         self.assertIn('2 markers x 1.23 m manual length each; 2.47 m total', text)
         current = next(item for item in before['items'] if item['id'] == identifier)
         self.assertEqual(current['measurement']['length_m'], 1.2345675)

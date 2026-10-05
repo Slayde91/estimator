@@ -78,7 +78,7 @@ async function deleteItem(id, status = 200) {
   return response(() => dialog('Delete item?', {}, 'Delete item'), '/linked-delete', status);
 }
 async function saveLoad(info) {
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
@@ -201,9 +201,9 @@ function clearedExpected(original, bindings) {
       return { takeoffs: attempt(() => window.CeasefireTakeoffs.projectSnapshot()), calculators: attempt(() => window.CeasefireCalculators.projectSnapshot()) };
     });
     assert.match(guards.takeoffs, /Finish|Wait/); assert.match(guards.calculators, /Finish|Wait/);
-    const saveButton = page.locator('#save-project');
+    const saveButton = page.locator('#save-current-project');
     if (await saveButton.isEnabled()) {
-      await clickProjectControl(page, 'Save As'); await expect(page.locator('#app-message')).toContainText(/Finish|Wait/);
+      await clickProjectControl(page, 'Save'); await expect(page.locator('#app-message')).toContainText(/Finish|Wait/);
     }
     assert.equal(saveAttempts, 0, 'Project saving cannot serialize either side while a linked outcome is uncertain');
     const serverState = await page.evaluate(async () => (await fetch(`/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`)).json());

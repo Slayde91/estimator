@@ -67,10 +67,10 @@ async function assertLabels(item, state) {
   const expected = values(item, state), labels = page.locator(`[data-value-item-id="${item.id}"]`);
   await expect(labels).toHaveCount(expected.length);
   const actual = await labels.evaluateAll(elements => elements.map(el => ({ value: Number(el.dataset.value), text: el.firstChild.textContent, pointer: getComputedStyle(el).pointerEvents })));
-  actual.forEach((entry,index) => { assert.equal(entry.value,expected[index]); assert.equal(entry.text,`${new Intl.NumberFormat('en-AU',{maximumFractionDigits:3}).format(expected[index])} mm`); assert.equal(entry.pointer,'none'); });
+  actual.forEach((entry,index) => { assert.equal(entry.value,expected[index]); assert.equal(entry.text,`${new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(expected[index])} mm`); assert.equal(entry.pointer,'none'); });
   if (['wall','slab'].includes(item.mode)) {
     const reply = await page.request.get(`/api/takeoffs/sessions/${await page.evaluate(() => window.CeasefireTakeoffs.sessionId())}`), result = (await reply.json()).item_results.find(value => value.id === item.id);
-    await expect(page.locator(`[data-area-item-id="${item.id}"]`)).toHaveText(`${new Intl.NumberFormat('en-AU',{maximumFractionDigits:3}).format(result.net_area_m2)} m²`);
+    await expect(page.locator(`[data-area-item-id="${item.id}"]`)).toHaveText(`${new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(result.net_area_m2)} m²`);
   }
   return actual;
 }
@@ -128,7 +128,7 @@ async function assertLabels(item, state) {
   await expect(page.locator(`[data-value-item-id="${count.id}"]`)).toHaveCount(2);
   assert.deepEqual(await page.locator(`[data-value-item-id="${count.id}"]`).evaluateAll(elements => elements.map(el => Number(el.dataset.value))),[6123.456789,6123.456789]);
   await page.screenshot({path:path.join(output,'steel-count-cited-values.png')});
-  const saved = await snapshot(), saving = page.waitForResponse(value => value.url().endsWith('/api/project/save-as')); await clickProjectControl(page,'Save As'); assert.equal((await saving).status(),200);
+  const saved = await snapshot(), saving = page.waitForResponse(value => value.url().endsWith('/api/project/save-as')); await clickProjectControl(page,'Save'); assert.equal((await saving).status(),200);
   const opening = page.waitForResponse(value => value.url().endsWith('/api/project/open')); await clickProjectControl(page,'Load'); assert.equal((await opening).status(),200); await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click(); await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await idle();
   const reopened = await snapshot(); assert.deepEqual(reopened.items,saved.items); assert.deepEqual(JSON.parse(fs.readFileSync(info.project)).takeoffs.items,saved.items);
   assert.deepEqual(reopened.documents,initial.documents); assert.deepEqual(reopened.calibrations,initial.calibrations); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()),calculators);

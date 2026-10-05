@@ -211,7 +211,7 @@ async function surface(mode, rotated = false) {
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('2');
   await page.screenshot({ path: path.join(output, 'slab-rotated-confirmed.png'), fullPage: true });
   const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page, 'Save As');
+  await clickProjectControl(page, 'Save');
   assert.equal((await save).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));

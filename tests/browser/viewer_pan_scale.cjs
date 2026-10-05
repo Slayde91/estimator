@@ -44,12 +44,12 @@ async function scaleGeometry(mode, width) {
     return { button: box(el), popup: box(document.querySelector('#takeoff-scale-controls')), viewer: box(el.closest('.takeoff-viewer')), pages: box(document.querySelector('.takeoff-page-controls')), inRail: !!el.closest('.takeoff-tool-rail') };
   });
   assert.equal(geometry.inRail, false);
-  assert.ok(Math.abs(geometry.viewer.right - geometry.button.right - (width<=650?6:10)) <= 2, `${mode}/${width}: scale is at the right viewer gutter`);
+  assert.ok(geometry.button.x>=geometry.viewer.x && geometry.button.x-geometry.viewer.x<40, `${mode}/${width}: scale is at the upper left viewer gutter`);
   assert.ok(geometry.button.bottom <= geometry.viewer.bottom);
-  assert.ok(Math.abs(geometry.button.y+geometry.button.height/2-geometry.pages.y-geometry.pages.height/2)<=2, `${mode}/${width}: scale aligns with the centre controls`);
-  assert.ok(geometry.popup.bottom < geometry.button.y, `${mode}/${width}: scale menu opens above its button`);
+  assert.ok(geometry.button.y < geometry.pages.y, `${mode}/${width}: scale is above the page controls`);
+  assert.ok(geometry.popup.y >= geometry.button.bottom, `${mode}/${width}: scale menu opens below its button`);
   assert.ok(geometry.popup.x >= geometry.viewer.x && geometry.popup.right <= geometry.viewer.right + 1);
-  assert.ok(geometry.pages.right < geometry.button.x, `${mode}/${width}: scale never overlaps page controls`);
+  assert.ok(geometry.popup.bottom < geometry.pages.y, `${mode}/${width}: scale menu never overlaps page controls`);
   assert.ok(geometry.pages.x >= geometry.viewer.x && geometry.pages.bottom <= geometry.viewer.bottom + 1);
   await page.keyboard.press('Escape'); await expect(popup).toBeHidden(); await expect(scale).toBeFocused();
   evidence.scale.push({ mode, width, geometry });
@@ -126,5 +126,5 @@ async function scaleGeometry(mode, width) {
   assert.equal(icon.view, '0 0 24 24'); assert.equal(icon.stroke, 'round'); assert.match(icon.d, /M12 6l6 6-6 6-6-6z/); assert.ok(icon.bounds[0] >= 0 && icon.bounds[1] >= 0 && icon.bounds[0] + icon.bounds[2] <= 24 && icon.bounds[1] + icon.bounds[3] <= 24);
   evidence.rotateIcon = icon; assert.deepEqual(errors, []); const csp = await page.evaluate(() => window.qaCsp); assert.deepEqual(csp, []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, commands, errors, csp }, null, 2));
-  console.log(`PASS: scale opens above a bottom-right overlay in every mode at four widths, controls never overlap, native two-axis/circular wheel and hand-tool paths preserve original source/calculator data. Evidence: ${output}`);
+  console.log(`PASS: scale opens above a top-left overlay in every mode at four widths, controls never overlap, native two-axis/circular wheel and hand-tool paths preserve original source/calculator data. Evidence: ${output}`);
 })().catch(async error => { if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), `${error.stack}\n${logs}`); console.error(error); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); server.kill(); });

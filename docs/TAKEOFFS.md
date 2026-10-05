@@ -1,5 +1,11 @@
 # Manual drawing takeoffs
 
+Current controls release: PR #154. Publication/activation require dated receipts.
+The latest eight requests are planned in [ROADMAP.md](../ROADMAP.md); the physical
+Count label, current search results layout and lack of free call-outs described
+below remain current until that next implementation. See
+[Takeoffs architecture](TAKEOFFS_ARCHITECTURE.md) for model and planned boundaries.
+
 TAKEOFFS adds a drawing and evidence register to the existing project. It does
 not change calculator formulas, shared pricing, frozen project prices or the
 priced quote. Steel, Duct, Walls, Slabs and a manual Penetrations draft workspace
@@ -104,8 +110,9 @@ buttons use icons with accessible names and the original labels on hover.
 
 Drawing tools occupy the narrow vertical rail to the left of the plan. The
 text search sits immediately above the viewer, with page/zoom controls centred
-in its bottom edge. The compact **Drawing document** selector sits below it.
-Drawing XLSX/PDF downloads sit beside the Steel/Duct/Penetrations/Walls/Slabs tabs.
+in its bottom edge. Scale sits at the top left before the source selector and search controls.
+Drawing XLSX/PDF downloads sit in the applicable register header; workspace
+choices are in the Takeoffs header disclosure.
 Source PDFs remain in the project; the
 old document list and page thumbnails no longer occupy the tool rail.
 
@@ -125,8 +132,9 @@ within one column are alternatives; filters across columns must all match.
 The register search further narrows those results. Filters do not change saved
 records, confirmation or quantities and are cleared when another project opens.
 Steel and Duct retain separate filter selections. Their old confirmation, sort
-and grouping dropdowns are replaced by these column filters. Steel's checked
-square selects all matching items; its empty square clears the selection.
+and grouping dropdowns are replaced by these column filters. Steel and Duct use one filtered-selection toggle: it selects matching items
+or deselects them when all matching items are selected. Selection outside the
+filter is retained. The old separate Clear selection action is removed.
 **Detach links** retains manual calculator values. Historical links are still
 accessible through the calculator row's **Open takeoff** action.
 
@@ -222,8 +230,9 @@ or pressing Escape, returns wheel control to the page. At a plan scroll boundary
 remaining wheel movement can continue onto the page. Ctrl/Cmd-wheel still zooms
 around the cursor, and Pan continues to move the drawing.
 
-Displayed lengths in the register, item summaries and transfer previews use two
-decimal places. Stored measurements, calculator inputs, confirmation digests and
+Displayed lengths in the register, item summaries, transfer previews, drawing
+and marked-PDF measurement labels use two decimal places; drawing area labels
+also use two decimal places. Stored measurements, calculator inputs, confirmation digests and
 exported numeric values retain their full precision; display rounding never changes
 quantities or calculation outputs.
 
@@ -482,12 +491,12 @@ is the last receipt; it is not a fresh approval of a separately edited schedule.
 ## Saving and moving a project
 
 Projects with takeoffs use project format version 2. Projects without takeoffs
-retain version 1. PDF bytes are never embedded in JSON. Save/Save As publishes
+retain version 1. PDF bytes are never embedded in JSON. Save publishes
 and verifies the immutable evidence files first, then atomically replaces the
 JSON last. A cancelled or failed save leaves the previous project intact.
 
 Keep the JSON together with its recorded relative companion folder:
-`.ceasefire-evidence/<persistent-project-id>/`. Save As copies required originals
+`.ceasefire-evidence/<persistent-project-id>/`. Choosing a new Save destination copies required originals
 and history to the destination; renaming a JSON file does not change project
 identity. Originals and audit segments are content-addressed and are not
 automatically deleted. To replace a drawing, ingest its new bytes as a new
@@ -507,7 +516,7 @@ snapshot. Numbered identities and their sequence are checked against retained
 audit history, including tombstones, so save/reopen does not reset numbering.
 Image manifests, original streams and display derivatives live in the companion
 folder and are published before the JSON, including assets retained only in
-history. Save As binds the window to the new copy of every retained asset.
+history. A successful Save binds the window to the new copy of every retained asset.
 An intact imported image manifest can be inspected and saved as a diagnostic
 draft, but requires fresh local extraction before it can support later physical
 approval. Its local extraction registry is never reconstructed from imported text.

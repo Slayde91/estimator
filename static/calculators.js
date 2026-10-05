@@ -386,7 +386,7 @@
     window.CeasefireTakeoffs?.calculatorDraftChanged?.();
     window.CeasefireProject?.changed?.();
     if (!entry || entry !== current()) return;
-    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save or Save As" : "Project calculator inputs · use Save or Save As to save all calculators";
+    $("calculator-save-status").textContent = dirty(entry) ? "Unsaved calculator changes · use Save" : "Project calculator inputs · use Save to save all calculators";
     const hasErrors = entry.invalid.size > 0;
     $("calculator-recalculate").disabled = state.calculating || hasErrors;
     $("calculator-recalculate").setAttribute("aria-busy", String(state.calculating));
@@ -1481,12 +1481,12 @@
     state.action = true; updateStatus(); const revision = entry.revision;
     try {
       const defaultsDetail = entry.definition.defaults?.SETTINGS ? "user-selected material settings and one blank schedule row" : "supplied workbook settings and one blank schedule row";
-      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save or Save As to keep the reset.`, "Reset draft")) return;
+      if (!await confirmReplace("Reset calculator defaults?", `This replaces this calculator's draft schedule and settings with the ${defaultsDetail}. Click Save to keep the reset.`, "Reset draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Review the latest draft and try again.", true); return; }
       entry.inputs = clone(entry.definition.defaults || {}); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       if (entry.definition.schedule) entry.scheduleRows = [entry.definition.schedule.first_row];
       entry.scheduleViewport = null; entry.removedRows = [];
-      message("Calculator defaults restored in this draft. Use Save or Save As to keep them."); await calculate();
+      message("Calculator defaults restored in this draft. Use Save to keep them."); await calculate();
     } finally { state.action = false; updateStatus(); }
   }
 
@@ -1506,11 +1506,11 @@
       const content = await readFile(file);
       const result = await request(endpoint(entry.definition.id, "import"), { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: content, inputs: snapshot }) });
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the file was importing. Your edits were kept; import the file again to review it.", true); return; }
-      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save or Save As.`, "Apply to draft")) return;
+      if (!await confirmReplace("Replace the schedule draft?", `${result.imported_rows} schedule rows are ready to import. The imported schedule replaces the current schedule in this draft. Review the results, then click Save.`, "Apply to draft")) return;
       if (current() !== entry || entry.revision !== revision) { message("The calculator changed while the confirmation was open. Your edits were kept; import the file again.", true); return; }
       entry.inputs = clone(result.inputs); entry.invalid.clear(); entry.revision++; entry.pendingResult = null; entry.navigationCache = null; entry.needsRender = true;
       entry.scheduleRows = result.schedule_rows && [...result.schedule_rows]; entry.scheduleViewport = null; entry.removedRows = [];
-      message(`Imported ${result.imported_rows} schedule rows into the draft. Use Save or Save As to keep them.`); await calculate();
+      message(`Imported ${result.imported_rows} schedule rows into the draft. Use Save to keep them.`); await calculate();
     } catch (error) { message(`Could not import the schedule. ${error.message}`, true); }
     finally { state.action = false; updateStatus(); }
   }

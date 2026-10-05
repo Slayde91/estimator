@@ -21,7 +21,12 @@ unapproved physical-draft workspaces.
 The draft XLSX download also moves into the regular register and still includes
 all current records of its takeoff type, independently of confirmed-item exports.
 
-Save, Save As and Project files are global header actions. New and Load appear
+Save and Project files are global header actions. Save updates the authorized
+current file or opens the existing native destination dialog when none is bound.
+There is no separate Save As button. Desktop navigation fits its icons rather
+than filling spare width; icons share a 25px footprint and 1.8 SVG stroke. Sigma
+is a centred SVG; the supplied Takeoffs bitmap remains unchanged. Save actions
+align on the same row. Project files advertises drag/drop on hover. New and Load appear
 beside Link Project Folder and Refresh on Projects, with matching control height.
 Project metadata remains on Projects. The same unique element IDs and event
 handlers retain capability-bound saves, attachment validation, drop handling,

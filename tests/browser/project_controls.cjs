@@ -95,14 +95,14 @@ async function drop(name,content,eventName = 'drop') {
   await button.click(); await expect(page.getByRole('alert')).toContainText('There is no saved project.');
   assert.equal(choosers,0); assert.equal(requests.length,0);
   await drop('unsaved.txt','Must not be written');
-  await expect(description).toContainText('Please click "Save As"'); assert.equal(requests.length,0);
+  await expect(description).toContainText('Please click "Save"'); assert.equal(requests.length,0);
   assert.deepEqual(await snapshot(),beforeUnsaved); assert.equal(fs.existsSync(path.join(output,'unsaved.txt')),false);
   evidence.unsaved = {pickerBlocked:true,dropBlocked:true,noRequests:true,draftsPreserved:true};
 
   await enter('Estimates'); await page.getByLabel('Client',{exact:true}).fill('Disposable project controls client');
   await page.getByLabel('Client',{exact:true}).press('Tab'); await enter('Projects'); await idle();
   const saving = page.waitForResponse(response => new URL(response.url()).pathname === '/api/project/save-as'); saving.catch(() => {});
-  await page.locator('#header-project-actions').getByRole('button',{name:'Save As',exact:true}).click();
+  await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();
   const savedReply = await saving; assert.equal(savedReply.status(),200,await savedReply.text()); await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const projectBytes = fs.readFileSync(info.project), beforeFiles = await snapshot(); assert.equal(beforeFiles.dirty,false);

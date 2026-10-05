@@ -50,6 +50,15 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.data, self.pdf, self.png = sample_library(self.root)
         self.library = ReferenceLibrary(self.root)
 
+    def test_summary_counts_cover_inventory_even_when_listing_is_filtered(self):
+        for kind in ('technical', 'penetration'):
+            full = self.library.listing(kind)['counts']
+            filtered = self.library.listing(kind, search='no-record-can-match', limit='1')
+            self.assertEqual(filtered['total'], 0)
+            self.assertEqual(filtered['counts'], full)
+            self.assertGreaterEqual(sum(row['count'] for row in full['manufacturers']), full['total'])
+            self.assertEqual(full['linked'] + full['unlinked'], full['total'])
+
     def write(self, data):
         (self.root / 'library.json').write_text(json.dumps(data), encoding='utf-8')
 

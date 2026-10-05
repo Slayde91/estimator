@@ -43,7 +43,8 @@ class TechnicalDuplicateTests(unittest.TestCase):
         before = self.index.read_bytes()
         listing = self.library.listing('technical')
         self.assertEqual(listing['total'], 1)
-        self.assertEqual(listing['counts'], {'total': 1, 'linked': 1, 'unlinked': 0})
+        self.assertEqual(listing['counts'], {'total': 1, 'linked': 1, 'unlinked': 0,
+                                            'manufacturers': [{'name': 'Manufacturer not recorded', 'count': 1}]})
         self.assertEqual(self.library.overview()['libraries'][1]['count'], 1)
         self.assertEqual(self.library.listing('technical', search='report-a-v2')['items'][0]['id'], 'report-a-v1')
         self.assertEqual(self.library.listing('technical', offset='1')['items'], [])

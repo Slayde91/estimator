@@ -24,7 +24,7 @@ function harness() {
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const audit = context.audit, state = audit.state, ui = {};
-  for (const key of ['split', 'merge', 'bulk', 'selectionCount', 'tableWrap', 'pagination']) ui[key] = element();
+  for (const key of ['split', 'merge', 'bulk', 'selectionCount', 'tableWrap', 'pagination', 'selectFiltered']) ui[key] = element();
   ui.bulkField = { value: 'mark', querySelector() { return null; } }; ui.statusFilter = { value: '' };
   state.ui = ui; state.mode = 'duct';
   const row = (id, fields = {}, status = 'draft', mode = 'duct') => ({ id, mode, state: status, quantity: 1, fields: { mark: id, ...fields } });

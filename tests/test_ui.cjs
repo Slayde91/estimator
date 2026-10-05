@@ -801,7 +801,7 @@ let passed=0;
 
   const markup=fs.readFileSync('static/index.html','utf8');
   const actionCss=fs.readFileSync('static/styles.css','utf8');
-  assert.doesNotMatch(markup,/id="save-quote"/);assert.match(markup,/id="save-project"[^>]*class="button save-button"/);
+  assert.doesNotMatch(markup,/id="save-quote"/);assert.doesNotMatch(markup,/id="save-project"/);
   assert.match(markup,/id="save-current-project"[^>]*class="button save-button icon-only"[^>]*aria-label="Save"[^>]*title="Save"/);
   assert.match(markup,/id="download-quote-pdf"[^>]*class="[^"]*pdf-button[^"]*icon-only[^"]*"[^>]*aria-label="Download PDF Estimate"[^>]*title="Download PDF Estimate"/);
   assert.match(markup,/id="download-quote-pdf"[\s\S]*?<span class="download-arrow">Σ<\/span>/);

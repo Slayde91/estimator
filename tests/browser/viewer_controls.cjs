@@ -63,12 +63,13 @@ async function inspectLeftPanel(width, registerPosition = 'below') {
   const metrics = await panel.evaluate(el => {
     const viewer = document.querySelector('.takeoff-viewport'), rail = document.querySelector('.takeoff-tool-rail');
     const bounds = node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, height: box.height }; };
-    return { panel: bounds(el), viewer: bounds(viewer), rail: bounds(rail), overlay: getComputedStyle(el).position === 'absolute', overflowY: getComputedStyle(el).overflowY,
+    return { panel: bounds(el), viewer: bounds(viewer), rail: bounds(rail), topControls: bounds(document.querySelector('.takeoff-viewer-top')), overlay: getComputedStyle(el).position === 'absolute', overflowY: getComputedStyle(el).overflowY,
       clientHeight: el.clientHeight, scrollHeight: el.scrollHeight,
       fields: [...el.querySelectorAll('.field')].filter(node => node.getClientRects().length).map(bounds),
       controls: [...el.querySelectorAll('.field input,.field select')].filter(node => node.getClientRects().length).map(bounds) };
   });
-  assert.ok(Math.abs(metrics.panel.top - metrics.viewer.top) <= 1, `${width}/${registerPosition}: panel starts with PDF viewer`);
+  if (metrics.overlay) assert.ok(metrics.panel.top >= metrics.topControls.bottom, `${width}/${registerPosition}: narrow panel leaves source/search controls accessible`);
+  else assert.ok(Math.abs(metrics.panel.top - metrics.viewer.top) <= 1, `${width}/${registerPosition}: side panel starts with PDF viewer`);
   assert.ok(metrics.panel.bottom <= metrics.viewer.bottom + 1, `${width}/${registerPosition}: panel ends within PDF viewer`);
   assert.ok(metrics.panel.left >= metrics.rail.right, `${width}/${registerPosition}: panel follows tool rail`);
   if (metrics.overlay) assert.ok(Math.abs(metrics.panel.left - metrics.viewer.left) <= 1, `${width}/${registerPosition}: narrow panel overlays left edge`);

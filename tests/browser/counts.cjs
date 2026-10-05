@@ -86,9 +86,11 @@ async function technicalDetails(mark, rows) {
   for (const [label, value] of Object.entries(fields)) await fill(panel, label, value);
   return applySettings(panel, rows);
 }
+let savedOnce = false;
 async function saveAndLoad(info) {
-  const save = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page, 'Save As'); assert.equal((await save).status(), 200);
+  const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save-as'));
+  await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200);
+  savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
   const open = page.waitForResponse(response => response.url().endsWith('/api/project/open'));
@@ -110,7 +112,9 @@ async function deleteMarker(item, memberId) {
   return command(() => page.getByRole('menuitem', { name: 'Delete count marker', exact: true }).click(), 'delete_count_marker');
 }
 async function continueCount(memberId) {
-  const marker = page.locator(`.takeoff-count-hit[data-count-member-id="${memberId}"]`); await marker.scrollIntoViewIfNeeded();
+  // Linked-result refresh can replace the SVG during scrolling. The click
+  // re-resolves the current member and handles its own scroll/actionability.
+  const marker = page.locator(`.takeoff-count-hit[data-count-member-id="${memberId}"]`);
   await page.locator('.takeoff-viewport').evaluate(el => window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 180));
   await marker.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Continue count', exact: true }).click();

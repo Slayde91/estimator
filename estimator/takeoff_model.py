@@ -91,7 +91,7 @@ def validate_appearance(value):
         raise ValidationError('Markup Display Values must be true or false.')
     if 'marker_shape' in value and value['marker_shape'] not in ('circle', 'square', 'triangle', 'diamond'):
         raise ValidationError('Count marker shape must be circle, square, triangle or diamond.')
-    for key, low, high in (('stroke_width', 0.25, 100), ('opacity', 0, 1), ('marker_size', 2, 72)):
+    for key, low, high in (('stroke_width', 0.25, 100), ('opacity', 0, 1), ('marker_size', 1, 100)):
         if key in value:
             number(value[key], 'Markup ' + key)
             if not low <= value[key] <= high:

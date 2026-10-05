@@ -117,7 +117,7 @@ async function screenshot(name,fixture) {
   await expect(rendered('L262')).toContainText('no generic factor table');
   await screenshot('monokote-coverage.png',fixture);
   console.log('Verified all six order products, Z106 alignment, hollow coverage and named-only PFC coverage.');
-  await apiReply(()=>clickProjectControl(page, 'Save As'),'/api/project/save-as');
+  await apiReply(()=>clickProjectControl(page, 'Save'),'/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved=JSON.parse(fs.readFileSync(path.join(output,'standard-project.json'),'utf8'));
   const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());

@@ -1,5 +1,22 @@
 # Project state
 
+## 5 October 2026: controls and libraries checkpoint
+
+PR #154 implements the original 26 browser comments: top-left Scale, active rail
+feedback, shared call-out defaults, 1–100 appearance edits with legacy precision,
+unified Save, compact consistent header icons, Settings-closed length copy,
+text-fitted legends, filtered selection, two-decimal drawing labels, physical
+Hide/Service Size filters, compact Pricing Library, Technical Library inventory
+summary and immediate cursor stop. Source workbook/formula files are unchanged.
+Physical drafts remain unapproved and hiding does not change quantities.
+
+The latest eight requests are recorded as planned work: shared shortcuts, an
+anchored live search dropdown, clear/stop lifecycle, nearest/next/wrap navigation,
+context/word colours, legend eligibility and separate free call-outs. They are
+not implemented by this checkpoint. ROADMAP.md and TAKEOFFS_ARCHITECTURE.md define
+the delivered and proposed scopes. Exact commit/CI/merge/live facts belong to the
+dated release and handoff receipts; no publication is inferred from this prose.
+
 ## 5 October 2026: approved Net Steel sqm definition
 
 The user approved exposed steel-profile surface, counted once per member in each
@@ -707,7 +724,7 @@ duplicate filename line is omitted.
 
 Calculators adds Structural Steel (vermiculite), Structural Steel (board) and Ductwork. Every visible source tab has a page with its original name; board SETTINGS and EXTRA BOARDS are additionally exposed. Original formulas, hidden databases, names, table references, validation choices, styles and source hashes are permanently packaged. Excel and OneDrive are unnecessary at runtime. These new workbooks supply geometry, thickness and quantity rules absent from the original Quote workbook.
 
-Numeric settings remain adjustable, including source formula-backed yields. Reference databases, material-basis text and calculated fields outside the declared editable settings are read-only. Each calculator has separate draft and saved inputs. Export template and Import schedule use exact values-only XLSX fields. Import replaces the schedule, clearing remaining previous rows while preserving other inputs/settings; only Save calculator persists. Capacities match Excel: 1,000 vermiculite, 200 board and 300 duct rows. Import rejects formulas, macros, external links and malformed data.
+Numeric settings remain adjustable, including source formula-backed yields. Reference databases, material-basis text and calculated fields outside the declared editable settings are read-only. Each calculator has separate draft and saved inputs. Export template and Import schedule use exact values-only XLSX fields. Import replaces the schedule, clearing remaining previous rows while preserving other inputs/settings; only Save calculator persists. Each application schedule now supports 1,000 rows through the documented [schedule extension](SCHEDULE_EXTENSION.md). The preserved original workbook capacities are 1,000 vermiculite, 200 board and 300 duct rows; these source capacities do not describe the current application limit. Import rejects formulas, macros, external links and malformed data.
 
 Values display two decimals at rest; focused controls reveal exact values. New calculator edits retain full precision, including small yields and tolerances. Numeric choices reveal exact values when choosing between options that round to the same display. This intentionally differs from the older Quote UI's two-decimal edit policy. Raw calculated values stay unrounded in both paths; product, fastener and report identifiers remain literal.
 

@@ -1,6 +1,6 @@
 # Takeoff viewing controls
 
-Line Colour and Line Width edit only markup appearance. New width edits accept
+Line Colour and Line Width edit only markup appearance. New width and marker edits accept
 1–100 PDF points; Opacity accepts 1–100 percent and is stored as a fraction.
 Untouched historical fractional widths and opacity values retain their exact
 stored values. Set as default is a browser preference for newly created markups.
@@ -24,6 +24,16 @@ Unlinked rows stay blank; stale or unavailable results show Unavailable. Changin
 the destination clears its thickness filter. No thickness is guessed from steel
 fields or another schedule, and no calculator formula is changed.
 
-The four calculator destinations are in the header's Calculators menu, opened by
+The three workbook calculator destinations are in the header's Calculators menu, opened by
 hover, keyboard focus or click/touch. Opening the menu does not initialize or
 change a calculator. Explicit selection retains the existing draft guards.
+
+Scale is in the top-left overlay before source and search controls. Narrow
+Settings panes start below these controls. Active left-rail tools use light red.
+Drawing/PDF length and area labels use two decimals without changing raw values.
+New legends fit wrapped text; existing saved layouts persist. Closing Settings
+returns focus to the drawing for selected Steel/Duct length copying.
+
+The eight latest shortcut, search, legend-availability and free-call-out requests
+remain planned in ROADMAP.md and TAKEOFFS_ARCHITECTURE.md; they are not delivered
+by this controls release.

@@ -77,8 +77,7 @@ async function bootstrap(initial, expected) {
     const sample = await layout(); sameHeader(initial, sample);
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length); samples.push(sample);
-    assert.equal(sample.cursorHidden, false);
-    assert.ok(!sample.finished || sample.now - sample.finished.at < 1000, 'Startup draining must retain the cursor deadline checks');
+    assert.equal(sample.cursorHidden, sample.typed === expected);
   }
   await idle();
   return samples;
@@ -115,7 +114,7 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     const sample = await layout(); sameHeader(initial, sample);
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
-    assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, false);
+    assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
     samples.push(sample);
   }
   assert.equal(samples.at(-1).typed, expected, 'The production typing timers must finish the exact phrase');
@@ -123,28 +122,20 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
   assert.equal(samples.at(-1).finished?.phrase, expected);
   return samples;
 }
-async function advanceFromFinish(milliseconds) {
-  const current = await layout(); assert.ok(current.finished, 'Completion must be observed before measuring cursor expiry');
-  const elapsed = current.now - current.finished.at;
-  assert.ok(elapsed <= milliseconds, `Already past the requested completion-relative time: ${elapsed}`);
-  await page.clock.runFor(milliseconds - elapsed);
-  const next = await layout();
-  assert.ok(Math.abs(next.now - next.finished.at - milliseconds) < .1);
-  return next;
-}
-async function expireCursor(initial, expected, { animated = true } = {}) {
-  const atHalfSecond = await advanceFromFinish(500); sameHeader(initial, atHalfSecond);
-  assert.equal(atHalfSecond.typed, expected); assert.equal(atHalfSecond.cursorHidden, false);
-  const afterFinishBlink = animated ? await blinking(initial, expected, 'half a second after the final character') : null;
-  if (!animated) assert.equal(atHalfSecond.cursorAnimation, 'none');
-  const beforeDeadline = await advanceFromFinish(999); assert.equal(beforeDeadline.cursorHidden, false);
-  const stopped = await advanceFromFinish(1000); sameHeader(initial, stopped);
-  assert.equal(stopped.cursorHidden, true, 'The underscore must disappear exactly one second after completion');
+async function expireCursor(initial, expected) {
+  const stopped = await layout(); sameHeader(initial, stopped);
+  assert.equal(stopped.cursorHidden, true, 'The underscore must disappear with the final character');
   assert.equal(stopped.cursorDisplay, 'none'); assert.equal(stopped.cursorAnimationCount, 0, 'Hidden cursor must have no running CSS animation');
   assert.equal(stopped.typed, expected); assert.equal(stopped.accessible, expected);
+  await page.clock.runFor(500);
+  const atHalfSecond = await layout(); sameHeader(initial, atHalfSecond);
+  assert.equal(atHalfSecond.typed, expected); assert.equal(atHalfSecond.cursorHidden, true);
+  await page.clock.runFor(500);
+  const afterOneSecond = await layout(); sameHeader(initial, afterOneSecond);
+  assert.equal(afterOneSecond.cursorHidden, true); assert.equal(afterOneSecond.cursorAnimationCount, 0);
   await page.clock.runFor(10000);
   const later = await layout(); assert.equal(later.cursorHidden, true); assert.equal(later.cursorAnimationCount, 0);
-  return { atHalfSecond, afterFinishBlink, beforeDeadline, stopped, later };
+  return { stopped, atHalfSecond, afterOneSecond, later };
 }
 async function presentationNavigation(initial) {
   // Initialize every synthetic calculator before comparing fingerprints so

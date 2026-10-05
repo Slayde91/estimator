@@ -409,6 +409,13 @@ class ReferenceLibrary:
             counts = {'total': len(data['_visible'][kind]) if data else 0,
                       'linked': sum(bool(data['_links'][kind][key]) for key in data['_visible'][kind]) if data else 0,
                       'unlinked': sum(not data['_links'][kind][key] for key in data['_visible'][kind]) if data else 0}
+            manufacturers = {}
+            if data:
+                for key in data['_visible'][kind]:
+                    names = data['_records'][kind][key].get('filter_values', {}).get('manufacturer', [])
+                    for name in set(names or ['Manufacturer not recorded']):
+                        manufacturers[name] = manufacturers.get(name, 0) + 1
+            counts['manufacturers'] = [{'name': name, 'count': count} for name, count in sorted(manufacturers.items(), key=lambda item: item[0].casefold())]
             filters = deepcopy(data['_filters'][kind]) if data else []
             if kind == 'penetration':
                 filters.append({'key': 'technical_reference', 'label': 'Technical reference', 'options': [

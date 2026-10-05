@@ -35,8 +35,10 @@ async function point([x, y]) {
   assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.takeoff-viewport'), position), true);
   return position;
 }
+let savedOnce = false;
 async function saveAndReopen(info) {
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), savedOnce ? '/api/project/save' : '/api/project/save-as');
+  savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');

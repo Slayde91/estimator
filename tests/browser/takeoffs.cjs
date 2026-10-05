@@ -343,7 +343,7 @@ async function boardJourney(info) {
   await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
   // Project Save As commits the companion bundle before the complete JSON.
   const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page, 'Save As');
+  await clickProjectControl(page, 'Save');
   const saved = await savedResponse; assert.equal(saved.status(), 200, await saved.text());
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const savedJson = JSON.parse(fs.readFileSync(info.project));

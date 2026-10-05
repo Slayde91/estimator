@@ -342,19 +342,20 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.calc.state.entries.size,3);for(const entry of h.calc.state.entries.values())assert.equal(h.calc.dirty(entry),false);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.quoteConfiguration),captured.estimate.configuration);
   });
-  await check('Save without an authorized file shows the requested popup and sends no request', async h => {
-    h.app.setRequest(async()=>{throw new Error('Save must not send a request');});
+  await check('Save without an authorized file opens the existing save dialog and preserves cancellation', async h => {
+    await h.context.window.CeasefireCalculators.completeProjectSnapshot();
+    const paths=[];
+    h.app.setRequest(async(path,options)=>{paths.push(path);assert.equal(JSON.parse(options.body).save_token,undefined);return{cancelled:true};});
     for(const file of [null,{name:'uploaded.json',path:'C:/fakepath/uploaded.json'}]) {
-      h.app.state.projectFile=file;const before=h.snapshot();await h.app.saveProject(false);
-      assert.equal(h.byId('save-required-dialog').open,true);assert.deepEqual(h.snapshot(),before);assert.equal(h.app.state.projectFile,file);
-      await h.byId('save-required-dialog').close('close');
+      h.app.state.projectFile=file;const before=h.snapshot();await h.app.saveProject();
+      assert.deepEqual(h.snapshot(),before);assert.equal(h.app.state.projectFile,file);
     }
-    assert.equal(h.calls.length,0);
-    assert.ok(fs.readFileSync('static/index.html','utf8').includes('You have not yet created a Project, please click "Save As"'));
+    assert.deepEqual(paths,['/api/project/save-as','/api/project/save-as']);
+    assert.doesNotMatch(fs.readFileSync('static/index.html','utf8'),/save-required-dialog|id="save-project"/);
   });
   for(const saveAs of [true,false])await check(`${saveAs?'Save As':'Save'} adopts canonical calculator receipt only for the captured draft`, async h => {
     const duct=h.addEntry('ductwork',{CALCULATOR:{C11:'CAFCO',E11:120,H11:'Mixed',I11:'Mixed',D11:1.23456789012345}});
-    duct.scheduleRows=[11];h.app.state.projectFile={name:'existing.json',path:'C:/estimates/existing.json',save_token:'current'};
+    duct.scheduleRows=[11];h.app.state.projectFile=saveAs?null:{name:'existing.json',path:'C:/estimates/existing.json',save_token:'current'};
     let canonical;
     h.app.setRequest(async(path,options)=>{
       assert.equal(path,saveAs?'/api/project/save-as':'/api/project/save');const payload=JSON.parse(options.body);
@@ -421,7 +422,7 @@ async function penetrationCheck(name, fn) {
     h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=123.456789;const before=h.snapshot();
     h.app.setRequest(async(path,options)=>{
       if(path==='/api/configuration/preview')return {configuration:JSON.parse(options.body).configuration,fields:copy(h.app.state.fields)};
-      assert.equal(path,'/api/project/save-as');if(failure==='failure')throw new Error('File locked');return {cancelled:true};
+      assert.equal(path,'/api/project/save');if(failure==='failure')throw new Error('File locked');return {cancelled:true};
     });
     await h.app.saveProject();assert.equal(h.app.state.projectFile,file);assert.deepEqual(h.snapshot(),before);
     assert.equal(h.app.state.quoteConfiguration.rates.frozen.price,17.12345);assert.equal(h.app.state.draft.rates.frozen.price,123.456789);
@@ -441,12 +442,12 @@ async function penetrationCheck(name, fn) {
   });
   await check('A browser-imported project cannot grant a writable target', async h => {
     await h.loadAccepted();assert.equal(h.app.state.projectFile.save_token,undefined);let requested=false;
-    h.app.setRequest(async()=>{requested=true;});await h.app.saveProject(false);
-    assert.equal(requested,false);assert.equal(h.byId('save-required-dialog').open,true);
+    h.app.setRequest(async(path,options)=>{requested=true;assert.equal(path,'/api/project/save-as');assert.equal(JSON.parse(options.body).save_token,undefined);return{cancelled:true};});await h.app.saveProject();
+    assert.equal(requested,true);assert.equal(h.app.state.projectFile.save_token,undefined);
   });
   await check('Project file uploads require Save As and use only the current project capability', async h => {
     await h.app.uploadProjectFiles([{name:'scope.pdf',size:4}]);
-    assert.match(h.byId('app-message').textContent,/There is no saved project.*Save As.*project folder/);
+    assert.match(h.byId('app-message').textContent,/There is no saved project.*Save.*project folder/);
     h.app.state.projectFile={name:'saved.json',path:'C:/estimates/saved.json',save_token:'opaque-project'};
     const calls=[];h.app.setRequest(async(path,options)=>{calls.push({path,body:JSON.parse(options.body)});return {saved:true,filename:calls.length===1?'scope.pdf':'scope (1).pdf',path:'C:/estimates/scope.pdf'};});
     await h.app.uploadProjectFiles([{name:'scope.pdf',size:4},{name:'scope.pdf',size:4}]);
@@ -459,7 +460,7 @@ async function penetrationCheck(name, fn) {
   await check('Project icon opens its picker only for a saved project and preserves drafts', async h => {
     const before = h.snapshot(), button = h.byId('project-attachment-zone'), input = h.byId('project-attachment-input');
     await button.emit('click',{}); assert.notEqual(input.clicked,true);
-    assert.match(h.byId('project-attachment-status').textContent,/There is no saved project.*Save As/);
+    assert.match(h.byId('project-attachment-status').textContent,/There is no saved project.*Save/);
     h.app.state.projectFile = {name:'saved.json',save_token:'opaque-project'};
     await button.emit('click',{}); assert.equal(input.clicked,true);
     input.clicked = false; h.app.state.projectBusy = true;
@@ -497,7 +498,7 @@ async function penetrationCheck(name, fn) {
   await check('Starting a new project clears the previous Save target', async h => {
     h.app.state.projectFile={name:'old.json',save_token:'old'};h.app.state.initialized=true;
     const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
-    assert.equal(h.app.state.projectFile,null);await h.app.saveProject(false);assert.equal(h.byId('save-required-dialog').open,true);
+    assert.equal(h.app.state.projectFile,null);let path;h.app.setRequest(async(value)=>{path=value;return{cancelled:true};});await h.app.saveProject();assert.equal(path,'/api/project/save-as');
   });
   await check('Project pricing changes are validated without changing shared rates and are included by Save Project', async h => {
     h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=42.75;
@@ -835,7 +836,7 @@ async function penetrationCheck(name, fn) {
     await h.app.saveProject();assert.equal(receipt.saved.companion_folder,'saved.takeoffs');assert.deepEqual(copy(receipt.captured),takeoffs);
   });
   for (const saveAs of [true,false]) await check(`${saveAs?'Save As':'Save'} keeps Pricing Library edits in the current project without changing shared prices`, async h => {
-    h.app.state.draft.rates.local.price=67.123456789;h.app.state.projectFile={save_token:'target'};const shared=copy(h.app.state.configuration),paths=[];let saved;
+    h.app.state.draft.rates.local.price=67.123456789;h.app.state.projectFile=saveAs?null:{save_token:'target'};const shared=copy(h.app.state.configuration),paths=[];let saved;
     h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);if(path==='/api/configuration/preview')return{configuration:body.configuration,fields:copy(h.app.state.fields)};saved=body;return{file:{path:'C:/estimates/all.json',save_token:'saved'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};});
     await h.app.saveProject(saveAs);assert.deepEqual(paths,['/api/configuration/preview',saveAs?'/api/project/save-as':'/api/project/save']);assert.equal(saved.estimate.configuration.rates.local.price,67.123456789);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),shared);assert.equal(h.app.state.quoteConfiguration.rates.local.price,67.123456789);assert.equal(h.app.state.pricingScope,'project');assert.equal(h.app.projectPricingChanged(),false);assert.match(h.byId('app-message').textContent,/saved for this project only/);
@@ -866,7 +867,7 @@ async function penetrationCheck(name, fn) {
   });
   for (const saveAs of [true, false]) await check(`${saveAs ? 'Save As' : 'Save'} waits for physical edits and captures the complete current project`, async h => {
     const pending = deferred(); let takeoffs = { version: 2, project_id: 'physical-project', revision: 1, documents: [{ id: 'drawing' }], items: [], physical: { defects: [{ id: 'defect', fields: { description: 'Before edit' } }] } }, sent, savedTakeoffs;
-    h.app.state.projectFile = { save_token: 'current-file', path: 'C:/estimates/current.json' };
+    h.app.state.projectFile = saveAs ? null : { save_token: 'current-file', path: 'C:/estimates/current.json' };
     h.context.window.CeasefireTakeoffs = {
       projectSnapshot: () => copy(takeoffs), projectFingerprint: () => JSON.stringify(takeoffs), hasUnsavedChanges: () => true, sessionId: () => 'physical-session',
       completeProjectSnapshot: async () => { await pending.promise; takeoffs = { ...takeoffs, revision: 2, physical: { defects: [{ id: 'defect', fields: { description: 'Finished physical edit' } }] } }; return copy(takeoffs); },

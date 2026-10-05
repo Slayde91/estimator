@@ -94,7 +94,7 @@ async function countCursor() {
   await expect(callout).toHaveAttribute('aria-label', `Callout ${defect.display_id} · ${summary}`);
   await expect(callout.locator('.takeoff-physical-callout-frame')).toHaveCount(1);
   for (const text of [defect.display_id, 'PLACED-DEFECT', 'FRL -/120/120', '0 substrates · 0 services']) await expect(callout).toContainText(text);
-  assert.deepEqual(defect.annotation, { document_id: reference.document_id, document_sha256: sourceHash, page: 3, point: retainedPoint });
+  assert.deepEqual(defect.annotation, { document_id: reference.document_id, document_sha256: sourceHash, page: 3, point: retainedPoint, appearance: { marker_size: 10 } });
   const renderedSourcePoint = await sourceMarker.evaluate(marker => {
     const [, , width, height] = marker.ownerSVGElement.getAttribute('viewBox').split(/\s+/).map(Number);
     return [20 + Number(marker.getAttribute('cy')) / height * 780, 30 + Number(marker.getAttribute('cx')) / width * 540];

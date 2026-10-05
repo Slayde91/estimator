@@ -225,7 +225,9 @@ async function showImage() {
   // Navigation remains available on a legacy record; it must never expose editable fields or rewrite the retained hierarchy.
   for (const [kind, label] of [['defects', 'Defect'], ['barriers', 'Barrier'], ['services', 'Service']]) {
     const target = legacySaved.takeoffs.physical[kind][0].id, control = legacyNavigation.getByLabel(`${label} ID in Item Details`, { exact: true });
-    await control.selectOption(target); await idle(); await expect(control).toHaveValue(target);
+    // Selection updates before the source render and its proof command finish.
+    // Wait for that drawing before reading the guarded project snapshot.
+    await renderDrawing(page, () => control.selectOption(target)); await idle(); await expect(control).toHaveValue(target);
     await expect(legacyInspector.locator('input, textarea, select:not(.takeoff-physical-navigation select)')).toHaveCount(0);
     assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot().physical), legacySaved.takeoffs.physical);
   }

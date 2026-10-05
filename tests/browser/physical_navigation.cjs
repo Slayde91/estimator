@@ -63,7 +63,7 @@ async function place(id, point, explicit = false) {
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
   await response(async () => page.mouse.click(...await screen(point)), '/physical/apply'); await snapshot(); await expect(marker(id)).toBeVisible(); await expect(marker(id)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
-  const selectedGraph=await snapshot(),placed=[...selectedGraph.physical.barriers,...selectedGraph.service_plans.barriers].find(value=>value.id===id);
+  const selectedGraph=await snapshot(),placed=[...selectedGraph.physical.barriers,...(selectedGraph.service_plans?.barriers||[])].find(value=>value.id===id);
   assert.ok(placed);assert.equal(placed.marker.appearance.marker_size,10);
 }
 async function layout(width) {

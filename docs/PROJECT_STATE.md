@@ -1,5 +1,21 @@
 # Project state
 
+## 5 October 2026: approved Net Steel sqm definition
+
+The user approved exposed steel-profile surface, counted once per member in each
+product/thickness row, without layer or waste multipliers. BOARD SUMMARY now adds
+**Net Steel sqm** before Purchase sqm, with matching PDF and values-only XLSX
+summaries. It uses retained nominal Standard 3/4-side steel catalogue girths and
+the board schedule's total lineal metres. Missing or unsupported geometry/exposure
+withholds the affected steel total and identifies the required input/review by
+line. Unresolved thickness assignments are listed separately. Board box areas,
+purchasing formulas, source workbooks, saved input identities and pricing are
+unchanged. This approved definition supersedes earlier notes deferring the column.
+See CALCULATOR_PRESENTATION_MAPPING.md for the exact scope and counting basis.
+
+This implementation record does not claim publication or live activation; those
+require current Git/CI/process/browser evidence in the release receipts.
+
 ## Current: home, help and estimator presentation
 
 The branch `feat/estimator-navigation-help-polish` starts from merge `9ce0d8d`.

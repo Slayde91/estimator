@@ -455,7 +455,10 @@
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
-    const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
+    // These board design inputs remain numeric when their custom selectors are blank.
+    const boardDesignNumber = entry.definition.id === "steel_board" && entry.sheet === schedule?.sheet
+      && coordinates?.row >= schedule.first_row && coordinates.row <= schedule.last_row && [8, 10].includes(coordinates.column);
+    const numeric = boardDesignNumber || cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
     const select = cell.type === "select" && (listedChoice || display?.control === "select" || !allowOther && options.length <= 40);
@@ -695,6 +698,23 @@
       if (isNumber(value)) control.title = `Exact value: ${numericInputValue(value, cell, true)}${percent(cell) ? "%" : ""}`;
     }
     renderProductTotals(result, entry.productTotalsElement);
+    refreshBoardSteelAreas(result);
+  }
+
+  function boardSteelValue(result, row) {
+    const area = result.board_net_steel_areas?.rows?.find(area => area.row === row);
+    return !area ? "Recalculate to show steel area." : area.issues?.length ? `Unavailable (${area.issues.length} ${area.issues.length === 1 ? "line" : "lines"})` : area.net_steel_sqm;
+  }
+
+  function refreshBoardSteelAreas(result) {
+    for (const cell of $("calculator-grid").querySelectorAll("[data-board-steel-row]")) {
+      updateOutputCell(cell, { value: boardSteelValue(result, Number(cell.dataset.boardSteelRow)) });
+    }
+    const notes = current()?.boardSteelNotesElement;
+    if (notes) {
+      const areas = result.board_net_steel_areas;
+      notes.replaceChildren(...(areas ? [areas.basis, ...(areas.notes || [])] : []).map(text => node("p", "helper", text)));
+    }
   }
 
   function choiceSignature(result, entry = current()) {
@@ -872,6 +892,7 @@
     grid.classList.toggle("calculator-grid-expanded", Boolean(metadata.expand_tables));
     grid.classList.toggle("calculator-steel-lookup", entry.definition.id === "steel_vermiculite" && entry.sheet === "CALCULATOR");
     entry.productTotalsElement = null;
+    entry.boardSteelNotesElement = null;
     const scrollLeft = grid.scrollLeft, scrollTop = grid.scrollTop;
     const hidden = hiddenColumns(metadata);
     const omittedRows = new Set(metadata.omitted_rows), omittedColumns = new Set(metadata.omitted_columns), hiddenAddresses = new Set(metadata.hidden_addresses || []), isOmitted = omittedCell(metadata);
@@ -1077,6 +1098,12 @@
       }
       for (const placement of rowLayout || groupColumns.map((column) => ({ column }))) {
         const column = placement.column;
+        if (boardSummary && column === 10 && row.row >= 11 && row.row <= 29) {
+          const steelCell = node(row.row === 11 ? "th" : "td", "calculator-role-output calculator-center calculator-bold");
+          if (row.row === 11) { steelCell.scope = "col"; steelCell.textContent = "Net Steel sqm"; }
+          else { steelCell.dataset.boardSteelRow = String(row.row); steelCell.dataset.calculatorValue = "true"; updateOutputCell(steelCell, { value: boardSteelValue(result, row.row) }); }
+          tr.append(steelCell);
+        }
         if (isOmitted(row.row, column) || !renderedGroup.visibleCell(row.row, column) || renderedGroup.region?.isTitle(row.row, column)) continue;
         const merge = merges.find(({ start, end }) => column >= start.column && column <= end.column && row.row >= start.row && row.row <= end.row);
         if (!rowLayout && merge && (column !== groupColumns.find((visible) => visible >= merge.start.column && visible <= merge.end.column) || row.row !== renderedGroup.rows.find((visible) => visible >= merge.start.row && visible <= merge.end.row))) continue;
@@ -1173,6 +1200,7 @@
       if (fitContent) table.classList.add("calculator-content-table");
       if (definition) table.classList.add("calculator-projection-table");
       const groupWidths = definition ? groupColumns.map((column) => definition.column_widths?.[definition.columns.map(columnNumber).indexOf(column)] || 125) : matrix && group === "matrix" ? groupColumns.map((column) => orderTable ? [19, 7, 9, 10, 8, 7, 11, 9, 20][column - 1] : column === 1 ? 100 : 88) : groupColumns.map((column) => widths[columns.indexOf(column)]);
+      if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, 170);
       if (syntheticLine) groupWidths.unshift(lineWidth);
       if (dynamicSchedule) groupWidths.unshift(100);
       const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0);
@@ -1193,6 +1221,12 @@
       const tableLabel = definition?.label || (group === "matrix" ? matrix.label : null);
       if (tableLabel) { table.setAttribute("aria-label", tableLabel); scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${tableLabel} · scroll horizontally for all columns`); scroll.tabIndex = 0; }
       scroll.append(table);
+      if (boardSummary && definition?.first_row === 11) {
+        const notes = node("div"); notes.id = "calculator-board-steel-notes";
+        entry.boardSteelNotesElement = notes;
+        notes.append(...(result.board_net_steel_areas ? [result.board_net_steel_areas.basis, ...(result.board_net_steel_areas.notes || [])] : []).map(text => node("p", "helper", text)));
+        scroll.append(notes);
+      }
       if (dynamicSchedule) {
         scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", "Schedule rows. Scroll vertically for more rows and horizontally for all columns."); scroll.tabIndex = 0;
         bindScheduleScroll(scroll, entry, scheduleView);
@@ -1253,7 +1287,7 @@
     if (!cache || state.gridEntry !== entry || entry.invalid.size || entry.pendingResult || entry.needsRender || cache.sheets.get(entry.sheet) !== entry.result || entry.renderedPage !== currentPage(entry)) return;
     const grid = $("calculator-grid");
     retainRecent(cache.pages, currentPage(entry), { nodes: [...grid.children], result: entry.result, signature: entry.choiceSignature,
-      totals: entry.productTotalsElement, scrollLeft: grid.scrollLeft, scrollTop: grid.scrollTop,
+      totals: entry.productTotalsElement, steelNotes: entry.boardSteelNotesElement, scrollLeft: grid.scrollLeft, scrollTop: grid.scrollTop,
       optionNodes: [...$("calculator-option-lists").children], optionLists: new Map(state.optionLists), optionKeys: state.optionKeys,
       expanded: grid.classList.contains("calculator-grid-expanded") }, 3);
   }
@@ -1286,7 +1320,7 @@
         grid.classList.toggle("calculator-grid-expanded", view.expanded);
         grid.classList.toggle("calculator-steel-lookup", entry.definition.id === "steel_vermiculite" && entry.sheet === "CALCULATOR");
         grid.scrollLeft = view.scrollLeft; grid.scrollTop = view.scrollTop;
-        entry.productTotalsElement = view.totals; entry.choiceSignature = view.signature;
+        entry.productTotalsElement = view.totals; entry.boardSteelNotesElement = view.steelNotes; entry.choiceSignature = view.signature;
         entry.renderedSheet = entry.sheet; entry.renderedPage = page; entry.needsRender = false; state.gridEntry = entry;
         retainRecent(cache.pages, page, view, 3);
       } else renderGrid(entry);

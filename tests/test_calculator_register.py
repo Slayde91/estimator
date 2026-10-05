@@ -121,12 +121,16 @@ class CalculatorRegisterTests(unittest.TestCase):
         for table in data['summaries']:
             title_row = next(cell.row for row in sheet for cell in row if cell.value == table['title'])
             labels = [table['labels'][column] for column in table['columns']]
+            if identity == 'steel_board':
+                labels.insert(table['columns'].index('J'), 'Net Steel sqm')
             header_row = next(row for row in range(title_row + 1, sheet.max_row + 1)
                               if [sheet.cell(row, column).value for column in range(1, len(labels) + 1)] == labels)
             if table['note']:
                 self.assertIn(table['note'], text)
             for target_row, item in enumerate(table['rows'], header_row + 1):
                 for target_column, column in enumerate(table['columns'], 1):
+                    if identity == 'steel_board' and column in 'JK':
+                        target_column += 1
                     unavailable = identity == 'ductwork' and table['title'] == 'Product totals' and (
                         (item['row'] < 11 and column in 'EFG') or (item['row'] == 11 and column == 'D'))
                     address = column + str(item['row'])

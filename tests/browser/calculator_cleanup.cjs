@@ -25,7 +25,34 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  await chooseCalculator(page,'Steel (board)');await idle();await expect(page.locator('#calculator-pages').getByRole('button',{name:'EXTRA BOARDS',exact:true})).toHaveCount(0);
  await tab('SCHEDULE');await expect(page.locator('#calculator-product-totals')).toHaveCount(0);await expect(page.locator('#calculator-grid')).toContainText('STRUCTURAL STEEL BOARD SCHEDULE');
  await tab('BOARD SUMMARY');await expect(page.locator('#calculator-grid .calculator-overview')).toHaveCount(0);await expect(page.locator('#calculator-grid')).toContainText('Purchase sqm');
+ const stock=page.getByRole('table',{name:'Board purchasing totals',exact:true});
+ const headers=await stock.getByRole('columnheader').allTextContents();assert.equal(headers[headers.indexOf('Net Steel sqm')+1],'Purchase sqm');
+ await expect(stock.locator('[data-board-steel-row]')).toHaveCount(18);
+ assert.ok((await stock.locator('[data-board-steel-row]').allTextContents()).every(text=>text==='0.00'));
+ await expect(page.locator('#calculator-board-steel-notes')).toContainText('total lineal metres');
  await page.screenshot({path:path.join(output,'board-summary.png'),fullPage:true});
  assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),before);assert.deepEqual(errors,[]);
+ // Enter a new board schedule using public controls, including blank custom design selectors.
+ await tab('SCHEDULE');
+ for(const [cell,value] of [['C9','PROMATECT-XS'],['D9','200UC46'],['G9','4'],['H9','120'],['I9','Column'],['J9','550']]) {
+   const control=page.locator(`select[data-calculator-cell="${cell}"]`);
+   await control.focus(); // Large retained choice lists populate on first focus.
+   const choices=await control.locator('option').evaluateAll(options=>options.map(option=>option.value));
+   if(choices.includes(value)) await control.selectOption(value);
+   else {
+     await control.selectOption({label:'Enter custom value…'});
+     const custom=page.locator(`input[data-calculator-custom-cell="${cell}"]`);
+     await custom.fill(value);await custom.press('Tab');
+   }
+   await idle();
+ }
+ await page.locator('input[data-calculator-cell="F9"]').fill('10');await page.locator('input[data-calculator-cell="F9"]').press('Tab');await idle();
+ await tab('BOARD SUMMARY');
+ const memberRow=stock.locator('tr').filter({has:page.locator('[data-calculator-output="A27"]')});
+ // PROMATECT-XS 15 mm is row 27 in the retained stock catalogue.
+ await expect(memberRow.locator('[data-board-steel-row]')).toHaveText('11.84');
+ const filled=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
+ await tab('SCHEDULE');await tab('BOARD SUMMARY');assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),filled);
+ await page.screenshot({path:path.join(output,'net-steel-double-layer.png'),fullPage:true});assert.deepEqual(errors,[]);
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

@@ -802,9 +802,14 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
             for label, value in (('A4', 'A5'), ('G4', 'G5'), ('S4', 'S5'))
         ] if shared_options and calculator_id == 'steel_vermiculite' and sheet == 'BAGS' else None
         board_product_totals = _board_product_totals(engine) if shared_options and calculator_id == 'steel_board' and sheet == 'CALCULATOR' else None
+        board_steel_areas = None
+        if shared_options and calculator_id == 'steel_board' and sheet == 'BOARD SUMMARY':
+            from .board_steel_area import board_net_steel_areas
+            board_steel_areas = board_net_steel_areas(engine)
     return {**metadata, 'sheet': sheet, 'start_row': start_row, 'end_row': end_row,
             'rows': rows, 'inputs': normalized, 'warnings': warnings,
             **({'product_totals': product_totals} if product_totals is not None else {}),
             **({'spray_schedule_totals': spray_schedule_totals} if spray_schedule_totals is not None else {}),
             **({'board_product_totals': board_product_totals} if board_product_totals is not None else {}),
+            **({'board_net_steel_areas': board_steel_areas} if board_steel_areas is not None else {}),
             **({'visible_columns': columns, 'option_sets': option_sets} if shared_options else {})}

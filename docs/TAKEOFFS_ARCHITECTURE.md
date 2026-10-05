@@ -231,6 +231,12 @@ clicks dismiss search results without discarding the query/highlights. Sentence
 context is deduplicated in one translucent group so repeated hits do not obscure
 original PDF text; matched-word geometry remains bound to the original source.
 
+Smooth zoom retains the displayed page while a replacement canvas is refined.
+That same-page refinement preserves a focused native page-number draft until its
+change event commits navigation. Unfocused page controls and actual document/page
+navigation still synchronize to the current page. The browser regression holds
+the real refinement callback between native input and Tab to verify this ordering.
+
 Penetrations Add Defect offers Search Item and New Item. Explicit library selection
 imports literal supported fields into ordinary unapproved Defect/Barrier/Service
 records and creates stable typed IDs. No candidate ranking or automatic matching

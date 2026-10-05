@@ -1,6 +1,7 @@
 "use strict";
 const { chromium, expect } = require('@playwright/test');
 const { settingsSettled } = require('./settings_helpers.cjs');
+const { renderDrawing } = require('./viewer_helpers.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `text-search-${Date.now()}`);
@@ -19,6 +20,40 @@ const active = () => results().filter({ has: page.locator(':scope[aria-current=t
 async function query(value) { await input().fill(value); await expect(page.locator('.takeoff-progress')).toContainText('Text search complete:', { timeout: 60000 }); }
 async function goPage(value) { await page.getByLabel('Page number', { exact: true }).fill(String(value)); await page.getByLabel('Page number', { exact: true }).press('Tab'); await expect(page.locator('.takeoff-page>canvas')).toBeVisible(); await expect.poll(() => page.locator('.takeoff-page-input').inputValue()).toBe(String(value)); await settingsSettled(page); }
 async function selectedId() { return page.locator('.takeoff-search-result[aria-current=true]').getAttribute('data-search-hit-id'); }
+async function pageInputDuringZoomRefinement(value) {
+  // Hold delivery of the existing zoom timer, then release the real refinement
+  // while a native page-number draft is focused. PDF.js pixels stay unmodified.
+  await page.evaluate(() => {
+    const original = window.setTimeout;
+    window.searchZoomPageInputQa = { original, armed: true, callback: null, requested: 0 };
+    window.setTimeout = function (callback, delay, ...args) {
+      const qa = window.searchZoomPageInputQa;
+      if (qa.armed && Number(delay) === 120 && typeof callback === 'function') {
+        qa.requested++; qa.armed = false;
+        return original.call(window, () => { qa.callback = () => callback(...args); }, delay);
+      }
+      return original.call(window, callback, delay, ...args);
+    };
+  });
+  try {
+    await page.getByRole('button', { name: '+', exact: true }).click();
+    await page.waitForFunction(() => typeof window.searchZoomPageInputQa.callback === 'function');
+    await page.getByLabel('Page number', { exact: true }).fill(String(value));
+    const before = await page.evaluate(() => ({ value: document.querySelector('.takeoff-page-input').value, focused: document.activeElement === document.querySelector('.takeoff-page-input') }));
+    assert.equal(before.value, String(value)); assert.equal(before.focused, true);
+    await renderDrawing(page, () => page.evaluate(() => window.searchZoomPageInputQa.callback()));
+    const after = await page.evaluate(() => ({ value: document.querySelector('.takeoff-page-input').value, focused: document.activeElement === document.querySelector('.takeoff-page-input'), requested: window.searchZoomPageInputQa.requested }));
+    evidence.pageInputDuringZoomRefinement = { before, after };
+    assert.equal(after.requested, 1, 'The real pending zoom refinement completed after the native edit');
+    assert.equal(after.value, String(value), 'Same-page bitmap refinement preserves the native page-number draft');
+    assert.equal(after.focused, true, 'Bitmap refinement leaves page-number editing focused');
+    await renderDrawing(page, () => page.getByLabel('Page number', { exact: true }).press('Tab'), value);
+    await settingsSettled(page);
+    evidence.pageInputDuringZoomRefinement.nativeTabNavigates = true;
+  } finally {
+    await page.evaluate(() => { window.setTimeout = window.searchZoomPageInputQa.original; });
+  }
+}
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1500, height: 1000 } }); page.setDefaultTimeout(30000);
@@ -71,6 +106,7 @@ async function selectedId() { return page.locator('.takeoff-search-result[aria-c
   assert.ok(alignment < 2, `Rotated/cropped/UserUnit zoom word geometry aligns with native text within two screen pixels (${alignment})`);
   evidence.rotatedCropUserUnitZoom = true;
   await page.screenshot({ path: path.join(output, 'sentence-search-rotated.png') });
+  await pageInputDuringZoomRefinement(1);
   await goPage(1); await query('wall'); await expect(results()).toHaveCount(500); await expect(page.locator('.takeoff-progress')).toContainText('Stopped at 500 matches; coverage is incomplete');
   await goPage(4); await expect.poll(() => page.locator('.takeoff-search-match').count()).toBeGreaterThan(490);
   const dense = await page.locator('.takeoff-search-contexts').evaluate(group => ({ opacity: Number(getComputedStyle(group).opacity), polygons: group.children.length, unique: new Set([...group.children].map(el => el.getAttribute('points'))).size }));

@@ -1254,7 +1254,9 @@
     if (state.planContextKey !== contextKey) { resetPlanInteraction(); state.planContextKey = contextKey; }
     const renderId = ++state.renderId, docId = state.document, pageNumber = state.page, sessionId = state.session.session_id, displayKey = pageDisplayKey(), zoom = state.zoom, rotation = pageRotation();
     const retainDisplay = refine && state.displayKey === displayKey && !!state.viewport;
-    state.ui.page.value = String(pageNumber); state.ui.pageCount.textContent = `/ ${currentDocument().pages.length}`; setProgress(`Rendering ${currentDocument().name}, page ${pageNumber}…`);
+    // Refining the same page must preserve a page number the user is typing.
+    if (!retainDisplay || document.activeElement !== state.ui.page) state.ui.page.value = String(pageNumber);
+    state.ui.pageCount.textContent = `/ ${currentDocument().pages.length}`; setProgress(`Rendering ${currentDocument().name}, page ${pageNumber}…`);
     state.zoomAnchor = anchor;
     if (!retainDisplay) { clearPdfTextLayer(); state.viewport = null; state.displayPage = null; state.displayKey = null; if (!anchor) state.ui.pageWrap.hidden = true; state.ui.overlay.replaceChildren(); }
     updatePresentationTools();

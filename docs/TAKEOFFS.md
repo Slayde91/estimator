@@ -71,6 +71,8 @@ and original coordinates. Project Save/reopen and marked PDF retain the note.
 **Hide Call-out** affects the visible PDF; open Settings and choose **Show hidden
 Call-outs** to restore hidden notes. **Discard pending edits** restores the latest
 accepted note while allowing an already-sent update to settle.
+Viewer rotation and zoom preserve source anchors and box dimensions. Marked PDF
+retains the original document orientation, using those original coordinates.
 
 Notes support at most 8,000 characters, 64 text blocks and 256 formatted runs;
 there are at most 1,000 free notes in a project. Text that cannot fit or contains

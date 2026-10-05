@@ -41,6 +41,25 @@ async function drag(target, dx, dy) {
   assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest(".takeoff-free-callout"), start), true, "Native pointer reaches free note");
   await page.mouse.move(...start); await page.mouse.down(); await page.mouse.move(start[0] + dx, start[1] + dy, { steps: 8 }); await page.mouse.up();
 }
+function normalizedSource(point, rotation) {
+  const u = (point[0] - 20) / 780, v = (point[1] - 30) / 540;
+  return [[u, 1 - v], [v, u], [1 - u, v], [1 - v, 1 - u]][rotation / 90];
+}
+async function assertAnnotationView(annotation, rotation) {
+  const seen = await note(annotation.id).evaluate(el => {
+    const overlay = el.ownerSVGElement, point = el.querySelector('[data-annotation-part="point"]'), label = el.querySelector('[data-annotation-part="label"]'), css = overlay.getBoundingClientRect();
+    return { size: [+overlay.getAttribute("width"), +overlay.getAttribute("height")], cssSize: [css.width, css.height], point: [+point.getAttribute("cx"), +point.getAttribute("cy")], label: [+label.getAttribute("x"), +label.getAttribute("y"), +label.getAttribute("width"), +label.getAttribute("height")] };
+  });
+  const scale = seen.size[0] / ([90, 270].includes(rotation) ? 540 : 780);
+  const point = normalizedSource(annotation.point, rotation).map((value, axis) => value * seen.size[axis]), label = normalizedSource(annotation.label_position, rotation).map((value, axis) => value * seen.size[axis]);
+  assert.ok(Math.hypot(...seen.point.map((value, axis) => value - point[axis])) < 1e-8, "Quarter-turn keeps the independently transformed original source anchor");
+  const expected = [Math.max(0, Math.min(seen.size[0] - annotation.width * scale, label[0])), Math.max(0, Math.min(seen.size[1] - annotation.height * scale, label[1])), annotation.width * scale, annotation.height * scale];
+  seen.label.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-8, "Zoom and quarter-turn preserve source box dimensions with presentation-only clamping"));
+  const marker = note(annotation.id).locator('[data-annotation-part="point"]'); await marker.scrollIntoViewIfNeeded();
+  const bounds = await marker.boundingBox(), hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.dataset.annotationPart, [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2]);
+  assert.equal(hit, "point", "The original source marker remains accessible when the upright Call-out box overlaps it after rotation");
+  return { ...seen, scale, markerHit: hit };
+}
 async function download(filename) {
   const pending = page.waitForEvent("download"), request = page.waitForRequest(value => value.url().endsWith("/export/marked-pdf"));
   await page.getByRole("button", { name: "Download PDF", exact: true }).click(); const file = path.join(output, filename); await (await pending).saveAs(file); await idle(); return { file, request: (await request).postDataJSON() };
@@ -121,6 +140,26 @@ async function saveLoad(info) {
   await select(created.steel); const beforeResize = copy(movedNote);
   const resized = await command(() => drag(page.locator('[data-annotation-part="resize"]'), 18, 16), "update_annotation"), resizedNote = resized.snapshot.annotations.callouts.find(value => value.id === created.steel);
   assert.ok(resizedNote.width > beforeResize.width); assert.ok(resizedNote.height > beforeResize.height); assert.deepEqual(resizedNote.point, beforeResize.point); assert.deepEqual(resizedNote.label_position, beforeResize.label_position); assert.equal(resizedNote.id, beforeResize.id); assert.deepEqual(resizedNote.content, beforeResize.content); invariant(resized.snapshot, baseline); evidence.resize = { width: resizedNote.width, height: resizedNote.height, textAndSourceUnchanged: true };
+  let viewStable = copy(resizedNote); evidence.viewerRotations = [];
+  for (const offset of [90, 180, 270, 0]) {
+    await renderDrawing(page, () => page.getByRole("button", { name: "Rotate page", exact: true }).click(), 3); await fit();
+    const rotation = (90 + offset) % 360, fitted = await assertAnnotationView(viewStable, rotation);
+    await renderDrawing(page, () => page.getByRole("button", { name: "+", exact: true }).click(), 3); const zoomed = await assertAnnotationView(viewStable, rotation); assert.ok(zoomed.scale > fitted.scale);
+    await renderDrawing(page, () => page.getByRole("button", { name: "−", exact: true }).click(), 3); await assertAnnotationView(viewStable, rotation);
+    assert.deepEqual((await snapshot()).annotations.callouts.find(value => value.id === created.steel), viewStable); invariant(await snapshot(), baseline);
+    if (rotation === 0) {
+      await select(created.steel); const display = await assertAnnotationView(viewStable, rotation), dx = 13, dy = 11;
+      const pointMoved = await command(() => drag(note(created.steel).locator('[data-annotation-part="point"]'), dx, dy), "update_annotation"), changed = pointMoved.snapshot.annotations.callouts.find(value => value.id === created.steel);
+      // Native pointer coordinates use the browser's CSS dimensions, which may
+      // quantize the mathematically exact SVG dimensions by a small fraction.
+      assert.ok(Math.abs(changed.point[0] - (viewStable.point[0] + dx / display.cssSize[0] * 780)) < 1e-8); assert.ok(Math.abs(changed.point[1] - (viewStable.point[1] - dy / display.cssSize[1] * 540)) < 1e-8);
+      assert.deepEqual([changed.width, changed.height], [viewStable.width, viewStable.height]); assert.equal(changed.id, viewStable.id); invariant(pointMoved.snapshot, baseline);
+      const undone = await command(() => panel().getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo"), restoredView = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
+      for (const key of Object.keys(viewStable).filter(value => value !== "version")) assert.deepEqual(restoredView[key], viewStable[key], `Rotated source drag undo restores ${key}`);
+      viewStable = copy(restoredView); await assertAnnotationView(viewStable, rotation); evidence.rotatedSourceDrag = { markerAccessibleThroughOverlappingBox: true, originalCoordinatesRestored: true, stableId: viewStable.id };
+    }
+    evidence.viewerRotations.push({ offset, rotation, fitted, zoomed, originalStoredCoordinatesAndBoxUnchanged: true });
+  }
   const beforeExport = await snapshot(), visible = await download("free-callouts-visible.pdf"), visiblePdf = inspectPdf(visible.file), sourcePdf = inspectPdf(info.fixture);
   const visibleText = visiblePdf.text.replace(/[\r\n]/g, ""), boldText = visiblePdf.segments.filter(value => /Bold/.test(value.font)).map(value => value.text).join("").replace(/[\r\n]/g, "");
   assert.deepEqual(visible.request.item_ids, []); assert.deepEqual(visible.request.annotation_ids, [created.steel]); assert.ok(visibleText.includes("NOTE-steel")); assert.ok(visibleText.includes("SAFE_PASTE")); assert.ok(visibleText.includes("• Entry-steel")); assert.ok(visibleText.includes("1. Number-steel")); assert.ok(boldText.includes("NOTE-steel"), "Every NOTE heading character keeps its bold font in PDF output");

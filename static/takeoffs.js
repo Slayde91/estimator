@@ -2407,12 +2407,14 @@
       const label = [Math.max(0, Math.min(state.viewport.width - width * scale, rawLabel[0])), Math.max(0, Math.min(state.viewport.height - height * scale, rawLabel[1]))];
       const selected = state.annotationSelected === annotation.id, group = svg("g", { class: `takeoff-free-callout${selected ? " selected" : ""}`, "data-annotation-id": annotation.id, role: "button", tabindex: 0, "aria-label": `Call-out · ${A.text(annotation.content) || "Empty Item Details"}`, "aria-pressed": String(selected) });
       group.append(svg("line", { x1: point[0], y1: point[1], x2: Math.max(label[0], Math.min(point[0], label[0] + width * scale)), y2: Math.max(label[1], Math.min(point[1], label[1] + height * scale)), stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "pointer-events": "none" }));
-      group.append(svg("circle", { cx: point[0], cy: point[1], r: 3 * scale, fill: appearance.stroke_color, "data-annotation-part": "point" }));
       group.append(svg("rect", { x: label[0], y: label[1], width: width * scale, height: height * scale, rx: Math.min(3 * scale, height * scale / 8), fill: appearance.fill_enabled ? appearance.fill_color : "transparent", "fill-opacity": appearance.opacity, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "data-annotation-part": "label" }));
       try {
         const layout = A.layout(annotation.content, width, height), text = svg("text", { "font-family": "CeasefireDrawing", "font-size": layout.size * scale, fill: appearance.font_color, "pointer-events": "none" });
         layout.lines.forEach((line, index) => { for (const run of line) { const span = svg("tspan", { x: label[0] + (layout.padding + run.x) * scale, y: label[1] + (layout.padding + layout.size + index * layout.size * 1.3) * scale, "font-weight": run.bold ? "700" : "400", "font-style": run.italic ? "italic" : "normal", "text-decoration": run.underline ? "underline" : "none" }); span.textContent = run.text; text.append(span); } }); group.append(text);
       } catch (error) { const warning = svg("text", { x: label[0] + 6, y: label[1] + 20, fill: appearance.font_color }); warning.textContent = "Item Details cannot fit: resize or shorten"; group.append(warning); }
+      // Keep the original source anchor visible and draggable when rotation or
+      // page-edge clamping places its upright label over the anchor, as in PDF.
+      group.append(svg("circle", { cx: point[0], cy: point[1], r: 3 * scale, fill: appearance.stroke_color, "data-annotation-part": "point" }));
       group.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectFreeCallout(annotation.id)); });
       group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); void safely(() => selectFreeCallout(annotation.id)); } });
       group.addEventListener("pointerdown", event => void safely(() => beginAnnotationDrag(event, annotation)));

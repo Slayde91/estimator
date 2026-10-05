@@ -40,6 +40,7 @@
     return { width_mm, height_mm };
   }
   const fieldDisplay = (fields, key) => key === "width_height_mm" ? formatDimensions(fields) : fields?.[key];
+  const recordedQuantity = (entity, value) => entity.library_quantity && (value === "" || value == null) ? null : fieldValue("service", "quantity", value);
   const evidenceFields = key => key === "width_height_mm" ? ["width_mm", "height_mm"] : [key];
   const markerDescription = marker => marker ? `${marker.document_id} · p${marker.page} · (${marker.point?.join(", ")})` : "none";
 
@@ -118,7 +119,7 @@
     return text || undefined;
   }
   function changedFields(entry, key, value) {
-    const parsed = fieldValue(entry.kind, key, value, entry.servicePlans ? "service_plans" : "defect_reports");
+    const parsed = key === "quantity" ? recordedQuantity(entry.entity, value) : fieldValue(entry.kind, key, value, entry.servicePlans ? "service_plans" : "defect_reports");
     if (key === "quantity") return { quantity: parsed };
     const fields = { ...entry.entity.fields };
     if (key === "width_height_mm") { delete fields.width_mm; delete fields.height_mm; Object.assign(fields, parsed); }
@@ -185,7 +186,7 @@
         }
         return `${title}\n${lines.join("\n")}`;
       }
-      if (command.op === "create") return `${title}\n${Object.entries(entity.fields).map(([field, value]) => `${definitions[command.kind].find(definition => definition[0] === field)?.[1] || (field === "frl" ? "FRL" : field)}: ${value}`).join("\n")}${command.kind === "service" ? `\nExplicit service quantity: ${entity.quantity}` : ""}${entity.marker ? `\nCount marker: ${markerDescription(entity.marker)}` : ""}\nUncertainty: ${entity.uncertainty.state}`;
+      if (command.op === "create") return `${title}\n${Object.entries(entity.fields).map(([field, value]) => `${definitions[command.kind].find(definition => definition[0] === field)?.[1] || (field === "frl" ? "FRL" : field)}: ${value}`).join("\n")}${command.kind === "service" ? `\nExplicit service quantity: ${entity.quantity == null ? "Unknown (selected library draft only)" : entity.quantity}` : ""}${entity.marker ? `\nCount marker: ${markerDescription(entity.marker)}` : ""}\nUncertainty: ${entity.uncertainty.state}`;
       return title;
     }).join("\n\n");
   }
@@ -348,7 +349,7 @@
     }
     function fieldDefinitions(entry, createKind) {
       const kind = entry?.kind || createKind, entity = entry?.entity;
-      return [...fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", true]] : [])]), ["uncertainty_state", "Uncertainty / review state", uncertainty, entity?.uncertainty.state || "not_assessed", true], ["uncertainty_note", "Uncertainty explanation", "textarea", entity?.uncertainty.note || ""]];
+      return [...fieldsFor(kind, scope()).flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]), ["uncertainty_state", "Uncertainty / review state", uncertainty, entity?.uncertainty.state || "not_assessed", true], ["uncertainty_note", "Uncertainty explanation", "textarea", entity?.uncertainty.note || ""]];
     }
     async function chooseEntity(kind, title, candidates) {
       const filter = await ask(title, [["search", `Find ${titles[kind].toLowerCase()} by label, location or ID`, "text", ""]], "Choose an existing physical parent by its persistent identity. A similar label does not establish that two objects are the same.", "Find parents");
@@ -378,6 +379,14 @@
       };
       ensureEditable(); ensureAvailable(); requireSource(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable(); requireSource();
       if (graphKey() !== key) throw new Error("The physical draft changed before this form opened. Repeat the edit.");
+      if (kind === "defect") {
+        const libraryLinks = root.CeasefireTakeoffLibraryLinks || (typeof module !== "undefined" && module.exports ? require("./takeoff-library-links.js") : null);
+        if (!libraryLinks) throw new Error("The Add Defect item chooser is unavailable. Reload after preserving your project.");
+        const choice = await libraryLinks.choose(bridge);
+        if (!choice) return;
+        requireSource(); if (graphKey() !== key) throw new Error("The physical draft changed during library selection. Repeat Add Defect.");
+        if (choice.kind === "library") return createLibraryDraft(choice.record, evidence, annotation, requireSource);
+      }
       let parent = chosenParent;
       if (parentRelations()[kind]) {
         const parentKind = parentRelations()[kind][0], selected = selectEntries();
@@ -391,6 +400,67 @@
       requireSource();
       const entity = { id: root.crypto.randomUUID(), fields: fieldsFromValues(kind, answer, {}, scope()), evidence, uncertainty: { state: answer.uncertainty_state, note: answer.uncertainty_note || "" }, ...(parent ? { [parentRelations()[kind][1]]: parent } : {}), ...(kind === "service" ? { quantity: fieldValue(kind, "quantity", answer.quantity) } : {}), ...(marker !== undefined ? { marker: copy(marker) } : {}), ...(annotation !== undefined ? { annotation: copy(annotation) } : {}) };
       if (await perform([{ op: "create", kind, entity }], `Create one draft ${kind}?`, false, true, requireSource)) { await selectEntity(entity.id, false, marker === undefined && !evidence.length); return entity.id; }
+    }
+    async function createLibraryDraft(library, evidence, annotation, guard) {
+      if (typeof bridge.libraryCommand !== "function") throw new Error("The project-owned library link bridge is unavailable.");
+      const initial = library.import_fields.defect;
+      guard?.();
+      const defectId = root.crypto.randomUUID(), barrierId = root.crypto.randomUUID(), serviceId = root.crypto.randomUUID();
+      const assertion = fields => ({fields,evidence:[],uncertainty:{state:"human_review_required",note:"Manually selected library fields; verify the actual installation and technical applicability."}});
+      const commands=[{op:"create",kind:"defect",entity:{id:defectId,...assertion(copy(initial)),evidence:copy(evidence),...(annotation!==undefined?{annotation:copy(annotation)}:{})}},
+        {op:"create",kind:"barrier",entity:{id:barrierId,defect_id:defectId,...assertion(copy(library.import_fields.barrier))}}];
+      const memberIds=[defectId,barrierId];
+      if (library.import_fields.service) { commands.push({op:"create",kind:"service",entity:{id:serviceId,barrier_id:barrierId,...assertion(copy(library.import_fields.service)),quantity:null,library_quantity:{version:1,state:"unknown",library_id:library.id,metadata_sha256:library.metadata_sha256}}}); memberIds.push(serviceId); }
+      if (!await perform(commands,"Import selected library draft",false,false,guard)) return;
+      const links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js");
+      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),library,memberIds)}));
+      await selectEntity(defectId,false,false); return defectId;
+    }
+    async function confirmLibraryLink(value) {
+      await completePendingEdits(); ensureAvailable(); ensureEditable();
+      if (!bridge.libraryPreview || !bridge.libraryApply) throw new Error("The reviewed Firestopping Schedule link bridge is unavailable.");
+      const key=graphKey(), answer=await ask("Confirm link and quantity",[["quantity","Explicit installation quantity","number",value.confirmation?.quantity ?? 1,true]],
+        `${value.library.library_id}: ${value.library.title}\n${value.members.length} explicitly selected physical members. ${value.installation.mode === "combined_installation" ? "One combined installation contributes exactly one quantity." : "Review the number of separate installations; member rows do not determine quantity."}\n\nExisting schedule inputs, manual quantity and frozen project prices remain intact. This confirms only the commercial association and your entered quantity, never physical approval or technical compliance.`,"Review schedule change");
+      if (!answer) return; if (graphKey()!==key) throw new Error("The physical draft changed during commercial review.");
+      const quantity=Number(answer.quantity); if (!Number.isFinite(quantity) || quantity<=0) throw new Error("Enter a positive explicit installation quantity.");
+      const preview=await bridge.libraryPreview({assignment_id:value.id,quantity});
+      if (graphKey()!==key) throw new Error("The physical draft changed before schedule confirmation.");
+      const change=preview.change,fields=preview.library.import_fields;
+      const confirmed=await bridge.confirm("Confirm link and quantity",`${preview.notice}\n\n${preview.library.library_id}: ${preview.library.title}\nCurrent library revision ${preview.library.revision}\nLibrary FRL: ${fields.defect.frl || "Unknown"}\nSubstrate: ${fields.barrier.substrate || "Unknown"}\nOrientation: ${fields.barrier.orientation || "Unknown"}\nService: ${fields.service?.service_type || "Not specified"}\nDiameter: ${fields.service?.diameter_mm ?? "Unknown"}; width: ${fields.service?.width_mm ?? "Unknown"}; height: ${fields.service?.height_mm ?? "Unknown"}\n\n${preview.overlapping_assignment_ids?.length ? "Warning: this explicit group shares physical members with another retained association. Review separate versus combined installations; no opening is inferred.\n" : ""}Explicit contribution: ${change.confirmed_contribution}\nSchedule row: ${change.row_id}\nQuantity: ${change.previous_quantity} → ${change.next_quantity}\nPrior contribution: ${change.prior_contribution}\nAll other existing row inputs and fixed charges remain unchanged.`,"Confirm link and quantity");
+      if (!confirmed) return; if (graphKey()!==key) throw new Error("The physical draft changed during final commercial confirmation.");
+      displayReply(await bridge.libraryApply(preview.preview_id));
+    }
+    async function unlinkLibrary(value) {
+      await completePendingEdits();ensureAvailable();ensureEditable();
+      if(!value.schedule_binding)throw new Error("This association has no schedule contribution to remove.");
+      const key=graphKey(),preview=await bridge.libraryPreview({assignment_id:value.id,quantity:0,operation:"unlink"}),change=preview.change;
+      const confirmed=await bridge.confirm("Remove schedule link",`${value.library.library_id}: ${value.library.title}\n\nRemoving this link subtracts only its contribution (${change.prior_contribution}). The schedule row and manual inputs remain; remove the row in Firestopping Estimator if no longer needed.\n\nQuantity: ${change.previous_quantity} → ${change.next_quantity}\nOther confirmed links, manual quantity, fixed charges and frozen prices remain intact. The retained physical draft and association IDs remain available for later review. This action does not approve the physical model.`,"Remove schedule link");
+      if(!confirmed)return;if(graphKey()!==key)throw new Error("The physical draft changed during unlink review.");
+      displayReply(await bridge.libraryApply(preview.preview_id));
+    }
+    async function attachLibraryToSelected() {
+      await completePendingEdits();ensureAvailable();ensureEditable();
+      const entries=selectEntries();if(!entries.length||entries.some(entry=>entry.entity.deleted))throw new Error("Select active physical members to associate explicitly.");
+      const key=graphKey(),links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js"),selected=await links.choose(bridge,true);
+      if(!selected)return;if(graphKey()!==key)throw new Error("The selected physical context changed during library search.");
+      const answer=await ask("Define installation membership",[["mode","Installation grouping",[["repeated_installations","Separate repeated installations"],["combined_installation","One explicitly combined installation"]],"repeated_installations",true],["note","Explicit installation/grouping description","textarea",""]],
+        `${entries.length} selected physical members will retain their own IDs. A shared barrier never proves a common opening. Describe any combined installation explicitly; confirm its quantity separately. This association does not approve technical applicability.`,"Create draft association");
+      if(!answer)return;if(graphKey()!==key)throw new Error("The physical draft changed while defining the installation group.");
+      const installation={id:root.crypto.randomUUID(),mode:answer.mode,note:answer.note||""};
+      displayReply(await bridge.libraryCommand("draft_library_assignment",{assignment:links.assignment(scope(),selected.record,entries.map(entry=>entry.entity.id),installation)}));
+    }
+    function renderLibraryAssignments(entries) {
+      if(!bridge.libraryCommand||legacyReadOnly()||!entries.length||entries.some(entry=>entry.entity.deleted))return;
+      const ids=new Set(entries.map(entry=>entry.entity.id)),links=root.CeasefireTakeoffLibraryLinks;
+      ui.inspector.append(mutationButton("Choose library item for selected records",attachLibraryToSelected));
+      for(const value of state.snapshot?.library_assignments?.records||[]){
+        if(value.scope!==scope()||!value.members.some(member=>ids.has(member.id)))continue;
+        const card=node("section","takeoff-exclusion"),current=links?.status(state.snapshot,value)||value.state;
+        card.append(node("h4","",`${value.library.library_id} · Library association`),node("p","helper",links?.description(value)||value.library.title),node("p","helper",current==="needs_recheck"?"Physical context changed — reconfirm this commercial association. The current schedule remains intact.":current==="confirmed"?`Last confirmed schedule contribution: ${value.confirmation.quantity}. Current library metadata is checked before the next commercial change. Physical model remains an unapproved draft.`:"Not in the Firestopping Schedule until you confirm the link and quantity."),mutationButton("Confirm link and quantity",()=>confirmLibraryLink(value)));
+        if(value.schedule_binding)card.append(mutationButton("Remove schedule link",()=>unlinkLibrary(value)));
+        if(value.schedule_binding&&bridge.editLibraryRow)card.append(mutationButton("Edit linked schedule item and price",()=>bridge.editLibraryRow(value.schedule_binding.row_id,value.library.id)));
+        ui.inspector.append(card);
+      }
     }
     function createFromSelection(kind, marker) {
       ensureEditable(); ensureAvailable();
@@ -426,7 +496,7 @@
       const entry = state.index.get(id); if (!entry || entry.entity.deleted) return "";
       const line = (values) => values.filter(value => value !== undefined && value !== null && value !== "").map(value => String(value).replace(/[\r\n\t]+/g, " ")).join(" · ");
       const defectLine = value => { const f = value.entity.fields; return line([displayId(value), f.label, f.location, f.frl ? `FRL ${f.frl}` : ""]); };
-      const serviceLine = child => { const value = child.entity.fields; return line([displayId(child), `${child.entity.quantity} ×`, value.label, value.service, value.service_type || "Service type not recorded", value.size, value.width_height_mm, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); };
+      const serviceLine = child => { const value = child.entity.fields; return line([displayId(child), child.entity.quantity == null ? "Quantity unknown" : `${child.entity.quantity} ×`, value.label, value.service, value.service_type || "Service type not recorded", value.size, value.width_height_mm, value.width_mm != null || value.height_mm != null ? `${formatDimensions(value)} mm` : "", value.diameter_mm != null ? `Ø ${value.diameter_mm} mm` : "", value.insulation_mm != null ? `Insulation ${value.insulation_mm} mm` : ""]); };
       const barrierLines = barrier => {
         const f = barrier.entity.fields, defect = ancestors(barrier, state.index).find(parent => parent.kind === "defect"), frl = servicePlans() ? f.frl : defect?.entity.fields.frl;
         const services = state.servicesByBarrier.get(barrier.entity.id) || [];
@@ -515,6 +585,7 @@
           uncertainty: { state: "not_assessed", note: `Copied from ${old.display_id || old.id}; verify this new location. ${old.uncertainty.note || ""}`.slice(0, 2000) }, copied_from: { entity_id: old.id, revision: old.revision } };
         const parent = parentRelations()[entry.kind]; if (parent) entity[parent[1]] = remap.get(old[parent[1]]) || old[parent[1]];
         if (entry.kind === "service") entity.quantity = old.quantity;
+        if (old.library_quantity) entity.library_quantity = copy(old.library_quantity);
         for (const key of ["marker", "annotation"]) if (old[key]) entity[key] = { ...copy(old[key]), document_id: destination.document_id, document_sha256: destination.document_sha256, page: destination.page, point: old[key].point.map((value, axis) => value+delta[axis]) };
         return { op: "create", kind: entry.kind, entity };
       });
@@ -714,13 +785,14 @@
       ui.inspector.replaceChildren(); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
       if (selected.length === 1) bridge.renderDrawingAppearance?.(ui.inspector, inspectedEntry().entity);
       ui.inspector.append(node("h3", "", "Item Details"));
+      renderLibraryAssignments(selected);
       renderDetailNavigation();
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty."), inspectorActions()); return; }
       const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey();
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
-        if (entry.kind === "service") ui.inspector.append(node("p", "helper", `Explicit service quantity: ${entity.quantity}`));
+        if (entry.kind === "service") ui.inspector.append(node("p", "helper", entity.quantity == null ? "Service quantity unknown: enter an explicit physical count when reviewed. The commercial schedule contribution is separate." : `Explicit service quantity: ${entity.quantity}`));
         ui.inspector.append(node("p", "helper", `Uncertainty: ${entity.uncertainty.state} · ${entity.uncertainty.note || "No explanation recorded"}`), inspectorActions()); return;
       }
       const controls = fieldDefinitions(entry).map(([key, label, type, initial, required]) => {
@@ -729,7 +801,7 @@
         control.value = initial ?? ""; control.name = key; control.required = !!required; if (type === "number") control.step = key === "quantity" ? "1" : "any"; control.setAttribute("aria-label", label); track(control, initial, entry, key); wrapper.append(control); ui.inspector.append(wrapper); return control;
       });
       const editor = { controls, entry, key: editorKey };
-      editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(editor.entry.kind === "service" ? { quantity: fieldValue(editor.entry.kind, "quantity", values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
+      editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), uncertainty: { state: values.uncertainty_state, note: values.uncertainty_note }, ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
       state.inspectorEdit = editor;
       const childKind = entry.kind === "defect" ? "barrier" : entry.kind === "barrier" ? "service" : null;
       if (childKind) {

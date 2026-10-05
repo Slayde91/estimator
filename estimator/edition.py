@@ -22,6 +22,8 @@ TAKEOFF_ASSETS = frozenset({
     '/icons/takeoff-colour-wheel.png', '/icons/takeoff-legend.png', '/icons/takeoff-visibility.jpg',
     '/icons/navigation-takeoffs.png',
     '/icons/takeoff-callout.png',
+    '/takeoff-library-links.js', '/icons/takeoff-visibility.png',
+    '/icons/takeoff-bullet-list.png', '/icons/takeoff-numbered-list.png',
 })
 _START = b'<!-- TAKEOFFS:START -->'
 _END = b'<!-- TAKEOFFS:END -->'

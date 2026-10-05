@@ -1,4 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { chooseNewDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Physical detail navigation and explicit marker placement use a disposable source/server only.
 const { chromium, expect } = require('@playwright/test');
@@ -45,6 +46,7 @@ async function create(kind, fields, trigger) {
     if (kind === 'defect') await page.getByRole('button', { name: 'Add defect', exact: true }).click();
     else await details().getByRole('button', { name: `Add ${kind} in Item Details`, exact: true }).click();
   } else await trigger();
+  if (kind === 'defect') await chooseNewDefect(page);
   const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
 }

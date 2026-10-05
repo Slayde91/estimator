@@ -161,6 +161,10 @@ class TakeoffHTTP:
             result = self.service.preview_physical(session_id, body)
         elif action == 'physical/apply':
             result = self.service.apply_physical(session_id, body)
+        elif action == 'library/preview':
+            result = self.service.preview_library_link(session_id, body)
+        elif action == 'library/apply':
+            result = self.service.apply_library_link(session_id, body)
         elif action == 'images/extract':
             result = self.service.extract_images(session_id, body)
         elif action in {'physical/export/csv', 'physical/export/xlsx', 'physical/export/pdf'}:

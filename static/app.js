@@ -52,6 +52,7 @@
     cursor.hidden = true;
   }
   function finish() {
+    window.CeasefireHeaderTaglineMedia?.stop();
     clearTimeout(typingTimer);
     typingTimer = null;
     if (typed.textContent !== phrase) typed.textContent = phrase;
@@ -66,6 +67,7 @@
     else finish();
   }
   function close() {
+    window.CeasefireHeaderTaglineMedia?.close();
     closed = true;
     finish();
     stopCursor();
@@ -81,7 +83,7 @@
     label.textContent = phrase;
     characters = Array.from(phrase); count = 0; complete = false;
     typed.textContent = ""; cursor.hidden = false;
-    if (motion?.matches) finish(); else typeNext();
+    if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
   }
   nextPhrase();
   window.CeasefireHeaderTagline = Object.freeze({ next: nextPhrase });
@@ -812,6 +814,7 @@
   }
 
   function showView(view, librarySelection, calculatorId) {
+    if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message("Finish or recover the confirmed Takeoff library link before changing views.", true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message("TAKEOFFS is not included in this edition.", true); return; }
     state.currentView = view;
     $("project-tools").hidden = view !== "quotes";
@@ -2148,7 +2151,7 @@
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
   function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.(); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message("Finish the current operation or dialog before closing ESTIMATOR.", true); return false; }
     const captured = desktopCloseStamp();

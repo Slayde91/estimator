@@ -7,7 +7,7 @@
     loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false,
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
     tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: "pipe",
-    diagramChange: undefined, diagramRead: 0, diagramVersion: 0,
+    diagramChange: undefined, diagramRead: 0, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
   let controlSequence = 0;
@@ -61,9 +61,9 @@
   function status(text) {
     const statusText = text || (state.schedule.invalid.size ? "Check input" : state.schedule.calculating ? "Calculating…" : state.schedule.result?.errors?.length ? "Review calculation" : hasUnsavedChanges() ? "Unsaved changes" : "Calculated");
     for (const id of ["penetration-status", "penetration-estimator-status"]) $(id).textContent = statusText;
-    const blocked = !state.draft || state.invalid.size > 0, scheduleBlocked = !state.schedule.draft || state.schedule.invalid.size > 0;
+    const blocked = !!state.takeoffLease || !state.draft || state.invalid.size > 0, scheduleBlocked = !!state.takeoffLease || !state.schedule.draft || state.schedule.invalid.size > 0;
     $("penetration-recalculate").disabled = blocked || state.calculating;
-    for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).disabled = !state.draft;
+    for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).disabled = !!state.takeoffLease || !state.draft;
     $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
     $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
     $("penetration-update-schedule").hidden = !state.edit;
@@ -82,6 +82,7 @@
     for (const id of ["penetration-schedule-body", "penetration-estimator-schedule-body"]) for (const button of $(id).querySelectorAll("[data-penetration-remove]")) button.disabled = scheduleBlocked;
     if ($("penetration-diagram-file")) $("penetration-diagram-file").disabled = state.creatingLibrary;
     if ($("penetration-diagram-remove")) $("penetration-diagram-remove").disabled = state.creatingLibrary;
+    if (state.takeoffLease) for (const control of document.querySelectorAll('[data-penetration-field],[data-penetration-band],[data-penetration-service-route]')) control.disabled = true;
     window.CeasefireProject?.changed?.();
   }
   async function definitionFor(pricing) {
@@ -124,6 +125,7 @@
   }
   function prepareDefaults(pricing = configuration()) { return prepareProject(null, pricing); }
   function applyProject(prepared) {
+    assertTakeoffWritable();
     ++state.context; ++state.requestRevision; ++state.composerEpoch; clearTimeout(state.timer); clearTimeout(state.schedule.timer);
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
@@ -146,7 +148,7 @@
   function scheduleProblem() { return state.schedule.invalid.size ? "Correct the firestopping schedule input marked invalid before calculating the quote." : ""; }
   function inputProblem() { return state.diagramChange !== undefined ? "Add the selected source diagram to the Firestopping Library or discard it before saving the project." : state.invalid.size || state.schedule.invalid.size ? "Correct the firestopping input marked invalid before saving." : ""; }
   function projectFingerprint() { return stable({ context: state.context, ...canonicalSnapshot(persisted()), invalid: [...state.invalid].sort(([a], [b]) => a.localeCompare(b)), scheduleInvalid: [...state.schedule.invalid].sort(([a], [b]) => a.localeCompare(b)), edit: state.edit && { id: state.edit.id, epoch: state.edit.epoch }, composerEpoch: state.composerEpoch, pendingDiagram: state.diagramChange === undefined ? null : { filename: state.diagramChange.filename, version: state.diagramVersion } }); }
-  async function completeProjectSnapshot() { await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
+  async function completeProjectSnapshot() { assertTakeoffWritable(); await initialize(); if (inputProblem()) throw new Error(inputProblem()); return projectSnapshot(); }
   function acceptDraft(scope, draft, captured) {
     // An accepted receipt can normalize blanks without changing the edited row.
     // Advance its comparison value only while the original row and capture match.
@@ -156,6 +158,7 @@
     if (edit && scheduleRow(edit.id)) edit.target = rowStamp(scheduleRow(edit.id));
   }
   function markProjectSaved(receipt, captured) {
+    assertTakeoffWritable();
     if (!receipt?.draft || !state.draft) return;
     const saved = { draft: receipt.draft, composer: receipt.composer || captured?.composer || state.definition.defaults };
     for (const [key, scope] of [["draft", state.schedule], ["composer", state]]) {
@@ -178,6 +181,7 @@
     return precise ? String(adjusted) : number.format(adjusted).replace(/,/g, "");
   }
   function changed(rowId, scope = state) {
+    assertTakeoffWritable();
     if (scope === state.schedule && rowId) state.removed = state.removed.filter(item => item.row.id !== rowId);
     scope.revision++; scope.result = null;
     if (scope === state) state.tabAdvisoryAcknowledgement = null;
@@ -216,6 +220,7 @@
       if (control !== document.activeElement) control.value = pending ? pending.value : dimensionText(inputs(), field.column, paired.column);
     };
     control.addEventListener("input", () => {
+      if (state.takeoffLease) return;
       if (!current() || !rowById(rowId, scope)) return;
       const parsed = parseDimensions(control.value);
       if (parsed.error) scope.invalid.set(key, { value: control.value, error: parsed.error });
@@ -271,6 +276,7 @@
       control.select?.();
     });
     const apply = () => {
+      if (state.takeoffLease) return;
       if (!current()) return;
       if (rowId !== null && !rowById(rowId, scope)) return;
       let value = control.value, error = "";
@@ -350,6 +356,7 @@
     $("penetration-diagram-file").disabled = state.creatingLibrary;
   }
   function queueDiagram(filename, content) {
+    assertTakeoffWritable();
     if (!state.draft || typeof filename !== "string" || !/\.(?:png|jpe?g|webp)$/i.test(filename)) throw new Error("Choose a PNG, JPEG or WebP source diagram.");
     if (typeof content !== "string" || !content || content.length > 20 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
     state.diagramChange = { filename, content_base64: content }; state.diagramVersion++; renderDiagram(); status();
@@ -362,6 +369,7 @@
     });
   }
   async function chooseDiagram(file) {
+    assertTakeoffWritable();
     if (!file) return;
     if (file.size > 15 * 1_048_576) throw new Error("The source diagram must be no larger than 15 MB.");
     const context = state.context, read = ++state.diagramRead, content = await fileBase64(file);
@@ -415,6 +423,7 @@
     return null;
   }
   async function selectGroup(group) {
+    assertTakeoffWritable();
     const warning = tabExitWarning(group);
     if (warning && (warning.blocking || state.tabAdvisoryAcknowledgement !== warning.key)) {
       const context = state.context, stamp = composerStamp(), current = state.group;
@@ -445,6 +454,7 @@
     }
   }
   function structuredProblem(name, value, error, control, problem) {
+    assertTakeoffWritable();
     const key = structuredSettingKey(name);
     for (const scope of [state, state.schedule]) {
       if (error) scope.invalid.set(key, { value, error }); else scope.invalid.delete(key);
@@ -453,6 +463,7 @@
     if (error) { changed(null, state.schedule); changed(null, state); }
   }
   function updateStructuredSetting(key, value) {
+    assertTakeoffWritable();
     state.schedule.draft.globals[key] = clone(value); state.draft.globals[key] = clone(value);
     changed(null, state.schedule); changed(null, state);
   }
@@ -468,6 +479,7 @@
       editor.dataset.penetrationServiceRoute = route.key; editor.setAttribute("aria-label", `${route.label} service types`);
       const name = `service_routes.${route.key}`;
       editor.addEventListener("input", () => {
+        if (state.takeoffLease) return;
         const services = editor.value.split(";").map(item => item.trim()).filter(Boolean), seen = new Set();
         const unique = services.filter(item => { const key = item.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; });
         const error = unique.length > 1000 ? "Enter at most 1,000 service types." : unique.some(item => item.length > 200) ? "Each service type must contain at most 200 characters." : "";
@@ -506,6 +518,7 @@
           control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.penetrationBand = name;
           control.setAttribute("aria-label", `${definition.label} band ${index + 1} ${property === "maximum" ? `maximum ${definition.units}` : "hours"}`);
           control.addEventListener("input", () => {
+      if (state.takeoffLease) return;
             const parsed = bandNumber(control.value, 0, property === "maximum" ? "band maximum" : "hours", property === "maximum");
             let error = parsed.error || "";
             if (!error && property === "maximum") {
@@ -611,12 +624,14 @@
   }
   function composerChanged() { return state.invalid.size > 0 || state.diagramChange !== undefined || draftStamp(state.draft) !== draftStamp(defaultComposer()); }
   function replaceComposer(draft, invalid = new Map(), diagramChange = undefined) {
+    assertTakeoffWritable();
     ++state.composerEpoch; ++state.requestRevision; clearTimeout(state.timer);
     state.draft = clone(draft); state.invalid = new Map(invalid); state.selected = draft.rows[0].id; state.diagramChange = cloneOptional(diagramChange); state.diagramRead++; state.diagramVersion++;
     state.revision++; state.result = null; state.calculating = false; state.additionalLabourAdvisory = false;
     renderFields(); renderSummary(); renderBreakdown(); renderSchedule(); status();
   }
   async function selectRow(id) {
+    assertTakeoffWritable();
     document.activeElement?.blur?.();
     if (!scheduleRow(id) || state.schedule.invalid.size) return;
     const context = state.context, stamp = composerStamp(), epoch = state.rowEpochs.get(id), target = rowStamp(scheduleRow(id));
@@ -633,6 +648,7 @@
     return { id: `line-${index}`, inputs };
   }
   async function addRow() {
+    assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!state.draft) return;
     const context = state.context, stamp = composerStamp();
     if (!await confirmReplace("Start a new item?", "The current item will be replaced. Items already in the schedule are kept.", "New item", composerChanged())) return;
@@ -640,6 +656,7 @@
     state.edit = null; replaceComposer(defaultComposer()); message(); window.CeasefirePenetrationNavigation?.show?.(); await calculate();
   }
   async function cancelEdit() {
+    assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!state.edit) return;
     const context = state.context, stamp = composerStamp(), edit = state.edit;
     if (!await confirmReplace("Cancel schedule edit?", "Changes to this copy will be discarded and your previous current item restored.", "Cancel edit", state.invalid.size > 0 || draftStamp(state.draft) !== edit.baseline)) return;
@@ -660,6 +677,7 @@
     return JSON.stringify(ordered({ context, ...payload }));
   }
   async function addToLibrary() {
+    assertTakeoffWritable();
     document.activeElement?.blur?.();
     if (!state.draft || state.invalid.size || state.creatingLibrary) return;
     const context = state.context, stamp = composerStamp();
@@ -690,6 +708,7 @@
     finally { state.creatingLibrary = false; renderDiagram(); status(); }
   }
   function appendSchedule(inputs, libraryId) {
+    assertTakeoffWritable();
     if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
     if (state.schedule.draft.rows.length >= state.definition.capacity) throw new Error("The current schedule is full. Remove a row before adding another item.");
     const row = newRow(); row.inputs = clone(inputs); if (libraryId) row.library_item_id = libraryId; state.schedule.draft.rows.push(row);
@@ -709,6 +728,7 @@
   }
   const libraryInputs = inputs => stable(Object.fromEntries(Object.entries(inputs).filter(([column, value]) => column !== "O" && value !== null && value !== "")));
   function addLibraryQuantity(id, inputs) {
+    assertTakeoffWritable();
     if (state.schedule.invalid.size) throw new Error("Correct the schedule input marked invalid before adding an item.");
     const linked = state.schedule.draft.rows.find(row => row.library_item_id === id);
     // Older projects did not record library identity. Adopt one exact match
@@ -734,6 +754,7 @@
     message(text, total === null, state.schedule); return { added: true, id: row.id, quantity, total, message: text };
   }
   async function addToSchedule() {
+    assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!state.draft || state.invalid.size || state.diagramChange !== undefined || state.addingSchedule) return;
     const context = state.context, epoch = state.composerEpoch, revision = state.revision, edit = state.edit;
     const independentCopy = !!edit && !!selected().library_item_id;
@@ -752,6 +773,7 @@
     finally { state.addingSchedule = false; status(); }
   }
   async function requestAddToSchedule() {
+    assertTakeoffWritable();
     document.activeElement?.blur?.();
     if (!state.draft || state.invalid.size || state.diagramChange !== undefined || state.addingSchedule) return;
     const inputs = selected()?.inputs || {};
@@ -769,6 +791,7 @@
     return addToSchedule();
   }
   async function updateSchedule() {
+    assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!validEdit() || state.invalid.size || state.schedule.invalid.size || state.updatingSchedule) return;
     const context = state.context, epoch = state.composerEpoch, edit = state.edit, row = scheduleRow(edit.id); row.inputs = clone(selected().inputs);
     if (selected().library_item_id) row.library_item_id = selected().library_item_id; else delete row.library_item_id;
@@ -779,6 +802,7 @@
     } finally { state.updatingSchedule = false; status(); }
   }
   async function addLibraryItem(id) {
+    assertTakeoffWritable();
     if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(id)) throw new Error("The library item ID is invalid.");
     if (state.addingLibrary) throw new Error("A library item is already being added to the schedule.");
     if (window.CeasefireLibraryEditor?.isOpen()) throw new Error("Save or cancel the open library edit before adding an item to the schedule.");
@@ -806,6 +830,7 @@
     } finally { state.addingLibrary = false; }
   }
   function removeRow(id) {
+    assertTakeoffWritable();
     const scope = state.schedule;
     if (scope.invalid.size || !scheduleRow(id)) return;
     const index = scope.draft.rows.findIndex(row => row.id === id), row = clone(scheduleRow(id));
@@ -815,6 +840,7 @@
     changed(null, scope); calculate(scope);
   }
   function undoRemove() {
+    assertTakeoffWritable();
     const scope = state.schedule;
     if (scope.invalid.size || !state.removed.length) return;
     const removed = state.removed.pop(); if (scheduleRow(removed.row.id)) return;
@@ -923,6 +949,7 @@
     status();
   }
   async function calculate(scope = state) {
+    if (state.takeoffLease) return;
     clearTimeout(scope.timer);
     try { await initialize(); } catch (error) { message(error.message, true, scope); return; }
     if (scope.invalid.size) { status(); return; }
@@ -944,6 +971,7 @@
   }
   async function calculateSchedule() { return calculate(state.schedule); }
   async function pricingChanged() {
+    assertTakeoffWritable();
     if (!state.draft) return;
     const context = state.context, pricing = configuration(), key = JSON.stringify(pricing);
     for (const scope of [state, state.schedule]) { ++scope.requestRevision; scope.result = null; renderSummary(scope); renderBreakdown(scope); }
@@ -957,6 +985,7 @@
     } catch (error) { if (context === state.context && key === configStamp()) message(error.message, true); }
   }
   async function openScope(scope) {
+    assertTakeoffWritable();
     state.loading = true;
     try { await initialize(); render(); await calculate(scope); }
     catch (error) {
@@ -1001,6 +1030,42 @@
   $("penetration-cancel-edit").addEventListener("click", cancelEdit);
   for (const id of ["penetration-pdf", "penetration-item-pdf"]) $(id).addEventListener("click", () => download("pdf"));
   for (const id of ["penetration-excel", "penetration-item-excel"]) $(id).addEventListener("click", () => download("xlsx"));
-  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged };
-  Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading) });
+  function assertTakeoffWritable() {
+    if (state.takeoffLease && !state.takeoffApplying) throw new Error("A confirmed Takeoff library link is still applying. Recover its outcome before editing, saving or replacing the Firestopping Schedule.");
+  }
+  function takeoffScheduleFingerprint() { return stable({project:projectFingerprint(),configuration:configuration(),source:state.definition?.source_sha256}); }
+  async function captureTakeoffSchedule() {
+    assertTakeoffWritable(); await initialize(); if(inputProblem())throw new Error(inputProblem());
+    if(state.creatingLibrary||state.addingLibrary||state.addingSchedule||state.updatingSchedule||state.loading||state.downloading)throw new Error("Finish the current Firestopping operation before reviewing a Takeoff library link.");
+    return {draft:clone(canonicalDraft(state.schedule.draft)),configuration:configuration(),source_sha256:state.definition.source_sha256,fingerprint:takeoffScheduleFingerprint()};
+  }
+  function reserveTakeoffSchedule(capture) {
+    assertTakeoffWritable();document.activeElement?.blur?.();
+    if(!capture||capture.fingerprint!==takeoffScheduleFingerprint()||stable(capture.draft)!==stable(canonicalDraft(state.schedule.draft))||stable(capture.configuration)!==stable(configuration()))throw new Error("The Firestopping draft or frozen prices changed during link review. Review again.");
+    const reservation={capture:clone(capture),context:state.context,disabled:new Map(),appliedFingerprint:null,reply:null};
+    for(const control of document.querySelectorAll('[data-penetration-field],[data-penetration-band],[data-penetration-service-route]'))reservation.disabled.set(control,control.disabled);
+    state.takeoffLease=reservation;clearTimeout(state.timer);clearTimeout(state.schedule.timer);++state.requestRevision;++state.schedule.requestRevision;state.calculating=false;state.schedule.calculating=false;
+    try{status();return reservation;}catch(error){state.takeoffLease=null;for(const [control,disabled]of reservation.disabled)if(control.isConnected)control.disabled=disabled;try{status();}catch{}throw error;}
+  }
+  function validateTakeoffScheduleReservation(reservation) {
+    if(!reservation||state.takeoffLease!==reservation||state.context!==reservation.context||takeoffScheduleFingerprint()!==(reservation.appliedFingerprint||reservation.capture.fingerprint))throw new Error("The leased Firestopping destination changed. Keep the pending link and recover its recorded outcome before continuing.");
+  }
+  function applyTakeoffSchedule(reply,reservation) {
+    validateTakeoffScheduleReservation(reservation);
+    if(!reply?.draft||reply.source_sha256!==reservation.capture.source_sha256)throw new Error("The commercial link response uses a different Firestopping source or has no complete schedule.");
+    if(reservation.appliedFingerprint){if(reservation.reply!==stable(reply))throw new Error("The retry returned a different commercial destination.");renderSchedule();renderSummary(state.schedule);renderBreakdown(state.schedule);status();return;}
+    checkDraft(reply.draft,state.definition);const draft=clone(reply.draft);
+    state.takeoffApplying=true;
+    try {state.schedule.draft=draft;++state.schedule.requestRevision;state.schedule.revision++;state.schedule.result=null;state.removed=[];for(const row of draft.rows)state.rowEpochs.set(row.id,++state.nextEpoch);reservation.appliedFingerprint=takeoffScheduleFingerprint();reservation.reply=stable(reply);renderSchedule();renderSummary(state.schedule);renderBreakdown(state.schedule);status();}
+    finally{state.takeoffApplying=false;}
+  }
+  function releaseTakeoffSchedule(reservation) {
+    if(state.takeoffLease!==reservation&&(!reservation?.released||state.takeoffLease))throw new Error("This Firestopping destination lease is no longer current.");
+    if(!reservation.released){for(const [control,disabled]of reservation.disabled)if(control.isConnected)control.disabled=disabled;state.takeoffLease=null;reservation.released=true;}
+    status();if(!reservation.recalculated){reservation.recalculated=true;void calculate(state.schedule);}
+  }
+  async function editScheduleRow(id,libraryId){assertTakeoffWritable();await initialize();const row=scheduleRow(id);if(!row||row.library_item_id!==libraryId)throw new Error("The retained linked schedule row was removed or replaced. Review its association before opening another item.");return selectRow(id);}
+  window.CeasefirePenetrations = { open, openSchedule, projectSnapshot, projectFingerprint, quoteSnapshot, quoteFingerprint, scheduleProblem, completeProjectSnapshot, prepareProject, prepareDefaults, applyProject, markProjectSaved, hasUnsavedChanges, pricingChanged, inputProblem, addLibraryItem, libraryQuantity, libraryDiagramChanged,
+    captureTakeoffSchedule,reserveTakeoffSchedule,validateTakeoffScheduleReservation,applyTakeoffSchedule,releaseTakeoffSchedule,editScheduleRow,hasTakeoffReservation:()=>!!state.takeoffLease,hasUnfinishedChanges:()=>!!state.takeoffLease };
+  Object.assign(window.CeasefirePenetrations, { hasPendingOperation: () => !!(state.takeoffLease || state.creatingLibrary || state.addingSchedule || state.updatingSchedule || state.addingLibrary || state.loading || state.downloading) });
 })();

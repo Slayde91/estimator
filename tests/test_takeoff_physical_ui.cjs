@@ -41,11 +41,11 @@ function documentHarness(){
   return {container:new Element('div'),all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 function component(initial=graph(),extra={}){
-  const dom=documentHarness(),calls={previews:[],applied:[],notifications:[],asks:[],confirmations:[],sources:[],exports:[],changed:0},answers=[],current=snapshot(initial);let controller,preview;
+  const dom=documentHarness(),calls={previews:[],applied:[],notifications:[],asks:[],choosers:[],confirmations:[],sources:[],exports:[],changed:0},answers=[],current=snapshot(initial);let controller,preview;
   if(extra.inspectorContainer===true){extra={...extra,inspectorContainer:dom.container.ownerDocument.createElement('div')};dom.inspectorHost=extra.inspectorContainer;dom.closeButton=dom.container.ownerDocument.createElement('button');dom.closeButton.textContent='Close Item Details';dom.inspectorHost.append(dom.closeButton);}
   const bridge={
     fieldOptions:async()=>copy(fieldChoices),
-    async ask(title,definitions,text,button){calls.asks.push({title,definitions,text,button});return answers.shift()??null;},
+    async ask(title,definitions,text,button){if(definitions.some(([key])=>key==='action')){calls.choosers.push({title,definitions,text,button});return {action:'new'};}calls.asks.push({title,definitions,text,button});return answers.shift()??null;},
     async confirm(title,text,button){calls.confirmations.push({title,text,button});return true;},
     async preview(commands){
       calls.previews.push(copy(commands)); preview=copy(commands);
@@ -78,6 +78,12 @@ function overlayHarness(value,controller){
 let passed=0;
 async function check(label,test){await test();passed++;console.log(`ok - ${label}`);}
 (async()=>{
+  await check('Manual Defect creation first offers Search Item or New Item without consuming its field answer',async()=>{
+    const h=component();await flush();h.answers.push({label:'Chooser proof',uncertainty_state:'not_assessed'});await h.click('Add defect');
+    assert.equal(h.calls.choosers.length,1);assert.equal(h.calls.choosers[0].title,'Add Defect');assert.equal(h.calls.choosers[0].button,'Continue');
+    assert.deepEqual(h.calls.choosers[0].definitions[0].slice(0,2),['action','Choose item']);assert.deepEqual(definitionOptions(h.calls.choosers[0].definitions[0]),['search','new']);
+    assert.equal(h.calls.asks.length,1);assert.equal(h.current.physical.defects.at(-1).fields.label,'Chooser proof');h.controller.destroy();
+  });
   await check('Mixed services share a barrier while empty barriers remain explicit and quantity-free',()=>{
     const value=graph(),original=copy(value),rows=physical.hierarchyRows(value);
     assert.equal(rows.filter(row=>row.kind==='barrier').length,2);assert.equal(rows.filter(row=>row.kind==='service').length,2);
@@ -474,7 +480,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const stage of ['form','preview','review']){
       const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[11,20],[11,21],[10,21]],note:'Source location'},h=component();await flush();let context={document_id:uuid(80),page:1};h.bridge.imageContext=()=>context;
       const answer={label:'Stale source',uncertainty_state:'not_assessed'},oldAsk=h.bridge.ask,oldPreview=h.bridge.preview;
-      if(stage==='form')h.bridge.ask=async(...args)=>{await oldAsk(...args);context={document_id:uuid(80),page:2};return answer;};
+      if(stage==='form')h.bridge.ask=async(...args)=>{const reply=await oldAsk(...args);if(args[1].some(([key])=>key==='action'))return reply;context={document_id:uuid(80),page:2};return answer;};
       else {h.answers.push(answer);if(stage==='preview')h.bridge.preview=async(...args)=>{const preview=await oldPreview(...args);context.page=2;return preview;};else h.bridge.confirm=async()=>{context.page=2;return true;};}
       const before=copy(h.current.physical);await assert.rejects(h.controller.create('defect',undefined,undefined,reference),/source location changed/);assert.equal(h.calls.applied.length,0);assert.deepEqual(h.current.physical,before);h.controller.destroy();
     }
@@ -484,7 +490,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       const h=component();await flush();const reference={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,region:[[10,20],[11,20],[11,21],[10,21]],note:'Source location'},answer={label:'Reservation',uncertainty_state:'not_assessed'};let current=true,checks=0;
       const guard=()=>{checks++;if(!current)throw Error('Exact placement changed');};
       if(stage==='entry')current=false;
-      else if(stage==='form')h.bridge.ask=async()=>{current=false;return answer;};
+      else if(stage==='form'){const oldAsk=h.bridge.ask;h.bridge.ask=async(...args)=>{if(args[1].some(([key])=>key==='action'))return oldAsk(...args);current=false;return answer;};}
       else {h.answers.push(answer);if(stage==='preview'){const old=h.bridge.preview;h.bridge.preview=async commands=>{const preview=await old(commands);current=false;return preview;};}else h.bridge.confirm=async()=>{current=false;return true;};}
       const before=copy(h.current.physical);await assert.rejects(h.controller.create('defect',undefined,undefined,reference,guard),/Exact placement changed/);assert.ok(checks>0);assert.equal(h.calls.applied.length,0);assert.deepEqual(h.current.physical,before);h.controller.destroy();
     }

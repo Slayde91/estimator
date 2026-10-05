@@ -257,7 +257,19 @@ def _properties(entity, kind, parents):
         raise ValidationError('Physical uncertainty must use an explicit supported state.')
     _text(uncertainty['note'], 'Uncertainty note')
     if kind == 'service':
-        _number(entity['quantity'], 'Explicit service quantity', minimum=1, integer=True)
+        descriptor = entity.get('library_quantity')
+        if descriptor is not None:
+            _object(descriptor, {'version', 'state', 'library_id', 'metadata_sha256'},
+                    {'version', 'state', 'library_id', 'metadata_sha256'}, 'Unknown imported service quantity')
+            if (type(descriptor['version']) is not int or descriptor['version'] != 1 or descriptor['state'] != 'unknown'
+                    or not isinstance(descriptor['library_id'], str)
+                    or not re.fullmatch('[a-z0-9][a-z0-9_-]{0,119}', descriptor['library_id'])):
+                raise ValidationError('Only a version-one selected-library unknown quantity descriptor is supported.')
+            _hash(descriptor['metadata_sha256'], 'Selected library metadata hash')
+            if entity['quantity'] is not None:
+                raise ValidationError('An unknown imported quantity must stay null until an explicit physical quantity replaces its descriptor.')
+        else:
+            _number(entity['quantity'], 'Explicit service quantity', minimum=1, integer=True)
 
 
 def validate_graph(graph, *, copy_result=True):
@@ -290,6 +302,8 @@ def validate_graph(graph, *, copy_result=True):
             if kind == 'service':
                 keys |= {'quantity'}
             optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
+            if kind == 'service' and graph['version'] in (2, 3):
+                optional.add('library_quantity')
             _object(entity, keys | optional, keys, 'Physical entity')
             if graph['version'] in (2, 3):
                 ordinal = _display_number(entity['display_id'], kind)
@@ -415,6 +429,8 @@ def _command(graph, command):
         if kind == 'service':
             keys.add('quantity')
         optional = {'copied_from'} | ({'marker'} if kind == 'barrier' and graph['version'] in (2, 3) else {'annotation'} if kind == 'defect' and graph['version'] == 2 else set())
+        if kind == 'service' and graph['version'] in (2, 3):
+            optional.add('library_quantity')
         source = _object(command['entity'], keys | optional, keys, 'New physical entity')
         identifier = _id(source['id'])
         if kind in parents:
@@ -452,7 +468,12 @@ def _command(graph, command):
             changes = _object(command['changes'], allowed, (), 'Physical property changes')
             if not changes:
                 raise ValidationError('A physical update requires explicit changes.')
-            _properties({**entity, **changes}, kind, parents)
+            prospective = {**entity, **changes}
+            if kind == 'service' and 'quantity' in changes and changes['quantity'] is not None:
+                prospective.pop('library_quantity', None)
+            _properties(prospective, kind, parents)
+            if 'library_quantity' in entity and 'library_quantity' not in prospective:
+                entity.pop('library_quantity')
             for key, value in changes.items():
                 # A supplied fields object replaces the typed field set. This
                 # makes clearing an unknown field explicit and lossless.

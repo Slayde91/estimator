@@ -127,6 +127,8 @@ def _rows(graph, names):
                 row[f'{kind}_size' if key == 'size' else key] = value
             if kind == 'service':
                 row['quantity'] = entity['quantity']
+                if 'library_quantity' in entity:
+                    row['library_quantity_json'] = _json(entity['library_quantity'])
                 if graph['version'] == 3:
                     row['frl'] = index[entity['barrier_id']][1]['fields'].get('frl')
             row['marker_json'] = _json(entity.get('marker'))
@@ -238,7 +240,7 @@ def matrix_rows(graph):
             service['display_id'] if service else '', bf.get('location') or df.get('location', ''),
             (bf if graph['version'] == 3 else df).get('frl', ''), bf.get('substrate', ''),
             bf.get('orientation', ''), sf.get('service', ''), sf.get('service_type', ''),
-            service['quantity'] if service else '', size or ''])
+            (service['quantity'] if service['quantity'] is not None else 'Unknown') if service else '', size or ''])
 
     def append_barrier(defect, barrier):
         children = services_by_barrier.get(barrier['id'], [])
@@ -325,6 +327,8 @@ def export_physical_graph(graph, format, source_names=None):
     details_headers = DETAIL_HEADERS + (('marker_json',) if graph['version'] == 3 or any('marker' in entry for entry in graph['barriers']) else ())
     if graph['version'] == 2 and any('annotation' in entry for entry in graph['defects']):
         details_headers += ('annotation_json',)
+    if any('library_quantity' in entry for entry in graph['services']):
+        details_headers += ('library_quantity_json',)
     csv_headers = common_headers + (V2_FIELD_HEADERS if current else FIELD_HEADERS) + details_headers
     evidence_headers = common_headers + EVIDENCE_HEADERS[len(COMMON_HEADERS):]
     names = _names(source_names)
@@ -365,7 +369,8 @@ def export_physical_graph(graph, format, source_names=None):
             ('Hierarchy', ('Barrier -> Service. FRL belongs to the Barrier; service FRL is displayed from its current parent.' if graph['version'] == 3 else 'Defect -> Barrier -> Service. Numbered IDs are project-local display IDs; entity_id, parent_id and *_uuid retain exact UUID links.' if current else
                            'Barrier -> Defect -> Opening -> Service. Typed parent and ancestor IDs are explicit links.')),
             ('Facts', 'Exact entity facts remain in fields_json. Service Plans displays service FRL from its current Barrier; this does not copy FRL into service fields.' if graph['version'] == 3 else 'Field columns contain only the entity\'s own recorded facts. Parent facts are not copied into child fields. Exact typed fields remain in fields_json.'),
-            ('Quantity', ('Only services carry explicit positive quantities. Empty barriers have no service row or quantity. Images and repeated views never create counts.' if current else
+            ('Quantity', ('Selected-library service drafts may retain an explicitly versioned unknown quantity. Their descriptor is included in library_quantity_json; null is never an approved count.' if any('library_quantity' in entry for entry in graph['services']) else
+                         'Only services carry explicit positive quantities. Empty barriers have no service row or quantity. Images and repeated views never create counts.' if current else
                           'Only services carry explicit positive quantities. Empty openings have no service row or quantity. Images and repeated views never create counts.')),
             ('History', 'All retained entities are included. XLSX typed sheets contain active entities; Historical Entities contains tombstones. Evidence includes associations of both.'),
             ('Evidence associations', 'association_index identifies the retained list position, not physical quantity. Image UUID, SHA-256 and occurrence UUID remain distinct.'),

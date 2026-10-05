@@ -243,6 +243,7 @@
   function command(op, values = {}, guard) {
     const sessionId = state.session?.session_id;
     const task = state.queue.then(async () => {
+      requireSettledLinkedChange();
       if (sessionId !== state.session?.session_id) throw new Error("The project changed. Repeat this action in the current project.");
       if (guard && !guard()) return null;
       working(true);
@@ -288,7 +289,6 @@
         if (!(value >= 1 && value <= 100)) throw new Error(`${definition[1]}: enter a value from 1 to 100.`);
         return key === "opacity" ? value / 100 : value;
       };
-      if (key === "opacity") field.wrapper.append(node("small", "helper", "%"));
     }
     return field;
   }
@@ -341,9 +341,9 @@
       control.classList.add("icon-only", "takeoff-icon-button"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
     }
     ui.tools.countLength.after(ui.tools.markups, ui.tools.legend);
-    const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(!state.markupsHidden)); renderOverlay(); });
-    const eye = node("img"); eye.src = "/icons/takeoff-visibility.jpg"; eye.alt = ""; eye.width = 32; eye.height = 32;
-    visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups"; visibility.setAttribute("aria-pressed", "true");
+    const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(state.markupsHidden)); renderOverlay(); });
+    const eye = node("img"); eye.src = "/icons/takeoff-visibility.png"; eye.alt = ""; eye.width = 32; eye.height = 32;
+    visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups"; visibility.setAttribute("aria-pressed", "false");
     ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
     ui.tools.callout = button("Call-out", () => setTool("callout")); ui.tools.callout.dataset.tool = "callout";
     const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
@@ -359,20 +359,25 @@
     ui.removeDocument = button("Remove document", removeDocument); documentControls.append(sourceLabel, ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
     const pageControls = ui.pageControls = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
     const pageNavigation = node("div", "takeoff-page-navigation"); pageNavigation.setAttribute("role", "group"); pageNavigation.setAttribute("aria-label", "Page navigation");
-    pageNavigation.append(button("First page", () => navigatePage(1)), button("‹ Page", () => navigatePage(state.page - 1)));
+    const previousPage = button("‹ Page", () => navigatePage(state.page - 1)); previousPage.title = "Previous page (Ctrl+Left)"; previousPage.setAttribute("aria-keyshortcuts", "Control+ArrowLeft");
+    pageNavigation.append(button("First page", () => navigatePage(1)), previousPage);
     ui.page = node("input", "takeoff-page-input"); ui.page.type = "number"; ui.page.min = "1"; ui.page.step = "1"; ui.page.value = "1"; ui.page.setAttribute("aria-label", "Page number"); ui.page.addEventListener("change", () => void safely(() => navigatePage(Number(ui.page.value))));
-    ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
+    const nextPage = button("Page ›", () => navigatePage(state.page + 1)); nextPage.title = "Next page (Ctrl+Right)"; nextPage.setAttribute("aria-keyshortcuts", "Control+ArrowRight");
+    ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, nextPage, button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
     ui.tools.text = button("Select PDF text", () => setTool("text")); ui.tools.text.dataset.tool = "text";
-    ui.rotate = button("Rotate page", rotatePage); ui.rotate.setAttribute("aria-description", "Rotate the displayed page 90 degrees clockwise. Original measurements stay unchanged.");
+    ui.rotate = button("Rotate page", rotatePage); ui.rotate.title = "Rotate page right (Ctrl+Down); left (Ctrl+Up)"; ui.rotate.setAttribute("aria-keyshortcuts", "Control+ArrowDown Control+ArrowUp"); ui.rotate.setAttribute("aria-description", "Rotate the displayed page 90 degrees clockwise. Original measurements stay unchanged.");
     const fit = button("Fit page", () => fitPage(true)); fit.title = "Fit page (Ctrl+0)"; fit.setAttribute("aria-keyshortcuts", "Control+0");
-    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), fit, ui.rotate);
+    const zoomOut = button("−", () => zoomBy(1 / 1.25)), zoomIn = button("+", () => zoomBy(1.25)); zoomOut.title = "Zoom out (Ctrl+-)"; zoomIn.title = "Zoom in (Ctrl++)"; zoomOut.setAttribute("aria-keyshortcuts", "Control+-"); zoomIn.setAttribute("aria-keyshortcuts", "Control+Plus");
+    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, zoomOut, zoomIn, fit, ui.rotate);
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.maxLength = 200; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.setAttribute("aria-controls", "takeoff-text-search-results"); ui.search.setAttribute("aria-expanded", "false");
     ui.search.addEventListener("input", scheduleSearch); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(runSearch); } else if (event.key === "ArrowDown" && state.searchHits.length) { event.preventDefault(); showSearchResults(); ui.searchResults.querySelector("button")?.focus(); } else if (event.key === "Escape") hideSearchResults(); });
+    ui.search.addEventListener("pointerdown", () => { if (state.searchHits.length || state.searchToken && !state.searchComplete) showSearchResults(); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]], () => scheduleSearch()); ui.searchScope.setAttribute("aria-label", "Text search scope");
     const searchAnchor = ui.searchAnchor = node("div", "takeoff-search-anchor"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.id = "takeoff-text-search-results"; ui.searchResults.hidden = true; ui.searchResults.setAttribute("role", "region"); ui.searchResults.setAttribute("aria-label", "PDF text search results");
     ui.searchResults.addEventListener("keydown", event => { const buttons = [...ui.searchResults.querySelectorAll("button")], index = buttons.indexOf(document.activeElement); if (["ArrowDown", "ArrowUp"].includes(event.key) && buttons.length) { event.preventDefault(); buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus(); } else if (event.key === "Escape") { event.preventDefault(); hideSearchResults(); ui.search.focus(); } });
     searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, button("Search", runSearch), button("Stop search", () => cancelSearch(true, "Text search stopped; input, results and highlights cleared.")));
+    document.addEventListener("pointerdown", event => { if (state.active && !searchControls.contains(event.target)) hideSearchResults(); }, { capture: true });
     const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(scaleAnchor, navigation, searchControls);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
@@ -421,6 +426,13 @@
       ui.topControlsObserver.observe(viewerTop);
     }
     viewer.addEventListener("keydown", event => {
+      const blocked = !state.active || state.busy || state.modal || state.countFinishing || state.physicalPlacing || state.navigationBusy || !state.viewport || !!document.querySelector?.("dialog[open], [role=dialog][aria-modal=true]");
+      if (window.CeasefireTakeoffShortcuts?.dispatchViewer(event, {
+        rotateLeft: () => void safely(() => rotatePage(-1)), rotateRight: () => void safely(() => rotatePage(1)),
+        previousPage: state.page > 1 ? () => void safely(() => navigatePage(state.page - 1)) : null,
+        nextPage: state.page < (currentDocument()?.pages.length || 1) ? () => void safely(() => navigatePage(state.page + 1)) : null,
+        zoomOut: () => void safely(() => zoomBy(1 / 1.25)), zoomIn: () => void safely(() => zoomBy(1.25)),
+      }, blocked)) return;
       if (event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && event.key === "0" && !event.target?.isContentEditable && !event.target?.closest?.("input,textarea,select,[contenteditable=true]")) {
         event.preventDefault(); event.stopPropagation(); if (!state.busy && !state.modal && state.viewport) void safely(() => fitPage(true));
       }
@@ -542,6 +554,7 @@
   }
   function physicalRequest(path, values, { mutate = false, expected, sessionId = state.session?.session_id } = {}) {
     const task = state.queue.then(async () => {
+      requireSettledLinkedChange();
       if (!sessionId || sessionId !== state.session?.session_id) throw new Error("The project changed. Repeat the physical action in the current project.");
       working(true);
       try {
@@ -602,6 +615,14 @@
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
       ask, confirm, notify: message, changed: () => window.CeasefireProject?.changed?.(), source: physicalSource,
       scope: () => scope, inspectorContainer: state.ui.physicalDetails,
+      libraryCommand: async (op, values) => { const reply = await command(op, values); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; },
+      libraryPreview: previewLibraryLink,
+      libraryApply: applyLibraryLink,
+      editLibraryRow: async (rowId, libraryId) => {
+        await flushSettings(); requireFinishedEdits();
+        if (state.busy || state.linkedRecovery) throw new Error("Finish or recover the current Takeoff operation before editing linked pricing.");
+        return window.CeasefirePenetrations.editScheduleRow(rowId, libraryId);
+      },
       renderDrawingAppearance: renderPhysicalAppearance,
       selectionChanged: ({ selected, openDetails = true }) => { if (openDetails && state.mode === "physical") setPhysicalDetailsOpen(selected.length > 0); },
       fieldOptions: async () => {
@@ -1144,7 +1165,7 @@
   function pageViewport(page, scale, rotation = pageRotation()) {
     return page.getViewport({ scale, rotation: ((page.rotate || 0) + rotation) % 360 });
   }
-  async function rotatePage() {
+  async function rotatePage(direction = 1) {
     if (state.busy || !state.document) return;
     const key = sourcePageKey();
     await flushSettings();
@@ -1152,7 +1173,7 @@
     requireFinishedEdits();
     // This is a viewing preference, keyed to this session and original page.
     // Geometry, calibration, quantities and the retained PDF stay untouched.
-    state.pageRotations.set(key, (pageRotation() + 90) % 360);
+    state.pageRotations.set(key, (pageRotation() + (direction === -1 ? -90 : 90) + 360) % 360);
     await renderPage();
   }
   function cancelQueuedZoom() {
@@ -1519,7 +1540,7 @@
   async function clearDrawingSelection() {
     state.lastDrawingClick = null;
     const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
-    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.settingsOpen)) return;
+    if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.annotationSelected || state.settingsOpen)) return;
     if (!await discardEditor()) return;
     state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
@@ -1707,7 +1728,7 @@
     menu.addEventListener("pointerdown", event => event.stopPropagation()); menu.addEventListener("click", event => event.stopPropagation()); container.append(menu); overlay.append(container);
   }
   function renderMarkupMenu(overlay) {
-    if (!state.markupMenu || state.gesture) return;
+    if (!state.markupMenu || state.markupMenu.annotation || state.markupMenu.physical || state.gesture) return;
     const { reference, point } = state.markupMenu;
     try { markupTarget(reference); } catch { state.markupMenu = null; return; }
     const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Markup actions");
@@ -1730,6 +1751,7 @@
     return item;
   }
   function copyLengthMarkups() {
+    state.annotationClipboard = null;
     requireFinishedEdits();
     const selected = [...state.selected].map(id => items().find(item => item.id === id)).filter(Boolean);
     if (!selected.length || selected.length > 100 || selected.some(item => item.mode !== state.mode || !["steel", "duct"].includes(item.mode) || !item.geometry || item.geometry.kind != null || item.measurement?.method !== "calibrated")) throw new Error("Select up to 100 calibrated Steel or Duct Length markups to copy.");
@@ -1763,6 +1785,11 @@
   function planKeydown(event) {
     if (event.target?.isContentEditable || event.target?.closest?.("input,textarea,select,[contenteditable=true]")) return;
     if (event.key === "Escape") { event.preventDefault(); cancelTrace(); resetPlanInteraction(); renderOverlay(); return; }
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && !event.repeat && !event.isComposing && state.tool === "select" && state.mode !== "physical") {
+      const key = event.key.toLowerCase();
+      if (key === "c" && selectedAnnotation()) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyFreeCallout); return; }
+      if (key === "v" && state.annotationClipboard) { event.preventDefault(); if (!state.busy && !state.modal) void safely(pasteFreeCallout); return; }
+    }
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && state.tool === "select" && state.mode === "physical") {
       const key = event.key.toLowerCase();
       if (key === "c" && state.physicalSelected.size) { event.preventDefault(); if (!state.busy && !state.modal) void safely(copyPhysicalCallout); return; }
@@ -1778,6 +1805,7 @@
       // Native undo can restore an earlier page-number edit even while the
       // drawing has focus. Drawing undo never delegates to that input history.
       event.preventDefault();
+      if (selectedAnnotation() && !state.points.length) { if (!state.busy && !state.modal) void safely(undoLastEdit); return; }
       if (state.points.length) {
         if (state.busy || state.modal || state.countFinishing || state.formDirty || state.settingsDirty) { message("Apply or discard unfinished edits before changing the trace.", true); return; }
         if (["count", "count-only"].includes(state.tool)) { removePendingCount(state.countEntries.at(-1)); return; }
@@ -2195,6 +2223,7 @@
   }
   function renderOverlay() {
     if (!state.ui) return;
+    state.ui.tools?.visibility?.setAttribute("aria-pressed", String(state.markupsHidden));
     updatePresentationTools();
     if (!state.viewport) return;
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
@@ -2351,11 +2380,46 @@
     state.ui.settingsPanel.querySelector("[contenteditable]")?.focus();
   }
   function annotationSelectionKey() { return JSON.stringify([state.session?.session_id, state.mode, state.document, state.page, selectedAnnotation()?.id]); }
-  async function selectFreeCallout(id) {
+  async function selectFreeCallout(id, openSettings = false) {
     if (state.tool !== "select" || !await discardEditor()) return;
     const annotation = annotations().find(value => value.id === id && value.mode === state.mode && value.document_id === state.document && value.page === state.page);
     if (!annotation) return;
-    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = id; state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.markupMenu = null; state.annotationSelected = id; state.settingsOpen = openSettings || state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+  }
+  async function copyFreeCallout() {
+    await flushSettings(); requireFinishedEdits();
+    const annotation = selectedAnnotation(); if (!annotation) throw new Error("Select a Call-out to copy.");
+    state.lengthClipboard = null;
+    state.annotationClipboard = { sessionId: state.session.session_id, mode: state.mode, annotation: clone(annotation) };
+    message("Call-out copied. Move the pointer onto the drawing and press Ctrl+V.");
+  }
+  async function pasteFreeCallout() {
+    await flushSettings(); requireFinishedEdits();
+    const clipboard = state.annotationClipboard, pointer = state.pastePointer, source = currentDocument();
+    if (!clipboard || clipboard.sessionId !== state.session?.session_id || clipboard.mode !== state.mode || pointer?.key !== pageDisplayKey() || !source) throw new Error("Copy a Call-out here and move the pointer onto the drawing first.");
+    const annotation = clone(clipboard.annotation), point = drawingPoint({ clientX: pointer.client[0], clientY: pointer.client[1] }), view = pageMetadata().view;
+    if (point[0] < view[0] || point[1] < view[1] || point[0] > view[2] || point[1] > view[3]) throw new Error("Place the pointer inside the original PDF page.");
+    const delta = point.map((value, axis) => value - annotation.point[axis]);
+    annotation.point = point; annotation.label_position = annotation.label_position.map((value, axis) => value + delta[axis]);
+    // Clamp only the projected label anchor. The retained source point remains
+    // exactly the pointer's original PDF coordinate, including after rotation.
+    const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), label = G.transform(annotation.label_position, state.viewport.transform);
+    if (annotation.width * scale > state.viewport.width || annotation.height * scale > state.viewport.height) throw new Error("This Call-out is larger than the destination page. Resize the original before copying it here.");
+    annotation.label_position = G.inverse([Math.max(0, Math.min(state.viewport.width - annotation.width * scale, label[0])), Math.max(0, Math.min(state.viewport.height - annotation.height * scale, label[1]))], state.viewport.transform);
+    annotation.document_id = source.id; annotation.source_sha256 = source.sha256; annotation.page = state.page;
+    delete annotation.id; delete annotation.version;
+    const context = pageDisplayKey(), revision = state.session.revision;
+    const reply = await command("create_annotation", { annotation }, () => context === pageDisplayKey() && revision === state.session?.revision);
+    if (reply) { state.annotationSelected = reply.created_annotation_id; state.settingsEditor = null; state.settingsOpen = false; renderSelection(); message("Pasted an independent Call-out with a new identity."); }
+  }
+  function renderAnnotationMenu(overlay) {
+    const selection = state.markupMenu?.annotation;
+    if (!selection || state.gesture) return;
+    const annotation = annotations().find(value => value.id === selection.id);
+    if (!annotation || selection.context !== pageDisplayKey() || selection.revision !== state.session?.revision) { state.markupMenu = null; return; }
+    const menu = node("div", "takeoff-control-menu takeoff-markup-menu"); menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "Call-out actions");
+    const remove = button("Delete", async () => { await flushSettings(); requireFinishedEdits(); if (selection.context !== pageDisplayKey() || !annotations().some(value => value.id === selection.id)) throw new Error("Select the current Call-out again."); state.markupMenu = null; await command("delete_annotation", { annotation_id: selection.id }); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); });
+    remove.setAttribute("role", "menuitem"); menu.append(remove); appendPlanMenu(overlay, selection.point, menu);
   }
   function renderAnnotationSettings(panel) {
     const annotation = selectedAnnotation(); if (!annotation) return;
@@ -2414,18 +2478,33 @@
       } catch (error) { const warning = svg("text", { x: label[0] + 6, y: label[1] + 20, fill: appearance.font_color }); warning.textContent = "Item Details cannot fit: resize or shorten"; group.append(warning); }
       // Keep the original source anchor visible and draggable when rotation or
       // page-edge clamping places its upright label over the anchor, as in PDF.
-      group.append(svg("circle", { cx: point[0], cy: point[1], r: 3 * scale, fill: appearance.stroke_color, "data-annotation-part": "point" }));
-      group.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectFreeCallout(annotation.id)); });
-      group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); void safely(() => selectFreeCallout(annotation.id)); } });
+      if (selected) group.append(svg("circle", { cx: point[0], cy: point[1], r: Math.max(3 * scale, 5) + 4, fill: "none", stroke: "white", "stroke-width": 5, "pointer-events": "none" }), svg("circle", { cx: point[0], cy: point[1], r: Math.max(3 * scale, 5) + 4, fill: "none", stroke: "#1264c4", "stroke-width": 2, "stroke-dasharray": "3 2", "pointer-events": "none", class: "takeoff-annotation-selection" }));
+      group.append(svg("circle", { cx: point[0], cy: point[1], r: Math.max(3 * scale, 5), fill: appearance.stroke_color, "data-annotation-part": "point" }));
+      const choose = event => {
+        if (state.tool !== "select") return;
+        if (Date.now() < (state.suppressSelectionClickUntil || 0)) {
+          const completed = state.annotationCompletedClick;
+          if (!completed || completed.context !== pageDisplayKey() || completed.until !== state.suppressSelectionClickUntil || completed.id === annotation.id) return;
+          // A completed gesture suppresses its bounced click, not a real click
+          // on another note. Keep quick identity changes responsive.
+          state.suppressSelectionClickUntil = 0; state.annotationCompletedClick = null;
+        }
+        event.stopPropagation(); const open = drawingClickOpensSettings(event, `annotation:${annotation.id}`); if (open) state.suppressSelectionClickUntil = Date.now() + 500; void safely(() => selectFreeCallout(annotation.id, open));
+      };
+      group.addEventListener("click", choose);
+      group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); state.lastDrawingClick = null; void safely(() => selectFreeCallout(annotation.id, event.key === "Enter")); } else if (event.key === "ContextMenu" || event.shiftKey && event.key === "F10") { event.preventDefault(); event.stopPropagation(); state.markupMenu = { annotation: { id: annotation.id, context: pageDisplayKey(), revision: state.session.revision, point } }; renderOverlay(); } });
+      group.addEventListener("contextmenu", event => { if (state.tool !== "select" || state.busy || state.modal) return; event.preventDefault(); event.stopPropagation(); void safely(async () => { await flushSettings(); requireFinishedEdits(); state.markupMenu = { annotation: { id: annotation.id, context: pageDisplayKey(), revision: state.session.revision, point } }; renderOverlay(); }); });
       group.addEventListener("pointerdown", event => void safely(() => beginAnnotationDrag(event, annotation)));
-      if (selected) group.append(svg("rect", { x: label[0] + width * scale - 5, y: label[1] + height * scale - 5, width: 10, height: 10, fill: "white", stroke: appearance.stroke_color, "data-annotation-part": "resize", class: "takeoff-annotation-resize", "aria-label": "Resize Call-out" }));
+      if (selected && state.tool === "select") for (const [corner, x, y] of [["nw", label[0], label[1]], ["ne", label[0] + width * scale, label[1]], ["sw", label[0], label[1] + height * scale], ["se", label[0] + width * scale, label[1] + height * scale]]) group.append(svg("rect", { x: x - 5, y: y - 5, width: 10, height: 10, fill: "white", stroke: "#1264c4", "data-annotation-part": "resize", "data-corner": corner, class: "takeoff-annotation-resize", "aria-label": `Resize Call-out ${corner}` }));
       overlay.append(group);
     }
+    renderAnnotationMenu(overlay);
   }
   async function beginAnnotationDrag(event, annotation) {
     if (state.tool !== "select" || event.button !== 0 || state.busy || state.modal || state.gesture) return;
     event.stopPropagation();
     if (state.annotationSelected !== annotation.id) return;
+    state.annotationCompletedClick = null;
     // Capture synchronously: waiting for an editor request here could miss the
     // pointer-up event and leave a stale drawing gesture behind.
     if (state.settingsDirty || state.settingsEditor?.applying) throw new Error("Finish updating Item Details before moving the Call-out.");
@@ -2433,14 +2512,38 @@
     const element = state.ui.viewport, initial = drawingPoint(event), context = pageDisplayKey(), revision = state.session.revision;
     const geometryStamp = value => JSON.stringify(value && [value.id, value.mode, value.document_id, value.source_sha256, value.page, value.point, value.label_position, value.width, value.height]);
     const original = geometryStamp(annotation), transform = JSON.stringify(state.viewport.transform);
-    const part = event.target.dataset.annotationPart;
+    const part = event.target.dataset.annotationPart, corner = event.target.dataset.corner;
+    const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), rawLabel = G.transform(annotation.label_position, state.viewport.transform);
+    const box = { x: Math.max(0, Math.min(state.viewport.width - annotation.width * scale, rawLabel[0])), y: Math.max(0, Math.min(state.viewport.height - annotation.height * scale, rawLabel[1])), width: annotation.width * scale, height: annotation.height * scale };
     const gesture = { kind: "annotation", id: annotation.id, initial, current: initial, point: [...annotation.point], label: [...annotation.label_position], width: annotation.width, height: annotation.height, moved: false }; state.gesture = gesture;
     const unchanged = () => context === pageDisplayKey() && revision === state.session?.revision && state.annotationSelected === annotation.id && original === geometryStamp(selectedAnnotation()) && transform === JSON.stringify(state.viewport?.transform);
     const valid = () => state.gesture === gesture && unchanged();
-    const move = next => { if (next.pointerId !== event.pointerId || !valid()) return; const current = drawingPoint(next), delta = current.map((value, index) => value - initial[index]); gesture.current = current; gesture.moved ||= Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) > 3; if (!gesture.moved) return; if (part === "resize") { const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]); gesture.width = Math.max(10, Math.min(state.viewport.width / scale, annotation.width + (next.clientX - event.clientX) / scale)); gesture.height = Math.max(10, Math.min(state.viewport.height / scale, annotation.height + (next.clientY - event.clientY) / scale)); } else { gesture.label = annotation.label_position.map((value, index) => value + delta[index]); if (part === "point") gesture.point = annotation.point.map((value, index) => value + delta[index]); } next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.(); };
+    const move = next => {
+      if (next.pointerId !== event.pointerId || !valid()) return;
+      const current = drawingPoint(next), delta = current.map((value, index) => value - initial[index]); gesture.current = current;
+      gesture.moved ||= Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) > 3; if (!gesture.moved) return;
+      if (part === "resize") {
+        const start = G.transform(initial, state.viewport.transform), end = G.transform(current, state.viewport.transform), dx = end[0] - start[0], dy = end[1] - start[1], minimum = 10 * scale;
+        let left = box.x, top = box.y, right = box.x + box.width, bottom = box.y + box.height;
+        if (corner.includes("w")) left = Math.max(0, Math.min(right - minimum, left + dx)); else right = Math.min(state.viewport.width, Math.max(left + minimum, right + dx));
+        if (corner.includes("n")) top = Math.max(0, Math.min(bottom - minimum, top + dy)); else bottom = Math.min(state.viewport.height, Math.max(top + minimum, bottom + dy));
+        gesture.width = (right - left) / scale; gesture.height = (bottom - top) / scale; gesture.label = G.inverse([left, top], state.viewport.transform);
+      } else { gesture.label = annotation.label_position.map((value, index) => value + delta[index]); if (part === "point") gesture.point = annotation.point.map((value, index) => value + delta[index]); }
+      state.lastDrawingClick = null; next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.();
+    };
     const cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", end); element.removeEventListener("pointercancel", cancel); try { element.releasePointerCapture(event.pointerId); } catch { /* Capture was already released. */ } };
     const cancel = () => { cleanup(); if (state.gesture === gesture) state.gesture = null; renderOverlay(); window.CeasefireProject?.changed?.(); };
-    const end = next => { if (next.pointerId !== event.pointerId) return; const current = valid(); cleanup(); state.gesture = null; if (!current || !gesture.moved) { renderOverlay(); return; } state.suppressSelectionClickUntil = Date.now() + 500; void safely(async () => { await command("update_annotation", { annotation_id: annotation.id, changes: { point: gesture.point, label_position: gesture.label, width: gesture.width, height: gesture.height } }, unchanged); renderSelection(); }); };
+    const end = next => {
+      if (next.pointerId !== event.pointerId) return;
+      const current = valid(); cleanup(); if (state.gesture === gesture) state.gesture = null;
+      // Selection rendering replaces the captured SVG hit before the browser
+      // dispatches click. Complete stationary intent here and ignore that
+      // bounced click, as for measurement and physical drawing gestures.
+      next.preventDefault(); state.suppressSelectionClickUntil = Date.now() + 500;
+      if (!current) { renderOverlay(); return; }
+      if (!gesture.moved) { state.annotationCompletedClick = { id: annotation.id, context, until: state.suppressSelectionClickUntil }; const open = drawingClickOpensSettings(next, `annotation:${annotation.id}`); void safely(() => selectFreeCallout(annotation.id, open)); return; }
+      void safely(async () => { await command("update_annotation", { annotation_id: annotation.id, changes: { point: gesture.point, label_position: gesture.label, width: gesture.width, height: gesture.height } }, unchanged); renderSelection(); });
+    };
     event.preventDefault(); element.addEventListener("pointermove", move); element.addEventListener("pointerup", end); element.addEventListener("pointercancel", cancel); element.setPointerCapture(event.pointerId); gesture.cleanup = cleanup;
   }
   async function placePhysicalMarker(point) {
@@ -3387,6 +3490,9 @@
   async function confirmSelected() { await flushSettings(); requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) throw new Error("Select items to confirm."); const areaDetail = "Inspect the original true-surface view, every boundary and excluded opening, calibration, gross/excluded/net m², substrate, treatment and fire rating. A wall footprint never establishes wall-face area; no second face or height is inferred. Confirmation permits register export only and does not certify technical suitability."; if (!await confirm(`Confirm ${selected.length} items?`, isArea() ? areaDetail : "Confirm only after inspecting the original drawings, physical quantities, base length, every riser/drop addition, dimensions, fire requirements and source references. Additions apply to each member/run. Deterministic checks must pass. Confirmation does not certify technical suitability.", "Confirm items")) return; await selectedCommand("confirm_items"); }
   async function deleteSelected() { requireFinishedEdits(); const selected = selectedItems(); if (!selected.length) return; return deleteItems(selected.map(item => item.id), { title: `Delete ${selected.length} objects?`, action: "Delete objects" }); }
   function uncertainLinkedOutcome(error) { return error instanceof TypeError || error.uncertainOutcome === true; }
+  function requireSettledLinkedChange() {
+    if (state.linkedRecovery) throw new Error("Recover the pending linked change to finish the current takeoff operation before editing, saving or replacing the project.");
+  }
   function finishLinkedOperation(pending, reply) {
     if (pending.sessionId !== state.session?.session_id) throw new Error("The project changed while applying the linked operation.");
     const restored = reply?.snapshot;
@@ -3399,13 +3505,14 @@
         restored.documents.some(doc => !doc?.id || !Array.isArray(doc.pages)) ||
         reply.item_results.some(result => !result?.id)) throw new Error("The linked edit response is incomplete.");
     if (!pending.calculatorsApplied) {
-      window.CeasefireCalculators.applyTakeoffTargets(reply.calculators, pending.reservation);
+      if (pending.type === "library") window.CeasefirePenetrations.applyTakeoffSchedule(reply.penetration, pending.reservation);
+      else window.CeasefireCalculators.applyTakeoffTargets(reply.calculators, pending.reservation);
       pending.calculatorsApplied = true;
     }
     accept(reply); renderData();
   }
   function releaseLinkedOperation(pending) {
-    if (pending.reservation) window.CeasefireCalculators.releaseTakeoffTarget(pending.reservation);
+    if (pending.reservation) { if (pending.type === "library") window.CeasefirePenetrations.releaseTakeoffSchedule(pending.reservation); else window.CeasefireCalculators.releaseTakeoffTarget(pending.reservation); }
     for (const [control, disabled] of pending.lockedControls) if (control.isConnected !== false) control.disabled = disabled;
     working(false);
   }
@@ -3415,11 +3522,58 @@
     pending.retrying = true;
     try {
       const reply = await api(`/sessions/${pending.sessionId}/${pending.endpoint}`, pending.payload);
-      finishLinkedOperation(pending, reply); state.linkedRecovery = null; releaseLinkedOperation(pending);
+      finishLinkedOperation(pending, reply); releaseLinkedOperation(pending); state.linkedRecovery = null;
       message("The linked change is complete. The takeoff and its schedule rows are in sync.");
     } catch (error) {
       message(`The linked change still needs a response. Keep this page open and retry when the connection is available. ${error.message}`, true);
     } finally { pending.retrying = false; }
+  }
+  async function previewLibraryLink(values) {
+    const sessionId = state.session?.session_id, revision = state.session?.revision, scope = state.physicalScope;
+    const capture = await window.CeasefirePenetrations.captureTakeoffSchedule();
+    if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope) throw new Error("The project changed while preparing the library link. Review it again.");
+    const reply = await physicalRequest("library/preview", { ...values, draft: capture.draft, configuration: capture.configuration }, { sessionId, expected: revision });
+    if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope) throw new Error("The project changed during library review. Review the current link again.");
+    state.libraryPreviews ||= new Map();
+    state.libraryPreviews.set(reply.preview_id, { capture, sessionId, revision, scope });
+    while (state.libraryPreviews.size > 20) state.libraryPreviews.delete(state.libraryPreviews.keys().next().value);
+    return reply;
+  }
+  function applyLibraryLink(previewId) {
+    const preview = state.libraryPreviews?.get(previewId);
+    const task = state.queue.then(async () => {
+      if (!preview || preview.sessionId !== state.session?.session_id || preview.revision !== state.session?.revision || preview.scope !== state.physicalScope) throw new Error("The project or library link changed. Review it again.");
+      if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || state.linkedRecovery) throw new Error("Finish the current edits before confirming the library link.");
+      const bridge = window.CeasefirePenetrations;
+      const pending = { type: "library", sessionId: preview.sessionId, endpoint: "library/apply", reservation: null, lockedControls: [],
+        payload: { expected_revision: preview.revision, request_id: uuid(), preview_id: previewId, draft: preview.capture.draft, configuration: preview.capture.configuration } };
+      try {
+        pending.reservation = bridge.reserveTakeoffSchedule(preview.capture);
+        working(true);
+        pending.lockedControls = [...state.ui.root.querySelectorAll("input,select,textarea,button")].map(control => [control, control.disabled]);
+        for (const [control] of pending.lockedControls) control.disabled = true;
+        let reply;
+        try { reply = await api(`/sessions/${pending.sessionId}/${pending.endpoint}`, pending.payload); }
+        catch (error) {
+          if (!uncertainLinkedOutcome(error)) throw error;
+          try { reply = await api(`/sessions/${pending.sessionId}/${pending.endpoint}`, pending.payload); }
+          catch { state.linkedRecovery = pending; throw new Error("The confirmed link needs a response. Keep this page open and choose Retry linked change."); }
+        }
+        pending.responseReceived = true;
+        try { finishLinkedOperation(pending, reply); }
+        catch (error) { state.linkedRecovery = pending; throw new Error(`The library link response needs recovery. Keep this page open and choose Retry linked change. ${error.message}`); }
+        return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
+      } finally {
+        if (!state.linkedRecovery) {
+          try { releaseLinkedOperation(pending); }
+          catch (error) {
+            if (pending.responseReceived) state.linkedRecovery = pending;
+            throw error;
+          }
+        }
+      }
+    });
+    state.queue = task.catch(() => {}); return task;
   }
   function linkedCalculatorOperation(endpoint, calculatorIds, values = {}, guard) {
     const sessionId = state.session?.session_id, revision = state.session?.revision;
@@ -3528,8 +3682,11 @@
   }
   async function removeDocument() { requireFinishedEdits(); const doc = currentDocument(); if (!doc) return; if (await confirm(`Remove ${doc.name}?`, "A source document cannot be removed while takeoff objects depend on it. Original evidence remains recoverable through project history.", "Remove document")) { await command("delete_document", { document_id: doc.id }); await renderPage(); } }
   async function upload(files) {
-    if (!files.length || state.busy) return; await ensureSession(); if (files.length + documents().length > 100) throw new Error("A project supports up to 100 PDFs.");
-    const sessionId = state.session.session_id; working(true); let done = 0;
+    if (!files.length || state.busy) return;
+    if (state.modal || state.countFinishing) throw new Error("Finish the current takeoff operation before uploading PDFs.");
+    await state.physicalUI?.completePendingEdits?.(); await flushSettings(); requireFinishedEdits();
+    await ensureSession(); if (files.length + documents().length > 100) throw new Error("A project supports up to 100 PDFs.");
+    const sessionId = state.session.session_id; working(true); let done = 0, uploadedDocument = null;
     try {
       for (const file of files) {
         if (!/\.pdf$/i.test(file.name) || !file.size || file.size > 250 * 1024 * 1024) throw new Error(`${file.name}: choose a PDF of at most 250 MiB.`);
@@ -3542,11 +3699,15 @@
           if (!response.ok) { const error = await response.json(); throw new Error(error.error || "Upload chunk failed."); }
         }
         setProgress(`Checking original PDF and page metadata: ${file.name}…`);
-        const reply = await api(`/sessions/${sessionId}/uploads/${uploadId}/complete`, { expected_revision: state.session.revision }); accept(reply); done++; renderData();
+        const before = new Set(documents().map(doc => doc.id));
+        const reply = await api(`/sessions/${sessionId}/uploads/${uploadId}/complete`, { expected_revision: state.session.revision }); accept(reply); done++; uploadedDocument ||= documents().find(doc => !before.has(doc.id))?.id; renderData();
       }
       message(`${done} original PDF${done === 1 ? "" : "s"} retained. Save the project to preserve its document bundle.`);
     } catch (error) { throw new Error(`${done ? `${done} PDF(s) imported before this failure. ` : ""}${error.message}`); }
-    finally { working(false); renderData(); if (state.document) await fitPage(); }
+    finally {
+      if (uploadedDocument && sessionId === state.session?.session_id) { state.document = uploadedDocument; state.page = 1; state.calibration = ""; }
+      working(false); renderData(); if (state.document) await fitPage();
+    }
   }
   const textSearch = () => window.CeasefireTakeoffSearch;
   function searchContextKey() {
@@ -3554,15 +3715,16 @@
     const scope = state.ui.searchScope.value, docs = scope === "all" ? documents() : [currentDocument()].filter(Boolean);
     return JSON.stringify([state.session.session_id, scope, scope === "all" ? null : state.document, docs.map(doc => [doc.id, doc.sha256, doc.pages.length])]);
   }
-  function hideSearchResults() { if (state.ui) { state.ui.searchResults.hidden = true; state.ui.search.setAttribute("aria-expanded", "false"); } }
-  function showSearchResults() { if (state.ui) { state.ui.searchResults.hidden = false; state.ui.search.setAttribute("aria-expanded", "true"); } }
+  function hideSearchResults(dismiss = true) { if (dismiss) state.searchDismissed = true; if (state.ui) { state.ui.searchResults.hidden = true; state.ui.search.setAttribute("aria-expanded", "false"); } }
+  function showSearchResults(explicit = true) { if (explicit) state.searchDismissed = false; if (state.ui && !state.searchDismissed) { state.ui.searchResults.hidden = false; state.ui.search.setAttribute("aria-expanded", "true"); } }
   function cancelSearch(clearInput = false, notice = "") {
     clearTimeout(state.searchTimer); state.searchTimer = null; ++state.searchId;
     const token = state.searchToken; if (token) { token.cancelled = true; void token.reader?.cancel().catch(() => {}); for (const cancel of token.waiters) cancel(); token.waiters.clear(); }
     state.searchToken = null; state.searchPromise = null; state.searchContext = null; state.searchQuery = ""; state.searchHits = []; state.searchActiveId = null; state.searchActivePage = null; state.searchComplete = false; state.searchSummary = "";
-    if (state.ui) { if (clearInput) state.ui.search.value = ""; state.ui.searchResults.replaceChildren(); hideSearchResults(); renderOverlay(); if (notice) setProgress(notice); }
+    if (state.ui) { if (clearInput) { state.ui.search.value = ""; state.searchDismissed = false; } state.ui.searchResults.replaceChildren(); hideSearchResults(false); renderOverlay(); if (notice) setProgress(notice); }
   }
-  function scheduleSearch() {
+  function scheduleSearch(options) {
+    if (!options?.preserveDismissal) state.searchDismissed = false;
     cancelSearch(false);
     if (!textSearch().normalize(state.ui.search.value)) { setProgress("Text search cleared; results and highlights removed."); return; }
     state.searchTimer = setTimeout(() => { state.searchTimer = null; void safely(() => startSearch()); }, 220);
@@ -3572,7 +3734,7 @@
     if (!state.searchContext) return;
     if (state.searchContext !== searchContextKey() || (state.searchToken && !state.searchToken.finished && state.searchToken.document !== state.document)) {
       cancelSearch(false, "Drawing changed; the previous text search was cancelled.");
-      if (state.ui?.search.value.trim()) scheduleSearch();
+      if (state.ui?.search.value.trim()) scheduleSearch({ preserveDismissal: true });
     }
   }
   function searchCurrent(token) {
@@ -3602,12 +3764,14 @@
     if (!state.ui) return;
     const focused = state.ui.searchResults.contains(document.activeElement) ? document.activeElement.dataset.searchHitId : null;
     const children = state.searchHits.map(hit => {
-      const el = button(hit.document_name + " · p" + hit.page + ": " + hit.text, () => selectSearchHit(hit, true), "takeoff-search-result");
+      const el = button("", () => selectSearchHit(hit, true), "takeoff-search-result");
+      el.append(node("span", "", hit.document_name + " · p" + hit.page + ": "));
+      for (const part of hit.textParts || [{ text: hit.text, matched: false }]) el.append(node(part.matched ? "mark" : "span", part.matched ? "takeoff-search-word" : "", part.text));
       el.disabled = state.busy;
       el.dataset.searchHitId = hit.id; el.setAttribute("aria-current", hit.id === state.searchActiveId ? "true" : "false"); return el;
     });
     if (!children.length) children.push(node("p", "takeoff-search-empty", state.searchComplete ? "No searchable matches. Scanned pages require visual inspection." : "Searching PDF text…"));
-    state.ui.searchResults.replaceChildren(...children); showSearchResults();
+    state.ui.searchResults.replaceChildren(...children); showSearchResults(false);
     if (focused) children.find(el => el.dataset.searchHitId === focused)?.focus({ preventScroll: true });
   }
   function sourceTextQuads(spans) {
@@ -3638,10 +3802,14 @@
   }
   function renderSearchHighlights(overlay) {
     const hits = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page);
-    // Paint every yellow context first; repeated hits cannot cover exact matches.
+    if (!hits.length) return;
+    // Composite sentence context once. Repeated/overlapping hits must not build
+    // opaque yellow over the retained text, even for a dense 500-hit page.
+    const contextGroup = svg("g", { class: "takeoff-search-contexts" }), seenContext = new Set(); overlay.append(contextGroup);
     for (const [kind, selector] of [["context", hit => hit.contextQuads], ["match", hit => hit.matchQuads]]) for (const hit of hits) for (const points of selector(hit) || []) {
+      if (kind === "context") { const key = JSON.stringify(points); if (seenContext.has(key)) continue; seenContext.add(key); }
       const shape = svg("polygon", { points: points.map(point => G.transform(point, state.viewport.transform).join(",")).join(" "), class: "takeoff-search-" + kind + (hit.id === state.searchActiveId ? " active" : ""), "data-search-hit-id": hit.id, "data-search-geometry": hit.geometry || "text-run-fallback" });
-      overlay.append(shape);
+      (kind === "context" ? contextGroup : overlay).append(shape);
     }
   }
   async function selectSearchHit(hit, navigate = false) {
@@ -3701,6 +3869,7 @@
   }
   async function runSearch() {
     const query = textSearch().normalize(state.ui.search.value); if (!query) { cancelSearch(true); return; }
+    showSearchResults();
     const context = searchContextKey(), documentId = state.document, page = state.page;
     const pending = state.searchQuery !== query || state.searchContext !== context ? startSearch() : state.searchPromise;
     // A Search button press belongs to the captured query/run/page. Native text
@@ -3844,12 +4013,13 @@
     const result = await command("update_calibration", { calibration_id: calibration.id, changes: { ...data, scale_denominator: null, uniform_scale: true } });
     state.calibration = result.revised_calibration_id || ""; renderCalibrations();
   }
-  function projectSnapshot() { if (state.busy || state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff settings, drawing or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().service_plans && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
+  function projectSnapshot() { requireSettledLinkedChange(); if (state.busy || state.modal || state.countFinishing || state.physicalPlacing) throw new Error("Finish the current takeoff operation before saving."); if (state.formDirty || state.settingsDirty || state.gesture || state.points.length || state.pendingViewport || physicalUnfinished()) throw new Error("Apply or discard the unfinished takeoff settings, drawing or physical edits before saving."); if (!state.session || !snapshot().documents.length && !snapshot().items.length && !snapshot().calibrations.length && !snapshot().transfers.length && !snapshot().physical && !snapshot().service_plans && !snapshot().image_extractions?.length) return undefined; return clone(snapshot()); }
   function projectFingerprint() { return JSON.stringify({ session_id: state.session?.session_id, snapshot: snapshot(), busy: state.busy, formDirty: state.formDirty, formRevision: state.formRevision || 0, settingsDirty: state.settingsDirty, settingsRevision: state.settingsRevision || 0, gesture: state.gesture ? { kind: state.gesture.kind, initial: state.gesture.initial, current: state.gesture.current } : null, physicalUnfinished: physicalUnfinished(), physicalEditRevision: state.physicalUI?.editRevision?.() || 0, points: state.points, countEntries: state.countEntries.map(({ point, length_m }) => ({ point, length_m })), countDefaultLength: state.countDefaultLength, countFinishing: state.countFinishing, pendingViewport: state.pendingViewport, modal: state.modal }); }
-  function hasUnsavedChanges() { return state.busy || state.countFinishing || state.physicalPlacing || state.formDirty || state.settingsDirty || !!state.gesture || !!state.pendingViewport || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
-  async function prepareDefaults() { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
-  async function prepareProject(value, sessionId) { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
+  function hasUnsavedChanges() { return !!state.linkedRecovery || state.busy || state.countFinishing || state.physicalPlacing || state.formDirty || state.settingsDirty || !!state.gesture || !!state.pendingViewport || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
+  async function prepareDefaults() { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
+  async function prepareProject(value, sessionId) { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
+    requireSettledLinkedChange();
     state.annotationHidden = new Set(); state.annotationSelected = null;
     cancelSearch(true);
     invalidateLinkedThickness();
@@ -3867,9 +4037,10 @@
     if (state.ui) { renderData(); state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.searchResults.replaceChildren(); }
   }
   async function discardPreparedSession(sessionId) { if (sessionId && sessionId !== state.session?.session_id) await api(`/sessions/${sessionId}/close`, {}).catch(() => {}); }
-  function markProjectSaved(value, captured) { if (!value) return; if (snapshotKey(snapshot()) === snapshotKey(captured || value)) { state.saved = snapshotKey(value); if (state.session) state.session.snapshot = clone(value); } else state.saved = snapshotKey(captured || value); window.CeasefireProject?.changed?.(); }
+  function markProjectSaved(value, captured) { requireSettledLinkedChange(); if (!value) return; if (snapshotKey(snapshot()) === snapshotKey(captured || value)) { state.saved = snapshotKey(value); if (state.session) state.session.snapshot = clone(value); } else state.saved = snapshotKey(captured || value); window.CeasefireProject?.changed?.(); }
 
   async function completeProjectSnapshot() {
+    requireSettledLinkedChange();
     await flushSettings();
     await state.queue;
     await state.physicalUI?.completePendingEdits?.();
@@ -3879,5 +4050,7 @@
   function scheduleBindings(calculatorId, row) { return (snapshot()?.transfers || []).filter(binding => binding.calculator_id === calculatorId && binding.row === row && binding.status !== "detached"); }
   async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); if (!items().some(item => item.id === itemId)) { await safely(() => manageLinkedRows(itemId)); return; } await selectItem(itemId); }
   window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot,
+    hasPendingOperation: () => !!(state.busy || state.linkedRecovery),
+    hasLinkedRecovery: () => !!state.linkedRecovery,
     sessionId: () => state.session?.session_id, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged };
 })();

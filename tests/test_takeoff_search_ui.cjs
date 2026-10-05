@@ -6,10 +6,10 @@ const S = require('../static/takeoff-search.js');
 const G = require('../static/takeoff-geometry.js');
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
 function harness() {
-  const element = () => ({ value: '', dataset: {}, hidden: false, textContent: '', children: [], replaceChildren(...children) { this.children = children; }, setAttribute() {}, classList: { toggle() {} } });
-  const context = { window: { CeasefireTakeoffSearch: S, CeasefireTakeoffGeometry: G }, document: { getElementById() {} }, setTimeout, clearTimeout, console };
+  const element = tag => ({ tag, value: '', dataset: {}, hidden: false, textContent: '', children: [], replaceChildren(...children) { this.children = children; }, append(...children) { this.children.push(...children); }, contains(value) { return !!value && this.children.includes(value); }, addEventListener() {}, setAttribute() {}, classList: { toggle() {} } });
+  const context = { window: { CeasefireTakeoffSearch: S, CeasefireTakeoffGeometry: G }, document: { getElementById() {}, createElement: element }, setTimeout, clearTimeout, console };
   vm.createContext(context);
-  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,noRender(){renderOverlay=()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;}};
+  const source = fs.readFileSync('static/takeoffs.js', 'utf8').replace('  window.CeasefireTakeoffs = {', `  globalThis.audit={state,searchContextKey,searchCurrent,readSearchText,cancelSearch,waitSearch,invalidateSearchContext,runSearch,hideSearchResults,showSearchResults,renderSearchResults,scheduleSearch,noRender(){renderOverlay=()=>{};},geometry(fn){updateSearchGeometry=fn;},select(fn){selectSearchHit=fn;}};
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const { audit } = context; audit.noRender();
@@ -43,6 +43,17 @@ function harness() {
   all.token.finished = true; assert.equal(all.audit.searchCurrent(all.token), true, 'Completed all-document results allow explicit dropdown navigation');
   const pageChange = harness(); pageChange.state.searchActivePage = 'doc:1'; pageChange.state.page = 2; pageChange.audit.invalidateSearchContext();
   assert.equal(pageChange.state.searchActiveId, null, 'Changing page resets the cycle so the next Search chooses its nearest hit');
+  const dismissed = harness();
+  dismissed.state.searchHits = [{ id: 'source-match', document_name: 'Original.pdf', page: 1, text: 'A <wall> remains.', textParts: [{ text: 'A ', matched: false }, { text: '<wall>', matched: true }, { text: ' remains.', matched: false }] }];
+  dismissed.audit.renderSearchResults(); assert.equal(dismissed.state.ui.searchResults.hidden, false);
+  const query = dismissed.state.ui.search.value, runId = dismissed.state.searchId;
+  dismissed.audit.hideSearchResults(); dismissed.audit.renderSearchResults();
+  assert.equal(dismissed.state.ui.searchResults.hidden, true, 'A late asynchronous result update cannot reopen dismissed results');
+  assert.equal(dismissed.state.ui.search.value, query); assert.equal(dismissed.state.searchId, runId); assert.equal(dismissed.state.searchHits.length, 1, 'Dismissal preserves the search and highlights');
+  const marked = dismissed.state.ui.searchResults.children[0].children.filter(child => child.tag === 'mark');
+  assert.equal(marked.length, 1); assert.equal(marked[0].textContent, '<wall>', 'Matched text is rendered as text, never as HTML');
+  dismissed.audit.showSearchResults(); assert.equal(dismissed.state.ui.searchResults.hidden, false, 'An explicit input/Search action reopens current results');
+  dismissed.audit.hideSearchResults(); dismissed.audit.scheduleSearch(); assert.equal(dismissed.state.searchDismissed, false, 'Typing a new query releases dismissal'); dismissed.audit.cancelSearch(true);
   const lateLayout = harness(), layout = deferred(), selected = [], box = { left: 0, top: 0, width: 100, height: 100 };
   lateLayout.audit.geometry(() => layout.promise); lateLayout.audit.select(hit => selected.push(hit.id));
   Object.assign(lateLayout.state, { searchComplete: true, searchPromise: Promise.resolve(), viewport: { transform: [1, 0, 0, 1, 0, 0] },

@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-tagline-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const assets = ['static/app.js', 'static/styles.css', 'static/index.html'];
+const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -47,7 +47,9 @@ async function layout() {
   return page.evaluate(() => {
     const rectangle = selector => { const b = document.querySelector(selector).getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, bottom: b.bottom }; };
     const tag = document.querySelector('#header-tagline'), cursor = tag.querySelector('.header-tagline-cursor');
+    const character = document.querySelector('#header-tagline-character');
     return { header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
+      character: rectangle('#header-tagline-character'), visual: rectangle('.header-tagline-visual'), mediaState: character.dataset.taglineMotion, mediaSrc: character.getAttribute('src'), mediaLoaded: character.complete && character.naturalWidth > 0,
       cursorAnimation: getComputedStyle(cursor).animationName, cursorOpacity: getComputedStyle(cursor).opacity,
       cursorHidden: cursor.hidden, cursorDisplay: getComputedStyle(cursor).display, cursorAnimationCount: cursor.getAnimations().length,
       italic: getComputedStyle(tag).fontStyle, alignment: getComputedStyle(tag).textAlign, overflow: document.documentElement.scrollWidth - innerWidth,
@@ -115,11 +117,13 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
     assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
+    assert.equal(sample.mediaState, sample.typed === expected ? 'stopped' : 'playing', 'Character playback follows the same final-character boundary as every accepted phrase');
     samples.push(sample);
   }
   assert.equal(samples.at(-1).typed, expected, 'The production typing timers must finish the exact phrase');
   assert.ok(samples.length >= 3, 'The real DOM must show progressive typing');
   assert.equal(samples.at(-1).finished?.phrase, expected);
+  assert.equal(samples.at(-1).mediaSrc, '/header-tagline-character-still.png');
   return samples;
 }
 async function expireCursor(initial, expected) {
@@ -127,6 +131,10 @@ async function expireCursor(initial, expected) {
   assert.equal(stopped.cursorHidden, true, 'The underscore must disappear with the final character');
   assert.equal(stopped.cursorDisplay, 'none'); assert.equal(stopped.cursorAnimationCount, 0, 'Hidden cursor must have no running CSS animation');
   assert.equal(stopped.typed, expected); assert.equal(stopped.accessible, expected);
+  assert.ok(['stopped', 'reduced'].includes(stopped.mediaState)); assert.equal(stopped.mediaSrc, '/header-tagline-character-still.png');
+  await expect.poll(() => page.locator('#header-tagline-character').evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  const still = crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex');
+  await delay(750); assert.equal(crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex'), still, 'Finished/reduced character displays an unchanged actual still frame');
   await page.clock.runFor(500);
   const atHalfSecond = await layout(); sameHeader(initial, atHalfSecond);
   assert.equal(atHalfSecond.typed, expected); assert.equal(atHalfSecond.cursorHidden, true);
@@ -136,6 +144,18 @@ async function expireCursor(initial, expected) {
   await page.clock.runFor(10000);
   const later = await layout(); assert.equal(later.cursorHidden, true); assert.equal(later.cursorAnimationCount, 0);
   return { stopped, atHalfSecond, afterOneSecond, later };
+}
+async function characterMotion(initial) {
+  assert.equal(initial.mediaState, 'playing'); assert.match(initial.mediaSrc, /^\/header-tagline-character\.gif\?play=\d+$/);
+  assert.ok(initial.character.x + initial.character.width <= initial.visual.x, 'Supplied character is at the far left of the sentence field');
+  await expect.poll(() => page.locator('#header-tagline-character').evaluate(element => element.complete && element.naturalWidth === 512 && element.naturalHeight === 768)).toBe(true);
+  const frames = new Set();
+  for (let index = 0; index < 25 && frames.size < 2; index++) {
+    frames.add(crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex'));
+    if (frames.size < 2) await delay(100);
+  }
+  assert.ok(frames.size > 1, 'Native GIF actually changes rendered frames while the sentence is typing');
+  return { differentNativeFrames: frames.size, src: initial.mediaSrc, originalDimensions: [512, 768] };
 }
 async function presentationNavigation(initial) {
   // Initialize every synthetic calculator before comparing fingerprints so
@@ -213,6 +233,7 @@ async function presentationNavigation(initial) {
     assert.ok(initial.tagline.y >= initial.nav.bottom); assert.ok(initial.overflow <= 1);
     assert.equal(initial.alignment, 'center'); assert.ok(Math.abs(initial.tagline.x + initial.tagline.width / 2 - initial.nav.x - initial.nav.width / 2) < .1, 'Tagline is centered beneath navigation');
     const typingBlink = await blinking(initial, phrase, 'during typing');
+    const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, leftOfSentence: initial.character.x + initial.character.width <= initial.visual.x }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.leftOfSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
     const samples = await typeUntilFinished(initial, phrase, await bootstrap(initial, phrase));
     await idle(); await clean();
@@ -220,7 +241,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, initial, final: samples.at(-1), expiry, accessibility, dirty: false, centered: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, centered: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();
@@ -250,13 +271,23 @@ async function presentationNavigation(initial) {
   for (const blocked of [false, true]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
     await instrument(context, { blocked });
-    page = await context.newPage(); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
+    page = await context.newPage(); const gifRequests = []; page.on('request', request => { if (new URL(request.url()).pathname === '/header-tagline-character.gif') gifRequests.push(request.url()); }); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
     const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.accessible, phrase);
     assert.equal(reduced.cursorAnimation, 'none'); await bootstrap(reduced, phrase); await clean();
     const expiry = await expireCursor(reduced, phrase, { animated: false }); await clean();
+    assert.deepEqual(gifRequests, [], 'Reduced-motion loading never requests an animated GIF');
     evidence[blocked ? 'blockedStorage' : 'reducedMotion'] = { fullPhraseImmediately: true, cursorAnimation: reduced.cursorAnimation, expiry, dirty: false };
     csp.push(...await page.evaluate(() => window.qaCsp));
     await context.close();
+  }
+  {
+    const context = await browser.newContext({ viewport: { width: 1146, height: 900 } }); await instrument(context);
+    page = await context.newPage(); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
+    const initial = await layout(); assert.equal(initial.mediaState, 'playing'); assert.notEqual(initial.typed, phrase);
+    await page.emulateMedia({ reducedMotion: 'reduce' }); await expect.poll(() => page.locator('#header-tagline-character').getAttribute('data-tagline-motion')).toBe('reduced');
+    const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.cursorHidden, true); assert.equal(reduced.mediaSrc, '/header-tagline-character-still.png'); sameHeader(initial, reduced);
+    await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.clock.runFor(10000); const restored = await layout(); assert.equal(restored.typed, phrase); assert.equal(restored.mediaSrc, '/header-tagline-character-still.png'); assert.notEqual(restored.mediaState, 'playing');
+    await bootstrap(restored, phrase); await clean(); evidence.preferenceChange = { typingFinishesImmediately: true, stoppedMediaDoesNotResume: true, draftsClean: true }; csp.push(...await page.evaluate(() => window.qaCsp)); await context.close();
   }
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);
@@ -264,6 +295,7 @@ async function presentationNavigation(initial) {
     limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 28 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
   console.log(`Header navigation tagline browser acceptance passed: ${output}`);
 })().catch(async error => {
+  fs.writeFileSync(path.join(output, 'failure-evidence.json'), JSON.stringify({ completed: false, error: String(error), assetHashes, evidence, errors, csp }, null, 2));
   console.error(error); if (page && !page.isClosed()) {
     await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {});
     fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => ''));

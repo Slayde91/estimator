@@ -1,7 +1,7 @@
 # Takeoffs, projects and presentation architecture
 
-Updated 5 October 2026. This describes the PR #154 baseline and the implemented
-search, shortcuts and free Call-out extension. Publication and activation are
+Updated 6 October 2026. This describes the PR #154 baseline, the search and free
+Call-out extension, and the browser feedback and explicit library-link increment. Publication and activation are
 established separately by the release receipts. See
 [main architecture](../ARCHITECTURE.md), [user workflow](TAKEOFFS.md) and
 [roadmap](../ROADMAP.md). Release receipts establish publication and activation.
@@ -23,6 +23,7 @@ not authorized by the current architecture.
 | `estimator/takeoff_http.py` | `/api/takeoffs/` session routes and typed command dispatch. |
 | `estimator/takeoff_workspace.py` | Session state, atomic revisions, preview/apply guards, history and local confirmation/transfer authority. |
 | `estimator/takeoff_model.py`, `takeoff_area.py` | Snapshot validation, member/marker identities, measurement/calibration and polygon topology. |
+| `estimator/takeoff_library_links.py`, `static/takeoff-library-links.js` | Explicit library selection, separately versioned project-owned commercial assignments, reviewed quantities and guarded schedule bindings. |
 | `estimator/takeoff_annotations.py`, `static/takeoff-annotations.js` | Independently versioned presentation notes, bounded rich text, shared new-call-out appearance defaults and safe drawing/editor projections. |
 | `static/takeoff-search.js`, `static/takeoff-shortcuts.js` | Bounded searchable text/run indexing, deterministic hit selection and common enabled-action shortcut metadata. |
 | `estimator/takeoff_documents.py` | Exact-byte PDF originals, chunked uploads, content-addressed evidence companions and immutable history. |
@@ -203,3 +204,63 @@ never the live port 8765. HTTP asset checks establish served identity; rendered
 live-browser acceptance establishes activation separately. Standard desktop CI
 does not certify Takeoffs availability in that product edition. Source/publication
 claims require current Git/PR/CI/process and dated protected-state receipts.
+
+## Browser feedback and explicit library links
+
+The original user GIF is retained byte-for-byte. A decorative left-column image
+plays while the header types and switches to a lossless still when typing ends,
+on page close or under reduced motion. The supplied bullet, numbered-list and
+visibility images are retained without recompression. Visibility is pressed and
+light red only when markups are hidden. Item Details occupies both Settings
+columns; Opacity retains numeric percent entry without a separate percent helper.
+
+Free Call-outs retain version 1 bounded rich text and original source coordinates.
+A click selects; a double click opens Settings. Four projected corner controls
+resize the upright box while preserving its independent source anchor and text.
+The selected anchor has a contrasting halo. Copy/paste allocates a new identity
+at the current pointer's original PDF coordinate, within the same project/mode.
+Oversized copies are rejected before mutation when they cannot fit the target
+page. Right-click Delete uses the existing audited annotation command and undo.
+None of these notes enters a register, quantity, physical approval or schedule.
+
+New PDF uploads display the first successfully imported document from the chosen
+batch after existing draft guards pass. Ctrl+Up/Down rotates left/right,
+Ctrl+Left/Right changes pages, and Ctrl+-/Ctrl++ zooms within the viewer. Editing,
+modal, composition and busy guards retain native input behavior. Outside pointer
+clicks dismiss search results without discarding the query/highlights. Sentence
+context is deduplicated in one translucent group so repeated hits do not obscure
+original PDF text; matched-word geometry remains bound to the original source.
+
+Penetrations Add Defect offers Search Item and New Item. Explicit library selection
+imports literal supported fields into ordinary unapproved Defect/Barrier/Service
+records and creates stable typed IDs. No candidate ranking or automatic matching
+is performed. Imported service quantities stay unknown under the separately
+validated version 1 `library_quantity` descriptor; ordinary manually created
+services still require an explicit positive integer. An explicit quantity edit
+removes the unknown descriptor. Neither its marker nor its library template
+creates a physical quantity or a calculator transfer.
+The project-owned `library_assignments={version:1,records:[...]}`
+collection records explicit physical members and revisions, an installation ID
+and mode, library source/revision/metadata fingerprints, context, commercial
+confirmation and schedule binding. A shared barrier never establishes a combined
+opening; a combined assignment requires its own explicit installation description.
+
+Only the separate commercial link/quantity confirmation writes a Firestopping
+Schedule row. Preview binds the exact Takeoffs revision, member/parent context,
+library metadata and captured schedule/configuration. Apply rechecks those
+bindings and updates both snapshots under a destination reservation. The exact
+request identity is retained through uncertain responses for idempotent recovery;
+project saving and conflicting actions remain blocked until both sides agree.
+Existing schedule inputs, frozen project configuration, composer draft and manual
+quantity baseline are retained. Reconfirmation replaces this assignment's prior
+contribution rather than adding it again. Context/library changes require review;
+this commercial confirmation grants no physical or manufacturer approval.
+
+Removing a confirmed link uses the same reviewed transaction and subtracts only
+its retained contribution, preserving other links and the schedule row's manual
+inputs even when the remaining quantity is zero. Takeoff-only Undo is blocked for
+commercial link transactions; coordinated reconfirmation/removal remains available
+in Item Details. Ordinary physical and free-annotation edits retain their undo.
+
+AI Phases 5/6, Physical Model Lock and automatic Firestopping matching remain
+outside this increment. Release receipts establish publication and live activation.

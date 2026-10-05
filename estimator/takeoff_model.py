@@ -189,6 +189,10 @@ def audit_affected(before, after):
         def annotation_entries(state):
             return entries({'annotations': state.get('annotations', {}).get('callouts', [])}, 'annotations', 1000)
         affected['annotations'] = sorted(changed(annotation_entries(before), annotation_entries(after)))
+    if 'library_assignments' in before or 'library_assignments' in after:
+        def assignment_entries(state):
+            return entries({'library_assignments': state.get('library_assignments', {}).get('records', [])}, 'library_assignments', 1000)
+        affected['library_assignments'] = sorted(changed(assignment_entries(before), assignment_entries(after)))
     return affected
 
 
@@ -811,7 +815,7 @@ def validate_snapshot(value, *, copy_result=True):
     keys = set(new_snapshot())
     if isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 2:
         keys.update(('physical', 'image_extractions'))
-    optional = {'drawing_presentation', 'annotations'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
+    optional = {'drawing_presentation', 'annotations', 'library_assignments'} | ({'service_plans'} if isinstance(value, dict) and value.get('version') == 2 else set())
     object_fields(value, {*keys, 'companion_folder', *optional}, 'Takeoff snapshot', keys)
     if 'companion_folder' in value:
         text(value['companion_folder'], 'Evidence companion folder', 255)
@@ -952,5 +956,7 @@ def validate_snapshot(value, *, copy_result=True):
     validate_presentation(value)
     from .takeoff_annotations import validate_annotations
     validate_annotations(value)
+    from .takeoff_library_links import validate_assignments
+    validate_assignments(value)
     digest(value)
     return deepcopy(value) if copy_result else value

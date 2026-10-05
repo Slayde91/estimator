@@ -37,6 +37,7 @@ function attachMinimalDom(h) {
       replaceChildren(...children){this.children=[];this._text='';this.append(...children);},
       setAttribute(key,value){this.attributes[key]=String(value);if(key==='class')this.className=String(value);},
       addEventListener(event,listener){this.events[event]=listener;},
+      contains(value){return this===value||this.children.some(child=>child.contains?.(value));},
       querySelectorAll(selector){return this.children.flatMap(child=>[...((selector==='[data-item-id]'&&child.dataset.itemId)?[child]:[]),...child.querySelectorAll(selector)]);},
     };
     Object.defineProperty(el,'textContent',{get(){return this._text+this.children.map(child=>child.textContent).join('');},set(value){this._text=String(value);this.children=[];}});
@@ -44,8 +45,9 @@ function attachMinimalDom(h) {
     return el;
   }
   h.context.document.createElement=element;h.context.document.createElementNS=(_,tag)=>element(tag);
+  const documentEvents=[];h.context.document.addEventListener=(type,listener,options)=>documentEvents.push({type,listener,options});
   const ui={};for(const key of ['split','merge','bulk','selectionCount','tableWrap','pagination','overlay','message','selectFiltered'])ui[key]=element();ui.bulkField={value:'mark',querySelector(){return null;}};ui.statusFilter={value:''};h.audit.state.ui=ui;
-  return {ui,element,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
+  return {ui,element,documentEvents,all(root){return root.children.flatMap(child=>[child,...this.all(child)]);}};
 }
 function countHarness() {
   const h=harness(),value=blank();value.documents=[{id:'doc',name:'Count.pdf',pages:[{page:1,view:[0,0,200,200],user_unit:1}]}];h.audit.accept(response(value));
@@ -153,6 +155,10 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);
     assert.equal(ui.navigation.parentNode,top);assert.equal(ui.documentSelect.parentNode.attributes["aria-label"],"Source documents");assert.equal(search.attributes.role,"search");assert.equal(root.children[0],ui.title);
+    const outside=dom.documentEvents.find(event=>event.type==='pointerdown');assert.ok(outside);assert.equal(outside.options.capture,true);
+    h.audit.state.active=true;h.audit.state.searchHits=[{id:'retained-match'}];ui.searchResults.hidden=false;
+    outside.listener({target:ui.search});assert.equal(ui.searchResults.hidden,false,'Inside-search pointer keeps the dropdown available');
+    outside.listener({target:ui.documentSelect});assert.equal(ui.searchResults.hidden,true,'Outside pointer dismisses the dropdown');assert.equal(h.audit.state.searchDismissed,true);assert.deepEqual(copy(h.audit.state.searchHits),[{id:'retained-match'}],'Dismissal preserves search results/highlights');
   });
   await check('Source documents show retained names, page counts and sizes, refresh selection and empty state without mutating evidence',()=>{
     const h=harness(),value=blank();value.documents=[{id:'first',name:'First original.pdf',size:1048576,pages:[{page:1},{page:2}]},{id:'second',name:'<Retained name>.pdf',size:2097152,pages:[{page:1}]}];h.audit.accept(response(value));

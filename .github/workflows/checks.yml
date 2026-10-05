@@ -27,6 +27,8 @@ jobs:
       - run: node --check static/takeoff-geometry.js
       - run: node --check static/takeoff-physical.js
       - run: node --check static/takeoff-annotations.js
+      - run: node --check static/takeoff-library-links.js
+      - run: node --check static/header-tagline-media.js
       - run: node --check static/takeoff-search.js
       - run: node --check static/takeoff-shortcuts.js
       - run: node --check static/takeoff-pdf-worker.mjs
@@ -34,6 +36,9 @@ jobs:
       - run: node --test tests/test_trafalgar_ocr.cjs
       - run: node tests/test_ui.cjs
       - run: node tests/test_header_tagline_ui.cjs
+      - run: node tests/test_header_tagline_media.cjs
+      - run: node tests/test_takeoff_library_links_ui.cjs
+      - run: node tests/test_takeoff_library_bridge_ui.cjs
       - run: node tests/test_calculators_ui.cjs
       - run: node tests/test_project_ui.cjs
       - run: node tests/test_downloads_ui.cjs
@@ -51,6 +56,7 @@ jobs:
       - run: node tests/test_takeoff_search.cjs
       - run: node tests/test_takeoff_search_ui.cjs
       - run: node tests/test_takeoff_shortcuts_ui.cjs
+      - run: node tests/test_takeoff_upload_ui.cjs
       - run: node tests/test_takeoff_annotation_ui.cjs
       - run: python scripts/build.py
   takeoff-browser:
@@ -91,6 +97,8 @@ jobs:
       - run: npm run test:takeoffs-pdf-text
       - run: npm run test:takeoffs-search
       - run: npm run test:takeoffs-free-callouts
+      - run: npm run test:takeoffs-viewer-shortcuts
+      - run: npm run test:takeoffs-library-links
       - run: npm run test:takeoffs-duct-filters
       - run: npm run test:takeoffs-steel-filters
       - run: npm run test:surface-column-filters

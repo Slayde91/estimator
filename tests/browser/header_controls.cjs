@@ -79,12 +79,23 @@ const box = locator => locator.boundingBox();
     await page.screenshot({ path: path.join(output, `${title.includes('board') ? 'board' : title.startsWith('Steel') ? 'spray' : 'duct'}-header.png`) });
     evidence.calculators.push(title);
   }
+  await chooseCalculator(page, 'Steel (board)');await idle();await page.locator('#calculator-navigation-toggle').click();await expect(page.locator('#calculator-title')).toHaveText('Steel (spray)');
+  for (const [id, source] of [['library','penetration-add-to-library'],['calculator','penetration-recalculate']]) {
+    assert.equal(await page.locator(`#${id}-navigation-toggle svg`).getAttribute('viewBox'),await page.locator(`#${source} svg`).getAttribute('viewBox'));
+    assert.equal(await page.locator(`#${id}-navigation-toggle svg`).innerHTML(),await page.locator(`#${source} svg`).innerHTML());
+  }
+  await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.png');
+  assert.ok(await page.locator('#takeoff-navigation-toggle img').evaluate(img=>img.complete&&img.naturalWidth>0));
   for (const kind of ['pricing', 'penetration', 'technical']) {
     await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible(); evidence.libraries.push(kind);
   }
   for (const name of ['Steel', 'Duct', 'Walls', 'Slabs', 'Defect Reports', 'Service Plans']) {
     await chooseTakeoff(page, name); await idle();
     const visibility=page.getByRole('button',{name:'Visibility',exact:true});await expect(visibility).toBeVisible();assert.ok(await visibility.locator('img').evaluate(img=>img.complete && img.naturalWidth>0));
+    await expect(page.locator('.takeoff-workspace-title')).toHaveText(name==='Duct'?'Ductwork':name);
+    const reference=await page.getByRole('button',{name:'Settings',exact:true}).boundingBox();
+    for(const tool of ['Visibility',...name==='Steel'?['Markups','Legend']:name==='Duct'?['Legend']:[]]){const b=await page.getByRole('button',{name:tool,exact:true}).boundingBox();assert.equal(b.width,reference.width);assert.equal(b.height,reference.height);}
+    const documents=await page.locator('.takeoff-source-documents').boundingBox(),search=await page.locator('.takeoff-search-controls').boundingBox();assert.ok(documents.x<search.x||documents.y<search.y);await expect(page.locator('.takeoff-drawing-layout>.takeoff-source-documents')).toHaveCount(0);
     const register = page.locator(['Defect Reports', 'Service Plans'].includes(name) ? '.takeoff-physical-register' : '.takeoff-register').filter({ visible: true });
     const pdf = register.getByRole('button', { name: 'Download PDF', exact: true }); await expect(pdf).toBeVisible();
     assert.equal(await pdf.evaluate(el => el.previousElementSibling.getAttribute('aria-label')), ['Defect Reports', 'Service Plans'].includes(name) ? 'Export draft XLSX' : 'Export XLSX');

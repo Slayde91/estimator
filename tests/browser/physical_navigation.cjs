@@ -63,6 +63,8 @@ async function place(id, point, explicit = false) {
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'count');
   await response(async () => page.mouse.click(...await screen(point)), '/physical/apply'); await snapshot(); await expect(marker(id)).toBeVisible(); await expect(marker(id)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
+  const selectedGraph=await snapshot(),placed=[...selectedGraph.physical.barriers,...(selectedGraph.service_plans?.barriers||[])].find(value=>value.id===id);
+  assert.ok(placed);assert.equal(placed.marker.appearance.marker_size,10);
 }
 async function layout(width) {
   await page.setViewportSize({ width, height: width === 764 ? 764 : 1100 });
@@ -71,7 +73,7 @@ async function layout(width) {
     const box = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     return { source: box('.takeoff-source-documents'), details: box('.takeoff-physical-details'), drawing: box('.takeoff-viewport'), rail: box('.takeoff-tool-rail'), navigation: box('.takeoff-physical-navigation'), pageWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth };
   });
-  assert.ok(boxes.source.bottom <= boxes.drawing.y && boxes.source.bottom <= boxes.details.y, `Source documents above drawing and details at ${width}: ${JSON.stringify(boxes)}`);
+  assert.ok(boxes.source.y >= boxes.drawing.y && boxes.source.right <= boxes.drawing.right, `Source dropdown stays in the viewer at ${width}: ${JSON.stringify(boxes)}`);
   assert.ok(Math.abs(boxes.details.y - boxes.drawing.y) < 2 && Math.abs(boxes.rail.y - boxes.drawing.y) < 2, `Rail/details align with PDF at ${width}: ${JSON.stringify(boxes)}`);
   assert.ok(boxes.navigation.right <= boxes.details.right && boxes.navigation.width > 100, 'Compact dropdown table remains inside the detail pane');
   assert.ok(boxes.navigation.y >= boxes.details.y && boxes.navigation.bottom <= boxes.details.bottom, 'Navigation is visible at the top of Item Details');

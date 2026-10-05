@@ -43,7 +43,7 @@
         </div>
       </div>
       <div id="calculator-navigation" class="calculator-navigation">
-        <button id="calculator-navigation-toggle" type="button" class="nav-button nav-icon" data-view="calculators" aria-label="Calculators" title="Calculators" aria-expanded="false" aria-controls="calculator-navigation-menu"><span aria-hidden="true">⌗</span><span class="sr-only">Calculators</span></button>
+        <button id="calculator-navigation-toggle" type="button" class="nav-button nav-icon" data-view="calculators" aria-label="Calculators" title="Calculators" aria-expanded="false" aria-controls="calculator-navigation-menu"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="4" y="2.5" width="16" height="19" rx="2"></rect><path d="M7.5 6.5h9v3h-9zM8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"></path></svg></span><span class="sr-only">Calculators</span></button>
         <div id="calculator-navigation-menu" class="calculator-navigation-menu" role="group" aria-label="Choose a calculator" hidden>
           <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_vermiculite" aria-pressed="false">Steel (spray)</button>
           <button type="button" class="calculator-navigation-choice" data-calculator-id="steel_board" aria-pressed="false">Steel (board)</button>
@@ -52,7 +52,7 @@
       </div>
       <!-- TAKEOFFS:START -->
       <div id="takeoff-navigation" class="section-navigation">
-        <button id="takeoff-navigation-toggle" type="button" class="nav-button" data-view="takeoffs" aria-expanded="false" aria-controls="takeoff-navigation-menu">Takeoffs</button>
+        <button id="takeoff-navigation-toggle" type="button" class="nav-button nav-icon" data-view="takeoffs" aria-label="Takeoffs" title="Takeoffs" aria-expanded="false" aria-controls="takeoff-navigation-menu"><img class="takeoff-navigation-image" src="/icons/navigation-takeoffs.png" alt="" width="25" height="25"><span class="sr-only">Takeoffs</span></button>
         <div id="takeoff-navigation-menu" class="section-navigation-menu" role="group" aria-label="Choose a takeoff workspace" hidden>
           <button type="button" class="section-navigation-choice" data-mode="steel" aria-pressed="true">Steel</button>
           <button type="button" class="section-navigation-choice" data-mode="duct" aria-pressed="false">Duct</button>
@@ -69,7 +69,7 @@
       </div>
       <!-- TAKEOFFS:END -->
       <div id="library-navigation" class="section-navigation">
-        <button id="library-navigation-toggle" type="button" class="nav-button nav-icon" data-view="pricing" aria-label="Libraries" title="Libraries" aria-expanded="false" aria-controls="library-navigation-menu"><span aria-hidden="true">▤</span><span class="sr-only">Libraries</span></button>
+        <button id="library-navigation-toggle" type="button" class="nav-button nav-icon" data-view="pricing" aria-label="Libraries" title="Libraries" aria-expanded="false" aria-controls="library-navigation-menu"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z"></path><path d="M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"></path></svg></span><span class="sr-only">Libraries</span></button>
         <div id="library-navigation-menu" class="section-navigation-menu" role="group" aria-label="Choose a library" hidden>
           <button type="button" class="section-navigation-choice" data-library-kind="pricing" aria-pressed="true">Pricing Library</button>
           <button type="button" class="section-navigation-choice" data-library-kind="penetration" aria-pressed="false">Firestopping Library</button>
@@ -98,8 +98,8 @@
       <div class="page-heading"><div><p class="eyebrow">CEASEFIRE ESTIMATOR</p><h1 id="home-heading">What would you like to do?</h1><p class="subtitle">Choose an area to start or continue your work.</p></div></div>
       <div class="home-grid" aria-label="Application areas">
         <button type="button" class="home-card" data-home-view="estimate"><span class="home-card-icon" aria-hidden="true">∑</span><strong>Estimates</strong><span>Build the project material and labour estimates.</span></button>
-        <button type="button" class="home-card" data-home-view="pricing"><span class="home-card-icon" aria-hidden="true">▤</span><strong>Libraries</strong><span>Manage pricing, firestopping records and technical references.</span></button>
-        <button type="button" class="home-card" data-home-view="calculators"><span class="home-card-icon" aria-hidden="true">⌗</span><strong>Calculators</strong><span>Use the specialist workbook calculators and export schedules.</span></button>
+        <button type="button" class="home-card" data-home-view="pricing"><span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 5.5c3.2-.9 6-.3 9 2v12c-3-2.3-5.8-2.9-9-2z"></path><path d="M21 5.5c-3.2-.9-6-.3-9 2v12c3-2.3 5.8-2.9 9-2z"></path></svg></span><strong>Libraries</strong><span>Manage pricing, firestopping records and technical references.</span></button>
+        <button type="button" class="home-card" data-home-view="calculators"><span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="4" y="2.5" width="16" height="19" rx="2"></rect><path d="M7.5 6.5h9v3h-9zM8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"></path></svg></span><strong>Calculators</strong><span>Use the specialist workbook calculators and export schedules.</span></button>
         <button type="button" class="home-card" data-home-view="quotes"><span class="home-card-icon" aria-hidden="true">▣</span><strong>Projects</strong><span>Find and reopen project files from your linked folder.</span></button>
       </div>
     </section>

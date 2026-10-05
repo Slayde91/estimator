@@ -299,6 +299,8 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('penetration.json.gz',DATA_FILES)
         self.assertIn('fonts/Montserrat-Variable.ttf',STATIC_FILES)
         self.assertIn('ceasefire-app.ico',STATIC_FILES)
+        self.assertIn('icons/navigation-home.png',STATIC_FILES)
+        self.assertIn('icons/navigation-help.png',STATIC_FILES)
         self.assertFalse(any('takeoff' in path or 'pdfjs' in path for path in (*DATA_FILES,*STATIC_FILES)))
 
     def test_native_smoke_destinations_resolve_in_the_actual_header_menu(self):

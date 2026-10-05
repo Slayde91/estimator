@@ -198,6 +198,11 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
+                navigation_images = probe.wait('(() => { const images=[...document.querySelectorAll(".app-header nav img")]; return images.length === 2 && images.every(image=>image.complete) && images.map(image=>({src:image.getAttribute("src"),width:image.naturalWidth})); })()')
+                assert {image['src'] for image in navigation_images} == {'/icons/navigation-home.png', '/icons/navigation-help.png'}
+                assert all(image['width'] > 0 for image in navigation_images), 'Packaged navigation icons must load successfully'
+                report['navigation_images'] = navigation_images
+                report['checks'].append('Packaged Home and Help icons loaded in native WebView2')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="estimate"]')
                 # The complete private catalogue performs its deterministic cold

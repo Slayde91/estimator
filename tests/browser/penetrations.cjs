@@ -93,7 +93,7 @@ async function showImage() {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical');
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toBeVisible();
-  assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 4), ['Select', 'Defect ID', 'Barrier ID', 'Service ID']);
+  assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 5), ['Select', 'Hide', 'Defect ID', 'Barrier ID', 'Service ID']);
   for (const kind of ['barrier', 'opening', 'service']) await expect(page.getByRole('button', { name: `Add ${kind}`, exact: true })).toHaveCount(0);
   await page.locator('#takeoff-upload').setInputFiles(info.physical_v2_fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   const firstExtraction = await extract(); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3);

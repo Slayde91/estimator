@@ -86,9 +86,11 @@ async function technicalDetails(mark, rows) {
   for (const [label, value] of Object.entries(fields)) await fill(panel, label, value);
   return applySettings(panel, rows);
 }
+let savedOnce = false;
 async function saveAndLoad(info) {
-  const save = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
+  const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save-as'));
   await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200);
+  savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
   const open = page.waitForResponse(response => response.url().endsWith('/api/project/open'));

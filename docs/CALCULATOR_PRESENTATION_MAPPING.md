@@ -498,6 +498,11 @@ Unresolved product/thickness assignments are identified separately. All 1,000
 schedule lines contribute, independent of the visible schedule window. These
 nominal catalogue quantities are estimating measures, not new fire-design rules.
 
+Board schedule FRL minutes and critical temperature remain numeric when their
+custom selectors start blank. New numeric entries retain full precision and
+invalid numeric text is rejected; this does not rewrite retained project inputs
+or change the source's design lookup rules.
+
 Exposure layout M9:M208 uses normal-weight body text when rendered; the M8
 heading remains unchanged. This advanced source input stays hidden in the
 normal browser projection, with its values retained by the API and saved draft.

@@ -455,7 +455,10 @@
     const allowOther = !listedChoice && (cell.allow_other || ["warning", "information"].includes(cell.error_style || cell.validation?.error_style || cell.validation?.errorStyle));
     // A dropdown may mix numbers and text (60 and "60/60/60"). Its current
     // selection cannot determine the type of every other available option.
-    const numeric = cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
+    // These board design inputs remain numeric when their custom selectors are blank.
+    const boardDesignNumber = entry.definition.id === "steel_board" && entry.sheet === schedule?.sheet
+      && coordinates?.row >= schedule.first_row && coordinates.row <= schedule.last_row && [8, 10].includes(coordinates.column);
+    const numeric = boardDesignNumber || cell.type === "number" || (cell.type === "select" && options.length > 0 && options.every(isNumber)) || (cell.type !== "select" && isNumber(value) && cell.type !== "text");
     const numericOptions = options.some(isNumber);
     const display = (entry.result?.display_cells || sheetMetadata(entry).display_cells || {})[address];
     const select = cell.type === "select" && (listedChoice || display?.control === "select" || !allowOther && options.length <= 40);

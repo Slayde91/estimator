@@ -233,6 +233,18 @@ let passed = 0;
   customChoice.value='15';await customChoice.emit('change');assert.equal(entry.invalid.size,0);assert.equal(customEditor.hidden,true);assert.equal(entry.inputs.CALCULATOR.B9,15);
   customChoice.value='';await customChoice.emit('change');assert.equal(entry.inputs.CALCULATOR.B9,'');assert.equal(entry.inputs.SETTINGS.B6,7.123456789);passed++;
 
+  // Blank board design selectors accept numeric custom entries without rewriting saved inputs.
+  for(const [address,raw,expected] of [['H9','120',120],['J9','550.123456789',550.123456789]]) {
+    entry=setup({CALCULATOR:{[address]:null,B9:'Keep this member'}});
+    entry.definition.sheets[0].display_cells={[address]:{control:'select'}};
+    const [choice,editor]=audit.makeControl({address,type:'select',value:null,options:[],allow_other:true},9,entry,'Board design').children;
+    assert.equal(entry.inputs.CALCULATOR[address],null);
+    choice.value=choice.children.find(option=>option.textContent==='Enter custom value…').value;await choice.emit('change');
+    editor.value=raw;await editor.emit('input');await editor.emit('blur');assert.equal(entry.inputs.CALCULATOR[address],expected);
+    editor.value='120x';await editor.emit('input');assert.equal(entry.inputs.CALCULATOR[address],expected);assert.ok(entry.invalid.has(`CALCULATOR!${address}`));
+    assert.equal(entry.inputs.CALCULATOR.B9,'Keep this member');
+  }passed++;
+
   // Native mixed/custom values retain types, fractional percentages and literal action-looking values.
   entry=setup();entry.definition.sheets[0].display_cells={B9:{control:'select'},C9:{control:'select'},D9:{control:'select'}};
   const [mixedChoice,mixedEditor]=audit.makeControl({column:2,type:'select',value:'Legacy FRL',options:[60,90,'60/60/60'],allow_other:true},9,entry,'Fire rating').children;

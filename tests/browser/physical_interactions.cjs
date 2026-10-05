@@ -343,7 +343,7 @@ let currentScope = 'defect_reports';
     console.log(`PASS: Focused layout and keyboard review; source PDF and calculators unchanged. Evidence: ${output}`); return;
   }
   await snapshot(); const beforeSave = structuredClone(state);
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, beforeSave.physical); assert.deepEqual(saved.takeoffs.service_plans, beforeSave.service_plans);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await snapshot(); assert.deepEqual(state.physical, beforeSave.physical); assert.deepEqual(state.service_plans, beforeSave.service_plans);

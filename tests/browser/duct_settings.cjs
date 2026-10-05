@@ -163,7 +163,7 @@ async function retainedFixture(id, fields) {
   await page.screenshot({ path: path.join(output, 'duct-settings-item-details.png') });
   console.log('Invalid dimensions remain atomic; retained hidden values and outer View/Edit scrolling passed.');
 
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')), savedItem = saved.takeoffs.items.find(value => value.id === id);
   assert.deepEqual(savedItem.fields, retained.fields); assert.equal('duct_size' in savedItem.fields, false);

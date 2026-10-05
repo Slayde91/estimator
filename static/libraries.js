@@ -148,10 +148,9 @@
     renderFilters(pane, data.filters || libraryInfo(pane)?.filters || []); renderSummary(pane); setBusy(pane, false);
   }
   function renderSummary(pane) {
-    if (pane.kind !== "penetration") return;
     const info = libraryInfo(pane), counts = pane.data?.counts;
     const table = node("table", "library-summary-table"), head = node("thead"), row = node("tr"), body = node("tbody");
-    table.append(node("caption", "", "Firestopping Library summary"));
+    table.append(node("caption", "", `${titles[pane.kind]} summary`));
     for (const label of ["Breakdown", "Records"]) { const cell = node("th", "", label); cell.setAttribute("scope", "col"); row.append(cell); }
     const addRow = (label, value, className = "") => {
       const line = node("tr", className), heading = node("th", "", label); heading.setAttribute("scope", "row");
@@ -159,7 +158,7 @@
     };
     addRow("Total records", counts?.total ?? info?.count, "library-summary-total");
     for (const entry of Array.isArray(counts?.manufacturers) ? counts.manufacturers : []) addRow(entry.name, entry.count, "library-summary-manufacturer");
-    addRow("No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related");
+    addRow(pane.kind === "technical" ? "No related firestopping records" : "No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related");
     head.append(row); table.append(head, body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
   }
   function actionContext(pane) { return JSON.stringify([state.current, pane.openRevision, pane.selected, pane.search, pane.filters, pane.offset]); }
@@ -705,7 +704,7 @@
     const records = pane.kind === "penetration" ? window.CeasefireLibraryEditor?.projectRecords?.() || [] : [];
     pane.projectDrafts.hidden = !records.length; pane.projectDrafts.replaceChildren();
     if (!records.length) return;
-    pane.projectDrafts.append(node("h3", "", "Project library drafts"), node("p", "helper", "These item details and diagrams belong to this project. Save or Save As stores them with the project file."));
+    pane.projectDrafts.append(node("h3", "", "Project library drafts"), node("p", "helper", "These item details and diagrams belong to this project. Save stores them with the project file."));
     const choices = node("div", "actions");
     for (const record of records) { const edit = button(record.title || record.library_id || record.id, () => editItem(pane, record.id)); edit.dataset.projectLibraryDraft = record.id; choices.append(edit); }
     pane.projectDrafts.append(choices);

@@ -91,12 +91,12 @@ for (let index = 0; index < phrases.length; index++) {
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
-  assert.equal(h.cursor.hidden, false, 'Cursor stays visible through the actual final character');
+  assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
-  assert.equal(h.timers.size, 1); assert.equal([...h.timers.values()][0].deadline, h.now() + 1000);
+  assert.equal(h.timers.size, 0);
   const finishedFrames = h.frames.slice();
-  h.advance(999); assert.equal(h.cursor.hidden, false); assert.equal(h.typed.textContent, phrase);
+  h.advance(999); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrase);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
   h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   passed++;
@@ -108,9 +108,9 @@ for (let index = 0; index < phrases.length; index++) {
 {
   const h = harness({ previous: 'Unrecognized old value', reduced: true });
   assert.equal(h.label.textContent, phrases[0]); assert.equal(h.typed.textContent, phrases[0]);
-  assert.deepEqual(h.frames, ['', phrases[0]]); assert.equal(h.cursor.hidden, false);
-  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [1000]);
-  h.advance(999); assert.equal(h.cursor.hidden, false);
+  assert.deepEqual(h.frames, ['', phrases[0]]); assert.equal(h.cursor.hidden, true);
+  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), []);
+  h.advance(999); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.timers.size, 0); passed++;
 }
 {
@@ -127,31 +127,31 @@ for (let index = 0; index < phrases.length; index++) {
   assert.equal(h.typed.textContent, Array.from(h.label.textContent)[0]); assert.deepEqual(h.sizer.children, reserved);
   const second = h.label.textContent; h.nextPhrase(); assert.notEqual(h.label.textContent, second);
   h.finishTyping(); const current = h.label.textContent;
-  h.advance(999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, false);
+  h.advance(999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
 }
 {
   const h = harness(); h.finish(); const first = h.label.textContent;
   h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.cursor.hidden, false);
-  h.finishTyping(); h.advance(999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true);
+  h.finishTyping(); h.advance(999); assert.equal(h.cursor.hidden, true); h.advance(1); assert.equal(h.cursor.hidden, true);
   assert.equal(h.writes.length, 2); passed++;
 }
 {
   const h = harness({ reduced: true }); h.advance(4000); const first = h.label.textContent;
   h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.typed.textContent, h.label.textContent);
-  h.advance(999); assert.equal(h.cursor.hidden, false); h.advance(1); assert.equal(h.cursor.hidden, true); passed++;
+  h.advance(999); assert.equal(h.cursor.hidden, true); h.advance(1); assert.equal(h.cursor.hidden, true); passed++;
 }
 {
   const h = harness(); h.advance(70); h.changeMotion();
-  assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, false);
-  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [1000]);
+  assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, true);
+  assert.deepEqual([...h.timers.values()].map(timer => timer.delay), []);
   h.advance(500); h.changeMotion(); h.changeMotion(false);
-  h.advance(499); assert.equal(h.cursor.hidden, false);
+  h.advance(499); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); passed++;
 }
 {
   const h = harness(); h.finishTyping(); h.advance(0); h.changeMotion();
-  h.advance(999); assert.equal(h.cursor.hidden, false);
+  h.advance(999); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); h.changeMotion(false); h.changeMotion();
   assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0); passed++;
 }

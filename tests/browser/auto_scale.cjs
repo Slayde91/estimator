@@ -36,7 +36,7 @@ async function point([x, y]) {
   return position;
 }
 async function saveAndReopen(info) {
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');

@@ -213,7 +213,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
     }
     assert.match(await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return '';} catch(error) {return error.message;}}), /unfinished/);
     const saveRequests=[]; const watchSave=request=>{if(request.url().endsWith('/api/project/save-as'))saveRequests.push(request.url());};page.on('request',watchSave);
-    await clickProjectControl(page, 'Save As');
+    await clickProjectControl(page, 'Save');
     // Save first prepares the calculator snapshots before flushing the failed
     // Takeoff edit. Keep the rejection and no-save checks, allowing that work
     // the same bounded deadline as the other project actions in this journey.
@@ -392,7 +392,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.locator('#takeoff-markup-settings').evaluate(el => { el.scrollTop = el.scrollHeight; });
   await page.locator('#takeoff-markup-settings').screenshot({ path: path.join(output, 'riser-settings.png') });
   await page.getByRole('button',{name:'Viewport',exact:true}).click();
-  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await clickProjectControl(page, 'Save As');
+  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await clickProjectControl(page, 'Save');
   assert.equal((await save).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2);
   const openPanel = page.getByRole('complementary', {name:'Viewports',exact:true}); await expect(openPanel.locator('[data-calibration-id]')).toHaveCount(2);

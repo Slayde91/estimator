@@ -84,9 +84,10 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await chooseTakeoff(page, mode.toUpperCase());
   await expect(rows()).toHaveCount(100); await expect(page.getByText('1–100 of 102 matching items', { exact: true })).toBeVisible();
   for (const label of ['Filter confirmation state', 'Sort register', 'Group register']) await expect(page.getByLabel(label, { exact: true })).toBeHidden();
-  for (const label of ['Select filtered items', 'Clear selection', 'Undo last edit']) await expect(page.getByRole('button', { name: label, exact: true }))[steel ? 'toBeVisible' : 'toBeHidden']();
+  for (const label of ['Select filtered items', 'Undo last edit']) await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear selection', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Linked calculator rows', exact: true })).toHaveCount(0);
-  if (steel) for (const name of ['Select filtered items', 'Clear selection']) { const control = page.getByRole('button', { name, exact: true }); await expect(control).toHaveClass(/icon-only/); await expect(control.locator('svg')).toHaveCount(1); }
+  const selectFiltered=page.getByRole('button',{name:'Select filtered items',exact:true}); await expect(selectFiltered).toHaveClass(/icon-only/); await expect(selectFiltered.locator('svg')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Detach links', exact: true }).locator('path')).toHaveAttribute('d', 'M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2');
   const updateLinked = page.getByRole('button', { name: 'Update linked rows', exact: true });
   await expect(updateLinked).toHaveAttribute('title', 'Update linked rows');

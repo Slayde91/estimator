@@ -23,7 +23,7 @@ const box = locator => locator.boundingBox();
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  page.setDefaultTimeout(60000); page.on('pageerror', e => errors.push(e.message));
+  page.setDefaultTimeout(60000); page.on('pageerror', e => { errors.push(e.message); console.error('Browser error:', e.message); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push(e.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
@@ -34,6 +34,8 @@ const box = locator => locator.boundingBox();
     await page.setViewportSize({ width, height: 1000 });
     if (width >= 1146) {
       const brand=await box(page.locator('.brand-stack')), nav=await box(page.getByRole('navigation',{name:'Main navigation'})), actions=await box(page.locator('#header-project-actions'));
+      assert.ok(nav.width<550,'Navigation shrinks to its buttons');
+      assert.ok(Math.abs(nav.y+nav.height/2-actions.y-actions.height/2)<2,'Save and project files share the navigation row');
       assert.ok(nav.x >= brand.x+brand.width && nav.x+nav.width <= actions.x && nav.y < brand.y+brand.height, 'Main navigation fits between the logo and Save controls');
     }
     if (width === 1146) {
@@ -55,7 +57,7 @@ const box = locator => locator.boundingBox();
     for (const section of ['Home', 'Estimates', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Help']) {
       await page.getByRole('button', { name: section, exact: true }).click(); await idle();
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();
-      for (const name of ['Save', 'Save As', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();
+      for (const name of ['Save', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();
       const bounds = await box(actions), header = await box(page.locator('.app-header'));
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y < header.y + header.height);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Page overflow at ${width}/${section}`);
@@ -86,8 +88,19 @@ const box = locator => locator.boundingBox();
   }
   await expect(page.locator('#takeoff-navigation-toggle img')).toHaveAttribute('src','/icons/navigation-takeoffs.png');
   assert.ok(await page.locator('#takeoff-navigation-toggle img').evaluate(img=>img.complete&&img.naturalWidth>0));
+  await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
+  await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
+  const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
+  assert.equal(icons.length,7);for(const icon of icons){assert.equal(icon.width,25);assert.equal(icon.height,25);if(icon.stroke!==null)assert.equal(icon.stroke,'1.8');}
   for (const kind of ['pricing', 'penetration', 'technical']) {
-    await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible(); evidence.libraries.push(kind);
+    await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible();
+    if(kind==='pricing'){
+      await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');
+      await expect(page.locator('#library-pricing .eyebrow')).toHaveText('INVENTORY & RATES');
+      assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
+    }
+    if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
+    evidence.libraries.push(kind);
   }
   for (const name of ['Steel', 'Duct', 'Walls', 'Slabs', 'Defect Reports', 'Service Plans']) {
     await chooseTakeoff(page, name); await idle();

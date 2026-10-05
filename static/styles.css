@@ -57,9 +57,9 @@ a{color:inherit}
 .section-navigation-subgroup[hidden]{display:none}
 @media(max-width:570px){.section-navigation-subgroup{position:static;width:100%;border-radius:7px;box-shadow:none}}
 .nav-icon{display:flex;align-items:center;justify-content:center;width:45px;height:45px;padding:8px;font-size:25px;line-height:1}
-.nav-icon img{object-fit:contain;filter:invert(1)}
+.nav-icon img{display:block;width:25px;height:25px;object-fit:contain;filter:invert(1)}
 .nav-icon:hover img{filter:none}
-.nav-icon svg{display:block;width:25px;height:25px}
+.nav-icon>span:not(.sr-only){display:flex;align-items:center;justify-content:center;width:25px;height:25px}.nav-icon svg{display:block;width:25px;height:25px;flex-shrink:0}
 .nav-icon .takeoff-navigation-image{mix-blend-mode:screen}
 .nav-icon:hover .takeoff-navigation-image{mix-blend-mode:multiply}
 .calculator-navigation-menu{position:absolute;top:100%;left:0;z-index:21;width:265px;max-width:calc(100vw - 28px);padding:7px;background:#111;color:#fff;border:1px solid #3b3238;border-radius:0 0 11px 11px;box-shadow:0 8px 22px #0003}
@@ -107,7 +107,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .header-project-actions .button,.project-workspace-actions .button{height:48px;min-height:48px}
 .header-project-actions .project-save-actions{gap:9px}
 .project-tools{grid-template-columns:minmax(0,1fr)}
-@media(min-width:881px){.app-header{gap:16px;flex-wrap:nowrap}.brand-logo{width:190px}.header-navigation{flex:1;order:0;width:auto}.app-header nav{justify-content:space-between;gap:3px}.header-project-actions{margin-left:0}}
+@media(min-width:881px){.app-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:16px;flex-wrap:nowrap}.brand-logo{width:190px}.header-navigation{order:0;width:fit-content;justify-self:center}.app-header nav{justify-content:flex-start;gap:8px}.header-project-actions{margin-left:0;margin-top:3.5px}}
 @media(max-width:570px){.section-navigation-menu{left:0;right:auto}#library-navigation-menu{left:50%;right:auto;transform:translateX(-50%)}.section-navigation-choice{font-size:12px}.header-project-actions{gap:7px}.header-project-actions .project-save-actions{gap:7px}.header-project-actions .button{height:44px;min-height:44px}.header-project-actions .icon-only{width:44px;min-width:44px;padding:9px}.header-project-actions #save-project{padding:10px}.project-workspace-actions .button{height:48px;min-height:48px}}
 @media(max-width:570px){.app-header nav{position:relative}.section-navigation,.calculator-navigation{position:static}.section-navigation-menu,.calculator-navigation-menu{top:100%}}
 @media(max-width:1180px){.project-tools{grid-template-columns:minmax(220px,1fr) auto}.project-tools .actions{grid-column:1/-1;width:100%}}
@@ -226,14 +226,14 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .search-field input{font-size:12px}
 .pricing-controls>.field{max-width:230px}
 .pricing-controls .search-field{margin-left:0;flex:1;width:auto;max-width:560px}
-.pricing-table{min-width:850px;margin-top:15px}
-.pricing-table th:first-child{min-width:280px}
-.pricing-table th:nth-child(2){min-width:110px}
-.pricing-table input{font-size:12px;padding:9px}
-.pricing-table input[type=number]{min-width:95px;max-width:140px;text-align:right}
-.pricing-table .item-name{min-width:240px}
+.pricing-table{width:100%;min-width:760px;table-layout:fixed;margin-top:15px}
+.pricing-table th:first-child{width:23%;min-width:0}
+.pricing-table th:nth-child(2){width:8%;min-width:0}
+.pricing-table input{width:100%;min-width:0;max-width:100%;font-size:12px;padding:7px}
+.pricing-table input[type=number]{min-width:0;max-width:100%;text-align:right}
+.pricing-table .item-name{min-width:0}
 .pricing-table .subtext{font-size:10px;color:var(--muted);display:block;margin-top:6px}
-.pricing-table .pricing-availability{min-width:285px;background:#fffdfa}
+.pricing-table .pricing-availability{min-width:0;background:#fffdfa}
 .pricing-table .pricing-availability-label{display:block;margin:0 0 5px;color:#780710;font-size:10px;font-weight:750;letter-spacing:.02em}
 .pricing-table .pricing-availability-label:not(:first-child){margin-top:11px;padding-top:10px;border-top:1px solid #eadde0}
 .pricing-table .pricing-availability input{border-color:#cdbfc2;background:#fff}
@@ -291,7 +291,7 @@ dialog .actions{justify-content:flex-end}
 .home-card{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:16px;row-gap:5px;min-height:142px;padding:24px;text-align:left;color:var(--ink);background:#fff;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:var(--radius);box-shadow:0 4px 14px #39232c04;transition:transform .15s,box-shadow .15s,border-color .15s}
 .home-card:hover,.home-card:focus-visible{transform:translateY(-2px);border-color:#d8c7ca;box-shadow:0 10px 28px #4a142412}
 .home-card-icon{grid-row:1/3;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;color:#fff;background:var(--accent);font-size:22px;font-weight:750}
-.home-card-icon svg{width:26px;height:26px}
+.home-card-icon svg{display:block;width:26px;height:26px}
 .home-card strong{font-size:19px}
 .home-card>span:last-child{color:var(--muted);font-size:12px;line-height:1.55}
 .help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
@@ -313,9 +313,9 @@ dialog .actions{justify-content:flex-end}
 
 /* Project files and the two independently saved pricing contexts. */
 .pricing-scope-field { max-width: 26rem; margin-bottom: 1rem; }
-.pricing-table .pricing-use-list { min-width: 15rem; width: 100%; }
-.pricing-table textarea[data-price-field="Product/Service"] { min-width: 20rem; font-size: 12px; padding: 9px; resize: vertical; }
-.pricing-table input[data-price-field="Yield"] { min-width: 8rem; width: 8rem; }
+.pricing-table .pricing-use-list { min-width: 0; width: 100%; }
+.pricing-table textarea[data-price-field="Product/Service"] { min-width: 0; width:100%; font-size: 12px; padding: 7px; resize: vertical; }
+.pricing-table input[data-price-field="Yield"] { min-width: 0; width: 100%; }
 .pricing-table input[data-price-field="Item code"] { min-width: 6rem; width: 8rem; }
 .pricing-table .pricing-rate-notice { max-width: 15rem; }
 .pricing-table td { vertical-align: top; }
@@ -351,3 +351,6 @@ dialog .actions{justify-content:flex-end}
 .project-file-symbol.pdf{color:#b90a15}.project-file-symbol.image{color:#333}.project-file-symbol.sheet{color:#17663c}.project-file-symbol svg{width:22px;height:22px}
 
 .gear-symbol { color: #111; }
+
+/* Shared pricing columns stay readable without unused horizontal space. */
+.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:7%}.pricing-table th:nth-child(4){width:8%}.pricing-table th:nth-child(5),.pricing-table th:nth-child(6){width:19%}.pricing-table th:nth-child(7){width:8%}.pricing-table th:nth-child(8){width:8%}.pricing-table .pricing-row-actions{white-space:normal}.pricing-table .pricing-row-actions .reset-button{padding:5px 0}.pricing-table .pricing-row-actions .icon-only{width:28px;min-width:28px;height:28px;padding:5px}

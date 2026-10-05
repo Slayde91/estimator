@@ -52,7 +52,7 @@ async function openProjectCopy() {
   await page.screenshot({ path: path.join(output, 'project-library-list.png') });
   await section.locator(`[data-project-library-draft="${info.item_id}"]`).click();
   await expect(page.locator('#library-editor-save')).toHaveText('Keep in project draft');
-  await expect(page.locator('.library-editor-scope')).toHaveText('These library edits stay within the current project. Use Save or Save As to store them in its file.');
+  await expect(page.locator('.library-editor-scope')).toHaveText('These library edits stay within the current project. Use Save to store them in its file.');
   await expect(page.locator('#library-editor-pricing-heading')).toHaveText('Project library price');
 }
 
@@ -102,7 +102,7 @@ async function openProjectCopy() {
   // Save immediately after a fresh edit: no Recalculate button or manual delay
   // is required to collect the pending library draft.
   await description.fill('Project-only edited library item saved immediately');
-  const firstSave = await reply(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  const firstSave = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await expect(page.locator('#library-editor-save')).toHaveText('Keep in project draft');
   const first = JSON.parse(fs.readFileSync(info.project, 'utf8')), copy = first.library_drafts.records[0];

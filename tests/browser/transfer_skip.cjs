@@ -118,7 +118,7 @@ function assertSkipped(preview, binding) {
   console.log('Mixed Add skipped stale linked source and edited schedule row while appending the new confirmed item.');
   // Repeated all-linked Add is informational: no modal, apply request, revision,
   // audit entry, new binding, calculator edit or new save requirement.
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const noOpBaseline = await snapshot(); assert.equal(noOpBaseline.revision, after.revision); assert.equal(noOpBaseline.audit_head, after.audit_head);
   const applyCount = requests.filter(request => request.endpoint === 'transfer-apply').length;
   for (let retry = 0; retry < 2; retry++) {
@@ -137,7 +137,7 @@ function assertSkipped(preview, binding) {
   const updateBefore = await snapshot(); await preview(400, true);
   await expect(page.locator('#takeoffs-workspace [role="alert"]')).toContainText(/row was edited|conflict/i);
   assert.deepEqual(await snapshot(), updateBefore); assert.deepEqual(await calculators(), afterCalculators); evidence.explicitUpdateConflictPreserved = true;
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.transfers, updateBefore.transfers);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();

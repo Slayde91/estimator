@@ -88,7 +88,7 @@ async function technicalDetails(mark, rows) {
 }
 async function saveAndLoad(info) {
   const save = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page, 'Save As'); assert.equal((await save).status(), 200);
+  await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project));
   const open = page.waitForResponse(response => response.url().endsWith('/api/project/open'));

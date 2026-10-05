@@ -112,7 +112,7 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   await page.locator(`tr[data-physical-id="${ids.service}"] .takeoff-row-link`).click(); const details = page.getByRole('complementary', { name: 'Item Details', exact: true }); evidence.takeoffSavedOptions = await options(details.getByLabel('Service type', { exact: true }), 'Plastic Pipes');
   await details.getByLabel('Notes', { exact: true }).fill('Independent service note'); await details.getByLabel('Notes', { exact: true }).press('Tab'); await expect.poll(async () => (await takeoffSnapshot()).physical.services[0].fields.notes).toBe('Independent service note');
   await page.screenshot({ path: path.join(output, 'takeoff-saved-service.png') });
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.penetration.composer.rows[0].inputs.K, 'Plastic Pipes'); assert.equal(saved.takeoffs.physical.services[0].fields.service_type, 'Plastic Pipes'); assert.equal(saved.takeoffs.physical.services[0].id, ids.service); assert.equal(saved.takeoffs.physical.services[0].quantity, 1); assert.equal(saved.takeoffs.physical.services[0].fields.width_mm, 12.3456789012345);
   // Reopening mounts a fresh inspector before its asynchronous shared choices
   // arrive. Retained values stay visible but locked until the definition loads.

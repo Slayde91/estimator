@@ -83,9 +83,15 @@ class TakeoffCountTests(unittest.TestCase):
                 self.assert_rejected('add_count_items', **{**valid, 'markers': [valid['markers'][0], {'point': [30, 40], 'length_m': length}]})
         for changes in ({'markers': []}, {'markers': [{'point': [0, 0], 'length_m': 2}]},
                         {'page': 2}, {'fields': {'invented': 'value'}}, {'appearance': {'marker_shape': 'star'}},
-                        {'appearance': {'marker_size': 0}}, {'appearance': {'marker_size': 73}},
+                        {'appearance': {'marker_size': 0}}, {'appearance': {'marker_size': 101}},
                         {'appearance': {'marker_size': True}}, {'appearance': {'opacity': 1.1}}):
             with self.subTest(changes=changes): self.assert_rejected('add_count_items', **{**valid, **changes})
+
+    def test_marker_size_edit_range_accepts_both_endpoints_without_changing_lengths(self):
+        for size in (1, 100):
+            identifier = self.add((3.123456789,), appearance={'marker_size': size})[0]
+            self.assertEqual(self.item(identifier)['appearance']['marker_size'], size)
+            self.assertEqual(self.item(identifier)['measurement']['length_m'], 3.123456789)
 
     def test_quantity_identity_and_geometry_shortcuts_are_rejected_but_single_marker_can_move(self):
         identifier = self.add((3.5,))[0]; old = deepcopy(self.item(identifier))

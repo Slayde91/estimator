@@ -60,7 +60,7 @@ async function seed() {
   });
 }
 async function select(id) {
-  const clear = page.getByRole('button', { name: 'Clear selection', exact: true }); if (await clear.count()) await clear.click();
+  const all = page.getByRole('checkbox', { name: 'Select all matching items', exact: true }); await all.check(); await all.uncheck();
   await row(id).getByRole('checkbox', { name: /^Select / }).check();
 }
 async function transfer(id, target) {
@@ -148,6 +148,9 @@ async function editSprayLength(binding, value) {
   assert.deepEqual((await snapshot()).items, beforeColours.items); assert.deepEqual((await snapshot()).transfers, beforeColours.transfers); assert.deepEqual(await calculators(), beforeColourCalculators);
   await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
   const legend = () => page.getByRole('button', { name: 'Steel Legend', exact: true });
+  const initialFit=await legend().evaluate(el=>{const r=el.querySelector('rect'),texts=[...el.querySelectorAll('text')].map(node=>{const b=node.getBBox();return{x:b.x,y:b.y,width:b.width,height:b.height};});return{width:Number(r.getAttribute('width')),height:Number(r.getAttribute('height')),x:Number(r.getAttribute('x')),y:Number(r.getAttribute('y')),texts};});
+  assert.ok(initialFit.width>120&&initialFit.height>40,'First legend fits populated text rather than a fixed large frame');
+  for(const text of initialFit.texts){assert.ok(text.x>=initialFit.x&&text.x+text.width<=initialFit.x+initialFit.width+1);assert.ok(text.y>=initialFit.y&&text.y+text.height<=initialFit.y+initialFit.height+1);}
   await expect(legend()).toContainText('SPRAY-LINK'); await expect(legend()).toContainText('410UB54'); await expect(legend()).toContainText(`${sprayValue} mm`);
   await legend().scrollIntoViewIfNeeded(); await legend().dblclick({ delay: 100 });
   await expect(page.locator('#takeoff-markup-settings')).toContainText('Legend Settings');
@@ -181,16 +184,16 @@ async function editSprayLength(binding, value) {
   await chooseTakeoff(page, 'duct'); await idle(); const ductTransferred = await transfer(ductId, 'ductwork'), ductBinding = ductTransferred.snapshot.transfers.find(value => value.item_id === ductId);
   const nativeLayers = await nativeOutput('ductwork', ductBinding, 'R'); assert.equal(nativeLayers, 1); await expect(thickness(ductId)).toHaveText('38');
   await response(() => page.getByRole('button', { name: 'Legend', exact: true }).click(), '/commands');
-  const ductLegend = page.getByRole('button', { name: 'Duct Legend', exact: true }); await expect(ductLegend).toContainText('250 x 250 mm'); await expect(ductLegend).toContainText('10.00 m'); await expect(ductLegend).toContainText('38 mm');
+  const ductLegend = page.getByRole('button', { name: 'Duct Legend', exact: true }); await expect(ductLegend).toContainText('250 x 250 mm'); await expect(ductLegend).toContainText('10.00 m'); await expect(ductLegend).toContainText(/38\s*mm/);
   await page.screenshot({ path: path.join(output, 'duct-thickness-legend.png') }); evidence.ductNativeThickness = 38;
   await chooseTakeoff(page, 'steel'); await idle(); await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite'); await expect(thickness(sprayId)).toHaveText(String(sprayValue));
   const savedBefore = await snapshot(), calculatorsBeforeSave = await calculators();
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(thickness(sprayId)).toHaveText(String(sprayValue)); assert.deepEqual((await snapshot()).transfers, savedBefore.transfers); assert.deepEqual(await calculators(), calculatorsBeforeSave); evidence.saveReopenRetainsProvenance = true;
   assert.deepEqual((await snapshot()).drawing_presentation, savedBefore.drawing_presentation); evidence.legendsSurviveSaveLoad = true;
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click(); await select(sprayId);
+  await select(sprayId);
   await page.getByRole('button', { name: 'Detach links', exact: true }).click();
   await response(() => page.getByRole('dialog').getByRole('button', { name: 'Detach links', exact: true }).click(), '/commands');
   await expect(thickness(sprayId)).toHaveText('—'); assert.deepEqual(await calculators(), calculatorsBeforeSave); evidence.detachPreservesManualCalculator = true;

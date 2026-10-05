@@ -198,11 +198,10 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
-                navigation_images = probe.wait('(() => { const images=[...document.querySelectorAll(".app-header nav img")]; return images.length === 2 && images.every(image=>image.complete) && images.map(image=>({src:image.getAttribute("src"),width:image.naturalWidth})); })()')
-                assert {image['src'] for image in navigation_images} == {'/icons/navigation-home.png', '/icons/navigation-help.png'}
-                assert all(image['width'] > 0 for image in navigation_images), 'Packaged navigation icons must load successfully'
-                report['navigation_images'] = navigation_images
-                report['checks'].append('Packaged Home and Help icons loaded in native WebView2')
+                navigation_icons = probe.wait('(() => { const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg")]; return icons.length === 6 && icons.map(icon=>({width:icon.getBoundingClientRect().width,height:icon.getBoundingClientRect().height,stroke:icon.getAttribute("stroke-width")})); })()')
+                assert all(icon['width'] == 25 and icon['height'] == 25 and icon['stroke'] == '1.8' for icon in navigation_icons)
+                report['navigation_icons'] = navigation_icons
+                report['checks'].append('Native navigation icons rendered at equal size and stroke weight')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="estimate"]')
                 # The complete private catalogue performs its deterministic cold
@@ -216,7 +215,7 @@ def self_test(data_directory, output_report):
                 probe.fill('#client', 'Disposable desktop acceptance')
                 probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"')
                 baseline = probe.script('document.querySelector("#sum-total").textContent')
-                probe.click('#save-project')
+                probe.click('#save-current-project')
                 probe.wait('document.querySelector("#project-save-state").textContent === "Saved project"')
                 saved = json.loads(project.read_text(encoding='utf-8'))
                 assert saved['version'] == 1 and 'takeoffs' not in saved

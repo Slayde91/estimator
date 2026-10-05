@@ -9,8 +9,9 @@
     registerColumnFilters: new Map(), registerFilterSession: null,
     renderId: 0, searchId: 0, viewport: null, pageRotations: new Map(), pdfs: new Map(), pdfLoads: new Map(), thumbnailTasks: new Map(), thumbnailPages: new Map(), pdfWarnings: new Map(), pdfLibrary: null, resultMap: new Map(),
     formDirty: false, settingsDirty: false, settingsOpen: false, settingsEditor: null, gesture: null, controlPoint: null, controlMenu: false, planActive: false, planController: null, modal: false, issues: [], searchHits: [], pending: null, bindings: [], ui: null,
-    physicalUI: null, physicalScope: "defect_reports", physicalDetailsOpen: false, physicalPlacing: false, physicalSelected: new Set(), physicalVisible: new Set(), physicalHovered: null, physicalPreviews: new Map() };
+    physicalUI: null, physicalScope: "defect_reports", physicalDetailsOpen: false, physicalPlacing: false, physicalSelected: new Set(), physicalVisible: new Set(), physicalHidden: new Set(), physicalHovered: null, physicalPreviews: new Map() };
   const units = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 3 });
+  const displayValues = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const lengthUnits = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Presentation only: snapshots, evidence digests and calculator inputs retain full precision.
   const formatLength = value => Number.isFinite(value) ? lengthUnits.format(value) : "—";
@@ -266,6 +267,22 @@
     if (key === "duct_size") { control.placeholder = "100x100"; control.pattern = ductSizePattern; }
     return { wrapper, control, read: () => { if (kind === "checkbox") return control.checked; if (!numeric) return Array.isArray(kind) ? control.value : control.value.trim(); if (control.validity?.badInput) throw new Error(`${title}: enter a valid number.`); if (control.value.trim() === "") return null; const value = Number(control.value); if (!Number.isFinite(value)) throw new Error(`${title}: enter a finite number.`); return value; } };
   }
+  function appearanceField(definition, initial) {
+    const key = definition[0], field = formField(definition, key === "opacity" ? initial * 100 : initial);
+    if (["stroke_width", "marker_size", "opacity"].includes(key)) {
+      field.control.min = "1"; field.control.max = "100"; field.control.step = "any"; field.control.required = true;
+      const read = field.read, retained = String(field.control.value);
+      field.read = () => {
+        // Historical values outside today's editing range are retained verbatim.
+        if (String(field.control.value) === retained) return initial;
+        const value = read();
+        if (!(value >= 1 && value <= 100)) throw new Error(`${definition[1]}: enter a value from 1 to 100.`);
+        return key === "opacity" ? value / 100 : value;
+      };
+      if (key === "opacity") field.wrapper.append(node("small", "helper", "%"));
+    }
+    return field;
+  }
   async function ask(title, definitions, detail = "", action = "Apply", setup) {
     if (state.modal) throw new Error("Finish the current review first.");
     state.modal = true; const sessionId = state.session?.session_id;
@@ -333,7 +350,7 @@
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; setProgress(state.ui.progress.textContent + " · Search cancelled; coverage is incomplete."); }));
-    const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(navigation, searchControls);
+    const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(scaleAnchor, navigation, searchControls);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
@@ -352,7 +369,14 @@
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
     ui.sort = select([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); ui.sort.setAttribute("aria-label", "Sort register");
     ui.group = select([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); ui.group.setAttribute("aria-label", "Group register");
-    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, button("Select filtered items", async () => { if (!await discardEditor()) return; visibleItems().forEach(item => { state.selected.add(item.id); state.countSelection.delete(item.id); }); renderSelection(); }), button("Clear selection", async () => { if (!await discardEditor()) return; state.selected.clear(); state.countSelection.clear(); renderSelection(); }), button("Undo last edit", () => undoLastEdit())];
+    ui.selectFiltered = button("Select filtered items", async () => {
+      if (!await discardEditor()) return;
+      const list = visibleItems(), deselect = list.length > 0 && list.every(item => state.selected.has(item.id));
+      for (const item of list) { deselect ? state.selected.delete(item.id) : state.selected.add(item.id); state.countSelection.delete(item.id); }
+      renderSelection();
+    });
+    ui.selectFiltered.setAttribute("aria-pressed", "false");
+    ui.registerExtraControls = [ui.statusFilter, ui.sort, ui.group, ui.selectFiltered, button("Undo last edit", () => undoLastEdit())];
     controls.append(ui.filter, ...ui.registerExtraControls);
     ui.bulk = node("div", "takeoff-bulk"); ui.bulk.hidden = true; ui.selectionCount = node("strong"); ui.bulkField = select([]); ui.bulkField.setAttribute("aria-label", "Bulk edit field"); ui.bulkValue = node("input"); ui.bulkValue.setAttribute("aria-label", "Bulk edit value"); ui.bulkValue.placeholder = "New value (blank clears)";
     ui.bulk.append(ui.selectionCount, ui.bulkField, ui.bulkValue, button("Apply to selected", bulkEdit), button("Confirm", confirmSelected), button("Unconfirm", () => selectedCommand("unconfirm_items")), button("Delete", deleteSelected), ui.split = button("Split", splitSelected), ui.merge = button("Merge", mergeSelected));
@@ -365,10 +389,14 @@
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination);
     ui.physicalContainer = node("div", "takeoff-physical-container"); ui.physicalContainer.hidden = true;
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
-    const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, scaleAnchor);
+    const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(ui.title, ui.message, workspace, ui.physicalContainer);
+    if (typeof ResizeObserver === "function") {
+      ui.topControlsObserver = new ResizeObserver(() => layout.style.setProperty("--takeoff-top-controls-height", `${viewerTop.offsetHeight}px`));
+      ui.topControlsObserver.observe(viewerTop);
+    }
     viewer.addEventListener("keydown", event => {
       if (event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && event.key === "0" && !event.target?.isContentEditable && !event.target?.closest?.("input,textarea,select,[contenteditable=true]")) {
         event.preventDefault(); event.stopPropagation(); if (!state.busy && !state.modal && state.viewport) void safely(() => fitPage(true));
@@ -384,6 +412,10 @@
     ui.overlay.addEventListener("pointerleave", () => { if (state.traceCursor && !state.gesture) { state.traceCursor = null; renderOverlay(); } });
     ui.viewport.addEventListener("wheel", event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? ui.viewport.clientHeight : 1); if (Number.isFinite(delta) && delta) void safely(() => zoomBy(Math.exp(-Math.max(-300, Math.min(300, delta)) * 0.002), [event.clientX, event.clientY])); } else handoffPlanWheel(event); }, { passive: false });
     ui.viewport.addEventListener("keydown", planKeydown);
+    // Copy/paste remains available from the drawing controls with Settings shut.
+    root.addEventListener("keydown", event => {
+      if (!event.defaultPrevented && !ui.viewport.contains(event.target) && (event.ctrlKey || event.metaKey) && ["c", "v"].includes(event.key.toLowerCase())) planKeydown(event);
+    });
     ui.viewport.addEventListener("click", event => {
       if ([ui.viewport, ui.panSpace, ui.pageWrap, ui.canvas, ui.overlay].includes(event.target) && !event.ctrlKey && !event.metaKey && !event.shiftKey && Date.now() >= (state.suppressSelectionClickUntil || 0)) void safely(clearDrawingSelection);
     });
@@ -452,7 +484,7 @@
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
     state.ui.registerTitle.textContent = `${labels[state.mode]} register`;
-    for (const control of state.ui.registerExtraControls || []) control.hidden = state.mode === "duct";
+    for (const control of state.ui.registerExtraControls || []) control.hidden = false;
     for (const control of [state.ui.statusFilter, state.ui.sort, state.ui.group]) control.hidden = usesColumnFilters();
     const area = isArea();
     for (const control of state.ui.transferControls) { control.hidden = area; control.disabled = area; }
@@ -593,7 +625,7 @@
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),
-      viewChanged: (ids, selected) => { state.physicalVisible = new Set(ids); state.physicalSelected = new Set(selected); if (state.mode === "physical" && state.physicalUI) renderOverlay(); },
+      viewChanged: (ids, selected, hidden) => { state.physicalVisible = new Set(ids); state.physicalSelected = new Set(selected); state.physicalHidden = new Set(hidden); if (state.mode === "physical" && state.physicalUI) renderOverlay(); },
     });
   }
   const scaleDenominators = [2, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300];
@@ -649,6 +681,7 @@
     if (!await discardEditor()) return;
     state.settingsOpen = !state.settingsOpen; state.settingsEditor = null; state.viewportsOpen = false;
     renderViewportPanel(); renderRegister(); renderSettingsPanel();
+    if (!state.settingsOpen) state.ui.viewport.focus();
   }
   function markSettingsEdited(editor, key) {
     if (state.settingsEditor !== editor) return;
@@ -704,19 +737,8 @@
     content.append(node("h4", "", "Markup appearance"));
     const appearance = appearanceOf(first);
     for (const def of [...(countsOnly ? [["marker_shape", "Marker shape", ["circle", "square", "triangle", "diamond"]], ["marker_size", "Marker Size", "number"]] : []), ["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["opacity", "Opacity", "number"], ["display_values", "Display Values", "checkbox"]]) {
-      const initial = appearance[def[0]], field = formField(def, def[0] === "opacity" ? initial * 100 : initial); field.control.required = def[2] !== "checkbox";
-      if (["stroke_width", "opacity"].includes(def[0])) { field.control.min = "1"; field.control.max = "100"; field.control.step = "any"; }
-      if (def[0] === "stroke_width") {
-        const read = field.read, retained = String(field.control.value);
-        field.read = () => { if (String(field.control.value) === retained) return initial; const width = read(); if (!(width >= 1 && width <= 100)) throw new Error("Line Width: enter a value from 1 to 100."); return width; };
-      }
-      if (def[0] === "opacity") {
-        const read = field.read, retained = String(field.control.value);
-        field.read = () => { if (String(field.control.value) === retained) return initial; const percent = read(); if (!(percent >= 1 && percent <= 100)) throw new Error("Opacity: enter a percentage from 1 to 100."); return percent / 100; };
-        field.wrapper.append(node("small", "helper", "%"));
-      }
+      const field = appearanceField(def, appearance[def[0]]); field.control.required = def[2] !== "checkbox";
       bindSetting(editor, field, `appearance:${def[0]}`); editor.appearance.push(field); content.append(field.wrapper);
-      if (def[0] === "marker_size") { field.control.min = "2"; field.control.max = "72"; }
     }
     content.append(button("Set as default", () => setMarkupDefaults(editor)));
     content.append(node("p", "helper", countsOnly ? "Marker size uses physical PDF points. Colour, shape, fill and opacity change appearance only." : "Appearance is visual only and does not approve quantities. Fill applies to closed surface or cited-region markups."), node("h4", "", "Item details"));
@@ -2106,14 +2128,14 @@
     if (!Number.isFinite(area) || !preview.label) return;
     const point = G.transform(preview.label, state.viewport.transform), label = svg("text", { x: point[0], y: point[1], class: options.preview ? "takeoff-area-preview" : "takeoff-area-label" });
     if (options.itemId) label.dataset.areaItemId = options.itemId;
-    label.textContent = `${units.format(area)} m²${options.excluded ? " excluded" : ""}${options.preview ? " · Preview" : ""}`;
+    label.textContent = `${displayValues.format(area)} m²${options.excluded ? " excluded" : ""}${options.preview ? " · Preview" : ""}`;
     overlay.append(label);
   }
   function renderValueLabel(overlay, point, value, unit, itemId, options = {}) {
     const offset = options.offset || [0, -10], label = svg("text", { x: point[0] + offset[0], y: point[1] + offset[1], class: "takeoff-value-label", "text-anchor": options.anchor || "middle", "data-value-item-id": itemId, "data-value": value, "data-value-kind": options.kind || "segment" });
     const style = appearanceOf(items().find(item => item.id === itemId) || {}); label.setAttribute("fill", style.font_color || style.stroke_color);
-    label.textContent = `${units.format(value)} ${unit}`;
-    const title = svg("title", {}); title.textContent = `${value} ${unit}${options.kind === "cited-count" ? " · Cited length per counted member" : " · Calibrated source segment"}`; label.append(title); overlay.append(label);
+    label.textContent = `${displayValues.format(value)} ${unit}`;
+    const title = svg("title", {}); title.textContent = `${displayValues.format(value)} ${unit}${options.kind === "cited-count" ? " · Cited length per counted member" : " · Calibrated source segment"}`; label.append(title); overlay.append(label);
   }
   function renderMeasurementValues(overlay, item, geometry) {
     if (!appearanceOf(item).display_values || item.measurement?.method !== "calibrated") return;
@@ -2345,11 +2367,11 @@
     const locator = physicalDrawingLocator(entity); if (!locator) return;
     const sessionId = state.session?.session_id, controller = state.physicalUI, context = pageDisplayKey(), scope = state.physicalScope;
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
-    const defaults = callout ? { stroke_color: "#696166", fill_color: "#FFFFFF", font_color: "#30282B", stroke_width: 1, fill_enabled: true, opacity: .94 } : appearanceOf({ appearance: locator.appearance });
+    const defaults = callout ? { stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 } : appearanceOf({ appearance: locator.appearance });
     const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
     const definitions = [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     for (const def of definitions) {
-      const field = formField(def, appearance[def[0]]); fields.append(field.wrapper);
+      const field = appearanceField(def, appearance[def[0]]); fields.append(field.wrapper);
       field.control.addEventListener("change", () => void safely(async () => {
         const value = field.read(); await controller.completePendingEdits(); requireFinishedEdits();
         if (sessionId !== state.session?.session_id || controller !== state.physicalUI || scope !== state.physicalScope || context !== pageDisplayKey() || !state.physicalSelected.has(entity.id)) throw new Error("Select the current source annotation again.");
@@ -2502,7 +2524,7 @@
     const selected = selectedIds.has(entity.id), gesture = state.gesture?.id === entity.id ? state.gesture : null, moved = gesture?.kind === "physical-marker" && gesture.moved;
     const sourcePoint = locator.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
     const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, (locator.appearance?.marker_size || 25) * markerScale / 2), scale = Math.max(markerScale, 1.2);
-    const markerAppearance = appearanceOf({ appearance: locator.appearance }), calloutAppearance = { stroke_color: "#696166", fill_color: "#FFFFFF", font_color: "#30282B", stroke_width: 1, fill_enabled: true, opacity: .94, ...locator.callout?.appearance };
+    const markerAppearance = appearanceOf({ appearance: locator.appearance }), calloutAppearance = { stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75, ...locator.callout?.appearance };
     const summary = state.physicalUI.summary(entity.id);
     let box = physicalCalloutBox(entity, point, scale, pdfScale);
     if (moved && locator.callout) { const old = G.transform(locator.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
@@ -2547,7 +2569,7 @@
     if (!state.physicalUI) return;
     const seen = new Set(), regions = [];
     for (const [kind, collection] of [["Barrier", "barriers"], ["Defect", "defects"], ["Opening", "openings"], ["Service", "services"]]) for (const entity of physicalGraph()?.[collection] || []) {
-      if (entity.deleted || !state.physicalVisible.has(entity.id) && !state.physicalSelected.has(entity.id)) continue;
+      if (entity.deleted || state.physicalHidden.has(entity.id) || !state.physicalVisible.has(entity.id) && !state.physicalSelected.has(entity.id)) continue;
       for (const reference of entity.evidence || []) {
         if (reference.document_id !== state.document || reference.page !== state.page || !Array.isArray(reference.region) || !reference.region.every(point => Array.isArray(point)) || reference.region.length < 3) continue;
         const key = `${entity.id}/${JSON.stringify(reference.region)}`; if (seen.has(key)) continue; seen.add(key); regions.push({ entity, kind, reference });
@@ -2567,7 +2589,7 @@
       const label = svg("text", { x: first[0] + 6, y: first[1] - 7, class: "takeoff-label" }); label.textContent = `${kind}: ${entity.fields.label || entity.id.slice(0, 8)}`; overlay.append(shape, hit, label);
     }
     const markers = (physicalGraph()?.barriers || []).filter(entity => !entity.deleted && entity.marker?.document_id === state.document && entity.marker.page === state.page);
-    const annotations = (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
+    const annotations = (physicalGraph()?.defects || []).filter(entity => { const locator = physicalDrawingLocator(entity); return !entity.deleted && !state.physicalHidden.has(entity.id) && (state.physicalVisible.has(entity.id) || state.physicalSelected.has(entity.id)) && locator?.document_id === state.document && locator.page === state.page; });
     const selectedIds = new Set(state.physicalSelected); for (const service of physicalGraph()?.services || []) if (state.physicalSelected.has(service.id)) selectedIds.add(service.barrier_id);
     markers.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
     for (const entity of [...annotations, ...markers]) renderPhysicalMarker(overlay, entity, selectedIds);
@@ -2612,6 +2634,14 @@
     const legend = existing ? { ...clone(existing), visible: !existing.visible } : { id: uuid(), mode: state.mode, document_id: state.document, page: state.page,
       point: G.inverse([Math.min(24, state.viewport.width / 4), Math.min(24, state.viewport.height / 4)], state.viewport.transform), width: Math.max(20, Math.min(460, state.viewport.width*.8)/scale), height: Math.max(20, Math.min(240, state.viewport.height*.5)/scale), visible: true,
       appearance: { stroke_color: "#404040", fill_color: "#FFFFFF", font_color: "#202020", stroke_width: 1, fill_enabled: true, opacity: .94 } };
+    if (!existing) {
+      const font = 11, rows = drawingLegendRows(legend), canvas = document.createElement("canvas"), measure = canvas.getContext("2d");
+      measure.font = `${font}px Arial, sans-serif`;
+      const contentWidth = Math.max(80, ...rows.map(row => measure.measureText(row.text).width + 30));
+      legend.width = Math.min(Math.max(120, contentWidth), Math.max(120, Math.min(460, state.viewport.width * .8 / scale)));
+      const lines = rows.reduce((sum, row) => sum + physicalCalloutLines(row.text, legend.width - 30, font, "Arial, sans-serif").length, 0);
+      legend.height = Math.max(40, (lines + 3) * font * 1.3 + 16);
+    }
     await command("set_legend", { legend }, () => { requireFinishedEdits(); if (context !== pageDisplayKey()) throw new Error("The drawing changed. Click Legend again."); return true; });
     if (context !== pageDisplayKey()) return;
     state.legendSelected = legend.visible ? legend.id : null; updatePresentationTools(); renderOverlay();
@@ -2679,8 +2709,8 @@
   function renderLegendSettings(panel) {
     const legend = selectedLegend(), context = pageDisplayKey(), heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Legend Settings")); panel.replaceChildren(heading);
     const fields = node("div", "takeoff-settings-fields"); panel.append(fields);
-    for (const def of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"]]) {
-      const field = formField(def, legend.appearance[def[0]]); fields.append(field.wrapper);
+    for (const def of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
+      const field = appearanceField(def, ({ opacity: .94, ...legend.appearance })[def[0]]); fields.append(field.wrapper);
       field.control.addEventListener("change", () => void safely(async () => { requireFinishedEdits(); const current = selectedLegend(); if (context !== pageDisplayKey() || !current || current.id !== legend.id) throw new Error("Select the current legend again."); const value = field.read(); await command("set_legend", { legend: { ...clone(current), appearance: { ...current.appearance, [def[0]]: value } } }, () => { if (context !== pageDisplayKey() || selectedLegend()?.id !== legend.id) throw new Error("Select the current legend again."); return true; }); }));
     }
   }
@@ -2901,6 +2931,7 @@
     if (state.tool !== "select" || context !== JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]) ||
       geometry !== JSON.stringify(items().find(value => value.id === id)?.geometry)) throw new Error("The markup or drawing changed. Select its current position again.");
     await selectItem(id, multiple, false, true, drawingClickOpensSettings(event, `item:${id}`));
+    if (!state.settingsOpen) state.ui.viewport.focus({ preventScroll: true });
   }
   async function selectItem(id, multiple = false, focus = true, fromDrawing = false, openSettings = true) {
     if (!await discardEditor()) return;
@@ -2955,6 +2986,8 @@
   }
   function renderRegister() {
     if (!state.ui || state.mode === "physical") return;
+    const matches = visibleItems();
+    state.ui.selectFiltered.setAttribute("aria-pressed", String(matches.length > 0 && matches.every(item => state.selected.has(item.id))));
     const list = visibleItems(), selected = selectedItems();
     syncBulkFields();
     const individualMeasuredDuct = selected.length && selected.every(item => item.mode === "duct" && item.quantity === 1 && item.measurement?.method === "calibrated" && !item.length_additions?.length);
@@ -3443,7 +3476,7 @@
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !state.physicalHidden.has(entity.id) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
     if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);

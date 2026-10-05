@@ -262,8 +262,8 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
     from reportlab.lib.colors import HexColor
     factor = max(zoom, 1.2)/zoom
     layout = item.get('callout')
-    style = {'stroke_color':'#696166','fill_color':'#FFFFFF','font_color':'#30282B',
-             'fill_enabled':True,'stroke_width':1,'opacity':.94,
+    style = {'stroke_color':'#FF3300','fill_color':'#FFDD33','font_color':'#000000',
+             'fill_enabled':True,'stroke_width':4,'opacity':.75,
              **(layout.get('appearance',{}) if layout else {})}
     if layout:
         anchor = transform([point[0]+layout['offset'][0],point[1]+layout['offset'][1]],matrix)
@@ -327,8 +327,8 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None):
                     labels = list(summary)
                     layout = item.get('callout')
                     if layout:
-                        callout_style = {'stroke_color': '#696166', 'fill_color': '#FFFFFF',
-                            'font_color': '#30282B', 'fill_enabled': True, 'stroke_width': 1, 'opacity': .94,
+                        callout_style = {'stroke_color': '#FF3300', 'fill_color': '#FFDD33',
+                            'font_color': '#000000', 'fill_enabled': True, 'stroke_width': 4, 'opacity': .75,
                             **layout.get('appearance', {})}
                         from reportlab.platypus import Paragraph
                         from reportlab.lib.styles import ParagraphStyle
@@ -411,7 +411,7 @@ def _paint_value_labels(pdf, item, matrix, bounds):
         value = Decimal(str(label['value']))
         with localcontext() as context:
             context.prec = max(28, value.adjusted()+8)
-            text = format(value.quantize(Decimal('.001'), rounding=ROUND_HALF_UP), ',f').rstrip('0').rstrip('.') + ' ' + label['unit']
+            text = format(value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP), ',f') + ' ' + label['unit']
         x, y = transform(label['point'], matrix)
         width = stringWidth(text, 'ExportVeraBold', 8)
         x += item['appearance'].get('marker_size', 12)/2+5 if label['kind'] == 'cited-count' else -width/2

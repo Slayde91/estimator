@@ -30,7 +30,7 @@ async function seed(scope) {
   create('barrier', entity(ids.b1, { location: 'Level01', substrate: 'Concrete/masonry wall', orientation: 'Vertical', ...(scope === 'service_plans' ? { frl: '-/120/120' } : {}) }, parent(ids.d1)));
   create('barrier', entity(ids.b2, { location: 'Level02', substrate: 'Concrete/masonry floor', orientation: 'Horizontal', ...(scope === 'service_plans' ? { frl: '-/90/90' } : {}) }, parent(ids.d2)));
   create('barrier', entity(ids.b3, {}, parent(ids.d1), 'unresolved'));
-  create('service', entity(ids.s1, { service: 'Mechanical', service_type: 'Plastic Pipes' }, { barrier_id: ids.b1, quantity: 1 }));
+  create('service', entity(ids.s1, { service: 'Mechanical', service_type: 'Plastic Pipes', size: '25' }, { barrier_id: ids.b1, quantity: 1 }));
   create('service', entity(ids.s2, { service: 'Electrical & Communications', service_type: 'D2 Comms Cables' }, { barrier_id: ids.b1, quantity: 2 }, 'missing'));
   create('service', entity(ids.s3, { service: 'Mechanical', service_type: 'Plastic Pipes' }, { barrier_id: ids.b2, quantity: 3 }));
   const session = await page.evaluate(() => window.CeasefireTakeoffs.sessionId()), before = await snapshot();
@@ -52,6 +52,10 @@ async function matches(ids) { const expected = [...ids].sort(); await expect.pol
   for (const scope of ['defect_reports', 'service_plans']) {
     await chooseTakeoff(page, scope === 'service_plans' ? 'Service Plans' : 'Defect Reports'); await idle(); const ids = await seed(scope);
     const cases = [['State / uncertainty', 'Unapproved draft · Missing evidence', [ids.s2]], ['Location', 'Level01', [ids.b1, ids.s1, ids.s2]], ['FRL', '-/90/90', scope === 'service_plans' ? [ids.b2, ids.s3] : [ids.d2, ids.b2, ids.s3]], ['Substrate', 'Concrete/masonry floor', [ids.b2, ids.s3]], ['Orientation', 'Vertical', [ids.b1, ids.s1, ids.s2]], ['Category', 'Mechanical', [ids.s1, ids.s3]], ['Service type', 'D2 Comms Cables', [ids.s2]]];
+    cases.push(['Service Size (mm)', '25', [ids.s1]]);
+    const beforeHide=await snapshot(),hideAll=page.getByRole('checkbox',{name:'Hide all matching physical records',exact:true});
+    await hideAll.check(); await expect(page.locator('.takeoff-register-table tbody input[aria-label^="Hide "]:checked')).toHaveCount(scope==='service_plans'?6:8);
+    await hideAll.uncheck(); assert.deepEqual(await snapshot(),beforeHide);
     for (const [label, value, expected] of cases) { await setFilter(label, [value]); await matches(expected); assert.equal(await page.getByRole('button', { name: `Filter ${label}`, exact: true }).getAttribute('aria-pressed'), 'true'); await reset(label); }
     await setFilter('Category', ['Mechanical', 'Electrical & Communications']); await matches([ids.s1, ids.s2, ids.s3]); await reset('Category');
     await setFilter('Category', ['Mechanical']); await setFilter('Orientation', ['Vertical']); await matches([ids.s1]); const context = await visible(); assert.deepEqual(context.filter(row => row.context).map(row => row.id), scope === 'service_plans' ? [ids.b1] : [ids.d1, ids.b1]);

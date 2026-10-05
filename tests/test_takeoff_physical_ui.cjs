@@ -269,7 +269,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const h=component();await flush();const text=h.dom.container.textContent;
     for(const phrase of ['Defect ID','Barrier ID','Service ID','0 services','Unapproved draft','Image count is not physical quantity'])assert.ok(text.includes(phrase),phrase);
     assert.ok(!text.includes('UNAPPROVED DRAFT. These are recorded physical assertions'));
-    assert.deepEqual(h.all().filter(element=>element.tagName==='TH').slice(0,4).map(element=>element.textContent),['Select','Defect ID','Barrier ID','Service ID']);
+    assert.deepEqual(h.all().filter(element=>element.tagName==='TH').slice(0,5).map(element=>element.textContent),['Select','Hide','Defect ID','Barrier ID','Service ID']);
     assert.ok(!text.includes('Opening'));assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&['Add barrier','Add service','Add opening'].includes(element.textContent)));
     assert.equal(h.button('Add barrier to D-0001').textContent,'+');assert.equal(h.button('Add service to B-0001').textContent,'+');
     assert.ok(!text.includes(uuid(1)));assert.ok(text.includes('B-0001'));

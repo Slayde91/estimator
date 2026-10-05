@@ -102,7 +102,7 @@ async function assertRow(copy, response) {
 }
 async function saveLoad(info) {
   const saving = page.waitForResponse(reply => reply.url().endsWith('/api/project/save-as')); saving.catch(() => {});
-  await clickProjectControl(page, 'Save As'); assert.equal((await saving).status(), 200);
+  await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   const opening = page.waitForResponse(reply => reply.url().endsWith('/api/project/open')); opening.catch(() => {});
@@ -149,7 +149,15 @@ async function saveLoad(info) {
   await expect(page.locator('.takeoff-register tbody input[type="checkbox"]:checked')).toHaveCount(0);
   assert.deepEqual((await snapshot()).items, beforeBlank.items); assert.equal(requests.length, beforeCommands);
   evidence.blankLengthClick = { recordsUnchanged: true, noCommand: true };
-  await copy(steel.id);
+  const closedPanel=page.locator('.takeoff-markup-settings');
+  if(await closedPanel.isVisible())await closedPanel.getByRole('button',{name:'Close settings',exact:true}).click();
+  await rendered(()=>page.getByRole('button',{name:'Fit page',exact:true}).click());
+  await page.waitForTimeout(550); // The prior blank click suppresses its native follow-up click for 500ms.
+  const midpoint=steel.geometry.points[0].map((value,axis)=>(value+steel.geometry.points[1][axis])/2);
+  await page.mouse.click(...await screen(midpoint));
+  await expect(row(steel.id).getByRole('checkbox',{name:/^Select /})).toBeChecked();
+  await expect(closedPanel).not.toBeVisible(); await page.keyboard.press('Control+c');
+  await expect(page.locator('#takeoffs-workspace .message')).toContainText('Copied 1 Length markup'); evidence.copyWithSettingsClosed=true;
   const filter = page.getByLabel('Filter register', { exact: true }), countBeforeText = (await snapshot()).items.length;
   await filter.fill('native-clipboard'); await filter.press('Control+a'); await filter.press('Control+c'); await filter.fill(''); await filter.press('Control+v');
   await expect(filter).toHaveValue('native-clipboard'); assert.equal((await snapshot()).items.length, countBeforeText); await filter.fill('');

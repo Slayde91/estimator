@@ -38,7 +38,7 @@ async function focusRow(item,document){
   await idle();await expect(page.locator('.takeoff-page')).toBeVisible();
 }
 
-async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await clickProjectControl(page, 'Save As');assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
+async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await clickProjectControl(page, 'Save');assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
 async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await clickProjectControl(page, 'Load');assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
 (async()=>{
   const info=await ready;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100},deviceScaleFactor:2});page.setDefaultTimeout(30000);

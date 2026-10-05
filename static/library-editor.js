@@ -493,7 +493,7 @@
     actions = { changed: scheduleCalculation, calculate, refreshPricing, save, cancel, ...handlers };
     $("library-editor-identity").textContent = record.title || record.library_id || record.id;
     const scope = $("firestopping-library-editor").querySelectorAll(".library-editor-scope")[0];
-    if (scope) scope.textContent = record.project_local ? "These library edits stay within the current project. Use Save or Save As to store them in its file." : "Save or Save As keeps these edits within the current project. Save Library Item updates the shared library.";
+    if (scope) scope.textContent = record.project_local ? "These library edits stay within the current project. Use Save to store them in its file." : "Save keeps these edits within the current project. Save Library Item updates the shared library.";
     $("library-editor-pricing-heading").textContent = record.project_local ? "Project library price" : "Library price";
     $("firestopping-project-workspace").hidden = true; $("firestopping-library-editor").hidden = false;
     renderFields(); renderOutputs(); renderDiagram(); status(); message();

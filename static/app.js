@@ -57,7 +57,7 @@
     if (typed.textContent !== phrase) typed.textContent = phrase;
     if (complete || closed) return;
     complete = true;
-    cursorTimer = setTimeout(stopCursor, 1000);
+    stopCursor();
   }
   function typeNext() {
     if (closed) return;
@@ -282,7 +282,7 @@
     const status = $("project-save-state");
     status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
     status.classList.toggle("unsaved", changed || !file);
-    $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Imported file · choose a folder with Save As" : "Choose a folder with Save As");
+    $("project-file-location").textContent = file?.path || file?.relative_path || (file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
     const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
     $("project-last-saved").textContent = savedAt && !Number.isNaN(savedAt.getTime()) ? `File saved ${savedAt.toLocaleString("en-AU")}` : "File save time unavailable";
     $("project-last-saved").hidden = !file;
@@ -754,7 +754,7 @@
         ? window.CeasefirePenetrations?.prepareProject(quote.penetration, quote.configuration || state.configuration)
         : window.CeasefirePenetrations?.prepareDefaults(quote.configuration || state.configuration), window.CeasefireTakeoffs?.prepareDefaults()]);
       const scope = quote.penetration ? "This record contains the estimate, its firestopping schedule and original pricing. The current item and other calculators will start from defaults." : "This record contains the estimate and its original pricing only. The penetration schedule and all three calculators will start from defaults.";
-      if (!await confirmReplace("Open this older estimate?", `${scope} The current estimate will be replaced. Save As can then save them together.`, "Open older estimate")) return;
+      if (!await confirmReplace("Open this older estimate?", `${scope} The current estimate will be replaced. Save can then save them together.`, "Open older estimate")) return;
       if (captured !== projectStamp()) throw new Error("The current project changed during review. Open the older estimate again when ready.");
       if (loadRevision !== state.quoteLoadRevision) return;
       state.quoteContext++;
@@ -1003,7 +1003,7 @@
     save.title = project ? "Apply project pricing" : "Save pricing";
     save.setAttribute("aria-label", save.title);
     $("pricing-context").textContent = state.pricingScope === "project"
-      ? "These prices and estimator groups belong to the current project. Apply project pricing updates its estimate and dropdowns; Save stores them in the current file, or Save As creates another file. The shared library stays unchanged."
+      ? "These prices and estimator groups belong to the current project. Apply project pricing updates its estimate and dropdowns; Save stores them in the project file. The shared library stays unchanged."
       : "Save pricing stores the shared library and estimator groups on this computer for future estimates. Existing projects keep their saved pricing and dropdown groups; use Current project pricing to change the open project.";
   }
   function switchPricingScope(scope) {
@@ -1077,7 +1077,7 @@
     renderInputs(); updateDirty(); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
     $("snapshot-message").hidden = false;
-    $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save or Save As retains these prices in its file.";
+    $("snapshot-message").querySelector("span").textContent = "This project uses its own pricing. Save retains these prices in its file.";
   }
 
   async function useCurrentPricing() {
@@ -1087,8 +1087,8 @@
     resetProjectPricing(); renderInputs(); updateDirty(); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
     $("snapshot-message").hidden = false;
-    $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save or Save As to retain these prices.";
-    message("Current saved library applied to this project. Check any removed product selections, then Save or Save As.");
+    $("snapshot-message").querySelector("span").textContent = "Current saved library applied. Save to retain these prices.";
+    message("Current saved library applied to this project. Check any removed product selections, then Save.");
   }
 
   function setOverride(kind, item, field, value) {
@@ -1322,7 +1322,7 @@
         input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
         markPricingDirty(); renderPricing();
         if (changed && field.endsWith("Estimator groups")) message(state.pricingScope === "project"
-          ? "Estimator groups changed in this project draft. Click Apply project pricing to update this project's dropdowns, then Save or Save As to store them."
+          ? "Estimator groups changed in this project draft. Click Apply project pricing to update this project's dropdowns, then Save to store them."
           : "Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups.");
       } catch (error) {
         const text = `${record.item.name}: ${error.message}`;
@@ -1488,7 +1488,7 @@
     });
     $("pricing-count").textContent = `${matches.length} of ${records.length} products and standalone rates`;
     $("pricing-help").textContent = state.pricingScope === "project"
-      ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save or Save As then stores them in the project file."
+      ? "Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update this project's dropdowns after Apply project pricing. Save then stores them in the project file."
       : "Supplier and sell prices in this library are shared by both estimators. Each availability box accepts group names separated by semicolons. Main Estimator groups control its selection lists; Firestopping Estimator groups control its product dropdowns. Group changes update dropdowns after Save pricing and apply to new estimates; existing projects keep their saved groups.";
     const heading = node("tr");
     for (const title of ["Product/Service", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
@@ -1559,7 +1559,7 @@
     try {
       if (state.pricingScope === "project") {
         await applyProjectPricing();
-        message("Project pricing applied. Save or Save As to store it with the estimate and calculators.");
+        message("Project pricing applied. Save to store it with the estimate and calculators.");
         return;
       }
       const draftObject = state.draft;
@@ -1718,7 +1718,7 @@
 
   function projectBusy(value, activeId = null) {
     state.projectBusy = value;
-    for (const id of ["save-project", "save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -1728,15 +1728,11 @@
     updateProjectStatus();
   }
 
-  async function saveProject(saveAs = true) {
+  async function saveProject() {
     if (state.projectBusy) return;
     const target = state.projectFile, context = state.quoteContext;
-    if (!saveAs && !target?.save_token) {
-      const dialog = $("save-required-dialog");
-      if (!dialog.open) dialog.showModal();
-      return;
-    }
-    projectBusy(true, saveAs ? "save-project" : "save-current-project");
+    const saveAs = !target?.save_token;
+    projectBusy(true, "save-current-project");
     try {
       document.activeElement?.blur?.();
       if (inputProblem()) throw new Error(inputProblem());
@@ -1765,7 +1761,7 @@
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
       const saved = await request(saveAs ? "/api/project/save-as" : "/api/project/save", { method: "POST", body: JSON.stringify(payload) });
-      if (saved.cancelled) { message("Save As cancelled. Your current project remains open."); return; }
+      if (saved.cancelled) { message("Save cancelled. Your current project remains open."); return; }
       const changed = captured !== projectStamp() || preparedPricing !== pricingStamp();
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
@@ -1825,7 +1821,7 @@
 
   function requireSavedProjectForFiles() {
     if (state.projectFile?.save_token) return true;
-    const text = 'There is no saved project. Please click "Save As" and select a project folder.';
+    const text = 'There is no saved project. Please click "Save" and select a project folder.';
     projectAttachmentNotice(text); message(text, true); return false;
   }
 
@@ -1890,8 +1886,8 @@
       selectEstimator("estimate"); showView("estimate"); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
       message(file.save_token
-        ? `Project loaded with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Save updates this file; Save As stores the complete project in another file.`
-        : `Project imported with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Use Save As to choose its project file.`);
+        ? `Project loaded with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Save updates this project file.`
+        : `Project imported with the Quote, Firestopping items, ${takeoffContents()}original pricing and all three specialist calculators. Use Save to choose its project file.`);
     } finally {
       if (!takeoffsAdopted) await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
     }
@@ -1913,7 +1909,7 @@
       if (!data.scan_pending && offset > 0 && data.matched !== undefined && offset >= data.matched) {
         return loadProjects({ offset: data.matched ? Math.floor((data.matched - 1) / 100) * 100 : 0 });
       }
-      $("project-folder").textContent = data.folder || "Link your estimates folder to list its project files and use it as the default Save As location.";
+      $("project-folder").textContent = data.folder || "Link your estimates folder to list its project files and use it as the default save location.";
       state.projectsOffset = data.offset ?? offset;
       const items = (data.files || []).map(file => {
         const item = node("article", "quote-item"), description = node("div");
@@ -2098,8 +2094,7 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", downloadQuotePdf);
-  $("save-project").addEventListener("click", () => saveProject(true));
-  $("save-current-project").addEventListener("click", () => saveProject(false));
+  $("save-current-project").addEventListener("click", saveProject);
   $("load-project").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) openNativeProject(); });
   $("project-import-file").addEventListener("change", loadProject);
   $("project-attachment-zone").addEventListener("click", chooseProjectFiles);

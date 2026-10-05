@@ -90,7 +90,9 @@ async function drawSurface(mode, mark, startX) {
     await clickPoint([160,170], ['Control']); await selected(first.id, false); await selected(second.id, true); await expect(panel()).toBeVisible();
     await clickPoint([700,450]); await selected(second.id, false); await expect(panel()).toBeHidden();
     await page.locator(`tr[data-item-id="${first.id}"]`).getByRole('checkbox', { name: /^Select / }).check(); await expect(panel()).toBeVisible();
-    await page.getByRole('button', { name: 'Clear selection', exact: true }).click(); await expect(panel()).toBeHidden();
+    await page.getByRole('button', { name: 'Select filtered items', exact: true }).click();
+    await selected(first.id,true); await selected(second.id,true);
+    await page.getByRole('button', { name: 'Select filtered items', exact: true }).click(); await expect(panel()).toBeHidden();
     assert.deepEqual(await snapshot(), beforeSelection, 'Selection changes neither source evidence nor item quantities/geometry'); assert.equal(commands.length, beforeCommandCount, 'Selection sends no mutation command');
     // Click immediately after input, before the 450ms auto-save debounce.
     await doublePoint([160,170]); const repeatPosition = await screen([160,170]);
@@ -134,7 +136,7 @@ async function drawSurface(mode, mark, startX) {
   }
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   const beforeSave = await snapshot(), saving = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page, 'Save As'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); assert.deepEqual((await snapshot()).items, beforeSave.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   assert.deepEqual(errors, []); await Promise.all(assetTasks);

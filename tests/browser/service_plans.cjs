@@ -89,7 +89,7 @@ async function screen([x, y]) {
   return point;
 }
 async function saveAndLoad(info) {
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();

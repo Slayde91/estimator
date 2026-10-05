@@ -201,7 +201,7 @@ async function dialog(title, values, action) {
   // The hidden Steel creation button must not make historical standalone counts
   // disappear from a saved project. Reopen the real native Save As companion
   // bundle and compare all retained fields, member IDs and source geometry.
-  await response(() => clickProjectControl(page, 'Save As'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.items, current.items);
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open');
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');

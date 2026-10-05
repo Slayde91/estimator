@@ -24,7 +24,7 @@ function harness() {
   window.CeasefireTakeoffs = {`);
   vm.runInContext(source, context);
   const audit = context.audit, state = audit.state, ui = {};
-  for (const key of ['split', 'merge', 'bulk', 'selectionCount', 'tableWrap', 'pagination']) ui[key] = element();
+  for (const key of ['split', 'merge', 'bulk', 'selectionCount', 'tableWrap', 'pagination', 'selectFiltered']) ui[key] = element();
   ui.bulkField = { value: 'mark', querySelector() { return null; } }; ui.statusFilter = { value: 'unconfirmed' };
   state.ui = ui; state.mode = 'wall'; state.sort = 'area'; state.group = 'level';
   const row = (id, mode, fields = {}, status = 'draft') => ({ id, mode, state: status, quantity: 1, fields: { mark: id, level: 'L1', surface_basis: mode === 'wall' ? 'wall-face' : 'slab-soffit', substrate: 'Concrete', treatment: 'Board', system: 'System A', product: 'Product A', frl: '120/120/120', ...fields } });

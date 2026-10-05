@@ -17,7 +17,7 @@ async function openProjectTools(page) {
 }
 
 async function clickProjectControl(page, name) {
-  if (name === 'Save' || name === 'Save As') {
+  if (name === 'Save') {
     await page.locator('#header-project-actions').getByRole('button', { name, exact: true }).click();
     return;
   }

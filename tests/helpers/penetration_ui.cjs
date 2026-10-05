@@ -36,11 +36,11 @@ function install(context) {
 }
 function harness() {
   const elements=new Map(),timers=new Map();let timerId=0;
-  const matches=(node,selector)=>selector==='[data-penetration-field]'?node.dataset.penetrationField!==undefined:selector==='[data-penetration-service-route]'?node.dataset.penetrationServiceRoute!==undefined:selector==='[data-penetration-band]'?node.dataset.penetrationBand!==undefined:selector==='[data-library-editor-field]'?node.dataset.libraryEditorField!==undefined:selector==='[data-penetration-remove]'?node.dataset.penetrationRemove!==undefined:false;
+  const matches=(node,selector)=>selector.includes(',')?selector.split(',').some(part=>matches(node,part)):selector==='[data-penetration-field]'?node.dataset.penetrationField!==undefined:selector==='[data-penetration-service-route]'?node.dataset.penetrationServiceRoute!==undefined:selector==='[data-penetration-band]'?node.dataset.penetrationBand!==undefined:selector==='[data-library-editor-field]'?node.dataset.libraryEditorField!==undefined:selector==='[data-penetration-remove]'?node.dataset.penetrationRemove!==undefined:false;
   const document={activeElement:null};
   function element(tagName='div') {
     const attrs=new Map();
-    return {tagName,dataset:{},children:[],listeners:{},style:{},value:'',textContent:'',hidden:false,
+    return {tagName,dataset:{},children:[],listeners:{},style:{},value:'',textContent:'',hidden:false,isConnected:true,
       setAttribute(key,value){attrs.set(key,String(value));},getAttribute(key){return attrs.get(key);},
       append(...nodes){for(const child of nodes){child.parentNode=this;this.children.push(child);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
       querySelectorAll(selector){return this.children.flatMap(child=>[...(matches(child,selector)?[child]:[]),...child.querySelectorAll(selector)]);},
@@ -49,7 +49,7 @@ function harness() {
     };
   }
   const byId=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
-  Object.assign(document,{getElementById:byId,createElement:element});
+  Object.assign(document,{getElementById:byId,createElement:element,querySelectorAll(selector){return [...elements.values()].flatMap(root=>[...(matches(root,selector)?[root]:[]),...root.querySelectorAll(selector)]);}});
   const pricing={inventory:{},rates:{original:{price:1}}},details={client:'Original client'},target={project_token:'original-token'};
   const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,notify:async()=>{},show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};

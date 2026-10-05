@@ -116,3 +116,19 @@ opening. No automated technical approval or matching is introduced.
 The superseded PR #29-era roadmap is retained as
 [historical evidence](docs/history/ROADMAP_PRE_OCTOBER_2026.md). Old statements of
 pending checks or publication describe their own time boundary, not today's release.
+
+
+### 6 October 2026 — browser feedback and explicit library-selection links
+
+Implement the fifteen browser comments within the shared viewer and existing
+physical draft workflow: supplied header GIF with typing-bound stop, automatic
+new PDF display, four-corner free Call-out editing/selection/context deletion and
+pointer copy/paste, full-width rich details/supplied icons, hidden-only Visibility
+state, viewer rotation/page/zoom shortcuts, outside search dismissal and readable
+composited highlights. Explicit Search Item/New Item creation imports selected
+Firestopping Library fields into stable physical draft identities. Separately
+versioned project-owned assignments require commercial link/quantity confirmation
+before guarded idempotent Firestopping Schedule contribution. Existing formulas,
+source bytes, prices, projects and physical authority boundaries remain protected.
+AI Phases 5/6, Physical Model Lock and automatic matching remain outside scope.
+Publication, actual CI/merge and activation are recorded in the release receipts.

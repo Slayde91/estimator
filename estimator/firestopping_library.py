@@ -899,6 +899,44 @@ class FirestoppingLibrary(ReferenceLibrary):
             return self._response(key, saved['draft'] if saved else item['estimate']['draft'],
                                   saved['revision'] if saved else 0, snapshot, token)
 
+    def takeoff_record(self, key):
+        """Literal selected-item context, without pricing/technical inference."""
+        from .takeoff_model import digest
+        from .service_dimensions import service_size_evidence
+        with self._lock:
+            item, source, saved, _, _ = self._context(key)
+            inputs = deepcopy((saved['draft'] if saved else item['estimate']['draft'])['rows'][0]['inputs'])
+            revision = saved['revision'] if saved else 0
+            record = {'id': key, 'library_id': item['library_id'],
+                      'title': str(inputs.get('T') or item['title']),
+                      'source_sha256': source['source_sha256'], 'revision': revision,
+                      'inputs': inputs}
+            record['metadata_sha256'] = digest(record)
+            clean = lambda value: str(value) if value is not None else ''
+            labels = {'J': 'Category', 'K': 'Service type', 'L': 'Penetration type', 'M': 'Orientation',
+                      'N': 'FRL', 'P': 'Substrate', 'Q': 'Application', 'R': 'Installation',
+                      'T': 'Description', 'U': 'System/details', 'V': 'Manufacturer'}
+            labels.update({field['column']: field['label'] for field in item['fields']
+                           if field.get('column') in labels and field.get('label')})
+            note = '\n'.join(f'{labels[column]}: {clean(inputs[column])}' for column in labels
+                             if inputs.get(column) not in (None, ''))
+            if len(note) > 2000 or len(record['title']) > 2000:
+                raise ValidationError('The selected library description exceeds the physical draft text bound. Its original data was preserved; shorten the saved item description before importing.')
+            fields = {'defect': {'label': record['library_id'], 'frl': clean(inputs.get('N')), 'notes': note},
+                      'barrier': {'substrate': clean(inputs.get('P')), 'orientation': clean(inputs.get('M')), 'notes': note},
+                      'service': None}
+            if inputs.get('K') and canonical_service_type(inputs.get('K')) != 'Blank Seal':
+                size = service_size_evidence(inputs)
+                fields['service'] = {'service_type': clean(inputs['K']), 'service': clean(inputs.get('J')), 'notes': note}
+                if size['decision'] == 'calculator_only':
+                    fields['service']['size'] = size['value']
+                for column, name in (('AL', 'diameter_mm'), ('AQ', 'width_mm'), ('AR', 'height_mm')):
+                    value = inputs.get(column)
+                    if type(value) in (int, float) and math.isfinite(value) and 0 < value <= 1e12:
+                        fields['service'][name] = value
+            record['import_fields'] = fields
+            return record
+
     def _validate_save(self, key, edit):
         # Validate the prospective overlay before any database write. Unchanged
         # technical evidence has already passed the source validation above.

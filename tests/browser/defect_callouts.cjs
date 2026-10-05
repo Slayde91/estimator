@@ -1,4 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { chooseNewDefect } = require('./physical_dialogs.cjs');
 // Native Defect annotation/callout gestures on a disposable, cropped PDF.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -58,6 +59,7 @@ async function textFits() {
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await chooseTakeoff(page, 'PENETRATIONS'); await idle(); await fit();
   await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await page.mouse.click(...await sourcePoint([350.123456789, 280.987654321]));
+  await chooseNewDefect(page);
   const preview = await response(() => dialog('Add Defect', { 'Defect Ref.': 'FRAMED-DEFECT', Location: 'Level 3', FRL: '-/60/60' }, 'Preview new draft'), '/physical/preview');
   await response(() => dialog('Create one draft defect?', {}, 'Apply draft change'), '/physical/apply'); id = preview.changed_ids[0];
   await snapshot(); const original = structuredClone(current.physical.defects[0]), source = original.evidence[0];

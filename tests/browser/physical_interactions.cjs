@@ -1,4 +1,5 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
+const { chooseNewDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Native browser gestures use synthetic PDFs and disposable projects only.
 const { chromium, expect } = require('@playwright/test');
@@ -50,7 +51,7 @@ async function dialog(title, fields, action) {
   await modal.getByRole('button', { name: action, exact: true }).click();
 }
 async function create(kind, fields, trigger) {
-  await trigger(); const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
+  await trigger(); if (kind === 'defect') await chooseNewDefect(page); const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await response(() => dialog(`Create one draft ${kind}?`, {}, 'Apply draft change'), '/physical/apply'); await snapshot(); return preview.changed_ids[0];
 }
 async function scopeTab(name) {

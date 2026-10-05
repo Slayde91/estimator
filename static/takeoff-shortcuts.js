@@ -20,6 +20,14 @@
     visibility: Object.freeze({ key: "/", label: "Visibility" }),
     callout: Object.freeze({ key: "'", label: "Call-out" }),
   });
+  const viewerActions = Object.freeze({
+    rotateLeft: Object.freeze({ key: "ArrowUp", label: "Rotate page left" }),
+    rotateRight: Object.freeze({ key: "ArrowDown", label: "Rotate page right" }),
+    previousPage: Object.freeze({ key: "ArrowLeft", label: "Previous page" }),
+    nextPage: Object.freeze({ key: "ArrowRight", label: "Next page" }),
+    zoomOut: Object.freeze({ key: "-", label: "Zoom out" }),
+    zoomIn: Object.freeze({ key: "+", label: "Zoom in" }),
+  });
   function decorate(control, action, label = actions[action]?.label) {
     const definition = actions[action]; if (!control || !definition) return;
     control.title = `${label} (Ctrl+${definition.key})`;
@@ -39,7 +47,15 @@
     const control = controls[action]; if (!available(control)) return false;
     event.preventDefault(); event.stopPropagation(); control.click(); return true;
   }
-  const api = Object.freeze({ actions, decorate, dispatch, isEditable, available });
+  function dispatchViewer(event, callbacks, blocked = false) {
+    if (blocked || event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || !event.ctrlKey || event.metaKey || event.altKey || isEditable(event.target)) return false;
+    const key = String(event.key), plus = key === "+" || key === "=";
+    if (event.shiftKey && !plus) return false;
+    const action = plus ? "zoomIn" : Object.keys(viewerActions).find(name => viewerActions[name].key === key);
+    const callback = callbacks[action]; if (!action || typeof callback !== "function") return false;
+    event.preventDefault(); event.stopPropagation(); callback(); return true;
+  }
+  const api = Object.freeze({ actions, viewerActions, decorate, dispatch, dispatchViewer, isEditable, available });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefireTakeoffShortcuts = api;
 })(typeof window === "object" ? window : null);

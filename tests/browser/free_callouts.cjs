@@ -138,7 +138,7 @@ async function saveLoad(info) {
   await select(created.steel); moved = await command(() => drag(note(created.steel).locator('[data-annotation-part="point"]'), 20, 15), "update_annotation"); movedNote = moved.snapshot.annotations.callouts.find(value => value.id === created.steel);
   assert.notDeepEqual(movedNote.point, restored.point); assert.notDeepEqual(movedNote.label_position, restored.label_position); assert.equal(movedNote.id, restored.id); invariant(moved.snapshot, baseline); evidence.dragAndUndo = { sourceCoordinates: movedNote.point, stableId: movedNote.id, quantityUnchanged: true };
   await select(created.steel); const beforeResize = copy(movedNote);
-  const resized = await command(() => drag(page.locator('[data-annotation-part="resize"]'), 18, 16), "update_annotation"), resizedNote = resized.snapshot.annotations.callouts.find(value => value.id === created.steel);
+  const resized = await command(() => drag(page.locator('[data-annotation-part="resize"][data-corner="se"]'), 18, 16), "update_annotation"), resizedNote = resized.snapshot.annotations.callouts.find(value => value.id === created.steel);
   assert.ok(resizedNote.width > beforeResize.width); assert.ok(resizedNote.height > beforeResize.height); assert.deepEqual(resizedNote.point, beforeResize.point); assert.deepEqual(resizedNote.label_position, beforeResize.label_position); assert.equal(resizedNote.id, beforeResize.id); assert.deepEqual(resizedNote.content, beforeResize.content); invariant(resized.snapshot, baseline); evidence.resize = { width: resizedNote.width, height: resizedNote.height, textAndSourceUnchanged: true };
   let viewStable = copy(resizedNote); evidence.viewerRotations = [];
   for (const offset of [90, 180, 270, 0]) {
@@ -160,6 +160,75 @@ async function saveLoad(info) {
     }
     evidence.viewerRotations.push({ offset, rotation, fitted, zoomed, originalStoredCoordinatesAndBoxUnchanged: true });
   }
+  // Native selection does not open Settings; the second stationary click does.
+  await panel().getByRole("button", { name: "Close settings", exact: true }).click();
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const stationarySnapshot = await snapshot(), stationaryCommands = requests.length;
+  const selectedLabel = note(created.steel).locator('[data-annotation-part="label"]');
+  await selectedLabel.click(); await expect(panel()).toBeHidden();
+  await expect(note(created.steel)).toHaveAttribute("aria-pressed", "true");
+  await expect(note(created.steel).locator('[data-annotation-part="resize"]')).toHaveCount(4);
+  await expect(note(created.steel).locator('.takeoff-annotation-selection')).toHaveCount(1);
+  await selectedLabel.dblclick(); await expect(editor()).toBeVisible();
+  assert.deepEqual(await snapshot(), stationarySnapshot, 'Native stationary single and double clicks change selection/settings only'); assert.equal(requests.length, stationaryCommands, 'Stationary selection sends no annotation command');
+  const widths = await editor().evaluate(el => ({editor:el.getBoundingClientRect().width,fields:el.closest('.takeoff-settings-fields').getBoundingClientRect().width}));
+  assert.ok(widths.editor > widths.fields * .9, 'Item Details spans both Settings columns');
+  assert.equal(await panel().locator('small.helper').filter({hasText:/^%$/}).count(),0);
+  for (const [corner,dx,dy] of [["nw",-12,-10],["ne",12,-10],["sw",-12,10],["se",12,10]]) {
+    const previous = (await snapshot()).annotations.callouts.find(value=>value.id===created.steel);
+    const resized = await command(()=>drag(note(created.steel).locator(`[data-annotation-part="resize"][data-corner="${corner}"]`),dx,dy),"update_annotation");
+    const result = resized.snapshot.annotations.callouts.find(value=>value.id===created.steel);
+    assert.ok(result.width>previous.width && result.height>previous.height,`${corner} grows both dimensions`);
+    assert.deepEqual(result.point,previous.point); assert.deepEqual(result.content,previous.content); invariant(resized.snapshot,baseline);
+    const undone=await command(()=>panel().getByRole("button",{name:"Undo last edit",exact:true}).click(),"undo");
+    const restored=undone.snapshot.annotations.callouts.find(value=>value.id===created.steel);
+    for(const key of Object.keys(previous).filter(key=>key!=="version")) assert.deepEqual(restored[key],previous[key]);
+  }
+  await renderDrawing(page, () => page.getByRole('button', { name: 'Rotate page', exact: true }).click(), 3); await fit(); await select(created.steel);
+  const rotatedCorners = [];
+  for (const [corner, dx, dy] of [['nw', 8, 7], ['ne', -8, 7], ['sw', 8, -7], ['se', -8, -7]]) {
+    const previous = (await snapshot()).annotations.callouts.find(value => value.id === created.steel), before = await assertAnnotationView(previous, 180);
+    const resized = await command(() => drag(note(created.steel).locator(`[data-annotation-part="resize"][data-corner="${corner}"]`), dx, dy), 'update_annotation'), changed = resized.snapshot.annotations.callouts.find(value => value.id === created.steel), after = await assertAnnotationView(changed, 180);
+    assert.ok(changed.width < previous.width && changed.height < previous.height, `${corner} shrinks both displayed dimensions after the quarter-turn`); assert.deepEqual(changed.point, previous.point); assert.deepEqual(changed.content, previous.content); invariant(resized.snapshot, baseline);
+    const opposite = rectangle => [rectangle[0] + (corner.includes('w') ? rectangle[2] : 0), rectangle[1] + (corner.includes('n') ? rectangle[3] : 0)];
+    opposite(after.label).forEach((coordinate, axis) => assert.ok(Math.abs(coordinate - opposite(before.label)[axis]) < 1e-8, 'Rotated corner resize keeps the opposite displayed corner fixed'));
+    const undone = await command(() => panel().getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'), restored = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
+    for (const key of Object.keys(previous).filter(value => value !== 'version')) assert.deepEqual(restored[key], previous[key], `Rotated resize undo restores ${key}`);
+    rotatedCorners.push({ corner, originalAnchorUnchanged: true, oppositeDisplayedCornerFixed: true, originalGeometryRestored: true });
+  }
+  for (let index = 0; index < 3; index++) await renderDrawing(page, () => page.getByRole('button', { name: 'Rotate page', exact: true }).click(), 3); await fit(); await select(created.steel);
+  await panel().getByRole("button", {name:"Close settings",exact:true}).click();
+  await page.locator('.takeoff-viewport').focus(); await page.keyboard.press('Control+c');
+  const destination=await sourcePoint([420,300]);
+  await page.evaluate(() => {
+    window.qaPastePointer = null;
+    document.querySelector('.takeoff-viewport').addEventListener('pointermove', event => {
+      const rect = document.querySelector('.takeoff-overlay').getBoundingClientRect();
+      // Independently invert the intrinsic90 rotated, cropped source using the
+      // native event/CSS coordinates, including Chromium input quantization.
+      window.qaPastePointer = { client: [event.clientX, event.clientY], original: [20 + (event.clientY - rect.top) / rect.height * 780, 30 + (event.clientX - rect.left) / rect.width * 540] };
+    }, { once: true });
+  });
+  await page.mouse.move(...destination); const nativePastePointer = await page.evaluate(() => window.qaPastePointer); assert.ok(nativePastePointer);
+  const pasted=await command(()=>page.keyboard.press('Control+v'),'create_annotation');
+  const pastedNote=pasted.snapshot.annotations.callouts.find(value=>value.id===pasted.created_annotation_id);
+  const original=pasted.snapshot.annotations.callouts.find(value=>value.id===created.steel);
+  assert.notEqual(pastedNote.id,original.id); assert.deepEqual(pastedNote.content,original.content); assert.deepEqual(pastedNote.appearance,original.appearance);
+  pastedNote.point.forEach((coordinate, axis) => assert.ok(Math.abs(coordinate - nativePastePointer.original[axis]) < 1e-8, 'Paste stores the exact independently transformed native pointer PDF coordinate'));
+  invariant(pasted.snapshot,baseline); await expect(panel()).toBeHidden();
+  const fastSelectionSnapshot = await snapshot(), fastSelectionCommands = requests.length;
+  await note(pastedNote.id).locator('[data-annotation-part="label"]').click(); await note(created.steel).locator('[data-annotation-part="point"]').click();
+  await expect(note(created.steel)).toHaveAttribute('aria-pressed', 'true'); await expect(note(pastedNote.id)).toHaveAttribute('aria-pressed', 'false'); await expect(panel()).toBeHidden();
+  assert.deepEqual(await snapshot(), fastSelectionSnapshot, 'Rapid native selection between distinct notes changes no saved records'); assert.equal(requests.length, fastSelectionCommands);
+  await note(pastedNote.id).locator('[data-annotation-part="point"]').click({button:'right'});
+  await command(()=>page.getByRole('menuitem',{name:'Delete',exact:true}).click(),'delete_annotation');
+  await select(created.steel);
+  const deleteUndo=await command(()=>panel().getByRole('button',{name:'Undo last edit',exact:true}).click(),'undo');
+  assert.ok(deleteUndo.snapshot.annotations.callouts.some(value=>value.id===pastedNote.id));
+  await select(pastedNote.id);
+  await command(()=>panel().getByRole('button',{name:'Delete Call-out',exact:true}).click(),'delete_annotation');
+  await select(created.steel);
+  evidence.selectionCornersClipboard={singleSelect:true,doubleClickSettings:true,stationaryClicksSendNoCommand:true,rapidDifferentIdentitySelect:true,fourCorners:true,rotatedCorners,fullDetailsWidth:widths,pointerPaste:{native:nativePastePointer,stored:pastedNote.point},contextDeleteUndo:true};
   const beforeExport = await snapshot(), visible = await download("free-callouts-visible.pdf"), visiblePdf = inspectPdf(visible.file), sourcePdf = inspectPdf(info.fixture);
   const visibleText = visiblePdf.text.replace(/[\r\n]/g, ""), boldText = visiblePdf.segments.filter(value => /Bold/.test(value.font)).map(value => value.text).join("").replace(/[\r\n]/g, "");
   assert.deepEqual(visible.request.item_ids, []); assert.deepEqual(visible.request.annotation_ids, [created.steel]); assert.ok(visibleText.includes("NOTE-steel")); assert.ok(visibleText.includes("SAFE_PASTE")); assert.ok(visibleText.includes("• Entry-steel")); assert.ok(visibleText.includes("1. Number-steel")); assert.ok(boldText.includes("NOTE-steel"), "Every NOTE heading character keeps its bold font in PDF output");

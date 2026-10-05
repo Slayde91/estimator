@@ -48,7 +48,9 @@
     "test:physical-interactions": "node tests/browser/physical_interactions.cjs",
     "test:physical-filters": "node tests/browser/physical_filters.cjs",
     "test:takeoffs-search": "node tests/browser/text_search.cjs",
-    "test:takeoffs-free-callouts": "node tests/browser/free_callouts.cjs"
+    "test:takeoffs-free-callouts": "node tests/browser/free_callouts.cjs",
+    "test:takeoffs-viewer-shortcuts": "node tests/browser/viewer_shortcuts.cjs",
+    "test:takeoffs-library-links": "node tests/browser/library_links.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

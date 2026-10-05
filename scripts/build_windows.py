@@ -29,6 +29,7 @@ STATIC_FILES = (
     'app.js', 'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'downloads.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
+    'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'ceasefire-app.ico', 'ceasefire-app-icon.png',
     'icons/navigation-home.png', 'icons/navigation-help.png',

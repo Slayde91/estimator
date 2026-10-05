@@ -687,6 +687,8 @@ class TakeoffDocuments:
             limits = {"items": 20000, "documents": 200, "calibrations": 4000, "transfers": 60000}
             if any(isinstance(event[side], dict) and 'annotations' in event[side] for side in ('before', 'after')):
                 limits['annotations'] = 2000
+            if any(isinstance(event[side], dict) and 'library_assignments' in event[side] for side in ('before', 'after')):
+                limits['library_assignments'] = 2000
             if event['version'] == 2:
                 limits.update(physical=20000, image_extractions=4000)
                 if any(isinstance(event[side], dict) and 'service_plans' in event[side] for side in ('before', 'after')):
@@ -742,6 +744,8 @@ class TakeoffDocuments:
                     raise ValidationError('An image extraction identity was rewritten in the audit history.')
                 images[descriptor['id']] = descriptor
         from .takeoff_annotations import annotation_binding
+        from .takeoff_library_links import validate_history as validate_library_history
+        validate_library_history(event)
         old_annotations = {value['id']: value for value in event['before'].get('annotations', {}).get('callouts', [])}
         new_annotations = {value['id']: value for value in event['after'].get('annotations', {}).get('callouts', [])}
         if event['before']['revision'] == 0 and old_annotations:

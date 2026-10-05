@@ -1,5 +1,6 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
+const { chooseNewDefect } = require('./physical_dialogs.cjs');
 // Count tool availability and placed Defects on a disposable source/server.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -73,12 +74,17 @@ async function countCursor() {
   await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor(); await expect(page.getByRole('dialog')).toHaveCount(0);
   assert.equal(physicalRequests.length, requestCount); assert.deepEqual(await snapshot(), initial); evidence.countOnlyArms = true;
   await page.mouse.click(...await screen([250, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Add Defect', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog').getByLabel('Choose item', { exact: true })).toBeVisible();
+  await expect(page.locator('.takeoff-defect-pending')).toHaveCount(1);
+  await dialog('Add Defect', {}, 'Cancel'); await expect(page.getByRole('dialog')).toHaveCount(0); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0);
+  assert.deepEqual(await snapshot(), initial); assert.equal(physicalRequests.length, requestCount); evidence.chooserCancelCreatesNothing = true;
+  await page.mouse.click(...await screen([250, 300])); await chooseNewDefect(page);
   const cancelledPoint = await pendingPoint(); assert.ok(cancelledPoint.every(Number.isFinite)); await page.screenshot({ path: path.join(output, 'pending-defect-location.png') });
   await dialog('Add Defect', {}, 'Cancel'); await expect(page.getByRole('dialog')).toHaveCount(0); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0);
   assert.deepEqual(await snapshot(), initial); assert.equal(physicalRequests.length, requestCount); evidence.formCancelCreatesNothing = true;
   // Click near the crop edge: the marker's source annotation must remain inside
   // the original PDF, while its exact source point survives without rounding.
-  await page.mouse.click(...await screen([23, 33])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Add Defect', exact: true })).toBeVisible(); const acceptedPoint = await pendingPoint();
+  await page.mouse.click(...await screen([23, 33])); await chooseNewDefect(page); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Add Defect', exact: true })).toBeVisible(); const acceptedPoint = await pendingPoint();
   const preview = await response(() => dialog('Add Defect', { 'Defect Ref.': 'PLACED-DEFECT', FRL: '-/120/120' }, 'Preview new draft'), '/physical/preview');
   await expect(page.locator('.takeoff-defect-pending')).toHaveCount(1); await response(() => dialog('Create one draft defect?', {}, 'Apply draft change'), '/physical/apply');
   let current = await snapshot(), defect = current.physical.defects.find(value => value.id === preview.changed_ids[0]), reference = defect.evidence[0];
@@ -106,7 +112,7 @@ async function countCursor() {
   await expect(page.getByRole('complementary', { name: 'Item Details', exact: true }).getByLabel('Defect Ref.', { exact: true })).toHaveValue('PLACED-DEFECT');
   await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); evidence.placedDefect = { id: defect.id, source: reference, annotation: defect.annotation, renderedSourcePoint, summary, pendingPoint: acceptedPoint, noBarrierOrServiceCreated: true };
   await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor();
-  await page.mouse.click(...await screen([400, 400])); await response(() => dialog('Add Defect', { 'Defect Ref.': 'CANCELLED-REVIEW' }, 'Preview new draft'), '/physical/preview');
+  await page.mouse.click(...await screen([400, 400])); await chooseNewDefect(page); await response(() => dialog('Add Defect', { 'Defect Ref.': 'CANCELLED-REVIEW' }, 'Preview new draft'), '/physical/preview');
   const beforeReviewCancel = structuredClone(current.physical); await dialog('Create one draft defect?', {}, 'Cancel'); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); assert.deepEqual((await snapshot()).physical, beforeReviewCancel); evidence.reviewCancelCreatesNothing = true;
   await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Service Plans'); await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([300, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible(); await dialog('Create draft barrier', {}, 'Cancel'); evidence.servicePlanBarrierPlacementPreserved = true;

@@ -39,6 +39,21 @@ async function check(label, run) { await run(); passed++; console.log(`ok - ${la
     for (const property of ["disabled", "hidden", "ancestorHidden", "fieldsetDisabled"]) { button[property] = true; assert.equal(shortcuts.dispatch(keyEvent(key), controls), false); button[property] = false; }
     assert.equal(button.clicks, 0); assert.equal(shortcuts.dispatch(keyEvent(key), controls), true); assert.equal(button.clicks, 1);
   });
+  await check("Viewer rotation/page/zoom keys are distinct, scoped callbacks and preserve native editing/composition guards", () => {
+    const tools = Object.values(shortcuts.actions).map(action => action.key.toLowerCase()), viewer = Object.values(shortcuts.viewerActions).map(action => action.key.toLowerCase());
+    assert.equal(new Set([...tools, ...viewer]).size, tools.length + viewer.length);
+    const calls = [], callbacks = Object.fromEntries(Object.keys(shortcuts.viewerActions).map(name => [name, () => calls.push(name)]));
+    for (const [name, definition] of Object.entries(shortcuts.viewerActions)) {
+      const event = keyEvent(definition.key); assert.equal(shortcuts.dispatchViewer(event, callbacks), true); assert.equal(calls.at(-1), name); assert.ok(event.prevented && event.stopped);
+    }
+    for (const event of [keyEvent('=', { shiftKey: true }), keyEvent('+', { shiftKey: true }), keyEvent('=')]) { assert.equal(shortcuts.dispatchViewer(event, callbacks), true); assert.equal(calls.at(-1), 'zoomIn'); }
+    const count = calls.length;
+    for (const changes of [{ ctrlKey: false }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { keyCode: 229 }, { defaultPrevented: true }, { target: { isContentEditable: true } }, { target: { closest() { return {}; } } }]) assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp', changes), callbacks), false);
+    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp'), callbacks, true), false);
+    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowLeft'), { previousPage: null }), false, 'Unavailable boundary navigation keeps its guard');
+    assert.equal(shortcuts.dispatchViewer(keyEvent('ArrowUp'), {}), false, 'No callbacks outside the viewer');
+    assert.equal(calls.length, count);
+  });
   await check("Physical Call-out uses its distinct binding and switching back restores Count tooltip", () => {
     const h = harness(), count = h.state.ui.tools.count, free = h.state.ui.tools.callout;
     let controls = h.syncToolShortcuts(); assert.equal(controls.count, count); assert.equal(controls.callout, free); assert.equal(count.title, "Count (Ctrl+F3)");

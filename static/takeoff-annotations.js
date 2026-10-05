@@ -84,6 +84,7 @@
     editor.className = "takeoff-rich-editor"; editor.contentEditable = "true"; editor.setAttribute("role", "textbox"); editor.setAttribute("aria-label", "Item Details"); editor.setAttribute("aria-multiline", "true"); populate(editor, content);
     for (const [label, command, symbol] of [["Bold", "bold", "B"], ["Italic", "italic", "I"], ["Underline", "underline", "U"], ["Bullet list", "insertUnorderedList", "•"], ["Numbered list", "insertOrderedList", "1."]]) {
       const button = document.createElement("button"); button.type = "button"; button.className = "button secondary"; button.textContent = symbol; button.title = label; button.setAttribute("aria-label", label);
+      if (["insertUnorderedList", "insertOrderedList"].includes(command)) { const icon = document.createElement("img"); icon.src = command === "insertUnorderedList" ? "/icons/takeoff-bullet-list.png" : "/icons/takeoff-numbered-list.png"; icon.alt = ""; icon.width = 20; icon.height = 20; button.replaceChildren(icon); }
       button.addEventListener("pointerdown", event => event.preventDefault());
       button.addEventListener("click", () => { editor.focus(); document.execCommand(command, false); changed(); }); toolbar.append(button);
     }

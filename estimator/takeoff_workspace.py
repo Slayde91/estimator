@@ -6,6 +6,7 @@ the exact item and retained source hashes have been checked again.
 """
 
 from copy import deepcopy
+from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
 import math
@@ -124,6 +125,7 @@ def image_annotation_region(quad, view):
 class TakeoffService:
     def __init__(self, store, documents):
         self.store, self.documents = store, documents
+        self.libraries = None
         self._lock = RLock()
         self._sessions = {}
         self._cache_sequence = 0
@@ -362,7 +364,7 @@ class TakeoffService:
             self._validate_physical_links(session_id, snapshot)
 
     def preview_physical(self, session_id, request):
-        with self._lock:
+        with self._lock, self._library_lock():
             object_fields(request, {'expected_revision', 'commands', 'scope'}, 'Physical preview', {'expected_revision', 'commands'})
             scope = request.get('scope', 'defect_reports'); key = scope_key(scope)
             session = self._session(session_id); snapshot = session['snapshot']
@@ -371,6 +373,7 @@ class TakeoffService:
             self._physical_editable(snapshot, scope)
             self._physical_gate(session_id, snapshot, links=False)
             prepared = prepare_changes(snapshot, request['commands'], lambda reference: None, scope=scope)
+            self._validate_imported_service_quantities(request['commands'], snapshot, scope)
             from .takeoff_model import upgrade_snapshot
             self._validate_physical_links(session_id, {**upgrade_snapshot(snapshot), key: prepared['graph']})
             preview_id = str(uuid4())
@@ -382,7 +385,7 @@ class TakeoffService:
 
     def apply_physical(self, session_id, request):
         from .takeoff_model import upgrade_snapshot
-        with self._lock:
+        with self._lock, self._library_lock():
             object_fields(request, {'expected_revision', 'request_id', 'preview_id', 'scope'}, 'Physical apply',
                           {'expected_revision', 'request_id', 'preview_id'})
             scope = request.get('scope', 'defect_reports'); key = scope_key(scope)
@@ -401,6 +404,7 @@ class TakeoffService:
             before = session['snapshot']
             self._physical_gate(session_id, before, links=False)
             prepared = prepare_changes(before, cached['summary']['commands'], lambda reference: None, scope=scope)
+            self._validate_imported_service_quantities(cached['summary']['commands'], before, scope)
             self._validate_physical_links(session_id, {**upgrade_snapshot(before), key: prepared['graph']})
             if prepared['summary']['digest'] != cached['summary']['digest']:
                 raise ValidationError('The physical graph or evidence changed. Review a fresh preview.')
@@ -622,6 +626,11 @@ class TakeoffService:
 
     def _request_response(self, session_id, prior):
         response = self._response(session_id)
+        if prior.get('applied_library_link'):
+            if 'payload' not in prior or prior['applied_revision'] != response['revision']:
+                raise ValidationError('This commercial link was already applied. Its response expired or the workspace changed; review the retained schedule association. It will not be applied twice.')
+            response['penetration'] = deepcopy(prior['payload']['penetration'])
+            response['library_link'] = deepcopy(prior['payload']['library_link'])
         if prior.get('applied_linked_edit'):
             if 'payload' not in prior or prior['applied_revision'] != response['revision']:
                 raise ValidationError('This linked schedule edit was already applied. Its response expired or the workspace changed; inspect the current draft before continuing. It will not be applied twice.')
@@ -662,6 +671,8 @@ class TakeoffService:
         return session, None
 
     def _commit(self, session_id, request, before, after, approvals=(), transfers=(), linked_deletion=None):
+        from .takeoff_library_links import invalidate_assignments
+        invalidate_assignments(after)
         after['revision'] = before['revision'] + 1
         after['audit_head'] = before['audit_head']
         validate_snapshot(after, copy_result=False)
@@ -867,6 +878,7 @@ class TakeoffService:
                      'toggle_thickness_colours': {'document_id', 'calculator_id', 'calculator_drafts'},
                      'set_legend': {'legend'},
                      'create_annotation': {'annotation'}, 'update_annotation': {'annotation_id', 'changes'},
+                     'draft_library_assignment': {'assignment'},
                      'delete_annotation': {'annotation_id'}}
             if not isinstance(op, str) or op not in specs:
                 raise ValidationError('This takeoff operation is not supported.')
@@ -876,7 +888,13 @@ class TakeoffService:
             created_item_ids = None
             regrouped_item_ids = None
             created_annotation_id = None
-            if op in ('create_annotation', 'update_annotation', 'delete_annotation'):
+            if op == 'draft_library_assignment':
+                from .takeoff_library_links import create_assignment, validate_proposal
+                self._physical_gate(session_id, before)
+                validate_proposal(request['assignment'])
+                library = self._selected_library(request['assignment']['library_id'])
+                create_assignment(after, request['assignment'], library)
+            elif op in ('create_annotation', 'update_annotation', 'delete_annotation'):
                 from .takeoff_annotations import apply_annotation
                 created_annotation_id = apply_annotation(after, request)
             elif op in ('toggle_thickness_colours', 'set_legend'):
@@ -1352,9 +1370,13 @@ class TakeoffService:
                 event = self.documents.get_blob(before['audit_head'], kind='audit')
                 if event['project_id'] != before['project_id'] or event['revision'] != before['revision']:
                     raise ValidationError('Audit history does not match this takeoff revision.')
+                if event['op'] in ('apply_library_link', 'draft_library_assignment'):
+                    raise ValidationError('This retained commercial library association cannot be reversed by Takeoff-only Undo. Use Confirm link and quantity or Remove schedule link in Item Details so its contribution stays coordinated with Firestopping.')
                 if event['op'] in ('apply_transfer', 'undo', 'record_render', 'detach_transfers', 'extract_images', 'linked_delete', 'linked_undo'):
                     raise ValidationError('Schedule transfers, source-render observations and undo receipts cannot be reversed by takeoff-only undo.')
                 after = deepcopy(event['before']); after['audit_head'] = before['audit_head']
+                if 'library_assignments' in before:
+                    after['library_assignments'] = deepcopy(before['library_assignments'])
                 from .takeoff_annotations import undo_annotations
                 undo_annotations(before, after)
                 if before['version'] == 2 and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation'):
@@ -1639,6 +1661,107 @@ class TakeoffService:
                 if item['id'] not in current_ids:
                     self._invalidate(after, item)
             return self._linked_result(session_id, actual, before, after, calculators)
+
+    def _selected_library(self, library_id):
+        if self.libraries is None:
+            raise ValidationError('The Firestopping Library is unavailable. No commercial link was changed.')
+        return self.libraries.takeoff_record(library_id)
+
+    def _validate_imported_service_quantities(self, commands, snapshot, scope):
+        if not isinstance(commands, list):
+            return  # The physical command validator supplies its precise error.
+        for command in commands:
+            if not isinstance(command, dict) or command.get('op') != 'create' or command.get('kind') != 'service':
+                continue
+            entity = command.get('entity')
+            descriptor = entity.get('library_quantity') if isinstance(entity, dict) else None
+            if descriptor is None:
+                continue
+            if not isinstance(descriptor, dict):
+                raise ValidationError('The imported service quantity descriptor must be structured.')
+            copied = entity.get('copied_from')
+            if isinstance(copied, dict):
+                graph = snapshot.get(scope_key(scope)) or {}
+                original = next((r for r in graph.get('services', []) if r['id'] == copied.get('entity_id')), None)
+                if (original is not None and not original['deleted'] and original['revision'] == copied.get('revision')
+                        and original.get('library_quantity') == descriptor and original['quantity'] is None):
+                    continue  # Copy retained provenance; never claim current library applicability.
+            library = self._selected_library(descriptor.get('library_id'))
+            if library['metadata_sha256'] != descriptor.get('metadata_sha256') or library['import_fields']['service'] is None:
+                raise ValidationError('The imported unknown service quantity requires the exact currently selected active-service library metadata. Select the item again; no draft or schedule was changed.')
+
+    def _library_lock(self):
+        return self.libraries._lock if self.libraries is not None else nullcontext()
+
+    def _library_transaction_context(self, assignment, operation):
+        if operation == 'unlink':
+            # Removal imports no library inputs or prices. Retained, locally
+            # audited identity is sufficient even if the shared item is gone.
+            return {**deepcopy(assignment['library']), 'inputs': {},
+                    'import_fields': {'defect': {}, 'barrier': {}, 'service': None}}
+        return self._selected_library(assignment['library']['id'])
+
+    def preview_library_link(self, session_id, request):
+        from .takeoff_library_links import confirmation_preview
+        from .catalog import validate_configuration
+        with self._lock, self._library_lock():
+            fields = {'expected_revision', 'assignment_id', 'quantity', 'draft', 'configuration'}
+            object_fields(request, fields | {'operation'}, 'Commercial library link preview', fields)
+            snapshot = self._session(session_id)['snapshot']
+            if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
+                raise ValidationError('The takeoff draft changed before the commercial link review.')
+            self._physical_gate(session_id, snapshot)
+            assignment = next((r for r in snapshot.get('library_assignments', {}).get('records', []) if r['id'] == request['assignment_id']), None)
+            if assignment is None:
+                raise ValidationError('Choose a retained project-owned library assignment.')
+            operation = request.get('operation', 'confirm')
+            library = self._library_transaction_context(assignment, operation)
+            configuration = validate_configuration(request['configuration'])
+            result = confirmation_preview(snapshot, request['assignment_id'], request['quantity'], request['draft'], library, configuration, operation)
+            # Fingerprint exactly what the browser captured, including prices.
+            result['base_fingerprint'] = digest({'draft': request['draft'], 'configuration': request['configuration']})
+            preview_id = str(uuid4())
+            self._cache_payload(session_id, 'previews', preview_id,
+                {'kind': 'library', 'revision': snapshot['revision'], 'result': result,
+                 'configuration': configuration, 'quantity': request['quantity'], 'operation': operation})
+            session = self._session(session_id)
+            if len(session['previews']) > 20:
+                session['previews'].pop(next(iter(session['previews'])))
+            return {**deepcopy(result), 'preview_id': preview_id, 'revision': snapshot['revision'],
+                    'notice': 'Confirm the selected commercial association and explicit installation quantity. This is not physical approval, manufacturer approval or technical compliance.'}
+
+    def apply_library_link(self, session_id, request):
+        from .takeoff_library_links import confirmation_preview
+        with self._lock, self._library_lock():
+            fields = {'expected_revision', 'request_id', 'preview_id', 'draft', 'configuration'}
+            object_fields(request, fields, 'Commercial library link confirmation', fields)
+            actual = {**request, 'op': 'apply_library_link'}
+            session, prior = self._start(session_id, actual)
+            if prior:
+                return prior
+            identity(request['preview_id'], 'Commercial library preview ID')
+            cached = session['previews'].get(request['preview_id'], {}).get('payload')
+            if not cached or cached.get('kind') != 'library' or cached['revision'] != session['snapshot']['revision']:
+                raise ValidationError('This commercial link preview expired. Review the current draft and quantity again.')
+            result = cached['result']
+            if digest({'draft': request['draft'], 'configuration': request['configuration']}) != result['base_fingerprint']:
+                raise ValidationError('The Firestopping Schedule or frozen project prices changed during review. All current values were preserved; preview again.')
+            before = session['snapshot']; self._physical_gate(session_id, before)
+            library = self._library_transaction_context(result['assignment'], cached['operation'])
+            refreshed = confirmation_preview(before, result['assignment']['id'], cached['quantity'], request['draft'], library, cached['configuration'], cached['operation'])
+            refreshed['base_fingerprint'] = result['base_fingerprint']
+            if digest(refreshed) != digest(result):
+                raise ValidationError('The library metadata or physical context changed. Nothing was applied; reconfirm the current association.')
+            after = deepcopy(before)
+            after['library_assignments']['records'] = [deepcopy(result['assignment']) if r['id'] == result['assignment']['id'] else r
+                for r in after['library_assignments']['records']]
+            response = self._commit(session_id, actual, before, after)
+            response['penetration'] = {'draft': deepcopy(result['draft']), 'source_sha256': result['source_sha256']}
+            response['library_link'] = deepcopy(result['change'])
+            session['requests'][request['request_id']].update(applied_library_link=True, applied_revision=response['revision'])
+            self._cache_payload(session_id, 'requests', request['request_id'],
+                {'penetration': response['penetration'], 'library_link': response['library_link']})
+            return response
 
     def preview_transfer(self, session_id, request):
         with self._lock:

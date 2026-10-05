@@ -1,13 +1,14 @@
 # Manual drawing takeoffs
 
-The PR #154 controls baseline and the search/free Call-out extension are described
-here. Publication and live activation require their dated release receipts. See
+The PR #154 controls baseline, the search/free Call-out extension and the
+6 October browser feedback/library-link increment are described here. Publication and live activation require their dated release receipts. See
 [roadmap](../ROADMAP.md) and [Takeoffs architecture](TAKEOFFS_ARCHITECTURE.md)
 for source behaviour, model boundaries and release gates.
 
 TAKEOFFS adds a drawing and evidence register to the existing project. It does
-not change calculator formulas, shared pricing, frozen project prices or the
-priced quote. Steel, Duct, Walls, Slabs and a manual Penetrations draft workspace
+not change calculator formulas, shared pricing or frozen project prices.
+Explicit confirmed commercial library links can update the Firestopping Schedule;
+free drawing Call-outs never affect the priced quote. Steel, Duct, Walls, Slabs and a manual Penetrations draft workspace
 are available. AI proposals, independent visual validation and Physical Model
 Locks are not part of this increment.
 
@@ -17,7 +18,8 @@ Typing into Search opens results directly below the field. Yellow highlights sho
 the sentence context; orange highlights show the measured matched words. Phrases
 can cross text runs. Clear the input or choose **Stop search** to cancel extraction
 and clear the field, list and highlights. Old work cannot restore cleared results.
-Use Up/Down in the dropdown, Enter to choose and Escape to close it.
+Use Up/Down in the dropdown, Enter to choose and Escape or an outside click to
+close it. Closing the dropdown keeps the current search and readable highlights.
 
 **Search** first chooses the closest match to the centre of the current view.
 Repeated activation advances in the current page's display reading order and
@@ -830,3 +832,43 @@ automatic callouts, movement and removal, scoped exports and project reopening.
 The rendered tests never connect to the user's running server. CI also runs the
 complete existing Python/JavaScript regression suites and distribution build.
 Live activation remains a separate saved-draft/restart approval.
+
+## Browser controls and editable free notes
+
+The newly uploaded PDF opens automatically; for a multi-file upload, the first
+successful document opens. Finish invalid or unfinished drawing edits before
+switching. In the PDF viewer, Ctrl+Up/Down rotates left/right, Ctrl+Left/Right
+changes pages, and Ctrl+-/Ctrl++ zooms. Input fields keep their native shortcuts.
+
+With Select active, click a free Call-out or its source marker to select it. A
+contrasting halo identifies the selected source marker; four corner handles
+resize its box. Double-click to open Settings. Item Details uses the full pane
+width, with the supplied list icons. Right-click either part and choose Delete;
+Undo restores it. Ctrl+C copies the selected note; move onto the PDF and Ctrl+V
+pastes an independent note with a fresh ID at the pointer. A copy too large for
+the destination page is refused until the original is resized.
+
+## Select a Firestopping Library item for a defect
+
+Add Defect first offers Search Item or New Item. New Item opens the standard
+physical draft form. Search Item lets you find and select a saved library item;
+its relevant literal fields fill the new callout and register records, with
+stable Defect, Barrier and Service identities where those records apply.
+Imported assertions remain unapproved and require review against the actual site.
+An imported Service starts with Quantity unknown. Enter an explicit physical
+quantity after checking the site; selecting a Library template never supplies it.
+
+Item Details keeps the library association and a link to edit its pricing in the
+Firestopping Estimator. Review the imported fields and explicitly confirm the
+commercial link and installation quantity to add it to the shared Firestopping
+Schedule. Merely selecting a library item does not add a schedule row. Existing
+manual quantities and row details stay intact; repeating confirmation replaces
+the previous linked contribution and cannot count it twice. A changed record or
+library item requires another review. Confirming a commercial quantity does not
+approve the physical model or establish technical applicability.
+
+**Remove schedule link** previews and removes only the retained association's
+quantity contribution. It keeps the physical identities and the existing schedule
+row, including its manual inputs and any other links. A row left at zero can be
+removed in the Firestopping Estimator. Takeoff-only Undo cannot reverse a commercial
+link transaction; use the coordinated confirmation or removal action in Item Details.

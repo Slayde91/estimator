@@ -29,8 +29,9 @@ a{color:inherit}
 .brand-stack .status-label.unsaved{background:#fff1bf;color:#775300}
 .brand-logo{display:block;width:200px;max-width:100%;height:auto}
 .header-navigation{min-width:0;max-width:100%;width:fit-content}
-.header-tagline{display:grid;contain:inline-size;min-width:0;margin:8px 6px 0;font-size:12px;line-height:1.5;font-style:italic;text-align:center;color:var(--muted);overflow-wrap:anywhere}
-.header-tagline-sizer,.header-tagline-visual{grid-area:1/1}
+.header-tagline{display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:8px;align-items:center;contain:inline-size;min-width:0;min-height:48px;margin:8px 6px 0;font-size:12px;line-height:1.5;font-style:italic;text-align:center;color:var(--muted);overflow-wrap:anywhere}
+.header-tagline-character{grid-area:1/1;display:block;width:32px;height:48px;object-fit:contain}
+.header-tagline-sizer,.header-tagline-visual{grid-area:1/2}
 .header-tagline-sizer{visibility:hidden;display:grid}
 .header-tagline-sizer>span{grid-area:1/1}
 .header-tagline-cursor{animation:header-tagline-blink 1s step-end infinite}

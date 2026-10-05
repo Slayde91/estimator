@@ -66,10 +66,19 @@
       const truncated = contextEnd - contextStart > MAX_CONTEXT;
       if (truncated) { contextStart = Math.max(contextStart, start - 200); contextEnd = Math.min(contextEnd, Math.max(end, contextStart + MAX_CONTEXT)); }
       const matching = spans(index, start, end), context = spans(index, contextStart, contextEnd);
-      let text = "", previous = null;
-      for (const span of context) { const run = index.runs[span.item]; text += separator(previous, run) + run.str.slice(span.start, span.end); previous = run; }
+      const textParts = []; let text = "", previous = null;
+      const part = (value, matched = false) => { if (value) { text += value; textParts.push({ text: value, matched }); } };
+      for (const span of context) {
+        const run = index.runs[span.item], match = matching.find(value => value.item === span.item);
+        part(separator(previous, run));
+        if (match) {
+          const start = Math.max(span.start, match.start), end = Math.min(span.end, match.end);
+          part(run.str.slice(span.start, start)); part(run.str.slice(start, end), true); part(run.str.slice(end, span.end));
+        } else part(run.str.slice(span.start, span.end));
+        previous = run;
+      }
       const contextQuads = context.map(span => runQuad(index.runs[span.item])).filter(Boolean);
-      hits.push({ start, end, matching, context, text, contextQuads, points: contextQuads.flat(), contextTruncated: truncated });
+      hits.push({ start, end, matching, context, text, textParts, contextQuads, points: contextQuads.flat(), contextTruncated: truncated });
     }
     return hits;
   }

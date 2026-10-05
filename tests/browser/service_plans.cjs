@@ -1,5 +1,6 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
+const { chooseNewDefect } = require('./physical_dialogs.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
@@ -73,6 +74,7 @@ async function apply(title) {
 }
 async function create(kind, fields, trigger) {
   await page.getByRole('button', { name: trigger || `Add ${kind}`, exact: true }).click();
+  if (kind === 'defect') await chooseNewDefect(page);
   const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
 }

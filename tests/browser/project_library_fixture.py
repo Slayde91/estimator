@@ -26,6 +26,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--directory', type=Path)
     parser.add_argument('--snapshot-database', type=Path)
+    parser.add_argument('--takeoff-links', action='store_true')
     args = parser.parse_args()
     if args.snapshot_database:
         print(json.dumps(database_snapshot(args.snapshot_database)))
@@ -44,6 +45,12 @@ def main():
     library = folder / 'reference-library'
     library.mkdir()
     data = editable_library(library)
+    if args.takeoff_links:
+        inputs = data['libraries']['penetration']['items'][0]['estimate']['draft']['rows'][0]['inputs']
+        inputs.update(J='HVAC', K='Copper service', L='Core Hole', M='Vertical', N='-/90/90', P='Concrete',
+                      T='Copper pipe selected manually', U='Synthetic system reviewed later',
+                      Q='Synthetic applicability only', R='Synthetic installation only', AL=25.123456789)
+        (library / 'library.json').write_text(json.dumps(data), encoding='utf-8')
     store = Store(folder / 'qa.sqlite3')
     composer = definition()['defaults']
     composer['rows'][0]['inputs'].update(T='Unscheduled composer retained', O=3)

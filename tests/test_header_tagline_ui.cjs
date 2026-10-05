@@ -40,6 +40,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
+  const media = { playing: false, starts: 0, closed: false, start() { this.starts++; this.playing = !this.closed && !motion.matches; }, stop() { this.playing = false; }, close() { this.closed = true; this.playing = false; } };
   const context = {
     document: {
       getElementById(id) { return missing ? null : elements[id]; },
@@ -47,6 +48,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       createElement(tag) { assert.equal(tag, 'span'); return { textContent: '' }; },
     },
     window: {
+      CeasefireHeaderTaglineMedia: media,
       localStorage: {
         getItem(key) { assert.equal(key, 'ceasefire.headerTagline.last'); if (blocked) throw Error('Storage denied'); return last; },
         setItem(key, value) { assert.equal(key, 'ceasefire.headerTagline.last'); if (blocked) throw Error('Storage denied'); writes.push(value); last = value; },
@@ -81,7 +83,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   };
   const finish = () => { finishTyping(); advance(1000); };
   run();
-  return { label, sizer, typed, cursor, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+  return { label, sizer, typed, cursor, media, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
 }
 let passed = 0;
@@ -89,9 +91,11 @@ for (let index = 0; index < phrases.length; index++) {
   const h = harness({ random: (index + .01) / phrases.length }), phrase = phrases[index];
   assert.equal(h.label.textContent, phrase); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
+  assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
+  assert.equal(h.media.playing, false, 'The supplied character stops with the final character');
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
   assert.equal(h.timers.size, 0);
@@ -109,6 +113,7 @@ for (let index = 0; index < phrases.length; index++) {
   const h = harness({ previous: 'Unrecognized old value', reduced: true });
   assert.equal(h.label.textContent, phrases[0]); assert.equal(h.typed.textContent, phrases[0]);
   assert.deepEqual(h.frames, ['', phrases[0]]); assert.equal(h.cursor.hidden, true);
+  assert.equal(h.media.playing, false, 'Reduced-motion presentation never starts character playback');
   assert.deepEqual([...h.timers.values()].map(timer => timer.delay), []);
   h.advance(999); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.timers.size, 0); passed++;
@@ -158,6 +163,7 @@ for (let index = 0; index < phrases.length; index++) {
 {
   const h = harness(); h.tick(); h.pagehide(); const frames = h.frames.slice();
   assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
+  assert.equal(h.media.playing, false); assert.equal(h.media.closed, true);
   h.changeMotion(); h.nextPhrase(); h.advance(10000); assert.deepEqual(h.frames, frames); assert.equal(h.timers.size, 0); passed++;
 }
 {
@@ -183,6 +189,7 @@ for (let index = 0; index < phrases.length; index++) {
   const h = harness({ missingCursor: true }); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
 }
 const html = fs.readFileSync('static/index.html', 'utf8');
+assert.match(html, /id="header-tagline-character"[^>]*alt=""[^>]*aria-hidden="true"/, 'The decorative supplied character stays out of the accessibility tree');
 assert.match(html, /id="header-tagline-label" class="sr-only"/);
 assert.match(html, /class="header-tagline-visual" aria-hidden="true"/);
 assert.match(html, /id="header-tagline-sizer"[^>]*aria-hidden="true"/);

@@ -76,7 +76,7 @@ class EditionPolicyTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
                 features(invalid)
         for route in [*TAKEOFF_ASSETS, '/api/takeoffs', '/api/takeoffs/sessions',
-                      '/vendor/pdfjs', '/vendor/pdfjs/build/pdf.mjs']:
+                      '/vendor/pdfjs', '/vendor/pdfjs/build/pdf.mjs', '/api/libraries/penetration/pkb-001/takeoff']:
             self.assertTrue(excluded_route(route, 'standard'))
             self.assertFalse(excluded_route(route, 'full'))
         for route in ('/api/penetration', '/penetration.js', '/calculators.js', '/api/libraries'):
@@ -270,7 +270,8 @@ class StandardHTTPTests(unittest.TestCase):
         with no_takeoff_imports():
             for route in [*TAKEOFF_ASSETS, *('/static' + path for path in TAKEOFF_ASSETS),
                           '/vendor/pdfjs/build/pdf.mjs', '/static/vendor/pdfjs/build/pdf.mjs',
-                          '/api/takeoffs/sessions', '/api/takeoffs', '/takeoffs.js?edition=full']:
+                          '/api/takeoffs/sessions', '/api/takeoffs', '/takeoffs.js?edition=full',
+                          '/api/libraries/penetration/pkb-001/takeoff']:
                 for method in ('GET', 'POST', 'HEAD'):
                     self.assertEqual(self.request(method, route, {} if method == 'POST' else None)[0], 404)
             status, headers, payload = self.request('GET', '/')
@@ -282,6 +283,10 @@ class StandardHTTPTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(json.loads(payload)['features'], {'takeoffs': False})
             self.assertEqual(json.loads(payload)['edition'], 'standard')
+            for asset in ('header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png'):
+                status, _, payload = self.request('GET', '/' + asset)
+                self.assertEqual(status, 200)
+                self.assertEqual(payload, (ROOT / 'static' / asset).read_bytes())
 
     def test_calculators_pricing_firestopping_and_reports_remain_available(self):
         before = database_rows(self.store)

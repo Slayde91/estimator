@@ -200,10 +200,10 @@ function clearedExpected(original, bindings) {
       const attempt = action => { try { action(); return ''; } catch (error) { return error.message; } };
       return { takeoffs: attempt(() => window.CeasefireTakeoffs.projectSnapshot()), calculators: attempt(() => window.CeasefireCalculators.projectSnapshot()) };
     });
-    assert.match(guards.takeoffs, /Finish|Wait/); assert.match(guards.calculators, /Finish|Wait/);
+    assert.match(guards.takeoffs, /Recover the pending linked change/); assert.match(guards.calculators, /Finish|Wait/);
     const saveButton = page.locator('#save-current-project');
     if (await saveButton.isEnabled()) {
-      await clickProjectControl(page, 'Save'); await expect(page.locator('#app-message')).toContainText(/Finish|Wait/);
+      await clickProjectControl(page, 'Save'); await expect(page.locator('#app-message')).toContainText(/Recover the pending linked change|Finish|Wait/);
     }
     assert.equal(saveAttempts, 0, 'Project saving cannot serialize either side while a linked outcome is uncertain');
     const serverState = await page.evaluate(async () => (await fetch(`/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`)).json());

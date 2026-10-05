@@ -1,4 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { chooseNewDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual topology and retained-image workflow. All sources and storage are disposable.
@@ -60,6 +61,7 @@ async function physicalForm(kind, scope) {
 }
 async function create(kind, values, trigger = `Add ${kind}`) {
   await idle(); await page.getByRole('button', { name: trigger, exact: true }).click();
+  if (kind === 'defect') await chooseNewDefect(page);
   const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:`Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
   if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
   const preview = await response(() => dialog(`Create draft ${kind}`, { ...values, 'Uncertainty / review state': 'human_review_required' }, 'Preview new draft'), '/physical/preview');

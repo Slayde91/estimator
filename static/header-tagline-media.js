@@ -1,0 +1,32 @@
+"use strict";
+
+// Native GIF playback is presentation only. Switching to the composited first
+// frame stops it immediately without a decoder, timers or a wider CSP policy.
+(function (root) {
+  function create(element, motion, host = root) {
+    const animated = "/header-tagline-character.gif", still = "/header-tagline-character-still.png";
+    let sequence = 0, closed = false, failed = false;
+    function showStopped(reason = "stopped") {
+      if (!element) return;
+      element.dataset.taglineMotion = reason;
+      if (element.getAttribute("src") !== still) element.setAttribute("src", still);
+    }
+    function start() {
+      if (closed || failed || !element) return;
+      if (motion?.matches) { showStopped("reduced"); return; }
+      element.dataset.taglineMotion = "playing";
+      // A unique same-origin URL restarts native GIF decoding for each phrase.
+      element.setAttribute("src", `${animated}?play=${++sequence}`);
+    }
+    function stop() { showStopped(closed ? "closed" : motion?.matches ? "reduced" : "stopped"); }
+    function close() { closed = true; stop(); }
+    motion?.addEventListener?.("change", event => { if (event.matches) stop(); });
+    element?.addEventListener?.("error", () => { if (element.dataset.taglineMotion === "playing") { failed = true; stop(); } });
+    host?.addEventListener?.("pagehide", close, { once: true });
+    stop();
+    return Object.freeze({ start, stop, close });
+  }
+  const api = { create };
+  if (typeof module === "object" && module.exports) module.exports = Object.freeze(api);
+  if (root) root.CeasefireHeaderTaglineMedia = create(root.document.getElementById("header-tagline-character"), root.matchMedia?.("(prefers-reduced-motion: reduce)"));
+})(typeof window === "object" ? window : null);

@@ -1,0 +1,63 @@
+"use strict";
+// Explicit manual commercial linking against a disposable library/database.
+const {chromium,expect}=require('@playwright/test');
+const {spawn}=require('node:child_process');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
+const {chooseTakeoff}=require('./section_navigation.cjs'),{clickProjectControl}=require('./project_actions.cjs'),{renderDrawing}=require('./viewer_helpers.cjs');
+const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`library-links-${Date.now()}`);
+fs.mkdirSync(output,{recursive:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'project_library_fixture.py'),'--directory',output,'--takeoff-links'],{cwd:root,windowsHide:true});
+let browser,page,info,logs='',current;const errors=[],applyBodies=[],evidence={};
+server.stderr.on('data',data=>logs+=data);
+const ready=new Promise((resolve,reject)=>{let line='';const timer=setTimeout(()=>reject(new Error(`Fixture startup: ${logs}`)),120000);server.stdout.on('data',value=>{line+=value;if(line.includes('\n')){clearTimeout(timer);resolve(JSON.parse(line.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(new Error(`Fixture exited ${code}: ${logs}`));});});
+const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const details=()=>page.getByRole('complementary',{name:'Item Details',exact:true});
+async function idle(){await expect.poll(()=>page.evaluate(()=>window.CeasefireDesktop.status().busy)).toBe(false);}
+async function snapshot(){await idle();const response=await page.request.get(await page.evaluate(()=>`${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}`));assert.equal(response.status(),200,await response.text());current=(await response.json()).snapshot;return current;}
+async function modal(title,values,submit){const dialog=page.getByRole('dialog');await expect(dialog.getByRole('heading',{name:title,exact:true})).toBeVisible();for(const [label,value]of Object.entries(values)){const control=dialog.getByLabel(label,{exact:true});if(await control.evaluate(el=>el.tagName)==='SELECT')await control.selectOption(String(value));else await control.fill(String(value));}await dialog.getByRole('button',{name:submit,exact:true}).click();}
+async function confirm(quantity,uncertain=false){await details().getByRole('button',{name:'Confirm link and quantity',exact:true}).click();await modal('Confirm link and quantity',{'Explicit installation quantity':quantity},'Review schedule change');const response=uncertain?null:page.waitForResponse(reply=>reply.url().endsWith('/library/apply'));response?.catch(()=>{});await modal('Confirm link and quantity',{},'Confirm link and quantity');if(response){const reply=await response;assert.equal(reply.status(),200,await reply.text());}}
+async function schedule(){return page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());}
+(async()=>{
+  info=await ready;assert.notEqual(info.port,8765);const source=path.join(output,'reference-library/library.json'),beforeSource=hash(source),beforePDF=hash(info.fixture);
+  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1220,height:900}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await chooseTakeoff(page,'PENETRATIONS');await idle();
+  const originalPen=await page.evaluate(async()=>{await window.CeasefirePenetrations.completeProjectSnapshot();return window.CeasefirePenetrations.projectSnapshot();});
+  const calculators=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
+  await page.getByRole('button',{name:'Call-out',exact:true}).click();const overlay=await page.locator('.takeoff-overlay').boundingBox();await page.mouse.click(overlay.x+overlay.width*.52,overlay.y+overlay.height*.32);await modal('Add Defect',{'Choose item':'search'},'Continue');
+  const search=page.getByRole('dialog');await expect(search.getByRole('heading',{name:'Search Firestopping Library',exact:true})).toBeVisible();
+  await search.getByLabel('Search library items',{exact:true}).fill('no-such-entry-987654');await expect(search.getByRole('status')).toContainText('No matching items');await expect(search.getByRole('button',{name:'Use selected item',exact:true})).toBeDisabled();
+  await search.getByLabel('Search library items',{exact:true}).fill('Copper');await expect(search.getByLabel('Library item',{exact:true})).toBeEnabled();await expect(search.getByLabel('Library item',{exact:true}).locator(`option[value="${info.item_id}"]`)).toHaveCount(1);
+  await search.getByLabel('Library item',{exact:true}).selectOption(info.item_id);
+  await expect(details().getByRole('button',{name:'Confirm link and quantity',exact:true})).toBeVisible();await snapshot();
+  assert.equal(current.physical.defects.length,1);assert.equal(current.physical.barriers.length,1);assert.equal(current.physical.services.length,1);assert.equal(current.physical.services[0].quantity,null);assert.equal(current.library_assignments.records[0].state,'draft');assert.equal(current.transfers.length,0);
+  assert.deepEqual(await schedule(),originalPen);assert.equal(current.physical.services[0].fields.service_type,'Copper service');assert.equal(current.physical.defects[0].uncertainty.state,'human_review_required');
+  assert.equal(current.physical.defects[0].fields.frl,'-/90/90');assert.equal(current.physical.barriers[0].fields.substrate,'Concrete');assert.equal(current.physical.barriers[0].fields.orientation,'Vertical');assert.equal(current.physical.services[0].fields.service,'HVAC');assert.equal(current.physical.services[0].fields.diameter_mm,25.123456789);assert.match(current.physical.services[0].fields.notes,/Penetration type: Core Hole/);
+  await expect(details().getByLabel('FRL',{exact:true})).toHaveValue('-/90/90');await expect(page.locator('.takeoff-physical-register')).toContainText('Concrete');await expect(page.locator('.takeoff-physical-register')).toContainText('HVAC');
+  const assignmentId=current.library_assignments.records[0].id,defectId=current.physical.defects[0].id;
+  const annotation=structuredClone(current.physical.defects[0].annotation);assert.equal(annotation.document_sha256,beforePDF);assert.equal(annotation.page,1);assert.equal(annotation.point.length,2);await expect(page.locator(`.takeoff-physical-callout[data-physical-id="${defectId}"]`)).toContainText('Copper');
+  evidence.searchChooserDraftOnly=true;evidence.unknownPhysicalQuantityNull=true;
+  let dropReplies=true,serverConfirmed;
+  await page.route('**/library/apply',async route=>{applyBodies.push(route.request().postDataJSON());const reply=await route.fetch();serverConfirmed=await reply.json();if(dropReplies)await route.abort('failed');else await route.fulfill({response:reply});});
+  await confirm(2,true);await expect(page.getByRole('button',{name:'Retry linked change',exact:true})).toBeVisible();
+  assert.equal(serverConfirmed.snapshot.library_assignments.records[0].state,'confirmed');assert.equal(serverConfirmed.penetration.draft.rows[0].inputs.O,2);assert.deepEqual(await schedule(),originalPen);
+  assert.equal(await page.evaluate(()=>window.CeasefirePenetrations.hasTakeoffReservation()),true);assert.equal(applyBodies.length,2);assert.deepEqual(applyBodies[0],applyBodies[1]);
+  const guarded=await page.evaluate(async()=>{const p=window.CeasefirePenetrations,result=[];for(const action of [()=>p.completeProjectSnapshot(),()=>p.openSchedule(),()=>p.applyProject({})]){try{await action();result.push(false);}catch(error){result.push(/still applying/.test(error.message));}}return result;});assert.deepEqual(guarded,[true,true,true]);
+  assert.equal(await page.evaluate(()=>window.CeasefireDesktop.status().busy),true);dropReplies=false;await page.getByRole('button',{name:'Retry linked change',exact:true}).click();await idle();assert.equal(applyBodies.length,3);assert.deepEqual(applyBodies[0],applyBodies[2]);
+  await snapshot();assert.equal(current.library_assignments.records[0].id,assignmentId);assert.equal(current.library_assignments.records[0].state,'confirmed');assert.equal((await schedule()).draft.rows[0].inputs.O,2);assert.deepEqual((await schedule()).composer,originalPen.composer);
+  evidence.uncertainResponseLeaseAndStableRetry=true;
+  await confirm(2);await snapshot();assert.equal((await schedule()).draft.rows.length,1);assert.equal((await schedule()).draft.rows[0].inputs.O,2);evidence.reconfirmationIdempotent=true;
+  await details().getByRole('button',{name:'Remove schedule link',exact:true}).click();const unlinkResponse=page.waitForResponse(reply=>reply.url().endsWith('/library/apply'));await modal('Remove schedule link',{},'Remove schedule link');assert.equal((await unlinkResponse).status(),200);await snapshot();assert.equal(current.library_assignments.records[0].state,'draft');assert.equal(current.library_assignments.records[0].schedule_binding,null);assert.equal((await schedule()).draft.rows.length,1);assert.equal((await schedule()).draft.rows[0].inputs.O,0);evidence.explicitUnlinkPreservesRow=true;
+  await confirm(1.123456789);await snapshot();assert.equal((await schedule()).draft.rows[0].inputs.O,1.123456789);
+  await page.screenshot({path:path.join(output,'confirmed-library-link.png')});
+  const beforePricing=await schedule();await details().getByRole('button',{name:'Edit linked schedule item and price',exact:true}).click();await expect(page.locator('#penetration-cancel-edit')).toBeVisible();
+  assert.equal((await schedule()).composer.rows[0].library_item_id,info.item_id);assert.deepEqual((await schedule()).draft,beforePricing.draft);await page.locator('#penetration-cancel-edit').click();await idle();assert.deepEqual((await schedule()).composer,beforePricing.composer);
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await chooseTakeoff(page,'PENETRATIONS');await snapshot();evidence.directBoundScheduleEditAndComposerRestore=true;
+  if(await page.getByRole('button',{name:'Close Item Details',exact:true}).isVisible())await page.getByRole('button',{name:'Close Item Details',exact:true}).click();
+  const savedSnapshot=structuredClone(current),savedPen=await schedule();await clickProjectControl(page,'Save');await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const project=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.deepEqual(project.takeoffs.library_assignments,savedSnapshot.library_assignments);assert.deepEqual(project.penetration.draft,savedPen.draft);
+  await clickProjectControl(page,'Load');await modal('Load this project?',{},'Load Project');await expect(page.locator('#project-save-state')).toHaveText('Saved project');await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await chooseTakeoff(page,'PENETRATIONS');await snapshot();assert.deepEqual(current.library_assignments,savedSnapshot.library_assignments);assert.equal(current.physical.defects[0].id,defectId);assert.deepEqual((await schedule()).draft,savedPen.draft);
+  evidence.projectRoundtrip=true;assert.deepEqual(current.physical.defects[0].annotation,annotation);const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download PDF',exact:true}).click();await(await download).saveAs(path.join(output,'linked-callout.pdf'));assert.ok(fs.statSync(path.join(output,'linked-callout.pdf')).size>1000);evidence.originalSourceAnnotationAndMarkedPdf=true;
+  assert.equal(hash(source),beforeSource);assert.equal(hash(info.fixture),beforePDF);assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),calculators);assert.deepEqual(errors,[]);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({status:'PASS',port:info.port,errors,evidence,assignmentId,defectId,sourceSha256:beforeSource,pdfSha256:beforePDF,applyBodies},null,2));console.log(`PASS library linking browser acceptance: ${output}`);
+})().catch(async error=>{console.error(error.stack);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await page?.unrouteAll({behavior:'ignoreErrors'});await browser?.close();server.kill();});

@@ -699,12 +699,15 @@
       head.append(headers); body.append(cells); table.append(head, body); ui.inspector.append(table);
     }
     function renderInspector() {
+      const matches = matchingActiveRows();
+      ui.selectFiltered.setAttribute("aria-pressed", String(matches.length > 0 && matches.every(row => state.selected.has(row.entity.id))));
       state.inspectorEdit = null;
-      ui.inspector.replaceChildren(node("h3", "", "Item Details")); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
+      ui.inspector.replaceChildren(); const selected = selectEntries(); ui.selection.textContent = `${selected.length} selected`;
+      if (selected.length === 1) bridge.renderDrawingAppearance?.(ui.inspector, inspectedEntry().entity);
+      ui.inspector.append(node("h3", "", "Item Details"));
       renderDetailNavigation();
       if (selected.length !== 1) { ui.inspector.append(node("p", "helper", selected.length ? "Select active records of one entity type for a counted, reversible bulk edit." : "Select a hierarchy row to inspect its parent, evidence and uncertainty."), inspectorActions()); return; }
       const entry = inspectedEntry(), entity = entry.entity, editorKey = graphKey();
-      bridge.renderDrawingAppearance?.(ui.inspector, entity);
       if (legacyReadOnly() || entity.deleted) {
         if (!legacyReadOnly()) ui.inspector.append(mutationButton("Restore draft record", () => restore(entry)), node("p", "helper", "Original fields, evidence and parent IDs are retained. Restore previews disclose descendants and do not invent missing parents."));
         for (const [key, label] of (entry.kind === "opening" ? legacyOpeningFields : [...(retainedDefinitions[entry.kind] || []), ...fieldsFor(entry.kind, scope())])) ui.inspector.append(node("p", "helper", `${label}: ${fieldDisplay(entity.fields, key) ?? "Unknown"}`));
@@ -865,8 +868,7 @@
     ui.discard = button("Discard unfinished physical edits", () => { if (state.busy) throw new Error("Finish the current review first."); resetPending(); renderData(); bridge.notify("Unfinished physical field edits discarded. Recorded draft values are unchanged.", false); }, "button secondary takeoff-physical-discard"); ui.discard.setAttribute("aria-label", "Discard unfinished physical edits"); ui.discard.title = "Discard unfinished physical edits"; ui.discard.replaceChildren(discardIcon());
     const deleteSelection = mutationButton("Delete selected records", deleteSelected, "button secondary takeoff-physical-delete-selected"); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records"; deleteSelection.replaceChildren(deleteIcon());
     ui.selection = node("strong"); filters.append(search, deleted, ui.selection,
-      iconAction("Select filtered records", () => { ensureAvailable(); for (const row of matchingActiveRows()) state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      iconAction("Clear physical selection", () => { ensureAvailable(); state.selected.clear(); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"]),
+      ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
       iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true)); ui.root.append(filters);
     ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add, deleteSelection);
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);

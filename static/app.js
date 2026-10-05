@@ -30,6 +30,13 @@
     "The defect was minor until someone photographed it.",
     "I like to think that Penetration Specialist is code for Gigolo.",
     "The system performs impeccably in ideal conditions - a fire test laboratory.",
+    "The fire was outsmarted by the concession in our performance solution.",
+    "The building is now protected by a robust layer of professional opinion.",
+    "The fire engineer has reviewed the issue and the fire is expected to cooperate.",
+    "Any future flames should refer to the approved performance solution before proceeding.",
+    "The defect is now compliant with the broader intent of everyone wanting to move on.",
+    "The risk is tolerable, particularly from the office.",
+    "The opening has achieved compliance through superior documentation.",
   ];
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
@@ -2083,7 +2090,7 @@
     }
   }
 
-  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.view));
+  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => button.id === "calculator-navigation-toggle" ? requestCalculatorNavigation("steel_vermiculite") : requestViewNavigation(button.dataset.view));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });

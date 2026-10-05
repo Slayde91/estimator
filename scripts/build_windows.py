@@ -31,6 +31,7 @@ STATIC_FILES = (
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'styles.css',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'ceasefire-app.ico', 'ceasefire-app-icon.png',
+    'icons/navigation-home.png', 'icons/navigation-help.png',
 )
 
 

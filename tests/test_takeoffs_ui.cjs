@@ -141,23 +141,23 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     await h.audit.clearDrawingSelection();now+=100;assert.equal(choose(click,'item:b'),false);assert.equal(choose({type:'keydown'}),true);
     assert.equal(state.lastDrawingClick,null);assert.deepEqual(copy(state.session.snapshot),blank());
   });
-  await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and sources above the viewer',()=>{
+  await check('Viewer controls sit outside the scrolling drawing, with Select and Pan before zoom and source dropdown before search in the viewer',()=>{
     const h=harness(),dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();
     const ui=h.audit.state.ui,all=dom.all(root),find=name=>all.find(el=>el.classList.contains(name)),viewer=find('takeoff-viewer'),top=find('takeoff-viewer-top'),bottom=find('takeoff-page-controls'),search=find('takeoff-search-controls');
     const bottomGroup=find('takeoff-viewer-bottom');assert.equal(bottomGroup.parentNode,viewer);
-    assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,bottomGroup);assert.deepEqual(top.children,[search,ui.navigation]);
+    assert.equal(ui.viewport.parentNode,viewer);assert.equal(top.parentNode,viewer);assert.equal(bottom.parentNode,bottomGroup);assert.deepEqual(top.children,[ui.navigation,search]);
     assert.equal(ui.tools.select.parentNode,bottom);assert.equal(ui.tools.pan.parentNode,bottom);const labels=bottom.children.map(el=>el.attributes['aria-label']||el.textContent);assert.ok(labels.indexOf('Select')<labels.indexOf('Pan'));assert.ok(labels.indexOf('Pan')<labels.indexOf('−'));assert.ok(labels.includes('Rotate page'));
     assert.ok(!dom.all(ui.toolRail).includes(ui.tools.select));assert.ok(!dom.all(ui.viewport).includes(top));assert.ok(!dom.all(ui.viewport).includes(bottom));assert.equal(ui.tools.count.parentNode,ui.countAnchor);assert.equal(ui.scaleAnchor.parentNode,bottomGroup);assert.ok(!dom.all(ui.toolRail).includes(ui.scaleAnchor));
     assert.deepEqual(ui.scaleControls.children,[ui.calibration,ui.tools.calibrate,ui.editCalibration]);assert.equal(ui.tools.calibrate.textContent,'Calibrate');assert.equal(ui.tools.calibrate.children.length,0);
     const pageNavigation=find('takeoff-page-navigation');assert.equal(pageNavigation.parentNode,bottom);assert.deepEqual(pageNavigation.children.map(el=>el.attributes['aria-label']||el.textContent),['First page','‹ Page','Page number','/ 0','Page ›','Last page']);
-    assert.equal(ui.sourceDocuments.parentNode,ui.layout);assert.equal(ui.layout.children[0],ui.sourceDocuments);assert.equal(ui.navigation.attributes['aria-label'],'Drawing navigation');assert.equal(search.attributes.role,'search');assert.equal(ui.sourceDocuments.attributes['aria-labelledby'],'takeoff-source-documents-heading');
+    assert.equal(ui.navigation.parentNode,top);assert.equal(ui.documentSelect.parentNode.attributes["aria-label"],"Source documents");assert.equal(search.attributes.role,"search");assert.equal(root.children[0],ui.title);
   });
   await check('Source documents show retained names, page counts and sizes, refresh selection and empty state without mutating evidence',()=>{
     const h=harness(),value=blank();value.documents=[{id:'first',name:'First original.pdf',size:1048576,pages:[{page:1},{page:2}]},{id:'second',name:'<Retained name>.pdf',size:2097152,pages:[{page:1}]}];h.audit.accept(response(value));
     const dom=attachMinimalDom(h),root=dom.element();h.audit.state.ui=null;h.context.document.getElementById=id=>id==='takeoffs-workspace'?root:null;h.audit.build();h.audit.state.document='first';h.audit.renderRail();const ui=h.audit.state.ui;
-    assert.deepEqual(ui.sourceDocumentList.children.map(el=>el.dataset.documentId),['first','second']);assert.equal(ui.sourceDocumentList.children[0].attributes['aria-current'],'true');assert.equal(ui.sourceDocumentList.children[0].textContent,'First original.pdf2 pages · 1 MiB');assert.ok(ui.sourceDocumentList.textContent.includes('<Retained name>.pdf'));assert.equal(dom.all(ui.sourceDocuments).filter(el=>el.tagName==='CANVAS').length,0);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
-    h.audit.state.document='second';h.audit.renderRail();assert.equal(ui.sourceDocumentList.children[0].attributes['aria-current'],undefined);assert.equal(ui.sourceDocumentList.children[1].attributes['aria-current'],'true');assert.equal(ui.documentSelect.value,'second');
-    h.audit.state.session.snapshot.documents=[];h.audit.state.document=null;h.audit.renderRail();assert.equal(ui.sourceDocumentList.textContent,'No PDFs uploaded');assert.equal(ui.documentSelect.disabled,true);assert.equal(ui.removeDocument.disabled,true);
+    assert.deepEqual(ui.documentSelect.children.map(el=>el.value),["first","second"]);assert.equal(ui.documentSelect.children[0].textContent,"First original.pdf · 2 pages · 1 MiB");assert.ok(ui.documentSelect.textContent.includes("<Retained name>.pdf"));assert.deepEqual(copy(h.audit.state.session.snapshot),value);
+    h.audit.state.document='second';h.audit.renderRail();assert.equal(ui.documentSelect.value,'second');assert.ok(ui.documentSelect.title.includes('<Retained name>.pdf'));
+    h.audit.state.session.snapshot.documents=[];h.audit.state.document=null;h.audit.renderRail();assert.equal(ui.documentSelect.textContent,'No PDFs uploaded');assert.equal(ui.documentSelect.disabled,true);assert.equal(ui.removeDocument.disabled,true);
   });
   await check('Count placement requires explicit manual length and reuses it only after the checked first dialog',async()=>{
     const h=countHarness(),first=h.stage([10.123456789,20.987654321]),calls=[];const fingerprint=h.api.projectFingerprint();

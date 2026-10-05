@@ -75,7 +75,7 @@ async function dialog(title, values, action) {
         const response = await fetch(`/api/takeoffs/sessions/${sid}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add_standalone_count', request_id: crypto.randomUUID(), expected_revision: current.revision, document_id: doc.id, page: 3, mode: 'steel', markers: points.map(point => ({ point })), fields: { mark: 'STEEL-ONLY', level: 'L01', width_mm: 100, height_mm: 200, frl: '120/120/120', orientation: 'Horizontal' }, appearance: {} }) });
         if (!response.ok) throw new Error(await response.text()); const reply = await response.json(); takeoffs.applyProject(await takeoffs.prepareProject(reply.snapshot, sid));
       }, finishedDraftPoints);
-      await renderDrawing(page, () => page.locator('.takeoff-source-document').first().click(), 1); await idle();
+      await renderDrawing(page, () => page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')), 1); await idle();
       await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
       await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click(), 3);
       await page.locator('.takeoff-standalone-register tr[data-item-id]').getByRole('button', { name: 'Edit item', exact: true }).click();
@@ -134,7 +134,7 @@ async function dialog(title, values, action) {
     if (!reply.ok) throw new Error(await reply.text()); const updated = await reply.json(); takeoffs.applyProject(await takeoffs.prepareProject(updated.snapshot, sid));
   });
   await chooseTakeoff(page, 'WALLS');
-  await page.locator('.takeoff-source-document').first().click(); await idle();
+  await page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   for (const mode of ['WALLS', 'SLABS']) {
     await chooseTakeoff(page, mode); await page.getByRole('button', { name: 'Length', exact: true }).click();
@@ -166,7 +166,7 @@ async function dialog(title, values, action) {
     takeoffs.applyProject(await takeoffs.prepareProject(current, sid));
   }, lengthIds);
   await chooseTakeoff(page, 'WALLS');
-  await page.locator('.takeoff-source-document').first().click(); await idle();
+  await page.getByLabel('Page number',{exact:true}).fill('1').then(()=>page.getByLabel('Page number',{exact:true}).press('Tab')); await idle();
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
   for (const mode of ['WALLS', 'SLABS']) {

@@ -227,7 +227,7 @@ async function reviewAlignment(scope, barrier) {
         const referenceStyle = style(reference); reference.remove();
         return { documents: bounds('.takeoff-source-documents'), layout: bounds('.takeoff-drawing-layout'), selectedStyle: style(selected), calculatorStyle: referenceStyle, scopesInMenu: !!document.querySelector('#takeoff-navigation-menu .section-navigation-subgroup [data-physical-scope]'), oldPanelCount: document.querySelectorAll('.takeoff-tab-panel').length };
       });
-      assert.ok(Math.abs(measured.documents.x - measured.layout.x) < 1 && Math.abs(measured.documents.width - measured.layout.width) < 1, 'Source documents spans the full drawing layout with Item Details open or closed');
+      assert.ok(measured.documents.x >= measured.layout.x && measured.documents.x + measured.documents.width <= measured.layout.x + measured.layout.width + 1, 'Source dropdown remains in the drawing overlay with Item Details open or closed');
       assert.equal(measured.scopesInMenu, true); assert.equal(measured.oldPanelCount, 0);
       assert.deepEqual(measured.selectedStyle, measured.calculatorStyle, 'Takeoffs selection matches the existing Calculators dropdown style');
       await page.mouse.move(0, 0);

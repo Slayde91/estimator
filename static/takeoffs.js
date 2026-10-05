@@ -294,6 +294,7 @@
     if (state.ui) return;
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
+    ui.title = node("h1", "takeoff-workspace-title", "Steel");
     ui.message = node("div", "message"); ui.message.hidden = true;
     const toolbar = node("div", "takeoff-toolbar takeoff-tool-rail"); ui.toolRail = toolbar; toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Drawing tools"); toolbar.setAttribute("aria-orientation", "vertical");
     ui.upload = node("input"); ui.upload.type = "file"; ui.upload.accept = ".pdf,application/pdf"; ui.upload.multiple = true; ui.upload.hidden = true; ui.upload.id = "takeoff-upload";
@@ -304,21 +305,22 @@
     ui.countAnchor = node("div", "takeoff-count-anchor"); ui.tools.count.after(ui.countAnchor); ui.countAnchor.append(ui.tools.count);
     for (const [key, title, asset, action] of [["markups", "Markups", "takeoff-colour-wheel.png", toggleThicknessColours], ["legend", "Legend", "takeoff-legend.png", toggleLegend]]) {
       const control = button(title, action), image = node("img"); image.src = `/icons/${asset}`; image.alt = ""; image.setAttribute("aria-hidden", "true"); image.width = 28; image.height = 28;
-      control.classList.add("icon-only"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
+      control.classList.add("icon-only", "takeoff-icon-button"); control.replaceChildren(image); control.setAttribute("aria-label", title); control.title = title; control.setAttribute("aria-pressed", "false"); ui.tools[key] = control;
     }
     ui.tools.countLength.after(ui.tools.markups, ui.tools.legend);
     const visibility = button("Visibility", () => { state.markupsHidden = !state.markupsHidden; visibility.setAttribute("aria-pressed", String(!state.markupsHidden)); renderOverlay(); });
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.jpg"; eye.alt = ""; eye.width = 32; eye.height = 32;
-    visibility.replaceChildren(eye); visibility.classList.add("icon-only"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups"; visibility.setAttribute("aria-pressed", "true");
+    visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups"; visibility.setAttribute("aria-pressed", "true");
     ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
     ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
     ui.calibration = select([["", "No Scale Selected"]], async value => { await chooseCalibration(value); toggleScaleControls(false); }); ui.calibration.id = "takeoff-calibration"; ui.calibration.setAttribute("aria-label", "Drawing calibration"); ui.editCalibration = button("Edit calibration", editCalibration);
     const navigation = node("div", "takeoff-navigation"); ui.navigation = navigation; navigation.setAttribute("role", "group"); navigation.setAttribute("aria-label", "Drawing navigation");
-    const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls");
+    const documentControls = node("div", "takeoff-navigation-group takeoff-document-controls takeoff-source-documents"); documentControls.setAttribute("aria-label", "Source documents");
     ui.documentSelect = select([], async value => { try { if (value && value !== state.document) await navigateDocument(value); } finally { ui.documentSelect.value = state.document || ""; } }); ui.documentSelect.setAttribute("aria-label", "Drawing document");
-    ui.removeDocument = button("Remove document", removeDocument); documentControls.append(ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
+    const sourceLabel = node("label", "sr-only", "Source documents"); sourceLabel.htmlFor = "takeoff-document-select"; ui.documentSelect.id = "takeoff-document-select";
+    ui.removeDocument = button("Remove document", removeDocument); documentControls.append(sourceLabel, ui.documentSelect, ui.removeDocument); navigation.append(documentControls);
     const pageControls = ui.pageControls = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-page-controls"); pageControls.setAttribute("role", "group"); pageControls.setAttribute("aria-label", "Page and zoom controls");
     const pageNavigation = node("div", "takeoff-page-navigation"); pageNavigation.setAttribute("role", "group"); pageNavigation.setAttribute("aria-label", "Page navigation");
     pageNavigation.append(button("First page", () => navigatePage(1)), button("‹ Page", () => navigatePage(state.page - 1)));
@@ -326,12 +328,12 @@
     ui.pageCount = node("span", "helper", "/ 0"); pageNavigation.append(ui.page, ui.pageCount, button("Page ›", () => navigatePage(state.page + 1)), button("Last page", () => navigatePage(currentDocument()?.pages.length || 1)));
     ui.tools.text = button("Select PDF text", () => setTool("text")); ui.tools.text.dataset.tool = "text";
     ui.rotate = button("Rotate page", rotatePage); ui.rotate.setAttribute("aria-description", "Rotate the displayed page 90 degrees clockwise. Original measurements stay unchanged.");
-    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), button("Fit page", () => fitPage(true)), ui.rotate);
+    const fit = button("Fit page", () => fitPage(true)); fit.title = "Fit page (Ctrl+0)"; fit.setAttribute("aria-keyshortcuts", "Control+0");
+    pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), fit, ui.rotate);
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
     const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; setProgress(state.ui.progress.textContent + " · Search cancelled; coverage is incomplete."); }));
-    const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(searchControls, navigation);
-    ui.sourceDocuments = node("section", "takeoff-source-documents"); ui.sourceDocuments.setAttribute("aria-labelledby", "takeoff-source-documents-heading"); const sourceHeading = node("h3", "", "Source documents"); sourceHeading.id = "takeoff-source-documents-heading"; ui.sourceDocumentList = node("div", "takeoff-source-document-list"); ui.sourceDocuments.append(sourceHeading, ui.sourceDocumentList);
+    const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(navigation, searchControls);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
     ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
@@ -344,7 +346,7 @@
     ui.settingsPanel = node("aside", "takeoff-markup-settings"); ui.settingsPanel.id = "takeoff-markup-settings"; ui.settingsPanel.hidden = true; ui.settingsPanel.setAttribute("aria-label", "Markup settings");
     ui.physicalDetails = node("div", "takeoff-physical-details"); ui.physicalDetails.id = "takeoff-physical-details"; ui.physicalDetails.hidden = true;
     ui.physicalDetails.append(button("Close Item Details", () => setPhysicalDetailsOpen(false), "button secondary", "Close settings"));
-    layout.append(ui.sourceDocuments, toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane);
+    layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = node("h2", "", "Steel register"); ui.status = node("span", "status-label", "Ready"); ui.registerLayout = select([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); ui.registerLayout.setAttribute("aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; ui.filter.placeholder = "Filter register…"; ui.filter.setAttribute("aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = select([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); ui.statusFilter.setAttribute("aria-label", "Filter confirmation state");
@@ -366,7 +368,12 @@
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, scaleAnchor);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(ui.message, workspace, ui.physicalContainer);
+    workspace.append(layout, register); root.append(ui.title, ui.message, workspace, ui.physicalContainer);
+    viewer.addEventListener("keydown", event => {
+      if (event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && event.key === "0" && !event.target?.isContentEditable && !event.target?.closest?.("input,textarea,select,[contenteditable=true]")) {
+        event.preventDefault(); event.stopPropagation(); if (!state.busy && !state.modal && state.viewport) void safely(() => fitPage(true));
+      }
+    }, { capture: true });
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
     ui.overlay.addEventListener("dblclick", event => void safely(() => finishTraceFromDoubleClick(event)));
@@ -424,6 +431,7 @@
     scheduleLinkedThickness();
     refreshNavigation();
     const physical = state.mode === "physical";
+    state.ui.title.textContent = physical ? state.physicalScope === "service_plans" ? "Service Plans" : "Defect Reports" : state.mode === "duct" ? "Ductwork" : labels[state.mode];
     state.ui.tools.markups.hidden = state.mode !== "steel";
     state.ui.tools.legend.hidden = !["steel", "duct"].includes(state.mode);
     (state.mode === "duct" ? state.ui.countAnchor : state.ui.tools.countLength).after(state.ui.tools.markups, state.ui.tools.legend);
@@ -923,10 +931,8 @@
     const key = JSON.stringify([state.session?.session_id, documents().map(doc => [doc.id, doc.name, doc.pages.length, doc.size]), state.document, state.page]);
     if (state.railKey !== key) {
       state.railKey = key;
-      const choices = documents().map(doc => { const el = option(doc.id, `${doc.name} · ${doc.pages.length} pages`); el.className = "takeoff-document"; el.setAttribute("aria-selected", String(doc.id === state.document)); return el; });
+      const choices = documents().map(doc => { const el = option(doc.id, `${doc.name} · ${doc.pages.length} pages · ${units.format(doc.size / 1048576)} MiB`); el.className = "takeoff-document"; el.setAttribute("aria-selected", String(doc.id === state.document)); return el; });
       state.ui.documentSelect.replaceChildren(...(choices.length ? choices : [option("", "No PDFs uploaded")]));
-      const sources = documents().map(doc => { const el = button(doc.name, () => navigateDocument(doc.id), "takeoff-source-document"); el.dataset.documentId = doc.id; if (doc.id === state.document) el.setAttribute("aria-current", "true"); el.append(node("small", "", `${doc.pages.length} pages · ${units.format(doc.size / 1048576)} MiB`)); return el; });
-      state.ui.sourceDocumentList.replaceChildren(...(sources.length ? sources : [node("p", "helper", "No PDFs uploaded")]));
     }
     state.ui.documentSelect.value = state.document || ""; state.ui.documentSelect.disabled = !documents().length;
     state.ui.documentSelect.title = currentDocument() ? `${currentDocument().name} · ${currentDocument().pages.length} pages · ${units.format(currentDocument().size / 1048576)} MiB` : "Upload a PDF to choose a drawing document";
@@ -2266,7 +2272,7 @@
     requireFinishedEdits(); ensurePhysicalUI();
     const source = currentDocument(), sessionId = state.session?.session_id, revision = state.session?.revision, scope = state.physicalScope, controller = state.physicalUI;
     if (!source || !state.viewport) throw new Error("Open the original PDF before placing a barrier marker.");
-    const marker = { document_id: source.id, document_sha256: source.sha256, page: state.page, point: [...point] };
+    const marker = { document_id: source.id, document_sha256: source.sha256, page: state.page, point: [...point], appearance: { marker_size: 10 } };
     const current = () => { if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope || controller !== state.physicalUI || state.mode !== "physical" || state.document !== marker.document_id || state.page !== marker.page || documentById(marker.document_id)?.sha256 !== marker.document_sha256) throw new Error("The drawing or physical draft changed. Place the marker again."); };
     state.physicalPlacing = true; working(state.busy);
     try {
@@ -2341,7 +2347,7 @@
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
     const defaults = callout ? { stroke_color: "#696166", fill_color: "#FFFFFF", font_color: "#30282B", stroke_width: 1, fill_enabled: true, opacity: .94 } : appearanceOf({ appearance: locator.appearance });
     const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
-    const definitions = [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["opacity", "Opacity", "number"], ...(callout ? [["font_color", "Font Colour", "color"]] : [["marker_size", "Marker Size", "number"]])];
+    const definitions = [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
     for (const def of definitions) {
       const field = formField(def, appearance[def[0]]); fields.append(field.wrapper);
       field.control.addEventListener("change", () => void safely(async () => {

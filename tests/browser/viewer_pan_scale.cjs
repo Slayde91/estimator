@@ -80,6 +80,13 @@ async function scaleGeometry(mode, width) {
   }
   await page.setViewportSize({ width: 1146, height: 1100 }); await reveal();
   await renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click());
+  const fitPaper=await page.locator('.takeoff-page').boundingBox(),sourceAtFit=await retained();
+  await renderDrawing(page,()=>page.getByRole('button',{name:'+',exact:true}).click());
+  await renderDrawing(page,()=>viewport().press('Control+0'));
+  const shortcutPaper=await page.locator('.takeoff-page').boundingBox();assert.ok(Math.abs(shortcutPaper.width-fitPaper.width)<1&&Math.abs(shortcutPaper.height-fitPaper.height)<1);assert.deepEqual(await retained(),sourceAtFit);
+  await expect(page.getByRole('button',{name:'Fit page',exact:true})).toHaveAttribute('aria-keyshortcuts','Control+0');
+  const eventFromInput=await page.getByLabel('Page number',{exact:true}).evaluate(el=>{const event=new KeyboardEvent('keydown',{key:'0',ctrlKey:true,bubbles:true,cancelable:true});el.dispatchEvent(event);return event.defaultPrevented;});assert.equal(eventFromInput,false,'Editable controls retain their native shortcut behavior');
+  evidence.fitShortcut=true;
   for (let i = 0; i < 4; i++) await renderDrawing(page, () => page.getByRole('button', { name: '+', exact: true }).click());
   await viewport().focus(); await viewport().evaluate(el => { el.scrollLeft = 400; el.scrollTop = 400; });
   const bounds = await viewport().boundingBox(); await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);

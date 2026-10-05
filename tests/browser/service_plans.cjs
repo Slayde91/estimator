@@ -121,11 +121,10 @@ async function controls() {
   await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
   const style = locator => locator.evaluate(el => { const css = getComputedStyle(el); return { color: css.color, background: css.backgroundColor, border: css.borderColor }; });
   assert.deepEqual(await style(trash), await style(discard));
-  for (const name of ['Select filtered records', 'Clear physical selection', 'Bulk edit same-type records']) {
+  for (const name of ['Select filtered records', 'Bulk edit same-type records']) {
     const button = page.getByRole('button', { name, exact: true }); await expect(button.locator('svg')).toHaveCount(1); assert.equal((await button.innerText()).trim(), '');
   }
-  const checked = page.getByRole('button', { name: 'Select filtered records', exact: true }), unchecked = page.getByRole('button', { name: 'Clear physical selection', exact: true });
-  assert.notEqual(await checked.locator('svg').innerHTML(), await unchecked.locator('svg').innerHTML(), 'Selection actions must have visibly different checked and unchecked icons');
+  await expect(page.getByRole('button',{name:'Clear physical selection',exact:true})).toHaveCount(0);
   for (const format of ['CSV', 'XLSX']) {
     const button = page.getByRole('button', { name: `Export draft ${format}`, exact: true }); await expect(button).toContainText(format);
     const css = await style(button); assert.equal(css.background, 'rgb(43, 34, 40)'); assert.equal(css.color, 'rgb(255, 255, 255)');

@@ -62,6 +62,11 @@ async function textFits() {
   await response(() => dialog('Create one draft defect?', {}, 'Apply draft change'), '/physical/apply'); id = preview.changed_ids[0];
   await snapshot(); const original = structuredClone(current.physical.defects[0]), source = original.evidence[0];
   assert.equal(original.annotation.document_sha256, sourceHash); assert.equal(original.annotation.page, 3); assert.equal(original.marker, undefined); assert.equal(original.quantity, undefined);
+  assert.equal(original.annotation.appearance.marker_size,10);
+  await expect(details().getByLabel('Marker Size',{exact:true})).toHaveValue('10');
+  assert.deepEqual(await details().locator('.takeoff-settings-fields .field>span').allTextContents(),['Line Colour','Line Width','Fill colour','Fill enabled','Marker Size','Opacity']);
+  assert.equal(await details().evaluate(el=>el.firstElementChild.getAttribute('aria-label')),'Marker Settings');
+  assert.ok(await details().getByLabel('Line Colour',{exact:true}).evaluate(el=>el.getBoundingClientRect().height>=40));
   assert.deepEqual(original.annotation.point, JSON.parse(source.note.match(/PDF point (\[[^\]]+\])/)[1])); assert.equal(current.physical.barriers.length, 0); assert.equal(current.physical.services.length, 0);
   await expect(callout()).toContainText('D-0001'); await expect(callout()).toContainText('FRAMED-DEFECT'); await expect(callout()).toContainText('0 substrates · 0 services');
   await expect(page.locator('.takeoff-overlay .takeoff-label')).toHaveCount(0); evidence.initialFrame = await textFits();
@@ -102,7 +107,7 @@ async function textFits() {
   await response(async () => { await details().getByLabel('Font Colour', { exact: true }).fill('#008000'); await details().getByLabel('Font Colour', { exact: true }).press('Tab'); }, '/physical/apply');
   await response(async () => { await details().getByLabel('Fill colour', { exact: true }).fill('#fff1dd'); await details().getByLabel('Fill colour', { exact: true }).press('Tab'); }, '/physical/apply');
   await snapshot(); const calloutAppearance = structuredClone(current.physical.defects[0].annotation.callout.appearance);
-  assert.equal(calloutAppearance.font_color, '#008000'); assert.equal(calloutAppearance.fill_color, '#fff1dd'); assert.equal(current.physical.defects[0].annotation.appearance, undefined);
+  assert.equal(calloutAppearance.font_color, '#008000'); assert.equal(calloutAppearance.fill_color, '#fff1dd'); assert.deepEqual(current.physical.defects[0].annotation.appearance, {marker_size:10});
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); await page.waitForTimeout(550); await marker().dblclick({ delay: 100 });
   await expect(details()).toContainText('Marker Settings'); await expect(details().getByLabel('Font Colour', { exact: true })).toHaveCount(0);
   await response(async () => { await details().getByLabel('Line Colour', { exact: true }).fill('#a020f0'); await details().getByLabel('Line Colour', { exact: true }).press('Tab'); }, '/physical/apply');

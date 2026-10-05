@@ -15,7 +15,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', error => { clearTimeout(timer); reject(error); });
   server.once('exit', code => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
 });
-const errors = [], commands = [], evidence = { cases: [] };
+const errors = [], commands = [], autoCalibrations = [], evidence = { cases: [] };
 const frames = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 async function snapshot() { await settingsSettled(page); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
 async function response(action, op = 'record_render') {
@@ -216,7 +216,10 @@ async function sequentialNativeWheel() {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (request.url().endsWith('/commands')) commands.push(request.postDataJSON()); });
+  page.on('request', request => {
+    if (request.url().endsWith('/commands')) commands.push(request.postDataJSON());
+    if (request.url().endsWith('/auto-calibrate')) autoCalibrations.push(request.postDataJSON());
+  });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
@@ -230,9 +233,18 @@ async function sequentialNativeWheel() {
   await page.mouse.click(box.x + box.width * .25, box.y + box.height * .5); await page.mouse.dblclick(box.x + box.width * .7, box.y + box.height * .5);
   await response(() => dialog('Add steel object', { 'Member mark': 'ZOOM-INVARIANT', 'Count/QTY': 2 }, 'Add item'), 'create_item');
   await page.getByRole('button', { name: 'Select', exact: true }).click();
-  await rendered(() => page.locator('#takeoff-upload').setInputFiles(info.scale_fixture), 1);
+  await rendered(() => page.locator('#takeoff-upload').setInputFiles(info.scale_fixture), 1, true);
   const portrait = (await snapshot()).documents.find(value => value.id !== landscape.id);
-  await rendered(() => page.getByLabel('Drawing document', { exact: true }).selectOption(portrait.id), 1, true);
+  await expect(page.getByLabel('Drawing document', { exact: true })).toHaveValue(portrait.id);
+  const currentDocumentBefore = await snapshot(), commandCount = commands.length, calibrationCount = autoCalibrations.length;
+  await page.evaluate(() => { window.qaSameDocumentCanvas = document.querySelector('.takeoff-page canvas'); });
+  await page.getByLabel('Drawing document', { exact: true }).selectOption(portrait.id);
+  await frames(); await settingsSettled(page);
+  assert.equal(await page.evaluate(() => window.qaSameDocumentCanvas === document.querySelector('.takeoff-page canvas')), true, 'Selecting the current document retains its completed source render');
+  assert.equal(commands.length, commandCount, 'Selecting the current document sends no extra render command');
+  assert.equal(autoCalibrations.length, calibrationCount, 'Selecting the current document sends no extra auto-calibration request');
+  assert.deepEqual(await snapshot(), currentDocumentBefore, 'Selecting the current document preserves every retained item and source field');
+  evidence.uploadSelectsNewDocument = { documentId: portrait.id, sameSelectionRetainsCanvas: true, noExtraCommands: true, noExtraAutoCalibration: true, exactSnapshotRetained: true };
   await rendered(async () => { await page.getByLabel('Drawing document', { exact: true }).selectOption(landscape.id); }, 1);
   await rendered(async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3, true);
   assert.deepEqual(landscape.pages[2].view, [20, 30, 800, 570]); assert.equal(landscape.pages[2].rotation, 90); assert.equal(landscape.pages[2].user_unit, 2);
@@ -256,7 +268,7 @@ async function sequentialNativeWheel() {
   assert.deepEqual(await protectedState(), protectedBefore, 'Zoom cannot alter source identity, geometry, calibration, quantities, calculated results or calculator rows');
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   await page.screenshot({ path: path.join(output, 'smooth-zoom-settled.png') });
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, renderRecords: await renderRecords() }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, autoCalibrations, renderRecords: await renderRecords() }, null, 2));
   console.log(`PASS: 19 scope/page/viewport combinations plus sequential native wheel preserve subpixel anchors and drawing/overlay preview, coalesce tiny wheel deltas, reject stale real-render completions, and retain geometry/calculations. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-5000));

@@ -48,8 +48,17 @@ async function assertAutoHeight(layout) {
 // Fixture page 3: original CropBox [20,30,800,570], rotation90, UserUnit2.
 async function screenPoint([x, y]) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
+  // Native SVG clicks must clear the sticky header after a panel changes the
+  // page layout. Scrolling the SVG into view alone can leave its first corner
+  // behind the header even though its opposite corner is unobstructed.
+  await overlay.evaluate(el => {
+    const header = document.querySelector('.app-header').getBoundingClientRect();
+    window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - Math.max(180, header.bottom + 12));
+  });
   const box = await overlay.boundingBox(); assert.ok(box?.width && box?.height);
-  return [box.x + (y - 30) / 540 * box.width, box.y + (x - 20) / 780 * box.height].map(Math.round);
+  const point = [box.x + (y - 30) / 540 * box.width, box.y + (x - 20) / 780 * box.height].map(Math.round);
+  assert.equal(await page.evaluate(([cx, cy]) => !!document.elementFromPoint(cx, cy)?.closest('.takeoff-overlay'), point), true, `Source point ${x},${y} must land on the SVG, clear of sticky controls`);
+  return point;
 }
 async function draw(points, doubleFinish = false) {
   for (let i = 0; i < points.length; i++) {

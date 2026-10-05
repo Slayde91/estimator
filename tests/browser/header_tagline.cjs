@@ -16,12 +16,12 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const phrase = "I'm an expert at reading plans and looking at photos - a site visit would just be a waste of my time.";
-const newPhrase = 'Fire testing proves the system works; construction proves how creative people can be.';
+const newPhrase = 'The fire was outsmarted by the concession in our performance solution.';
 const errors = [], evidence = {}, csp = [];
 const pendingRequests = new WeakMap();
 const clockOrigin = Date.parse('2026-10-04T00:00:00Z');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-async function instrument(context, { random = .12, blocked = false } = {}) {
+async function instrument(context, { random = 2 / 28 + .001, blocked = false } = {}) {
   await context.addInitScript(({ random, blocked }) => {
     Math.random = () => random;
     window.qaCsp = [];
@@ -243,7 +243,7 @@ async function presentationNavigation(initial) {
   }
   {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } });
-    await instrument(context, { random: 15 / 21 + .001 }); // Twenty-one choices, no previous phrase: index 15.
+    await instrument(context, { random: 21 / 28 + .001 }); // Twenty-eight choices, no previous phrase: first new phrase at index 21.
     page = await context.newPage(); watch(page); await installPausedClock();
     await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready);
     const initial = await layout(); assert.equal(initial.accessible, newPhrase);
@@ -270,7 +270,7 @@ async function presentationNavigation(initial) {
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, fixturePort: info.port, assetHashes, evidence, errors, csp,
-    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 21 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
+    limits: ['Disposable browser fixture only; no live port 8765 interaction.', 'Playwright clock advances production JS typing/expiry callbacks; CSS opacity transitions are sampled in real Chromium frames.', 'All 28 exact phrases and preference-change timer cancellation are additionally verified by focused unit checks.'] }, null, 2));
   console.log(`Header navigation tagline browser acceptance passed: ${output}`);
 })().catch(async error => {
   console.error(error); if (page && !page.isClosed()) {

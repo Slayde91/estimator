@@ -70,7 +70,7 @@ def surface_label_point(geometry):
     return None
 
 
-def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None):
+def export_marked_pdf(document, items, results, confirmations, linked, documents, *, project_id, revision, mode, physical_rows=None, snapshot=None, physical_rendering=None, annotations=()):
     from .takeoff_exports import linked_result_text
     from .takeoff_presentation import effective_appearance, legend_rows
     if not _SLOTS.acquire(blocking=False):
@@ -98,6 +98,13 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
             raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
         spec = {'document': document, 'items': rows, 'project_id': project_id, 'revision': revision, 'mode': mode,
                 'logo': str(ROOT / 'static' / 'ceasefire-logo.png')}
+        from .takeoff_annotations import annotation_appearance, validate_annotation
+        spec['annotations'] = []
+        for annotation in annotations:
+            validate_annotation(annotation, snapshot)
+            if annotation['mode'] != mode or annotation['document_id'] != document['id']:
+                raise ValidationError('Every free call-out must belong to the selected mode and exact source drawing.')
+            spec['annotations'].append({**annotation, 'appearance': annotation_appearance(annotation['appearance'])})
         if physical_rows is not None:
             spec.update(physical_drawing=True, physical_rendering=physical_rendering or {'zoom':1,'rotations':{}})
         if snapshot:

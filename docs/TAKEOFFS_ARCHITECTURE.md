@@ -1,7 +1,8 @@
 # Takeoffs, projects and presentation architecture
 
-Updated 5 October 2026. This describes implemented source behaviour through
-PR #154 and separately identifies the next eight requested changes. See
+Updated 5 October 2026. This describes the PR #154 baseline and the implemented
+search, shortcuts and free Call-out extension. Publication and activation are
+established separately by the release receipts. See
 [main architecture](../ARCHITECTURE.md), [user workflow](TAKEOFFS.md) and
 [roadmap](../ROADMAP.md). Release receipts establish publication and activation.
 
@@ -22,6 +23,8 @@ not authorized by the current architecture.
 | `estimator/takeoff_http.py` | `/api/takeoffs/` session routes and typed command dispatch. |
 | `estimator/takeoff_workspace.py` | Session state, atomic revisions, preview/apply guards, history and local confirmation/transfer authority. |
 | `estimator/takeoff_model.py`, `takeoff_area.py` | Snapshot validation, member/marker identities, measurement/calibration and polygon topology. |
+| `estimator/takeoff_annotations.py`, `static/takeoff-annotations.js` | Independently versioned presentation notes, bounded rich text, shared new-call-out appearance defaults and safe drawing/editor projections. |
+| `static/takeoff-search.js`, `static/takeoff-shortcuts.js` | Bounded searchable text/run indexing, deterministic hit selection and common enabled-action shortcut metadata. |
 | `estimator/takeoff_documents.py` | Exact-byte PDF originals, chunked uploads, content-addressed evidence companions and immutable history. |
 | `estimator/takeoff_physical*.py` | Versioned physical graphs, draft operations, markers and separate physical exports. |
 | `estimator/takeoff_image_evidence.py`, `takeoff_image_worker.py` | Bounded extraction, source/byte bindings and verified image manifests. |
@@ -107,77 +110,89 @@ unapproved draft export of active physical records. Source data and private loca
 inventory are distinct from generated UI summaries; Technical Library counts
 describe the whole visible inventory, independently of current filtering/paging.
 
-## Planned extension: eight new comments
+## Implemented extension: eight new comments
 
-The following is a proposed implementation design, not an implemented schema or
-tested feature. It is bounded by the user's eight latest comments.
+The extension continues the shared viewer, typed operations, retained history and
+portable-project architecture. It adds no calculator, physical approval or AI authority.
 
 ### Shared shortcuts and legend guard
 
-Create one deterministic action/shortcut registry for the shared left rail,
+One deterministic action/shortcut registry serves the shared left rail,
 including physical modes. Generate tooltips and `aria-keyshortcuts` from that
-registry and dispatch through the existing enabled action. Upload PDF has no new
-shortcut. Verify the actual Viewport binding first. Choose unique Ctrl+keys that
-preserve Ctrl+C/V/X/Z/A/S and browser navigation/printing; avoid triggering inside
-inputs, rich text, selects, IME composition or modal editors. Disabled controls
-must not be bypassed by keyboard. Document final mappings in the user guide.
+registry and dispatch through the existing enabled button. Upload PDF has no new
+shortcut. Ctrl+0 remains Fit page; Viewport is Ctrl+backslash. Unique punctuation
+and function keys preserve native editing, Ctrl+C/V/X/Z/A/S and browser navigation.
+Inputs, rich text, selects, IME composition and modal editors retain their native
+keys. Hidden/disabled controls cannot be invoked by the dispatcher. Exact mappings
+are in TAKEOFFS.md.
 
-Legend availability should derive from supported active markup types in the
-current document/workspace, with explicit handling of hidden items and a legend
-already displayed when the last eligible markup is deleted. Reuse the existing
-layout/visibility command; disabling creation must still allow removing a visible
-legend. Test document changes, undo and last-item deletion. No quantities change.
+Legend creation requires visible supported Length/Count markups on the current
+Steel/Duct drawing page. Hidden items and globally hidden markups are excluded.
+The existing persisted layout command remains in use. A displayed legend can
+still be removed after its last eligible item is deleted. Document changes and
+loading immediately update availability; undo restores eligible markups.
 
 ### Search state and text geometry
 
-Keep bounded client search state: query, document/scope, run generation,
-ordered hit identities, active hit, dropdown state and coverage/errors. Debounce
-typing, invalidate a run on query/scope/document/project changes, and require
+Bounded client search state retains query, document/scope, run generation,
+ordered hit identities, active hit, dropdown state and coverage/errors. Debounced
+typing invalidates a run on query/scope/document/project changes and requires
 query/run/session agreement before publishing results. Clear and Stop share one
-cancellation/cleanup path that clears input, list and overlays immediately.
-Retain the current 500-hit limit, pages-inspected/empty/failed reporting and PDF
+cancellation/cleanup path that clears input, list and overlays immediately and
+cancels PDF.js text-stream readers. The 500-hit limit, pages-inspected/empty/failed reporting and PDF
 timeouts; scanned image pages do not become searchable without an existing layer.
 
-Anchor a keyboard-accessible dropdown to the search field. Search activation
-chooses a deterministic nearest current-page hit from the viewer's current centre,
-then advances through a stable page reading order and wraps. Define ties and
-the case with no current-page matches explicitly; do not silently claim a
-cross-document jump satisfies the requested page cycle. Dropdown selection may
-explicitly navigate to another document/page as it does today.
+The keyboard-accessible dropdown is anchored below the search field. Search
+chooses the nearest current-page match to the viewer centre, then advances in
+display reading order and wraps. Equal distances retain that stable order. If
+the page has no hit, it stays on the page and reports that fact; a dropdown
+selection explicitly navigates to another page/document. Page changes reset the
+cycle. Queries are limited to 200 characters and indexed page text to the module's
+bounded maximum; overly long sentences disclose bounded context.
 
-The current implementation matches a PDF text item and highlights its bounding
-box. Sentence/word highlighting needs reliable mapping between normalized text,
-PDF text runs and original coordinates. Retain separate context and exact-match
-rectangles, transform both with the page, and use yellow context plus a contrasting
-match colour. Test phrase matches spanning runs, repeated words, rotation/crop,
-zoom and damaged/textless pages. Do not invent exact word geometry when the PDF
-lacks enough information; record the fallback and coverage limit.
+Normalized text maps back to PDF text runs, including repeated and multi-run
+phrases. Yellow context and contrasting matches use separate original-coordinate
+quads. On the current page, exact match bounds come from PDF.js text-layer DOM
+Ranges mapped through the current transform. When exact glyph bounds are absent,
+the result labels its text-run context fallback; it does not invent proportional
+character geometry. Search performs no OCR or source mutation.
 
 ### Call-out naming and free annotations
 
-Rename the physical **Count** UI action to **Call-out** using the supplied icon and
+The physical **Count** UI action is named **Call-out** using the supplied icon and
 a shortcut distinct from Count. This changes the label, not the existing physical
 creation graph, marker/member semantics, display IDs or explicit service quantity.
 Legacy saved projects retain their physical hierarchy and generated descriptions.
 
-For Steel/Duct/Walls/Slabs, introduce a separately validated, versioned annotation
-collection rather than fabricating measurement/register items. A free call-out
-needs an annotation ID, document/hash/page binding, source point/geometry,
-appearance, position and constrained rich-text content. It has no physical member
+Steel/Duct/Walls/Slabs use a separate optional `annotations` collection with
+`version: 1` and `callouts`. A free call-out retains its annotation ID/revision,
+mode, document/hash/page binding, original source point, original label position,
+box dimensions, appearance and structured rich-text content. It has no physical member
 quantity, confirmation receipt, calculator row or transfer eligibility. Item Details
-contains only a rich-text box plus shared appearance controls. This schema requires
-an explicit backward-compatible upgrade; projects with no free call-outs should
-not change merely by opening them.
+contains a rich-text box plus shared appearance controls. The optional extension
+leaves the nested snapshot version 1/2 and outer project version 1/2 contracts
+unchanged. Legacy projects with no free call-outs gain no collection by opening.
 
-Represent formatting as bounded structured text with an allow-list of supported
-marks/paragraphs/lists, not arbitrary imported HTML or scripts. Use one validated
-content projection for browser rendering and static PDF output. Define supported
-formatting, limits and legacy/malformed-input behaviour before coding. Shared
-appearance defaults/edit controls should match physical call-outs without sharing
-their record ownership. Preserve annotation identity, coordinates and rich text
-through preview/apply, undo/history, project save/reopen and marked-PDF export.
-No register/XLSX quantity or calculator transfer should change when a free call-out
-is created, moved, hidden, edited, deleted or restored.
+Content version 1 allows paragraph/bullet/number blocks and text runs with explicit
+bold/italic/underline booleans: at most 64 blocks, 256 runs and 8,000 characters.
+There are at most 1,000 free notes. Unknown fields, unsafe control/direction
+characters, HTML-shaped formatting and authority fields are rejected; literal
+text containing angle brackets is safe text. The editor constructs DOM nodes,
+pastes plain text and stores the validated projection; it never imports HTML.
+Browser and PDF use the bundled Vera fonts, measured character wrapping and
+explicit fit failure. Unsupported PDF-font characters fail export and retain text.
+
+Shared new-note defaults are captured explicitly in new free and physical
+call-outs; older explicit styles and implicit historical defaults remain intact.
+Physical call-outs may store appearance alone and retain their measured automatic
+layout. A moved or resized box stores the complete existing offset/width/height
+geometry; partial geometry is rejected. Automatic boxes are bounded to the page.
+Typed create/update/delete operations and undo/history preserve note identities
+and source binding. Queued edits guard ownership; late edits remain captured.
+Dragging and resizing operate in original coordinates with stale-geometry guards.
+Hide and export selection are presentation only. Annotation operations cannot
+alter measurements, graph records, confirmation receipts or transfers, including
+when annotation undo is independent of unrelated physical review gates.
 
 ## Verification and release evidence
 

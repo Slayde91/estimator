@@ -373,7 +373,7 @@
         requirePlacement?.();
         if (!evidence.length) return;
         const reference = evidence[0], source = state.snapshot?.documents?.find(value => value.id === reference.document_id), context = bridge.imageContext?.();
-        if (kind !== "defect" || !source || source.sha256 !== reference.document_sha256 || !Number.isInteger(reference.page) || reference.page < 1 || reference.page > source.pages.length || context && (context.document_id !== source.id || context.page !== reference.page)) throw new Error("The defect source location changed. Select Count on the current drawing again.");
+        if (kind !== "defect" || !source || source.sha256 !== reference.document_sha256 || !Number.isInteger(reference.page) || reference.page < 1 || reference.page > source.pages.length || context && (context.document_id !== source.id || context.page !== reference.page)) throw new Error("The defect source location changed. Select Call-out on the current drawing again.");
         if (annotation && (annotation.document_id !== reference.document_id || annotation.document_sha256 !== reference.document_sha256 || annotation.page !== reference.page)) throw new Error("The defect annotation belongs to a different source page.");
       };
       ensureEditable(); ensureAvailable(); requireSource(); const key = graphKey(); await ensureFieldOptions(kind); ensureAvailable(); requireSource();

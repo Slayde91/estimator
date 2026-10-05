@@ -34,6 +34,7 @@ Drawing/PDF length and area labels use two decimals without changing raw values.
 New legends fit wrapped text; existing saved layouts persist. Closing Settings
 returns focus to the drawing for selected Steel/Duct length copying.
 
-The eight latest shortcut, search, legend-availability and free-call-out requests
-remain planned in ROADMAP.md and TAKEOFFS_ARCHITECTURE.md; they are not delivered
-by this controls release.
+The shared shortcut registry, typing search dropdown, cancellation/page cycle,
+visible-Length/Count legend guard and free Call-outs are implemented in the next
+extension. See TAKEOFFS.md for mappings and behaviour, and the release receipts
+for the exact publication/live-activation checkpoint.

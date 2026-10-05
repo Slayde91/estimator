@@ -70,7 +70,7 @@ async function countCursor() {
   await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor(); await page.mouse.click(...await screen([500, 400]), { button: 'right' }); evidence.ductCrosshairOverSavedMarker = true;
   await chooseTakeoff(page, 'PENETRATIONS'); await idle();
   const initial = await snapshot(), requestCount = physicalRequests.length;
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor(); await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor(); await expect(page.getByRole('dialog')).toHaveCount(0);
   assert.equal(physicalRequests.length, requestCount); assert.deepEqual(await snapshot(), initial); evidence.countOnlyArms = true;
   await page.mouse.click(...await screen([250, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Add Defect', exact: true })).toBeVisible();
   const cancelledPoint = await pendingPoint(); assert.ok(cancelledPoint.every(Number.isFinite)); await page.screenshot({ path: path.join(output, 'pending-defect-location.png') });
@@ -94,7 +94,10 @@ async function countCursor() {
   await expect(callout).toHaveAttribute('aria-label', `Callout ${defect.display_id} · ${summary}`);
   await expect(callout.locator('.takeoff-physical-callout-frame')).toHaveCount(1);
   for (const text of [defect.display_id, 'PLACED-DEFECT', 'FRL -/120/120', '0 substrates · 0 services']) await expect(callout).toContainText(text);
-  assert.deepEqual(defect.annotation, { document_id: reference.document_id, document_sha256: sourceHash, page: 3, point: retainedPoint, appearance: { marker_size: 10 } });
+  const { callout: savedCallout, ...retainedAnnotation } = defect.annotation;
+  assert.deepEqual(retainedAnnotation, { document_id: reference.document_id, document_sha256: sourceHash, page: 3, point: retainedPoint, appearance: { marker_size: 10 } });
+  assert.deepEqual(Object.keys(savedCallout), ['appearance'], 'New shared style keeps automatic layout until an explicit move or resize');
+  assert.deepEqual(savedCallout.appearance, { stroke_color: '#FF3300', fill_color: '#FFDD33', font_color: '#000000', stroke_width: 4, fill_enabled: true, opacity: .75 });
   const renderedSourcePoint = await sourceMarker.evaluate(marker => {
     const [, , width, height] = marker.ownerSVGElement.getAttribute('viewBox').split(/\s+/).map(Number);
     return [20 + Number(marker.getAttribute('cy')) / height * 780, 30 + Number(marker.getAttribute('cx')) / width * 540];
@@ -102,10 +105,10 @@ async function countCursor() {
   renderedSourcePoint.forEach((coordinate, axis) => assert.ok(Math.abs(coordinate - retainedPoint[axis]) < 1e-9, 'Rendered source annotation keeps the exact retained PDF point'));
   await expect(page.getByRole('complementary', { name: 'Item Details', exact: true }).getByLabel('Defect Ref.', { exact: true })).toHaveValue('PLACED-DEFECT');
   await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); evidence.placedDefect = { id: defect.id, source: reference, annotation: defect.annotation, renderedSourcePoint, summary, pendingPoint: acceptedPoint, noBarrierOrServiceCreated: true };
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
+  await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([400, 400])); await response(() => dialog('Add Defect', { 'Defect Ref.': 'CANCELLED-REVIEW' }, 'Preview new draft'), '/physical/preview');
   const beforeReviewCancel = structuredClone(current.physical); await dialog('Create one draft defect?', {}, 'Cancel'); await expect(page.locator('.takeoff-defect-pending')).toHaveCount(0); assert.deepEqual((await snapshot()).physical, beforeReviewCancel); evidence.reviewCancelCreatesNothing = true;
-  await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Service Plans'); await page.getByRole('button', { name: 'Count', exact: true }).click(); await countCursor();
+  await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Service Plans'); await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await countCursor();
   await page.mouse.click(...await screen([300, 300])); await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create draft barrier', exact: true })).toBeVisible(); await dialog('Create draft barrier', {}, 'Cancel'); evidence.servicePlanBarrierPlacementPreserved = true;
   await page.getByRole('button', { name: 'Select', exact: true }).click(); await chooseTakeoff(page, 'Defect Reports');
   current = await snapshot(); const physicalBeforeSave = structuredClone(current.physical);

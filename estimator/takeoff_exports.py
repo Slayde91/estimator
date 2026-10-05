@@ -381,7 +381,7 @@ def export_workspace(snapshot, request, format, *, documents, store):
             raise ValidationError('The Takeoffs draft changed before export. Retry from its current state.')
         from .takeoff_physical_markers import export_physical_pdf
         return export_physical_pdf(snapshot, request, documents)
-    allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id'} if format == 'marked-pdf' else set())
+    allowed = {'expected_revision', 'mode', 'item_ids', 'calculator_drafts'} | ({'document_id', 'annotation_ids'} if format == 'marked-pdf' else set())
     required = {'expected_revision', 'mode'} | ({'document_id', 'item_ids'} if format == 'marked-pdf' else set())
     object_fields(request, allowed, 'Current Takeoffs export', required)
     if type(request['expected_revision']) is not int or request['expected_revision'] != snapshot['revision']:
@@ -406,6 +406,14 @@ def export_workspace(snapshot, request, format, *, documents, store):
         by_id = {item['id']: item for item in active}; selected = [by_id[identifier] for identifier in ids]
         if any(not item['geometry'] or item['geometry']['document_id'] != document['id'] for item in selected):
             raise ValidationError('Every exported markup must belong to the selected original PDF.')
+        active_annotations = {value['id']: value for value in snapshot.get('annotations', {}).get('callouts', [])
+                              if value['mode'] == request['mode'] and value['document_id'] == document['id']}
+        annotation_ids = request.get('annotation_ids', list(active_annotations))
+        if (not isinstance(annotation_ids, list) or len(annotation_ids) > 1000
+                or any(not isinstance(value, str) for value in annotation_ids)
+                or len(annotation_ids) != len(set(annotation_ids)) or set(annotation_ids) - active_annotations.keys()):
+            raise ValidationError('Export call-out IDs must identify distinct free call-outs in the selected mode and original PDF.')
+        annotations = [active_annotations[identifier] for identifier in annotation_ids]
     approvals, binding_registry = _local_authority(snapshot, store)
     results = {item['id']: item_result(item, snapshot) for item in selected}
     confirmations = {item['id']: _confirmed(item, snapshot, results[item['id']], approvals) for item in selected}
@@ -415,4 +423,5 @@ def export_workspace(snapshot, request, format, *, documents, store):
         return _schedule_xlsx(snapshot, selected, results, confirmations, linked)
     from .takeoff_markup_pdf import export_marked_pdf
     return export_marked_pdf(document, selected, results, confirmations, linked, documents,
-                             project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot)
+                             project_id=snapshot['project_id'], revision=snapshot['revision'], mode=request['mode'], snapshot=snapshot,
+                             annotations=annotations)

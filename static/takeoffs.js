@@ -3,6 +3,10 @@
 (() => {
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
   const G = window.CeasefireTakeoffGeometry;
+  const A = window.CeasefireTakeoffAnnotations;
+  // Historical implicit appearance retains the delivered defaults; new notes
+  // capture the shared chosen defaults explicitly when they are created.
+  const calloutDefaults = () => ({ stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
   const state = { session: null, saved: null, opening: null, active: false, mode: "steel", document: null, page: 1,
     zoom: 1, tool: "select", points: [], countEntries: [], countGeneration: 0, countDefaultLength: null, countQueue: Promise.resolve(), countFinishing: false, countContinuation: null, countSelection: new Map(), traceCursor: null, markupMenu: null, selected: new Set(), hovered: null, hidden: new Set(), collapsed: new Set(),
     search: "", filter: "", sort: "mark", group: "", offset: 0, calibration: "", busy: false, queue: Promise.resolve(),
@@ -42,6 +46,8 @@
   const physicalSnapshot = (value = snapshot()) => value ? { ...value, physical: physicalGraph(value) || null } : value;
   const documents = () => snapshot()?.documents || [];
   const items = () => snapshot()?.items || [];
+  const annotations = () => snapshot()?.annotations?.callouts || [];
+  const selectedAnnotation = () => annotations().find(value => value.id === state.annotationSelected && value.mode === state.mode && value.document_id === state.document && value.page === state.page);
   const documentById = id => documents().find(doc => doc.id === id);
   const currentDocument = () => documentById(state.document);
   const pageMetadata = () => currentDocument()?.pages?.find(page => page.page === state.page);
@@ -210,6 +216,7 @@
     }
     if (!currentDocument()) { state.document = documents()[0]?.id || null; state.page = 1; }
     state.bindings = snapshot().transfers || [];
+    invalidateSearchContext();
     invalidateLinkedThickness();
     state.physicalUI?.render(physicalSnapshot());
     window.CeasefireProject?.changed?.();
@@ -223,10 +230,12 @@
       for (const control of state.ui.root.querySelectorAll("[data-mode],[data-tool]")) if (control.dataset.mode || control.dataset.tool) control.disabled = value || !!control.dataset.mode && !labels[control.dataset.mode];
       refreshNavigation();
       for (const control of state.ui.pageControls?.querySelectorAll("button,input") || []) control.disabled = value;
+      for (const control of state.ui.searchResults?.querySelectorAll("button") || []) control.disabled = value;
       if (state.ui.documentSelect) state.ui.documentSelect.disabled = value || !documents().length;
       for (const control of state.ui.tableWrap?.querySelectorAll("input,select") || []) if (!control.closest(".takeoff-register-editor")) control.disabled = value || control.dataset.countReadOnly === "true";
       state.ui.status.textContent = value ? "Working…" : `${items().length} items · ${documents().length} documents · Revision ${state.session?.revision || 0}`;
       renderViewportPanel();
+      updatePresentationTools();
     }
     if (!value) { scheduleLinkedThickness(); if (state.thicknessFilterNeedsRender) updateLinkedThicknessPresentation(); }
     window.CeasefireProject?.changed?.();
@@ -307,6 +316,13 @@
     } finally { state.modal = false; dialog.remove(); }
   }
   async function confirm(title, detail, action) { return (await ask(title, [], detail, action)) !== null; }
+  function syncToolShortcuts() {
+    const registry = window.CeasefireTakeoffShortcuts, tools = state.ui?.tools;
+    if (!registry || !tools) return {};
+    const controls = { ...tools, count: state.mode === "physical" ? null : tools.count, callout: state.mode === "physical" ? tools.count : tools.callout };
+    for (const name of Object.keys(registry.actions)) registry.decorate(controls[name], name);
+    return controls;
+  }
   function build() {
     if (state.ui) return;
     const root = $("takeoffs-workspace"); if (!root) return;
@@ -329,6 +345,9 @@
     const eye = node("img"); eye.src = "/icons/takeoff-visibility.jpg"; eye.alt = ""; eye.width = 32; eye.height = 32;
     visibility.replaceChildren(eye); visibility.classList.add("icon-only", "takeoff-icon-button"); visibility.setAttribute("aria-label", "Visibility"); visibility.title = "Visibility: show or hide all markups"; visibility.setAttribute("aria-pressed", "true");
     ui.tools.visibility = visibility; ui.tools.settings.after(visibility);
+    ui.tools.callout = button("Call-out", () => setTool("callout")); ui.tools.callout.dataset.tool = "callout";
+    const calloutIcon = node("img"); calloutIcon.src = "/icons/takeoff-callout.png"; calloutIcon.alt = ""; calloutIcon.width = 25; calloutIcon.height = 25; calloutIcon.setAttribute("aria-hidden", "true");
+    ui.tools.callout.classList.add("icon-only", "takeoff-icon-button"); ui.tools.callout.replaceChildren(calloutIcon); ui.tools.callout.setAttribute("aria-label", "Call-out"); ui.tools.callout.title = "Call-out"; ui.tools.viewport.after(ui.tools.callout);
     const scaleAnchor = node("div", "takeoff-scale-anchor"); ui.scaleToggle = button("Scale", () => toggleScaleControls()); ui.scaleToggle.setAttribute("aria-expanded", "false"); ui.scaleToggle.setAttribute("aria-controls", "takeoff-scale-controls"); ui.scaleToggle.setAttribute("aria-describedby", "takeoff-active-scale");
     ui.scaleStatus = node("span", "sr-only", "No Scale Selected"); ui.scaleStatus.id = "takeoff-active-scale"; scaleAnchor.append(ui.scaleToggle, ui.scaleStatus); ui.scaleAnchor = scaleAnchor;
     ui.drawingPdf = button("Download PDF", () => downloadTakeoff("marked-pdf"));
@@ -348,12 +367,16 @@
     const fit = button("Fit page", () => fitPage(true)); fit.title = "Fit page (Ctrl+0)"; fit.setAttribute("aria-keyshortcuts", "Control+0");
     pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, button("−", () => zoomBy(1 / 1.25)), button("+", () => zoomBy(1.25)), fit, ui.rotate);
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
-    ui.search = node("input"); ui.search.type = "search"; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") void safely(runSearch); });
-    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]]); ui.searchScope.setAttribute("aria-label", "Text search scope"); searchControls.append(ui.search, ui.searchScope, button("Search", runSearch), button("Stop search", () => { ++state.searchId; setProgress(state.ui.progress.textContent + " · Search cancelled; coverage is incomplete."); }));
+    ui.search = node("input"); ui.search.type = "search"; ui.search.maxLength = 200; ui.search.placeholder = "Search PDF text…"; ui.search.setAttribute("aria-label", "Search original document text"); ui.search.setAttribute("aria-controls", "takeoff-text-search-results"); ui.search.setAttribute("aria-expanded", "false");
+    ui.search.addEventListener("input", scheduleSearch); ui.search.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); void safely(runSearch); } else if (event.key === "ArrowDown" && state.searchHits.length) { event.preventDefault(); showSearchResults(); ui.searchResults.querySelector("button")?.focus(); } else if (event.key === "Escape") hideSearchResults(); });
+    const searchControls = node("div", "takeoff-toolbar takeoff-search-controls"); searchControls.setAttribute("role", "search"); searchControls.setAttribute("aria-label", "Drawing search"); ui.searchScope = select([["document", "This document"], ["all", "All documents"]], () => scheduleSearch()); ui.searchScope.setAttribute("aria-label", "Text search scope");
+    const searchAnchor = ui.searchAnchor = node("div", "takeoff-search-anchor"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.id = "takeoff-text-search-results"; ui.searchResults.hidden = true; ui.searchResults.setAttribute("role", "region"); ui.searchResults.setAttribute("aria-label", "PDF text search results");
+    ui.searchResults.addEventListener("keydown", event => { const buttons = [...ui.searchResults.querySelectorAll("button")], index = buttons.indexOf(document.activeElement); if (["ArrowDown", "ArrowUp"].includes(event.key) && buttons.length) { event.preventDefault(); buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus(); } else if (event.key === "Escape") { event.preventDefault(); hideSearchResults(); ui.search.focus(); } });
+    searchAnchor.append(ui.search, ui.searchResults); searchControls.append(searchAnchor, ui.searchScope, button("Search", runSearch), button("Stop search", () => cancelSearch(true, "Text search stopped; input, results and highlights cleared.")));
     const viewerTop = ui.viewerTop = node("div", "takeoff-toolbar takeoff-viewer-controls takeoff-viewer-top"); viewerTop.append(scaleAnchor, navigation, searchControls);
     const scaleControls = ui.scaleControls = node("div", "takeoff-toolbar takeoff-scale-controls"); scaleControls.id = "takeoff-scale-controls"; scaleControls.hidden = true; scaleControls.setAttribute("role", "group"); scaleControls.setAttribute("aria-label", "Drawing scale"); scaleControls.append(ui.calibration, ui.tools.calibrate, ui.editCalibration); scaleAnchor.append(scaleControls);
     scaleControls.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); toggleScaleControls(false); ui.scaleToggle.focus(); } });
-    ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.searchResults = node("div", "takeoff-search-results"); ui.searchResults.hidden = true; ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
+    ui.progress = node("p", "takeoff-progress"); ui.progress.setAttribute("role", "status"); ui.physicalOverlayStatus = node("p", "helper"); ui.physicalOverlayStatus.hidden = true;
     const workspace = node("div", "takeoff-workspace-split"); ui.workspace = workspace;
     const layout = node("div", "takeoff-drawing-layout"); ui.layout = layout; const drawingPane = node("div", "takeoff-drawing-pane"); ui.drawingPane = drawingPane;
     ui.viewport = node("div", "takeoff-viewport"); ui.viewport.id = "takeoff-viewport"; ui.viewport.tabIndex = 0; ui.viewport.dataset.scrollActive = "false"; ui.viewport.setAttribute("aria-label", "Drawing. Click or focus to scroll inside; Escape releases page scrolling. Drag a selected control point to recalculate, or remove it with Control+Z. Right-click a markup to delete it.");
@@ -391,7 +414,7 @@
     ui.controlStatus = node("p", "helper takeoff-control-status"); ui.controlStatus.hidden = true; ui.controlStatus.setAttribute("role", "status");
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
-    drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.searchResults, ui.physicalOverlayStatus);
+    drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
     workspace.append(layout, register); root.append(ui.title, ui.message, workspace, ui.physicalContainer);
     if (typeof ResizeObserver === "function") {
       ui.topControlsObserver = new ResizeObserver(() => layout.style.setProperty("--takeoff-top-controls-height", `${viewerTop.offsetHeight}px`));
@@ -401,6 +424,10 @@
       if (event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && event.key === "0" && !event.target?.isContentEditable && !event.target?.closest?.("input,textarea,select,[contenteditable=true]")) {
         event.preventDefault(); event.stopPropagation(); if (!state.busy && !state.modal && state.viewport) void safely(() => fitPage(true));
       }
+    }, { capture: true });
+    syncToolShortcuts();
+    root.addEventListener("keydown", event => {
+      window.CeasefireTakeoffShortcuts?.dispatch(event, syncToolShortcuts(), !state.active || state.busy || state.modal || state.countFinishing || state.physicalPlacing || state.navigationBusy || !!document.querySelector?.("dialog[open], [role=dialog][aria-modal=true]"));
     }, { capture: true });
     ui.viewport.addEventListener("pointerdown", activatePlan, { capture: true }); ui.viewport.addEventListener("focusin", activatePlan);
     ui.overlay.addEventListener("click", drawingPointer); ui.viewport.addEventListener("pointerdown", beginPan); ui.overlay.addEventListener("pointerdown", event => void safely(() => beginSelectionGesture(event)));
@@ -469,6 +496,11 @@
     (state.mode === "duct" ? state.ui.countAnchor : state.ui.tools.countLength).after(state.ui.tools.markups, state.ui.tools.legend);
     updatePresentationTools();
     state.ui.tools.count.dataset.tool = physical ? "count" : "count-only";
+    state.ui.tools.callout.hidden = physical;
+    const countLabel = physical ? "Call-out" : "Count";
+    state.ui.tools.count.setAttribute("aria-label", countLabel); state.ui.tools.count.title = countLabel;
+    if (physical) { const image = node("img"); image.src = "/icons/takeoff-callout.png"; image.alt = ""; image.width = 25; image.height = 25; image.setAttribute("aria-hidden", "true"); state.ui.tools.count.replaceChildren(image); }
+    else if (state.ui.tools.count.querySelector("img")) { const replacement = button("Count", activateCountTool); state.ui.tools.count.replaceChildren(...replacement.childNodes); }
     if (state.ui.tools.settings) state.ui.tools.settings.hidden = false;
     if (physical) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     renderPhysicalDetails();
@@ -722,13 +754,14 @@
     panel.hidden = !state.settingsOpen; state.ui.layout.classList.toggle("with-settings", !!state.settingsOpen);
     state.ui.tools.settings.setAttribute("aria-expanded", String(!!state.settingsOpen)); state.ui.tools.settings.classList.toggle("takeoff-tool-active", !!state.settingsOpen);
     if (!state.settingsOpen) return;
+    if (selectedAnnotation()) { renderAnnotationSettings(panel); return; }
     if (selectedLegend()) { renderLegendSettings(panel); return; }
     const selected = settingsSelectedItems(), key = settingsSelectionKey();
     const existing = state.settingsEditor;
     if (existing?.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) { const sides = existing.fields.find(field => field.control.name === "sides"); if (sides) sides.wrapper.hidden = state.ui.target.value !== "steel_board"; refreshItemSettingsTools(existing); void safely(() => loadSettingsOptions(existing)); return; }
     const countsOnly = selected.length > 0 && selected.every(isCount);
     const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", countsOnly ? "Count Settings" : "Settings")); panel.replaceChildren(heading);
-    if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); return; }
+    if (!selected.length) { state.settingsEditor = null; panel.append(node("p", "helper", "Select one or more drawing markups or register items. Settings show the first selected item; only fields you edit are applied to the selection.")); if (state.annotationHidden?.size) panel.append(button("Show hidden Call-outs", () => { state.annotationHidden.clear(); renderSettingsPanel(); renderOverlay(); })); return; }
     if (existing) clearTimeout(existing.timer);
     const first = selected[0];
     if (selected.some(item => (item.purpose || "standard") !== (first.purpose || "standard"))) { state.settingsEditor = null; panel.append(node("p", "helper", "Select counts, measurements or calculator items separately to edit their details.")); return; }
@@ -778,6 +811,7 @@
     message(stored ? "Default appearance saved for new measurements." : "Default appearance set for new measurements in this window. Browser storage is unavailable.");
   }
   async function applySettings(editor) {
+    if (editor?.kind === "annotation") return applyAnnotationSettings(editor);
     if (!editor || state.settingsEditor !== editor) return;
     clearTimeout(editor.timer); editor.timer = null;
     if (editor.applying) return editor.applying;
@@ -959,6 +993,7 @@
     state.ui.documentSelect.value = state.document || ""; state.ui.documentSelect.disabled = !documents().length;
     state.ui.documentSelect.title = currentDocument() ? `${currentDocument().name} · ${currentDocument().pages.length} pages · ${units.format(currentDocument().size / 1048576)} MiB` : "Upload a PDF to choose a drawing document";
     state.ui.removeDocument.disabled = !currentDocument();
+    updatePresentationTools();
   }
   async function navigateDocument(id, page = 1) { if (state.busy || !await discardEditor()) return false; resetPlanInteraction(); state.document = id; state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); return true; }
   async function navigatePage(page) { const doc = currentDocument(); if (!doc || !Number.isInteger(page) || page < 1 || page > doc.pages.length) throw new Error("Choose a page within this document."); if (!await discardEditor()) return; resetPlanInteraction(); state.page = page; state.calibration = ""; renderRail(); renderCalibrations(); await renderPage(); }
@@ -1180,6 +1215,7 @@
         const task = text.task = new lib.TextLayer({ textContentSource: content, container, viewport: page.getViewport({ scale: 1, rotation: 0 }) });
         await boundedPdf(task.render(), "Preparing selectable PDF text", () => task.cancel());
         if (!current()) { task.cancel(); return; }
+        text.divs = task.textDivs.filter((div, index) => task.textContentItemsStr[index]);
         text.status = content.items.some(item => item.str?.trim()) ? "ready" : "empty";
         container.dataset.textState = text.status; positionPdfTextLayer(); state.ui.pageWrap.append(container); pdfTextProgress();
       } catch (error) {
@@ -1190,6 +1226,7 @@
     return text.promise;
   }
   async function renderPage(anchor = null, { refine = false } = {}) {
+    invalidateSearchContext();
     cancelQueuedZoom();
     if (!state.ui || !state.document) { clearPdfTextLayer(); ++state.renderId; state.pending?.cancel?.(); state.pending = null; state.displayPage = null; state.displayKey = null; state.viewport = null; if (state.ui) { state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; } return; }
     const contextKey = JSON.stringify([state.session?.session_id, state.document, state.page, state.mode, pageRotation()]);
@@ -1199,6 +1236,7 @@
     state.ui.page.value = String(pageNumber); state.ui.pageCount.textContent = `/ ${currentDocument().pages.length}`; setProgress(`Rendering ${currentDocument().name}, page ${pageNumber}…`);
     state.zoomAnchor = anchor;
     if (!retainDisplay) { clearPdfTextLayer(); state.viewport = null; state.displayPage = null; state.displayKey = null; if (!anchor) state.ui.pageWrap.hidden = true; state.ui.overlay.replaceChildren(); }
+    updatePresentationTools();
     state.ui.empty.hidden = true;
     state.pending?.cancel?.(); state.pending = null;
     for (const task of state.thumbnailTasks.values()) task.cancel(); state.thumbnailTasks.clear();
@@ -1230,6 +1268,7 @@
       else if (state.pageError?.document_id === docId && state.pageError.page === pageNumber) { if (state.ui.message.textContent === state.pageError.notice) message(); state.pageError = null; }
       if (!warnings.length) await autoCalibratePage(docId, pageNumber, sessionId, renderId);
       if (renderId === state.renderId && state.tool === "text") void ensurePdfTextLayer();
+      if (renderId === state.renderId && state.searchHits.length) void updateSearchGeometry();
       void renderThumbnails(pdf, renderId, docId);
     } catch (error) {
       if (renderId !== state.renderId || error.name === "RenderingCancelledException") return;
@@ -1332,6 +1371,7 @@
     state.ui.viewport.focus();
     setProgress(({ "count-only": "Click once for each item. Double-click or Enter finishes the count. These counts stay in this register.", measure: "Click along the length, then double-click or Enter to finish the measurement.", count: "Click once for each steel member and enter its length manually. Double-click or Enter finishes without adding a marker. All members in this count share the same details; start another Count for different details. Right-click cancels the unfinished count.", viewport: "Click the first corner, then double-click the opposite corner to finish a rectangular viewport and choose its scale. A single click adjusts the opposite corner; Enter finishes two chosen corners. Right-click cancels; Backspace removes the last corner.", calibrate: state.pendingViewport || state.calibrationTarget ? "Click both endpoints of a known dimension inside the selected viewport." : "Click the two endpoints of a known distance on this drawing.", trace: "Click each vertex along one object. Double-click or Enter completes it. Right-click cancels; Backspace removes the last point.", polygon: `${surfaceHelp} Click each boundary vertex, then double-click or Enter. The final edge closes automatically.`, exclusion: "Trace the excluded opening strictly inside the selected surface. Double-click or Enter closes the boundary.", cite: "Click opposite corners around the source dimension or schedule entry. Enter its stated length next.", pan: "Drag the drawing to pan.", select: "Select a markup or register row to view its source and edit it in the register." })[tool] || "");
     if (tool === "count" && state.mode === "physical") setProgress("Click the drawing to place one barrier marker. Enter or select its substrate details, then add its services in Item Details. Each marker's callout updates from those records; drawing scale does not change service quantities.");
+    if (tool === "callout") setProgress("Click the drawing to add a free Call-out, then type its Item Details. It does not add a register item or quantity.");
     if (tool === "text") void ensurePdfTextLayer();
   }
   function cancelTrace() { clearPdfTextSelection(); state.physicalPlacementTarget = null; cancelSelectionGesture(); resetCountDraft(); state.pendingViewport = null; state.calibrationTarget = null; state.retraceId = null; state.exclusionItemId = null; state.points = []; state.traceCursor = null; state.markupMenu = null; state.doubleClickEndpointValid = false; state.tool = "select"; if (state.ui) { state.ui.viewport.dataset.tool = "select"; for (const el of state.ui.root?.querySelectorAll("button[data-tool]") || []) el.classList.toggle("takeoff-tool-active", el.dataset.tool === "select"); renderOverlay(); } window.CeasefireProject?.changed?.(); }
@@ -1395,11 +1435,12 @@
     if (["count", "count-only", "viewport"].includes(state.tool) && event.detail === 2) { void safely(() => finishTraceFromDoubleClick(event)); return; }
     if (event.detail > 1) return;
     state.doubleClickEndpointValid = false;
-    if (state.busy || state.modal || state.countFinishing || state.physicalPlacing || !state.viewport || !["calibrate", "trace", "measure", "count-only", "count", "cite", "polygon", "exclusion", "viewport"].includes(state.tool) || event.button !== 0) return;
+    if (state.busy || state.modal || state.countFinishing || state.physicalPlacing || !state.viewport || !["calibrate", "trace", "measure", "count-only", "count", "cite", "polygon", "exclusion", "viewport", "callout"].includes(state.tool) || event.button !== 0) return;
     if (state.formDirty || state.settingsDirty) { message("Apply or discard the unfinished item edits or settings before continuing the drawing tool.", true); return; }
     if (["polygon", "exclusion"].includes(state.tool) && state.points.length >= areaTraceLimit()) { message("A surface supports at most 1,000 total vertices across its outer boundary and all exclusions. Finish or cancel this trace.", true); return; }
     event.preventDefault(); const rect = state.ui.overlay.getBoundingClientRect(); const p = G.inverse([(event.clientX - rect.left) * state.viewport.width / rect.width, (event.clientY - rect.top) * state.viewport.height / rect.height], state.viewport.transform);
     const view = pageMetadata()?.view; if (view && (p[0] < view[0] || p[1] < view[1] || p[0] > view[2] || p[1] > view[3])) return;
+    if (state.tool === "callout") { void safely(() => createFreeCallout(p)); return; }
     if (state.tool === "count-only") { state.points.push(p); state.countEntries.push({ point: [...p] }); state.countLastClick = { timeStamp: event.timeStamp, client: [event.clientX, event.clientY] }; renderOverlay(); window.CeasefireProject?.changed?.(); return; }
     if (state.tool === "count") { void safely(() => state.mode === "physical" ? placePhysicalMarker(p) : stageCountMarker(p, event)); return; }
     if (state.pendingViewport && !inViewport(p, state.pendingViewport.region)) { message("Both calibration points must be inside the viewport.", true); return; }
@@ -1480,7 +1521,7 @@
     const savingSettings = state.mode !== "physical" && state.settingsEditor?.applying;
     if (state.tool !== "select" || state.busy && !savingSettings || state.modal || state.gesture || state.physicalPlacing || !(state.selected.size || state.physicalSelected.size || state.legendSelected || state.settingsOpen)) return;
     if (!await discardEditor()) return;
-    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
+    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null; state.hovered = null;
     if (state.mode === "physical") { await state.physicalUI?.clearSelection(); state.physicalHovered = null; }
     renderSelection();
   }
@@ -1538,6 +1579,8 @@
     document.addEventListener("focusin", outside, { signal: controller.signal });
   }
   function resetPlanInteraction() {
+    if (state.gesture?.kind === "annotation") { state.gesture.cleanup?.(); state.gesture = null; }
+    state.annotationSelected = null;
     state.lastDrawingClick = null;
     state.physicalPlacementTarget = null;
     state.panCleanup?.();
@@ -1761,7 +1804,7 @@
   }
   function beginSelectionGesture(event) {
     if (state.tool !== "select" || state.mode === "physical" || event.button !== 0 || state.busy || state.modal || !state.viewport || state.gesture) return;
-    if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu,.takeoff-count-hit,.takeoff-drawing-legend,.takeoff-legend-handle")) return;
+    if (event.target.closest?.(".takeoff-control-point,.takeoff-control-menu,.takeoff-count-hit,.takeoff-drawing-legend,.takeoff-legend-handle,.takeoff-free-callout")) return;
     state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const hit = event.target.closest?.("[data-item-id]"), id = hit?.dataset.itemId;
     // An unselected markup retains ordinary click-to-select behavior.
@@ -2151,8 +2194,11 @@
     }
   }
   function renderOverlay() {
-    if (!state.ui || !state.viewport) return;
+    if (!state.ui) return;
+    updatePresentationTools();
+    if (!state.viewport) return;
     const overlay = state.ui.overlay; overlay.replaceChildren(); const convert = p => G.transform(p, state.viewport.transform);
+    renderSearchHighlights(overlay);
     if (state.markupsHidden) return;
     renderViewportRegions(overlay);
     // Keep the existing hint and its exact height until pointer capture ends:
@@ -2184,8 +2230,8 @@
       renderMeasurementValues(overlay, item, geometry);
       if (geometry.kind === "polygon" && appearance.display_values) renderSurfaceLabel(overlay, geometry, item.measurement?.calibration_id, { area: itemResult(item).net_area_m2, itemId: item.id, preview: pointDrag });
     }
-    for (const hit of state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page)) if (hit.points?.length) { const box = G.bounds(hit.points.map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: Math.max(4, box[2] - box[0]), height: Math.max(4, box[3] - box[1]), class: "takeoff-search-hit" })); }
     renderPendingTrace(overlay);
+    renderFreeCallouts(overlay);
     if (state.gesture?.kind === "marquee" && state.gesture.moved) { const box = G.bounds([state.gesture.initial, state.gesture.current].map(convert)); overlay.append(svg("rect", { x: box[0], y: box[1], width: box[2] - box[0], height: box[3] - box[1], class: "takeoff-marquee" })); }
     renderControlPoints(overlay);
     renderMarkupMenu(overlay);
@@ -2290,18 +2336,126 @@
       renderSurfaceLabel(overlay, { points: sourcePoints, document_id: state.document, page: state.page, exclusions }, state.calibration, { preview: true, excluded: state.tool === "exclusion" });
     }
   }
+  async function createFreeCallout(point) {
+    requireFinishedEdits();
+    const source = currentDocument(), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), context = JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]);
+    if (!A || !source || !["steel", "duct", "wall", "slab"].includes(state.mode)) throw new Error("Choose a drawing workspace for a free Call-out.");
+    await Promise.all([document.fonts.load("10px CeasefireDrawing"), document.fonts.load("700 10px CeasefireDrawing")]);
+    if (context !== JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]) || state.tool !== "callout") return;
+    const anchor = G.transform(point, state.viewport.transform), width = Math.min(238, state.viewport.width / scale - 12), height = Math.min(120, state.viewport.height / scale - 12);
+    const label_position = G.inverse([Math.max(0, Math.min(state.viewport.width - width * scale, anchor[0] + 20)), Math.max(0, Math.min(state.viewport.height - height * scale, anchor[1] - 60))], state.viewport.transform);
+    const annotation = { mode: state.mode, document_id: source.id, source_sha256: source.sha256, page: state.page, point: [...point], label_position, width, height, appearance: A.defaults(), content: { version: 1, blocks: [{ kind: "paragraph", runs: [{ text: "" }] }] } };
+    const reply = await command("create_annotation", { annotation }, () => context === JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]));
+    if (!reply) return;
+    cancelTrace(); state.selected.clear(); state.annotationSelected = reply.created_annotation_id; state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+    state.ui.settingsPanel.querySelector("[contenteditable]")?.focus();
+  }
+  function annotationSelectionKey() { return JSON.stringify([state.session?.session_id, state.mode, state.document, state.page, selectedAnnotation()?.id]); }
+  async function selectFreeCallout(id) {
+    if (state.tool !== "select" || !await discardEditor()) return;
+    const annotation = annotations().find(value => value.id === id && value.mode === state.mode && value.document_id === state.document && value.page === state.page);
+    if (!annotation) return;
+    state.selected.clear(); state.countSelection.clear(); state.legendSelected = null; state.annotationSelected = id; state.settingsOpen = true; state.settingsEditor = null; state.viewportsOpen = false; renderViewportPanel(); renderSelection();
+  }
+  function renderAnnotationSettings(panel) {
+    const annotation = selectedAnnotation(); if (!annotation) return;
+    const key = annotationSelectionKey(), existing = state.settingsEditor;
+    if (existing?.kind === "annotation" && existing.key === key && (state.settingsDirty || existing.applying || existing.revision === state.session.revision)) return;
+    if (existing) clearTimeout(existing.timer);
+    const editor = { kind: "annotation", key, sessionId: state.session.session_id, revision: state.session.revision, id: annotation.id, touched: new Map(), fields: [], appearance: [] }; state.settingsEditor = editor;
+    const heading = node("div", "takeoff-viewports-heading"); heading.append(button("Close settings", toggleSettings), node("h3", "", "Call-out Settings"));
+    const controls = node("div", "takeoff-settings-fields"); panel.replaceChildren(heading, controls); controls.append(node("h4", "", "Markup appearance"));
+    for (const definition of [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]]) {
+      const field = appearanceField(definition, annotation.appearance[definition[0]]); editor.appearance.push(field); bindSetting(editor, field, `appearance:${definition[0]}`); controls.append(field.wrapper);
+    }
+    controls.append(button("Set as default", async () => { await applyAnnotationSettings(editor); A.setDefaults(Object.fromEntries(editor.appearance.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); }));
+    controls.append(node("h4", "", "Item Details"));
+    editor.rich = A.richEditor(annotation.content, () => markSettingsEdited(editor, "content")); controls.append(editor.rich.wrap);
+    controls.append(node("p", "helper", "Free Call-outs are drawing notes. They do not add register entries or quantities."));
+    const actions = node("div", "actions");
+    actions.append(button("Apply Item Details", () => applyAnnotationSettings(editor)), button("Discard pending edits", async () => { clearTimeout(editor.timer); if (editor.applying) { try { await editor.applying; } catch { /* Retain any accepted update, discard only the pending invalid draft. */ } } if (state.settingsEditor !== editor) return; editor.touched.clear(); state.settingsDirty = false; state.settingsEditor = null; renderSettingsPanel(); window.CeasefireProject?.changed?.(); }),
+      button("Hide Call-out", async () => { await flushSettings(); state.annotationHidden ||= new Set(); state.annotationHidden.add(annotation.id); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); }),
+      button("Delete Call-out", async () => { await flushSettings(); await command("delete_annotation", { annotation_id: annotation.id }); state.annotationSelected = null; state.settingsEditor = null; renderSelection(); }),
+      button("Undo last edit", undoLastEdit)); controls.append(actions);
+  }
+  async function applyAnnotationSettings(editor) {
+    if (state.settingsEditor !== editor) return;
+    clearTimeout(editor.timer); editor.timer = null; if (editor.applying) return editor.applying;
+    const pending = Promise.resolve().then(async () => {
+      while (state.settingsEditor === editor && editor.touched.size) {
+        await state.queue;
+        if (state.settingsEditor !== editor || editor.sessionId !== state.session?.session_id || editor.key !== annotationSelectionKey()) throw new Error("The Call-out changed before its Item Details finished updating.");
+        const touched = new Map(editor.touched), changes = {}, annotation = selectedAnnotation();
+        if (touched.has("content")) { changes.content = editor.rich.read(); A.layout(changes.content, annotation.width, annotation.height); }
+        for (const field of editor.appearance) if (touched.has(`appearance:${field.control.name}`)) (changes.appearance ||= { ...annotation.appearance })[field.control.name] = field.read();
+        const reply = await command("update_annotation", { annotation_id: editor.id, changes }, () => state.settingsEditor === editor && editor.sessionId === state.session?.session_id && editor.key === annotationSelectionKey());
+        if (!reply) return;
+        for (const [key, revision] of touched) if (editor.touched.get(key) === revision) editor.touched.delete(key);
+        editor.revision = reply.revision; state.settingsDirty = editor.touched.size > 0;
+      }
+    });
+    editor.applying = pending;
+    try { await pending; } finally { editor.applying = null; window.CeasefireProject?.changed?.(); }
+  }
+  function renderFreeCallouts(overlay) {
+    if (state.mode === "physical" || !A) return;
+    const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
+    for (const annotation of annotations().filter(value => value.mode === state.mode && value.document_id === state.document && value.page === state.page && !state.annotationHidden?.has(value.id))) {
+      const gesture = state.gesture?.kind === "annotation" && state.gesture.id === annotation.id ? state.gesture : null;
+      const point = G.transform(gesture?.point || annotation.point, state.viewport.transform), rawLabel = G.transform(gesture?.label || annotation.label_position, state.viewport.transform), appearance = annotation.appearance;
+      const width = gesture?.width || annotation.width, height = gesture?.height || annotation.height;
+      const label = [Math.max(0, Math.min(state.viewport.width - width * scale, rawLabel[0])), Math.max(0, Math.min(state.viewport.height - height * scale, rawLabel[1]))];
+      const selected = state.annotationSelected === annotation.id, group = svg("g", { class: `takeoff-free-callout${selected ? " selected" : ""}`, "data-annotation-id": annotation.id, role: "button", tabindex: 0, "aria-label": `Call-out · ${A.text(annotation.content) || "Empty Item Details"}`, "aria-pressed": String(selected) });
+      group.append(svg("line", { x1: point[0], y1: point[1], x2: Math.max(label[0], Math.min(point[0], label[0] + width * scale)), y2: Math.max(label[1], Math.min(point[1], label[1] + height * scale)), stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "pointer-events": "none" }));
+      group.append(svg("rect", { x: label[0], y: label[1], width: width * scale, height: height * scale, rx: Math.min(3 * scale, height * scale / 8), fill: appearance.fill_enabled ? appearance.fill_color : "transparent", "fill-opacity": appearance.opacity, stroke: appearance.stroke_color, "stroke-width": appearance.stroke_width * scale / (pageMetadata()?.user_unit || 1), "data-annotation-part": "label" }));
+      try {
+        const layout = A.layout(annotation.content, width, height), text = svg("text", { "font-family": "CeasefireDrawing", "font-size": layout.size * scale, fill: appearance.font_color, "pointer-events": "none" });
+        layout.lines.forEach((line, index) => { for (const run of line) { const span = svg("tspan", { x: label[0] + (layout.padding + run.x) * scale, y: label[1] + (layout.padding + layout.size + index * layout.size * 1.3) * scale, "font-weight": run.bold ? "700" : "400", "font-style": run.italic ? "italic" : "normal", "text-decoration": run.underline ? "underline" : "none" }); span.textContent = run.text; text.append(span); } }); group.append(text);
+      } catch (error) { const warning = svg("text", { x: label[0] + 6, y: label[1] + 20, fill: appearance.font_color }); warning.textContent = "Item Details cannot fit: resize or shorten"; group.append(warning); }
+      // Keep the original source anchor visible and draggable when rotation or
+      // page-edge clamping places its upright label over the anchor, as in PDF.
+      group.append(svg("circle", { cx: point[0], cy: point[1], r: 3 * scale, fill: appearance.stroke_color, "data-annotation-part": "point" }));
+      group.addEventListener("click", event => { if (state.tool !== "select" || Date.now() < (state.suppressSelectionClickUntil || 0)) return; event.stopPropagation(); void safely(() => selectFreeCallout(annotation.id)); });
+      group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); void safely(() => selectFreeCallout(annotation.id)); } });
+      group.addEventListener("pointerdown", event => void safely(() => beginAnnotationDrag(event, annotation)));
+      if (selected) group.append(svg("rect", { x: label[0] + width * scale - 5, y: label[1] + height * scale - 5, width: 10, height: 10, fill: "white", stroke: appearance.stroke_color, "data-annotation-part": "resize", class: "takeoff-annotation-resize", "aria-label": "Resize Call-out" }));
+      overlay.append(group);
+    }
+  }
+  async function beginAnnotationDrag(event, annotation) {
+    if (state.tool !== "select" || event.button !== 0 || state.busy || state.modal || state.gesture) return;
+    event.stopPropagation();
+    if (state.annotationSelected !== annotation.id) return;
+    // Capture synchronously: waiting for an editor request here could miss the
+    // pointer-up event and leave a stale drawing gesture behind.
+    if (state.settingsDirty || state.settingsEditor?.applying) throw new Error("Finish updating Item Details before moving the Call-out.");
+    requireFinishedEdits();
+    const element = state.ui.viewport, initial = drawingPoint(event), context = pageDisplayKey(), revision = state.session.revision;
+    const geometryStamp = value => JSON.stringify(value && [value.id, value.mode, value.document_id, value.source_sha256, value.page, value.point, value.label_position, value.width, value.height]);
+    const original = geometryStamp(annotation), transform = JSON.stringify(state.viewport.transform);
+    const part = event.target.dataset.annotationPart;
+    const gesture = { kind: "annotation", id: annotation.id, initial, current: initial, point: [...annotation.point], label: [...annotation.label_position], width: annotation.width, height: annotation.height, moved: false }; state.gesture = gesture;
+    const unchanged = () => context === pageDisplayKey() && revision === state.session?.revision && state.annotationSelected === annotation.id && original === geometryStamp(selectedAnnotation()) && transform === JSON.stringify(state.viewport?.transform);
+    const valid = () => state.gesture === gesture && unchanged();
+    const move = next => { if (next.pointerId !== event.pointerId || !valid()) return; const current = drawingPoint(next), delta = current.map((value, index) => value - initial[index]); gesture.current = current; gesture.moved ||= Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) > 3; if (!gesture.moved) return; if (part === "resize") { const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]); gesture.width = Math.max(10, Math.min(state.viewport.width / scale, annotation.width + (next.clientX - event.clientX) / scale)); gesture.height = Math.max(10, Math.min(state.viewport.height / scale, annotation.height + (next.clientY - event.clientY) / scale)); } else { gesture.label = annotation.label_position.map((value, index) => value + delta[index]); if (part === "point") gesture.point = annotation.point.map((value, index) => value + delta[index]); } next.preventDefault(); renderOverlay(); window.CeasefireProject?.changed?.(); };
+    const cleanup = () => { element.removeEventListener("pointermove", move); element.removeEventListener("pointerup", end); element.removeEventListener("pointercancel", cancel); try { element.releasePointerCapture(event.pointerId); } catch { /* Capture was already released. */ } };
+    const cancel = () => { cleanup(); if (state.gesture === gesture) state.gesture = null; renderOverlay(); window.CeasefireProject?.changed?.(); };
+    const end = next => { if (next.pointerId !== event.pointerId) return; const current = valid(); cleanup(); state.gesture = null; if (!current || !gesture.moved) { renderOverlay(); return; } state.suppressSelectionClickUntil = Date.now() + 500; void safely(async () => { await command("update_annotation", { annotation_id: annotation.id, changes: { point: gesture.point, label_position: gesture.label, width: gesture.width, height: gesture.height } }, unchanged); renderSelection(); }); };
+    event.preventDefault(); element.addEventListener("pointermove", move); element.addEventListener("pointerup", end); element.addEventListener("pointercancel", cancel); element.setPointerCapture(event.pointerId); gesture.cleanup = cleanup;
+  }
   async function placePhysicalMarker(point) {
     requireFinishedEdits(); ensurePhysicalUI();
     const source = currentDocument(), sessionId = state.session?.session_id, revision = state.session?.revision, scope = state.physicalScope, controller = state.physicalUI;
     if (!source || !state.viewport) throw new Error("Open the original PDF before placing a barrier marker.");
     const marker = { document_id: source.id, document_sha256: source.sha256, page: state.page, point: [...point], appearance: { marker_size: 10 } };
+    if (A) marker.callout = { appearance: A.defaults() };
     const current = () => { if (sessionId !== state.session?.session_id || revision !== state.session?.revision || scope !== state.physicalScope || controller !== state.physicalUI || state.mode !== "physical" || state.document !== marker.document_id || state.page !== marker.page || documentById(marker.document_id)?.sha256 !== marker.document_sha256) throw new Error("The drawing or physical draft changed. Place the marker again."); };
     state.physicalPlacing = true; working(state.busy);
     try {
       const selected = controller.selectedBarrier(), selectedDefect = physicalGraph()?.defects?.find(entity => state.physicalSelected.has(entity.id) && !entity.deleted);
       const placement = state.physicalPlacementTarget;
       if (placement?.kind === "defect") {
-        if (scope !== "defect_reports" || placement.controller !== controller || placement.sessionId !== sessionId || placement.documentId !== marker.document_id || placement.page !== marker.page) throw new Error("The defect placement belongs to a previous drawing. Select Count again.");
+        if (scope !== "defect_reports" || placement.controller !== controller || placement.sessionId !== sessionId || placement.documentId !== marker.document_id || placement.page !== marker.page) throw new Error("The defect placement belongs to a previous drawing. Select Call-out again.");
         const evidence = defectLocationEvidence(marker); placement.pendingPoint = [...point]; renderOverlay(); current();
         const id = await controller.create("defect", undefined, undefined, evidence, current, marker);
         if (id && controller === state.physicalUI && scope === state.physicalScope) { cancelTrace(); setPhysicalDetailsOpen(true); renderOverlay(); }
@@ -2367,22 +2521,24 @@
     const locator = physicalDrawingLocator(entity); if (!locator) return;
     const sessionId = state.session?.session_id, controller = state.physicalUI, context = pageDisplayKey(), scope = state.physicalScope;
     const part = state.physicalAppearancePart || "marker", callout = part === "callout";
-    const defaults = callout ? { stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 } : appearanceOf({ appearance: locator.appearance });
+    const defaults = callout ? calloutDefaults() : appearanceOf({ appearance: locator.appearance });
     const appearance = { ...defaults, ...(callout ? locator.callout?.appearance : locator.appearance) }, fields = node("div", "takeoff-settings-fields"); fields.setAttribute("aria-label", callout ? "Callout Settings" : "Marker Settings"); fields.append(node("h3", "", callout ? "Callout Settings" : "Marker Settings")); container.append(fields);
     const definitions = [["stroke_color", "Line Colour", "color"], ["stroke_width", "Line Width", "number"], ["fill_color", "Fill colour", "color"], ["fill_enabled", "Fill enabled", "checkbox"], ...(callout ? [["font_color", "Font Colour", "color"], ["opacity", "Opacity", "number"]] : [["marker_size", "Marker Size", "number"], ["opacity", "Opacity", "number"]])];
+    const styleFields = [];
     for (const def of definitions) {
-      const field = appearanceField(def, appearance[def[0]]); fields.append(field.wrapper);
+      const field = appearanceField(def, appearance[def[0]]); styleFields.push(field); fields.append(field.wrapper);
       field.control.addEventListener("change", () => void safely(async () => {
         const value = field.read(); await controller.completePendingEdits(); requireFinishedEdits();
         if (sessionId !== state.session?.session_id || controller !== state.physicalUI || scope !== state.physicalScope || context !== pageDisplayKey() || !state.physicalSelected.has(entity.id)) throw new Error("Select the current source annotation again.");
         const current = physicalDrawingEntity(entity.id), marker = clone(physicalDrawingLocator(current)); if (!marker) throw new Error("Select the current source annotation again.");
         if (callout) {
-          if (!marker.callout) { const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), point = G.transform(marker.point, state.viewport.transform), box = physicalCalloutBox(current, point, Math.max(pdfScale/(pageMetadata()?.user_unit || 1), 1.2), pdfScale); marker.callout = { offset: G.inverse([box.x, box.y], state.viewport.transform).map((number, axis) => number-marker.point[axis]), width: box.width/pdfScale, height: box.height/pdfScale }; }
+          if (!marker.callout?.offset) { const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), point = G.transform(marker.point, state.viewport.transform), box = physicalCalloutBox(current, point, Math.max(pdfScale/(pageMetadata()?.user_unit || 1), 1.2), pdfScale); marker.callout = { ...marker.callout, offset: G.inverse([box.x, box.y], state.viewport.transform).map((number, axis) => number-marker.point[axis]), width: box.width/pdfScale, height: box.height/pdfScale }; }
           marker.callout.appearance = { ...defaults, ...marker.callout.appearance, [def[0]]: value };
         } else marker.appearance = { ...defaults, ...marker.appearance, [def[0]]: value };
         await (physicalGraph().defects?.some(record => record.id === entity.id) ? controller.setAnnotation(entity.id, marker) : controller.setMarker(entity.id, marker));
       }));
     }
+    if (callout && A) fields.append(button("Set as default", () => { A.setDefaults(Object.fromEntries(styleFields.map(field => [field.control.name, field.read()]))); message("Default appearance saved for new Call-outs in every drawing workspace."); }));
   }
   async function copyPhysicalCallout() {
     await state.physicalUI.completePendingEdits(); requireFinishedEdits();
@@ -2392,7 +2548,7 @@
     const scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), point = G.transform(locator.point, state.viewport.transform), box = physicalCalloutBox(entity, point, Math.max(scale/(pageMetadata()?.user_unit || 1), 1.2), scale);
     const copied = state.physicalUI.copyDrawing(id), root = copied.records[0].entity;
     if (!root.marker && !root.annotation) root.annotation = clone(locator);
-    if (!root.marker?.callout && !root.annotation?.callout) (root.marker || root.annotation).callout = { offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]), width: box.width/scale, height: box.height/scale };
+    if (!root.marker?.callout?.offset && !root.annotation?.callout?.offset) (root.marker || root.annotation).callout = { ...(root.marker || root.annotation).callout, offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]), width: box.width/scale, height: box.height/scale };
     state.physicalClipboard = { sessionId: state.session.session_id, copied, offset: G.inverse([box.x, box.y], state.viewport.transform).map((value, axis) => value-locator.point[axis]) };
     message("Callout and linked records copied. Move the pointer onto the drawing and press Ctrl+V.");
   }
@@ -2435,11 +2591,11 @@
   }
   function physicalCalloutBox(entity, point, scale, markerScale) {
     const locator = physicalDrawingLocator(entity), stored = locator.callout;
-    if (stored) {
+    if (stored?.offset) {
       const anchor = G.transform(locator.point.map((value, axis) => value + stored.offset[axis]), state.viewport.transform);
       return { x: anchor[0], y: anchor[1], width: stored.width * markerScale, height: stored.height * markerScale };
     }
-    const width = 238 * scale, lines = physicalCalloutLines(state.physicalUI.summary(entity.id), width - 12 * scale, 9 * scale), height = (Math.min(lines.length, 30) * 12 + 12) * scale;
+    const width = Math.min(238 * scale, state.viewport.width), padding = Math.min(6 * scale, width / 12), lines = physicalCalloutLines(state.physicalUI.summary(entity.id), width - 2 * padding, 9 * scale), height = Math.min((Math.min(lines.length, 30) * 12 + 12) * scale, state.viewport.height);
     const x = Math.max(0, Math.min(point[0] + 17 * scale, state.viewport.width - width)), below = point[1] + 18 * scale;
     return { x, y: below + height <= state.viewport.height ? below : Math.max(0, point[1] - 18 * scale - height), width, height };
   }
@@ -2524,10 +2680,10 @@
     const selected = selectedIds.has(entity.id), gesture = state.gesture?.id === entity.id ? state.gesture : null, moved = gesture?.kind === "physical-marker" && gesture.moved;
     const sourcePoint = locator.point.map((value, axis) => value + (moved ? gesture.delta[axis] : 0)), point = G.transform(sourcePoint, state.viewport.transform);
     const pdfScale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), markerScale = pdfScale / (pageMetadata()?.user_unit || 1), radius = Math.max(4, (locator.appearance?.marker_size || 25) * markerScale / 2), scale = Math.max(markerScale, 1.2);
-    const markerAppearance = appearanceOf({ appearance: locator.appearance }), calloutAppearance = { stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75, ...locator.callout?.appearance };
+    const markerAppearance = appearanceOf({ appearance: locator.appearance }), calloutAppearance = { ...calloutDefaults(), ...locator.callout?.appearance };
     const summary = state.physicalUI.summary(entity.id);
     let box = physicalCalloutBox(entity, point, scale, pdfScale);
-    if (moved && locator.callout) { const old = G.transform(locator.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
+    if (moved && locator.callout?.offset) { const old = G.transform(locator.point, state.viewport.transform); box.x += point[0] - old[0]; box.y += point[1] - old[1]; }
     if (gesture?.box && gesture.moved) box = gesture.box;
     const { x, y, width, height } = box, padding = Math.min(6 * scale, width / 12, height / 8);
     let fontSize = 9 * scale, lines = physicalCalloutLines(summary, width - 2 * padding, fontSize);
@@ -2601,11 +2757,21 @@
   const colourMode = (documentId = state.document) => presentation()?.colour_modes.find(value => value.document_id === documentId);
   const currentLegend = () => presentation()?.legends.find(value => value.document_id === state.document && value.page === state.page && value.mode === state.mode);
   const selectedLegend = () => { const value = currentLegend(); return value?.visible && value.id === state.legendSelected ? value : null; };
+  function eligibleLegendItems() {
+    if (!["steel", "duct"].includes(state.mode) || !currentDocument() || !state.viewport || state.markupsHidden) return [];
+    return items().filter(item => item.mode === state.mode && !item.deleted && !state.hidden.has(item.id) && item.geometry?.document_id === state.document && item.geometry.page === state.page &&
+      (isCount(item) || !!item.measurement && (item.geometry.kind || "polyline") === "polyline"));
+  }
+  function canToggleLegend() {
+    return !state.busy && ["steel", "duct"].includes(state.mode) && !!currentDocument() && !!state.viewport && (!!currentLegend()?.visible || eligibleLegendItems().length > 0);
+  }
   function updatePresentationTools() {
+    syncToolShortcuts();
     if (!state.ui?.tools?.markups) return;
     for (const [name, active] of [["markups", !!colourMode()], ["legend", !!currentLegend()?.visible]]) {
       state.ui.tools[name].setAttribute("aria-pressed", String(active)); state.ui.tools[name].classList.toggle("takeoff-tool-active", active);
     }
+    state.ui.tools.legend.disabled = !canToggleLegend();
   }
   async function toggleThicknessColours() {
     requireFinishedEdits(); if (state.mode !== "steel" || !state.document) throw new Error("Open a Steel drawing first.");
@@ -2629,6 +2795,7 @@
   }
   async function toggleLegend() {
     requireFinishedEdits(); if (!["steel", "duct"].includes(state.mode) || !state.viewport) throw new Error("Open a Steel or Duct drawing first.");
+    if (!canToggleLegend()) throw new Error("Create or show a Length or Count markup on this drawing page before enabling Legend.");
     const context = pageDisplayKey();
     const existing = currentLegend(), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]);
     const legend = existing ? { ...clone(existing), visible: !existing.visible } : { id: uuid(), mode: state.mode, document_id: state.document, page: state.page,
@@ -2642,7 +2809,7 @@
       const lines = rows.reduce((sum, row) => sum + physicalCalloutLines(row.text, legend.width - 30, font, "Arial, sans-serif").length, 0);
       legend.height = Math.max(40, (lines + 3) * font * 1.3 + 16);
     }
-    await command("set_legend", { legend }, () => { requireFinishedEdits(); if (context !== pageDisplayKey()) throw new Error("The drawing changed. Click Legend again."); return true; });
+    await command("set_legend", { legend }, () => { requireFinishedEdits(); if (context !== pageDisplayKey()) throw new Error("The drawing changed. Click Legend again."); if (legend.visible && !eligibleLegendItems().length) throw new Error("The eligible Length or Count markups changed. Show a current markup before enabling Legend."); return true; });
     if (context !== pageDisplayKey()) return;
     state.legendSelected = legend.visible ? legend.id : null; updatePresentationTools(); renderOverlay();
   }
@@ -2906,7 +3073,7 @@
   function groupedItems(list = visibleItems()) { const standard = list.filter(item => !isStandalone(item)), standalone = list.filter(isStandalone); return [...(!usesColumnFilters() && state.group ? standard.sort((a, b) => String(itemGroup(a)).localeCompare(String(itemGroup(b)))) : standard), ...standalone]; }
   function syncSurfaceDetailsSelection() {
     if (state.mode === "physical") return;
-    if (!selectedItems().length) state.settingsOpen = false;
+    if (!selectedItems().length && !selectedAnnotation() && !selectedLegend()) state.settingsOpen = false;
     if (state.settingsOpen) state.viewportsOpen = false;
     else { if (state.settingsEditor) clearTimeout(state.settingsEditor.timer); state.settingsEditor = null; }
     renderViewportPanel();
@@ -2935,6 +3102,7 @@
   }
   async function selectItem(id, multiple = false, focus = true, fromDrawing = false, openSettings = true) {
     if (!await discardEditor()) return;
+    state.annotationSelected = null;
     state.legendSelected = null; state.controlPoint = null; state.controlMenu = false; state.markupMenu = null;
     const item = items().find(value => value.id === id); if (!item) return;
     const modeChanged = state.mode !== item.mode;
@@ -3380,23 +3548,176 @@
     } catch (error) { throw new Error(`${done ? `${done} PDF(s) imported before this failure. ` : ""}${error.message}`); }
     finally { working(false); renderData(); if (state.document) await fitPage(); }
   }
-  async function runSearch() {
-    const query = state.ui.search.value.trim().toLocaleLowerCase(); if (!query) return;
-    const docs = state.ui.searchScope.value === "all" ? documents() : [currentDocument()].filter(Boolean); const total = docs.reduce((sum, doc) => sum + doc.pages.length, 0), run = ++state.searchId, sessionId = state.session.session_id; let checked = 0, empty = 0, failed = 0; state.searchHits = []; state.ui.searchResults.replaceChildren(); state.ui.searchResults.hidden = false;
-    for (const doc of docs) {
-      let pdf; try { pdf = await pdfDocument(doc.id); } catch (error) { failed += doc.pages.length; if (error.name === "PdfTimeoutError") await recordPdfFailure(doc.id, doc.id === state.document ? state.page : 1, error, sessionId, false, () => run === state.searchId); continue; }
-      if (run !== state.searchId || sessionId !== state.session?.session_id) return;
-      for (const metadata of doc.pages) {
-        if (run !== state.searchId || sessionId !== state.session?.session_id) return;
-        let page, timedOut = false;
-        try { page = await pdfPage(pdf, doc.id, metadata.page, sessionId); const content = await boundedPdf(page.getTextContent(), `Searching PDF page ${metadata.page}`, () => discardPdf(doc.id, sessionId, pdf)); if (run !== state.searchId || sessionId !== state.session?.session_id) return; checked++; if (!content.items.some(item => item.str?.trim())) empty++; for (const text of content.items) if (text.str?.toLocaleLowerCase().includes(query)) { const x = text.transform[4], y = text.transform[5], height = Math.max(1, text.height || Math.hypot(text.transform[2], text.transform[3])); const hit = { document_id: doc.id, page: metadata.page, points: [[x, y], [x + text.width, y + height]], text: text.str }; state.searchHits.push(hit); const el = button(`${doc.name} · p${metadata.page}: ${text.str}`, async () => { await navigateDocument(doc.id, metadata.page); renderOverlay(); focusGeometry({ geometry: { points: hit.points } }); }, "takeoff-search-result"); state.ui.searchResults.append(el); if (state.searchHits.length >= 500) break; } } catch (error) { if (run !== state.searchId || sessionId !== state.session?.session_id) return; failed++; if (error.name === "PdfTimeoutError") { timedOut = true; failed += doc.pages.length - metadata.page; await recordPdfFailure(doc.id, metadata.page, error, sessionId, false, () => run === state.searchId); } }
-        finally { if (page && !(doc.id === state.document && metadata.page === state.page) && ![...state.thumbnailPages.values()].some(active => active.document_id === doc.id && active.page === metadata.page)) page.cleanup(); }
-        setProgress(`Text search: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed`);
-        if (timedOut) break;
-        if (state.searchHits.length >= 500) { setProgress(state.ui.progress.textContent + " · Stopped at 500 matches; coverage is incomplete."); renderOverlay(); return; }
-      }
+  const textSearch = () => window.CeasefireTakeoffSearch;
+  function searchContextKey() {
+    if (!state.ui || !state.session) return "";
+    const scope = state.ui.searchScope.value, docs = scope === "all" ? documents() : [currentDocument()].filter(Boolean);
+    return JSON.stringify([state.session.session_id, scope, scope === "all" ? null : state.document, docs.map(doc => [doc.id, doc.sha256, doc.pages.length])]);
+  }
+  function hideSearchResults() { if (state.ui) { state.ui.searchResults.hidden = true; state.ui.search.setAttribute("aria-expanded", "false"); } }
+  function showSearchResults() { if (state.ui) { state.ui.searchResults.hidden = false; state.ui.search.setAttribute("aria-expanded", "true"); } }
+  function cancelSearch(clearInput = false, notice = "") {
+    clearTimeout(state.searchTimer); state.searchTimer = null; ++state.searchId;
+    const token = state.searchToken; if (token) { token.cancelled = true; void token.reader?.cancel().catch(() => {}); for (const cancel of token.waiters) cancel(); token.waiters.clear(); }
+    state.searchToken = null; state.searchPromise = null; state.searchContext = null; state.searchQuery = ""; state.searchHits = []; state.searchActiveId = null; state.searchActivePage = null; state.searchComplete = false; state.searchSummary = "";
+    if (state.ui) { if (clearInput) state.ui.search.value = ""; state.ui.searchResults.replaceChildren(); hideSearchResults(); renderOverlay(); if (notice) setProgress(notice); }
+  }
+  function scheduleSearch() {
+    cancelSearch(false);
+    if (!textSearch().normalize(state.ui.search.value)) { setProgress("Text search cleared; results and highlights removed."); return; }
+    state.searchTimer = setTimeout(() => { state.searchTimer = null; void safely(() => startSearch()); }, 220);
+  }
+  function invalidateSearchContext() {
+    if (state.searchActivePage && state.searchActivePage !== state.document + ":" + state.page) { state.searchActiveId = null; state.searchActivePage = null; }
+    if (!state.searchContext) return;
+    if (state.searchContext !== searchContextKey() || (state.searchToken && !state.searchToken.finished && state.searchToken.document !== state.document)) {
+      cancelSearch(false, "Drawing changed; the previous text search was cancelled.");
+      if (state.ui?.search.value.trim()) scheduleSearch();
     }
-    setProgress(`Text search complete: ${checked}/${total} pages inspected · ${state.searchHits.length} matches · ${empty} without searchable text · ${failed} failed. Scanned pages require visual inspection.`); renderOverlay();
+  }
+  function searchCurrent(token) {
+    return !token.cancelled && token.id === state.searchId && token.context === searchContextKey() && token.query === textSearch().normalize(state.ui.search.value) && (token.finished || token.document === state.document);
+  }
+  function waitSearch(promise, token) {
+    return new Promise((resolve, reject) => {
+      const cancel = () => { const error = new Error("Text search cancelled."); error.name = "SearchCancelled"; reject(error); };
+      token.waiters.add(cancel);
+      Promise.resolve(promise).then(value => { token.waiters.delete(cancel); resolve(value); }, error => { token.waiters.delete(cancel); reject(error); });
+      if (!searchCurrent(token)) cancel();
+    });
+  }
+  async function readSearchText(page, token, doc, pdf) {
+    // Stop cancels the PDF.js text stream without destroying the viewer worker.
+    const reader = token.reader = page.streamTextContent().getReader(), content = { items: [] }; let size = 0;
+    try {
+      while (searchCurrent(token)) {
+        const chunk = await waitSearch(boundedPdf(reader.read(), "Searching PDF page " + page.pageNumber, () => { void reader.cancel().catch(() => {}); discardPdf(doc.id, token.session, pdf); }), token);
+        if (chunk.done) break;
+        for (const item of chunk.value.items) { size += item.str?.length || 0; if (size > textSearch().MAX_PAGE_TEXT) throw new Error("PDF page text exceeds the bounded search limit; coverage is incomplete."); content.items.push(item); }
+      }
+      return content;
+    } finally { if (token.reader === reader) token.reader = null; void reader.cancel().catch(() => {}); }
+  }
+  function renderSearchResults() {
+    if (!state.ui) return;
+    const focused = state.ui.searchResults.contains(document.activeElement) ? document.activeElement.dataset.searchHitId : null;
+    const children = state.searchHits.map(hit => {
+      const el = button(hit.document_name + " · p" + hit.page + ": " + hit.text, () => selectSearchHit(hit, true), "takeoff-search-result");
+      el.disabled = state.busy;
+      el.dataset.searchHitId = hit.id; el.setAttribute("aria-current", hit.id === state.searchActiveId ? "true" : "false"); return el;
+    });
+    if (!children.length) children.push(node("p", "takeoff-search-empty", state.searchComplete ? "No searchable matches. Scanned pages require visual inspection." : "Searching PDF text…"));
+    state.ui.searchResults.replaceChildren(...children); showSearchResults();
+    if (focused) children.find(el => el.dataset.searchHitId === focused)?.focus({ preventScroll: true });
+  }
+  function sourceTextQuads(spans) {
+    const text = state.pdfText, viewport = state.viewport, paper = state.ui.pageWrap.getBoundingClientRect();
+    if (!text?.divs || !viewport) return [];
+    const quads = [];
+    for (const span of spans) {
+      const div = text.divs[span.item], child = div?.firstChild;
+      if (!child || child.nodeType !== 3 || span.end > child.length) return [];
+      const range = document.createRange(); range.setStart(child, span.start); range.setEnd(child, span.end);
+      const bounds = [...range.getClientRects()].filter(box => box.width > 0 && box.height > 0);
+      if (!bounds.length) return [];
+      for (const box of bounds) quads.push([[box.left, box.top], [box.right, box.top], [box.right, box.bottom], [box.left, box.bottom]].map(([x, y]) => G.inverse([x - paper.left, y - paper.top], viewport.transform)));
+    }
+    return quads;
+  }
+  async function updateSearchGeometry() {
+    const run = state.searchId, key = state.displayKey, hits = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page);
+    if (!hits.length || !state.viewport) return;
+    await ensurePdfTextLayer();
+    if (run !== state.searchId || key !== state.displayKey || state.pdfText?.key !== key) return;
+    for (const hit of hits) {
+      const context = sourceTextQuads(hit.context), matching = sourceTextQuads(hit.matching);
+      if (context.length) { hit.contextQuads = context; hit.points = context.flat(); }
+      hit.matchQuads = matching; hit.geometry = matching.length ? "rendered-text-bounds" : "text-run-fallback";
+    }
+    renderOverlay();
+  }
+  function renderSearchHighlights(overlay) {
+    const hits = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page);
+    // Paint every yellow context first; repeated hits cannot cover exact matches.
+    for (const [kind, selector] of [["context", hit => hit.contextQuads], ["match", hit => hit.matchQuads]]) for (const hit of hits) for (const points of selector(hit) || []) {
+      const shape = svg("polygon", { points: points.map(point => G.transform(point, state.viewport.transform).join(",")).join(" "), class: "takeoff-search-" + kind + (hit.id === state.searchActiveId ? " active" : ""), "data-search-hit-id": hit.id, "data-search-geometry": hit.geometry || "text-run-fallback" });
+      overlay.append(shape);
+    }
+  }
+  async function selectSearchHit(hit, navigate = false) {
+    const run = state.searchId;
+    if (!state.searchHits.includes(hit)) return;
+    if (navigate && (state.document !== hit.document_id || state.page !== hit.page) && !await navigateDocument(hit.document_id, hit.page)) return;
+    if (run !== state.searchId || state.document !== hit.document_id || state.page !== hit.page) return;
+    state.searchActiveId = hit.id; state.searchActivePage = state.document + ":" + state.page;
+    await updateSearchGeometry(); if (run !== state.searchId || !state.viewport) return;
+    const points = hit.matchQuads?.flat().length ? hit.matchQuads.flat() : hit.points;
+    if (points.length) { const box = G.bounds(points.map(point => G.transform(point, state.viewport.transform))); positionPage(state.ui.viewport.clientWidth / 2 - (box[0] + box[2]) / 2, state.ui.viewport.clientHeight / 2 - (box[1] + box[3]) / 2); }
+    renderOverlay(); renderSearchResults();
+    setProgress((state.searchSummary ? state.searchSummary + " " : "") + "Current-page match " + (state.searchHits.filter(value => value.document_id === state.document && value.page === state.page).indexOf(hit) + 1) + ". Search advances on this page and wraps." + (hit.geometry === "text-run-fallback" ? " Exact word bounds unavailable; yellow text-run context only." : ""));
+  }
+  async function startSearch() {
+    clearTimeout(state.searchTimer); state.searchTimer = null;
+    const query = textSearch().normalize(state.ui.search.value); if (!query || !state.session) return;
+    if (query.length > textSearch().MAX_QUERY) { cancelSearch(false); throw new Error("Search is limited to " + textSearch().MAX_QUERY + " characters."); }
+    cancelSearch(false); state.searchQuery = query; state.searchContext = searchContextKey();
+    const token = state.searchToken = { id: state.searchId, context: state.searchContext, query, session: state.session.session_id, document: state.document, waiters: new Set(), cancelled: false, finished: false };
+    renderSearchResults(); state.searchPromise = searchDocuments(token); return state.searchPromise;
+  }
+  async function searchDocuments(token) {
+    const docs = state.ui.searchScope.value === "all" ? documents() : [currentDocument()].filter(Boolean), total = docs.reduce((sum, doc) => sum + doc.pages.length, 0);
+    let checked = 0, empty = 0, failed = 0, limited = false;
+    try {
+      outer: for (const doc of docs) {
+        let pdf;
+        try { pdf = await waitSearch(pdfDocument(doc.id), token); }
+        catch (error) { if (!searchCurrent(token)) return; failed += doc.pages.length; if (error.name === "PdfTimeoutError") await recordPdfFailure(doc.id, doc.id === state.document ? state.page : 1, error, token.session, false, () => searchCurrent(token)); continue; }
+        for (const metadata of doc.pages) {
+          if (!searchCurrent(token)) return;
+          let timedOut = false, page;
+          try {
+            page = await waitSearch(pdfPage(pdf, doc.id, metadata.page, token.session), token); const content = await readSearchText(page, token, doc, pdf);
+            if (!searchCurrent(token)) return;
+            checked++; if (!content.items.some(item => item.str?.trim())) empty++;
+            const index = textSearch().indexText(content.items), hits = textSearch().find(index, token.query, 500 - state.searchHits.length);
+            for (const hit of hits) state.searchHits.push({ ...hit, id: doc.id + ":" + metadata.page + ":" + hit.start + ":" + hit.end, document_id: doc.id, document_name: doc.name, page: metadata.page });
+            if (hits.length) { renderSearchResults(); renderOverlay(); }
+          } catch (error) {
+            if (!searchCurrent(token)) return;
+            failed++; if (error.name === "PdfTimeoutError") { timedOut = true; failed += doc.pages.length - metadata.page; await recordPdfFailure(doc.id, metadata.page, error, token.session, false, () => searchCurrent(token)); }
+          } finally { if (page && !(doc.id === state.document && metadata.page === state.page) && ![...state.thumbnailPages.values()].some(active => active.document_id === doc.id && active.page === metadata.page)) page.cleanup(); }
+          setProgress("Text search: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed");
+          if (state.searchHits.length >= 500) { limited = true; break outer; }
+          if (timedOut) break;
+        }
+      }
+      if (!searchCurrent(token)) return;
+      token.finished = true; state.searchComplete = true; renderSearchResults(); await updateSearchGeometry();
+      if (!searchCurrent(token)) return;
+      const fallback = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page && hit.geometry === "text-run-fallback").length;
+      state.searchSummary = "Text search complete: " + checked + "/" + total + " pages inspected · " + state.searchHits.length + " matches · " + empty + " without searchable text · " + failed + " failed." + (limited ? " Stopped at 500 matches; coverage is incomplete." : "") + (fallback ? " " + fallback + " matches have text-run context only; exact word bounds unavailable." : "") + (state.searchHits.some(hit => hit.contextTruncated) ? " Long sentence context is bounded to 800 characters." : "") + " Scanned pages require visual inspection.";
+      setProgress(state.searchSummary);
+    } finally { token.finished = true; }
+  }
+  async function runSearch() {
+    const query = textSearch().normalize(state.ui.search.value); if (!query) { cancelSearch(true); return; }
+    const context = searchContextKey(), documentId = state.document, page = state.page;
+    const pending = state.searchQuery !== query || state.searchContext !== context ? startSearch() : state.searchPromise;
+    // A Search button press belongs to the captured query/run/page. Native text
+    // layout can outlive cancellation; it must not activate the next typed query.
+    const run = state.searchId, current = () => run === state.searchId && query === textSearch().normalize(state.ui.search.value) && context === searchContextKey() && documentId === state.document && page === state.page;
+    await pending;
+    if (!current() || !state.searchComplete) return;
+    await updateSearchGeometry();
+    if (!current() || !state.searchComplete) return;
+    const hits = state.searchHits.filter(hit => hit.document_id === state.document && hit.page === state.page).sort((a, b) => {
+      const box = hit => G.bounds((hit.matchQuads?.flat().length ? hit.matchQuads.flat() : hit.points).map(point => G.transform(point, state.viewport?.transform || [1, 0, 0, -1, 0, 0]))), x = box(a), y = box(b);
+      return x[1] - y[1] || x[0] - y[0] || a.start - b.start;
+    });
+    if (!hits.length) { showSearchResults(); setProgress(state.searchSummary + " No searchable matches on the current page." + (state.searchHits.length ? " Choose another page/document explicitly from the results dropdown." : " Scanned pages require visual inspection.")); return; }
+    const wrap = state.ui.pageWrap.getBoundingClientRect(), viewer = state.ui.viewport.getBoundingClientRect(), centre = state.viewport ? G.inverse([viewer.left + viewer.width / 2 - wrap.left, viewer.top + viewer.height / 2 - wrap.top], state.viewport.transform) : [0, 0];
+    const active = state.searchActivePage === state.document + ":" + state.page ? state.searchActiveId : null;
+    await selectSearchHit(textSearch().choose(hits, active, centre));
   }
   async function transfer(updateLinked) {
     await flushSettings();
@@ -3476,7 +3797,7 @@
     if (state.busy || state.modal || !state.session) throw new Error("Finish the current takeoff operation before downloading.");
     const mode = state.mode, scope = state.physicalScope, sessionId = state.session.session_id, revision = state.session.revision, documentId = state.document;
     if (mode === "physical" && format !== "marked-pdf") throw new Error("Use the physical draft CSV/XLSX export controls for penetration records.");
-    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !state.physicalHidden.has(entity.id) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? visibleItems().filter(item => item.measurement && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
+    const pdf = format === "marked-pdf", list = mode === "physical" ? state.markupsHidden ? [] : [...(physicalGraph()?.barriers || []), ...(physicalGraph()?.defects || [])].filter(entity => !entity.deleted && !state.physicalHidden.has(entity.id) && physicalDrawingLocator(entity, documentId)?.document_id === documentId) : pdf ? state.markupsHidden ? [] : visibleItems().filter(item => (item.measurement || isCount(item)) && !state.hidden.has(item.id) && item.geometry?.document_id === documentId) : items().filter(item => item.mode === mode);
     if (pdf && !documentId) throw new Error("Open the PDF to download its visible markups.");
     if (!list.length && !pdf) throw new Error("There are no items in this takeoff type to download.");
     working(true);
@@ -3494,13 +3815,14 @@
       assertCalculatorDrafts();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed while preparing the download. Export the current draft again.");
       const rendering = { zoom: state.zoom, rotations: Object.fromEntries((documentById(documentId)?.pages || []).map((_, index) => [String(index+1), state.pageRotations.get(JSON.stringify([sessionId,documentId,index+1])) || 0])) };
-      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : mode, item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId } : {}), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
+      const annotationIds = state.markupsHidden ? [] : annotations().filter(value => value.document_id === documentId && value.mode === mode && !state.annotationHidden?.has(value.id)).map(value => value.id);
+      const response = await fetch(`/api/takeoffs/sessions/${sessionId}/export/${format}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision, mode: mode === "physical" ? "penetrations" : mode, item_ids: list.map(item => item.id), ...(pdf ? { document_id: documentId, ...(mode !== "physical" ? { annotation_ids: annotationIds } : {}) } : {}), ...(mode === "physical" ? { physical_scope: scope, rendering } : { calculator_drafts: calculatorDrafts }) }) });
       if (!response.ok) { const result = await response.json(); throw new Error(result.error || "Takeoff download failed."); }
       const blob = await response.blob();
       if (state.session?.session_id !== sessionId || state.session.revision !== revision || mode === "physical" && scope !== state.physicalScope) throw new Error("The project changed during the download. Export the current draft again.");
       assertCalculatorDrafts();
       const url = URL.createObjectURL(blob), link = node("a"); link.href = url; link.download = `CEASEFIRE-${mode === "physical" ? scope === "service_plans" ? "Service-Plans" : "Defect-Reports" : labels[mode]}-${pdf ? "Marked-drawing.pdf" : "Takeoff-schedule.xlsx"}`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} source annotations and current draft callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} markups across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded all ${list.length} ${labels[mode].toLowerCase()} items, including hidden and unconfirmed records, with confirmation status.`);
+      message(mode === "physical" ? `Downloaded the original PDF with ${list.length} source annotations and current draft callouts. The exported records remain an unapproved draft.` : pdf ? `Downloaded the current PDF with ${list.length} visible ${labels[mode].toLowerCase()} measurement markups and ${annotationIds.length} free Call-outs across its pages. Unavailable calculator coating/layers are labelled explicitly.` : `Downloaded all ${list.length} ${labels[mode].toLowerCase()} items, including hidden and unconfirmed records, with confirmation status.`);
     } finally { working(false); }
   }
   async function showAudit() {
@@ -3528,6 +3850,8 @@
   async function prepareDefaults() { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
   async function prepareProject(value, sessionId) { if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
   function applyProject(prepared) {
+    state.annotationHidden = new Set(); state.annotationSelected = null;
+    cancelSearch(true);
     invalidateLinkedThickness();
     state.thicknessFilterNeedsRender = false; state.thicknessFilterEditor = null;
     const prior = state.session?.session_id;

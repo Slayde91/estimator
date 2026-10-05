@@ -69,9 +69,11 @@ successful CI for the exact final feature commit, preserved source/data receipts
 fresh served-asset checks and rendered live-browser acceptance. No migration of
 calculator source files or saved project data is part of this release.
 
-## Next session: eight newly requested browser changes
+## Implemented extension: eight requested browser changes
 
-These requests are recorded and **not implemented by PR #154**.
+These changes build on PR #154 and are implemented in the search/free-call-out
+extension. Its exact-head CI, publication and live activation remain separate
+release gates recorded in the release receipts.
 
 | Comment | Required behaviour | Acceptance evidence |
 | --- | --- | --- |
@@ -84,15 +86,20 @@ These requests are recorded and **not implemented by PR #154**.
 | 7 | Legend can be activated only when relevant Length and/or Count markups exist. | Empty document, document switch, deletion/undo, hidden items and already-visible legend tested. |
 | 8 | Physical Count becomes Call-out with its supplied icon and a shortcut distinct from Count. Add free call-outs in Steel/Duct/Walls/Slabs, with shared defaults/settings and only a rich-text Item Details box. | Existing physical hierarchy/IDs/quantities survive rename; free call-outs add no register or calculator quantity; save/reopen, undo, marked PDF, style and rich-text safety verified. |
 
-Suggested order: search lifecycle and dropdown (2–6), common shortcut registry (1),
-legend availability (7), then physical rename and separate free annotations (8).
-The requested icon is attached to the conversation; the next session must locate
-its exact local bytes or obtain the original attachment before final icon acceptance.
-Do not substitute an unrelated icon and claim it matches.
+The original Comment 8 PNG was located in the source conversation and copied
+unchanged as `static/icons/takeoff-callout.png`: SHA-256
+`068c58a46525a2618709cb4c77056214a9b1f4ff289d4785e1db8b7f50c9c8dd`.
+Search stays on the current page when it has no match; a dropdown selection
+explicitly navigates elsewhere. Search caps at 500 hits with incomplete coverage
+disclosed. Exact matches use measured PDF text bounds, with a disclosed text-run
+fallback where glyph bounds are unavailable. No OCR is introduced.
 
-The [architecture plan](docs/TAKEOFFS_ARCHITECTURE.md#planned-extension-eight-new-comments)
-defines the proposed state, geometry and persistence boundaries. The new comments
-authorize these bounded changes, not automated technical approval or matching.
+The [implemented architecture](docs/TAKEOFFS_ARCHITECTURE.md#implemented-extension-eight-new-comments)
+defines the separate optional annotation collection, safe text and persistence
+boundaries. Free notes add no register rows or quantities. Text supports bounded
+paragraphs/lists and bold/italic/underline; overfull boxes or PDF-font limitations
+fail explicitly while retaining the note. Legacy projects gain no collection by
+opening. No automated technical approval or matching is introduced.
 
 ## Planned work that remains outside this release
 

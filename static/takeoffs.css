@@ -129,6 +129,13 @@
 .takeoff-drawing-downloads{padding:0;margin:0;border:0;background:transparent;gap:6px}
 @font-face{font-family:CeasefireDrawing;src:url('/fonts/Vera.ttf') format('truetype');font-style:normal;font-weight:400;font-display:block}
 @font-face{font-family:CeasefireDrawing;src:url('/fonts/VeraBd.ttf') format('truetype');font-style:normal;font-weight:700;font-display:block}
+.takeoff-rich-editor{min-height:10rem;max-height:22rem;overflow:auto;padding:.65rem;border:1px solid var(--border,#bbb);border-radius:6px;background:white;color:#171717;white-space:pre-wrap;overflow-wrap:anywhere}
+.takeoff-rich-toolbar{display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.4rem}
+.takeoff-rich-toolbar button{min-width:2rem;padding:.35rem}
+.takeoff-free-callout{cursor:pointer}
+.takeoff-free-callout.selected>rect[data-annotation-part=label]{filter:drop-shadow(0 0 2px #333)}
+.takeoff-annotation-resize{cursor:nwse-resize}
+.takeoff-free-callout [data-annotation-part=point]{cursor:move}
 .takeoff-viewer-bottom{position:absolute;right:10px;left:10px;bottom:10px;z-index:12;display:flex;justify-content:center;pointer-events:none}
 .takeoff-viewer-bottom>.takeoff-page-controls{position:static;transform:none;max-width:100%;margin-right:0;pointer-events:auto}
 .takeoff-scale-anchor{position:relative;display:flex;flex-shrink:0;pointer-events:auto;align-self:center}
@@ -264,3 +271,15 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 @media(max-width:650px){.takeoff-viewer-top{left:6px;right:6px;max-width:calc(100% - 12px)}.takeoff-viewer-bottom>.takeoff-page-controls{max-width:100%}}
 @container(max-width:700px){.takeoff-drawing-layout>.takeoff-markup-settings,.takeoff-drawing-layout>.takeoff-viewports{top:calc(var(--takeoff-top-controls-height,150px) + 20px);max-height:calc(var(--takeoff-viewer-height) - var(--takeoff-top-controls-height,150px) - 20px)}}
 @container(max-width:800px){.takeoff-drawing-layout>.takeoff-physical-details{top:calc(var(--takeoff-top-controls-height,150px) + 20px);max-height:calc(var(--takeoff-viewer-height) - var(--takeoff-top-controls-height,150px) - 20px)}}
+
+/* The results remain attached to the input, including wrapped/narrow controls. */
+.takeoff-search-anchor{position:relative;flex:1 1 120px;min-width:80px}
+.takeoff-search-controls .takeoff-search-anchor>input{display:block;width:100%;max-width:none}
+.takeoff-search-anchor>.takeoff-search-results{position:absolute;top:calc(100% + 4px);left:0;min-width:100%;width:min(430px,calc(100vw - 100px));max-height:230px;z-index:20;margin:0;padding:5px;background:#fff;border:1px solid #c6bc99;border-radius:6px;box-shadow:0 4px 15px #0003;line-height:1.4}
+.takeoff-search-result{overflow-wrap:anywhere;white-space:normal}
+.takeoff-search-result[aria-current=true]{border-color:#184574;box-shadow:inset 3px 0 #184574;background:#fff4b5}
+.takeoff-search-result:focus-visible{outline:2px solid #184574;outline-offset:-2px}
+.takeoff-search-empty{padding:7px;font-size:11px;line-height:1.4}
+.takeoff-overlay .takeoff-search-context{fill:#ffe90080;stroke:none;pointer-events:none}
+.takeoff-overlay .takeoff-search-match{fill:#ff7a0099;stroke:#6b2a00;stroke-width:.7;vector-effect:non-scaling-stroke;pointer-events:none}
+.takeoff-overlay .takeoff-search-match.active{stroke:#173955;stroke-width:2;fill:#ff6c00b3}

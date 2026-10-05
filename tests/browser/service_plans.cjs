@@ -131,7 +131,7 @@ async function controls() {
     const button = page.getByRole('button', { name: `Export draft ${format}`, exact: true }); await expect(button).toContainText(format);
     const css = await style(button); assert.equal(css.background, 'rgb(43, 34, 40)'); assert.equal(css.color, 'rgb(255, 255, 255)');
   }
-  const scaleButton = page.getByRole('button', { name: 'Scale', exact: true }), countButton = page.getByRole('button', { name: 'Count', exact: true });
+  const scaleButton = page.getByRole('button', { name: 'Scale', exact: true }), countButton = page.getByRole('button', { name: 'Call-out', exact: true });
   assert.equal(await scaleButton.evaluate(el => !!el.closest('.takeoff-viewer') && !el.closest('.takeoff-tool-rail')), true, 'Scale is a viewer overlay');
   assert.equal(await countButton.evaluate(el => !!el.closest('.takeoff-tool-rail')), true, 'Count stays in the left rail');
   const scale = await scaleButton.boundingBox(), viewer = await page.locator('.takeoff-viewer').boundingBox(), count = await countButton.boundingBox(), viewportTool = await page.getByRole('button', { name: 'Viewport', exact: true }).boundingBox();
@@ -200,7 +200,7 @@ async function controls() {
   await expect(details()).toBeHidden(); await expect(row(barrier).getByRole('checkbox', { name: /^Select / })).not.toBeChecked();
   await expect(page.getByRole('alert').filter({ hasText: "Cannot read properties of undefined (reading 'find')" })).toHaveCount(0);
   evidence.blankDrawingSelection = true;
-  await select(barrier); await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([240,170]));
+  await select(barrier); await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await page.mouse.click(...await screen([240,170]));
   await response(() => dialog('Place barrier marker', { 'Barrier': 'existing' }, 'Continue'), '/physical/apply'); await snapshot();
   await expect(marker(barrier)).toBeVisible(); await expect(details()).toBeVisible();
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
@@ -259,7 +259,7 @@ async function controls() {
 
   // Count on an already marked barrier creates another independent barrier;
   // it never repeats that barrier's existing service quantity.
-  await page.getByRole('button', { name: 'Count', exact: true }).click(); await page.mouse.click(...await screen([440, 360]));
+  await page.getByRole('button', { name: 'Call-out', exact: true }).click(); await page.mouse.click(...await screen([440, 360]));
   const secondPreview = await response(() => dialog('Create draft barrier', { 'Location': 'PLAN-B', 'Barrier type': 'Empty Opening', 'FRL': '-/60/60' }, 'Preview new draft'), '/physical/preview');
   await apply('Create one draft barrier?'); const secondBarrier = secondPreview.changed_ids[0];
   assert.equal(entity(secondBarrier).display_id, 'B-0002'); assert.equal(state.service_plans.services.length, 1); await summaryContains(secondBarrier, '0 services');

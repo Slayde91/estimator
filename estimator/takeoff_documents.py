@@ -685,6 +685,8 @@ class TakeoffDocuments:
             _uuid(actor["session_id"])
             affected = event["affected_ids"]
             limits = {"items": 20000, "documents": 200, "calibrations": 4000, "transfers": 60000}
+            if any(isinstance(event[side], dict) and 'annotations' in event[side] for side in ('before', 'after')):
+                limits['annotations'] = 2000
             if event['version'] == 2:
                 limits.update(physical=20000, image_extractions=4000)
                 if any(isinstance(event[side], dict) and 'service_plans' in event[side] for side in ('before', 'after')):
@@ -732,11 +734,38 @@ class TakeoffDocuments:
                 documents[identifier] = shared
             from .takeoff_model import validate_physical_extension
             validate_physical_extension(state)
+            from .takeoff_annotations import validate_annotations
+            validate_annotations(state)
             for descriptor in state.get('image_extractions', []):
                 prior = images.get(descriptor['id'])
                 if prior is not None and prior != descriptor:
                     raise ValidationError('An image extraction identity was rewritten in the audit history.')
                 images[descriptor['id']] = descriptor
+        from .takeoff_annotations import annotation_binding
+        old_annotations = {value['id']: value for value in event['before'].get('annotations', {}).get('callouts', [])}
+        new_annotations = {value['id']: value for value in event['after'].get('annotations', {}).get('callouts', [])}
+        if event['before']['revision'] == 0 and old_annotations:
+            raise ValidationError('The initial audit state cannot contain unrecorded free call-outs.')
+        if event['op'] in ('create_annotation', 'update_annotation', 'delete_annotation'):
+            projection = lambda value: {key: entry for key, entry in value.items() if key not in ('annotations', 'revision')}
+            if projection(event['before']) != projection(event['after']):
+                raise ValidationError('A free call-out operation cannot change measurements, physical records, source state or transfers.')
+        if old_annotations != new_annotations and event['op'] not in ('create_annotation', 'update_annotation', 'delete_annotation', 'undo'):
+            raise ValidationError('Free call-outs changed outside a controlled annotation operation.')
+        added_annotations = new_annotations.keys() - old_annotations.keys()
+        if added_annotations and event['op'] not in ('create_annotation', 'undo'):
+            raise ValidationError('Free call-out identities may only be added by creation or restored by Undo.')
+        if event['op'] == 'create_annotation' and (len(added_annotations) != 1
+                or any(new_annotations[identifier]['version'] != 1 for identifier in added_annotations)):
+            raise ValidationError('A free call-out must begin with one new identity and version one.')
+        for identifier in old_annotations.keys() & new_annotations.keys():
+            old, new = old_annotations[identifier], new_annotations[identifier]
+            if annotation_binding(old) != annotation_binding(new):
+                raise ValidationError('A free call-out source identity cannot be rewritten in audit history.')
+            if old != new and new['version'] <= old['version']:
+                raise ValidationError('Edited free call-outs require a fresh increasing version.')
+        annotation_identities = {identifier: annotation_binding(value)
+                                 for identifier, value in {**old_annotations, **new_annotations}.items()}
         before_version, after_version = event['before']['version'], event['after']['version']
         if (event['version'] != after_version or before_version > after_version
                 or (before_version != after_version and event['op'] not in ('apply_physical', 'extract_images'))):
@@ -773,10 +802,12 @@ class TakeoffDocuments:
                 raise ValidationError("The audit affected IDs do not match its retained state changes.")
         retained = tuple(documents.values())
         # Count repeated metadata conservatively, even though records share it.
-        weight = 512 + len(_canonical([entry.metadata for entry in retained])) + len(_canonical(list(images.values())))
+        weight = (512 + len(_canonical([entry.metadata for entry in retained])) + len(_canonical(list(images.values())))
+                  + len(_canonical(annotation_identities)))
         record = {"project_id": event["project_id"], "revision": event["revision"], "previous": event["previous"],
                   "before": audit_state_digest(event["before"]), "after": audit_state_digest(event["after"]),
-                  "documents": retained, 'images': tuple(images.values()), "size": len(_canonical(event)), "weight": weight}
+                  "documents": retained, 'images': tuple(images.values()), 'annotations': annotation_identities,
+                  "size": len(_canonical(event)), "weight": weight}
         if weight <= MAX_AUDIT_CACHE_BYTES:
             with self._lock:
                 existing = self._audit_records.pop(digest, None)
@@ -790,9 +821,13 @@ class TakeoffDocuments:
         return record
 
     def _graph(self, snapshot, loader):
-        documents, images = {}, {}
+        documents, images, annotation_identities = {}, {}, {}
         from .takeoff_model import validate_physical_extension
         validate_physical_extension(snapshot)
+        from .takeoff_annotations import annotation_binding, validate_annotations
+        validate_annotations(snapshot)
+        for value in snapshot.get('annotations', {}).get('callouts', []):
+            annotation_identities[value['id']] = annotation_binding(value)
         for descriptor in snapshot.get('image_extractions', []):
             images[descriptor['id']] = descriptor
         current = snapshot.get("documents", [])
@@ -809,6 +844,8 @@ class TakeoffDocuments:
         expected_revision = snapshot.get("revision")
         if type(expected_revision) is not int or expected_revision < 0 or (head is None and expected_revision != 0):
             raise ValidationError("The takeoff revision is missing its audit history.")
+        if expected_revision == 0 and annotation_identities:
+            raise ValidationError('Free call-outs require their retained creation history.')
         while head is not None:
             _digest(head)
             if head in seen or len(seen) >= MAX_AUDIT_EVENTS:
@@ -838,6 +875,13 @@ class TakeoffDocuments:
                 images[descriptor['id']] = descriptor
                 if len(images) > 2000:
                     raise ValidationError('The project retains too many image extraction events, including history.')
+            for identifier, binding in record['annotations'].items():
+                previous = annotation_identities.get(identifier)
+                if previous is not None and previous != binding:
+                    raise ValidationError('A retained free call-out source identity was rewritten.')
+                annotation_identities[identifier] = binding
+                if len(annotation_identities) > 10000:
+                    raise ValidationError('The project retains too many free call-out identities, including history.')
             if expected_after is not None and record["after"] != expected_after:
                 raise ValidationError("The audit history contains an unrecorded physical-state change.")
             expected_after = record["before"]

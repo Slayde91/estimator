@@ -69,7 +69,7 @@ async function openProjectCopy() {
   // Bootstrap exposes project tools before the initial Firestopping draft has
   // finished loading. Let it settle before capturing the first Load revision.
   await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; });
-  await load(true);
+  fs.copyFileSync(info.seed, info.project); await load(false);
   const retained = await independentDrafts(), seed = JSON.parse(fs.readFileSync(info.seed, 'utf8'));
   assert.equal(retained.penetration.composer.rows[0].inputs.T, 'Unscheduled composer retained');
   assert.equal(retained.penetration.composer.rows[0].inputs.O, 3);
@@ -102,7 +102,7 @@ async function openProjectCopy() {
   // Save immediately after a fresh edit: no Recalculate button or manual delay
   // is required to collect the pending library draft.
   await description.fill('Project-only edited library item saved immediately');
-  const firstSave = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
+  const firstSave = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await expect(page.locator('#library-editor-save')).toHaveText('Keep in project draft');
   const first = JSON.parse(fs.readFileSync(info.project, 'utf8')), copy = first.library_drafts.records[0];
@@ -119,7 +119,7 @@ async function openProjectCopy() {
   assert.deepEqual(fs.readFileSync(path.join(output, 'reference-library/library.json')), originalSource);
   assert.deepEqual(fs.readFileSync(info.diagram), originalImage);
   evidence.firstSave = { file: firstSave.file.path, libraryId: copy.id, quantity: copy.draft.rows[0].inputs.O, pricing: priceIdentity, sharedDatabaseUnchanged: true, sharedLibraryUnchanged: true, independentDraftsPreserved: true };
-  console.log('Top Save As captured shared pricing and library edits only in this project; shared database and independent drafts remain unchanged.');
+  console.log('Top Save captured shared pricing and library edits only in this project; shared database and independent drafts remain unchanged.');
 
   await quantity.fill('4.875'); await quantity.press('Tab');
   await reply(() => clickProjectControl(page, 'Save'), '/api/project/save');

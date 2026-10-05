@@ -133,6 +133,8 @@ class BoardSteelAreaTests(unittest.TestCase):
         self.assertIn('Net Steel sqm', text)
         self.assertIn('11.84', text)
         self.assertIn('Different thickness rows can include the same member', text)
+        self.assertNotIn('SHA-256', text)
+        self.assertTrue(data['board_net_steel_areas']['profile_source']['sha256'])
 
 
 if __name__ == '__main__':

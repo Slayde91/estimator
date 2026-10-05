@@ -173,7 +173,7 @@ def _summary(data, workbook):
                      formats={6: '0.00%'} if data['id'] == 'steel_vermiculite' else None)
         if data.get('board_net_steel_areas'):
             areas = data['board_net_steel_areas']
-            for note in [areas['basis'], *areas['notes'], 'Steel-profile source SHA-256: ' + areas['profile_source']['sha256']]:
+            for note in [areas['basis'], *areas['notes']]:
                 _band(sheet, row, note, len(widths))
                 row += 1
         for product, basis, interpretation in summary.get('qualifications', []):

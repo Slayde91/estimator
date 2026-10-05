@@ -449,7 +449,6 @@ class _ScheduleReport(_Report):
                 areas = data['board_net_steel_areas']
                 for note in [areas['basis'], *areas['notes']]:
                     self.story.append(self.p(note, 'small'))
-                self.story.append(self.p('Steel-profile source SHA-256: ' + areas['profile_source']['sha256'], 'small'))
             if data['id'] != 'ductwork':
                 for product, basis, interpretation in summary.get('qualifications', []):
                     self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))

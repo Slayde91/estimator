@@ -477,6 +477,27 @@ title and note rows. The BOARD SUMMARY cards remain within that expanded layout.
 
 Split input groups into member/location, product/section or ESA/M, total lineal metres/exposure/FRL/member/temperature, then optional design/geometry controls. Row status AI9:AI208 remains visible and wrapped in normal font weight; the AI8 column heading stays bold. This presentation override does not alter the source style metadata or status text. Source Y:AI headers should not appear twice as ordinary body cells.
 
+The approved **Net Steel sqm** column appears immediately before Purchase sqm in
+BOARD SUMMARY and its PDF/values-only XLSX stock tables. Its separate read-only
+projection uses the steel catalogue's existing nominal exposed-profile girths
+(SECTIONS E/F, evaluated from formulas, never caches) times total lineal metres.
+The board schedule already stores total length; no second quantity multiplier
+is applied. Each schedule line counts once in each product/thickness it uses;
+equal-thickness double layers are deduplicated. Different thickness rows can
+contain the same steel member, so they are not a unique-steel grand total.
+Waste, additional-board allowances, boxed perimeter, and board-layer areas do
+not change this measure. Source formulas, purchasing cells and inputs retain
+their identities and values.
+
+Matching preserves every designation digit, decimal and suffix, ignoring only
+case and typographic spaces; duplicates fail and dimensions must agree between
+catalogues. Retained Standard 3/4-side girths are supported. Missing/flagged
+profiles, differing/custom geometry, other exposure layouts, and invalid lengths
+withhold the entire affected stock row's steel total with explicit line reasons.
+Unresolved product/thickness assignments are identified separately. All 1,000
+schedule lines contribute, independent of the visible schedule window. These
+nominal catalogue quantities are estimating measures, not new fire-design rules.
+
 Exposure layout M9:M208 uses normal-weight body text when rendered; the M8
 heading remains unchanged. This advanced source input stays hidden in the
 normal browser projection, with its values retained by the API and saved draft.

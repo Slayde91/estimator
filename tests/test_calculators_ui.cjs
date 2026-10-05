@@ -991,7 +991,7 @@ let passed = 0;
   // BOARD SUMMARY retains purchasing rows and raw quantities without its removed overview.
   entry=setup();entry.sheet='BOARD SUMMARY';entry.definition.sheets=[{name:entry.sheet,header_rows:[11],presentation_tables:[{first_row:11,last_row:29,columns:[1,2,3,4,9,10],column_widths:[240,150,150,150,150,150],label:'Board purchasing totals'}],merges:['A1:L1','A3:L3','A6:C7','E6:G7','I6:L7','A8:L9','A31:L31','A35:L35']}];
   const purchasingHeaders=['Product','Thickness mm','Sheet length mm','Sheet width mm','Box board - net m2','Extra boards - net m2','Net total sqm','With waste sqm','Whole sheets','Purchase sqm','Stock source','Board key'];
-  entry.result=result({}, {sheet:entry.sheet,max_column:12,rows:[
+  entry.result=result({}, {sheet:entry.sheet,max_column:12,board_net_steel_areas:{rows:[{row:12,net_steel_sqm:11.838283271233896,issues:[]},{row:29,net_steel_sqm:null,issues:[{line:2,message:'Missing profile'}]}],basis:'Exposed profile surface before waste.',notes:['Line 2: Missing profile']},rows:[
     {row:1,cells:[{column:1,address:'A1',value:'BOARD SUMMARY',presentation:{role:'title'}}]},
     {row:3,cells:[{column:1,address:'A3',value:'Product totals include additional boards.',presentation:{role:'note'}}]},
     {row:5,cells:[{column:1,address:'A5',value:'Net board area'},{column:5,address:'E5',value:'Board area with waste'},{column:9,address:'I5',value:'Whole sheets'}]},
@@ -1010,8 +1010,11 @@ let passed = 0;
   assert.equal(boardSummaryOverview,undefined);
   assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(node=>node.dataset.calculatorOutput==='A8').length,0);
   const purchasingTable=descendants(byId('calculator-grid')).find(node=>node.tagName==='table'&&node.getAttribute('aria-label')==='Board purchasing totals');
-  assert.equal(purchasingTable.children[0].children.length,6);
-  assert.deepEqual(purchasingTable.children.at(-1).children[0].children.map(node=>node.textContent),[0,1,2,3,8,9].map(index=>purchasingHeaders[index]));
+  assert.equal(purchasingTable.children[0].children.length,7);
+  assert.deepEqual(purchasingTable.children.at(-1).children[0].children.map(node=>node.textContent),[...([0,1,2,3,8].map(index=>purchasingHeaders[index])),'Net Steel sqm',purchasingHeaders[9]]);
+  const steelCells=byId('calculator-grid').querySelectorAll('[data-board-steel-row]');
+  assert.equal(steelCells.length,2);assert.equal(steelCells[0].textContent,'11.84');assert.equal(steelCells[1].textContent,'Unavailable (1 line)');
+  assert.ok(descendants(entry.boardSteelNotesElement).some(node=>node.textContent.includes('Missing profile')));
   const purchasingOutputAddresses=byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   for(const row of [12,29]) {
     for(const column of ['E','F','G','H','K','L'])assert.ok(!purchasingOutputAddresses.includes(`${column}${row}`));
@@ -1021,7 +1024,8 @@ let passed = 0;
   for(const address of ['A31','A35'])assert.ok(purchasingOutputAddresses.includes(address));
   assert.equal(JSON.stringify(entry.result),sourceBoardSummary);
   for(const row of descendants(byId('calculator-grid')).filter(node=>node.dataset?.sourceRow)) assert.ok(Number(row.dataset.sourceRow)>=11);
-  const updatedSummary=copy(entry.result);updatedSummary.rows.find(row=>row.row===6).cells[0].value=0;updatedSummary.rows.find(row=>row.row===8).cells[0].value='No incomplete rows';audit.setRequest(async()=>updatedSummary);await audit.calculate();
+  const updatedSummary=copy(entry.result);updatedSummary.board_net_steel_areas.rows[0].net_steel_sqm=99.9999;updatedSummary.board_net_steel_areas.rows[1]={row:29,net_steel_sqm:0,issues:[]};updatedSummary.board_net_steel_areas.notes=[];updatedSummary.rows.find(row=>row.row===6).cells[0].value=0;updatedSummary.rows.find(row=>row.row===8).cells[0].value='No incomplete rows';audit.setRequest(async()=>updatedSummary);await audit.calculate();
+  assert.equal(steelCells[0].textContent,'100.00');assert.equal(steelCells[1].textContent,'0.00');assert.ok(!descendants(entry.boardSteelNotesElement).some(node=>node.textContent.includes('Missing profile')));
   assert.equal(descendants(byId('calculator-grid')).filter(node=>node.calculatorValueCard).length,0);
   assert.equal(entry.result.rows.find(row=>row.row===6).cells[0].value,0);assert.equal(entry.result.rows.find(row=>row.row===8).cells[0].value,'No incomplete rows');passed++;
 

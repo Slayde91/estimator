@@ -7,7 +7,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.page import PageMargins
 
-from .calculator_report import project_calculator_report, _source_text
+from .calculator_report import (project_calculator_report, _source_text,
+                                summary_display_columns, summary_display_value)
 from .pricing_workbook import _serialize_exact
 
 
@@ -124,7 +125,7 @@ def _schedule(data, workbook):
 
 
 def _summary(data, workbook):
-    widths = [36] + [19] * 10
+    widths = [36] + [19] * (11 if data.get('board_net_steel_areas') else 10)
     sheet = _sheet(workbook, 'Summary', data['title'] + ' — Excel register', widths)
     _band(sheet, 3, data['basis'], len(widths))
     row = 5
@@ -153,7 +154,7 @@ def _summary(data, workbook):
             _band(sheet, row, _source_text(data['id'], 'BOARD SUMMARY', 'A8', note), len(widths))
             row += 1
     for summary in data['summaries']:
-        columns = summary['columns']
+        columns, labels = summary_display_columns(data, summary)
         _band(sheet, row, summary['title'], len(widths), title=True)
         row += 1
         if summary['note']:
@@ -163,13 +164,18 @@ def _summary(data, workbook):
         for item in summary['rows']:
             values = []
             for column in columns:
-                value = item['values'][column]
+                value = summary_display_value(data, summary, item, column)
                 if data['id'] == 'ductwork' and summary['title'] == 'Product totals' and ((item['row'] < 11 and column in 'EFG') or (item['row'] == 11 and column == 'D')):
                     value = 'N/A'
-                values.append(_source_text(data['id'], summary['sheet'], column + str(item['row']), value))
+                values.append(value)
             records.append(values)
-        row = _table(sheet, row, [summary['labels'][column] for column in columns], records, widths,
+        row = _table(sheet, row, [labels[column] for column in columns], records, widths,
                      formats={6: '0.00%'} if data['id'] == 'steel_vermiculite' else None)
+        if data.get('board_net_steel_areas'):
+            areas = data['board_net_steel_areas']
+            for note in [areas['basis'], *areas['notes'], 'Steel-profile source SHA-256: ' + areas['profile_source']['sha256']]:
+                _band(sheet, row, note, len(widths))
+                row += 1
         for product, basis, interpretation in summary.get('qualifications', []):
             _band(sheet, row, '\n'.join(str(value) for value in (product, basis, interpretation) if value not in (None, '')), len(widths))
             row += 1

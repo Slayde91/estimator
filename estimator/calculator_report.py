@@ -18,6 +18,7 @@ from .excel_engine import column_name
 from .report import ROOT, _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
 from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
+from .board_steel_area import board_net_steel_areas, steel_area_display
 
 
 _WIDTH, _HEIGHT = landscape(A4)
@@ -78,6 +79,21 @@ def _has_value(value):
     return value is not None and value != ''
 
 
+def summary_display_columns(data, summary):
+    columns, labels = list(summary['columns']), dict(summary['labels'])
+    if data.get('board_net_steel_areas'):
+        columns.insert(columns.index('J'), 'NET_STEEL')
+        labels['NET_STEEL'] = 'Net Steel sqm'
+    return columns, labels
+
+
+def summary_display_value(data, summary, item, column):
+    if column == 'NET_STEEL':
+        area = next(row for row in data['board_net_steel_areas']['rows'] if row['row'] == item['row'])
+        return steel_area_display(area)
+    return _source_text(data['id'], summary['sheet'], column + str(item['row']), item['values'][column])
+
+
 def _sum_values(values):
     # Excel SUM ignores unavailable text. Labels explicitly describe these as
     # available totals; source product-order error/status text is kept intact.
@@ -109,7 +125,9 @@ def _material_rows(identity, summary):
                       (empty_order or (status == 'ESTIMATING QUANTITY COMPLETE' and
                                        _zero_quantities(values, 'G'))))
         elif identity == 'steel_board':
-            unused = _zero_quantities(values, 'EFGHIJ')
+            area = summary.get('net_steel_areas', {}).get(item['row'])
+            unused = (_zero_quantities(values, 'EFGHIJ') and
+                      (area is None or (area['net_steel_sqm'] == 0 and not area['issues'])))
         elif summary['title'] == 'Product totals':
             # Spray E:G and wrap D are intentionally not applicable, not errors.
             demand = 'CDH' if item['row'] < 11 else 'CEFGH'
@@ -225,6 +243,8 @@ def project_calculator_report(calculator_id, inputs=None):
         summary = table('Board stock totals by product and thickness', 'BOARD SUMMARY', 11, 12, 29, 'ABCDEFGHIJK',
             note='Stock is pooled by product and actual board thickness. Waste is applied before each stock-line sheet count is rounded. Per-line sheet counts are not pooled order quantities.')
         data['summaries'] = [summary]
+        data['board_net_steel_areas'] = board_net_steel_areas(engine)
+        summary['net_steel_areas'] = {row['row']: row for row in data['board_net_steel_areas']['rows']}
         data['summary_notes'] = [engine.value('BOARD SUMMARY', f'A{row}') for row in (8, 31, 35)]
         data['totals'] = [('Reference box area (m²)', engine.value('CALCULATOR', 'AA4')),
                           ('Required net board including extras (m²)', engine.value('BOARD SUMMARY', 'A6')),
@@ -391,6 +411,9 @@ class _ScheduleReport(_Report):
         if not summaries:
             self.story.append(self.p('No quantified material requirements are available.' if unresolved or data['extra_rows'] else
                                      'No materials are required by the current inputs.'))
+            if data.get('board_net_steel_areas'):
+                for note in [data['board_net_steel_areas']['basis'], *data['board_net_steel_areas']['notes']]:
+                    self.story.append(self.p(note, 'small'))
         for summary, material_rows in summaries:
             if not (data['id'] == 'steel_vermiculite' and summary['title'] == 'Product order totals'):
                 self.story.append(self.p(summary['title'], 'subheading'))
@@ -398,8 +421,8 @@ class _ScheduleReport(_Report):
                 note = self.p(summary['note'], 'small')
                 note.keepWithNext = True
                 self.story.append(note)
-            columns = summary['columns']
-            fractions = ([.17, .065, .085, .085, .09, .07, .09, .065, .065, .105, .11]
+            columns, labels = summary_display_columns(data, summary)
+            fractions = ([.17, .065, .085, .085, .09, .07, .09, .065, .065, .095, .105, .11]
                          if data['id'] == 'steel_board' else
                          [.20, .07, .10, .10, .09, .07, .10, .08, .19] if data['id'] == 'steel_vermiculite' else
                          [.16, .045, .09, .085, .08, .075, .095, .08, .14, .15] if len(columns) == 10 else
@@ -411,18 +434,28 @@ class _ScheduleReport(_Report):
             for item in material_rows:
                 formatted = []
                 for column in columns:
-                    value = item['values'][column]
+                    value = summary_display_value(data, summary, item, column)
                     if data['id'] == 'ductwork' and summary['title'] == 'Product totals' and ((item['row'] < 11 and column in 'EFG') or (item['row'] == 11 and column == 'D')):
                         value = 'N/A'
-                    value = _source_text(data['id'], summary['sheet'], column + str(item['row']), value)
                     formatted.append(self.numeric(value, blank='-', percent=data['id'] == 'steel_vermiculite' and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
                 rows.append(formatted)
-            self.story.append(self.table([summary['labels'][column] for column in columns], rows, widths, compact=True))
+            material_table = self.table([labels[column] for column in columns], rows, widths, compact=True)
+            # Keep the steel counting basis with its table instead of orphaning
+            # the explanation on a nearly empty continuation page.
+            if data.get('board_net_steel_areas'):
+                material_table.keepWithNext = True
+            self.story.append(material_table)
+            if data.get('board_net_steel_areas'):
+                areas = data['board_net_steel_areas']
+                for note in [areas['basis'], *areas['notes']]:
+                    self.story.append(self.p(note, 'small'))
+                self.story.append(self.p('Steel-profile source SHA-256: ' + areas['profile_source']['sha256'], 'small'))
             if data['id'] != 'ductwork':
                 for product, basis, interpretation in summary.get('qualifications', []):
                     self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))
             self.story.append(Spacer(1, 9))
-        self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
+        if not data.get('board_net_steel_areas'):
+            self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
 def build_calculator_report(calculator_id, inputs=None, *, project_details=None):
     """Return the full schedule only; reading a draft never saves it."""

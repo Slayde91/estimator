@@ -33,6 +33,20 @@ const phrases = [
   "The defect is now compliant with the broader intent of everyone wanting to move on.",
   "The risk is tolerable, particularly from the office.",
   "The opening has achieved compliance through superior documentation.",
+  "I don’t believe in common sense unless it has a report number.",
+  "I’ll believe it when someone with letters after their name puts it in writing.",
+  "I don’t need proof; I need a well-crafted paragraph that sounds like proof.",
+  "Experience is useful, but have you considered getting an engineer to say the same thing?",
+  "Every project has the same deadline, which was yesterday.",
+  "The customer is always right, particularly when it comes to an expensive variation.",
+  "I trust the laws of physics, but I’d still like that confirmed in writing.",
+  "Sun Tzu said: the strongest defence is a professionally worded opinion.",
+  "Explaining my job takes longer than just letting people think I’m a firefighter.",
+  "I don’t run into burning buildings, but I do complain about the holes in them beforehand.",
+  "I’m not a firefighter, but I do spend a suspicious amount of time talking about fire.",
+  "Just think of it like insurance, except it only lasts for 120 minutes.",
+  "I don't need a depth gauge when I have a perfectly good set of eyes.",
+  "Proper Preparation Prevents Piss-Poor Performance",
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];

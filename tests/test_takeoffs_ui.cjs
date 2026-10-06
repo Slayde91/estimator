@@ -1027,7 +1027,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     await assert.rejects(h.audit.selectWorkspace('physical','service_plans'),/unfinished physical/);assert.equal(h.audit.state.physicalScope,'defect_reports');assert.equal(destroyed,false);
   });
   await check('Defect Count arms a source placement without opening a form or creating a physical record',()=>{
-    const h=countHarness(),state=h.audit.state;state.mode='physical';state.physicalUI={hasUnfinishedChanges:()=>false,create(){assert.fail('Count must wait for the drawing click');}};
+    const h=countHarness(),state=h.audit.state;state.mode='physical';state.tool='select';state.physicalUI={hasUnfinishedChanges:()=>false,create(){assert.fail('Count must wait for the drawing click');}};
     h.dom.ui.scaleControls=h.dom.element();h.dom.ui.scaleToggle=h.dom.element();h.audit.setCountTool(tool=>{state.tool=tool;});const before=copy(state.session.snapshot);
     h.audit.activateCountTool();assert.equal(state.tool,'count');assert.equal(state.physicalPlacementTarget.kind,'defect');assert.equal(state.physicalPlacementTarget.documentId,'doc');assert.deepEqual(copy(state.session.snapshot),before);assert.match(h.dom.ui.progress.textContent,/Click the drawing.*defect/);
   });

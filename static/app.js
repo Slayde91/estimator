@@ -25,12 +25,12 @@
     "The architect drew the wall; the services drew their own conclusions.",
     "The drawing said “typical,” which was optimistic.",
     "Fire testing proves the system works; construction proves how creative people can be.",
-    "The installation was executed flawlessly; then we wrote a test report.",
-    "Give me a red bull and a cigarette and I could probably spray that.",
+    "The installation was executed flawlessly with no delays, coordination issues or late payment. Then we wrote the test report.",
+    "Give me a Red Bull and a cigarette and I could probably spray that.",
     "The defect was minor until someone photographed it.",
     "I like to think that Penetration Specialist is code for Gigolo.",
     "The system performs impeccably in ideal conditions - a fire test laboratory.",
-    "The fire was outsmarted by the concession in our performance solution.",
+    "The fire will be outsmarted by the concession in our performance solution.",
     "The building is now protected by a robust layer of professional opinion.",
     "The fire engineer has reviewed the issue and the fire is expected to cooperate.",
     "Any future flames should refer to the approved performance solution before proceeding.",
@@ -52,7 +52,8 @@
     cursor.hidden = true;
   }
   function finish() {
-    window.CeasefireHeaderTaglineMedia?.stop();
+    if (closed || motion?.matches) window.CeasefireHeaderTaglineMedia?.stop();
+    else if (!complete) window.CeasefireHeaderTaglineMedia?.finish();
     clearTimeout(typingTimer);
     typingTimer = null;
     if (typed.textContent !== phrase) typed.textContent = phrase;
@@ -247,12 +248,13 @@
     return element;
   }
 
-  function message(text, error = false) {
+  function message(text, error = false, kind = null) {
     const box = $("app-message");
     box.textContent = text;
     box.className = `message${error ? " error" : ""}`;
     box.hidden = !text;
     box.setAttribute("role", error ? "alert" : "status");
+    state.projectSavedNotice = kind === "project-saved" ? text : null;
   }
 
   async function request(path, options = {}) {
@@ -281,6 +283,12 @@
 
   function updateProjectStatus() {
     const file = state.projectFile, changed = !!projectHasChanges();
+    // Retire only the save receipt; fresh input must not erase another error.
+    if (changed && state.projectSavedNotice) {
+      const box = $("app-message");
+      if (box.textContent === state.projectSavedNotice && box.getAttribute("role") !== "alert") box.hidden = true;
+      state.projectSavedNotice = null;
+    }
     const status = $("project-save-state");
     status.textContent = state.projectBusy ? "Working…" : changed ? "Unsaved changes" : file ? "Saved project" : "Not saved to a file";
     status.classList.toggle("unsaved", changed || !file);
@@ -789,7 +797,7 @@
   function selectEstimator(kind) {
     if (!["estimate", "penetration"].includes(kind)) return;
     state.estimatorKind = kind;
-    state.estimateKind = kind;
+    state.estimateKind = "estimate";
     $("estimator-main").hidden = kind !== "estimate";
     $("estimator-penetration").hidden = kind !== "penetration";
     for (const button of document.querySelectorAll("[data-estimator-kind]")) button.setAttribute("aria-pressed", String(button.dataset.estimatorKind === kind));
@@ -830,7 +838,10 @@
     if (view === "quotes") loadProjects();
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
-    if (view === "calculators") estimatorReady = calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open();
+    if (view === "calculators") {
+      if (calculatorId === "penetration") estimatorReady = selectEstimator("penetration");
+      else { $("estimator-penetration").hidden = true; state.estimatorKind = "estimate"; estimatorReady = calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open(); }
+    }
     if (view === "estimate") estimatorReady = selectEstimator(state.estimateKind || "estimate");
     if (view === "takeoffs") estimatorReady = window.CeasefireTakeoffs?.open().catch(error => message(error.message, true));
     // Each section starts with its heading and actions visible below the sticky
@@ -874,8 +885,7 @@
     return true;
   }
   async function requestCalculatorNavigation(id) {
-    if (id === "penetration") return requestEstimateNavigation("penetration");
-    if (!["steel_vermiculite", "steel_board", "ductwork"].includes(id)) return false;
+    if (!["steel_vermiculite", "steel_board", "ductwork", "penetration"].includes(id)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "calculators" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) {
@@ -887,6 +897,7 @@
     return true;
   }
   async function requestEstimateNavigation(kind) {
+    if (kind === "penetration") return requestCalculatorNavigation(kind);
     if (!["estimate", "penetration"].includes(kind)) return false;
     document.activeElement?.blur?.();
     if (state.currentView !== "estimate" && !await confirmLeavePricingLibrary()) return false;
@@ -1787,7 +1798,7 @@
           $("snapshot-message").querySelector("span").textContent = "This project uses the pricing saved in its file.";
         } else updateDirty();
       }
-      message(`Project saved to ${saved.file.path}. It includes the Quote, Firestopping items, ${takeoffContents()}project pricing${libraryDrafts ? ", project library drafts" : ""} and all three specialist calculators.${pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""}${pricing?.conflict ? " The other pricing draft is still available and was not included." : ""}${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`);
+      if (!changed || $("app-message").getAttribute("role") !== "alert") message(`Project saved to ${saved.file.path}. It includes the Quote, Firestopping items, ${takeoffContents()}project pricing${libraryDrafts ? ", project library drafts" : ""} and all three specialist calculators.${pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""}${pricing?.conflict ? " The other pricing draft is still available and was not included." : ""}${changed ? " Later edits are not included and still need saving." : ""}${saved.warning ? ` ${saved.warning}` : ""}`, false, "project-saved");
     } catch (error) { message(`Project was not saved. ${error.message}`, true); }
     finally { projectBusy(false); }
   }
@@ -2188,17 +2199,17 @@
   window.CeasefireLibraryNavigation = { open: requestLibraryNavigation };
   window.CeasefireTakeoffNavigation = { show() { return showView("takeoffs"); } };
   window.CeasefirePenetrationNavigation = {
-    show() { state.estimateKind = "penetration"; return showView("estimate"); },
+    show() { return showView("calculators", undefined, "penetration"); },
     showSchedule() { state.estimateKind = "estimate"; return showView("estimate"); },
     confirm: confirmReplace,
     notify,
   };
   window.CeasefireLibraryEditorNavigation = {
-    show() { document.activeElement?.blur?.(); state.estimateKind = "penetration"; showView("estimate"); },
+    show() { document.activeElement?.blur?.(); showView("calculators", undefined, "penetration"); },
     returnToLibrary(id) { state.libraryKind = "penetration"; showView("pricing", id); },
   };
   window.CeasefireProposalCalculators = {
-    showFirestopping() { state.estimateKind = "penetration"; return showView("estimate"); },
+    showFirestopping() { return showView("calculators", undefined, "penetration"); },
     showWorkbook() { state.estimatorKind = "estimate"; $("estimator-penetration").hidden = true; },
     isFirestopping() { return state.estimatorKind === "penetration"; },
   };

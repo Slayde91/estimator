@@ -27,7 +27,7 @@ async function download(label){
   // failure capture, rather than terminate Node through an unhandled waiter.
   const pending=page.waitForEvent('download');pending.catch(()=>{});
   const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/schedule-xlsx'));responseWait.catch(()=>{});
-  const [response]=await Promise.all([responseWait,page.getByRole('button',{name:label,exact:true}).click()]);
+  const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : page.getByRole('button',{name:label,exact:true}).click()]);
   if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}
   const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return {path:target,request:response.request().postDataJSON()};
 }
@@ -112,7 +112,7 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
     await expect.poll(()=>renderHeldReady,{timeout:30000}).toBe(true);assert.equal(focusComplete,false,'Row focus must wait for source rendering, not just its first idle instant');
     const pdfRequests=[];const observe=request=>{if(request.url().endsWith('/export/marked-pdf'))pdfRequests.push(request);};page.on('request',observe);
     try{
-      await page.getByRole('button',{name:'Download PDF',exact:true}).click();
+      await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing());
       await expect(page.locator('#takeoffs-workspace .message')).toContainText('Finish the current takeoff operation before downloading.');
       assert.equal(pdfRequests.length,0,'A still-rendering row must not submit a premature export');
     }finally{page.off('request',observe);releaseRender();}

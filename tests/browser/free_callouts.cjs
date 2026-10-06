@@ -62,7 +62,7 @@ async function assertAnnotationView(annotation, rotation) {
 }
 async function download(filename) {
   const pending = page.waitForEvent("download"), request = page.waitForRequest(value => value.url().endsWith("/export/marked-pdf"));
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click(); const file = path.join(output, filename); await (await pending).saveAs(file); await idle(); return { file, request: (await request).postDataJSON() };
+  await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const file = path.join(output, filename); await (await pending).saveAs(file); await idle(); return { file, request: (await request).postDataJSON() };
 }
 function inspectPdf(file) {
   const script = "import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1]);segments=[]\nfor p in r.pages:\n p.extract_text(visitor_text=lambda t,m,tm,f,s:segments.append({'text':t,'font':f.get('/BaseFont','') if f else ''}))\nprint(json.dumps({'text':'\\n'.join(p.extract_text() or '' for p in r.pages),'pages':len(r.pages),'segments':segments,'geometry':[[list(p.mediabox),list(p.cropbox),p.rotation,p.get('/UserUnit',1)] for p in r.pages]}))";

@@ -9,6 +9,7 @@ from .catalog import ValidationError
 
 CHUNK_LIMIT = 8 * 1_048_576
 TOKEN = r'[A-Za-z0-9_-]{1,100}'
+OCR_WORKER_POLICY = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; worker-src 'none'; object-src 'none'; base-uri 'none'"
 
 
 class TakeoffHTTP:
@@ -18,8 +19,30 @@ class TakeoffHTTP:
         self.vendor = Path(root) / 'static' / 'vendor' / 'pdfjs'
         self.policy = policy
         self.manifest = json.loads((self.vendor / 'manifest.json').read_text(encoding='utf-8'))['files']
+        self.ocr_vendor = Path(root) / 'static' / 'vendor' / 'ocr'
+        self.ocr_manifest = json.loads((self.ocr_vendor / 'manifest.json').read_text(encoding='utf-8'))['files']
 
     def dispatch(self, handler, route):
+        if route.startswith('/vendor/ocr/'):
+            if handler.command != 'GET':
+                handler.send_payload(405, {'error': 'Method not allowed.'})
+                return True
+            name = route.removeprefix('/vendor/ocr/')
+            entry = self.ocr_manifest.get(name)
+            if entry is None:
+                handler.send_payload(404, {'error': 'Unknown OCR asset.'})
+                return True
+            data = (self.ocr_vendor / name).read_bytes()
+            if len(data) != entry['size'] or hashlib.sha256(data).hexdigest() != entry['sha256']:
+                raise ValidationError('The installed local OCR asset failed its integrity check.')
+            kind = 'text/javascript; charset=utf-8' if name.endswith('.js') else 'application/octet-stream'
+            if name == 'worker.min.js':
+                # Only this dedicated recognition worker may compile its pinned
+                # WebAssembly core. Main-page and other asset policies stay strict.
+                handler.send_payload(200, data, kind, content_security_policy_override=OCR_WORKER_POLICY)
+            else:
+                handler.send_payload(200, data, kind)
+            return True
         if route.startswith('/vendor/pdfjs/'):
             if handler.command != 'GET':
                 handler.send_payload(405, {'error': 'Method not allowed.'})

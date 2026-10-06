@@ -134,7 +134,7 @@ class PenetrationLabourExportTests(unittest.TestCase):
         self.assertEqual(self.store.list_quotes(), [])
 
     def test_unavailable_auto_and_unselected_pipe_are_distinguished_in_exports(self):
-        result = calculate(draft(AL=301))
+        result = calculate(draft(AL=0))
         self.assertEqual(result['summary']['grand_total'], '#VALUE!')
         records = input_records(build_penetration_register(result, result['definition'], {}))
         self.assertEqual(records['Pipe Labour'], ('Unavailable', 'Manual value required'))

@@ -114,6 +114,9 @@
 .takeoff-search-controls{flex:1 1 380px;flex-wrap:nowrap;margin:0;padding:0;border:0;gap:6px;min-width:0;background:transparent}
 .takeoff-search-controls input{flex:1;min-width:80px;width:0;max-width:none}
 .takeoff-search-controls select{max-width:130px}
+.takeoff-search-controls .takeoff-search-ocr{flex:0 0 78px;font-size:9px;line-height:1.2;white-space:normal}
+.takeoff-search-controls .takeoff-search-ocr input{flex:none;width:14px;min-width:14px;height:14px;margin:0}
+.takeoff-search-provenance{display:block;margin-top:3px;color:#536273;font-size:9px}
 .takeoff-source-documents{min-width:0}
 .takeoff-progress.sr-only{position:absolute;width:1px;height:1px;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .takeoff-heading-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
@@ -290,3 +293,4 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-overlay .takeoff-search-context{fill:#ffe900;stroke:none;pointer-events:none}
 .takeoff-overlay .takeoff-search-match{fill:#ff9d0040;stroke:#754300;stroke-width:.7;vector-effect:non-scaling-stroke;pointer-events:none}
 .takeoff-overlay .takeoff-search-match.active{stroke:#173955;stroke-width:2;fill:#ff8a0059}
+.takeoff-active-scale{align-self:center;margin:0 8px;font-size:12px;font-weight:600;line-height:1.3;max-width:220px;overflow-wrap:anywhere}

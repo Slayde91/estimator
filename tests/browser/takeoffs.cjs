@@ -189,8 +189,8 @@ async function boardJourney(info) {
   await expect(page.locator(`tr[data-item-id="${citedId}"]`).getByRole('checkbox',{name:/^Select /})).toBeChecked();
   await openItemSettings(page,citedId);
   await expect(page.locator('.takeoff-markup.selected')).toHaveCount(1);
-  await expect(page.locator('.takeoff-calibration-summary')).toContainText('7.25');
-  await expect(page.locator('.takeoff-calibration-summary')).toContainText('Synthetic board drawing');
+  await expect(page.locator('#takeoff-active-scale')).toContainText('Synthetic board drawing');
+  await expect(page.locator('.takeoff-item-actions .takeoff-identity')).toHaveCount(0);
   await screenshot('board-source-return.png');
   // A separately drawn unsupported combination must fail without changing requirements or schedules.
   await fitCurrentDrawing('synthetic-board.pdf');

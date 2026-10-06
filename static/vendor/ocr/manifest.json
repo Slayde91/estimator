@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "engine": "Tesseract.js",
+  "engine_version": "7.0.0",
+  "core_version": "7.0.0",
+  "language": "eng",
+  "model": "4.0.0_best_int",
+  "runtime": "local-only",
+  "authority": "approximate-search-only",
+  "packages": [
+    {
+      "package": "tesseract.js",
+      "version": "7.0.0",
+      "source_url": "https://registry.npmjs.org/tesseract.js/-/tesseract.js-7.0.0.tgz",
+      "integrity": "sha512-exPBkd+z+wM1BuMkx/Bjv43OeLBxhL5kKWsz/9JY+DXcXdiBjiAch0V49QR3oAJqCaL5qURE0vx9Eo+G5YE7mA==",
+      "archive_sha256": "9a93bf51c3387f945d10a24bf8b3a4bf2e45c7c7161b8242aafbaf9d3c4b606a"
+    },
+    {
+      "package": "tesseract.js-core",
+      "version": "7.0.0",
+      "source_url": "https://registry.npmjs.org/tesseract.js-core/-/tesseract.js-core-7.0.0.tgz",
+      "integrity": "sha512-WnNH518NzmbSq9zgTPeoF8c+xmilS8rFIl1YKbk/ptuuc7p6cLNELNuPAzcmsYw450ca6bLa8j3t0VAtq435Vw==",
+      "archive_sha256": "ba584355515eaff877552022853c0e71f2cb70466e759d1d6940484929718ee0"
+    },
+    {
+      "package": "@tesseract.js-data/eng",
+      "version": "1.0.0",
+      "source_url": "https://registry.npmjs.org/@tesseract.js-data/eng/-/eng-1.0.0.tgz",
+      "integrity": "sha512-mbTumm6KQPUHyzTPQaF3ObXYnx0SqqfV2nabqFVQBwD6Kl7PhGSLSzOlfFTWy0P3BjghaSKA2W9GB19Jk+ZcTg==",
+      "archive_sha256": "c9bddf2e2f0a214ac7918f3f4a3caf45e09ce8674fe26662ae7787ac8927f7bb"
+    }
+  ],
+  "files": {
+    "worker.min.js": {
+      "sha256": "576b7df7e3393e137e51849357c9adb53fe7ac1bb69bfa06cf3d61520f182c6d",
+      "size": 111307
+    },
+    "WORKER-NOTICES.txt": {
+      "sha256": "45f54171aeaa1d10c0c1a66f374b7bba1f02472b1487fbe892eec04f840002ac",
+      "size": 466
+    },
+    "TESSERACT-JS-LICENSE.md": {
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "size": 11357
+    },
+    "TESSERACT-JS-PACKAGE.json": {
+      "sha256": "fa342f37afd665595eca66ee867197c47c9ac35a7967123d1132c39a40b3dfbd",
+      "size": 2914
+    },
+    "core/tesseract-core-lstm.wasm.js": {
+      "sha256": "eef5f8b2f8e20e150680b20adaec4a60babafee3adbe8a94583c81fee46e8680",
+      "size": 3896484
+    },
+    "core/tesseract-core-simd-lstm.wasm.js": {
+      "sha256": "c58b46a4c796c0b8afccf77591d5b875b6896b45d402bbce8caa6f5362447b38",
+      "size": 3899472
+    },
+    "core/tesseract-core-relaxedsimd-lstm.wasm.js": {
+      "sha256": "861a536cf9ef8e63cb644d57bab39c388f37f7d6b6f60024b741c5f6b39a59b3",
+      "size": 3905767
+    },
+    "CORE-LICENSE.txt": {
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "size": 11358
+    },
+    "CORE-PACKAGE.json": {
+      "sha256": "554b867684677c81aa3ffab61f31e83618445fa09adee99e8fff3515cee6ca54",
+      "size": 1784
+    },
+    "lang/eng.traineddata.gz": {
+      "sha256": "45b4cb346724ac1774f1c36f42f182b887bcdb28ebe63e6fff90ac41f3fcff91",
+      "size": 2952873
+    },
+    "ENGLISH-MODEL-README.md": {
+      "sha256": "adcb325473fe124291951a0a3d29fcb54b341828881570e45c42dc2a3a61a45d",
+      "size": 381
+    },
+    "ENGLISH-MODEL-PACKAGE.json": {
+      "sha256": "b603509212196b5d09e10519bf252c1e344b79704d065e0d62886846f8554c80",
+      "size": 530
+    },
+    "NOTICE.txt": {
+      "sha256": "ef99f7ca9cec02fe1fe640586db9567c36f57c712a52cbfdd9353ea83297f6f5",
+      "size": 835
+    },
+    "MODEL-LICENSE.txt": {
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    }
+  },
+  "model_license_source": "https://raw.githubusercontent.com/tesseract-ocr/tessdata/main/LICENSE"
+}

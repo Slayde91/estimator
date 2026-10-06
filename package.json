@@ -50,7 +50,9 @@
     "test:takeoffs-search": "node tests/browser/text_search.cjs",
     "test:takeoffs-free-callouts": "node tests/browser/free_callouts.cjs",
     "test:takeoffs-viewer-shortcuts": "node tests/browser/viewer_shortcuts.cjs",
-    "test:takeoffs-library-links": "node tests/browser/library_links.cjs"
+    "test:takeoffs-library-links": "node tests/browser/library_links.cjs",
+    "test:takeoffs-library-barriers": "node tests/browser/library_barrier_import.cjs",
+    "test:takeoffs-drawing-ocr": "node tests/browser/drawing_ocr.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

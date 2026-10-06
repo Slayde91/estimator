@@ -1,6 +1,6 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { chooseNewDefect } = require('./physical_dialogs.cjs');
+const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real penetration sub-tabs, barrier markers and project round trips. Every
 // source, database and native-dialog save target belongs to this fixture.
@@ -73,9 +73,9 @@ async function apply(title) {
   const reply = await response(() => dialog(title, {}, 'Apply draft change'), '/physical/apply'); state = reply.snapshot; await idle(); return reply;
 }
 async function create(kind, fields, trigger) {
-  await page.getByRole('button', { name: trigger || `Add ${kind}`, exact: true }).click();
+  if (kind === 'defect') await startDefect(page); else await page.getByRole('button', { name: trigger || `Add ${kind}`, exact: true }).click();
   if (kind === 'defect') await chooseNewDefect(page);
-  const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
+  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
 }
 async function select(id) {
@@ -102,12 +102,11 @@ async function saveAndLoad(info) {
   await idle(); return saved;
 }
 async function exportDraft(format) {
-  await page.getByRole('button', { name: `Export draft ${format}`, exact: true }).click(); const pending = page.waitForEvent('download');
-  await dialog('Export unapproved physical draft?', {}, 'Export unapproved draft'); const download = await pending;
+  const pending = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const download = await pending;
   const filename = path.join(output, download.suggestedFilename()); await download.saveAs(filename); return filename;
 }
 async function downloadDrawing() {
-  const pending = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download PDF', exact: true }).click();
+  const pending = page.waitForEvent('download'); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing());
   const download = await pending, filename = path.join(output, download.suggestedFilename()); await download.saveAs(filename); return filename;
 }
 function pythonJson(code, filename) {
@@ -119,7 +118,8 @@ async function controls() {
     names: [...el.querySelectorAll('button')].map(button => button.getAttribute('aria-label') || button.textContent),
   }));
   assert.ok(controls.previous.includes('takeoff-register-table')); assert.ok(controls.next.includes('takeoff-register-controls'));
-  assert.deepEqual(controls.names, ['Add substrate', 'Delete selected records']);
+  assert.deepEqual(controls.names, ['Add substrate']);
+  assert.equal(await page.getByRole('button', { name: 'Delete selected records', exact: true }).evaluate(el => el.previousElementSibling.getAttribute('aria-label')), 'Bulk edit same-type records');
   const trash = page.getByRole('button', { name: 'Delete selected records', exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true });
   await expect(discard).toHaveCount(1); await expect(page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(1);
   await expect(page.locator('.takeoff-physical-register').getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(0);
@@ -130,8 +130,7 @@ async function controls() {
   }
   await expect(page.getByRole('button',{name:'Clear physical selection',exact:true})).toHaveCount(0);
   for (const format of ['CSV', 'XLSX']) {
-    const button = page.getByRole('button', { name: `Export draft ${format}`, exact: true }); await expect(button).toContainText(format);
-    const css = await style(button); assert.equal(css.background, 'rgb(43, 34, 40)'); assert.equal(css.color, 'rgb(255, 255, 255)');
+    await expect(page.getByRole('button', { name: `Export draft ${format}`, exact: true })).toHaveCount(0);
   }
   const scaleButton = page.getByRole('button', { name: 'Scale', exact: true }), countButton = page.getByRole('button', { name: 'Call-out', exact: true });
   assert.equal(await scaleButton.evaluate(el => !!el.closest('.takeoff-viewer') && !el.closest('.takeoff-tool-rail')), true, 'Scale is a viewer overlay');

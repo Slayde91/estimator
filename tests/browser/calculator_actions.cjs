@@ -3,9 +3,9 @@
 const { expect } = require('@playwright/test');
 async function chooseCalculator(page, name) {
   const firestopping = ['Firestopping', 'Firestopping Estimator'].includes(name);
-  const toggle = page.getByRole('button', { name: firestopping ? 'Estimates' : 'Calculators', exact: true });
+  const toggle = page.getByRole('button', { name: 'Calculators', exact: true });
   await toggle.hover();
-  const menu = page.getByRole('group', { name: firestopping ? 'Choose an estimate' : 'Choose a calculator', exact: true });
+  const menu = page.getByRole('group', { name: 'Choose a calculator', exact: true });
   await expect(menu).toBeVisible();
   await menu.getByRole('button', { name: firestopping ? 'Firestopping' : name, exact: true }).click();
 }

@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { chooseNewDefect } = require('./physical_dialogs.cjs');
+const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual topology and retained-image workflow. All sources and storage are disposable.
@@ -60,11 +60,11 @@ async function physicalForm(kind, scope) {
   }
 }
 async function create(kind, values, trigger = `Add ${kind}`) {
-  await idle(); await page.getByRole('button', { name: trigger, exact: true }).click();
+  await idle(); if (kind === 'defect') await startDefect(page); else await page.getByRole('button', { name: trigger, exact: true }).click();
   if (kind === 'defect') await chooseNewDefect(page);
-  const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:`Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
+  const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
   if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
-  const preview = await response(() => dialog(`Create draft ${kind}`, { ...values, 'Uncertainty / review state': 'human_review_required' }, 'Preview new draft'), '/physical/preview');
+  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, 'Uncertainty / review state': 'human_review_required' }, 'Preview new draft'), '/physical/preview');
   assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Item Details'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
@@ -94,7 +94,7 @@ async function showImage() {
   const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({substrate:'P',orientation:'M',service:'J',service_type:'K',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical');
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toHaveCount(0);
   assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 5), ['Select', 'Hide', 'Defect ID', 'Barrier ID', 'Service ID']);
   for (const kind of ['barrier', 'opening', 'service']) await expect(page.getByRole('button', { name: `Add ${kind}`, exact: true })).toHaveCount(0);
   await page.locator('#takeoff-upload').setInputFiles(info.physical_v2_fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
@@ -207,7 +207,7 @@ async function showImage() {
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(6); await select(cable); await page.getByLabel('Retained image extraction', { exact: true }).selectOption(firstExtraction); await expect(page.locator('details[data-image-occurrence]')).toHaveCount(3); await showImage();
   const afterReopen = await create('service', serviceFields, 'Add service to B-0001'); await identifier(afterReopen, 'S-0005'); await undo(); assert.equal(record(afterReopen).deleted, true); assert.deepEqual(identities().filter(entity => entity.id !== afterReopen), savedIdentities);
   await select(cable); assert.deepEqual(record(cable).evidence[0], evidence);
-  for (const format of ['CSV', 'XLSX']) { await page.getByRole('button', { name: `Export draft ${format}`, exact: true }).click(); const download = page.waitForEvent('download'); await dialog('Export unapproved physical draft?', {}, 'Export unapproved draft'); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
+  for (const format of ['CSV', 'XLSX']) { const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportPhysical(format.toLowerCase()), format); const file = await download; assert.ok(file.suggestedFilename().includes('UNAPPROVED-DRAFT')); const filename = path.join(output, file.suggestedFilename()); await file.saveAs(filename); assert.ok(fs.statSync(filename).size > 100); if (format === 'CSV') { const csv = fs.readFileSync(filename, 'utf8'); for (const value of [defect, otherDefect, empty, occupied, pipe, cable, 'D-0001', 'D-0002', 'B-0001', 'B-0002', 'S-0001', 'S-0005', evidence.image_sha256, 'UNAPPROVED DRAFT']) assert.ok(csv.includes(value), value); assert.ok(!/opening/i.test(csv), 'New exports must omit Opening fields and relationships'); } await idle(); }
   assert.ok(inventoryRequests.length); assert.ok(inventoryRequests.every(request => request.extraction && request.limit === '100')); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   await page.screenshot({ path: path.join(output, 'reopened-draft.png'), fullPage: true });
   await page.locator('.takeoff-viewport').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(output, 'drawing-viewport.png') });
@@ -219,7 +219,7 @@ async function showImage() {
   const legacy = await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); assert.deepEqual(legacy.takeoffs.physical, legacySaved.takeoffs.physical); assert.equal(legacy.takeoffs.physical.version, 1);
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await expect(page.locator('.takeoff-physical-register')).toContainText('Legacy hierarchy');
   await expect(page.locator('.takeoff-physical-register tr[data-physical-id]')).toHaveCount(4);
-  for (const label of ['Add defect', 'Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
+  for (const label of ['Bulk edit same-type records', 'Delete selected records', 'Extract images from selected PDF page']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await select(legacySaved.takeoffs.physical.services[0].id);
   for (const label of ['Preview physical edits', 'Delete draft record', 'Restore draft record', 'Change physical parent', 'Link original source page', 'Remove source association']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   const legacyInspector = page.getByRole('complementary', { name: 'Item Details' }), legacyNavigation = legacyInspector.getByRole('table', { name: 'Item Details navigation' });
@@ -233,7 +233,7 @@ async function showImage() {
     await expect(legacyInspector.locator('input, textarea, select:not(.takeoff-physical-navigation select)')).toHaveCount(0);
     assert.deepEqual(await page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot().physical), legacySaved.takeoffs.physical);
   }
-  await page.getByRole('button', { name: 'Export draft CSV', exact: true }).click(); const legacyDownload = page.waitForEvent('download'); await dialog('Export unapproved physical draft?', {}, 'Export unapproved draft'); const legacyFile = await legacyDownload; const legacyFilename = path.join(output, 'legacy-physical.csv'); await legacyFile.saveAs(legacyFilename);
+  const legacyDownload = page.waitForEvent('download'); await page.evaluate(() => window.CeasefireTakeoffs.exportPhysical('csv')); const legacyFile = await legacyDownload; const legacyFilename = path.join(output, 'legacy-physical.csv'); await legacyFile.saveAs(legacyFilename);
   const legacyCsv = fs.readFileSync(legacyFilename, 'utf8'); for (const value of ['opening_id', 'LEGACY-OPENING', 'Legacy 100 mm', ...['barriers', 'defects', 'openings', 'services'].flatMap(key => legacySaved.takeoffs.physical[key].map(entity => entity.id))]) assert.ok(legacyCsv.includes(value), value);
   assert.deepEqual(fs.readFileSync(info.legacy_project), legacyBytes); assert.deepEqual(fs.readFileSync(info.project), legacyBytes);
   await page.screenshot({ path: path.join(output, 'legacy-read-only.png'), fullPage: true }); await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).screenshot({ path: path.join(output, 'legacy-table.png') }); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);

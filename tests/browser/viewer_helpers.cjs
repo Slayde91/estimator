@@ -3,7 +3,8 @@
 const { expect } = require('@playwright/test');
 
 async function renderDrawing(page, action, pageNumber) {
-  const previous = await page.locator('.takeoff-viewport canvas').elementHandle();
+  const canvas = page.locator('.takeoff-viewport canvas');
+  const previous = await canvas.count() ? await canvas.elementHandle() : null;
   try {
     await action();
     await page.waitForFunction(old => {

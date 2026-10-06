@@ -30,7 +30,8 @@ class LabourPolicyTests(unittest.TestCase):
     def test_every_band_boundary_is_inclusive_and_above_boundary_uses_next_band(self):
         cases = ((.000001, .25), (50, .25), (50.000001, .30), (100, .30),
                  (100.000001, .35), (150, .35), (150.000001, .40), (200, .40),
-                 (200.000001, .45), (250, .45), (250.000001, .50), (300, .50))
+                 (200.000001, .45), (250, .45), (250.000001, .50), (300, .50),
+                 (300.000001, .50), (1000000000000, .50))
         for diameter, expected in cases:
             with self.subTest(diameter=diameter):
                 inputs = {'Y': self.collar, 'AL': diameter, 'AN': 3}
@@ -43,7 +44,7 @@ class LabourPolicyTests(unittest.TestCase):
                 self.assertEqual(inputs, before)
 
     def test_unavailable_automatic_pipe_hours_require_manual_only_with_selected_collar(self):
-        for diameter in (None, 0, -1, 300.000001, 1000000000000):
+        for diameter in (None, 0, -1, True, float('inf'), float('nan')):
             with self.subTest(diameter=diameter):
                 inputs = {'AL': diameter, 'AN': 3}
                 without = resolve_labour(inputs)
@@ -166,10 +167,15 @@ class LabourPolicyTests(unittest.TestCase):
         draft['rows'][0]['inputs']['AL'] = 81
         self.assertEqual(calculate(draft)['rows'][0]['outputs']['DF'], 1.8)
         draft['rows'][0]['inputs']['AL'] = 121
-        unavailable = calculate(draft)
-        self.assertEqual(unavailable['rows'][0]['outputs']['DF'], '#VALUE!')
-        self.assertTrue(any(error['cell'] == 'pipe_labour_hours'
-                            for error in unavailable['errors']))
+        before = deepcopy(draft)
+        overflow = calculate(draft)
+        self.assertEqual(overflow['rows'][0]['outputs']['DF'], 1.8)
+        self.assertEqual(overflow['rows'][0]['input_defaults']['pipe_labour_hours'], .9)
+        self.assertEqual(overflow['errors'], [])
+        self.assertEqual(draft, before)
+        for manual in (0, .123456789012345):
+            draft['rows'][0]['inputs']['pipe_labour_hours'] = manual
+            self.assertEqual(calculate(draft)['rows'][0]['outputs']['DF'], manual * 2)
 
     def test_manual_zero_bypasses_missing_diameter_and_null_resets_to_validation(self):
         zero = self.result(Y=self.collar, AN=2, pipe_labour_hours=0)
@@ -229,7 +235,7 @@ class LabourLibraryPolicyTests(unittest.TestCase):
             fields = {field['column']: field for field in definition()['row_fields']}
             original = data['libraries']['penetration']['items'][0]
             original['estimate']['draft']['rows'][0]['inputs'].update(
-                Y=fields['Y']['options'][0], W=fields['W']['options'][0], AL=301, AN=2)
+                Y=fields['Y']['options'][0], W=fields['W']['options'][0], AL=0, AN=2)
             path = root / 'library/library.json'
             path.write_text(json.dumps(data), encoding='utf-8')
             before = path.read_bytes()

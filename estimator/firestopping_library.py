@@ -925,6 +925,10 @@ class FirestoppingLibrary(ReferenceLibrary):
             fields = {'defect': {'label': record['library_id'], 'frl': clean(inputs.get('N')), 'notes': note},
                       'barrier': {'substrate': clean(inputs.get('P')), 'orientation': clean(inputs.get('M')), 'notes': note},
                       'service': None}
+            if inputs.get('L') not in (None, ''):
+                # Physical Barrier type is the retained penetration designation
+                # (Core hole/Oversized/Empty Opening), not inferred construction.
+                fields['barrier']['barrier_type'] = clean(inputs['L'])
             if inputs.get('K') and canonical_service_type(inputs.get('K')) != 'Blank Seal':
                 size = service_size_evidence(inputs)
                 fields['service'] = {'service_type': clean(inputs['K']), 'service': clean(inputs.get('J')), 'notes': note}

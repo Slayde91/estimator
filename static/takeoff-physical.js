@@ -441,7 +441,16 @@
     async function attachLibraryToSelected() {
       await completePendingEdits();ensureAvailable();ensureEditable();
       const entries=selectEntries();if(!entries.length||entries.some(entry=>entry.entity.deleted))throw new Error("Select active physical members to associate explicitly.");
-      const key=graphKey(),links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js"),selected=await links.choose(bridge,true);
+      const key=graphKey(),links=root.CeasefireTakeoffLibraryLinks || require("./takeoff-library-links.js");
+      if(!servicePlans()){
+        const owners=entries.map(entry=>[...ancestors(entry,state.index),entry].find(value=>value.kind==="defect"&&!value.entity.deleted));
+        if(owners.some(value=>!value)||new Set(owners.map(value=>value.entity.id)).size!==1)throw new Error("Select records under one Defect before adding another library item; cross-Defect selection is ambiguous.");
+        const defect=owners[0].entity,guard=()=>{ensureAvailable();if(graphKey()!==key)throw new Error("The selected physical context changed during library import. Select its current records again.");};
+        const context={scope:scope(),defect:copy(defect),selectedIds:entries.map(entry=>entry.entity.id),barriers:[...state.index.values()].filter(value=>value.kind==="barrier"&&!value.entity.deleted&&value.entity.defect_id===defect.id).map(value=>copy(value.entity))};
+        const result=await links.addUnderDefect(bridge,context,guard);if(!result)return;
+        displayReply(result.reply);await selectEntity(result.selected_id,false,false);return;
+      }
+      const selected=await links.choose(bridge,true);
       if(!selected)return;if(graphKey()!==key)throw new Error("The selected physical context changed during library search.");
       const answer=await ask("Define installation membership",[["mode","Installation grouping",[["repeated_installations","Separate repeated installations"],["combined_installation","One explicitly combined installation"]],"repeated_installations",true],["note","Explicit installation/grouping description","textarea",""]],
         `${entries.length} selected physical members will retain their own IDs. A shared barrier never proves a common opening. Describe any combined installation explicitly; confirm its quantity separately. This association does not approve technical applicability.`,"Create draft association");
@@ -936,11 +945,6 @@
     ui.readOnlyNotice = node("p", "takeoff-warning takeoff-physical-legacy-notice", "Legacy hierarchy — read-only until its relationships are assigned. Original records, fields and evidence are preserved for inspection and export."); ui.root.append(ui.readOnlyNotice);
     const tools = node("div", "takeoff-register-controls");
     tools.append(mutationButton("Extract images from selected PDF page", () => runBridge(async () => { const reply = await bridge.extract(); displayReply(reply); await refreshImagesAfterExtraction(); return reply; })), button("Refresh retained images", refreshImages));
-    for (const format of ["csv", "xlsx"]) {
-      const label = `Export draft ${format.toUpperCase()}`, download = button(label, () => runBridge(() => bridge.export(format), { title: "Export unapproved physical draft?", text: "The export is explicitly UNAPPROVED DRAFT and retains every parent/child ID. It does not represent approved quantities, a Physical Model Lock, technical suitability or commercial authority.", button: "Export unapproved draft" }), "button icon-only schedule-download-button takeoff-download-button calculator-export-excel");
-      const symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase())); download.replaceChildren(symbol); download.setAttribute("aria-label", label); download.title = label; tools.append(download);
-    }
-    if (bridge.drawingPdf) tools.append(bridge.drawingPdf());
     const matrix = button("Download Passive Fire Matrix PDF", () => runBridge(() => bridge.export("pdf")), "button icon-only schedule-download-button takeoff-download-button calculator-export-pdf");
     matrix.setAttribute("aria-label", "Download Passive Fire Matrix PDF"); matrix.title = "Download Passive Fire Matrix PDF";
     const matrixSymbol = node("span", "download-format-icon"); matrixSymbol.setAttribute("aria-hidden", "true"); matrixSymbol.append(node("span", "download-arrow", "▤"), node("span", "download-format", "PDF")); matrix.replaceChildren(matrixSymbol); tools.append(matrix);
@@ -950,8 +954,8 @@
     const deleteSelection = mutationButton("Delete selected records", deleteSelected, "button secondary takeoff-physical-delete-selected"); deleteSelection.setAttribute("aria-label", "Delete selected records"); deleteSelection.title = "Delete selected records"; deleteSelection.replaceChildren(deleteIcon());
     ui.selection = node("strong"); filters.append(search, deleted, ui.selection,
       ui.selectFiltered = iconAction("Select filtered records", () => { ensureAvailable(); const rows = matchingActiveRows(), deselect = rows.length > 0 && rows.every(row => state.selected.has(row.entity.id)); for (const row of rows) deselect ? state.selected.delete(row.entity.id) : state.selected.add(row.entity.id); state.inspectedId = null; renderData(); }, ["M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", "m7 12 3 3 7-7"]),
-      iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true)); ui.root.append(filters);
-    ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add, deleteSelection);
+      iconAction("Bulk edit same-type records", bulkEdit, ["M9 21H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M2 8h18M2 14h7M8 2v19M4 5l1 1 1-2M4 11l1 1 1-2M4 17l1 1 1-2M11 5h6M11 11h2", "M21 16a5 5 0 0 0-9 0m9-4v4h-4M12 19a5 5 0 0 0 9 0m-9 4v-4h4"], true), deleteSelection); ui.root.append(filters);
+    ui.table = node("div", "takeoff-register-table"); const addRow = node("div", "takeoff-physical-add-row"); ui.add = mutationButton("+", () => create(servicePlans() ? "barrier" : "defect"), "button secondary takeoff-physical-add-child takeoff-physical-add-defect"); addRow.append(ui.add); addRow.hidden = !servicePlans();
     ui.pagination = node("div", "takeoff-register-controls"); ui.inspector = node("aside", "takeoff-inspector takeoff-physical-inspector"); ui.inspector.setAttribute("aria-label", "Item Details"); ui.gallery = node("section", "takeoff-physical-gallery"); ui.gallery.setAttribute("aria-label", "Retained image gallery"); ui.root.append(ui.table, addRow, ui.pagination); if (bridge.inspectorContainer) bridge.inspectorContainer.append(ui.inspector); else ui.root.append(ui.inspector); ui.root.append(ui.gallery); container.replaceChildren(ui.root); renderData(); renderGallery(); void safe(loadFieldOptions);
     function imageInventorySummary(images) { const count = images.filter(image => !image.coverage_only).length; return `${count} retained image occurrences; ${images.length - count} source coverage records. Image count is not physical quantity.`; }
     async function refreshImagesAfterExtraction() { await refreshImages(true); }

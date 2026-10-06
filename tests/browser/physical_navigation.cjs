@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { chooseNewDefect } = require('./physical_dialogs.cjs');
+const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Physical detail navigation and explicit marker placement use a disposable source/server only.
 const { chromium, expect } = require('@playwright/test');
@@ -43,11 +43,11 @@ async function apply(title) {
 }
 async function create(kind, fields, trigger) {
   if (!trigger) {
-    if (kind === 'defect') await page.getByRole('button', { name: 'Add defect', exact: true }).click();
+    if (kind === 'defect') await startDefect(page);
     else await details().getByRole('button', { name: `Add ${kind} in Item Details`, exact: true }).click();
   } else await trigger();
   if (kind === 'defect') await chooseNewDefect(page);
-  const preview = await response(() => dialog(`Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
+  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, fields, 'Preview new draft'), '/physical/preview');
   await apply(`Create one draft ${kind}?`); return preview.changed_ids[0];
 }
 async function navigate(kind, id) {
@@ -57,7 +57,13 @@ async function navigate(kind, id) {
 async function screen([x, y]) {
   const overlay = page.locator('.takeoff-overlay'); await overlay.scrollIntoViewIfNeeded();
   await page.locator('.takeoff-viewport').evaluate(el => { const header = document.querySelector('header').getBoundingClientRect(); window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12); });
-  const box = await overlay.boundingBox(), point = [box.x + x / 842 * box.width, box.y + (595 - y) / 595 * box.height];
+  let box = await overlay.boundingBox(), point = [box.x + x / 842 * box.width, box.y + (595 - y) / 595 * box.height];
+  await page.locator('.takeoff-viewport').evaluate((el, [px, py]) => {
+    const frame = el.getBoundingClientRect();
+    el.scrollLeft += px - (frame.left + el.clientWidth / 2);
+    el.scrollTop += py - (frame.top + el.clientHeight / 2);
+  }, point);
+  box = await overlay.boundingBox(); point = [box.x + x / 842 * box.width, box.y + (595 - y) / 595 * box.height];
   assert.equal(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.takeoff-overlay'), point), true, `Pointer reaches drawing at ${point}`); return point;
 }
 async function place(id, point, explicit = false) {
@@ -71,6 +77,9 @@ async function place(id, point, explicit = false) {
 async function layout(width) {
   await page.setViewportSize({ width, height: width === 764 ? 764 : 1100 });
   await expect(details()).toBeVisible();
+  // A sourced Defect retains its Marker Settings above Item Details. The narrow
+  // pane scrolls; exercise native reachability before asserting table bounds.
+  await page.locator('.takeoff-physical-navigation').scrollIntoViewIfNeeded();
   const boxes = await page.evaluate(() => {
     const box = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
     return { source: box('.takeoff-source-documents'), details: box('.takeoff-physical-details'), drawing: box('.takeoff-viewport'), rail: box('.takeoff-tool-rail'), navigation: box('.takeoff-physical-navigation'), pageWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth };
@@ -78,7 +87,7 @@ async function layout(width) {
   assert.ok(boxes.source.y >= boxes.drawing.y && boxes.source.right <= boxes.drawing.right, `Source dropdown stays in the viewer at ${width}: ${JSON.stringify(boxes)}`);
   assert.ok(Math.abs(boxes.details.y - boxes.drawing.y) < 2 && Math.abs(boxes.rail.y - boxes.drawing.y) < 2, `Rail/details align with PDF at ${width}: ${JSON.stringify(boxes)}`);
   assert.ok(boxes.navigation.right <= boxes.details.right && boxes.navigation.width > 100, 'Compact dropdown table remains inside the detail pane');
-  assert.ok(boxes.navigation.y >= boxes.details.y && boxes.navigation.bottom <= boxes.details.bottom, 'Navigation is visible at the top of Item Details');
+  assert.ok(boxes.navigation.y >= boxes.details.y && boxes.navigation.bottom <= boxes.details.bottom, 'Item Details navigation is fully reachable within its scrollable pane');
   if (width > 1000) assert.ok(boxes.details.right <= boxes.drawing.x, 'Wide Item Details sits beside PDF');
   assert.ok(boxes.scrollWidth <= boxes.pageWidth + 1, 'No document horizontal overflow');
   await page.locator('.takeoff-drawing-layout').evaluate(el => { const header = document.querySelector('header').getBoundingClientRect(); window.scrollBy(0, el.getBoundingClientRect().top - Math.max(0, header.bottom) - 12); });
@@ -94,16 +103,17 @@ async function layout(width) {
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0);
+  await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-progress')).toContainText('Original source'); await idle();
   const defect = await create('defect', { 'Defect Ref.': 'NAV-A', FRL: '-/120/120' });
   const barrier = await create('barrier', { Location: 'Existing unplaced barrier', Substrate: 'Concrete/masonry wall' });
   const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '25' });
-  assert.equal(state.physical.barriers[0].defect_id, defect); assert.equal(state.physical.services[0].barrier_id, barrier); assert.equal(state.physical.barriers[0].marker, undefined); assert.equal(state.documents.length, 0);
+  assert.equal(state.physical.barriers[0].defect_id, defect); assert.equal(state.physical.services[0].barrier_id, barrier); assert.equal(state.physical.barriers[0].marker, undefined); assert.equal(state.documents.length, 1);
   const otherDefect = await create('defect', { 'Defect Ref.': 'NAV-B', FRL: '-/90/90' });
   const otherBarrier = await create('barrier', { Location: 'Second family' });
   const otherService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 3 });
-  assert.equal(state.physical.barriers[1].defect_id, otherDefect); assert.equal(state.physical.services[1].barrier_id, otherBarrier); evidence.createdWithoutPdf = { defect, barrier, service, otherDefect, otherBarrier, otherService };
+  assert.equal(state.physical.barriers[1].defect_id, otherDefect); assert.equal(state.physical.services[1].barrier_id, otherBarrier); evidence.createdFromSource = { defect, barrier, service, otherDefect, otherBarrier, otherService };
   await expect(page.locator('.takeoff-physical-register')).not.toContainText('UNAPPROVED DRAFT. These are recorded physical assertions');
-  await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-progress')).toContainText('Original source'); await idle();
+  await idle();
   await navigate('Barrier', barrier); await place(barrier, [270, 300], true);
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(details().getByLabel('Barrier ID in Item Details', { exact: true })).toHaveValue('');
   await expect(row(barrier).getByRole('checkbox', { name: /^Select / })).toBeChecked(); assert.equal(state.physical.barriers.length, 2); assert.equal(state.calibrations.length, 0);
@@ -140,7 +150,7 @@ async function layout(width) {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await snapshot(); assert.deepEqual(state.physical, beforeSave.physical); assert.deepEqual(state.service_plans, beforeSave.service_plans);
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.equal(sha(info.fixture), sourceBefore);
   evidence.savedReopened = true; fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, requests, errors }, null, 2));
-  console.log(`PASS: Physical creation without PDF, correct parents, explicit marker placement, Defect-first inspection, active-ID navigation, pending guards, separate Service Plans, responsive source/panel alignment and Save/Load. Evidence: ${output}`);
+  console.log(`PASS: Source Call-out creation, correct parents, explicit marker placement, Defect-first inspection, active-ID navigation, pending guards, separate Service Plans, responsive source/panel alignment and Save/Load. Evidence: ${output}`);
 })().catch(async error => {
   console.error(error); console.error(logs.slice(-4000));
   if (page) { await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); fs.writeFileSync(path.join(output, 'failure.txt'), await page.locator('body').innerText().catch(() => '')); }

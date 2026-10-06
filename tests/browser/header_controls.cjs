@@ -110,8 +110,8 @@ const box = locator => locator.boundingBox();
     for(const tool of ['Visibility',...name==='Steel'?['Markups','Legend']:name==='Duct'?['Legend']:[]]){const b=await page.getByRole('button',{name:tool,exact:true}).boundingBox();assert.equal(b.width,reference.width);assert.equal(b.height,reference.height);}
     const documents=await page.locator('.takeoff-source-documents').boundingBox(),search=await page.locator('.takeoff-search-controls').boundingBox();assert.ok(documents.x<search.x||documents.y<search.y);await expect(page.locator('.takeoff-drawing-layout>.takeoff-source-documents')).toHaveCount(0);
     const register = page.locator(['Defect Reports', 'Service Plans'].includes(name) ? '.takeoff-physical-register' : '.takeoff-register').filter({ visible: true });
-    const pdf = register.getByRole('button', { name: 'Download PDF', exact: true }); await expect(pdf).toBeVisible();
-    assert.equal(await pdf.evaluate(el => el.previousElementSibling.getAttribute('aria-label')), ['Defect Reports', 'Service Plans'].includes(name) ? 'Export draft XLSX' : 'Export XLSX');
+    for (const label of ['Download PDF', 'Export CSV', 'Export XLSX', 'Export draft CSV', 'Export draft XLSX']) await expect(register.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+    await expect(page.locator('#takeoff-active-scale')).toBeVisible();
     evidence.takeoffs.push(name);
   }
   assert.deepEqual(await snapshot(), initial, 'Layout and workspace selection must retain the project drafts');

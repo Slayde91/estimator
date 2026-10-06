@@ -64,6 +64,7 @@
     const blocked = !!state.takeoffLease || !state.draft || state.invalid.size > 0, scheduleBlocked = !!state.takeoffLease || !state.schedule.draft || state.schedule.invalid.size > 0;
     $("penetration-recalculate").disabled = blocked || state.calculating;
     for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).disabled = !!state.takeoffLease || !state.draft;
+    for (const id of ["penetration-new-item", "penetration-clear"]) $(id).disabled = !!state.takeoffLease || !state.draft || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule;
     $("penetration-add-to-library").disabled = blocked || state.creatingLibrary;
     $("penetration-add-to-schedule").disabled = blocked || scheduleBlocked || state.diagramChange !== undefined || state.addingSchedule || state.schedule.draft.rows.length >= state.definition.capacity;
     $("penetration-update-schedule").hidden = !state.edit;
@@ -655,6 +656,18 @@
     if (context !== state.context || stamp !== composerStamp()) return;
     state.edit = null; replaceComposer(defaultComposer()); message(); window.CeasefirePenetrationNavigation?.show?.(); await calculate();
   }
+  function clearCurrentItem() {
+    assertTakeoffWritable();
+    if (!state.draft || state.creatingLibrary || state.addingLibrary || state.addingSchedule || state.updatingSchedule) return;
+    document.activeElement?.blur?.();
+    const row = selected();
+    // Only the current copy is cleared. Its identity and edit recovery stay
+    // intact; project settings, schedule rows and their source bindings remain.
+    const cleared = { id: row.id, inputs: {} }, libraryId = validEdit() && scheduleRow(state.edit.id).library_item_id;
+    if (libraryId) cleared.library_item_id = libraryId;
+    replaceComposer({ globals: clone(state.draft.globals), rows: [cleared] });
+    message("Current item inputs cleared. Scheduled items and project settings are retained.");
+  }
   async function cancelEdit() {
     assertTakeoffWritable();
     document.activeElement?.blur?.(); if (!state.edit) return;
@@ -919,7 +932,7 @@
       if (row && errors.some(value => value.row_id === row.id && !String(value.message).startsWith("#"))) continue;
       const required = [];
       if (row && ["X", "Y", "Z", "AA", "AB", "AE"].some(key => inputs[key] != null && inputs[key] !== "") && !(inputs.O > 0)) required.push("Item QTY");
-      if (row && inputs.Y && inputs.pipe_labour_hours == null && !(inputs.AL > 0 && inputs.AL <= 300)) required.push("Diameter for automatic Pipe Labour, or manual Pipe Labour hours");
+      if (row && inputs.Y && inputs.pipe_labour_hours == null && !(numeric(inputs.AL) && inputs.AL > 0)) required.push("Diameter for automatic Pipe Labour, or manual Pipe Labour hours");
       if (row && (inputs.Y || inputs.AA) && !(inputs.AN > 0)) required.push(inputs.Y ? "Collar Multiplier" : "Wrap Multiplier");
       if (row && !inputs.W) required.push("Teams/Crews");
       if (required.length) addIssue(item + "Enter " + required.join(", ") + ".");
@@ -1014,6 +1027,8 @@
   for (const id of ["penetration-add", "penetration-estimator-add"]) $(id).addEventListener("click", addRow);
   for (const id of ["penetration-undo", "penetration-estimator-undo"]) $(id).addEventListener("click", undoRemove);
   $("penetration-add-to-library").addEventListener("click", addToLibrary);
+  $("penetration-new-item").addEventListener("click", addRow);
+  $("penetration-clear").addEventListener("click", clearCurrentItem);
   $("penetration-recalculate").addEventListener("click", () => calculate());
   $("penetration-settings").addEventListener("click", () => selectGroup("SETTINGS"));
   $("penetration-diagram-file").addEventListener("change", async event => {

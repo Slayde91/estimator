@@ -180,7 +180,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await expect(takeoffChoice(page, 'Steel')).toHaveAttribute('aria-pressed', 'true');
   await page.mouse.move(0, 0);
   await expect(modes).toBeHidden();
-  await expect(page.locator('.takeoff-register').getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible();
+  await expect(page.locator('.takeoff-register').getByRole('button', { name: 'Download PDF', exact: true })).toHaveCount(0);
   await scaleToggle.click(); await expect(scaleToggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Drawing calibration', { exact: true })).toBeFocused();
   await page.getByLabel('Drawing calibration', { exact: true }).press('Escape');
@@ -442,7 +442,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.locator(`tr[data-item-id="${ductId}"] .takeoff-row-link`).click(); await idle();
   const reopened = await snapshot(), stale = reopened.items.find(item => item.id === ductId);
   assert.notEqual(stale.state, 'confirmed'); assert.equal(stale.confirmation, null);
-  const exportResponse = page.waitForResponse(r => r.url().endsWith('/export/csv')); await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  const exportResponse = page.waitForResponse(r => r.url().endsWith('/export/csv')); await page.evaluate(() => window.CeasefireTakeoffs.exportRegister("csv"));
   assert.equal((await exportResponse).status(), 400);
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, strictCsp: true, mainId, detailId, ductId, baseline, ductBase, ductTotal, evidence, operations, errors, csp: [] }, null, 2));

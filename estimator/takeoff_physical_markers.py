@@ -100,6 +100,23 @@ def defect_summary(graph, defect):
     return [_defect_line(defect), *details]
 
 
+def inherited_library_barrier_parent(snapshot, graph, barrier):
+    """Only an explicitly imported, still-identical source shares its parent label."""
+    if graph['version'] != 2 or barrier['deleted'] or not barrier.get('marker'):
+        return None
+    defect = next((value for value in graph['defects'] if value['id'] == barrier['defect_id']), None)
+    if not defect or defect['deleted'] or not defect.get('annotation') or barrier['marker'] != defect['annotation']:
+        return None
+    for record in snapshot.get('library_assignments', {}).get('records', []):
+        selection = record.get('barrier_selection')
+        if (record['scope'] == 'defect_reports' and isinstance(selection, dict)
+                and type(selection.get('version')) is int and selection['version'] == 1
+                and selection.get('choice') == 'new' and selection.get('defect_id') == defect['id']
+                and selection.get('barrier_id') == barrier['id']):
+            return defect['id']
+    return None
+
+
 def export_physical_pdf(snapshot, request, documents):
     required = {'expected_revision', 'mode', 'physical_scope', 'document_id', 'item_ids'}
     object_fields(request, required | {'rendering'}, 'Penetration drawing export', required)
@@ -131,13 +148,15 @@ def export_physical_pdf(snapshot, request, documents):
             or any(not isinstance(value, str) for value in identifiers)
             or len(identifiers) != len(set(identifiers)) or set(identifiers) - callouts.keys()):
         raise ValidationError('Choose distinct active source annotations or marked barriers in this physical workspace.')
-    rows = []
+    rows = []; requested = set(identifiers)
     for identifier in identifiers:
         entity, marker, summary = callouts[identifier]
         if marker['document_id'] != document['id'] or marker['document_sha256'] != document['sha256']:
             raise ValidationError('Every exported annotation or marker must belong to the exact selected source PDF.')
         _, metadata = page_metadata(snapshot, document['id'], marker['page'])
         points([marker['point']], 'Physical source annotation or marker', metadata, 1, 1)
+        if summary is barrier_summary and inherited_library_barrier_parent(snapshot, graph, entity) in requested:
+            continue  # Its exact source and all child facts are in the requested Defect label.
         rows.append({'id': identifier, 'mode': 'penetrations',
             'geometry': {'kind': 'count', 'document_id': document['id'], 'page': marker['page'], 'points': [marker['point']]},
             'appearance': {'stroke_color': '#C00000', 'fill_color': '#C00000', 'fill_enabled': True,

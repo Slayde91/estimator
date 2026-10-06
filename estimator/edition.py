@@ -55,7 +55,9 @@ def excluded_route(route, edition):
             or route == '/api/takeoffs'
             or route.startswith('/api/takeoffs/') or route == '/vendor/pdfjs'
             or route.startswith('/vendor/pdfjs/') or route == '/static/vendor/pdfjs'
-            or route.startswith('/static/vendor/pdfjs/'))
+            or route.startswith('/static/vendor/pdfjs/') or route == '/vendor/ocr'
+            or route.startswith('/vendor/ocr/') or route == '/static/vendor/ocr'
+            or route.startswith('/static/vendor/ocr/'))
 
 
 def render_index(payload, edition):
@@ -78,6 +80,6 @@ def render_index(payload, edition):
             output.append(part)
     result = b''.join(output)
     if inside or any(value in result for value in (
-            b'/takeoff', b'/vendor/pdfjs', b'data-view="takeoffs"', b'id="view-takeoffs"')):
+            b'/takeoff', b'/vendor/pdfjs', b'/vendor/ocr', b'data-view="takeoffs"', b'id="view-takeoffs"')):
         raise ValidationError('The installed standard-edition page contains unsupported feature references.')
     return result

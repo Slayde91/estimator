@@ -3,6 +3,9 @@
 .penetration-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
 .penetration-fields .field>span{overflow-wrap:anywhere}
 .penetration-group-choices{display:flex;flex-wrap:nowrap;gap:0;overflow-x:auto;border-block:1px solid var(--line);scrollbar-width:thin;scrollbar-color:#d5c2c8 transparent}
+.penetration-input-tabs{display:flex;align-items:stretch;gap:8px;margin-bottom:16px;min-width:0}
+.penetration-input-tabs>.penetration-group-choices{flex:1;min-width:0;margin-bottom:0}
+.penetration-input-tabs>.penetration-settings-toggle{flex:0 0 48px;align-self:flex-start}
 .penetration-group{flex:0 0 auto;padding:16px 18px 13px;border:0;border-bottom:4px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:#66565f;font-size:12px;font-weight:750;text-transform:uppercase;white-space:nowrap}
 .penetration-group:hover{background:#fff8f3;color:var(--accent-dark)}
 .penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]{background:#fff5ee;color:var(--accent-dark);border-bottom-color:#ef3028}

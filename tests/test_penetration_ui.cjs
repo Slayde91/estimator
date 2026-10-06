@@ -6,6 +6,39 @@ const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 let passed=0;
 async function check(name,fn){const h=harness();h.api.applyProject(await h.api.prepareDefaults());await fn(h);passed++;console.log(`ok - ${name}`);}
 (async()=>{
+  await check('Clear blanks every current item input and pending source binding while retaining schedule, master settings, prices and stable current identity',async h=>{
+    const state=h.audit.state; state.draft.rows[0].inputs={T:'Precise draft',O:1.23456789012345,AL:950,W:'Installer',pipe_labour_hours:.123456789};state.draft.rows[0].library_item_id='OLD-SOURCE';
+    state.schedule.draft.rows=[{id:'scheduled',inputs:{T:'Saved schedule',O:4.987654321},library_item_id:'KEEP-SOURCE'}];
+    state.draft.globals.register_allowance_hours=.456789123;state.schedule.draft.globals.register_allowance_hours=.456789123;
+    state.result=result(state.draft);state.diagramChange={filename:'pending.png',content_base64:'AAAA'};state.invalid.set('["line-1","O"]',{value:'1e',error:'Incomplete'});
+    const id=state.selected,before=copy({schedule:state.schedule.draft,globals:state.draft.globals,pricing:h.pricing});
+    await h.byId('penetration-clear').emit('click');
+    assert.equal(state.selected,id);assert.deepEqual(copy(state.draft.rows),[{id,inputs:{}}]);assert.equal(state.diagramChange,undefined);assert.equal(state.invalid.size,0);assert.equal(state.result,null);
+    assert.deepEqual(copy({schedule:state.schedule.draft,globals:state.draft.globals,pricing:h.pricing}),before);assert.equal(h.api.hasUnsavedChanges(),true);
+    assert.equal(h.control('O').value,'');assert.equal(h.control('T').value,'');assert.equal(h.timers.size,0,'Clear does not let old calculation timers refill the composer');
+  });
+  await check('Clear preserves an editable schedule-copy recovery and rejects active linked destination leases',async h=>{
+    const state=h.audit.state;state.schedule.draft.rows=[{id:'saved',inputs:{T:'Scheduled',O:2.345678912},library_item_id:'KEEP-SOURCE'}];state.rowEpochs.set('saved',++state.nextEpoch);
+    state.draft.rows[0].inputs.T='Previous composer';await h.audit.selectRow('saved');const edit=state.edit,before=copy(state.schedule.draft);
+    await h.byId('penetration-clear').emit('click');assert.equal(state.edit,edit);assert.deepEqual(copy(state.schedule.draft),before);await h.audit.cancelEdit();assert.equal(state.draft.rows[0].inputs.T,'Previous composer');
+    state.takeoffLease={};const protectedDraft=copy(state.draft);await assert.rejects(()=>h.byId('penetration-clear').emit('click'),/Recover its outcome/);assert.deepEqual(copy(state.draft),protectedDraft);
+  });
+  await check('Clearing and refilling a valid library schedule edit preserves its original source and stable row identity on Update',async h=>{
+    const state=h.audit.state;state.schedule.draft.rows=[{id:'retained-row',inputs:{T:'Scheduled source',O:2.34567891234567},library_item_id:'RETAINED-LIBRARY'}];state.rowEpochs.set('retained-row',++state.nextEpoch);
+    state.draft.rows[0].inputs.T='Recovery composer';const previous=copy(state.draft),before=copy({schedule:state.schedule.draft,pricing:h.pricing});await h.audit.selectRow('retained-row');const edit=state.edit;
+    // A capture made on this copy is pending, so Clear restores the retained
+    // schedule identity rather than carrying that uncommitted source forward.
+    state.draft.rows[0].library_item_id='PENDING-NEW-LIBRARY';await h.byId('penetration-clear').emit('click');
+    assert.equal(state.edit,edit);assert.deepEqual(copy(edit.before.draft),previous);assert.deepEqual(copy(state.draft.rows),[{id:'retained-row',inputs:{},library_item_id:'RETAINED-LIBRARY'}]);assert.deepEqual(copy({schedule:state.schedule.draft,pricing:h.pricing}),before);assert.equal(h.byId('penetration-update-schedule').disabled,false);
+    const description=h.control('T','retained-row'),quantity=h.control('O','retained-row');description.value='Refilled exact source edit';await description.emit('input');quantity.value='4.98765432109876';await quantity.emit('input');await h.byId('penetration-update-schedule').emit('click');
+    assert.deepEqual(copy(state.schedule.draft.rows),[{id:'retained-row',inputs:{T:'Refilled exact source edit',O:4.98765432109876},library_item_id:'RETAINED-LIBRARY'}]);assert.deepEqual(copy(state.schedule.draft.globals),before.schedule.globals);assert.deepEqual(h.pricing,before.pricing);assert.equal(state.edit,null);
+  });
+  await check('Clear cannot restore stale schedule-source identity or enable Update after a row stamp or epoch changes',async h=>{
+    for(const conflict of ['target','epoch']){const state=h.audit.state;state.schedule.draft.rows=[{id:'retained-row',inputs:{T:'Scheduled source',O:2},library_item_id:'RETAINED-LIBRARY'}];state.rowEpochs.set('retained-row',++state.nextEpoch);await h.audit.selectRow('retained-row');
+      if(conflict==='target')state.schedule.draft.rows[0].library_item_id='CHANGED-LIBRARY';else state.rowEpochs.set('retained-row',++state.nextEpoch);const before=copy(state.schedule.draft);
+      await h.byId('penetration-clear').emit('click');assert.deepEqual(copy(state.draft.rows),[{id:'retained-row',inputs:{}}]);assert.equal(h.byId('penetration-update-schedule').disabled,true);await h.byId('penetration-update-schedule').emit('click');assert.deepEqual(copy(state.schedule.draft),before);await h.audit.cancelEdit();
+    }
+  });
   await check('Item summary names missing Pipe Labour inputs without hiding native calculation errors or changing the draft',async h=>{
     const state=h.audit.state, draft=copy(state.draft), response=result(state.draft);
     response.summary.labour=response.summary.grand_total=response.summary.total_days=response.summary.labour_hours='#VALUE!';
@@ -16,6 +49,14 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const state=h.audit.state;state.draft.rows[0].inputs={Y:'Collar',O:null,AL:null,AN:null,W:null};const response=result(state.draft);
     response.summary.labour='#VALUE!';response.errors=[{row_id:'line-1',cell:'F4',message:'#VALUE!'}];state.result=response;h.audit.render();
     const notes=h.byId('penetration-summary-notes').textContent;for(const name of ['Item QTY','Diameter','Pipe Labour','Collar Multiplier','Teams/Crews'])assert.ok(notes.includes(name));assert.ok(!notes.includes('#VALUE!'));
+  });
+  await check('Positive finite diameters above the final pipe band remain eligible for automatic hours without a false missing-diameter advisory',async h=>{
+    const state=h.audit.state;for(const diameter of [300.00000000001,950.123456789]){
+      state.draft.rows[0].inputs={Y:'Collar',O:1.23456789,AL:diameter,AN:1,W:'Installer'};const before=copy(state.draft),response=result(state.draft);
+      response.summary.labour='#VALUE!';response.errors=[{row_id:'line-1',cell:'F4',message:'#VALUE!'}];state.result=response;h.audit.render();
+      assert.doesNotMatch(h.byId('penetration-summary-notes').textContent,/Diameter for automatic Pipe Labour/);assert.deepEqual(copy(state.draft),before);
+    }
+    state.draft.rows[0].inputs.AL=0;state.result=result(state.draft);state.result.summary.labour='#VALUE!';state.result.errors=[{row_id:'line-1',cell:'F4',message:'#VALUE!'}];h.audit.render();assert.match(h.byId('penetration-summary-notes').textContent,/Diameter for automatic Pipe Labour/);
   });
   await check('Legacy workbook labels are presented as Category and Description',async h=>{
     assert.equal(h.control('J').getAttribute('aria-label'),'Item 1: Category');

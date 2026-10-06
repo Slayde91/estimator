@@ -1,6 +1,6 @@
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { renderDrawing } = require('./viewer_helpers.cjs');
+const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
 // Rendered scale/viewport and per-member vertical-dimension acceptance on disposable data.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -37,6 +37,38 @@ async function dialog(title, values, button) {
 }
 async function snapshot() { await idle(); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
 async function fit() { return renderDrawing(page, () => page.getByRole('button', { name: 'Fit page', exact: true }).click()); }
+async function viewWithHeldRender(id, source) {
+  await fit();
+  let heldRoute, heldResponse, renderError, release, finished, completedBeforeRelease = false;
+  const gate = new Promise(resolve => { release = resolve; }), fulfilled = new Promise(resolve => { finished = resolve; });
+  const handler = async route => {
+    if (route.request().postDataJSON()?.op !== 'record_render' || heldRoute) return route.continue();
+    heldRoute = route;
+    try { heldResponse = await route.fetch(); await gate; await route.fulfill({ response: heldResponse }); }
+    catch (error) { renderError = error; }
+    finally { finished(); }
+  };
+  let exports = 0, downloads = 0;
+  const watchRequest = request => { if (/\/export\/(csv|xlsx)$/.test(request.url())) exports++; }, watchDownload = () => { downloads++; };
+  await page.route('**/commands', handler); page.on('request', watchRequest); page.on('download', watchDownload);
+  const ready = viewRegisterItem(page, id, source).then(() => { completedBeforeRelease = true; }); ready.catch(() => {});
+  try {
+    await expect.poll(() => renderError ? 'failed' : heldResponse?.status(), { timeout: 30000 }).toBe(200);
+    await expect(page.locator('#takeoffs-workspace')).toHaveAttribute('aria-busy', 'true');
+    assert.equal(await page.locator('.takeoff-viewport').evaluate(el => el === document.activeElement), false);
+    const snapshotRefusal = await page.evaluate(() => { try { window.CeasefireTakeoffs.projectSnapshot(); return ''; } catch (error) { return error.message; } });
+    assert.match(snapshotRefusal, /Finish the current takeoff operation before saving/);
+    await page.evaluate(() => window.CeasefireTakeoffs.exportRegister('csv'));
+    const exportRefusal = await page.locator('#takeoffs-workspace [role="alert"]').innerText();
+    assert.match(exportRefusal, /Finish the current takeoff operation before downloading/);
+    assert.equal(exports, 0); assert.equal(downloads, 0); assert.equal(completedBeforeRelease, false);
+    evidence.rowViewReadiness = { heldRenderStatus: heldResponse.status(), completedBeforeRelease, snapshotRefusal, exportRefusal, exportRequestsBeforeCompletion: exports, downloadsBeforeCompletion: downloads };
+  } finally {
+    release(); if (heldRoute) await fulfilled; await page.unroute('**/commands', handler); page.off('request', watchRequest); page.off('download', watchDownload);
+  }
+  if (renderError) throw renderError;
+  await ready;
+}
 async function assertAutoHeight(layout) {
   const sizes = {};
   for (const selector of ['.takeoff-register', '.takeoff-register-table']) {
@@ -420,7 +452,9 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
 
   await load();
   for (const [mode, id, base, additionLength, total] of [['steel', mainId, baseline, .5, (baseline + .5) * 2], ['duct', ductId, ductBase, .75, ductTotal]]) {
-    await chooseTakeoff(page, mode); await page.locator(`tr[data-item-id="${id}"] .takeoff-row-link`).click(); await idle();
+    await chooseTakeoff(page, mode);
+    if (mode === 'steel') await viewWithHeldRender(id, { document_id: doc.id, page: 3 });
+    else await viewRegisterItem(page, id, { document_id: doc.id, page: 3 });
     await expect(page.locator(`tr[data-item-id="${id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {
       const pending = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
@@ -439,7 +473,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   // Untrusted project text cannot turn a changed source dimension into a valid confirmation.
   const tampered = JSON.parse(fs.readFileSync(info.project)); tampered.takeoffs.items.find(item => item.id === ductId).length_additions[0].length_mm = 1750;
   fs.writeFileSync(info.project, JSON.stringify(tampered)); await load(); await chooseTakeoff(page, 'duct');
-  await page.locator(`tr[data-item-id="${ductId}"] .takeoff-row-link`).click(); await idle();
+  await viewRegisterItem(page, ductId, { document_id: doc.id, page: 3 });
   const reopened = await snapshot(), stale = reopened.items.find(item => item.id === ductId);
   assert.notEqual(stale.state, 'confirmed'); assert.equal(stale.confirmation, null);
   const exportResponse = page.waitForResponse(r => r.url().endsWith('/export/csv')); await page.evaluate(() => window.CeasefireTakeoffs.exportRegister("csv"));

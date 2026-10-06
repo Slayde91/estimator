@@ -1,7 +1,7 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
-const { renderDrawing } = require('./viewer_helpers.cjs');
+const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
 // Rendered acceptance journey against a disposable production server and synthetic PDF.
 const { chromium, expect } = require('@playwright/test');
 const { openItemSettings, editSettings, settingsSettled } = require('./settings_helpers.cjs');
@@ -348,7 +348,7 @@ async function boardJourney(info) {
   await screenshot('confirmed-duct.png');
   const board = await boardJourney(info);
   await chooseTakeoff(page, 'duct');
-  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
+  await viewRegisterItem(page, ductId);
   // Project Save As commits the companion bundle before the complete JSON.
   const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page, 'Save');
@@ -365,7 +365,7 @@ async function boardJourney(info) {
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await chooseTakeoff(page, 'duct');
-  await page.locator(`tr[data-item-id=\"${ductId}\"] .takeoff-row-link`).click();
+  await viewRegisterItem(page, ductId);
   const reopenedDuct=await openItemSettings(page,ductId);await expect(reopenedDuct.getByLabel('WxH (mm)',{exact:true})).toHaveValue('600 x 400');await expect(reopenedDuct.getByLabel('Product',{exact:true})).toHaveValue('FyreWrap');await expect(reopenedDuct.getByLabel('Exposure',{exact:true})).toHaveValue('Internal');await expect(reopenedDuct.getByLabel('FRL',{exact:true})).toHaveValue('120/120/120');
   for (const format of ['CSV', 'XLSX']) {
     const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);

@@ -111,10 +111,28 @@ class EditionPolicyTests(unittest.TestCase):
             self.assertNotIn(forbidden, standard)
         for required in (b'/penetration.js', b'/calculators.js', b'/libraries.js', b'id="view-estimate"'):
             self.assertIn(required, standard)
-        for broken in (payload.replace(b'TAKEOFFS:START', b'TAKEOFFS:WRONG', 1),
-                       payload + b'<script src="/takeoffs.js"></script>'):
-            with self.assertRaises(ValidationError):
+        start, end = b'<!-- TAKEOFFS:START -->', b'<!-- TAKEOFFS:END -->'
+        broken_templates = {
+            'missing start': payload.replace(b'TAKEOFFS:START', b'TAKEOFFS:WRONG', 1),
+            'missing pair': payload.replace(start, b'', 1).replace(end, b'', 1),
+            'extra pair': payload + start + b'<p>Unexpected block</p>' + end,
+            'misordered': end + start + (start + end) * 4,
+            'overlapping': start + start + end + end + (start + end) * 3,
+            'unsupported outside block': payload + b'<script src="/takeoffs.js"></script>',
+            'ungated Home Takeoffs action': payload + b'<button data-home-view="takeoffs">Takeoffs</button>',
+        }
+        for label, broken in broken_templates.items():
+            with self.subTest(label=label), self.assertRaises(ValidationError):
                 render_index(broken, 'standard')
+
+    def test_standard_home_keeps_help_and_hides_takeoffs_card(self):
+        payload = (ROOT / 'static/index.html').read_bytes()
+        self.assertIn(b'data-home-view="takeoffs"', render_index(payload, 'full'))
+        standard = render_index(payload, 'standard')
+        for forbidden in (b'data-home-view="takeoffs"', b'/icons/navigation-takeoffs.png'):
+            self.assertNotIn(forbidden, standard)
+        for required in (b'data-home-view="help"', b'data-view="help"', b'id="view-help"'):
+            self.assertIn(required, standard)
 
 
 class StandardProjectTests(unittest.TestCase):
@@ -277,6 +295,8 @@ class StandardHTTPTests(unittest.TestCase):
             status, headers, payload = self.request('GET', '/')
             self.assertEqual(status, 200)
             self.assertNotIn(b'/takeoff', payload)
+            self.assertNotIn(b'data-home-view="takeoffs"', payload)
+            self.assertIn(b'data-home-view="help"', payload)
             self.assertIn(b'/penetration.js', payload)
             self.assertIn("script-src 'self'", headers['Content-Security-Policy'])
             status, _, payload = self.request('GET', '/api/bootstrap')

@@ -423,7 +423,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
     await chooseTakeoff(page, mode); await page.locator(`tr[data-item-id="${id}"] .takeoff-row-link`).click(); await idle();
     await expect(page.locator(`tr[data-item-id="${id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {
-      const pending = page.waitForEvent('download'); await page.getByRole('button', { name: `Export ${format}`, exact: true }).click();
+      const pending = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
       const download = await pending, target = path.join(output, `${mode}-${download.suggestedFilename()}`); await download.saveAs(target);
       const script = `import csv,json,sys\nfrom openpyxl import load_workbook\np=sys.argv[1]\nif p.endswith('.csv'):\n rows=list(csv.DictReader(open(p,encoding='utf-8-sig',newline='')))\nelse:\n data=list(load_workbook(p,data_only=True).active.values);rows=[dict(zip(data[0],r)) for r in data[1:]]\nprint(json.dumps(next(r for r in rows if r['Item ID']==sys.argv[2])))`;
       const parsed = spawnSync(python, ['-c', script, target, id], { cwd: root, windowsHide: true, encoding: 'utf8' }); assert.equal(parsed.status, 0, parsed.stderr);

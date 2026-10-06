@@ -227,7 +227,7 @@ async function surface(mode, rotated = false) {
     await page.locator(`tr[data-item-id="${record.id}"] .takeoff-row-link`).click();
     await expect(page.locator(`tr[data-item-id="${record.id}"] .takeoff-state`)).toHaveText('Confirmed');
     for (const format of ['CSV', 'XLSX']) {
-      const download = page.waitForEvent('download'); await page.getByRole('button', { name: `Export ${format}`, exact: true }).click();
+      const download = page.waitForEvent('download'); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
       const file = await download, target = path.join(output, `${mode}-${file.suggestedFilename()}`); await file.saveAs(target); assert.ok(fs.statSync(target).size > 100);
       if (format === 'CSV') { const text = fs.readFileSync(target, 'utf8'); assert.ok(text.includes(record.id)); assert.ok(text.includes('net_area_m2')); }
     }

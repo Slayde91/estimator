@@ -61,10 +61,10 @@ def excluded_route(route, edition):
 
 
 def render_index(payload, edition):
-    """Remove four reviewed feature blocks, failing closed on template drift."""
+    """Remove five reviewed feature blocks, failing closed on template drift."""
     if validate_edition(edition) == 'full':
         return payload
-    if payload.count(_START) != 4 or payload.count(_END) != 4:
+    if payload.count(_START) != 5 or payload.count(_END) != 5:
         raise ValidationError('The installed standard-edition page is incomplete.')
     output, inside = [], False
     for part in re.split(b'(' + re.escape(_START) + b'|' + re.escape(_END) + b')', payload):
@@ -80,6 +80,7 @@ def render_index(payload, edition):
             output.append(part)
     result = b''.join(output)
     if inside or any(value in result for value in (
-            b'/takeoff', b'/vendor/pdfjs', b'/vendor/ocr', b'data-view="takeoffs"', b'id="view-takeoffs"')):
+            b'/takeoff', b'/vendor/pdfjs', b'/vendor/ocr', b'data-view="takeoffs"',
+            b'data-home-view="takeoffs"', b'id="view-takeoffs"')):
         raise ValidationError('The installed standard-edition page contains unsupported feature references.')
     return result

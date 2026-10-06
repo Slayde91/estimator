@@ -17,6 +17,24 @@ const errors = [], outbound = [], evidence = {};
 const input = () => page.getByLabel('Search original document text', {exact: true});
 const results = () => page.locator('.takeoff-search-result');
 async function waitSearch() {await expect(page.locator('.takeoff-progress')).toContainText('Text search complete:', {timeout: 150000});}
+async function navigateOcrResult(result, pageNumber) {
+  const previous = await page.locator('.takeoff-page>canvas').elementHandle();
+  try {
+    await result.click();
+    // Selection becomes current only after navigateDocument has awaited both
+    // replacement rendering and its evidence commands. Input/quad updates can
+    // precede a late record_render request and do not establish that boundary.
+    await expect(result).toHaveAttribute('aria-current', 'true');
+    await page.waitForFunction(old => {
+      const canvas = document.querySelector('.takeoff-page>canvas'), overlay = document.querySelector('.takeoff-overlay');
+      return canvas && overlay && canvas !== old && !old.isConnected && canvas.width > 0 && canvas.height > 0
+        && Math.abs(parseFloat(canvas.style.width) - Number(overlay.getAttribute('width'))) < .01
+        && Math.abs(parseFloat(canvas.style.height) - Number(overlay.getAttribute('height'))) < .01;
+    }, previous);
+    await expect(page.getByLabel('Page number', {exact: true})).toHaveValue(String(pageNumber));
+    await settingsSettled(page);
+  } finally {await previous.dispose();}
+}
 async function originalOcrQuads(viewerRotation) {
   return page.evaluate(async viewerRotation => {
     const snapshot = window.CeasefireTakeoffs.projectSnapshot(), doc = snapshot.documents[0], lib = await import('/vendor/pdfjs/build/pdf.mjs');
@@ -77,7 +95,26 @@ function equalOriginalQuads(actual, expected) {
   assert.deepEqual(native, [1, 0, 0], 'Negative control: scanned labels have no embedded text'); evidence.nativePreferredScannedLabels = {native, labels};
   await expect(page.locator('.takeoff-search-match[data-search-geometry="ocr-word-bounds"]')).toHaveCount(4);
   await page.screenshot({path: path.join(output, 'ocr-horizontal.png')});
-  await results().filter({hasText: 'p2:'}).click(); await expect(page.getByLabel('Page number', {exact: true})).toHaveValue('2'); await settingsSettled(page);
+  let heldRender = null, releaseRender, navigationReady = false;
+  const releasedRender = new Promise(resolve => {releaseRender = resolve;});
+  const holdNavigationRender = async route => {
+    const request = route.request().postDataJSON();
+    if (request?.op !== 'record_render' || request.page !== 2 || heldRender) return route.continue();
+    heldRender = await route.fetch(); await releasedRender; await route.fulfill({response: heldRender});
+  };
+  await context.route('**/commands', holdNavigationRender);
+  const navigation = navigateOcrResult(results().filter({hasText: 'p2:'}), 2).then(() => {navigationReady = true;}); navigation.catch(() => {});
+  try {
+    await expect.poll(() => heldRender?.status()).toBe(200);
+    await expect(page.getByLabel('Page number', {exact: true})).toHaveValue('2');
+    await expect(page.locator('.takeoff-search-match[data-search-geometry="ocr-word-bounds"]')).toHaveCount(2);
+    await expect(page.locator('#takeoffs-workspace')).toHaveAttribute('aria-busy', 'true');
+    const refusal = await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return null;} catch (error) {return error.message;}});
+    assert.match(refusal, /Finish the current takeoff operation before saving/);
+    assert.equal(navigationReady, false, 'Navigation readiness cannot pass merely because the page input and OCR quads changed');
+    evidence.navigationReadiness = {heldRecordRenderStatus: heldRender.status(), pageInputAndOcrQuadsUpdatedBeforeCompletion: true, snapshotRefusal: refusal, completedBeforeRelease: navigationReady};
+  } finally {releaseRender(); await context.unroute('**/commands', holdNavigationRender);}
+  await navigation;
   await expect(page.locator('.takeoff-search-match[data-search-geometry="ocr-word-bounds"]')).toHaveCount(2);
   const geometry = await page.evaluate(() => [...document.querySelectorAll('.takeoff-search-match[data-search-geometry="ocr-word-bounds"]')].map(element => ({points: element.getAttribute('points'), geometry: element.dataset.searchGeometry})));
   assert.ok(geometry.every(record => record.points.split(' ').length === 4)); evidence.rotatedCropUserUnit = geometry;
